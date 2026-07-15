@@ -602,7 +602,7 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
                 "schema_version": 1,
                 "artifact_kind": "SourceTheoremFormalEnvironmentWorkOrder",
                 "work_order_id": "source_theorem_formal_environment_work_order:env",
-                "question_id": "split_conformal",
+                "question_id": "conformal_prediction_coverage",
                 "target_theorem_name": "split_conformal_coverage",
                 "target_lean_declaration": "split_conformal_coverage",
                 "source_theorem_target_known": True,
@@ -664,7 +664,7 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     manifest = run_source_theorem_formal_environment_proofengineer_bridge(
         out_dir=tmp_path / "bridge",
         queue_jsonl=queue_jsonl,
-        question_id="split_conformal",
+        question_id="conformal_prediction_coverage",
         run_signature_probes=True,
         lean_command=(
             sys.executable,
@@ -713,7 +713,7 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     repair_packets_path = Path(str(manifest["repair_packets_jsonl"]))
     repair_packet = json.loads(repair_packets_path.read_text(encoding="utf-8"))
     assert repair_packet["artifact_kind"] == "SourceTheoremFormalEnvironmentRepairPacket"
-    assert repair_packet["question_id"] == "split_conformal"
+    assert repair_packet["question_id"] == "conformal_prediction_coverage"
     assert repair_packet["missing_formal_symbols"] == ["Exchangeable", "orderStat"]
     assert repair_packet["typeclass_blockers"] == ["HSub ℕ ℝ ENNReal"]
     assert repair_packet["source_theorem_target_known"] is True
@@ -803,7 +803,7 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     proof_body_rows_path = Path(str(manifest["proof_body_work_orders_jsonl"]))
     proof_body_work_order = json.loads(proof_body_rows_path.read_text(encoding="utf-8"))
     assert proof_body_work_order["artifact_kind"] == "ExactSourceTheoremProofBodyWorkOrder"
-    assert proof_body_work_order["question_id"] == "split_conformal"
+    assert proof_body_work_order["question_id"] == "conformal_prediction_coverage"
     assert proof_body_work_order["target_theorem_name"] == "split_conformal_coverage"
     assert proof_body_work_order["target_ids"] == [
         "split_conformal_finite_sample_coverage"
@@ -867,7 +867,7 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     )
     execution_row = execution_queue_manifest["rows"][0]
     assert execution_row["artifact_kind"] == "ExactSourceTheoremProofBodyExecutionQueueRow"
-    assert execution_row["question_id"] == "split_conformal"
+    assert execution_row["question_id"] == "conformal_prediction_coverage"
     assert execution_row["execution_status"] == "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER"
     assert execution_row["owner_agent"] == "FormalizerProofEngineer"
     assert execution_row["target_theorem_name"] == "split_conformal_coverage"
@@ -931,7 +931,7 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
         "split_conformal_finite_sample_coverage"
     ]
     assert execution_row["live_proof_state_request"]["question_id"] == (
-        "split_conformal"
+        "conformal_prediction_coverage"
     )
     assert execution_row["live_proof_state_request"][
         "source_theorem_target_provenance"
@@ -960,7 +960,7 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert learning_row["learning_task"] == (
         "source_theorem_formal_environment_repair_feedback"
     )
-    assert learning_row["question_id"] == "split_conformal"
+    assert learning_row["question_id"] == "conformal_prediction_coverage"
     assert learning_row["target_ids"] == [
         "split_conformal_finite_sample_coverage"
     ]
@@ -1046,7 +1046,7 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert execution_result["execution_status"] == (
         "EXACT_SOURCE_PROOF_BODY_LOCAL_LEAN_FAILED"
     )
-    assert execution_result["question_id"] == "split_conformal"
+    assert execution_result["question_id"] == "conformal_prediction_coverage"
     assert execution_result["failure_classification"] == (
         "formal_environment_placeholder_primitives"
     )
@@ -1108,7 +1108,7 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert executor_learning_row["learning_task"] == (
         "exact_source_theorem_proof_body_execution_feedback"
     )
-    assert executor_learning_row["question_id"] == "split_conformal"
+    assert executor_learning_row["question_id"] == "conformal_prediction_coverage"
     assert executor_learning_row["trigger"] == (
         "EXACT_SOURCE_PROOF_BODY_LOCAL_LEAN_FAILED"
     )
@@ -1128,7 +1128,7 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
             "--queue-jsonl",
             str(queue_jsonl),
             "--question-id",
-            "split_conformal",
+            "conformal_prediction_coverage",
             "--out",
             str(cli_out),
         ]
@@ -1849,9 +1849,12 @@ def test_signature_probe_tracks_generated_source_primitives_as_open_environment(
                 "schema_version": 1,
                 "artifact_kind": "SourceTheoremFormalEnvironmentWorkOrder",
                 "work_order_id": "source_theorem_formal_environment_work_order:generated",
-                "question_id": "split_conformal",
+                "question_id": "conformal_prediction_coverage",
                 "target_theorem_name": "split_conformal_coverage_lower",
                 "target_lean_declaration": "split_conformal_coverage_lower",
+                "target_theorem_goal_ids": [
+                    "split_conformal_finite_sample_coverage"
+                ],
                 "source_theorem_target_known": True,
                 "candidate_artifact_path": str(candidate_artifact),
                 "failure_classification": "lean_import_environment_missing",
@@ -1871,7 +1874,7 @@ def test_signature_probe_tracks_generated_source_primitives_as_open_environment(
     manifest = run_source_theorem_formal_environment_proofengineer_bridge(
         out_dir=tmp_path / "bridge",
         queue_jsonl=queue_jsonl,
-        question_id="split_conformal",
+        question_id="conformal_prediction_coverage",
         run_signature_probes=True,
         lean_command=(
             sys.executable,

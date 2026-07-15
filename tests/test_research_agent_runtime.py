@@ -337,6 +337,9 @@ from ai_statistician.research_schema import (
     TheoremGoal,
 )
 from ai_statistician.theory_derivation_trace import theory_trace_alignment_contract
+from ai_statistician.typed_repair_handoff import (
+    build_typed_repair_handoff_contract,
+)
 from ai_statistician.theorem_reduction_closure_proofengineer_bridge import (
     run_theorem_reduction_closure_proofengineer_bridge,
 )
@@ -6734,6 +6737,178 @@ def test_architect_plan_guard_allows_planned_semantic_reviewer_handoff() -> None
         "GeneratedCodeSemanticReviewer"
     )
     assert guarded.failure_classification == ""
+
+
+def test_architect_plan_guard_allows_lineage_bound_reviewer_repair_backedge() -> None:
+    packet_id = "generated_code_semantic_review:packet"
+    execution_id = "generated_code_semantic_review:execution"
+    next_task_id = "algorithm:semantic-repair"
+    contract = build_typed_repair_handoff_contract(
+        source_reviewer_subsystem="GeneratedCodeSemanticReviewer",
+        source_task_id="semantic-review:q1",
+        target_repair_subsystem="AlgorithmEngineer",
+        target_task_id=next_task_id,
+        feedback_artifact_id=packet_id,
+        feedback_artifact_kind="GeneratedCodeSemanticReviewPacket",
+        feedback_execution_id=execution_id,
+        feedback_execution_artifact_kind=(
+            "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
+        ),
+        feedback_type="generated_code_semantic_review_feedback",
+        revision_count=1,
+        max_revisions=2,
+    )
+    next_task = AgentTask(
+        task_id=next_task_id,
+        owner_subsystem="AlgorithmEngineer",
+        objective="repair exact independently reviewed generated code",
+        inputs={
+            "question": {
+                "id": "q1",
+                "title": "typed repair",
+                "description": "exercise a reviewer repair backedge",
+                "tags": [],
+            },
+            "environment_feedback": {
+                "feedback_type": "generated_code_semantic_review_feedback",
+                "semantic_review_packet_id": packet_id,
+                "semantic_review_execution_id": execution_id,
+            },
+            "architect_context": {
+                "architect_runtime_plan": {
+                    "subsystem_execution_plan": [
+                        {
+                            "subsystem": "GeneratedCodeSemanticReviewer",
+                            "objective": "review generated code",
+                        }
+                    ]
+                },
+                "runtime_feedback_loop": {
+                    "direct_repair_handoff_contract": contract,
+                },
+            },
+        },
+    )
+    original = AgentStepResult(
+        status="REVISE",
+        rationale="independent review requires fresh generation",
+        produced_artifacts={
+            packet_id: {
+                "artifact_kind": "GeneratedCodeSemanticReviewPacket",
+                "packet_id": packet_id,
+            },
+            execution_id: {
+                "artifact_kind": (
+                    "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
+                ),
+                "execution_id": execution_id,
+            },
+        },
+        next_task=next_task,
+    )
+
+    guarded = _architect_plan_guard_handoff_policy(
+        iteration=2,
+        task=AgentTask(
+            task_id="semantic-review:q1",
+            owner_subsystem="GeneratedCodeSemanticReviewer",
+            objective="review generated code",
+        ),
+        subsystem_name="GeneratedCodeSemanticReviewer",
+        result=original,
+        blackboard=BlackboardState(project_id="typed-reviewer-backedge"),
+    )
+
+    assert guarded is original
+    assert guarded.next_task is next_task
+
+
+def test_architect_plan_guard_rejects_tampered_reviewer_repair_backedge() -> None:
+    packet_id = "generated_code_semantic_review:packet"
+    execution_id = "generated_code_semantic_review:execution"
+    contract = build_typed_repair_handoff_contract(
+        source_reviewer_subsystem="GeneratedCodeSemanticReviewer",
+        source_task_id="semantic-review:q1",
+        target_repair_subsystem="AlgorithmEngineer",
+        target_task_id="algorithm:semantic-repair",
+        feedback_artifact_id=packet_id,
+        feedback_artifact_kind="GeneratedCodeSemanticReviewPacket",
+        feedback_execution_id=execution_id,
+        feedback_execution_artifact_kind=(
+            "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
+        ),
+        feedback_type="generated_code_semantic_review_feedback",
+        revision_count=1,
+        max_revisions=2,
+    )
+    contract["target_task_id"] = "algorithm:tampered"
+    next_task = AgentTask(
+        task_id="algorithm:semantic-repair",
+        owner_subsystem="AlgorithmEngineer",
+        objective="repair generated code",
+        inputs={
+            "question": {
+                "id": "q1",
+                "title": "typed repair",
+                "description": "reject a changed review handoff",
+                "tags": [],
+            },
+            "environment_feedback": {
+                "feedback_type": "generated_code_semantic_review_feedback",
+                "semantic_review_packet_id": packet_id,
+                "semantic_review_execution_id": execution_id,
+            },
+            "architect_context": {
+                "architect_runtime_plan": {
+                    "subsystem_execution_plan": [
+                        {
+                            "subsystem": "GeneratedCodeSemanticReviewer",
+                            "objective": "review generated code",
+                        }
+                    ]
+                },
+                "runtime_feedback_loop": {
+                    "direct_repair_handoff_contract": contract,
+                },
+            },
+        },
+    )
+    original = AgentStepResult(
+        status="REVISE",
+        rationale="independent review requires fresh generation",
+        produced_artifacts={
+            packet_id: {
+                "artifact_kind": "GeneratedCodeSemanticReviewPacket",
+            },
+            execution_id: {
+                "artifact_kind": (
+                    "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
+                ),
+            },
+        },
+        next_task=next_task,
+    )
+
+    guarded = _architect_plan_guard_handoff_policy(
+        iteration=2,
+        task=AgentTask(
+            task_id="semantic-review:q1",
+            owner_subsystem="GeneratedCodeSemanticReviewer",
+            objective="review generated code",
+        ),
+        subsystem_name="GeneratedCodeSemanticReviewer",
+        result=original,
+        blackboard=BlackboardState(project_id="tampered-reviewer-backedge"),
+    )
+
+    assert guarded is not original
+    assert guarded.next_task is not None
+    assert guarded.next_task.owner_subsystem == "ArchitectCoordinator"
+    errors = guarded.next_task.inputs["architect_context"]["runtime_feedback_loop"][
+        "direct_repair_handoff_validation_errors"
+    ]
+    assert "typed repair handoff target_task_id mismatch" in errors
+    assert "typed repair handoff fingerprint mismatch" in errors
 
 
 def test_architect_plan_guard_keeps_same_owner_feedback_inside_worker_loop() -> None:
@@ -22761,7 +22936,15 @@ def test_simulation_engineer_normalizes_generated_code_draft_metadata() -> None:
 
 
 def test_formalizer_capability_eval_prompt_requires_lean_candidate() -> None:
-    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    question = OpenResearchQuestion(
+        id="semiparametric_limit_law",
+        title="Asymptotic linearity under nuisance estimation",
+        description=(
+            "Derive a centered asymptotic normal limit from an influence-function "
+            "expansion under a stated remainder condition."
+        ),
+        tags=("semiparametric", "asymptotics"),
+    )
     feedback = _runtime_environment_feedback_with_architect_directive(
         context={
             "runtime_requested_evidence_contract": {
@@ -22778,11 +22961,42 @@ def test_formalizer_capability_eval_prompt_requires_lean_candidate() -> None:
         theory_packet={
             "packet_id": "theory:test",
             "theorem_cards": [
-                {"id": "T1", "claim": "finite-sample conformal coverage"}
+                {
+                    "id": "T1",
+                    "claim": (
+                        "sqrt(n) times the centered estimator converges in law "
+                        "to a normal random variable with variance sigma squared"
+                    ),
+                    "assumptions": ["remainder is little-o in probability"],
+                }
             ],
             "lemma_cards": [],
-            "proof_plan": {"steps": ["rank argument"]},
+            "proof_plan": {"steps": ["linear expansion", "central limit theorem"]},
             "formalization_requests": [],
+            "theory_derivation_packet": {
+                "derivation_steps": [
+                    {
+                        "id": "linear_expansion",
+                        "claim": "the scaled error equals an empirical sum plus o_p(1)",
+                        "equation_or_argument": (
+                            "sqrt(n)(theta_hat-theta)=n^(-1/2) sum_i phi(O_i)+o_p(1)"
+                        ),
+                    }
+                ],
+                "assumption_ledger": [
+                    {
+                        "assumption": "finite nonzero variance of phi",
+                        "role": "central limit theorem",
+                    }
+                ],
+                "formalization_handoff": {
+                    "source_theorem_target": "T1",
+                    "candidate_lean_targets": ["theorem asymptotic_linear_limit ..."],
+                    "semantic_alignment_constraints": [
+                        "preserve centering, scaling, variance, and remainder assumption"
+                    ],
+                },
+            },
         },
         simulation_manifest={
             "manifest_id": "simulation:test",
@@ -22794,11 +23008,16 @@ def test_formalizer_capability_eval_prompt_requires_lean_candidate() -> None:
             "n_executed": 1,
             "promotion_ready": False,
         },
-        registered_problem={"problem_class": "distribution_free_conformal_prediction"},
+        registered_problem={
+            "question_id": question.id,
+            "problem_class": "semiparametric_asymptotics",
+            "estimand": "theta",
+            "assumptions": ["remainder is little-o in probability"],
+        },
         theorem_goals=[
             {
-                "id": "split_conformal_coverage",
-                "claim": "coverage",
+                "id": "asymptotic_linear_limit",
+                "claim": "centered scaled estimator converges to its normal limit",
                 "proof_obligations": ["prob_measure_univ"],
             }
         ],
@@ -22817,10 +23036,13 @@ def test_formalizer_capability_eval_prompt_requires_lean_candidate() -> None:
     ] is True
     assert "Capability-eval mode is active for Formalizer/ProofEngineer" in prompt
     assert "formalizer_lean_candidate_contract" in prompt
-    assert "initial_source_theorem_target_shape_guard" in prompt
-    assert "Initial coverage target-shape guard is active" in prompt
-    assert "probability/measure coverage lower-bound conclusion" in prompt
-    assert "standalone rank, ceiling" in prompt
+    assert "task_bound_formal_target_contract" in prompt
+    assert "asymptotic_linear_limit" in prompt
+    assert "linear_expansion" in prompt
+    assert "finite nonzero variance of phi" in prompt
+    assert "preserve centering, scaling, variance" in prompt
+    assert "initial_source_theorem_target_shape_guard" not in prompt
+    assert "probability_or_measure_coverage_claim" not in prompt
     assert "proof_bank_obligation_requests alone do not satisfy this gate" in prompt
 
 
@@ -23894,7 +24116,7 @@ def test_formalizer_capability_eval_validator_accepts_pending_premise_candidate(
     assert errors == []
 
 
-def test_formalizer_capability_eval_validator_rejects_target_drift_arithmetic_candidate() -> None:
+def test_formalizer_capability_eval_validator_does_not_guess_target_semantics() -> None:
     errors = _validate_capability_eval_formalizer_lean_candidate_packet(
         {
             "formal_targets": [
@@ -23930,11 +24152,10 @@ def test_formalizer_capability_eval_validator_rejects_target_drift_arithmetic_ca
         },
     )
 
-    assert any("violates target_shape_contract" in error for error in errors)
-    assert any("source_to_bridge_premise_derivation_candidates" in error for error in errors)
+    assert errors == []
 
 
-def test_formalizer_capability_eval_validator_rejects_initial_coverage_source_target_drift() -> None:
+def test_formalizer_capability_eval_validator_defers_domain_alignment_to_reviewer() -> None:
     errors = _validate_capability_eval_formalizer_lean_candidate_packet(
         {
             "question": {
@@ -23972,8 +24193,7 @@ def test_formalizer_capability_eval_validator_rejects_initial_coverage_source_ta
         },
     )
 
-    assert any("violates target_shape_contract" in error for error in errors)
-    assert any("target shape requires a probability/measure coverage" in error for error in errors)
+    assert errors == []
 
 
 def test_critic_evaluator_prompt_compacts_trace_context() -> None:
@@ -26313,7 +26533,7 @@ def test_runtime_learning_rows_surface_nested_target_metadata(tmp_path: Path) ->
     ]
 
 
-def test_formalization_validator_failure_infers_coverage_shape_contract_from_sorry_feedback() -> None:
+def test_formalization_validator_failure_does_not_infer_domain_shape_from_sorry() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     question_payload = {
         "id": question.id,
@@ -26384,53 +26604,24 @@ def test_formalization_validator_failure_infers_coverage_shape_contract_from_sor
     assert result.status == "REVISE"
     assert result.next_task is not None
     feedback = result.next_task.inputs["environment_feedback"]
-    assert feedback["target_shape_contract"]["inferred_from"] == (
-        "formalizer_packet_validation_errors"
-    )
-    assert feedback["target_shape_contract"]["required_conclusion_family"] == (
-        "probability_or_measure_coverage_claim"
-    )
-    assert "event_predicate" in feedback["target_shape_contract"][
-        "required_conclusion_shape"
-    ]
-    assert "coverage_event" not in feedback["target_shape_contract"][
-        "required_conclusion_shape"
-    ]
-    assert feedback["target_shape_contract"]["fail_closed_source_theorem_formal_target"][
-        "expected_status"
-    ] == "FORMAL_GAP"
-    assert feedback["target_shape_contract"]["helper_formal_target_escape_hatch"][
-        "required_provenance"
-    ]["source_theorem_target_known"] is False
-    assert feedback["target_drift_repair_contract"]["contract_kind"] == (
-        "source_theorem_target_two_lane_repair"
-    )
+    assert feedback.get("target_shape_contract", {}) == {}
+    assert feedback.get("target_drift_repair_contract", {}) == {}
     assert feedback["next_action_reference_contract"]["contract_kind"] == (
         "next_action_references_must_be_materialized"
     )
     assert feedback["next_action_reference_contract"]["failed_reference"] == (
         "source_to_bridge_premise_derivation_candidates"
     )
-    assert any(
-        "Do not name source_to_bridge_premise_derivation_candidates in next_actions"
-        in option
-        for option in feedback["candidate_reroute_options"]
-    )
     assert "no-sorry Lean proof" in feedback["required_repair"]
-    assert "source_theorem_target_known=false" in feedback["required_repair"]
     assert "Do not mention source_to_bridge_premise_derivation_candidates" in feedback[
         "required_repair"
     ]
     artifact = next(iter(result.produced_artifacts.values()))
-    assert artifact["target_shape_contract"]["inferred_from"] == (
-        "formalizer_packet_validation_errors"
-    )
+    assert artifact.get("target_shape_contract", {}) == {}
     learning_rows = _runtime_learning_rows(
         [{"blackboard": {"artifacts": result.produced_artifacts}}]
     )
-    assert learning_rows[0]["input_summary"]["target_shape_contract"][
-        "required_conclusion_family"
-    ] == "probability_or_measure_coverage_claim"
+    assert learning_rows[0]["input_summary"].get("target_shape_contract", {}) == {}
 
     prompt = build_formalizer_prompt(
         question=question,
@@ -26443,14 +26634,14 @@ def test_formalization_validator_failure_infers_coverage_shape_contract_from_sor
         proof_bank_runtime_memory_summary={},
         environment_feedback=feedback,
     )
-    assert "Mandatory coverage-theorem proof-hole reroute" in prompt
-    assert "Repeated coverage proof-hole escape hatch" in prompt
-    assert "source_theorem_target_known=false" in prompt
+    assert "Mandatory proof-hole packet repair" in prompt
+    assert "Mandatory coverage-theorem proof-hole reroute" not in prompt
+    assert "probability_or_measure_coverage_claim" not in prompt
     assert "Mandatory executable-work-item repair" in prompt
     assert "remove every next_actions instruction" in prompt
     assert "Mandatory next_action_reference_contract repair" in prompt
     assert "Repeated next_action_reference_contract failure" in prompt
-    assert "target_shape_contract" in prompt
+    assert "target_shape_contract" not in prompt
 
 
 def test_formalizer_packet_validation_feedback_preserves_local_lean_repair_contract() -> None:
@@ -29187,14 +29378,14 @@ def test_mathlib_root_failure_does_not_precheck_reject_no_import_candidate(
     assert row["local_lean_exit_status"] != "0"
 
 
-def test_formalizer_candidate_materialization_rejects_source_theorem_target_drift(
+def test_formalizer_candidate_materialization_defers_target_semantics_to_reviewer(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     task = AgentTask(
         task_id="task:formalizer_candidate_target_drift",
         owner_subsystem="FormalizationEvaluator",
-        objective="reject source theorem target drift",
+        objective="materialize source theorem candidate for independent review",
     )
     manifest = _materialize_formalizer_lean_candidate_artifacts(
         root=tmp_path / "formalizer_lean_candidates",
@@ -29211,7 +29402,6 @@ def test_formalizer_candidate_materialization_rejects_source_theorem_target_drif
                         "P(Y_{n+1} in C(X_{n+1})) >= 1 - alpha."
                     ),
                     "lean_statement_sketch": (
-                        "import Mathlib\n\n"
                         "theorem split_conformal_finite_sample_coverage "
                         "(n k : Nat) (alpha : Real) : "
                         "(k : Real) / (n + 1) <= 1 - alpha + 1 / (n + 1) := by\n"
@@ -29237,59 +29427,20 @@ def test_formalizer_candidate_materialization_rejects_source_theorem_target_drif
                 }
             ],
         },
-        local_lean=True,
+        local_lean=False,
         lean_project=None,
         lean_timeout=10,
     )
 
     row = manifest["candidate_rows"][0]
     assert manifest["n_candidate_sources"] == 1
-    assert manifest["n_candidate_artifacts_written"] == 0
-    assert manifest["n_precheck_rejected"] == 1
+    assert manifest["n_candidate_artifacts_written"] == 1
+    assert manifest["n_precheck_rejected"] == 0
     assert manifest["n_local_lean_checked"] == 0
-    assert row["precheck_status"] == "REJECTED_BY_RUNTIME_PRECHECK"
-    errors = " ".join(row["precheck_errors"])
-    assert "source-theorem target drift" in errors
-    assert "probability/coverage claim" in errors
-    feedback = _formalizer_lean_candidate_repair_feedback(manifest)
-    assert feedback is not None
-    assert feedback["failure_classification"] == (
-        "formalizer_lean_candidate_precheck_rejected"
-    )
-    target_shape_contract = feedback["target_shape_contract"]
-    assert target_shape_contract["contract_kind"] == (
-        "source_theorem_target_preservation"
-    )
-    assert target_shape_contract["required_conclusion_family"] == (
-        "probability_or_measure_coverage_claim"
-    )
-    assert target_shape_contract["source_theorem_target_action"].startswith(
-        "Emit a formal_targets entry"
-    )
-    assert "source_to_bridge_premise_derivation_candidates" in target_shape_contract[
-        "allowed_support_channels"
-    ]
-    assert target_shape_contract["fail_closed_source_theorem_formal_target"][
-        "expected_status"
-    ] == "FORMAL_GAP"
-    target_drift_contract = feedback["target_drift_repair_contract"]
-    assert target_drift_contract["contract_kind"] == (
-        "source_theorem_target_two_lane_repair"
-    )
-    assert target_drift_contract["source_theorem_lane"]["output_key"] == (
-        "formal_targets"
-    )
-    assert target_drift_contract["support_lemma_lane"]["forbidden_output_key"].startswith(
-        "formal_targets"
-    )
-    assert "probability coverage statement" in target_shape_contract[
-        "required_conclusion_shape"
-    ]
-    assert "event_predicate" in target_shape_contract["required_conclusion_shape"]
-    assert "coverage_event" not in target_shape_contract[
-        "required_conclusion_shape"
-    ]
-    assert "support lemma" in feedback["candidate_reroute_options"][0]
+    assert row["precheck_status"] == "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE"
+    assert row["precheck_errors"] == []
+    assert row["artifact_path"]
+    assert _formalizer_lean_candidate_repair_feedback(manifest) is None
 
 
 def test_formalizer_target_family_ignores_constraint_metavocabulary() -> None:
@@ -29803,11 +29954,12 @@ def test_formalizer_prompt_repair_instructions_preserve_source_theorem_after_tar
     assert "support_lemma_lane" in prompt
     assert "Target-shape contract is mandatory" in prompt
     assert "probability_or_measure_coverage_claim" in prompt
-    assert "Do not replace a coverage or marginal probability theorem" in prompt
+    assert "task-bound objects, assumptions, quantifiers, conclusion" in prompt
+    assert "Do not replace it with a standalone arithmetic" in prompt
     assert "FORMAL_GAP" in prompt
 
 
-def test_formalizer_prompt_infers_target_shape_contract_for_legacy_target_drift_feedback() -> None:
+def test_formalizer_prompt_infers_only_generic_contract_for_legacy_target_drift() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     prompt = build_formalizer_prompt(
         question=question,
@@ -29844,7 +29996,8 @@ def test_formalizer_prompt_infers_target_shape_contract_for_legacy_target_drift_
     )
 
     assert "Target-shape contract is mandatory" in prompt
-    assert "probability_or_measure_coverage_claim" in prompt
+    assert "probability_or_measure_coverage_claim" not in prompt
+    assert "task-bound objects, assumptions, quantifiers" in prompt
     assert "target_drift_repair_contract" in prompt
     assert "source_theorem_lane" in prompt
     assert "route the helper separately" in prompt
@@ -30391,7 +30544,7 @@ def test_formalizer_prompt_repair_instructions_handle_local_lean_timeout_without
     assert "source_to_bridge_premise_derivation_candidates" in prompt
 
 
-def test_formalizer_prompt_infers_coverage_target_contract_after_sorry_validation_failure() -> None:
+def test_formalizer_prompt_does_not_infer_domain_contract_from_proof_hole() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     prompt = build_formalizer_prompt(
         question=question,
@@ -30419,18 +30572,16 @@ def test_formalizer_prompt_infers_coverage_target_contract_after_sorry_validatio
     )
 
     assert "Mandatory proof-hole packet repair" in prompt
-    assert "source_theorem_target_preservation" in prompt
-    assert "probability_or_measure_coverage_claim" in prompt
-    assert "Mandatory coverage-theorem proof-hole reroute" in prompt
+    assert "source_theorem_target_preservation" not in prompt
+    assert "probability_or_measure_coverage_claim" not in prompt
+    assert "Mandatory coverage-theorem proof-hole reroute" not in prompt
     assert "source_to_bridge_premise_derivation_candidates" in prompt
-    assert "Do not replace the source theorem with arithmetic/rank helper lemmas" in prompt
     assert "FORMAL_GAP" in prompt
-    assert "route helper lemmas separately" in prompt
     assert "Every next_actions entry must point to an artifact or candidate actually emitted" in prompt
     assert "phantom executable action" in prompt
 
 
-def test_formalizer_prompt_escalates_repeated_coverage_target_shape_failure_to_gap_route() -> None:
+def test_formalizer_prompt_escalates_repeated_explicit_target_shape_failure() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     prompt = build_formalizer_prompt(
         question=question,
@@ -30464,9 +30615,9 @@ def test_formalizer_prompt_escalates_repeated_coverage_target_shape_failure_to_g
         },
     )
 
-    assert "Repeated coverage target-shape failure escalation" in prompt
+    assert "Repeated target-shape failure escalation" in prompt
     assert "Mandatory target-drift two-lane packet repair" in prompt
-    assert "support_lemma_lane is the only place" in prompt
+    assert "support_lemma_lane is the place" in prompt
     assert "do not emit any formal_targets entry with expected_status=NEEDS_KERNEL_CHECK" in prompt
     assert "must be expected_status=FORMAL_GAP with an empty Lean sketch" in prompt
     assert "source_to_bridge_premise_derivation_candidates" in prompt
@@ -31905,10 +32056,8 @@ def test_formalizer_lean_candidate_target_drift_feedback_preserves_source_shape(
     feedback = _formalizer_lean_candidate_repair_feedback(manifest)
 
     assert feedback is not None
-    assert feedback["target_shape_contract"]["required_conclusion_family"] == (
-        "probability_or_measure_coverage_claim"
-    )
-    assert "standalone arithmetic inequality" in feedback[
+    assert "required_conclusion_family" not in feedback["target_shape_contract"]
+    assert "result omitting task-bound objects or assumptions" in feedback[
         "target_shape_contract"
     ]["forbidden_replacement_shapes"]
     assert feedback["target_drift_repair_contract"]["source_theorem_lane"][
@@ -31928,9 +32077,9 @@ def test_formalizer_lean_candidate_target_drift_feedback_preserves_source_shape(
     assert learning_rows[0]["local_lean_diagnostic_classes"] == [
         "formalizer_source_theorem_target_drift"
     ]
-    assert learning_rows[0]["target_shape_contract"][
-        "required_conclusion_shape"
-    ].startswith("The Lean target should conclude a measure/probability")
+    assert "required_conclusion_shape" not in learning_rows[0][
+        "target_shape_contract"
+    ]
     assert "source theorem as FORMAL_GAP" in learning_rows[0][
         "local_lean_repair_contract"
     ]["target_drift_repair_rule"]
@@ -31949,7 +32098,7 @@ def test_formalizer_lean_candidate_target_drift_feedback_preserves_source_shape(
     )
 
     assert "Target-drift fail-closed rule" in prompt
-    assert "do not satisfy capability-eval by placing an arithmetic/rank helper" in prompt
+    assert "do not satisfy capability-eval by placing a narrower helper" in prompt
     assert "source theorem as expected_status=FORMAL_GAP" in prompt
     assert "source_to_bridge_premise_derivation_candidates" in prompt
 
@@ -64590,18 +64739,27 @@ def test_source_theorem_semantic_primitive_work_orders_follow_verified_closure()
 
 
 def test_runtime_semantic_primitive_gap_text_and_ids_are_policy_driven() -> None:
+    policy_context = {
+        "task_family": "split_conformal_finite_sample_coverage",
+        "question_id": "conformal_prediction_coverage",
+        "target_ids": ["split_conformal_finite_sample_coverage"],
+        "target_theorem_name": "split_conformal_coverage",
+    }
     assert runtime_module._source_semantic_primitive_id(
         "formalize exchangeability rank uniformity semantics",
         "source_theorem_semantic_primitives",
+        policy_context=policy_context,
     ) == "exchangeability_to_uniform_rank_semantics"
     assert runtime_module._source_semantic_primitive_id(
         "formalize probability measure semantics",
         "source_theorem_semantic_primitives",
+        policy_context=policy_context,
     ) == "probability_measure_semantics"
 
     gap = runtime_module._semantic_primitive_gap_for_placeholder_symbol(
         "Exchangeable",
         target_theorem_name="split_conformal_coverage",
+        context=policy_context,
     )
     assert "Exchangeable := True" in gap
     assert "finite-rank/uniformity bridge" in gap
@@ -64611,6 +64769,7 @@ def test_runtime_semantic_primitive_gap_text_and_ids_are_policy_driven() -> None
         runtime_module._semantic_primitive_gap_for_exact_goal_shape_obligation(
             "coverage_event_identification_from_hC",
             target_theorem_name="split_conformal_coverage",
+            context=policy_context,
         )
     )
     assert "hC" in exact_gap
@@ -71139,7 +71298,7 @@ def test_formalizer_normalizer_marks_executable_lean_as_kernel_check_work() -> N
     )
 
 
-def test_formalizer_normalizer_reroutes_source_theorem_shape_drift_helper(
+def test_formalizer_normalizer_preserves_candidate_for_semantic_reviewer(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -71241,26 +71400,12 @@ def test_formalizer_normalizer_reroutes_source_theorem_shape_drift_helper(
 
     helper_target = packet["formal_targets"][0]
     assert helper_target["expected_status"] == "NEEDS_KERNEL_CHECK"
-    assert helper_target["diagnostic_helper_not_source_theorem"] is True
-    assert helper_target["runtime_materialization_route"] == (
-        "source_theorem_proof_body_adapter_bridge"
-    )
-    assert helper_target["skip_formalizer_lean_candidate_materialization"] is True
     assert helper_target["source_theorem_target_provenance"][
         "source_theorem_target_known"
-    ] is False
-    assert any(
-        row["id"] == "source_theorem_formal_gap_after_target_shape_repair"
-        and row["expected_status"] == "FORMAL_GAP"
-        and not row["lean_statement_sketch"]
-        for row in packet["formal_targets"]
-    )
-    assert packet["rerouted_source_theorem_shape_drift_targets"][0]["id"] == (
-        "split_conformal_finite_sample_coverage_source_to_bridge_adapter"
-    )
-    assert packet["rerouted_source_theorem_shape_drift_targets"][0][
-        "runtime_materialization_route"
-    ] == "source_theorem_proof_body_adapter_bridge"
+    ] is True
+    assert "diagnostic_helper_not_source_theorem" not in helper_target
+    assert "runtime_materialization_route" not in helper_target
+    assert "rerouted_source_theorem_shape_drift_targets" not in packet
     materialization = _materialize_formalizer_lean_candidate_artifacts(
         root=tmp_path / "formalizer_lean_candidates",
         question=question,
@@ -71270,12 +71415,12 @@ def test_formalizer_normalizer_reroutes_source_theorem_shape_drift_helper(
             objective="route adapter-shaped helper to adapter bridge",
         ),
         proposal_packet=packet,
-        local_lean=True,
+        local_lean=False,
         lean_project=None,
         lean_timeout=10,
     )
-    assert materialization["n_candidate_sources"] == 0
-    assert materialization["n_candidate_artifacts_written"] == 0
+    assert materialization["n_candidate_sources"] == 1
+    assert materialization["n_candidate_artifacts_written"] == 1
     assert materialization["n_precheck_rejected"] == 0
     direct_adapter_materialization = _materialize_formalizer_lean_candidate_artifacts(
         root=tmp_path / "direct_adapter_formalizer_lean_candidates",

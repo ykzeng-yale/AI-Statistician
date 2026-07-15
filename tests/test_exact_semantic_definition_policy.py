@@ -10,10 +10,12 @@ from ai_statistician.exact_semantic_definition_policy import (
     exact_semantic_definition_formal_environment_declaration_hint,
     exact_semantic_definition_formal_environment_statement_repair_rules,
     exact_semantic_definition_formal_environment_symbol_names,
+    exact_semantic_definition_fallback_source_anchor_role,
     exact_semantic_definition_import_policy_blocker,
     exact_semantic_definition_policy_pack_ids,
     exact_semantic_definition_placeholder_policy,
     exact_semantic_definition_placeholder_policy_for_context,
+    exact_semantic_definition_placeholder_policy_for_mapping,
     exact_semantic_definition_proof_body_adapter_synthesis_instruction,
     exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation,
     exact_semantic_definition_source_to_bridge_anchor_fallback_names,
@@ -144,6 +146,78 @@ def test_placeholder_policy_requires_matching_task_context() -> None:
         "question_id",
         "theorem_target_id",
     }
+
+
+def test_placeholder_policy_mapping_selector_fails_closed_across_task_families() -> None:
+    conformal, conformal_applicability = (
+        exact_semantic_definition_placeholder_policy_for_mapping(
+            "alpha",
+            {
+                "input_summary": {
+                    "question_id": "conformal_prediction_coverage",
+                    "target_theorem_name": "split_conformal_coverage",
+                }
+            },
+        )
+    )
+    survival, survival_applicability = (
+        exact_semantic_definition_placeholder_policy_for_mapping(
+            "alpha",
+            {
+                "task_family": "survival",
+                "question_id": "right_censored_survival_km",
+                "target_theorem_goal_ids": [
+                    "km_fixed_time_coverage_lower_bound"
+                ],
+            },
+        )
+    )
+
+    assert conformal.policy_id == "split_conformal_coverage.alpha"
+    assert conformal_applicability["applicable"] is True
+    assert survival.policy_id == "generic_exact_semantic_definition_placeholder"
+    assert survival_applicability["applicable"] is False
+
+
+def test_pack_level_hints_require_matching_task_context() -> None:
+    conformal_context = {
+        "question_id": "conformal_prediction_coverage",
+        "target_theorem_name": "split_conformal_coverage",
+    }
+    survival_context = {
+        "task_family": "survival",
+        "question_id": "right_censored_survival_km",
+        "target_theorem_name": "km_fixed_time_coverage_lower_bound",
+    }
+
+    assert "Exchangeable" in exact_semantic_definition_formal_environment_symbol_names(
+        context=conformal_context,
+    )
+    assert exact_semantic_definition_formal_environment_symbol_names(
+        context=survival_context,
+    ) == ()
+    assert exact_semantic_definition_formal_environment_statement_repair_rules(
+        context=survival_context,
+    ) == ()
+    assert (
+        exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation(
+            context=survival_context,
+        )
+        == ()
+    )
+    assert exact_semantic_definition_source_to_bridge_premise_binder_aliases(
+        context=survival_context,
+    ) == ()
+    assert exact_semantic_definition_source_to_bridge_anchor_fallback_names(
+        premise_name="hCoverage",
+        premise_target_type="rank and covered event",
+        context=survival_context,
+    ) == ()
+    assert exact_semantic_definition_fallback_source_anchor_role(
+        name="hC",
+        binder_type="covered = event",
+        context=survival_context,
+    ) == "source_parameter"
 
 
 def test_split_conformal_policy_owns_source_to_bridge_hints() -> None:

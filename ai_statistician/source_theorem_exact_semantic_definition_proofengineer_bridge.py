@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .exact_semantic_definition_policy import (
-    exact_semantic_definition_placeholder_policy,
+    exact_semantic_definition_placeholder_policy_for_mapping,
 )
 from .fingerprint import stable_hash
 from .research_architect import KERNEL_PROOF_BOUNDARY
@@ -840,7 +840,10 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
         else:
             context[key] = value
     if placeholder_symbol:
-        for key, value in _placeholder_policy_context(placeholder_symbol).items():
+        for key, value in _placeholder_policy_context(
+            placeholder_symbol,
+            context=row,
+        ).items():
             context.setdefault(key, value)
     candidate_request = context.get("candidate_definition_request", {})
     if isinstance(candidate_request, Mapping):
@@ -853,7 +856,10 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
         if placeholder_symbol and not normalized_request.get("placeholder_symbol"):
             normalized_request["placeholder_symbol"] = placeholder_symbol
         if placeholder_symbol:
-            for key, value in _placeholder_policy_context(placeholder_symbol).items():
+            for key, value in _placeholder_policy_context(
+                placeholder_symbol,
+                context=row,
+            ).items():
                 normalized_request.setdefault(key, value)
         if target_ids and not normalized_request.get("target_ids"):
             normalized_request["target_ids"] = list(target_ids)
@@ -895,14 +901,22 @@ def _first_context_value(sources: Sequence[Mapping[str, Any]], key: str) -> Any:
     return None
 
 
-def _placeholder_policy_context(placeholder_symbol: str) -> dict[str, str]:
+def _placeholder_policy_context(
+    placeholder_symbol: str,
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     placeholder = str(placeholder_symbol or "").strip()
     if not placeholder:
         return {}
-    policy = exact_semantic_definition_placeholder_policy(placeholder)
+    policy, applicability = exact_semantic_definition_placeholder_policy_for_mapping(
+        placeholder,
+        context,
+    )
     return {
         "placeholder_policy_id": policy.policy_id,
         "placeholder_policy_scope": policy.policy_scope,
+        "placeholder_policy_applicability": applicability,
     }
 
 

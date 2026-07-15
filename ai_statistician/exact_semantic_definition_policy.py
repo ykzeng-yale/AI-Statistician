@@ -74,6 +74,27 @@ class ExactSemanticDefinitionSourceAnchorRoleRule:
     case_sensitive_binder_type: bool = True
 
 
+@dataclass(frozen=True)
+class ExactSemanticDefinitionPolicyPack:
+    policy_pack_id: str
+    scope: str
+    task_families: tuple[str, ...]
+    question_ids: tuple[str, ...]
+    theorem_target_ids: tuple[str, ...]
+    placeholder_policies: tuple[ExactSemanticDefinitionPlaceholderPolicy, ...]
+    source_anchor_role_rules: tuple[
+        ExactSemanticDefinitionSourceAnchorRoleRule,
+        ...,
+    ] = ()
+    formal_environment_statement_repair_rules: tuple[dict[str, Any], ...] = ()
+    source_to_bridge_adapter_object_names: tuple[str, ...] = ()
+    source_to_bridge_semantic_anchor_fallback_rules: tuple[
+        dict[str, Any],
+        ...,
+    ] = ()
+    default_source_anchor_role: str = "source_parameter"
+
+
 def compact_exact_semantic_placeholder_key(value: str) -> str:
     return "".join(ch.lower() for ch in str(value or "") if ch.isalnum())
 
@@ -104,6 +125,7 @@ def _registry_from_policies(
 
 def _load_policy_pack_policies() -> tuple[
     tuple[ExactSemanticDefinitionPlaceholderPolicy, ...],
+    tuple[ExactSemanticDefinitionPolicyPack, ...],
     tuple[str, ...],
     tuple[ExactSemanticDefinitionSourceAnchorRoleRule, ...],
     tuple[dict[str, Any], ...],
@@ -113,8 +135,9 @@ def _load_policy_pack_policies() -> tuple[
 ]:
     policy_dir = Path(__file__).resolve().parent / "policies"
     if not policy_dir.exists():
-        return (), (), (), (), (), (), "source_parameter"
+        return (), (), (), (), (), (), (), "source_parameter"
     policies: list[ExactSemanticDefinitionPlaceholderPolicy] = []
+    policy_packs: list[ExactSemanticDefinitionPolicyPack] = []
     policy_pack_ids: list[str] = []
     source_anchor_role_rules: list[ExactSemanticDefinitionSourceAnchorRoleRule] = []
     statement_repair_rules: list[dict[str, Any]] = []
@@ -138,24 +161,24 @@ def _load_policy_pack_policies() -> tuple[
         pack_theorem_target_ids = _string_tuple(
             payload.get("theorem_target_ids")
         )
-        source_anchor_role_rules.extend(
+        pack_source_anchor_role_rules = tuple(
             _source_anchor_role_rule_from_mapping(row)
             for row in payload.get("source_anchor_role_fallback_rules", [])
             if isinstance(row, Mapping)
         )
+        source_anchor_role_rules.extend(pack_source_anchor_role_rules)
         default_role = str(
             payload.get("default_source_anchor_role", "") or ""
         ).strip()
         if default_role:
             default_source_anchor_role = default_role
-        adapter_object_names.extend(
-            _string_tuple(
-                payload.get(
-                    "source_to_bridge_adapter_object_names_requiring_source_instantiation"
-                )
+        pack_adapter_object_names = _string_tuple(
+            payload.get(
+                "source_to_bridge_adapter_object_names_requiring_source_instantiation"
             )
         )
-        semantic_anchor_fallback_rules.extend(
+        adapter_object_names.extend(pack_adapter_object_names)
+        pack_semantic_anchor_fallback_rules = tuple(
             _source_to_bridge_semantic_anchor_fallback_rule_from_mapping(row)
             for row in payload.get(
                 "source_to_bridge_semantic_anchor_fallback_rules",
@@ -163,18 +186,20 @@ def _load_policy_pack_policies() -> tuple[
             )
             if isinstance(row, Mapping)
         )
-        statement_repair_rules.extend(
+        semantic_anchor_fallback_rules.extend(pack_semantic_anchor_fallback_rules)
+        pack_statement_repair_rules = tuple(
             _formal_environment_statement_repair_rule_from_mapping(row)
             for row in payload.get("formal_environment_statement_repair_rules", [])
             if isinstance(row, Mapping)
         )
+        statement_repair_rules.extend(pack_statement_repair_rules)
         raw_policies = payload.get("placeholder_policies", [])
         if not isinstance(raw_policies, list):
             raise ValueError(
                 "policy pack placeholder_policies must be a list: "
                 f"{path}"
             )
-        policies.extend(
+        pack_policies = tuple(
             _policy_from_mapping(
                 row,
                 source_path=path,
@@ -185,8 +210,31 @@ def _load_policy_pack_policies() -> tuple[
             for row in raw_policies
             if isinstance(row, Mapping)
         )
+        policies.extend(pack_policies)
+        policy_packs.append(
+            ExactSemanticDefinitionPolicyPack(
+                policy_pack_id=policy_pack_id or path.stem,
+                scope=pack_scope,
+                task_families=tuple(dict.fromkeys(pack_task_families)),
+                question_ids=pack_question_ids,
+                theorem_target_ids=pack_theorem_target_ids,
+                placeholder_policies=pack_policies,
+                source_anchor_role_rules=pack_source_anchor_role_rules,
+                formal_environment_statement_repair_rules=(
+                    pack_statement_repair_rules
+                ),
+                source_to_bridge_adapter_object_names=(
+                    pack_adapter_object_names
+                ),
+                source_to_bridge_semantic_anchor_fallback_rules=(
+                    pack_semantic_anchor_fallback_rules
+                ),
+                default_source_anchor_role=default_role or "source_parameter",
+            )
+        )
     return (
         tuple(policies),
+        tuple(policy_packs),
         tuple(dict.fromkeys(policy_pack_ids)),
         tuple(source_anchor_role_rules),
         tuple(statement_repair_rules),
@@ -425,6 +473,8 @@ def _string_mapping(value: Any) -> Mapping[str, str]:
 
 def _build_policy_registry() -> tuple[
     Mapping[str, ExactSemanticDefinitionPlaceholderPolicy],
+    tuple[ExactSemanticDefinitionPlaceholderPolicy, ...],
+    tuple[ExactSemanticDefinitionPolicyPack, ...],
     tuple[str, ...],
     tuple[ExactSemanticDefinitionSourceAnchorRoleRule, ...],
     tuple[dict[str, Any], ...],
@@ -435,6 +485,7 @@ def _build_policy_registry() -> tuple[
     registry: dict[str, ExactSemanticDefinitionPlaceholderPolicy] = {}
     (
         policy_pack_policies,
+        policy_packs,
         policy_pack_ids,
         source_anchor_role_rules,
         formal_environment_statement_repair_rules,
@@ -446,6 +497,8 @@ def _build_policy_registry() -> tuple[
         registry.update(_registry_from_policies(policy_pack_policies))
     return (
         registry,
+        policy_pack_policies,
+        policy_packs,
         policy_pack_ids,
         source_anchor_role_rules,
         formal_environment_statement_repair_rules,
@@ -457,6 +510,8 @@ def _build_policy_registry() -> tuple[
 
 (
     EXACT_SEMANTIC_DEFINITION_PLACEHOLDER_POLICIES,
+    EXACT_SEMANTIC_DEFINITION_POLICY_CANDIDATES,
+    EXACT_SEMANTIC_DEFINITION_POLICY_PACKS,
     EXACT_SEMANTIC_DEFINITION_POLICY_PACK_IDS,
     EXACT_SEMANTIC_DEFINITION_SOURCE_ANCHOR_ROLE_RULES,
     EXACT_SEMANTIC_DEFINITION_FORMAL_ENVIRONMENT_STATEMENT_REPAIR_RULES,
@@ -470,30 +525,80 @@ def exact_semantic_definition_policy_pack_ids() -> tuple[str, ...]:
     return EXACT_SEMANTIC_DEFINITION_POLICY_PACK_IDS
 
 
-def exact_semantic_definition_source_anchor_role_rules() -> tuple[
+def _policy_packs_for_optional_context(
+    context: Mapping[str, Any] | None,
+) -> tuple[ExactSemanticDefinitionPolicyPack, ...]:
+    if context is None:
+        return EXACT_SEMANTIC_DEFINITION_POLICY_PACKS
+    return exact_semantic_definition_policy_packs_for_mapping(context)
+
+
+def _placeholder_policies_for_optional_context(
+    context: Mapping[str, Any] | None,
+) -> tuple[ExactSemanticDefinitionPlaceholderPolicy, ...]:
+    if context is None:
+        return tuple(
+            {
+                policy.policy_id: policy
+                for policy in EXACT_SEMANTIC_DEFINITION_POLICY_CANDIDATES
+            }.values()
+        )
+    return _exact_semantic_policies_for_mapping(context)
+
+
+def exact_semantic_definition_source_anchor_role_rules(
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> tuple[
     ExactSemanticDefinitionSourceAnchorRoleRule,
     ...,
 ]:
-    return EXACT_SEMANTIC_DEFINITION_SOURCE_ANCHOR_ROLE_RULES
+    return tuple(
+        rule
+        for pack in _policy_packs_for_optional_context(context)
+        for rule in pack.source_anchor_role_rules
+    )
 
 
-def exact_semantic_definition_formal_environment_statement_repair_rules() -> tuple[
+def exact_semantic_definition_formal_environment_statement_repair_rules(
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> tuple[
     dict[str, Any],
     ...,
 ]:
-    return EXACT_SEMANTIC_DEFINITION_FORMAL_ENVIRONMENT_STATEMENT_REPAIR_RULES
+    return tuple(
+        rule
+        for pack in _policy_packs_for_optional_context(context)
+        for rule in pack.formal_environment_statement_repair_rules
+    )
 
 
-def exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation() -> tuple[
+def exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation(
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> tuple[
     str,
     ...,
 ]:
-    return EXACT_SEMANTIC_DEFINITION_SOURCE_TO_BRIDGE_ADAPTER_OBJECT_NAMES
+    return tuple(
+        dict.fromkeys(
+            name
+            for pack in _policy_packs_for_optional_context(context)
+            for name in pack.source_to_bridge_adapter_object_names
+            if name
+        )
+    )
 
 
-def exact_semantic_definition_proof_body_adapter_synthesis_instruction() -> str:
+def exact_semantic_definition_proof_body_adapter_synthesis_instruction(
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> str:
     adapter_names = (
-        exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation()
+        exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation(
+            context=context,
+        )
     )
     adapter_text = ", ".join(adapter_names) if adapter_names else "the policy-listed"
     return (
@@ -501,14 +606,18 @@ def exact_semantic_definition_proof_body_adapter_synthesis_instruction() -> str:
         "closure declaration is available, but direct exact/simpa attempts do not "
         "instantiate it against the exact source theorem. Build a source-to-closure "
         f"adapter that supplies policy-listed source instantiations for {adapter_text} "
-        "and bridges ENNReal/real-valued coverage before retrying the exact theorem."
+        "and bridges the codomain or missing theorem components reported by the live "
+        "Lean goal before retrying the exact theorem."
     )
 
 
-def exact_semantic_definition_source_to_bridge_premise_aliases() -> tuple[str, ...]:
+def exact_semantic_definition_source_to_bridge_premise_aliases(
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> tuple[str, ...]:
     aliases: list[str] = []
     seen_policy_ids: set[str] = set()
-    for policy in EXACT_SEMANTIC_DEFINITION_PLACEHOLDER_POLICIES.values():
+    for policy in _placeholder_policies_for_optional_context(context):
         if policy.policy_id in seen_policy_ids:
             continue
         seen_policy_ids.add(policy.policy_id)
@@ -516,16 +625,21 @@ def exact_semantic_definition_source_to_bridge_premise_aliases() -> tuple[str, .
     return tuple(dict.fromkeys(alias for alias in aliases if alias))
 
 
-def exact_semantic_definition_source_to_bridge_premise_binder_aliases() -> tuple[
+def exact_semantic_definition_source_to_bridge_premise_binder_aliases(
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> tuple[
     str,
     ...,
 ]:
     semantic_object_keys = {
         compact_exact_semantic_placeholder_key(name)
-        for name in EXACT_SEMANTIC_DEFINITION_SOURCE_TO_BRIDGE_ADAPTER_OBJECT_NAMES
+        for name in exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation(
+            context=context,
+        )
     }
     seen_policy_ids: set[str] = set()
-    for policy in EXACT_SEMANTIC_DEFINITION_PLACEHOLDER_POLICIES.values():
+    for policy in _placeholder_policies_for_optional_context(context):
         if policy.policy_id in seen_policy_ids:
             continue
         seen_policy_ids.add(policy.policy_id)
@@ -542,42 +656,53 @@ def exact_semantic_definition_source_to_bridge_premise_binder_aliases() -> tuple
         )
     aliases = [
         alias
-        for alias in exact_semantic_definition_source_to_bridge_premise_aliases()
+        for alias in exact_semantic_definition_source_to_bridge_premise_aliases(
+            context=context,
+        )
         if compact_exact_semantic_placeholder_key(alias)
         not in semantic_object_keys
     ]
     return tuple(dict.fromkeys(aliases))
 
 
-def exact_semantic_definition_source_to_bridge_source_anchor_terms() -> tuple[
+def exact_semantic_definition_source_to_bridge_source_anchor_terms(
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> tuple[
     str,
     ...,
 ]:
     terms: list[str] = []
     seen_policy_ids: set[str] = set()
-    for policy in EXACT_SEMANTIC_DEFINITION_PLACEHOLDER_POLICIES.values():
+    for policy in _placeholder_policies_for_optional_context(context):
         if policy.policy_id in seen_policy_ids:
             continue
         seen_policy_ids.add(policy.policy_id)
         terms.extend(policy.required_anchor_names)
         terms.extend(policy.source_to_bridge_required_anchor_names)
         terms.extend(policy.source_anchor_roles.keys())
-    for rule in EXACT_SEMANTIC_DEFINITION_SOURCE_ANCHOR_ROLE_RULES:
+    for rule in exact_semantic_definition_source_anchor_role_rules(context=context):
         terms.extend(rule.name_keys)
         terms.extend(rule.name_prefixes)
         terms.extend(rule.binder_type_contains)
-    for rule in EXACT_SEMANTIC_DEFINITION_SOURCE_TO_BRIDGE_SEMANTIC_ANCHOR_FALLBACK_RULES:
-        terms.extend(str(value or "") for value in rule.get("text_contains_any", ()))
-        terms.extend(str(value or "") for value in rule.get("anchor_names", ()))
+    for pack in _policy_packs_for_optional_context(context):
+        for rule in pack.source_to_bridge_semantic_anchor_fallback_rules:
+            terms.extend(str(value or "") for value in rule.get("text_contains_any", ()))
+            terms.extend(str(value or "") for value in rule.get("anchor_names", ()))
     return tuple(dict.fromkeys(term for term in terms if term))
 
 
-def exact_semantic_definition_source_to_bridge_semantic_terms() -> tuple[str, ...]:
+def exact_semantic_definition_source_to_bridge_semantic_terms(
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> tuple[str, ...]:
     terms: list[str] = [
-        *EXACT_SEMANTIC_DEFINITION_SOURCE_TO_BRIDGE_ADAPTER_OBJECT_NAMES,
+        *exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation(
+            context=context,
+        ),
     ]
     seen_policy_ids: set[str] = set()
-    for policy in EXACT_SEMANTIC_DEFINITION_PLACEHOLDER_POLICIES.values():
+    for policy in _placeholder_policies_for_optional_context(context):
         if policy.policy_id in seen_policy_ids:
             continue
         seen_policy_ids.add(policy.policy_id)
@@ -602,6 +727,7 @@ def exact_semantic_definition_source_to_bridge_anchor_fallback_names(
     premise_name: str,
     premise_target_type: str,
     semantic_requirements: tuple[str, ...] = (),
+    context: Mapping[str, Any] | None = None,
 ) -> tuple[str, ...]:
     text = " ".join(
         [
@@ -611,25 +737,29 @@ def exact_semantic_definition_source_to_bridge_anchor_fallback_names(
         ]
     )
     names: list[str] = []
-    for rule in EXACT_SEMANTIC_DEFINITION_SOURCE_TO_BRIDGE_SEMANTIC_ANCHOR_FALLBACK_RULES:
-        case_sensitive = _bool_like(rule.get("case_sensitive", False), default=False)
-        haystack = text if case_sensitive else text.lower()
-        terms = tuple(str(value or "") for value in rule.get("text_contains_any", ()))
-        if not case_sensitive:
-            terms = tuple(value.lower() for value in terms)
-        if terms and not any(term and term in haystack for term in terms):
-            continue
-        for anchor_name in rule.get("anchor_names", ()) or ():
-            value = str(anchor_name or "").strip()
-            if value and value not in names:
-                names.append(value)
+    for pack in _policy_packs_for_optional_context(context):
+        for rule in pack.source_to_bridge_semantic_anchor_fallback_rules:
+            case_sensitive = _bool_like(rule.get("case_sensitive", False), default=False)
+            haystack = text if case_sensitive else text.lower()
+            terms = tuple(str(value or "") for value in rule.get("text_contains_any", ()))
+            if not case_sensitive:
+                terms = tuple(value.lower() for value in terms)
+            if terms and not any(term and term in haystack for term in terms):
+                continue
+            for anchor_name in rule.get("anchor_names", ()) or ():
+                value = str(anchor_name or "").strip()
+                if value and value not in names:
+                    names.append(value)
     return tuple(names)
 
 
-def exact_semantic_definition_formal_environment_symbol_names() -> tuple[str, ...]:
+def exact_semantic_definition_formal_environment_symbol_names(
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> tuple[str, ...]:
     names: list[str] = []
     seen_policy_ids: set[str] = set()
-    for policy in EXACT_SEMANTIC_DEFINITION_PLACEHOLDER_POLICIES.values():
+    for policy in _placeholder_policies_for_optional_context(context):
         if policy.policy_id in seen_policy_ids:
             continue
         seen_policy_ids.add(policy.policy_id)
@@ -639,8 +769,17 @@ def exact_semantic_definition_formal_environment_symbol_names() -> tuple[str, ..
 
 def exact_semantic_definition_formal_environment_declaration_hint(
     placeholder_symbol: str,
+    *,
+    context: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    policy = exact_semantic_definition_placeholder_policy(placeholder_symbol)
+    policy = (
+        exact_semantic_definition_placeholder_policy(placeholder_symbol)
+        if context is None
+        else exact_semantic_definition_placeholder_policy_for_mapping(
+            placeholder_symbol,
+            context,
+        )[0]
+    )
     symbol = str(placeholder_symbol or "").strip()
     search_queries = (
         policy.formal_environment_search_queries
@@ -680,10 +819,11 @@ def exact_semantic_definition_fallback_source_anchor_role(
     *,
     name: str,
     binder_type: str = "",
+    context: Mapping[str, Any] | None = None,
 ) -> str:
     compact_name = compact_exact_semantic_placeholder_key(name)
     type_text = str(binder_type or "")
-    for rule in EXACT_SEMANTIC_DEFINITION_SOURCE_ANCHOR_ROLE_RULES:
+    for rule in exact_semantic_definition_source_anchor_role_rules(context=context):
         if not rule.role:
             continue
         compact_keys = {
@@ -708,7 +848,12 @@ def exact_semantic_definition_fallback_source_anchor_role(
             case_sensitive=rule.case_sensitive_binder_type,
         ):
             return rule.role
-    return EXACT_SEMANTIC_DEFINITION_DEFAULT_SOURCE_ANCHOR_ROLE
+    packs = _policy_packs_for_optional_context(context)
+    return (
+        packs[0].default_source_anchor_role
+        if packs
+        else "source_parameter"
+    )
 
 
 def _binder_type_contains_any(
@@ -752,20 +897,42 @@ def exact_semantic_definition_policy_applicability(
 ) -> dict[str, Any]:
     """Require explicit, nonconflicting selectors before using a policy pack."""
 
+    return _exact_semantic_selector_applicability(
+        selector_id=policy.policy_id,
+        allowed_task_families=policy.task_families,
+        allowed_question_ids=policy.question_ids,
+        allowed_theorem_target_ids=policy.theorem_target_ids,
+        task_family=task_family,
+        question_id=question_id,
+        theorem_target_ids=theorem_target_ids,
+    )
+
+
+def _exact_semantic_selector_applicability(
+    *,
+    selector_id: str,
+    allowed_task_families: tuple[str, ...],
+    allowed_question_ids: tuple[str, ...],
+    allowed_theorem_target_ids: tuple[str, ...],
+    task_family: str,
+    question_id: str,
+    theorem_target_ids: tuple[str, ...],
+) -> dict[str, Any]:
+
     allowed = {
         "task_family": {
             str(value).strip().lower()
-            for value in policy.task_families
+            for value in allowed_task_families
             if str(value).strip()
         },
         "question_id": {
             str(value).strip().lower()
-            for value in policy.question_ids
+            for value in allowed_question_ids
             if str(value).strip()
         },
         "theorem_target_id": {
             str(value).strip().lower()
-            for value in policy.theorem_target_ids
+            for value in allowed_theorem_target_ids
             if str(value).strip()
         },
     }
@@ -798,7 +965,7 @@ def exact_semantic_definition_policy_applicability(
             conflicting.append(selector_kind)
     applicable = bool(matched) and not conflicting
     return {
-        "policy_id": policy.policy_id,
+        "policy_id": selector_id,
         "applicable": applicable,
         "status": (
             "TASK_SCOPED_POLICY_APPLICABLE"
@@ -822,32 +989,227 @@ def exact_semantic_definition_placeholder_policy_for_context(
     question_id: str = "",
     theorem_target_ids: tuple[str, ...] = (),
 ) -> tuple[ExactSemanticDefinitionPlaceholderPolicy, dict[str, Any]]:
-    candidate = exact_semantic_definition_placeholder_policy(placeholder_symbol)
-    if candidate.policy_id == _GENERIC_POLICY.policy_id:
-        return candidate, {
-            "policy_id": candidate.policy_id,
+    key = compact_exact_semantic_placeholder_key(placeholder_symbol)
+    candidates = tuple(
+        policy
+        for policy in EXACT_SEMANTIC_DEFINITION_POLICY_CANDIDATES
+        if key
+        and key
+        in {
+            compact_exact_semantic_placeholder_key(value)
+            for value in (policy.placeholder_key, *policy.placeholder_aliases)
+            if compact_exact_semantic_placeholder_key(value)
+        }
+    )
+    generic = replace(_GENERIC_POLICY, placeholder_key=key)
+    if not candidates:
+        return generic, {
+            "policy_id": generic.policy_id,
             "applicable": True,
             "status": "GENERIC_DISCOVERY_POLICY",
             "matched_selector_kinds": [],
             "conflicting_selector_kinds": [],
         }
-    applicability = exact_semantic_definition_policy_applicability(
-        candidate,
+    evaluated = [
+        (
+            candidate,
+            exact_semantic_definition_policy_applicability(
+                candidate,
+                task_family=task_family,
+                question_id=question_id,
+                theorem_target_ids=theorem_target_ids,
+            ),
+        )
+        for candidate in candidates
+    ]
+    applicable = [
+        (candidate, applicability)
+        for candidate, applicability in evaluated
+        if applicability["applicable"] is True
+    ]
+    applicable.sort(
+        key=lambda item: (
+            -len(item[1].get("matched_selector_kinds", []) or []),
+            item[0].policy_id,
+        )
+    )
+    if applicable:
+        best_candidate, best_applicability = applicable[0]
+        best_specificity = len(
+            best_applicability.get("matched_selector_kinds", []) or []
+        )
+        tied = [
+            candidate
+            for candidate, applicability in applicable
+            if len(applicability.get("matched_selector_kinds", []) or [])
+            == best_specificity
+        ]
+        if len(tied) == 1:
+            return best_candidate, best_applicability
+        return generic, {
+            **best_applicability,
+            "policy_id": generic.policy_id,
+            "applicable": False,
+            "status": "GENERIC_DISCOVERY_AMBIGUOUS_TASK_SCOPED_POLICY_MATCH",
+            "candidate_policy_ids": [candidate.policy_id for candidate in tied],
+        }
+    candidate, applicability = sorted(
+        evaluated,
+        key=lambda item: item[0].policy_id,
+    )[0]
+    return (
+        generic,
+        {
+            **applicability,
+            "candidate_policy_ids": [
+                candidate.policy_id for candidate, _ in evaluated
+            ],
+        },
+    )
+
+
+def exact_semantic_definition_placeholder_policy_for_mapping(
+    placeholder_symbol: str,
+    context: Mapping[str, Any] | None,
+) -> tuple[ExactSemanticDefinitionPlaceholderPolicy, dict[str, Any]]:
+    task_family, question_id, theorem_target_ids = (
+        _exact_semantic_policy_context_selectors(context)
+    )
+    return exact_semantic_definition_placeholder_policy_for_context(
+        placeholder_symbol,
         task_family=task_family,
         question_id=question_id,
         theorem_target_ids=theorem_target_ids,
     )
-    if applicability["applicable"]:
-        return candidate, applicability
-    return (
-        replace(
-            _GENERIC_POLICY,
-            placeholder_key=compact_exact_semantic_placeholder_key(
-                placeholder_symbol
-            ),
-        ),
-        applicability,
+
+
+def exact_semantic_definition_policy_packs_for_mapping(
+    context: Mapping[str, Any] | None,
+) -> tuple[ExactSemanticDefinitionPolicyPack, ...]:
+    task_family, question_id, theorem_target_ids = (
+        _exact_semantic_policy_context_selectors(context)
     )
+    applicable: list[tuple[ExactSemanticDefinitionPolicyPack, dict[str, Any]]] = []
+    for pack in EXACT_SEMANTIC_DEFINITION_POLICY_PACKS:
+        applicability = _exact_semantic_selector_applicability(
+            selector_id=pack.policy_pack_id,
+            allowed_task_families=pack.task_families,
+            allowed_question_ids=pack.question_ids,
+            allowed_theorem_target_ids=pack.theorem_target_ids,
+            task_family=task_family,
+            question_id=question_id,
+            theorem_target_ids=theorem_target_ids,
+        )
+        if applicability["applicable"] is True:
+            applicable.append((pack, applicability))
+    applicable.sort(
+        key=lambda item: (
+            -len(item[1].get("matched_selector_kinds", []) or []),
+            item[0].policy_pack_id,
+        )
+    )
+    return tuple(pack for pack, _ in applicable)
+
+
+def _exact_semantic_policies_for_mapping(
+    context: Mapping[str, Any] | None,
+) -> tuple[ExactSemanticDefinitionPlaceholderPolicy, ...]:
+    return tuple(
+        policy
+        for pack in exact_semantic_definition_policy_packs_for_mapping(context)
+        for policy in pack.placeholder_policies
+    )
+
+
+def exact_semantic_definition_placeholder_policies_for_mapping(
+    context: Mapping[str, Any] | None,
+) -> tuple[ExactSemanticDefinitionPlaceholderPolicy, ...]:
+    return _exact_semantic_policies_for_mapping(context)
+
+
+def _exact_semantic_policy_context_selectors(
+    context: Mapping[str, Any] | None,
+) -> tuple[str, str, tuple[str, ...]]:
+    sources = _exact_semantic_policy_context_sources(context)
+    task_family = _first_exact_semantic_context_text(
+        sources,
+        "task_family",
+        "primary_task_family",
+        "task_family_id",
+    )
+    question_id = _first_exact_semantic_context_text(
+        sources,
+        "question_id",
+        "source_theorem_question_id",
+    )
+    theorem_target_ids: list[str] = []
+    for source in sources:
+        for key in (
+            "target_ids",
+            "target_id",
+            "target_theorem_goal_ids",
+            "theorem_target_ids",
+            "source_theorem_goal_id",
+            "target_theorem_name",
+            "target_lean_declaration",
+        ):
+            theorem_target_ids.extend(
+                _exact_semantic_context_string_values(source.get(key))
+            )
+    return (
+        task_family,
+        question_id,
+        tuple(dict.fromkeys(theorem_target_ids)),
+    )
+
+
+def _exact_semantic_policy_context_sources(
+    context: Mapping[str, Any] | None,
+) -> tuple[Mapping[str, Any], ...]:
+    if not isinstance(context, Mapping):
+        return ()
+    sources: list[Mapping[str, Any]] = [context]
+    seen = {id(context)}
+    for source in sources:
+        if len(sources) >= 32:
+            break
+        for key in (
+            "input_summary",
+            "exact_semantic_definition_context",
+            "candidate_definition_request",
+            "source_theorem_target_provenance",
+        ):
+            nested = source.get(key, {})
+            if (
+                isinstance(nested, Mapping)
+                and nested
+                and id(nested) not in seen
+            ):
+                sources.append(nested)
+                seen.add(id(nested))
+    return tuple(sources)
+
+
+def _first_exact_semantic_context_text(
+    sources: tuple[Mapping[str, Any], ...],
+    *keys: str,
+) -> str:
+    for source in sources:
+        for key in keys:
+            value = source.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return ""
+
+
+def _exact_semantic_context_string_values(value: Any) -> tuple[str, ...]:
+    if isinstance(value, str):
+        return (value.strip(),) if value.strip() else ()
+    if isinstance(value, Mapping):
+        return tuple(str(key).strip() for key in value if str(key).strip())
+    if isinstance(value, (list, tuple, set)):
+        return tuple(str(item).strip() for item in value if str(item).strip())
+    return ()
 
 
 def exact_semantic_definition_import_policy_blocker(
@@ -856,8 +1218,11 @@ def exact_semantic_definition_import_policy_blocker(
     snippet: str = "",
     declaration_name: str = "",
     require_required_signal: bool = False,
+    policy: ExactSemanticDefinitionPlaceholderPolicy | None = None,
 ) -> dict[str, str]:
-    policy = exact_semantic_definition_placeholder_policy(placeholder_symbol)
+    selected_policy = policy or exact_semantic_definition_placeholder_policy(
+        placeholder_symbol
+    )
     snippet_text = str(snippet or "")
     declaration_text = str(declaration_name or "")
     snippet_key = compact_exact_semantic_placeholder_key(snippet_text)
@@ -865,30 +1230,30 @@ def exact_semantic_definition_import_policy_blocker(
     haystack = f"{declaration_key} {snippet_key}"
     incompatible_terms = tuple(
         compact_exact_semantic_placeholder_key(term)
-        for term in policy.semantic_import_incompatible_terms
+        for term in selected_policy.semantic_import_incompatible_terms
         if compact_exact_semantic_placeholder_key(term)
     )
     if incompatible_terms and any(term in haystack for term in incompatible_terms):
         return {
             "source_semantic_review_status": (
-                policy.semantic_import_incompatible_status
+                selected_policy.semantic_import_incompatible_status
             ),
             "source_semantic_review_reason": (
-                policy.semantic_import_incompatible_reason
+                selected_policy.semantic_import_incompatible_reason
                 or "candidate declaration is incompatible with the placeholder policy"
             ),
         }
     if require_required_signal and not _semantic_import_required_signal_present(
-        policy,
+        selected_policy,
         snippet=snippet_text,
         declaration_name=declaration_text,
     ):
         return {
             "source_semantic_review_status": (
-                policy.semantic_import_missing_required_signal_status
+                selected_policy.semantic_import_missing_required_signal_status
             ),
             "source_semantic_review_reason": (
-                policy.semantic_import_missing_required_signal_reason
+                selected_policy.semantic_import_missing_required_signal_reason
                 or "candidate declaration does not expose a required semantic signal"
             ),
         }
@@ -897,9 +1262,13 @@ def exact_semantic_definition_import_policy_blocker(
 
 def exact_semantic_definition_source_lookup_terms(
     placeholder_symbol: str,
+    *,
+    policy: ExactSemanticDefinitionPlaceholderPolicy | None = None,
 ) -> tuple[str, ...]:
-    policy = exact_semantic_definition_placeholder_policy(placeholder_symbol)
-    return policy.source_lookup_search_terms
+    selected_policy = policy or exact_semantic_definition_placeholder_policy(
+        placeholder_symbol
+    )
+    return selected_policy.source_lookup_search_terms
 
 
 def exact_semantic_definition_source_lookup_aliases(
@@ -965,11 +1334,14 @@ def exact_semantic_definition_candidate_risks(
     placeholder_symbol: str,
     *,
     definition_block: str,
+    policy: ExactSemanticDefinitionPlaceholderPolicy | None = None,
 ) -> list[str]:
-    policy = exact_semantic_definition_placeholder_policy(placeholder_symbol)
+    selected_policy = policy or exact_semantic_definition_placeholder_policy(
+        placeholder_symbol
+    )
     risks = [
         rule.message
-        for rule in policy.candidate_risk_rules
+        for rule in selected_policy.candidate_risk_rules
         if _candidate_risk_rule_matches(
             rule,
             definition_block=definition_block,

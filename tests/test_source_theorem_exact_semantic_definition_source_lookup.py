@@ -228,6 +228,8 @@ def test_source_anchor_fallback_roles_are_policy_driven() -> None:
         row["name"]: row["role"]
         for row in exact_semantic_definition_source_binders_from_context(
             {
+                "question_id": "conformal_prediction_coverage",
+                "target_theorem_name": "split_conformal_coverage",
                 "exact_source_theorem_binders": [
                     {
                         "name": "hC",
@@ -246,6 +248,23 @@ def test_source_anchor_fallback_roles_are_policy_driven() -> None:
         recovered_roles["candidate_order_threshold"]
         == "quantile_definition_anchor"
     )
+    survival_roles = {
+        row["name"]: row["role"]
+        for row in exact_semantic_definition_source_binders_from_context(
+            {
+                "task_family": "survival",
+                "question_id": "right_censored_survival_km",
+                "target_theorem_name": "km_fixed_time_coverage_lower_bound",
+                "exact_source_theorem_binders": [
+                    {
+                        "name": "hC",
+                        "type": "covered = {omega | score omega <= q_hat omega}",
+                    }
+                ],
+            }
+        )
+    }
+    assert survival_roles["hC"] == "source_parameter"
 
 
 def test_exact_semantic_definition_source_lookup_exports_learning_hits(

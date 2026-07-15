@@ -2819,9 +2819,54 @@ def test_exact_source_executor_routes_closure_type_mismatch_to_adapter(
     executor_source = Path(executor_module.__file__).read_text(encoding="utf-8")
     assert "covered/BadRanks/rank/alpha_total" not in executor_source
     assert (
-        "exact_semantic_definition_proof_body_adapter_synthesis_instruction()"
+        "exact_semantic_definition_proof_body_adapter_synthesis_instruction("
         in executor_source
     )
+
+
+def test_exact_goal_shape_obligations_require_matching_task_context() -> None:
+    feedback = {
+        "source": (
+            "theorem split_conformal_coverage : lower_bound ∧ upper_bound := by\n"
+            "  fail_if_success trivial\n"
+        ),
+        "diagnostics": ("Type mismatch while applying sourceToBridgeAdapter",),
+        "attempts": (
+            "exact splitConformalCoverage_sourceToBridgeAdapter: Type mismatch",
+        ),
+        "adapter_declarations": (
+            "splitConformalCoverage_sourceToBridgeAdapter",
+        ),
+        "failure_classification": (
+            "proof_body_verified_adapter_context_insufficient"
+        ),
+    }
+    conformal = executor_module._exact_goal_shape_obligation_ids(
+        source=feedback["source"],
+        diagnostics=feedback["diagnostics"],
+        proof_body_attempt_summaries=feedback["attempts"],
+        verified_adapter_declarations=feedback["adapter_declarations"],
+        failure_classification=feedback["failure_classification"],
+        context={
+            "question_id": "conformal_prediction_coverage",
+            "target_theorem_name": "split_conformal_coverage",
+        },
+    )
+    survival = executor_module._exact_goal_shape_obligation_ids(
+        source=feedback["source"],
+        diagnostics=feedback["diagnostics"],
+        proof_body_attempt_summaries=feedback["attempts"],
+        verified_adapter_declarations=feedback["adapter_declarations"],
+        failure_classification=feedback["failure_classification"],
+        context={
+            "task_family": "survival",
+            "question_id": "right_censored_survival_km",
+            "target_theorem_name": "km_fixed_time_coverage_lower_bound",
+        },
+    )
+
+    assert "conjunctive_source_theorem_split" in conformal
+    assert survival == ()
 
 
 def test_exact_source_executor_reuses_same_source_candidate_when_overwrite_requested(

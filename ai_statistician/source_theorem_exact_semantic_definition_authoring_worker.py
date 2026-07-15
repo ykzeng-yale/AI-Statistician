@@ -10,7 +10,7 @@ from typing import Any, Mapping, Sequence
 
 from .exact_semantic_definition_policy import (
     compact_exact_semantic_placeholder_key,
-    exact_semantic_definition_placeholder_policy,
+    exact_semantic_definition_placeholder_policy_for_mapping,
 )
 from .fingerprint import stable_hash
 from .llm_json_repair import (
@@ -976,8 +976,14 @@ def _prompt_payload(
         export_mode=export_mode,
     )
     response_validation_feedback = _response_validation_feedback(task)
-    placeholder_policy = exact_semantic_definition_placeholder_policy(
-        str(task.get("placeholder_symbol", "") or "")
+    placeholder_policy, placeholder_policy_applicability = (
+        exact_semantic_definition_placeholder_policy_for_mapping(
+            str(task.get("placeholder_symbol", "") or ""),
+            {
+                **dict(task),
+                "candidate_definition_request": dict(candidate_definition_request),
+            },
+        )
     )
     source_theorem_binders = _authoring_source_theorem_binders(
         task,
@@ -991,6 +997,9 @@ def _prompt_payload(
         "evidence_boundary": BOUNDARY,
         "target_theorem_name": str(task.get("target_theorem_name", "") or ""),
         "placeholder_symbol": str(task.get("placeholder_symbol", "") or ""),
+        "placeholder_policy_id": placeholder_policy.policy_id,
+        "placeholder_policy_scope": placeholder_policy.policy_scope,
+        "placeholder_policy_applicability": placeholder_policy_applicability,
         "source_execution_status": str(task.get("source_execution_status", "") or ""),
         "authoring_trigger": str(task.get("authoring_trigger", "") or ""),
         "authoring_mode": str(task.get("authoring_mode", "") or ""),
@@ -1091,12 +1100,24 @@ def _authoring_structured_context(
         for key, value in _exact_semantic_definition_context(source).items():
             if context.get(key) in (None, "", [], {}):
                 context[key] = value
-    placeholder_policy = exact_semantic_definition_placeholder_policy(
-        str(
-            task.get("placeholder_symbol", "")
-            or candidate_definition_request.get("placeholder_symbol", "")
-            or ""
+    placeholder_policy, placeholder_policy_applicability = (
+        exact_semantic_definition_placeholder_policy_for_mapping(
+            str(
+                task.get("placeholder_symbol", "")
+                or candidate_definition_request.get("placeholder_symbol", "")
+                or ""
+            ),
+            {
+                **dict(task),
+                "candidate_definition_request": dict(candidate_definition_request),
+            },
         )
+    )
+    context.setdefault("placeholder_policy_id", placeholder_policy.policy_id)
+    context.setdefault("placeholder_policy_scope", placeholder_policy.policy_scope)
+    context.setdefault(
+        "placeholder_policy_applicability",
+        placeholder_policy_applicability,
     )
     source_binders = [
         dict(row)
@@ -2844,11 +2865,17 @@ def _lean_authoring_environment_contract(
 ) -> dict[str, Any]:
     """Return local Lean constraints that keep generated definitions checkable."""
 
-    placeholder_policy = exact_semantic_definition_placeholder_policy(
-        str(
-            task.get("placeholder_symbol", "")
-            or candidate_definition_request.get("placeholder_symbol", "")
-            or ""
+    placeholder_policy, placeholder_policy_applicability = (
+        exact_semantic_definition_placeholder_policy_for_mapping(
+            str(
+                task.get("placeholder_symbol", "")
+                or candidate_definition_request.get("placeholder_symbol", "")
+                or ""
+            ),
+            {
+                **dict(task),
+                "candidate_definition_request": dict(candidate_definition_request),
+            },
         )
     )
     source_binders = _authoring_source_theorem_binders(
@@ -3028,6 +3055,9 @@ def _lean_authoring_environment_contract(
         if str(value).strip()
     ]
     return {
+        "placeholder_policy_id": placeholder_policy.policy_id,
+        "placeholder_policy_scope": placeholder_policy.policy_scope,
+        "placeholder_policy_applicability": placeholder_policy_applicability,
         "candidate_scope": "definition_or_abbrev_only",
         "source_theorem_binder_count": len(source_binders),
         "source_theorem_binders": source_binders[:32],
@@ -3124,8 +3154,13 @@ def _lean_authoring_environment_contract(
 
 def _candidate_definition_request_from_task(task: Mapping[str, Any]) -> dict[str, Any]:
     placeholder_symbol = str(task.get("placeholder_symbol", "") or "")
-    placeholder_policy = exact_semantic_definition_placeholder_policy(placeholder_symbol)
-    required_anchor_names = _required_anchor_names_for_placeholder(placeholder_symbol)
+    placeholder_policy, placeholder_policy_applicability = (
+        exact_semantic_definition_placeholder_policy_for_mapping(
+            placeholder_symbol,
+            task,
+        )
+    )
+    required_anchor_names = list(placeholder_policy.required_anchor_names)
     available_binders_by_name = _available_semantic_binders_by_name(
         task,
         placeholder_policy=placeholder_policy,
@@ -3144,7 +3179,7 @@ def _candidate_definition_request_from_task(task: Mapping[str, Any]) -> dict[str
         if name in required_anchor_bindings
     ]
     required_adapter_object_names = (
-        _required_adapter_object_names_for_placeholder(placeholder_symbol)
+        list(placeholder_policy.required_adapter_object_names)
     )
     available_adapter_object_names = [
         str(value).strip()
@@ -3162,7 +3197,8 @@ def _candidate_definition_request_from_task(task: Mapping[str, Any]) -> dict[str
         "placeholder_symbol": placeholder_symbol,
         "placeholder_policy_id": placeholder_policy.policy_id,
         "placeholder_policy_scope": placeholder_policy.policy_scope,
-        "semantic_goal": _semantic_goal_for_placeholder(placeholder_symbol),
+        "placeholder_policy_applicability": placeholder_policy_applicability,
+        "semantic_goal": placeholder_policy.semantic_goal,
         "required_anchor_names": required_anchor_names,
         "available_anchor_names": available_anchor_names,
         "missing_required_anchor_names": [
@@ -3200,18 +3236,6 @@ def _candidate_definition_request_from_task(task: Mapping[str, Any]) -> dict[str
     }
 
 
-def _semantic_goal_for_placeholder(placeholder_symbol: str) -> str:
-    return exact_semantic_definition_placeholder_policy(placeholder_symbol).semantic_goal
-
-
-def _required_anchor_names_for_placeholder(placeholder_symbol: str) -> list[str]:
-    return list(
-        exact_semantic_definition_placeholder_policy(
-            placeholder_symbol
-        ).required_anchor_names
-    )
-
-
 def _available_semantic_binders_by_name(
     task: Mapping[str, Any],
     *,
@@ -3238,16 +3262,6 @@ def _available_semantic_binders_by_name(
         if name and name not in binders_by_name:
             binders_by_name[name] = binder
     return binders_by_name
-
-
-def _required_adapter_object_names_for_placeholder(
-    placeholder_symbol: str,
-) -> list[str]:
-    return list(
-        exact_semantic_definition_placeholder_policy(
-            placeholder_symbol
-        ).required_adapter_object_names
-    )
 
 
 def _generate_candidate_packet(

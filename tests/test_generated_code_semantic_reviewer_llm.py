@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from ai_statistician.agent_runtime import AgentTask, BlackboardState
+from ai_statistician.algorithm_engineer_llm import build_algorithm_engineer_prompt
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.generated_code_semantic_reviewer_llm import (
     GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS,
@@ -22,6 +23,9 @@ from ai_statistician.research_agent_runtime_audit import (
     _runtime_capability_scorecard,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
+from ai_statistician.simulation_engineer_llm import (
+    build_simulation_engineer_prompt,
+)
 
 
 def _question() -> OpenResearchQuestion:
@@ -85,6 +89,7 @@ def _runtime_fixture(
     accept: bool,
     capability_eval: bool = False,
     reviewer_model: str = "static-opus-reviewer",
+    metric_failed: bool = False,
 ):
     question = _question()
     code = (
@@ -110,7 +115,7 @@ def _runtime_fixture(
     }
     row = {
         "estimator_id": "generated-estimator",
-        "prototype_status": "EXECUTED",
+        "prototype_status": "FAILED_METRIC_GATE" if metric_failed else "EXECUTED",
         "executor": "generated_python_sandbox",
         "script_path": str(script_path),
         "result_path": str(result_path),
@@ -123,7 +128,7 @@ def _runtime_fixture(
         "metric_contract_set_id": "metric-contracts:test",
         "metric_requirement_set_id": "metric-requirements:test",
         "execution_smoke_passed": True,
-        "smoke_passed": True,
+        "smoke_passed": not metric_failed,
     }
     source_manifest = {
         "schema_version": 1,
@@ -132,7 +137,7 @@ def _runtime_fixture(
         "theory_packet_id": theory_packet["packet_id"],
         "prototypes": [row],
         "n_generated_code_executed": 1,
-        "n_passed": 1,
+        "n_passed": 0 if metric_failed else 1,
     }
     architect_context = {
         "architect_runtime_plan": {
@@ -300,6 +305,113 @@ def test_generated_code_semantic_reviewer_routes_rejection_to_fresh_generation(
     assert feedback["overall_verdict"] == "REVISE"
     assert feedback["findings"][0]["severity"] == "high"
     assert result.next_task.inputs["generated_code_semantic_review_revision_count"] == 1
+    handoff = result.next_task.inputs["architect_context"]["runtime_feedback_loop"][
+        "direct_repair_handoff_contract"
+    ]
+    assert handoff["architect_pre_authorized"] is True
+    assert handoff["source_reviewer_subsystem"] == (
+        "GeneratedCodeSemanticReviewer"
+    )
+    assert handoff["target_repair_subsystem"] == "AlgorithmEngineer"
+    assert handoff["target_task_id"] == result.next_task.task_id
+    assert handoff["feedback_artifact_id"] == feedback[
+        "semantic_review_packet_id"
+    ]
+    assert handoff["proof_evidence_status"] == "NOT_PROOF_EVIDENCE"
+
+
+def test_metric_failing_but_executed_code_is_independently_reviewed(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        accept=False,
+        metric_failed=True,
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REVISE"
+    materialization = next(
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewMaterialization"
+    )
+    source_row = materialization["review_material"]["exact_executed_artifacts"][0][
+        "source_row"
+    ]
+    assert source_row["prototype_status"] == "FAILED_METRIC_GATE"
+    assert source_row["execution_smoke_passed"] is True
+    assert source_row["smoke_passed"] is False
+
+
+def test_coding_agent_prompts_preserve_independent_semantic_findings() -> None:
+    rationale = (
+        "The implemented update treats each observation as a fresh prior draw, "
+        "which is not the joint mixture defined by the theory packet and changes "
+        "the martingale being evaluated."
+    )
+    required_change = (
+        "Use one shared latent parameter across the full sequence, compute the "
+        "joint marginal likelihood, and rerun the unchanged frozen protocol."
+    )
+    feedback = {
+        "feedback_type": "generated_code_semantic_review_feedback",
+        "feedback_source": "GeneratedCodeSemanticReviewer",
+        "source_subsystem": "AlgorithmEngineer",
+        "semantic_review_execution_id": "semantic-execution:test",
+        "semantic_review_packet_id": "semantic-packet:test",
+        "overall_verdict": "REVISE",
+        "dimension_reviews": [
+            {
+                "dimension": "theory_assumption_alignment",
+                "status": "FAIL",
+                "rationale": rationale,
+                "evidence_refs": ["exact_source_code:update"],
+            }
+        ],
+        "findings": [
+            {
+                "severity": "high",
+                "category": "joint_model_semantics",
+                "summary": "The generated update implements a different model.",
+                "required_change": required_change,
+                "evidence_refs": ["theory_packet", "exact_source_code"],
+            }
+        ],
+        "repair_instructions": [required_change],
+        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+    }
+    theory_packet = {
+        "packet_id": "theory:test",
+        "theorem_cards": [],
+        "estimator_specs": [],
+    }
+    algorithm_prompt = build_algorithm_engineer_prompt(
+        question=_question(),
+        theory_packet=theory_packet,
+        simulation_manifest={},
+        implementation_gaps=[{"estimator_id": "joint-mixture"}],
+        environment_feedback=feedback,
+    )
+    simulation_prompt = build_simulation_engineer_prompt(
+        question=_question(),
+        theory_packet=theory_packet,
+        registered_problem={},
+        registered_procedures=[],
+        n_runs=50,
+        seed=11,
+        environment_feedback=feedback,
+    )
+
+    for prompt in (algorithm_prompt, simulation_prompt):
+        assert "generated_code_semantic_review" in prompt
+        assert rationale in prompt
+        assert required_change in prompt
+        assert "treat" in prompt
+        assert "as binding" in prompt
+        assert "do not respond by only changing metric paths" in prompt
 
 
 def test_generated_code_semantic_reviewer_rejects_tampered_source_before_model_call(

@@ -9,10 +9,11 @@ from typing import Any, Iterable, Mapping, Sequence
 
 from .fingerprint import stable_hash
 from .exact_semantic_definition_policy import (
-    EXACT_SEMANTIC_DEFINITION_PLACEHOLDER_POLICIES,
     ExactSemanticDefinitionPlaceholderPolicy,
     compact_exact_semantic_placeholder_key,
-    exact_semantic_definition_policy_pack_ids,
+    exact_semantic_definition_fallback_source_anchor_role,
+    exact_semantic_definition_placeholder_policies_for_mapping,
+    exact_semantic_definition_policy_packs_for_mapping,
     exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation as _policy_source_to_bridge_adapter_object_names,
     exact_semantic_definition_source_to_bridge_anchor_fallback_names,
     exact_semantic_definition_source_to_bridge_premise_binder_aliases,
@@ -585,9 +586,15 @@ def _premise_derivation_check_row(
         target_declaration=target_declaration,
         adapter_declaration_name=adapter_declaration_name,
     )
+    policy_scope_context = {
+        **dict(grouped_candidate_request),
+        **dict(candidate_request),
+        **dict(row),
+    }
     premise_target = _adapter_premise_target_from_signature(
         adapter_signature=source_context["adapter_signature"],
         premise_name=premise_name,
+        context=policy_scope_context,
     )
     if not str(premise_target.get("premise_type", "") or "").strip():
         explicit_premise_type = str(
@@ -659,7 +666,10 @@ def _premise_derivation_check_row(
         row.get("exact_source_theorem_binders", [])
         or candidate_request.get("exact_source_theorem_binders", [])
         or grouped_candidate_request.get("exact_source_theorem_binders", [])
-        or _source_theorem_binder_summaries(source_context["source_theorem_signature"])
+        or _source_theorem_binder_summaries(
+            source_context["source_theorem_signature"],
+            context=policy_scope_context,
+        )
     )
     forbidden_tokens = _forbidden_tokens(source)
     vacuous = _premise_candidate_vacuous(
@@ -697,11 +707,13 @@ def _premise_derivation_check_row(
     policy_context = _source_to_bridge_policy_context(
         premise_name=premise_name,
         premise_target_type=premise_target_type,
+        context=policy_scope_context,
     )
     fallback_semantic_requirements = _premise_semantic_dependency_requirements(
         premise_name=premise_name,
         premise_target_type=premise_target_type,
         source_signature=source_context["source_theorem_signature"],
+        context=policy_scope_context,
     )
     if explicit_semantic_requirements:
         semantic_requirements = explicit_semantic_requirements
@@ -725,6 +737,7 @@ def _premise_derivation_check_row(
             source_binders=tuple(
                 dict(item) for item in exact_source_binders if isinstance(item, Mapping)
             ),
+            context=policy_scope_context,
         )
         if premise_target_uses_goal_context
         else ()
@@ -741,6 +754,7 @@ def _premise_derivation_check_row(
             source_binders=tuple(
                 dict(item) for item in exact_source_binders if isinstance(item, Mapping)
             ),
+            context=policy_scope_context,
         )
     )
     semantic_anchor_binder_names = _str_tuple(
@@ -1301,6 +1315,7 @@ def _proof_body_goal_semantic_anchor_binders(
     proof_body_goal_context: Mapping[str, object],
     proof_body_goal_binder_names: tuple[str, ...],
     source_binders: tuple[dict[str, object], ...],
+    context: Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, object], ...]:
     source_by_name = {
         _normalize_premise_identifier(str(binder.get("name", "") or "")): dict(binder)
@@ -1326,7 +1341,11 @@ def _proof_body_goal_semantic_anchor_binders(
             {
                 "name": name,
                 "type": binder_type,
-                "role": _source_binder_role(name=name, binder_type=binder_type),
+                "role": _source_binder_role(
+                    name=name,
+                    binder_type=binder_type,
+                    context=context,
+                ),
             }
         )
     return tuple(result)
@@ -1533,6 +1552,7 @@ def _adapter_premise_target_from_signature(
     *,
     adapter_signature: tuple[str, ...],
     premise_name: str,
+    context: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     wanted = _normalize_premise_identifier(premise_name)
     if not wanted:
@@ -1558,7 +1578,9 @@ def _adapter_premise_target_from_signature(
                 continue
             if (
                 _normalize_premise_identifier(name)
-                in _source_to_bridge_policy_premise_aliases_normalized()
+                in _source_to_bridge_policy_premise_aliases_normalized(
+                    context=context,
+                )
             ):
                 continue
         if stripped.endswith(":="):
@@ -1622,10 +1644,15 @@ def _normalize_premise_identifier(value: str) -> str:
     return re.sub(r"[^a-z0-9]", "", str(value or "").lower())
 
 
-def _source_to_bridge_policy_premise_aliases_normalized() -> set[str]:
+def _source_to_bridge_policy_premise_aliases_normalized(
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> set[str]:
     return {
         normalized
-        for alias in exact_semantic_definition_source_to_bridge_premise_binder_aliases()
+        for alias in exact_semantic_definition_source_to_bridge_premise_binder_aliases(
+            context=context,
+        )
         if (normalized := _normalize_premise_identifier(alias))
     }
 
@@ -1648,13 +1675,16 @@ def _source_to_bridge_policy_rows(
     *,
     premise_name: str,
     premise_target_type: str,
+    context: Mapping[str, Any] | None = None,
 ) -> tuple[ExactSemanticDefinitionPlaceholderPolicy, ...]:
     text = f"{premise_name} {premise_target_type}"
     compact_text = compact_exact_semantic_placeholder_key(text)
     lowered_text = text.lower()
     rows: list[ExactSemanticDefinitionPlaceholderPolicy] = []
     seen_policy_ids: set[str] = set()
-    for policy in EXACT_SEMANTIC_DEFINITION_PLACEHOLDER_POLICIES.values():
+    for policy in exact_semantic_definition_placeholder_policies_for_mapping(
+        context,
+    ):
         keys = (
             policy.placeholder_key,
             *policy.placeholder_aliases,
@@ -1682,11 +1712,13 @@ def _source_to_bridge_policy_dependency_requirements(
     *,
     premise_name: str,
     premise_target_type: str,
+    context: Mapping[str, Any] | None = None,
 ) -> tuple[str, ...]:
     requirements: list[str] = []
     for policy in _source_to_bridge_policy_rows(
         premise_name=premise_name,
         premise_target_type=premise_target_type,
+        context=context,
     ):
         for requirement in policy.source_to_bridge_dependency_requirements:
             if requirement not in requirements:
@@ -1698,10 +1730,12 @@ def _source_to_bridge_policy_context(
     *,
     premise_name: str,
     premise_target_type: str,
+    context: Mapping[str, Any] | None = None,
 ) -> dict[str, tuple[str, ...]]:
     policy_rows = _source_to_bridge_policy_rows(
         premise_name=premise_name,
         premise_target_type=premise_target_type,
+        context=context,
     )
     dependency_requirements: list[str] = []
     required_anchor_names: list[str] = []
@@ -1721,7 +1755,14 @@ def _source_to_bridge_policy_context(
                 required_anchor_names.append(anchor_name)
     return {
         "source_to_bridge_policy_pack_ids": (
-            exact_semantic_definition_policy_pack_ids() if policy_rows else ()
+            tuple(
+                pack.policy_pack_id
+                for pack in exact_semantic_definition_policy_packs_for_mapping(
+                    context,
+                )
+            )
+            if policy_rows
+            else ()
         ),
         "source_to_bridge_policy_ids": tuple(dict.fromkeys(policy_ids)),
         "source_to_bridge_policy_scopes": tuple(dict.fromkeys(policy_scopes)),
@@ -1738,11 +1779,13 @@ def _source_to_bridge_policy_required_anchor_names(
     *,
     premise_name: str,
     premise_target_type: str,
+    context: Mapping[str, Any] | None = None,
 ) -> tuple[str, ...]:
     anchor_names: list[str] = []
     for policy in _source_to_bridge_policy_rows(
         premise_name=premise_name,
         premise_target_type=premise_target_type,
+        context=context,
     ):
         values = (
             policy.source_to_bridge_required_anchor_names
@@ -1754,11 +1797,17 @@ def _source_to_bridge_policy_required_anchor_names(
     return tuple(anchor_names)
 
 
-def _source_to_bridge_policy_anchor_role(name: str) -> str:
+def _source_to_bridge_policy_anchor_role(
+    name: str,
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> str:
     normalized = compact_exact_semantic_placeholder_key(name)
     if not normalized:
         return ""
-    for policy in EXACT_SEMANTIC_DEFINITION_PLACEHOLDER_POLICIES.values():
+    for policy in exact_semantic_definition_placeholder_policies_for_mapping(
+        context,
+    ):
         for key, role in policy.source_anchor_roles.items():
             if compact_exact_semantic_placeholder_key(key) == normalized:
                 return str(role or "")
@@ -1770,6 +1819,7 @@ def _premise_semantic_dependency_requirements(
     premise_name: str,
     premise_target_type: str,
     source_signature: tuple[str, ...],
+    context: Mapping[str, Any] | None = None,
 ) -> tuple[str, ...]:
     """Infer source-to-bridge semantic dependencies for the next LLM/prover pass.
 
@@ -1782,6 +1832,7 @@ def _premise_semantic_dependency_requirements(
         _source_to_bridge_policy_dependency_requirements(
             premise_name=premise_name,
             premise_target_type=target,
+            context=context,
         )
     )
     if not requirements and target:
@@ -1793,6 +1844,7 @@ def _premise_semantic_dependency_requirements(
     for anchor_name in _source_to_bridge_policy_required_anchor_names(
         premise_name=premise_name,
         premise_target_type=target,
+        context=context,
     ):
         if re.search(rf"\b{re.escape(anchor_name)}\b", source_text):
             requirements.append(
@@ -3710,8 +3762,19 @@ def _premise_derivation_candidate_request_row(
             row.failure_classification,
         ]
     )[:20]
+    policy_scope_context = {
+        "question_id": row.question_id,
+        "target_theorem_name": row.target_theorem_name,
+        "target_lean_declaration": row.target_lean_declaration,
+        "target_ids": list(row.target_ids),
+        "target_theorem_goal_ids": list(row.target_theorem_goal_ids),
+        "candidate_definition_request": dict(
+            row.source_to_bridge_premise_derivation_candidate_request
+        ),
+    }
     source_binders = row.exact_source_theorem_binders or _source_theorem_binder_summaries(
-        row.source_theorem_signature_excerpt
+        row.source_theorem_signature_excerpt,
+        context=policy_scope_context,
     )
     semantic_anchor_binders = (
         row.premise_semantic_anchor_binders
@@ -3720,6 +3783,7 @@ def _premise_derivation_candidate_request_row(
             premise_target_type=row.premise_target_type,
             semantic_requirements=row.premise_semantic_dependency_requirements,
             source_binders=source_binders,
+            context=policy_scope_context,
         )
     )
     target_uses_goal_context = _premise_target_uses_proof_body_goal_context(
@@ -3942,6 +4006,8 @@ def _premise_derivation_candidate_request_row(
 
 def _source_theorem_binder_summaries(
     source_signature: tuple[str, ...],
+    *,
+    context: Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, str], ...]:
     binders: list[dict[str, str]] = []
     seen: set[str] = set()
@@ -3960,7 +4026,11 @@ def _source_theorem_binder_summaries(
                 {
                     "name": name,
                     "type": binder_type,
-                    "role": _source_binder_role(name=name, binder_type=binder_type),
+                    "role": _source_binder_role(
+                        name=name,
+                        binder_type=binder_type,
+                        context=context,
+                    ),
                 }
             )
     return tuple(binders)
@@ -4007,19 +4077,23 @@ def _parse_named_binder_inner(inner: str) -> tuple[tuple[str, str], ...]:
     return tuple((name, target) for name in names)
 
 
-def _source_binder_role(*, name: str, binder_type: str) -> str:
-    normalized = _normalize_premise_identifier(name)
-    type_text = str(binder_type or "")
-    policy_role = _source_to_bridge_policy_anchor_role(name)
+def _source_binder_role(
+    *,
+    name: str,
+    binder_type: str,
+    context: Mapping[str, Any] | None = None,
+) -> str:
+    policy_role = _source_to_bridge_policy_anchor_role(
+        name,
+        context=context,
+    )
     if policy_role:
         return policy_role
-    if "Exchangeable" in type_text:
-        return "exchangeability_anchor"
-    if "orderStat" in type_text:
-        return "quantile_definition_anchor"
-    if normalized.startswith("h"):
-        return "source_hypothesis"
-    return "source_parameter"
+    return exact_semantic_definition_fallback_source_anchor_role(
+        name=name,
+        binder_type=binder_type,
+        context=context,
+    )
 
 
 def _premise_semantic_anchor_binder_summaries(
@@ -4028,10 +4102,12 @@ def _premise_semantic_anchor_binder_summaries(
     premise_target_type: str,
     semantic_requirements: tuple[str, ...],
     source_binders: tuple[dict[str, str], ...],
+    context: Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, str], ...]:
     policy_anchor_names = _source_to_bridge_policy_required_anchor_names(
         premise_name=premise_name,
         premise_target_type=premise_target_type,
+        context=context,
     )
     if policy_anchor_names:
         normalized_policy_anchors = {
@@ -4050,6 +4126,7 @@ def _premise_semantic_anchor_binder_summaries(
             premise_name=premise_name,
             premise_target_type=premise_target_type,
             semantic_requirements=semantic_requirements,
+            context=context,
         )
     )
     if not fallback_anchor_names:
@@ -4370,7 +4447,9 @@ def _adapter_object_names_requiring_source_instantiation(
     if explicit:
         return explicit
     target = str(premise_target_type or "")
-    default_adapter_object_names = _policy_source_to_bridge_adapter_object_names()
+    default_adapter_object_names = _policy_source_to_bridge_adapter_object_names(
+        context={**dict(candidate_request), **dict(row or {})},
+    )
     names = [
         name
         for name in default_adapter_object_names

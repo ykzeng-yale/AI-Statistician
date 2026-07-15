@@ -104,8 +104,8 @@ FORMALIZER_VALIDATION_REPAIR_RULES: tuple[
             "top-level conclusion field for the local claim, include at least one "
             "source_anchors entry pointing to a theory trace/paper/proof-body "
             "source with a non-empty id or excerpt, for example "
-            "{\"kind\":\"theory_trace\",\"id\":\"coverage_threshold\","
-            "\"excerpt\":\"C_n is the calibration quantile threshold\"}; do not "
+            "{\"kind\":\"theory_trace\",\"id\":\"source_step_1\","
+            "\"excerpt\":\"exact intermediate claim from the derivation\"}; do not "
             "put anchor names only in prose, comments, or next_actions. Set "
             "faithfulness_status to one of lowercase "
             "`faithful`, `needs_review`, `unfaithful`, or `unchecked`. Do not use "
@@ -217,7 +217,8 @@ FORMALIZER_VALIDATION_REPAIR_RULES: tuple[
         trigger_markers=("violates target_shape_contract",),
         prompt_directive=(
             "Preserve the target_shape_contract: source-theorem formal targets "
-            "must keep the probability/measure coverage conclusion; route helper "
+            "must keep the task-bound objects, assumptions, quantifiers, and "
+            "conclusion; route helper "
             "lemmas through support/source-to-bridge channels."
         ),
         allowed_resolution=(

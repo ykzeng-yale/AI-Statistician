@@ -19,6 +19,7 @@ from ai_statistician.formal_target_semantic_reviewer_llm import (
     build_formal_target_semantic_review_prompt,
     validate_formal_target_semantic_review_packet,
 )
+from ai_statistician.formalizer_llm import build_formalizer_prompt
 from ai_statistician.model_backend import StaticJSONGeneratorBackend
 from ai_statistician.research_agent_runtime import (
     FormalTargetSemanticReviewerRuntimeSubsystem,
@@ -324,6 +325,18 @@ def test_formal_target_semantic_review_rejects_target_and_disables_prover(
         "external_proof_search_dispatch_eligible"
     ] is False
     assert feedback["repair_instructions"]
+    handoff = result.next_task.inputs["architect_context"]["runtime_feedback_loop"][
+        "direct_repair_handoff_contract"
+    ]
+    assert handoff["architect_pre_authorized"] is True
+    assert handoff["source_reviewer_subsystem"] == (
+        "FormalTargetSemanticReviewer"
+    )
+    assert handoff["target_repair_subsystem"] == "FormalizationEvaluator"
+    assert handoff["feedback_artifact_id"] == feedback[
+        "semantic_review_packet_id"
+    ]
+    assert handoff["target_task_id"] == result.next_task.task_id
 
 
 def test_formal_target_semantic_review_blocks_back_to_theory_developer(
@@ -337,6 +350,10 @@ def test_formal_target_semantic_review_blocks_back_to_theory_developer(
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "TheoryDeveloper"
     assert result.next_task.inputs["environment_feedback"]["blocking_reason"]
+    handoff = result.next_task.inputs["architect_context"]["runtime_feedback_loop"][
+        "direct_repair_handoff_contract"
+    ]
+    assert handoff["target_repair_subsystem"] == "TheoryDeveloper"
 
 
 def test_formal_target_semantic_review_fails_closed_on_source_hash_drift(
@@ -410,6 +427,98 @@ def test_formal_target_semantic_review_prompt_is_domain_general() -> None:
     assert "Do not invent task-family rules" in prompt
     assert "do not propose tactics" in prompt
     assert "This review is never proof evidence" in prompt
+
+
+def test_formalizer_prompt_preserves_independent_target_review_reasoning() -> None:
+    rationale = (
+        "The emitted theorem makes the desired conclusion an input hypothesis, so "
+        "its proof is circular even though the declaration is syntactically valid."
+    )
+    required_change = (
+        "Remove the conclusion-shaped hypothesis and derive the conclusion from the "
+        "registered assumptions and the exact equation-chain anchors."
+    )
+    question = _question()
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet={
+            "packet_id": "theory:semantic-feedback",
+            "theorem_cards": [
+                {
+                    "id": "target-theorem",
+                    "claim": "the registered assumptions imply the stated limit law",
+                    "assumptions": ["registered source assumption"],
+                }
+            ],
+            "theory_derivation_packet": {
+                "derivation_steps": [
+                    {
+                        "id": "source-step",
+                        "claim": "derive the target from the source assumption",
+                    }
+                ],
+                "assumption_ledger": [
+                    {
+                        "assumption": "registered source assumption",
+                        "role": "source premise",
+                    }
+                ],
+                "formalization_handoff": {
+                    "source_theorem_target": "target-theorem",
+                    "candidate_lean_targets": ["theorem target_theorem ..."],
+                },
+            },
+        },
+        simulation_manifest={"manifest_id": "simulation:test"},
+        algorithm_manifest={"manifest_id": "algorithm:test"},
+        registered_problem={"question_id": question.id},
+        theorem_goals=[
+            {
+                "id": "target-theorem",
+                "claim": "registered assumptions imply the stated limit law",
+            }
+        ],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback={
+            "feedback_type": "formal_target_semantic_review_feedback",
+            "feedback_source": "FormalTargetSemanticReviewer",
+            "semantic_review_execution_id": "formal-review-execution:test",
+            "semantic_review_packet_id": "formal-review-packet:test",
+            "candidate_materialization_id": "candidate-materialization:test",
+            "candidate_id": "target-theorem",
+            "candidate_source_hash": "source-hash",
+            "overall_verdict": "REVISE",
+            "repair_owner_agent": "FormalizationEvaluator",
+            "dimension_reviews": [
+                {
+                    "dimension": "non_vacuity_and_assumption_discipline",
+                    "status": "FAIL",
+                    "rationale": rationale,
+                    "evidence_refs": ["exact_formal_target"],
+                }
+            ],
+            "findings": [
+                {
+                    "severity": "high",
+                    "category": "circular_target",
+                    "summary": "The conclusion is assumed.",
+                    "required_change": required_change,
+                    "evidence_refs": ["exact_formal_target", "theory_packet"],
+                }
+            ],
+            "repair_instructions": [required_change],
+            "blocking_reason": "Current target is vacuous.",
+            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+        },
+    )
+
+    assert "formal_target_semantic_review" in prompt
+    assert rationale in prompt
+    assert required_change in prompt
+    assert "treat its independent dimension reviews" in prompt
+    assert "binding retry feedback" in prompt
+    assert "task_bound_formal_target_contract" in prompt
 
 
 def test_formal_target_review_validator_rejects_failed_dimension_acceptance() -> None:

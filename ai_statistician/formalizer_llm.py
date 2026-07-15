@@ -43,6 +43,7 @@ from .pseudo_formalization import (
     validate_pseudo_formal_packet,
 )
 from .research_schema import OpenResearchQuestion
+from .semantic_review_feedback import compact_semantic_review_feedback
 from .source_to_bridge_metadata import (
     default_premise_candidate_declaration_name,
     ensure_premise_candidate_declaration_name,
@@ -131,6 +132,10 @@ class LLMFormalizerProofEngineerAgent:
             requested_model=self.config.model,
             model_tier=self.config.model_tier,
         )
+        provider_name = str(
+            getattr(self.provider, "provider_name", self.config.provider_name)
+            or self.config.provider_name
+        ).lower()
         request = GeneratorRequest(
             system_prompt=FORMALIZER_SYSTEM_PROMPT,
             user_prompt=user_prompt,
@@ -144,6 +149,11 @@ class LLMFormalizerProofEngineerAgent:
                 "provider_name": self.config.provider_name,
                 "model_tier": self.config.model_tier,
                 "resolved_model": request_model,
+                **(
+                    {"provider_structured_output": True}
+                    if provider_name == "anthropic"
+                    else {}
+                ),
             },
         )
 
@@ -515,6 +525,252 @@ def _formalizer_repair_context(
         },
     }
 
+
+def _task_bound_formal_target_contract(
+    *,
+    question: OpenResearchQuestion,
+    theory_packet: Mapping[str, Any],
+    theorem_goals: Sequence[Mapping[str, Any]],
+    registered_problem: Mapping[str, Any],
+) -> dict[str, Any]:
+    derivation_packet = (
+        theory_packet.get("theory_derivation_packet", {})
+        if isinstance(theory_packet, Mapping)
+        else {}
+    )
+    if not isinstance(derivation_packet, Mapping):
+        derivation_packet = {}
+    formalization_handoff = derivation_packet.get("formalization_handoff", {})
+    if not isinstance(formalization_handoff, Mapping):
+        formalization_handoff = theory_packet.get("formalization_handoff", {})
+    if not isinstance(formalization_handoff, Mapping):
+        formalization_handoff = {}
+
+    theorem_card_rows = _task_contract_rows(
+        theory_packet.get("theorem_cards", []),
+        keys=(
+            "id",
+            "title",
+            "claim",
+            "statement",
+            "informal_statement",
+            "conclusion",
+            "assumptions",
+            "assumptions_used",
+            "rate_or_limit_law",
+            "proof_strategy",
+            "semantic_risks",
+        ),
+        limit=FORMALIZER_MAX_THEORY_ROWS,
+    )
+    theorem_goal_rows = _task_contract_rows(
+        theorem_goals,
+        keys=(
+            "id",
+            "title",
+            "claim",
+            "statement",
+            "conclusion",
+            "assumptions",
+            "proof_obligations",
+        ),
+        limit=FORMALIZER_MAX_THEOREM_GOALS,
+    )
+    formalization_request_rows = _task_contract_rows(
+        theory_packet.get("formalization_requests", []),
+        keys=(
+            "id",
+            "target",
+            "target_theorem_card",
+            "claim",
+            "statement",
+            "reason",
+            "semantic_alignment_constraints",
+            "proof_obligations",
+            "kernel_status",
+        ),
+        limit=FORMALIZER_MAX_THEORY_ROWS,
+    )
+    derivation_rows = _task_contract_rows(
+        derivation_packet.get("derivation_steps", []),
+        keys=("id", "claim", "equation_or_argument", "depends_on", "formal_goal", "risk"),
+        limit=8,
+    )
+    equation_rows = _task_contract_rows(
+        derivation_packet.get("equation_chain", []),
+        keys=("step_id", "lhs", "relation", "rhs", "justification", "depends_on"),
+        limit=8,
+    )
+    assumption_rows = _task_contract_rows(
+        derivation_packet.get("assumption_ledger", []),
+        keys=("assumption", "role", "used_in", "risk_if_dropped"),
+        limit=12,
+    )
+    source_target = _task_contract_text(
+        formalization_handoff.get("source_theorem_target", ""),
+        limit=500,
+    )
+    candidate_declarations = _task_contract_text_list(
+        formalization_handoff.get("candidate_lean_targets", []),
+        limit=12,
+        char_limit=1000,
+    )
+    semantic_snapshot = {
+        "question_id": question.id,
+        "source_theorem_target_id": source_target,
+        "registered_theorem_goals": theorem_goal_rows,
+        "theory_theorem_cards": theorem_card_rows,
+        "formalization_requests": formalization_request_rows,
+        "registered_problem": _task_contract_mapping(
+            registered_problem,
+            keys=(
+                "question_id",
+                "problem_class",
+                "dgp",
+                "observed_data",
+                "estimand",
+                "nuisance_quantities",
+                "assumptions",
+                "asymptotic_regime",
+            ),
+        ),
+        "derivation_support": {
+            "derivation_steps": derivation_rows,
+            "equation_chain": equation_rows,
+            "assumption_ledger": assumption_rows,
+            "self_critique": _task_contract_text_list(
+                derivation_packet.get("self_critique", []),
+                limit=8,
+                char_limit=2000,
+            ),
+        },
+        "formalization_handoff": {
+            "source_theorem_target": source_target,
+            "candidate_lean_targets": candidate_declarations,
+            "required_definitions": _task_contract_text_list(
+                formalization_handoff.get("required_definitions", []),
+                limit=12,
+                char_limit=1800,
+            ),
+            "lemma_dependencies": _task_contract_text_list(
+                formalization_handoff.get("lemma_dependencies", []),
+                limit=12,
+                char_limit=1000,
+            ),
+            "semantic_alignment_constraints": _task_contract_text_list(
+                formalization_handoff.get("semantic_alignment_constraints", []),
+                limit=12,
+                char_limit=2400,
+            ),
+        },
+    }
+    contract: dict[str, Any] = {
+        "schema_version": 1,
+        "contract_kind": "task_bound_formal_target",
+        "question_id": question.id,
+        "source_theorem_target_id": source_target,
+        "registered_theorem_goal_ids": [
+            str(row.get("id", "") or "").strip()
+            for row in theorem_goal_rows
+            if str(row.get("id", "") or "").strip()
+        ],
+        "theory_theorem_card_ids": [
+            str(row.get("id", "") or "").strip()
+            for row in theorem_card_rows
+            if str(row.get("id", "") or "").strip()
+        ],
+        "formalization_request_ids": [
+            str(row.get("id", "") or "").strip()
+            for row in formalization_request_rows
+            if str(row.get("id", "") or "").strip()
+        ],
+        "authoritative_payload_paths": {
+            "registered_problem": "registered_problem",
+            "registered_theorem_goals": "registered_theorem_goals",
+            "theory": "theory_packet_summary",
+            "derivation": "theory_packet_summary.theory_derivation_trace",
+            "runtime_feedback": "runtime_environment_feedback",
+        },
+        "semantic_authority_order": [
+            "registered problem and theorem goal",
+            "theory derivation and formalization handoff",
+            "review feedback",
+        ],
+        "candidate_declaration_boundary": (
+            "Retrieved declarations are support candidates until task alignment and "
+            "local kernel checking both succeed."
+        ),
+        "generation_policy": (
+            "Preserve task-bound objects, assumptions, quantifiers, and conclusion. "
+            "Route unavailable prerequisites separately instead of weakening the target."
+        ),
+    }
+    contract["contract_fingerprint"] = stable_hash(semantic_snapshot)
+    return contract
+
+
+def _task_contract_rows(
+    value: Any,
+    *,
+    keys: Sequence[str],
+    limit: int,
+) -> list[dict[str, Any]]:
+    if not isinstance(value, list | tuple):
+        return []
+    return [
+        _task_contract_mapping(row, keys=keys)
+        for row in value[:limit]
+        if isinstance(row, Mapping)
+    ]
+
+
+def _task_contract_mapping(
+    value: Mapping[str, Any],
+    *,
+    keys: Sequence[str],
+) -> dict[str, Any]:
+    row: dict[str, Any] = {}
+    for key in keys:
+        child = value.get(key)
+        if isinstance(child, Mapping):
+            compact_child: Any = {
+                str(child_key): _task_contract_text(child_value, limit=2000)
+                for child_key, child_value in list(child.items())[:12]
+            }
+        elif isinstance(child, list | tuple):
+            compact_child = _task_contract_text_list(
+                child,
+                limit=12,
+                char_limit=2000,
+            )
+        else:
+            compact_child = _task_contract_text(child, limit=2400)
+        if compact_child not in (None, "", [], {}):
+            row[key] = compact_child
+    return row
+
+
+def _task_contract_text_list(
+    value: Any,
+    *,
+    limit: int,
+    char_limit: int,
+) -> list[str]:
+    rows = value if isinstance(value, list | tuple) else [value]
+    return [
+        _task_contract_text(row, limit=char_limit)
+        for row in rows[:limit]
+        if str(row or "").strip()
+    ]
+
+
+def _task_contract_text(value: Any, *, limit: int) -> str:
+    text = str(value or "").strip()
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + "..."
+
+
 def build_formalizer_prompt(
     *,
     question: OpenResearchQuestion,
@@ -537,7 +793,20 @@ def build_formalizer_prompt(
     ][:FORMALIZER_MAX_PROOF_BANK_ROWS]
     theorem_cards = _compact_rows(
         theory_packet.get("theorem_cards", []) if isinstance(theory_packet, Mapping) else [],
-        keys=("id", "title", "claim", "statement", "conclusion", "assumptions", "proof_obligations"),
+        keys=(
+            "id",
+            "title",
+            "claim",
+            "statement",
+            "informal_statement",
+            "conclusion",
+            "assumptions",
+            "assumptions_used",
+            "rate_or_limit_law",
+            "proof_strategy",
+            "semantic_risks",
+            "proof_obligations",
+        ),
         limit=FORMALIZER_MAX_THEORY_ROWS,
     )
     lemma_cards = _compact_rows(
@@ -578,7 +847,7 @@ def build_formalizer_prompt(
     repeated_syntax_fail_closed_active = (
         _feedback_has_repeated_syntax_failure_contract(environment_feedback or {})
     )
-    initial_target_shape_contract = _initial_probability_coverage_target_shape_contract(
+    task_bound_formal_target_contract = _task_bound_formal_target_contract(
         question=question,
         theory_packet=theory_packet,
         theorem_goals=theorem_goals,
@@ -695,6 +964,7 @@ def build_formalizer_prompt(
         ),
         "registered_theorem_goals": theorem_goal_rows,
         "registered_theorem_goals_total": _safe_len(theorem_goals),
+        "task_bound_formal_target_contract": task_bound_formal_target_contract,
         "registered_proof_bank_obligation_catalog": catalog_rows,
         "registered_proof_bank_obligation_catalog_total": _safe_len(
             proof_bank_obligation_catalog or theorem_goals
@@ -726,30 +996,36 @@ def build_formalizer_prompt(
             pseudo_formalization_copy_fragment
         ),
         "runtime_environment_feedback": runtime_environment_feedback,
-        "formalizer_lean_candidate_contract": {
-            "capability_eval_requires_formalizer_lean_candidate": requires_lean_candidate,
-            "initial_target_shape_contract": initial_target_shape_contract,
-            "required_when_true": (
-                "include at least one concrete safe Lean theorem sketch with "
-                "expected_status=NEEDS_KERNEL_CHECK in either formal_targets or "
-                "source_to_bridge_premise_derivation_candidates; "
-                "proof_bank_obligation_requests alone do not satisfy this gate. "
-                "A source_to_bridge_premise_derivation_candidates entry must copy "
-                "premise_candidate_declaration_name from the runtime request and "
-                "its Lean source must declare theorem <that exact name>. "
-                "When runtime target-shape feedback says a source theorem would "
-                "drift if repaired, emit that source theorem as FORMAL_GAP and "
-                "route helper/premise Lean candidates separately. A separate helper "
-                "formal_targets entry must set "
-                "source_theorem_target_provenance.source_theorem_target_known=false "
-                "so local Lean/LSP can inspect a real artifact without promoting it "
-                "to source-theorem proof evidence."
-            ),
-            "not_proof_evidence": (
-                "the Lean candidate remains a proposal until AgentRuntime runs "
-                "local Lean/AXLE on that exact artifact"
-            ),
-        },
+        "formalizer_lean_candidate_contract": (
+            {
+                "capability_eval_requires_formalizer_lean_candidate": True,
+                "task_bound_formal_target_contract_fingerprint": (
+                    task_bound_formal_target_contract.get("contract_fingerprint", "")
+                ),
+                "required_when_true": (
+                    "include at least one concrete safe Lean theorem sketch with "
+                    "expected_status=NEEDS_KERNEL_CHECK in either formal_targets or "
+                    "source_to_bridge_premise_derivation_candidates; "
+                    "proof_bank_obligation_requests alone do not satisfy this gate. "
+                    "A source_to_bridge_premise_derivation_candidates entry must copy "
+                    "premise_candidate_declaration_name from the runtime request and "
+                    "its Lean source must declare theorem <that exact name>. "
+                    "When runtime target-shape feedback says a source theorem would "
+                    "drift if repaired, emit that source theorem as FORMAL_GAP and "
+                    "route helper/premise Lean candidates separately. A separate helper "
+                    "formal_targets entry must set "
+                    "source_theorem_target_provenance.source_theorem_target_known=false "
+                    "so local Lean/LSP can inspect a real artifact without promoting it "
+                    "to source-theorem proof evidence."
+                ),
+                "not_proof_evidence": (
+                    "the Lean candidate remains a proposal until AgentRuntime runs "
+                    "local Lean/AXLE on that exact artifact"
+                ),
+            }
+            if requires_lean_candidate
+            else {}
+        ),
         "mode_specific_instructions": _formalizer_mode_specific_instructions(
             proof_memory_summary,
             runtime_environment_feedback,
@@ -771,6 +1047,7 @@ def build_formalizer_prompt(
             source_theorem_candidate_materialization_contract=(
                 source_theorem_candidate_materialization_contract
             ),
+            task_bound_formal_target_contract=task_bound_formal_target_contract,
             source_to_bridge_premise_derivation_required=bool(
                 proof_memory_summary.get(
                     "source_to_bridge_premise_derivation_required"
@@ -805,7 +1082,7 @@ def build_formalizer_prompt(
             "priority: do not force a helper/arithmetic Lean sketch into "
             "formal_targets just to satisfy the candidate gate. Emit a "
             "NEEDS_KERNEL_CHECK Lean candidate only if it is either a faithful "
-            "probability/coverage source-theorem target or a real "
+            "task-bound source-theorem target or a real "
             "source_to_bridge_premise_derivation_candidates object with copied "
             "source-binding metadata and semantic anchors. Otherwise emit the "
             "source theorem as expected_status=FORMAL_GAP with an empty Lean sketch "
@@ -815,24 +1092,15 @@ def build_formalizer_prompt(
     elif requires_lean_candidate:
         lean_candidate_instruction = (
             "Capability-eval mode is active for Formalizer/ProofEngineer: include "
-            "exactly one compact concrete safe Lean theorem sketch with "
-            "expected_status=NEEDS_KERNEL_CHECK, either as a faithful formal_targets "
-            "source-theorem candidate or as a source_to_bridge_premise_derivation_candidates "
-            "repair candidate when target-shape feedback says the source theorem must "
-            "remain a FORMAL_GAP. Do not satisfy the packet using only "
+            "one compact concrete Lean theorem sketch with "
+            "expected_status=NEEDS_KERNEL_CHECK. Prefer the exact task-bound source "
+            "theorem only when its objects, assumptions, quantifiers, and conclusion "
+            "can be represented faithfully. Otherwise keep that source theorem as "
+            "FORMAL_GAP and emit a clearly provenance-marked support or "
+            "source_to_bridge candidate that advances a named dependency. Do not "
+            "satisfy the packet using only "
             "proof_bank_obligation_requests, gap taxonomy, or queue work orders. "
         )
-        if initial_target_shape_contract:
-            lean_candidate_instruction += (
-                "Initial coverage target-shape guard is active: if a formal_targets "
-                "entry represents the source theorem, its Lean sketch must preserve "
-                "an explicit probability/measure coverage lower-bound conclusion. "
-                "Do not put standalone rank, ceiling, monotonicity, or arithmetic "
-                "helper lemmas in the source-theorem formal_targets slot; route those "
-                "through support/source-to-bridge channels or mark the source theorem "
-                "as FORMAL_GAP with an empty Lean sketch when faithful formalization is "
-                "not feasible. "
-            )
     else:
         lean_candidate_instruction = ""
     if pseudo_formalization_required:
@@ -906,6 +1174,15 @@ def build_formalizer_prompt(
         "obligation_id values from registered_proof_bank_obligation_catalog when possible; these "
         "requests only prioritize AgentRuntime kernel-smoke work and may be filtered or rejected. "
         "Populate theory_trace_alignment with exact trace anchor ids/names. "
+        "Treat task_bound_formal_target_contract as the semantic source of truth for "
+        "this task. Retrieved Lean declarations are API or support candidates unless "
+        "the supplied target lineage explicitly identifies one as the exact source theorem. "
+        "Never replace the task-bound theorem by a narrower helper or make the desired "
+        "conclusion an assumption merely to obtain compilable Lean. "
+        "When runtime_environment_feedback.formal_target_semantic_review is present, "
+        "treat its independent dimension reviews, findings, and repair instructions as "
+        "binding retry feedback. Regenerate the rejected target semantics before syntax "
+        "or tactic repair and preserve its review lineage in the next work item. "
         + pseudo_formalization_instruction
         +
         "Do not use C-style comments, placeholder binder types, `/* ... */`, `placeholder`, `TODO`, "
@@ -1065,6 +1342,7 @@ def _formalizer_output_contract_for_prompt(
     has_theory_trace: bool,
     pseudo_formalization_required: bool = False,
     source_theorem_candidate_materialization_contract: Mapping[str, Any] | None = None,
+    task_bound_formal_target_contract: Mapping[str, Any] | None = None,
     source_to_bridge_premise_derivation_required: bool = False,
 ) -> dict[str, Any]:
     contract = dict(FORMALIZER_OUTPUT_CONTRACT)
@@ -1076,6 +1354,11 @@ def _formalizer_output_contract_for_prompt(
     materialization_contract = (
         source_theorem_candidate_materialization_contract
         if isinstance(source_theorem_candidate_materialization_contract, Mapping)
+        else {}
+    )
+    task_contract = (
+        task_bound_formal_target_contract
+        if isinstance(task_bound_formal_target_contract, Mapping)
         else {}
     )
     if materialization_contract:
@@ -1098,7 +1381,8 @@ def _formalizer_output_contract_for_prompt(
                 ),
                 "lean_statement_sketch": (
                     "concrete theorem/lemma declaration for the exact source theorem; "
-                    "must preserve the probability/measure coverage conclusion and "
+                    "must preserve the task-bound objects, assumptions, quantifiers, "
+                    "and conclusion and "
                     "must not be FORMAL_GAP, helper-only, source-to-bridge-only, "
                     "sorry/admit/by?/exact?, or prose"
                 ),
@@ -1106,7 +1390,14 @@ def _formalizer_output_contract_for_prompt(
                     "narrow verified imports only; do not guess unavailable Mathlib root"
                 ],
                 "semantic_alignment_constraints": [
-                    "copy requested target identity and keep probability/measure coverage lower-bound shape"
+                    (
+                        "copy requested target identity and preserve the exact "
+                        "task-bound semantic contract"
+                    ),
+                    (
+                        "do not assume the requested conclusion or replace it with "
+                        "a support result"
+                    ),
                 ],
                 "source_theorem_target_provenance": {
                     "source_theorem_target_known": True,
@@ -1129,6 +1420,9 @@ def _formalizer_output_contract_for_prompt(
             "proof_boundary": (
                 "materialization is not proof evidence until local Lean/AXLE "
                 "checks the exact emitted candidate"
+            ),
+            "task_bound_formal_target_contract_fingerprint": str(
+                task_contract.get("contract_fingerprint", "") or ""
             ),
         }
     if source_to_bridge_premise_derivation_required:
@@ -3121,117 +3415,9 @@ def _has_explicit_source_theorem_formal_gap_target(
                 str(row.get("reason", "") or ""),
             ]
         ).lower()
-        if "source theorem" in row_text or "coverage" in row_text:
+        if "source theorem" in row_text:
             return True
     return False
-
-
-def _lean_source_has_probability_or_measure_shape(source: str) -> bool:
-    source_text = str(source or "")
-    return (
-        "MeasureTheory" in source_text
-        or "IsProbabilityMeasure" in source_text
-        or "ProbabilityTheory" in source_text
-        or re.search(r"\b(?:P|μ|Pr)\s*(?:\{|\(|:)", source_text) is not None
-        or re.search(r"\bMeasure\.", source_text) is not None
-    )
-
-
-def _initial_probability_coverage_target_shape_contract(
-    *,
-    question: OpenResearchQuestion,
-    theory_packet: Mapping[str, Any],
-    theorem_goals: Sequence[Mapping[str, Any]],
-    registered_problem: Mapping[str, Any],
-) -> Mapping[str, Any]:
-    text = " ".join(
-        [
-            question.id,
-            question.title,
-            question.description,
-            " ".join(question.tags),
-            json.dumps(
-                _compact_value(
-                    theory_packet.get("theorem_cards", [])
-                    if isinstance(theory_packet, Mapping)
-                    else []
-                ),
-                default=str,
-            ),
-            json.dumps(
-                _compact_value(
-                    theory_packet.get("formalization_requests", [])
-                    if isinstance(theory_packet, Mapping)
-                    else []
-                ),
-                default=str,
-            ),
-            json.dumps(_compact_value(theorem_goals), default=str),
-            json.dumps(_compact_value(registered_problem), default=str),
-        ]
-    ).lower()
-    if "coverage" not in text:
-        return {}
-    if not any(
-        marker in text
-        for marker in (
-            "conformal",
-            "prediction interval",
-            "probability",
-            "measure",
-            "marginal coverage",
-        )
-    ):
-        return {}
-    return {
-        "contract_kind": "initial_source_theorem_target_shape_guard",
-        "required_conclusion_family": "probability_or_measure_coverage_claim",
-        "required_behavior": (
-            "Coverage source-theorem formal_targets with expected_status="
-            "NEEDS_KERNEL_CHECK must conclude an explicit probability/measure "
-            "coverage lower bound, not only an arithmetic or rank helper lemma."
-        ),
-        "if_not_feasible": (
-            "Emit the source theorem as expected_status=FORMAL_GAP with an empty "
-            "Lean sketch and route helper work through support channels."
-        ),
-    }
-
-
-def _feedback_requires_probability_measure_coverage_shape(
-    feedback: Mapping[str, Any] | None,
-) -> bool:
-    if not isinstance(feedback, Mapping):
-        return False
-    input_summary = feedback.get("input_summary", {})
-    contracts = [
-        feedback.get("target_shape_contract", {}),
-        input_summary.get("target_shape_contract", {})
-        if isinstance(input_summary, Mapping)
-        else {},
-    ]
-    for contract in contracts:
-        if (
-            isinstance(contract, Mapping)
-            and str(contract.get("required_conclusion_family", "") or "")
-            == "probability_or_measure_coverage_claim"
-        ):
-            return True
-    return False
-
-
-def _formal_target_is_source_theorem_candidate(row: Mapping[str, Any]) -> bool:
-    provenance = row.get("source_theorem_target_provenance", {})
-    source_theorem_target_known = _source_theorem_target_known(provenance)
-    if source_theorem_target_known is False:
-        return False
-    if source_theorem_target_known is True:
-        return True
-    row_text = " ".join(
-        str(row.get(field, "") or "")
-        for field in ("id", "informal_source", "claim", "statement", "reason")
-    ).lower()
-    return "source theorem" in row_text
 
 
 def _source_theorem_target_known(provenance: object) -> bool | None:
@@ -3249,40 +3435,6 @@ def _source_theorem_target_known(provenance: object) -> bool | None:
     if isinstance(value, int) and value in {0, 1}:
         return bool(value)
     return None
-
-
-def _packet_requires_probability_measure_coverage_shape(
-    packet: Mapping[str, Any],
-    formal_targets: Sequence[Mapping[str, Any]],
-) -> bool:
-    question = packet.get("question", {})
-    question_text = json.dumps(question, default=str).lower()
-    target_text = json.dumps(
-        [
-            {
-                "id": row.get("id", ""),
-                "informal_source": row.get("informal_source", ""),
-                "claim": row.get("claim", ""),
-            }
-            for row in formal_targets
-        ],
-        default=str,
-    ).lower()
-    combined = question_text + " " + target_text
-    if "coverage" not in combined:
-        return False
-    if not any(
-        marker in combined
-        for marker in (
-            "conformal",
-            "prediction interval",
-            "probability",
-            "measure",
-            "marginal coverage",
-        )
-    ):
-        return False
-    return any(_formal_target_is_source_theorem_candidate(row) for row in formal_targets)
 
 
 def _validate_capability_eval_formalizer_lean_candidate_packet(
@@ -3348,10 +3500,6 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
             "source_to_bridge_premise_derivation_candidates"
         ]
     errors: list[str] = []
-    requires_probability_measure_coverage_shape = (
-        _feedback_requires_probability_measure_coverage_shape(environment_feedback)
-        or _packet_requires_probability_measure_coverage_shape(packet, formal_targets)
-    )
     for row in candidate_targets:
         target_id = str(row.get("id", "") or "<unnamed>")
         source = str(row.get("lean_statement_sketch", "") or "")
@@ -3360,21 +3508,6 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
             errors.append(
                 "capability_eval formal target "
                 f"{target_id} must set expected_status=NEEDS_KERNEL_CHECK"
-            )
-        if (
-            requires_probability_measure_coverage_shape
-            and _formal_target_is_source_theorem_candidate(row)
-            and expected_status == "NEEDS_KERNEL_CHECK"
-            and not _lean_source_has_probability_or_measure_shape(source)
-        ):
-            errors.append(
-                "capability_eval formal target "
-                f"{target_id} violates target_shape_contract: source theorem "
-                "target shape requires a probability/measure coverage "
-                "conclusion; route arithmetic/helper lemmas through "
-                "source_to_bridge_premise_derivation_candidates or support-lemma "
-                "channels and emit the source theorem as FORMAL_GAP when faithful "
-                "repair is not feasible"
             )
         placeholder_error = _lean_statement_placeholder_syntax_error(source)
         if placeholder_error:
@@ -4080,10 +4213,6 @@ def _normalize_formalizer_packet(
         proof_bank_runtime_memory_summary or {},
     )
     _normalize_executable_candidate_expected_statuses(body)
-    _normalize_source_theorem_target_shape_drift(
-        body,
-        environment_feedback or {},
-    )
     body["proof_evidence_status"] = FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE
     body["proof_evidence_boundary"] = FORMALIZER_BOUNDARY
     body["kernel_verified"] = False
@@ -4452,170 +4581,9 @@ def _normalize_source_theorem_target_shape_drift(
     packet: dict[str, Any],
     environment_feedback: Mapping[str, Any],
 ) -> None:
-    if not _feedback_requires_probability_measure_coverage_shape(environment_feedback):
-        return
+    """Deprecated: independent semantic review owns task-target alignment."""
 
-    formal_targets = [
-        row
-        for row in packet.get("formal_targets", []) or []
-        if isinstance(row, dict)
-    ]
-    rerouted: list[dict[str, Any]] = []
-    first_source_target_declaration = ""
-    first_source_goal_id = ""
-    for index, row in enumerate(formal_targets, start=1):
-        lean_source = str(row.get("lean_statement_sketch", "") or "")
-        if not lean_source.strip():
-            continue
-        if _lean_source_is_descriptive_placeholder(lean_source):
-            continue
-        if not _formal_target_is_source_theorem_candidate(row):
-            continue
-        if _lean_source_has_probability_or_measure_shape(lean_source):
-            continue
-        provenance = row.get("source_theorem_target_provenance", {})
-        previous_provenance = dict(provenance) if isinstance(provenance, Mapping) else {}
-        declaration = str(
-            previous_provenance.get("target_lean_declaration", "")
-            or row.get("target_lean_declaration", "")
-            or ""
-        ).strip()
-        goal_id = str(previous_provenance.get("source_theorem_goal_id", "") or "").strip()
-        if declaration and not first_source_target_declaration:
-            first_source_target_declaration = declaration
-        if goal_id and not first_source_goal_id:
-            first_source_goal_id = goal_id
-        previous_provenance["source_theorem_target_known"] = False
-        previous_provenance[
-            "diagnostic_helper_from_source_theorem_shape_drift"
-        ] = True
-        row["source_theorem_target_provenance"] = previous_provenance
-        row["diagnostic_helper_not_source_theorem"] = True
-        row["source_theorem_shape_normalizer_status"] = (
-            "SOURCE_THEOREM_TARGET_SHAPE_DRIFT_REROUTED_TO_DIAGNOSTIC_HELPER"
-        )
-        if _formal_target_is_source_to_bridge_adapter_candidate(row, lean_source):
-            row["runtime_materialization_route"] = (
-                "source_theorem_proof_body_adapter_bridge"
-            )
-            row["skip_formalizer_lean_candidate_materialization"] = True
-            row["adapter_candidate_route_status"] = (
-                "SOURCE_THEOREM_ADAPTER_TARGET_REROUTED_TO_ADAPTER_BRIDGE"
-            )
-        row.setdefault(
-            "proof_evidence_status",
-            "SOURCE_THEOREM_SHAPE_DRIFT_REROUTED_NOT_PROOF_EVIDENCE",
-        )
-        rerouted.append(
-            {
-                "index": index,
-                "id": str(row.get("id", "") or ""),
-                "previous_target_lean_declaration": declaration,
-                "previous_source_theorem_goal_id": goal_id,
-                "runtime_materialization_route": str(
-                    row.get("runtime_materialization_route", "") or ""
-                ),
-                "lean_source_fingerprint": stable_hash(lean_source)[:20],
-            }
-        )
-
-    if not rerouted:
-        return
-
-    if not _has_explicit_source_theorem_formal_gap_target(formal_targets):
-        formal_targets.append(
-            {
-                "id": "source_theorem_formal_gap_after_target_shape_repair",
-                "informal_source": (
-                    "source theorem remains a formal gap because the emitted "
-                    "Lean candidate had helper/adapter shape rather than the "
-                    "required probability or measure coverage conclusion"
-                ),
-                "lean_statement_sketch": "",
-                "expected_status": "FORMAL_GAP",
-                "source_theorem_target_provenance": {
-                    "source_theorem_target_known": True,
-                    "target_lean_declaration": first_source_target_declaration,
-                    "source_theorem_goal_id": first_source_goal_id,
-                },
-                "proof_evidence_status": (
-                    "SOURCE_THEOREM_TARGET_SHAPE_DRIFT_FORMAL_GAP_NOT_PROOF_EVIDENCE"
-                ),
-            }
-        )
-        packet["formal_targets"] = formal_targets
-
-    existing = packet.get("rerouted_source_theorem_shape_drift_targets", [])
-    if not isinstance(existing, list):
-        existing = []
-    packet["rerouted_source_theorem_shape_drift_targets"] = [
-        *existing,
-        *rerouted,
-    ]
-    gap_rows = packet.get("gap_taxonomy", [])
-    if not isinstance(gap_rows, list):
-        gap_rows = []
-    gap_rows.append(
-        {
-            "gap": (
-                "A Lean candidate marked as the source theorem did not preserve "
-                "the required probability/measure coverage conclusion, so it was "
-                "rerouted as diagnostic helper work and the source theorem remains "
-                "FORMAL_GAP."
-            ),
-            "kind": "source_theorem_target_shape_drift_rerouted",
-            "next_owner": "Formalizer/ProofEngineer",
-            "proof_evidence_status": (
-                "SOURCE_THEOREM_TARGET_SHAPE_DRIFT_REROUTED_NOT_PROOF_EVIDENCE"
-            ),
-        }
-    )
-    packet["gap_taxonomy"] = gap_rows
-    findings = packet.get("critic_findings", [])
-    if not isinstance(findings, list):
-        findings = []
-    findings.append(
-        {
-            "critic": "local_formalizer_packet_normalizer",
-            "finding": (
-                "Rerouted source-theorem-shaped provenance from Lean candidates "
-                "whose conclusion was helper/adapter shaped instead of the "
-                "required probability or measure coverage target."
-            ),
-            "proof_evidence_status": (
-                "SOURCE_THEOREM_TARGET_SHAPE_DRIFT_REROUTED_NOT_PROOF_EVIDENCE"
-            ),
-        }
-    )
-    packet["critic_findings"] = findings
-
-
-def _formal_target_is_source_to_bridge_adapter_candidate(
-    row: Mapping[str, Any],
-    lean_source: str,
-) -> bool:
-    text_parts = [
-        str(row.get(field, "") or "")
-        for field in (
-            "id",
-            "informal_source",
-            "target_lean_declaration",
-            "source_theorem_goal_id",
-            "runtime_materialization_route",
-        )
-    ]
-    constraints = row.get("semantic_alignment_constraints", [])
-    if isinstance(constraints, list | tuple | set):
-        text_parts.extend(str(value or "") for value in constraints)
-    text = " ".join(text_parts).lower()
-    if "source_to_bridge_adapter" in text or "source-to-bridge adapter" in text:
-        return True
-    return bool(
-        re.search(
-            r"\b(?:theorem|lemma)\s+[A-Za-z_][A-Za-z0-9_'.]*source_to_bridge_adapter\b",
-            lean_source,
-        )
-    )
+    del packet, environment_feedback
 
 
 def _drop_semantically_unanchored_source_to_bridge_candidates(
@@ -7959,7 +7927,7 @@ def _formalizer_mode_specific_instructions(
             "it as a candidate-size/search-shape failure: split the candidate into a "
             "smaller checked helper or premise-derivation task, prefer narrow imports, "
             "and keep the source theorem target as FORMAL_GAP unless the repaired "
-            "candidate still preserves the probability/coverage conclusion. If the "
+            "candidate still preserves the task-bound source-theorem conclusion. If the "
             "faithful target cannot be repaired, emit expected_status=FORMAL_GAP with "
             "the exact missing import, API, lemma, or semantic premise instead of "
             "weakening the theorem."
@@ -8002,8 +7970,8 @@ def _formalizer_mode_specific_instructions(
             "compiled with source_theorem_target_known=false, so they exercise the "
             "local verifier but are not source-theorem proof. Do not repeat another "
             "helper-only formal_targets candidate as progress. Keep the source "
-            "theorem as expected_status=FORMAL_GAP unless its probability/measure "
-            "coverage statement can be checked, and either emit a concrete "
+            "theorem as expected_status=FORMAL_GAP unless its exact task-bound "
+            "statement can be checked, and either emit a concrete "
             "source_to_bridge_premise_derivation_candidates object with exact "
             "source-binding metadata plus semantic-anchor references, or record an "
             "explicit gap_taxonomy blocker naming the missing source-binding "
@@ -8273,27 +8241,7 @@ def _formalizer_mode_specific_instructions(
             )
             else {}
         )
-        target_shape_contract_text = (
-            json.dumps(target_shape_contract, default=str).lower()
-            if isinstance(target_shape_contract, Mapping)
-            else ""
-        )
-        target_shape_requires_coverage = (
-            "probability_or_measure_coverage_claim"
-            == str(
-                target_shape_contract.get("required_conclusion_family", "")
-                if isinstance(target_shape_contract, Mapping)
-                else ""
-            )
-            or (
-                isinstance(target_shape_contract, Mapping)
-                and "coverage" in target_shape_contract_text
-                and any(
-                    marker in target_shape_contract_text
-                    for marker in ("probability", "measure")
-                )
-            )
-        )
+        target_shape_contract_active = bool(target_shape_contract)
         has_expected_status_validation = (
             "must set expected_status=needs_kernel_check" in validation_text
         )
@@ -8416,24 +8364,23 @@ def _formalizer_mode_specific_instructions(
                 "candidate or an explicit FORMAL_GAP."
             )
             if (
-                target_shape_requires_coverage
+                target_shape_contract_active
                 and not source_theorem_candidate_materialization_contract
             ):
                 instructions.append(
-                    "Mandatory coverage-theorem proof-hole reroute: because the source "
-                    "theorem target is a probability/coverage claim, do not emit another "
-                    "broad formal_targets NEEDS_KERNEL_CHECK coverage theorem unless the "
-                    "Lean sketch has a complete no-sorry proof and preserves "
-                    "target_shape_contract. If you cannot provide that complete proof, "
+                    "Mandatory source-theorem proof-hole reroute: do not emit another "
+                    "broad formal_targets NEEDS_KERNEL_CHECK theorem unless the Lean "
+                    "sketch has a complete no-hole proof and preserves the supplied "
+                    "task-bound target_shape_contract. If you cannot provide that proof, "
                     "set the source theorem formal target to expected_status=FORMAL_GAP "
                     "with no Lean sketch, then route smaller support work through "
                     "source_to_bridge_premise_derivation_candidates, lemma_dependency_plan, "
                     "or proof_bank_obligation_requests. Do not replace the source theorem "
-                    "with arithmetic/rank helper lemmas in formal_targets."
+                    "with a helper lemma in formal_targets."
                 )
                 if repeated_packet_failure:
                     instructions.append(
-                        "Repeated coverage proof-hole escape hatch: emit the source "
+                        "Repeated source-theorem proof-hole escape hatch: emit the source "
                         "theorem formal_targets entry as expected_status=FORMAL_GAP "
                         "with an empty lean_statement_sketch. To keep capability-eval "
                         "Lean tooling live, you may additionally emit exactly one "
@@ -8446,23 +8393,23 @@ def _formalizer_mode_specific_instructions(
                     )
         if has_target_shape_validation:
             instructions.append(
-                "Mandatory target-shape packet repair: if a source theorem is a "
-                "probability/coverage claim, formal_targets with NEEDS_KERNEL_CHECK must "
-                "preserve that probability/measure conclusion. Put arithmetic or rank "
-                "helpers in support/source-to-bridge channels instead."
+                "Mandatory target-shape packet repair: formal_targets with "
+                "NEEDS_KERNEL_CHECK must preserve the supplied task-bound objects, "
+                "assumptions, quantifiers, and conclusion. Put narrower helpers in "
+                "support/source-to-bridge channels instead."
             )
             if target_drift_repair_contract:
                 instructions.append(
                     "Mandatory target-drift two-lane packet repair: follow "
                     "runtime_environment_feedback.target_drift_repair_contract. "
-                    "The source_theorem_lane must be either a faithful probability/"
-                    "measure source theorem target or an expected_status=FORMAL_GAP "
-                    "source theorem with empty Lean sketch. The support_lemma_lane is "
-                    "the only place for arithmetic/order-statistic helper work."
+                    "The source_theorem_lane must be either a faithful task-bound "
+                    "source theorem target or an expected_status=FORMAL_GAP source "
+                    "theorem with empty Lean sketch. The support_lemma_lane is the "
+                    "place for narrower helper work."
                 )
-            if repeated_packet_failure and target_shape_requires_coverage:
+            if repeated_packet_failure and target_shape_contract_active:
                 instructions.append(
-                    "Repeated coverage target-shape failure escalation: do not emit any "
+                    "Repeated target-shape failure escalation: do not emit any "
                     "formal_targets entry with expected_status=NEEDS_KERNEL_CHECK for the "
                     "source theorem in this repair. The source theorem formal_targets entry "
                     "must be expected_status=FORMAL_GAP with an empty Lean sketch and a "
@@ -8711,16 +8658,16 @@ def _formalizer_mode_specific_instructions(
             instructions.append(
                 "Mandatory source-theorem target-preservation repair: the previous "
                 "candidate was rejected for source-theorem target drift. Preserve "
-                "the source theorem's probability/coverage conclusion and semantic "
-                "alignment constraints. Do not replace a coverage or marginal "
-                "probability theorem with a standalone arithmetic, monotonicity, "
-                "typing, or helper lemma in formal_targets. Put helper lemmas in "
+                "the source theorem's task-bound objects, assumptions, quantifiers, "
+                "conclusion, and semantic alignment constraints. Do not replace it "
+                "with a standalone arithmetic, monotonicity, typing, or helper lemma "
+                "in formal_targets. Put helper lemmas in "
                 "lemma_dependency_plan/proof_bank requests, not as the claimed source "
                 "theorem candidate."
             )
             instructions.append(
                 "Target-drift fail-closed rule: do not satisfy capability-eval by "
-                "placing an arithmetic/rank helper in formal_targets. If you cannot "
+                "placing a narrower helper in formal_targets. If you cannot "
                 "emit a faithful source-theorem NEEDS_KERNEL_CHECK candidate, emit the "
                 "source theorem as expected_status=FORMAL_GAP with an empty Lean sketch. "
                 "Only emit a smaller executable Lean candidate through "
@@ -8744,7 +8691,7 @@ def _formalizer_mode_specific_instructions(
                     "Use source_theorem_lane only for a faithful source theorem target "
                     "that preserves target_shape_contract, or fail closed there with "
                     "expected_status=FORMAL_GAP and an empty Lean sketch. Use "
-                    "support_lemma_lane for arithmetic/order-statistic helper work; never "
+                    "support_lemma_lane for narrower helper work; never "
                     "put support_lemma_lane work in formal_targets as a source theorem "
                     "NEEDS_KERNEL_CHECK candidate."
                 )
@@ -8754,7 +8701,7 @@ def _formalizer_mode_specific_instructions(
                 "local Lean but timed out. Prefer narrow imports and local namespaces "
                 "over `import Mathlib`; keep the theorem statement small enough for "
                 "local checking, but do not simplify away the source theorem's "
-                "probability/coverage conclusion. If preserving the faithful theorem "
+                "task-bound conclusion. If preserving the faithful theorem "
                 "requires library work, return a FORMAL_GAP with a minimal dependency "
                 "plan instead of a weaker theorem."
             )
@@ -8764,8 +8711,8 @@ def _formalizer_mode_specific_instructions(
                     "full source theorem with `import Mathlib`. Either emit the source "
                     "theorem as expected_status=FORMAL_GAP and route smaller support "
                     "work, or emit one compact Lean candidate with narrow imports that "
-                    "assumes the already identified rank/coverage premise and proves "
-                    "only the local arithmetic/probability lower-bound step. If the "
+                    "uses an already identified named premise and proves only the "
+                    "corresponding local dependency. If the "
                     "needed source-to-bridge premise still lacks explicit semantic "
                     "anchors, emit a source_to_bridge_premise_derivation_candidates "
                     "work item with copied source-binding metadata instead of another "
@@ -8948,8 +8895,8 @@ def _formalizer_mode_specific_instructions(
             "the listed source_theorem_proof_body_adapter_unproven_bridge_premise_names "
             "are forbidden as new adapter binder assumptions. Do not write an adapter "
             "that takes those names as inputs; derive each premise from exact source "
-            "hypotheses such as exchangeability, quantile/rank construction, coverage-event "
-            "identity, and tie-policy assumptions, or report the blocker."
+            "hypotheses, retrieved declarations, derivation anchors, and the task's "
+            "assumption ledger, or report the blocker."
         )
     if (
         mode == "source_to_bridge_premise_derivation_required"
@@ -9041,6 +8988,10 @@ def _compact_formalizer_environment_feedback(
         "repair_owner_agent": _compact_value(
             feedback.get("repair_owner_agent", "")
             or input_summary.get("repair_owner_agent", "")
+        ),
+        "formal_target_semantic_review": compact_semantic_review_feedback(
+            feedback,
+            expected_feedback_type="formal_target_semantic_review_feedback",
         ),
         "proofengineer_repair_context": _compact_value(
             feedback.get("proofengineer_repair_context", {})
@@ -9363,7 +9314,11 @@ def _compact_formalizer_environment_feedback(
         payload["source_theorem_proof_body_adapter_feedback"] = _compact_value(
             source_theorem_proof_body_adapter_feedback
         )
-    return payload
+    return {
+        key: value
+        for key, value in payload.items()
+        if value not in (None, "", [], {}, False)
+    }
 
 
 def _compact_formalizer_candidate_diagnostics(value: Any) -> list[dict[str, Any]]:
@@ -9496,14 +9451,6 @@ def _feedback_target_shape_contract(
         or input_summary.get("candidate_diagnostics", [])
         or []
     )
-    validation_text = " ".join(
-        str(error)
-        for error in (
-            feedback.get("validation_errors", [])
-            or input_summary.get("validation_errors", [])
-            or []
-        )
-    ).lower()
     if not isinstance(candidate_diagnostics, list | tuple):
         candidate_diagnostics = []
     precheck_text = " ".join(
@@ -9513,15 +9460,7 @@ def _feedback_target_shape_contract(
         for error in row.get("precheck_errors", []) or []
     ).lower()
     target_drift_detected = "source-theorem target drift" in precheck_text
-    coverage_validation_detected = (
-        "formal target" in validation_text
-        and (
-            "coverage" in validation_text
-            or "probability" in validation_text
-            or "measure" in validation_text
-        )
-    )
-    if not target_drift_detected and not coverage_validation_detected:
+    if not target_drift_detected:
         return {}
     contract: dict[str, Any] = {
         "contract_kind": "source_theorem_target_preservation",
@@ -9536,7 +9475,7 @@ def _feedback_target_shape_contract(
             "as expected_status=FORMAL_GAP with an empty Lean sketch."
         ),
         "helper_lemma_action": (
-            "Move arithmetic/order-statistic helper work to support channels such as "
+            "Move narrower helper work to support channels such as "
             "source_to_bridge_premise_derivation_candidates, lemma_dependency_plan, "
             "proof_bank_obligation_requests, gap_taxonomy, or next_actions."
         ),
@@ -9552,8 +9491,8 @@ def _feedback_target_shape_contract(
             "next_actions",
         ],
         "forbidden_replacement_shapes": [
-            "standalone arithmetic inequality",
-            "standalone order-statistic or ceiling bound",
+            "narrow result that omits task-bound objects or assumptions",
+            "result with weaker or different quantifiers",
             "typing lemma",
             "monotonicity lemma",
             "helper lemma without the source theorem conclusion",
@@ -9567,14 +9506,6 @@ def _feedback_target_shape_contract(
             "lean_statement_sketch": "",
         },
     }
-    if "probability/coverage" in precheck_text or coverage_validation_detected:
-        contract["required_conclusion_family"] = (
-            "probability_or_measure_coverage_claim"
-        )
-        contract["required_conclusion_shape"] = (
-            "The source theorem candidate must conclude an explicit probability or "
-            "measure coverage lower bound tied to the prediction-set coverage event."
-        )
     return contract
 
 

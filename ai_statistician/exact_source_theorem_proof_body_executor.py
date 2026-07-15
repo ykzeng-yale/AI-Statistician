@@ -1393,9 +1393,14 @@ def _execution_result_row(
         proof_body_attempt_summaries=proof_body_attempt_summaries,
         verified_adapter_declarations=verified_source_theorem_proof_body_adapter_declarations,
         failure_classification=failure_classification,
+        context=row,
     )
     exact_goal_shape_obligations = tuple(
-        _exact_goal_shape_obligation_description(obligation_id)
+        _exact_goal_shape_obligation_description(
+            obligation_id,
+            target_theorem_name=target_theorem_name,
+            context=row,
+        )
         for obligation_id in exact_goal_shape_obligation_ids
     )
     proof_body_gate_status = _proof_body_gate_status(
@@ -4128,14 +4133,26 @@ def _runtime_learning_recommended_next_action(
         row.failure_classification
         == "proof_body_reduction_closure_adapter_instantiation_missing"
     ):
-        return exact_semantic_definition_proof_body_adapter_synthesis_instruction()
+        return exact_semantic_definition_proof_body_adapter_synthesis_instruction(
+            context={
+                "question_id": row.question_id,
+                "target_theorem_name": row.target_theorem_name,
+                "target_ids": list(row.target_ids),
+                "source_theorem_target_provenance": dict(
+                    row.source_theorem_target_provenance
+                ),
+                "exact_semantic_definition_context": dict(
+                    row.exact_semantic_definition_context
+                ),
+            }
+        )
     if row.failure_classification == "proof_body_verified_adapter_context_insufficient":
         return (
             "Route to ProofEngineer with the verified adapter materialized: the "
             "adapter is available, but its conclusion still does not close the exact "
             "source theorem. Strengthen the proof body or adapter to bridge the exact "
-            "goal shape, including real/ENNReal conversion and any missing two-sided "
-            "coverage component, before rerunning local Lean."
+            "live goal shape, including any codomain conversion or missing theorem "
+            "component reported by Lean, before rerunning local Lean."
         )
     if row.failure_classification == "proof_body_incomplete":
         return (
@@ -4364,6 +4381,7 @@ def _exact_goal_shape_obligation_ids(
     proof_body_attempt_summaries: tuple[str, ...],
     verified_adapter_declarations: tuple[str, ...],
     failure_classification: str,
+    context: Mapping[str, Any] | None = None,
 ) -> tuple[str, ...]:
     """Extract machine-routable proof obligations from the reached Lean goal shape."""
 
@@ -4382,11 +4400,21 @@ def _exact_goal_shape_obligation_ids(
     return _policy_goal_obligations_from_feedback(
         failure_classification=inferred_failure_classification,
         goal_text=text,
+        context=context,
     )
 
 
-def _exact_goal_shape_obligation_description(obligation_id: str) -> str:
-    description = _policy_goal_obligation_gap(obligation_id)
+def _exact_goal_shape_obligation_description(
+    obligation_id: str,
+    *,
+    target_theorem_name: str = "",
+    context: Mapping[str, Any] | None = None,
+) -> str:
+    description = _policy_goal_obligation_gap(
+        obligation_id,
+        target_theorem_name=target_theorem_name,
+        context=context,
+    )
     if description:
         return description
     return (

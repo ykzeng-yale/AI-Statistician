@@ -298,6 +298,10 @@ from .theory_derivation_trace import (
     THEORY_TRACE_CONSUMPTION_BOUNDARY,
     theory_trace_alignment_contract,
 )
+from .typed_repair_handoff import (
+    build_typed_repair_handoff_contract,
+    typed_repair_handoff_contract_errors,
+)
 from .source_theorem_semantic_primitive_proofengineer_bridge import (
     inferred_exact_goal_shape_obligation_ids as _policy_inferred_exact_goal_shape_obligation_ids,
     placeholder_symbols_from_semantic_alignment_feedback as _policy_placeholder_symbols_from_semantic_alignment_feedback,
@@ -9418,6 +9422,35 @@ def _architect_plan_guard_handoff_policy(
     )
     if not architect_context:
         return result
+    direct_repair_errors: list[str] = []
+    runtime_feedback_loop = (
+        architect_context.get("runtime_feedback_loop", {})
+        if isinstance(
+            architect_context.get("runtime_feedback_loop", {}), Mapping
+        )
+        else {}
+    )
+    direct_repair_contract = runtime_feedback_loop.get(
+        "direct_repair_handoff_contract",
+        {},
+    )
+    if isinstance(direct_repair_contract, Mapping) and direct_repair_contract:
+        environment_feedback = (
+            inputs.get("environment_feedback", {})
+            if isinstance(inputs.get("environment_feedback", {}), Mapping)
+            else {}
+        )
+        direct_repair_errors = typed_repair_handoff_contract_errors(
+            direct_repair_contract,
+            source_reviewer_subsystem=subsystem_name,
+            source_task_id=task.task_id,
+            target_repair_subsystem=next_task.owner_subsystem,
+            target_task_id=next_task.task_id,
+            environment_feedback=environment_feedback,
+            produced_artifacts=result.produced_artifacts,
+        )
+        if not direct_repair_errors:
+            return result
     plan = (
         architect_context.get("architect_runtime_plan", {})
         if isinstance(architect_context.get("architect_runtime_plan", {}), Mapping)
@@ -9478,6 +9511,10 @@ def _architect_plan_guard_handoff_policy(
             "proof_evidence_status": "ARCHITECT_PLAN_REPAIR_NOT_PROOF_EVIDENCE",
         }
     )
+    if direct_repair_errors:
+        feedback_loop["direct_repair_handoff_validation_errors"] = list(
+            direct_repair_errors
+        )
     context["runtime_feedback_loop"] = feedback_loop
     context["runtime_unplanned_handoff_review"] = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -11400,11 +11437,18 @@ def _runtime_generated_code_semantic_review_rows(
         if not isinstance(raw_row, Mapping):
             continue
         row = dict(raw_row)
-        if row.get("smoke_passed") is not True:
+        if not (
+            row.get("smoke_passed") is True
+            or row.get("execution_smoke_passed") is True
+        ):
             continue
         if not str(row.get("script_path", "") or "").strip():
             continue
         if not str(row.get("script_hash", "") or "").strip():
+            continue
+        if not str(row.get("result_path", "") or "").strip():
+            continue
+        if not str(row.get("result_hash", "") or "").strip():
             continue
         artifact_id = str(row.get(id_key, "") or "").strip()
         if not artifact_id:
@@ -12052,6 +12096,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 and reviewer_model != source_model
             ),
             "overall_verdict": verdict,
+            "repair_owner_agent": source_subsystem,
             "semantic_review_accepted": verdict == "ACCEPT",
             "review_revision_count": int(
                 work_order.get("review_revision_count", 0) or 0
@@ -12077,6 +12122,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "semantic_review_packet_id": review_packet_id,
             "semantic_review_packet_hash": review_packet_hash,
             "overall_verdict": verdict,
+            "repair_owner_agent": source_subsystem,
             "dimension_reviews": list(
                 review_packet.get("dimension_reviews", []) or []
             ),
@@ -12177,13 +12223,33 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     revision_count + 1
                 ),
             }
+            next_task_id = (
+                f"semantic-review-revise:{question.id}:"
+                f"{stable_hash([execution_id, revision_count + 1])[:8]}"
+            )
+            next_context["runtime_feedback_loop"][
+                "direct_repair_handoff_contract"
+            ] = build_typed_repair_handoff_contract(
+                source_reviewer_subsystem=(
+                    GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+                ),
+                source_task_id=task.task_id,
+                target_repair_subsystem=repair_task.owner_subsystem,
+                target_task_id=next_task_id,
+                feedback_artifact_id=review_packet_id,
+                feedback_artifact_kind="GeneratedCodeSemanticReviewPacket",
+                feedback_execution_id=execution_id,
+                feedback_execution_artifact_kind=(
+                    "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
+                ),
+                feedback_type="generated_code_semantic_review_feedback",
+                revision_count=revision_count + 1,
+                max_revisions=max_revisions,
+            )
             next_inputs["architect_context"] = next_context
             next_task = replace(
                 repair_task,
-                task_id=(
-                    f"semantic-review-revise:{question.id}:"
-                    f"{stable_hash([execution_id, revision_count + 1])[:8]}"
-                ),
+                task_id=next_task_id,
                 inputs=next_inputs,
             )
             status = "REVISE"
@@ -12936,7 +13002,11 @@ class SimulationEvaluatorRuntimeSubsystem:
             ),
             "generated_code_semantic_review_pending": bool(
                 self.semantic_reviewer_available
-                and n_generated_simulation_passed > 0
+                and any(
+                    row.get("smoke_passed") is True
+                    or row.get("execution_smoke_passed") is True
+                    for row in generated_simulation_rows
+                )
             ),
             "typed_metric_contract_proof_evidence_status": (
                 GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
@@ -13253,10 +13323,47 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "stress-test evidence; routing diagnostics back to "
                     "SimulatorEngineer."
                 )
+            semantic_review_evidence: EvidenceLedgerEntry | None = None
+            if self.semantic_reviewer_available:
+                semantic_review_dispatch = (
+                    _runtime_generated_code_semantic_review_dispatch(
+                        task=task,
+                        question=question,
+                        source_subsystem="SimulationEvaluator",
+                        source_manifest=manifest,
+                        theory_packet=(
+                            packet if isinstance(packet, Mapping) else {}
+                        ),
+                        proposal_packet=proposal_packet,
+                        architect_context=effective_context,
+                        deferred_next_task=next_task,
+                        max_revisions=self.semantic_review_max_revisions,
+                    )
+                )
+                if semantic_review_dispatch is not None:
+                    work_order_id = str(
+                        semantic_review_dispatch["work_order_id"]
+                    )
+                    produced_artifacts[work_order_id] = (
+                        semantic_review_dispatch["work_order"]
+                    )
+                    observations.append(semantic_review_dispatch["observation"])
+                    semantic_review_evidence = semantic_review_dispatch["evidence"]
+                    next_task = semantic_review_dispatch["next_task"]
+                    simulation_rationale = (
+                        "Generated simulation code executed but did not satisfy all "
+                        "gates; the exact source, runtime result, theory packet, and "
+                        "frozen protocol are routed to independent semantic review "
+                        "before repair or architectural replanning."
+                    )
             return AgentStepResult(
                 status=(
                     "REROUTE"
-                    if next_task.owner_subsystem == "ArchitectCoordinator"
+                    if next_task.owner_subsystem
+                    in {
+                        "ArchitectCoordinator",
+                        GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
+                    }
                     else "REVISE"
                 ),
                 rationale=simulation_rationale,
@@ -13266,7 +13373,15 @@ class SimulationEvaluatorRuntimeSubsystem:
                     *registered_simulator_tool_calls,
                     *generated_simulation_tool_calls,
                 ),
-                evidence_entries=tuple(row for row in (proposal_evidence, evidence) if row is not None),
+                evidence_entries=tuple(
+                    row
+                    for row in (
+                        proposal_evidence,
+                        evidence,
+                        semantic_review_evidence,
+                    )
+                    if row is not None
+                ),
                 next_task=next_task,
                 failure_classification=generated_simulation_failure_classification,
             )
@@ -14020,7 +14135,10 @@ class AlgorithmEngineerRuntimeSubsystem:
                 self.semantic_reviewer_available
                 and any(
                     row.get("executor") == "generated_python_sandbox"
-                    and row.get("smoke_passed") is True
+                    and (
+                        row.get("smoke_passed") is True
+                        or row.get("execution_smoke_passed") is True
+                    )
                     for row in prototype_rows
                 )
             ),
@@ -14274,7 +14392,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                 architect_context=effective_context,
             )
         semantic_review_evidence: EvidenceLedgerEntry | None = None
-        if not revision_required and self.semantic_reviewer_available:
+        if self.semantic_reviewer_available:
             semantic_review_dispatch = _runtime_generated_code_semantic_review_dispatch(
                 task=task,
                 question=question,
@@ -14329,7 +14447,14 @@ class AlgorithmEngineerRuntimeSubsystem:
             if row is not None
         ]
         if revision_required:
-            if next_task.owner_subsystem == "ArchitectCoordinator":
+            if next_task.owner_subsystem == GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM:
+                algorithm_rationale = (
+                    "Generated algorithm code executed but did not satisfy all gates; "
+                    "the exact source, runtime result, theory packet, and frozen "
+                    "protocol are routed to independent semantic review before repair "
+                    "or architectural replanning."
+                )
+            elif next_task.owner_subsystem == "ArchitectCoordinator":
                 algorithm_rationale = (
                     "AlgorithmEngineer repeatedly missed an independent "
                     "empirical gate; exact evaluations are routed to "
@@ -14366,7 +14491,11 @@ class AlgorithmEngineerRuntimeSubsystem:
         return AgentStepResult(
             status=(
                 "REROUTE"
-                if next_task.owner_subsystem == "ArchitectCoordinator"
+                if next_task.owner_subsystem
+                in {
+                    "ArchitectCoordinator",
+                    GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
+                }
                 else "REVISE"
                 if revision_required
                 else "REROUTE"
@@ -22534,8 +22663,8 @@ def _formalizer_required_pf_bv_block_schema_hints() -> dict[str, str]:
         "source_anchors": (
             "at least one object pointing to the theory trace, theorem card, "
             "proof body, paper, or other bounded source with non-empty id or "
-            "excerpt, e.g. {\"kind\":\"theory_trace\",\"id\":\"coverage_threshold\","
-            "\"excerpt\":\"C_n is the calibration quantile threshold\"}; prose-only "
+            "excerpt, e.g. {\"kind\":\"theory_trace\",\"id\":\"source_step_1\","
+            "\"excerpt\":\"exact intermediate claim from the derivation\"}; prose-only "
             "anchors do not satisfy validation"
         ),
         "accepted_block_verification": (
@@ -23376,8 +23505,8 @@ def _formalizer_packet_validation_failure_result(
     if active_target_shape_contract and not active_candidate_reroute_options:
         active_candidate_reroute_options = [
             (
-                "If the generated Lean theorem is only an arithmetic/order-statistic "
-                "support lemma, do not place it in formal_targets as the source theorem. "
+                "If the generated Lean theorem is only a narrower support lemma, do "
+                "not place it in formal_targets as the source theorem. "
                 "Emit the source theorem target as FORMAL_GAP and route executable "
                 "helper work only through source_to_bridge_premise_derivation_candidates "
                 "when the exact candidate object, source-binding metadata, and semantic "
@@ -24699,7 +24828,7 @@ def _formalizer_validation_failure_required_repair(
         "derive adapter objects from exact source binders instead of putting "
         "them in the theorem binder list, or report the exact semantic blocker "
         "instead of emitting a candidate. If validation feedback identifies a "
-        "coverage/probability source theorem and no complete no-sorry Lean proof "
+        "task-bound source theorem and no complete no-sorry Lean proof "
         "is available, emit that source theorem as expected_status=FORMAL_GAP "
         "with an empty Lean sketch and route support work outside the source "
         "theorem formal_targets slot. Do not mention "
@@ -25311,7 +25440,7 @@ def _formalizer_candidate_proof_boundary(
             "This row materializes an LLM-generated source-to-bridge premise "
             "derivation candidate. A local Lean compile verifies only that "
             "support lemma artifact; it is not proof evidence for the exact "
-            "source theorem, the probability/measure coverage claim, or any "
+            "source theorem or any "
             "full frontier theorem."
         )
     if diagnostic_helper_not_source_theorem:
@@ -25319,7 +25448,7 @@ def _formalizer_candidate_proof_boundary(
             "This row materializes an LLM-generated diagnostic/helper Lean "
             "candidate with source_theorem_target_known=false. A local Lean compile "
             "verifies only this helper artifact; it is not proof evidence for the "
-            "source theorem, the probability/measure coverage claim, or any full "
+            "source theorem or any full "
             "frontier theorem."
         )
     if target_identity_not_source_theorem:
@@ -27575,7 +27704,7 @@ def _formalizer_lean_candidate_repair_feedback(
         )
         feedback["candidate_reroute_options"] = [
             (
-                "If the generated Lean theorem is only an arithmetic/order-statistic "
+                "If the generated Lean theorem is only a narrower "
                 "support lemma, do not place it in formal_targets as the source theorem. "
                 "Emit the source theorem target as FORMAL_GAP and route the helper through "
                 "lemma_dependency_plan, a registered proof-bank request, or a "
@@ -28839,7 +28968,7 @@ def _formalizer_target_shape_contract_from_diagnostics(
             "source theorem as expected_status=FORMAL_GAP with an empty Lean sketch."
         ),
         "helper_lemma_action": (
-            "Move arithmetic/order-statistic/typing/monotonicity helpers out of the "
+            "Move narrower support, typing, or monotonicity helpers out of the "
             "source-theorem formal_targets slot. Put executable helper work only in "
             "source_to_bridge_premise_derivation_candidates when exact source-binding "
             "metadata and semantic anchors are available, or describe non-executable "
@@ -28857,11 +28986,11 @@ def _formalizer_target_shape_contract_from_diagnostics(
             "next_actions",
         ],
         "forbidden_replacement_shapes": [
-            "standalone arithmetic inequality",
-            "standalone ceiling/order-statistic bound",
+            "result omitting task-bound objects or assumptions",
+            "result with weaker or different quantifiers",
             "typing lemma",
             "monotonicity lemma",
-            "helper lemma without a probability/measure conclusion",
+            "helper lemma without the task-bound source-theorem conclusion",
         ],
         "if_not_feasible": (
             "Return expected_status=FORMAL_GAP for the source theorem target and list the "
@@ -28878,19 +29007,6 @@ def _formalizer_target_shape_contract_from_diagnostics(
             ),
         },
     }
-    if "probability/coverage" in precheck_text:
-        contract["required_conclusion_family"] = "probability_or_measure_coverage_claim"
-        contract["required_conclusion_shape"] = (
-            "The Lean target should conclude a measure/probability coverage statement, "
-            "for example a proposition of the form `P {ω | event_predicate ω} >= ...`, "
-            "`Measure.real ... >= ...`, or another explicit probability/measure lower "
-            "bound tied to the prediction set coverage event."
-        )
-        contract["must_not_claim_source_theorem_with_only"] = [
-            "(k : Real) / (n + 1) <= ...",
-            "Nat.ceil arithmetic only",
-            "rank threshold arithmetic without a coverage/probability event",
-        ]
     return contract
 
 
@@ -28899,74 +29015,35 @@ def _formalizer_target_shape_contract_from_validation_errors(
     *,
     question: OpenResearchQuestion,
 ) -> dict[str, Any]:
-    """Infer a fail-closed source-target contract from packet validation errors."""
+    """Recover only explicit target-drift contracts from validator feedback."""
 
+    del question
     validation_text = " ".join(str(error) for error in validation_errors).lower()
-    if "formal target" not in validation_text:
-        return {}
-    source_theoremish_error = any(
+    if not any(
         marker in validation_text
         for marker in (
-            "source theorem",
-            "source-theorem",
-            "formal target",
-            "lean sketch",
+            "violates target_shape_contract",
+            "source-theorem target drift",
         )
-    )
-    coverage_error = any(
-        marker in validation_text
-        for marker in (
-            "coverage",
-            "conformal",
-            "probability",
-            "measure",
-            "marginal",
-        )
-    )
-    question_text = " ".join(
-        [
-            question.id,
-            question.title,
-            question.description,
-            " ".join(question.tags),
-        ]
-    ).lower()
-    coverage_question = any(
-        marker in question_text
-        for marker in (
-            "coverage",
-            "conformal",
-            "probability",
-            "measure",
-            "marginal",
-        )
-    )
-    if not source_theoremish_error or not (coverage_error or coverage_question):
+    ):
         return {}
     return {
         "contract_kind": "source_theorem_target_preservation",
         "inferred_from": "formalizer_packet_validation_errors",
-        "required_conclusion_family": "probability_or_measure_coverage_claim",
-        "required_conclusion_shape": (
-            "The Lean target should conclude a measure/probability coverage statement, "
-            "for example a proposition of the form `P {omega | event_predicate omega} >= ...`, "
-            "`Measure.real ... >= ...`, or another explicit probability/measure lower "
-            "bound tied to the prediction set coverage event."
-        ),
         "for_formal_targets_expected_status_needs_kernel_check": (
-            "A formal target that claims NEEDS_KERNEL_CHECK for a known coverage "
-            "source theorem must preserve that theorem's probability/measure "
-            "conclusion shape. It may not replace the theorem with a narrower "
-            "helper lemma or a proof-hole sketch."
+            "A formal target that claims NEEDS_KERNEL_CHECK for a known source theorem "
+            "must preserve the task-bound objects, assumptions, quantifiers, and "
+            "conclusion. It may not replace the theorem with a narrower helper lemma "
+            "or a proof-hole sketch."
         ),
         "source_theorem_target_action": (
             "Emit a formal_targets entry for the known source theorem only if the Lean "
-            "statement preserves the required conclusion family and contains no "
+            "statement preserves the supplied task-bound semantic contract and contains no "
             "`sorry`, `admit`, `by?`, or `exact?` holes; otherwise emit that source "
             "theorem as expected_status=FORMAL_GAP with an empty Lean sketch."
         ),
         "helper_lemma_action": (
-            "Move arithmetic/order-statistic/typing/monotonicity helpers out of the "
+            "Move narrower support, typing, or monotonicity helpers out of the "
             "source-theorem formal_targets slot. Put executable support work only in "
             "source_to_bridge_premise_derivation_candidates when exact source-binding "
             "metadata and semantic anchors are available; otherwise use non-executable "
@@ -29004,11 +29081,11 @@ def _formalizer_target_shape_contract_from_validation_errors(
         ],
         "forbidden_replacement_shapes": [
             "Lean sketch containing sorry/admit/by?/exact?",
-            "standalone arithmetic inequality",
-            "standalone ceiling/order-statistic bound",
+            "result omitting task-bound objects or assumptions",
+            "result with weaker or different quantifiers",
             "typing lemma",
             "monotonicity lemma",
-            "helper lemma without a probability/measure conclusion",
+            "helper lemma without the task-bound source-theorem conclusion",
         ],
         "if_not_feasible": (
             "Return expected_status=FORMAL_GAP for the source theorem target and list "
@@ -29201,8 +29278,8 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
                 "unavailable. Do not retry the umbrella import `import Mathlib`. "
                 "This does not block narrow `Mathlib.*` module imports that are "
                 "verified in the configured Lake project or listed as "
-                "suggested_import_replacements. If the statistical theorem still "
-                "needs unavailable measure/probability APIs, fail closed with "
+                "suggested_import_replacements. If the task-bound theorem still "
+                "needs unavailable APIs, fail closed with "
                 "FORMAL_GAP rather than guessing imports."
             )
         verified_narrow_imports = _formalizer_verified_narrow_imports_from_diagnostics(
@@ -29222,9 +29299,10 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
             contract["suggested_import_replacements"] = import_replacements
     if "lean_unknown_identifier" in classes or "lean_type_mismatch" in classes:
         contract["api_repair_rule"] = (
-            "Do not guess Mathlib APIs for order statistics, exchangeability, or measures. "
-            "Prefer an already kernel-verified bridge/helper theorem, a smaller local lemma "
-            "with known identifiers, or a FORMAL_GAP naming the missing API/dependency."
+            "Do not guess Lean or Mathlib APIs. Use retrieved declarations and exact "
+            "compiler/proof-state feedback; prefer an already kernel-verified bridge or "
+            "helper theorem, a smaller local lemma with known identifiers, or a "
+            "FORMAL_GAP naming the missing API/dependency."
         )
         unknown_identifiers = _formalizer_unknown_identifiers_from_diagnostics(
             repair_diagnostics
@@ -29254,22 +29332,20 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
             "Treat timeout as a candidate-size/search-shape failure, not as proof evidence "
             "and not as permission to simply raise the timeout. Replace one broad source "
             "theorem sketch with a smaller checkable lemma/premise derivation, use narrow "
-            "imports when possible, avoid large generated order-statistic code in the "
-            "statement, and keep the source theorem target as FORMAL_GAP unless the "
-            "repaired candidate still preserves the probability/coverage conclusion."
+            "imports when possible, and keep the source theorem target as FORMAL_GAP "
+            "unless the repaired candidate still preserves the task-bound conclusion."
         )
         contract["timeout_next_candidate_shape"] = (
-            "Prefer a compact theorem that assumes the rank/coverage premise and proves "
-            "only the arithmetic/probability lower-bound step, or a source-to-bridge "
+            "Prefer a compact theorem for one named dependency, or a source-to-bridge "
             "premise derivation tied to explicit source semantic anchors. Do not retry "
             "the same large full theorem with `import Mathlib` unchanged."
         )
     if "formalizer_source_theorem_target_drift" in classes:
         contract["target_drift_repair_rule"] = (
             "Do not present a narrower helper lemma as the source theorem formal target. "
-            "Either preserve the probability/measure coverage conclusion shape required "
-            "by target_shape_contract, or mark the source theorem as FORMAL_GAP and route "
-            "the helper through a support-lemma or source-to-bridge premise channel."
+            "Either preserve the task-bound semantic contract, or mark the source theorem "
+            "as FORMAL_GAP and route the helper through a support-lemma or source-to-bridge "
+            "premise channel."
         )
     return contract
 
@@ -29750,12 +29826,6 @@ def _formalizer_lean_candidate_precheck_errors(
         errors.append(
             "Lean candidate proves only a vacuous True target with trivial proof"
         )
-    errors.extend(
-        _formalizer_source_theorem_target_drift_errors(
-            text,
-            candidate_metadata or {},
-        )
-    )
     errors.extend(_formalizer_import_precheck_errors(text, lean_project=lean_project))
     return sorted(set(errors))
 
@@ -29994,62 +30064,10 @@ def _formalizer_source_theorem_target_drift_errors(
     source: str,
     candidate_metadata: Mapping[str, Any],
 ) -> list[str]:
-    provenance = candidate_metadata.get("source_theorem_target_provenance", {})
-    if _source_theorem_target_known_value(provenance) is not True:
-        return []
-    informal_source = str(candidate_metadata.get("informal_source", "") or "")
-    constraints = [
-        str(row)
-        for row in candidate_metadata.get("semantic_alignment_constraints", []) or []
-        if str(row).strip()
-    ] if isinstance(
-        candidate_metadata.get("semantic_alignment_constraints", []),
-        list | tuple | set,
-    ) else []
-    source_text = str(source or "")
-    semantic_text = " ".join([informal_source, *constraints]).lower()
-    # Constraints can mention evaluation concepts without changing the source claim.
-    source_claim_text = informal_source.lower()
-    errors: list[str] = []
-    drift_phrases = (
-        "not a measure-theoretic claim",
-        "not a probability claim",
-        "weakened theorem",
-        "weaker theorem",
-        "to stay within compilable scope",
-        "to make it compilable",
-        "arithmetic-only",
-        "only arithmetic",
-    )
-    if any(phrase in semantic_text for phrase in drift_phrases):
-        errors.append(
-            "source-theorem target drift: semantic constraints narrow or replace "
-            "the stated source theorem instead of preserving it"
-        )
-    probability_claim_markers = (
-        "coverage",
-        "probability",
-        "marginal",
-        "measure",
-        "p(",
-        "p[",
-        "p {",
-    )
-    source_probability_shape = (
-        "MeasureTheory" in source_text
-        or "IsProbabilityMeasure" in source_text
-        or "ProbabilityTheory" in source_text
-        or re.search(r"\bP\s*(?:\{|\(|:)", source_text) is not None
-    )
-    if (
-        any(marker in source_claim_text for marker in probability_claim_markers)
-        and not source_probability_shape
-    ):
-        errors.append(
-            "source-theorem target drift: source theorem is a probability/coverage "
-            "claim but Lean candidate has no measure/probability conclusion shape"
-        )
-    return errors
+    """Deprecated: semantic target alignment is decided by the LLM reviewer."""
+
+    del source, candidate_metadata
+    return []
 
 
 def _source_theorem_target_known_value(provenance: object) -> bool | None:
@@ -61414,7 +61432,7 @@ def _critic_next_action_agenda(
                     "trigger": "FORMAL_GAP_AFTER_KERNEL_VERIFIED_THEOREM_REDUCTION_CLOSURE",
                     "action": (
                         "formalize the upstream statistical semantics needed by the source theorem, "
-                        "such as exchangeability-to-uniform-rank and order-statistic quantile construction"
+                        "using its exact derivation, assumption ledger, and reviewed definitions"
                     ),
                     "acceptance_gate": (
                         "AXLE/local Lean kernel verifies each upstream primitive, and the manifest "
@@ -65665,7 +65683,9 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                         (
                             "do not promote adapters that take policy-listed bridge "
                             "premises as inputs: "
-                            + _runtime_source_to_bridge_premise_binder_alias_hint()
+                            + _runtime_source_to_bridge_premise_binder_alias_hint(
+                                context={**dict(input_summary), **dict(row)},
+                            )
                         ),
                         "run local Lean/AXLE on the repaired adapter, then rerun the exact source theorem proof body",
                     ]
@@ -65686,7 +65706,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             proof_body_adapter_required_reasons = []
             recommended_repair_tasks = [
                 "repair the exact source theorem proof body with the kernel-verified source-to-bridge adapter materialized",
-                "bridge the exact goal shape, including real/ENNReal conversion and any missing two-sided coverage component",
+                "bridge the exact live goal shape, including any codomain conversion or missing theorem component reported by Lean",
                 "rerun exact-source-theorem-proof-body-executor with local Lean/AXLE before claiming proof evidence",
             ]
         elif (
@@ -65702,6 +65722,38 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             )
         ):
             tentative_repair = {
+                "question_id": str(
+                    row.get("question_id", "")
+                    or input_summary.get("question_id", "")
+                    or ""
+                ),
+                "task_family": str(
+                    row.get("task_family", "")
+                    or input_summary.get("task_family", "")
+                    or ""
+                ),
+                "target_theorem_name": str(
+                    row.get("target_theorem_name", "")
+                    or input_summary.get("target_theorem_name", "")
+                    or ""
+                ),
+                "target_lean_declaration": str(
+                    row.get("target_lean_declaration", "")
+                    or input_summary.get("target_lean_declaration", "")
+                    or ""
+                ),
+                "target_ids": list(
+                    dict.fromkeys(
+                        [
+                            *_runtime_row_string_values(row, "target_ids", "target_id"),
+                            *_runtime_row_string_values(
+                                input_summary,
+                                "target_ids",
+                                "target_id",
+                            ),
+                        ]
+                    )
+                ),
                 "trigger": trigger,
                 "failure_classification": failure_classification,
                 "proof_body_gate_status": proof_body_gate_status,
@@ -65765,7 +65817,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             if proof_body_adapter_required_reasons:
                 recommended_repair_tasks = [
                     "derive a source-to-bridge theorem adapter from the exact source hypotheses before retrying the proof body",
-                    "prove/import adapter premises for exchangeability, rank-uniformity, order-statistic quantile, event semantics, and tie policy as needed",
+                    "prove or import each named adapter premise from the task-bound source hypotheses and reviewed definitions",
                     "rerun local Lean/AXLE on the adapter and only then retry exact-source-theorem-proof-body-executor",
                 ]
             else:
@@ -66541,9 +66593,11 @@ def _source_theorem_proof_body_adapter_required_reasons(
     lower_goal = goal_text.lower()
     has_source_level_goal = _runtime_text_has_any_policy_marker(
         lower_goal,
-        _runtime_source_to_bridge_source_level_goal_markers(),
+        _runtime_source_to_bridge_source_level_goal_markers(context=repair),
     )
-    bridge_markers = _runtime_source_to_bridge_available_bridge_markers()
+    bridge_markers = _runtime_source_to_bridge_available_bridge_markers(
+        context=repair,
+    )
     has_usable_bridge_hypothesis = _runtime_text_has_any_policy_marker(
         lower_goal,
         bridge_markers,
@@ -66607,7 +66661,7 @@ def _source_theorem_proof_body_adapter_required_reasons(
         and not semantic_alignment_blockers
         and _runtime_text_has_any_policy_marker(
             constraints_text,
-            _runtime_source_to_bridge_adapter_shape_markers(),
+            _runtime_source_to_bridge_adapter_shape_markers(context=repair),
         )
     )
 
@@ -66690,8 +66744,13 @@ def _runtime_has_concrete_source_to_bridge_adapter_context(
     return False
 
 
-def _runtime_source_to_bridge_premise_binder_alias_hint() -> str:
-    aliases = exact_semantic_definition_source_to_bridge_premise_binder_aliases()
+def _runtime_source_to_bridge_premise_binder_alias_hint(
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> str:
+    aliases = exact_semantic_definition_source_to_bridge_premise_binder_aliases(
+        context=context,
+    )
     if not aliases:
         return "policy-listed bridge premises"
     shown = "/".join(aliases[:6])
@@ -66755,26 +66814,38 @@ def _runtime_string_items(*values: Any) -> list[str]:
     return items
 
 
-def _runtime_source_to_bridge_source_level_goal_markers() -> tuple[str, ...]:
+def _runtime_source_to_bridge_source_level_goal_markers(
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> tuple[str, ...]:
     return _runtime_policy_text_markers(
         (
             "source theorem",
             "source-level",
             "source hypothesis",
             "source hypotheses",
-            *exact_semantic_definition_source_to_bridge_source_anchor_terms(),
+            *exact_semantic_definition_source_to_bridge_source_anchor_terms(
+                context=context,
+            ),
         )
     )
 
 
-def _runtime_source_to_bridge_available_bridge_markers() -> tuple[str, ...]:
+def _runtime_source_to_bridge_available_bridge_markers(
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> tuple[str, ...]:
     source_anchor_keys = {
         _runtime_policy_marker_key(marker)
-        for marker in exact_semantic_definition_source_to_bridge_source_anchor_terms()
+        for marker in exact_semantic_definition_source_to_bridge_source_anchor_terms(
+            context=context,
+        )
     }
     premise_bridge_aliases = tuple(
         alias
-        for alias in exact_semantic_definition_source_to_bridge_premise_binder_aliases()
+        for alias in exact_semantic_definition_source_to_bridge_premise_binder_aliases(
+            context=context,
+        )
         if _runtime_policy_marker_key(alias)
         and _runtime_policy_marker_key(alias) not in source_anchor_keys
     )
@@ -66789,7 +66860,10 @@ def _runtime_source_to_bridge_available_bridge_markers() -> tuple[str, ...]:
     )
 
 
-def _runtime_source_to_bridge_adapter_shape_markers() -> tuple[str, ...]:
+def _runtime_source_to_bridge_adapter_shape_markers(
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> tuple[str, ...]:
     return _runtime_policy_text_markers(
         (
             "bridge",
@@ -66798,7 +66872,9 @@ def _runtime_source_to_bridge_adapter_shape_markers() -> tuple[str, ...]:
             "adapter",
             "reduction",
             "closure",
-            *exact_semantic_definition_source_to_bridge_semantic_terms(),
+            *exact_semantic_definition_source_to_bridge_semantic_terms(
+                context=context,
+            ),
         )
     )
 
@@ -66821,10 +66897,15 @@ def _runtime_policy_marker_key(value: str) -> str:
     return re.sub(r"[^0-9A-Za-z]+", "", str(value or "").lower())
 
 
-def _runtime_source_to_bridge_adapter_blocker_symbols() -> set[str]:
+def _runtime_source_to_bridge_adapter_blocker_symbols(
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> set[str]:
     return {
         "source_to_bridge_adapter_goal_shape_mismatch",
-        *exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation(),
+        *exact_semantic_definition_source_to_bridge_adapter_object_names_requiring_source_instantiation(
+            context=context,
+        ),
     }
 
 
@@ -69968,7 +70049,9 @@ def _formalizer_proof_bank_runtime_memory_summary(
         adapter_group = str(
             row.get("source_to_bridge_adapter_instantiation_group_id", "") or ""
         ).strip()
-        adapter_blocker_symbols = _runtime_source_to_bridge_adapter_blocker_symbols()
+        adapter_blocker_symbols = _runtime_source_to_bridge_adapter_blocker_symbols(
+            context=row,
+        )
         return bool(
             symbol
             in adapter_blocker_symbols
@@ -70114,7 +70197,9 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 in adapter_verified_targets
                 and (
                     str(row.get("placeholder_symbol", "") or "").strip()
-                    in _runtime_source_to_bridge_adapter_blocker_symbols()
+                    in _runtime_source_to_bridge_adapter_blocker_symbols(
+                        context=row,
+                    )
                     or "source_to_bridge_adapter"
                     in str(row.get("placeholder_symbol", "") or "").strip()
                     or str(
@@ -73839,12 +73924,12 @@ def _formalizer_proof_bank_runtime_memory_summary(
             "remain blocked and are not proof evidence. If memory records an exact source-theorem "
             "proof-body executor failure, route the next Formalizer packet to the reported proof-body, "
             "proof-body adapter, or formal-environment repair target; if the reached goal only exposes "
-            "source-level hypotheses such as exchangeability/order-statistic definitions while verified "
+            "source-level hypotheses and reviewed task definitions while verified "
             "bridge premises are absent, derive and kernel-check a source-to-bridge adapter before "
             "retrying the exact proof body. If a kernel-verified source-to-bridge adapter is already "
             "present but the exact proof body still fails, do not regenerate the adapter; repair the "
-            "exact source theorem goal shape, including real/ENNReal conversion and missing one- or "
-            "two-sided coverage components, then rerun local Lean/AXLE. If memory records "
+            "exact source theorem goal shape using the emitted proof state, retrieved declarations, "
+            "and semantic-review feedback, then rerun local Lean/AXLE. If memory records "
             "source-to-bridge premise derivation feedback, derive those pending premises from the exact "
             "source theorem hypotheses; do not add the pending premise names as new adapter assumptions. "
             "If memory records a source-to-bridge metadata-authoring blocker, first author or retrieve "
@@ -75303,8 +75388,17 @@ def _formalizer_candidate_premise_names(
     return matched
 
 
-def _source_semantic_primitive_id(gap_text: str, gap_kind: str) -> str:
-    primitive_id = _policy_semantic_primitive_id_for_gap(gap_text, gap_kind)
+def _source_semantic_primitive_id(
+    gap_text: str,
+    gap_kind: str,
+    *,
+    policy_context: Mapping[str, Any] | None = None,
+) -> str:
+    primitive_id = _policy_semantic_primitive_id_for_gap(
+        gap_text,
+        gap_kind,
+        context=policy_context,
+    )
     if primitive_id:
         return primitive_id
     return "source_theorem_semantic_primitive:" + stable_hash(
@@ -75415,7 +75509,14 @@ def _formalizer_source_theorem_semantic_primitive_work_orders(
     for gap_row in selected_gaps[:8]:
         gap = gap_row["gap"]
         kind = gap_row["kind"]
-        primitive_id = _source_semantic_primitive_id(gap, kind)
+        primitive_id = _source_semantic_primitive_id(
+            gap,
+            kind,
+            policy_context={
+                **dict(proposal_packet),
+                "target_theorem_goal_ids": target_goal_ids,
+            },
+        )
         work_orders.append(
             {
                 "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -78058,9 +78159,9 @@ def _formalizer_source_theorem_promotion_work_orders(
                     *(
                         [
                             "exact source theorem Lean candidate that reached the proof body",
-                            "reached Lean goal with source-level hypotheses such as exchangeability, order-statistic, quantile, and coverage event semantics",
+                            "reached Lean goal with the exact source hypotheses and reviewed task definitions",
                             "kernel-verified bridge/reduction closure premises that the adapter must connect to",
-                            "semantic alignment constraints, tie policy, and reviewed exact definition requirements",
+                            "semantic alignment constraints and reviewed exact definition requirements",
                             *(
                                 [
                                     "exact source proof-body gate is open for kernel-eligible repair; stay in adapter/proof-body repair and do not reroute to exact semantic-definition review"
@@ -78750,7 +78851,7 @@ def _runtime_next_action_agenda_normalized_target_keys(value: Any) -> set[str]:
     if text.startswith("target:"):
         target_keys.add(text.removeprefix("target:"))
     prefix, separator, suffix = text.partition(":")
-    if separator and prefix in {"conformal", "theorem_goal", "target"} and suffix:
+    if separator and prefix and suffix:
         target_keys.add(suffix)
     return target_keys
 
@@ -84959,7 +85060,11 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                     + "."
                 )
             kind = "source_to_bridge_premise_semantic_gap"
-            primitive_id = _source_semantic_primitive_id(gap, kind)
+            primitive_id = _source_semantic_primitive_id(
+                gap,
+                kind,
+                policy_context={**dict(row), **dict(input_summary)},
+            )
             work_order_id = "source_theorem_semantic_primitive_work_order:" + stable_hash(
                 [
                     source_learning_row_id,
@@ -85138,6 +85243,7 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                 _policy_inferred_exact_goal_shape_obligation_ids(
                     failure_classification=failure_classification,
                     trigger=trigger,
+                    context={**dict(row), **dict(input_summary)},
                 )
             )
             if exact_goal_shape_obligation_ids:
@@ -85150,6 +85256,7 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                     _semantic_primitive_gap_for_exact_goal_shape_obligation(
                         obligation_id,
                         target_theorem_name=inferred_target_theorem_name,
+                        context={**dict(row), **dict(input_summary)},
                     )
                     for obligation_id in exact_goal_shape_obligation_ids
                 ]
@@ -85160,6 +85267,7 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                 else _semantic_primitive_gap_for_exact_goal_shape_obligation(
                     obligation_id,
                     target_theorem_name="",
+                    context={**dict(row), **dict(input_summary)},
                 )
             )
             for index, obligation_id in enumerate(exact_goal_shape_obligation_ids)
@@ -85203,7 +85311,8 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                 dict.fromkeys(
                     [
                         *_placeholder_symbols_from_semantic_alignment_blockers(
-                            semantic_alignment_blockers
+                            semantic_alignment_blockers,
+                            context={**dict(row), **dict(input_summary)},
                         ),
                         *placeholder_symbols,
                     ]
@@ -85315,9 +85424,14 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
             gap = _semantic_primitive_gap_for_placeholder_symbol(
                 symbol,
                 target_theorem_name=target_theorem_name,
+                context={**dict(row), **dict(input_summary)},
             )
             kind = "source_theorem_semantic_primitives"
-            primitive_id = _source_semantic_primitive_id(gap, kind)
+            primitive_id = _source_semantic_primitive_id(
+                gap,
+                kind,
+                policy_context={**dict(row), **dict(input_summary)},
+            )
             work_order_id = "source_theorem_semantic_primitive_work_order:" + stable_hash(
                 [
                     source_learning_row_id,
@@ -85421,13 +85535,18 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
             gap = _semantic_primitive_gap_for_exact_goal_shape_obligation(
                 obligation_id,
                 target_theorem_name=target_theorem_name,
+                context={**dict(row), **dict(input_summary)},
             )
             obligation_text = exact_goal_shape_obligation_by_id.get(
                 obligation_id,
                 gap,
             )
             kind = "source_theorem_exact_goal_shape_obligation"
-            primitive_id = _source_semantic_primitive_id(gap, kind)
+            primitive_id = _source_semantic_primitive_id(
+                gap,
+                kind,
+                policy_context={**dict(row), **dict(input_summary)},
+            )
             work_order_id = "source_theorem_semantic_primitive_work_order:" + stable_hash(
                 [
                     source_learning_row_id,
@@ -85499,6 +85618,7 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                     "candidate_registered_obligation_ids": list(
                         _registered_support_for_exact_goal_shape_obligation(
                             obligation_id,
+                            context={**dict(row), **dict(input_summary)},
                         )
                     ),
                     "proof_mode": "source_theorem_semantic_primitive_closure",
@@ -85545,11 +85665,13 @@ def _semantic_primitive_gap_for_placeholder_symbol(
     symbol: str,
     *,
     target_theorem_name: str,
+    context: Mapping[str, Any] | None = None,
 ) -> str:
     normalized = symbol.strip()
     gap = _policy_semantic_gap_for_placeholder_symbol(
         normalized,
         target_theorem_name=target_theorem_name,
+        context=context,
     )
     if gap:
         return gap
@@ -85564,10 +85686,12 @@ def _semantic_primitive_gap_for_exact_goal_shape_obligation(
     obligation_id: str,
     *,
     target_theorem_name: str,
+    context: Mapping[str, Any] | None = None,
 ) -> str:
     gap = _policy_semantic_gap_for_exact_goal_shape_obligation(
         obligation_id,
         target_theorem_name=target_theorem_name,
+        context=context,
     )
     if gap:
         return gap
@@ -85590,8 +85714,13 @@ def _registered_support_for_placeholder_symbol(
 
 def _registered_support_for_exact_goal_shape_obligation(
     obligation_id: str,
+    *,
+    context: Mapping[str, Any] | None = None,
 ) -> tuple[str, ...]:
-    return _policy_registered_support_for_exact_goal_shape_obligation(obligation_id)
+    return _policy_registered_support_for_exact_goal_shape_obligation(
+        obligation_id,
+        context=context,
+    )
 
 
 def _runtime_source_theorem_promotion_work_order_rows(
@@ -88161,7 +88290,10 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows(
             if isinstance(value, Mapping)
         ]
         if not placeholder_plan:
-            symbols = _placeholder_symbols_for_registered_support_ids(support_ids)
+            symbols = _placeholder_symbols_for_registered_support_ids(
+                support_ids,
+                context=item,
+            )
             placeholder_plan = _source_theorem_placeholder_resolution_rows(
                 [
                     {
@@ -90868,7 +91000,10 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_seman
         placeholder_symbols = [value for value in placeholder_symbols if value]
         if not placeholder_symbols:
             placeholder_symbols = list(
-                _placeholder_symbols_for_registered_support_ids(support_ids)
+                _placeholder_symbols_for_registered_support_ids(
+                    support_ids,
+                    context=item,
+                )
             )
         if not target_theorem_name or not placeholder_symbols:
             continue
@@ -91102,7 +91237,8 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_seman
                 )
             )
         placeholder_symbols = _placeholder_symbols_from_semantic_alignment_blockers(
-            blockers
+            blockers,
+            context={**dict(row), **dict(input_summary)},
         )
         if source_to_bridge_premise_gap:
             explicit_adapter_objects = [
@@ -91409,10 +91545,13 @@ def _runtime_source_theorem_exact_semantic_definition_work_order_rows_from_seman
 
 def _placeholder_symbols_from_semantic_alignment_blockers(
     blockers: list[str],
+    *,
+    context: Mapping[str, Any] | None = None,
 ) -> tuple[str, ...]:
     return _policy_placeholder_symbols_from_semantic_alignment_feedback(
         semantic_alignment_blockers=blockers,
         include_executor_feedback_signals=False,
+        context=context,
     )
 
 
@@ -91650,9 +91789,12 @@ def _runtime_source_theorem_exact_semantic_definition_learning_rows(
 
 def _placeholder_symbols_for_registered_support_ids(
     support_ids: list[str],
+    *,
+    context: Mapping[str, Any] | None = None,
 ) -> tuple[str, ...]:
     return _policy_placeholder_symbols_for_registered_support_ids(
         support_ids,
+        context=context,
     )
 
 

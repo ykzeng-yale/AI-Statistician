@@ -34,6 +34,7 @@ from .algorithm_template_registry import (
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
+from .semantic_review_feedback import compact_semantic_review_feedback
 from .theory_derivation_trace import (
     compact_theory_derivation_trace,
     theory_trace_alignment_contract,
@@ -389,6 +390,18 @@ def build_algorithm_engineer_prompt(
         )
         else ""
     )
+    semantic_review_instruction = (
+        "Independent generated-code semantic review feedback is active: treat "
+        "runtime_environment_feedback.generated_code_semantic_review as binding. "
+        "Repair every rejected semantic dimension and finding against the exact "
+        "reviewed source, runtime arguments, results, theory trace, and frozen metric "
+        "protocol. Regenerate the draft and let AgentRuntime execute it again; do not "
+        "respond by only changing metric paths or weakening a gate. "
+        if payload["runtime_environment_feedback"].get(
+            "generated_code_semantic_review"
+        )
+        else ""
+    )
     return (
         "Design implementation and sandbox-validation artifacts for the AlgorithmEngineer subsystem. "
         "Return ONLY one compact JSON object matching required_output_contract. Keep "
@@ -402,6 +415,7 @@ def build_algorithm_engineer_prompt(
         + capability_feedback_instruction
         + packet_validation_instruction
         + theory_trace_alignment_instruction
+        + semantic_review_instruction
         + "You may "
         "propose code and tests, but "
         "you must not claim you executed code, wrote files, promoted a production algorithm, or proved "
@@ -589,6 +603,10 @@ def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict
             limit=240,
         ),
         "theory_trace_downstream_alignment_feedback": theory_alignment_feedback,
+        "generated_code_semantic_review": compact_semantic_review_feedback(
+            feedback,
+            expected_feedback_type="generated_code_semantic_review_feedback",
+        ),
         "algorithm_sandbox_manifest_id": _truncate_text(
             feedback.get("algorithm_sandbox_manifest_id", ""),
             limit=180,

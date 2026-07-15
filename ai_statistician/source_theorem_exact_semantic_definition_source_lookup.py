@@ -13,7 +13,7 @@ from .exact_semantic_definition_policy import (
     exact_semantic_definition_contract,
     exact_semantic_definition_fallback_source_anchor_role,
     exact_semantic_definition_import_policy_blocker,
-    exact_semantic_definition_placeholder_policy,
+    exact_semantic_definition_placeholder_policy_for_mapping,
     exact_semantic_definition_source_lookup_aliases,
     exact_semantic_definition_source_lookup_terms,
 )
@@ -271,6 +271,7 @@ def exact_semantic_definition_source_binders_from_context(
     """
 
     binders: list[dict[str, str]] = []
+    policy_context = _semantic_policy_context_from_sources(*sources)
     for source in sources:
         if not isinstance(source, Mapping):
             continue
@@ -278,6 +279,7 @@ def exact_semantic_definition_source_binders_from_context(
             _binder_rows_from_mapping_context(
                 source,
                 placeholder_policy=placeholder_policy,
+                policy_context=policy_context,
             )
         )
     for path in _signature_probe_paths_from_sources(*sources):
@@ -285,9 +287,41 @@ def exact_semantic_definition_source_binders_from_context(
             _source_binders_from_signature_probe_path(
                 path,
                 placeholder_policy=placeholder_policy,
+                policy_context=policy_context,
             )
         )
     return _dedupe_binder_rows(binders)
+
+
+def _semantic_policy_context_from_sources(
+    *sources: Mapping[str, Any],
+) -> dict[str, Any]:
+    context: dict[str, Any] = {}
+    for source in sources:
+        if not isinstance(source, Mapping):
+            continue
+        for key in (
+            "task_family",
+            "primary_task_family",
+            "task_family_id",
+            "question_id",
+            "source_theorem_question_id",
+            "target_ids",
+            "target_id",
+            "target_theorem_goal_ids",
+            "theorem_target_ids",
+            "source_theorem_goal_id",
+            "target_theorem_name",
+            "target_lean_declaration",
+            "input_summary",
+            "exact_semantic_definition_context",
+            "candidate_definition_request",
+            "source_theorem_target_provenance",
+        ):
+            value = source.get(key)
+            if key not in context and value not in (None, "", [], {}):
+                context[key] = value
+    return context
 
 
 def exact_semantic_definition_required_anchor_bindings(
@@ -403,6 +437,7 @@ def _binder_rows_from_mapping_context(
     source: Mapping[str, Any],
     *,
     placeholder_policy: Any | None = None,
+    policy_context: Mapping[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     for key in (
@@ -415,6 +450,7 @@ def _binder_rows_from_mapping_context(
             _normalized_binder_rows(
                 source.get(key, []) or [],
                 placeholder_policy=placeholder_policy,
+                policy_context=policy_context,
             )
         )
     for binding in source.get("required_anchor_bindings", []) or []:
@@ -426,6 +462,7 @@ def _binder_rows_from_mapping_context(
                 _normalized_binder_rows(
                     [binder],
                     placeholder_policy=placeholder_policy,
+                    policy_context=policy_context,
                 )
             )
     source_anchor_context = source.get("source_anchor_context", []) or []
@@ -439,12 +476,14 @@ def _binder_rows_from_mapping_context(
                 _normalized_binder_rows(
                     [item],
                     placeholder_policy=placeholder_policy,
+                    policy_context=policy_context,
                 )
             )
             rows.extend(
                 _binder_rows_from_proof_body_goal_excerpt(
                     item.get("proof_body_goal_excerpt", []) or [],
                     placeholder_policy=placeholder_policy,
+                    policy_context=policy_context,
                 )
             )
     source_anchor_summary = source.get("source_anchor_context_summary", {}) or {}
@@ -453,6 +492,7 @@ def _binder_rows_from_mapping_context(
             _normalized_binder_rows(
                 source_anchor_summary.get("source_theorem_binders", []) or [],
                 placeholder_policy=placeholder_policy,
+                policy_context=policy_context,
             )
         )
     input_summary = source.get("input_summary", None)
@@ -465,6 +505,7 @@ def _binder_rows_from_mapping_context(
             _binder_rows_from_mapping_context(
                 input_summary,
                 placeholder_policy=placeholder_policy,
+                policy_context=policy_context,
             )
         )
     candidate_request = source.get("candidate_definition_request", None)
@@ -477,6 +518,7 @@ def _binder_rows_from_mapping_context(
             _binder_rows_from_mapping_context(
                 candidate_request,
                 placeholder_policy=placeholder_policy,
+                policy_context=policy_context,
             )
         )
     return rows
@@ -522,6 +564,7 @@ def _source_binders_from_signature_probe_path(
     path: Path,
     *,
     placeholder_policy: Any | None = None,
+    policy_context: Mapping[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     try:
         text = path.read_text(encoding="utf-8")
@@ -533,6 +576,7 @@ def _source_binders_from_signature_probe_path(
             _binder_rows_from_lean_declaration_header(
                 header,
                 placeholder_policy=placeholder_policy,
+                policy_context=policy_context,
             )
         )
     return binders
@@ -573,6 +617,7 @@ def _binder_rows_from_lean_declaration_header(
     header: str,
     *,
     placeholder_policy: Any | None = None,
+    policy_context: Mapping[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     binder_prefix = _lean_declaration_binder_prefix(header)
     rows: list[dict[str, str]] = []
@@ -586,6 +631,7 @@ def _binder_rows_from_lean_declaration_header(
                         name=name,
                         binder_type=binder_type,
                         placeholder_policy=placeholder_policy,
+                        policy_context=policy_context,
                     ),
                     "source": "signature_probe_artifact",
                 }
@@ -677,6 +723,7 @@ def _binder_rows_from_proof_body_goal_excerpt(
     proof_body_goal_excerpt: Sequence[Any],
     *,
     placeholder_policy: Any | None = None,
+    policy_context: Mapping[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     for value in proof_body_goal_excerpt:
@@ -695,6 +742,7 @@ def _binder_rows_from_proof_body_goal_excerpt(
                         name=name,
                         binder_type=binder_type,
                         placeholder_policy=placeholder_policy,
+                        policy_context=policy_context,
                     ),
                     "source": "proof_body_goal_excerpt",
                 }
@@ -706,6 +754,7 @@ def _normalized_binder_rows(
     values: Sequence[Any],
     *,
     placeholder_policy: Any | None = None,
+    policy_context: Mapping[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     for value in values:
@@ -723,6 +772,7 @@ def _normalized_binder_rows(
                 name=name,
                 binder_type=binder_type,
                 placeholder_policy=placeholder_policy,
+                policy_context=policy_context,
             )
         row = {"name": name, "role": role}
         if binder_type:
@@ -753,6 +803,7 @@ def _exact_semantic_source_binder_role(
     name: str,
     binder_type: str,
     placeholder_policy: Any | None = None,
+    policy_context: Mapping[str, Any] | None = None,
 ) -> str:
     if placeholder_policy is not None:
         policy_role = _source_anchor_role_from_policy(
@@ -764,6 +815,7 @@ def _exact_semantic_source_binder_role(
     return exact_semantic_definition_fallback_source_anchor_role(
         name=name,
         binder_type=binder_type,
+        context=policy_context or {},
     )
 
 
@@ -2505,8 +2557,9 @@ def _typechecked_review_source_proof_body_context(
     matched_rows = _matching_typechecked_review_source_rows(row, source_rows)
     if not matched_rows:
         return {}
-    placeholder_policy = exact_semantic_definition_placeholder_policy(
-        str(row.get("placeholder_symbol", "") or "")
+    placeholder_policy, _ = exact_semantic_definition_placeholder_policy_for_mapping(
+        str(row.get("placeholder_symbol", "") or ""),
+        {**dict(matched_rows[0]), **dict(row)},
     )
     source_anchors: list[dict[str, Any]] = []
     exact_source_theorem_binders: list[dict[str, Any]] = []
@@ -3133,7 +3186,10 @@ def _lookup_row(
     max_hits: int,
 ) -> dict[str, Any]:
     placeholder = str(work_order.get("placeholder_symbol", "") or "").strip()
-    placeholder_policy_context = _placeholder_policy_context(placeholder)
+    placeholder_policy_context = _placeholder_policy_context(
+        placeholder,
+        context=work_order,
+    )
     search_terms = _search_terms(work_order)
     hits = _source_lookup_hits(
         source_roots=source_roots,
@@ -3275,7 +3331,10 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
         else:
             context[key] = value
     if placeholder_symbol:
-        for key, value in _placeholder_policy_context(placeholder_symbol).items():
+        for key, value in _placeholder_policy_context(
+            placeholder_symbol,
+            context=row,
+        ).items():
             context.setdefault(key, value)
     candidate_request = context.get("candidate_definition_request", {})
     if isinstance(candidate_request, Mapping):
@@ -3288,7 +3347,10 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
         if placeholder_symbol and not normalized_request.get("placeholder_symbol"):
             normalized_request["placeholder_symbol"] = placeholder_symbol
         if placeholder_symbol:
-            for key, value in _placeholder_policy_context(placeholder_symbol).items():
+            for key, value in _placeholder_policy_context(
+                placeholder_symbol,
+                context=row,
+            ).items():
                 normalized_request.setdefault(key, value)
         if target_ids and not normalized_request.get("target_ids"):
             normalized_request["target_ids"] = list(target_ids)
@@ -3330,14 +3392,22 @@ def _first_context_value(sources: Sequence[Mapping[str, Any]], key: str) -> Any:
     return None
 
 
-def _placeholder_policy_context(placeholder_symbol: str) -> dict[str, str]:
+def _placeholder_policy_context(
+    placeholder_symbol: str,
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     placeholder = str(placeholder_symbol or "").strip()
     if not placeholder:
         return {}
-    policy = exact_semantic_definition_placeholder_policy(placeholder)
+    policy, applicability = exact_semantic_definition_placeholder_policy_for_mapping(
+        placeholder,
+        context,
+    )
     return {
         "placeholder_policy_id": policy.policy_id,
         "placeholder_policy_scope": policy.policy_scope,
+        "placeholder_policy_applicability": applicability,
     }
 
 
@@ -3516,7 +3586,10 @@ def _definition_closure_work_order_from_lookup(row: Mapping[str, Any]) -> dict[s
 
 def _definition_closure_review_packet(row: Mapping[str, Any]) -> dict[str, Any]:
     placeholder = str(row.get("placeholder_symbol", "") or "")
-    contract = _definition_contract_for_placeholder(placeholder)
+    contract = _definition_contract_for_placeholder(
+        placeholder,
+        context=row,
+    )
     review_packet_id = (
         "source_theorem_exact_semantic_definition_closure_review_packet:"
         + stable_hash(
@@ -3623,8 +3696,16 @@ def _definition_closure_review_packet(row: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _definition_contract_for_placeholder(placeholder: str) -> dict[str, Any]:
-    return exact_semantic_definition_contract(placeholder)
+def _definition_contract_for_placeholder(
+    placeholder: str,
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    policy, _ = exact_semantic_definition_placeholder_policy_for_mapping(
+        placeholder,
+        context,
+    )
+    return exact_semantic_definition_contract(placeholder, policy=policy)
 
 
 def _learning_row_from_lookup(row: Mapping[str, Any]) -> dict[str, Any]:
@@ -4020,6 +4101,7 @@ def _definition_closure_review_result(
     raw_semantic_definition_risks = _semantic_definition_risks(
         placeholder=placeholder,
         candidate_text=candidate_text,
+        context=row,
     )
     semantic_definition_risks: list[str] = []
     if forbidden_matches:
@@ -4287,6 +4369,7 @@ def _definition_candidate_synthesis_row(
         _semantic_definition_risks(
             placeholder=placeholder,
             candidate_text=replacement,
+            context=row,
         )
         if replacement_applied and replacement
         else []
@@ -4848,6 +4931,7 @@ def _semantic_definition_risks(
     *,
     placeholder: str,
     candidate_text: str,
+    context: Mapping[str, Any] | None = None,
 ) -> list[str]:
     if not placeholder or not candidate_text:
         return []
@@ -4855,9 +4939,14 @@ def _semantic_definition_risks(
     if block is None:
         return []
     _, block_text = block
+    policy, _ = exact_semantic_definition_placeholder_policy_for_mapping(
+        placeholder,
+        context,
+    )
     return exact_semantic_definition_candidate_risks(
         placeholder,
         definition_block=block_text,
+        policy=policy,
     )
 
 
@@ -5078,11 +5167,16 @@ def _source_lookup_semantic_import_review(
                 "semantic-definition import candidate"
             ),
         }
+    placeholder_policy, _ = exact_semantic_definition_placeholder_policy_for_mapping(
+        primary_normalized,
+        work_order,
+    )
     policy_blocker = exact_semantic_definition_import_policy_blocker(
         primary_normalized,
         snippet=snippet,
         declaration_name=declaration_name,
         require_required_signal=True,
+        policy=placeholder_policy,
     )
     if policy_blocker:
         return {
@@ -5240,9 +5334,11 @@ def _source_lookup_exact_aliases(
     normalized_terms: list[str],
 ) -> set[str]:
     aliases: set[str] = set()
+    placeholder = ""
     if isinstance(work_order, Mapping):
+        placeholder = str(work_order.get("placeholder_symbol", "") or "").strip()
         raw_values: list[Any] = [
-            work_order.get("placeholder_symbol", ""),
+            placeholder,
             work_order.get("target_theorem_name", ""),
             work_order.get("target_lean_declaration", ""),
             *list(work_order.get("target_ids", []) or []),
@@ -5257,7 +5353,17 @@ def _source_lookup_exact_aliases(
         compact = _compact_identifier(text)
         if len(compact) >= 4:
             aliases.add(compact)
-        for alias in exact_semantic_definition_source_lookup_aliases(text):
+    if placeholder:
+        placeholder_policy, _ = (
+            exact_semantic_definition_placeholder_policy_for_mapping(
+                placeholder,
+                work_order,
+            )
+        )
+        for alias in exact_semantic_definition_source_lookup_aliases(
+            placeholder,
+            policy=placeholder_policy,
+        ):
             compact_alias = _compact_identifier(alias)
             if len(compact_alias) >= 4:
                 aliases.add(compact_alias)
@@ -5308,7 +5414,10 @@ def _source_lookup_hit_is_eligible(
     if not _is_source_to_bridge_adapter_object_definition_work_order(work_order):
         return True
     primary = normalized_terms[0] if normalized_terms else ""
-    primary_aliases = _source_lookup_primary_aliases(primary)
+    primary_aliases = _source_lookup_primary_aliases(
+        primary,
+        context=work_order,
+    )
     all_terms = set(line_matched_terms) | set(file_matched_terms)
     if primary_aliases & all_terms:
         return True
@@ -5318,13 +5427,24 @@ def _source_lookup_hit_is_eligible(
     return False
 
 
-def _source_lookup_primary_aliases(primary: str) -> set[str]:
+def _source_lookup_primary_aliases(
+    primary: str,
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> set[str]:
     stripped = primary.strip().lower()
     aliases = {stripped} if stripped else set()
     compact = _compact_identifier(stripped)
     if compact:
         aliases.add(compact)
-    for alias in exact_semantic_definition_source_lookup_aliases(primary):
+    policy, _ = exact_semantic_definition_placeholder_policy_for_mapping(
+        primary,
+        context,
+    )
+    for alias in exact_semantic_definition_source_lookup_aliases(
+        primary,
+        policy=policy,
+    ):
         alias_text = str(alias or "").lower().strip()
         if alias_text:
             aliases.add(alias_text)
@@ -5407,7 +5527,16 @@ def _search_terms(work_order: Mapping[str, Any]) -> list[str]:
     placeholder = str(work_order.get("placeholder_symbol", "") or "").strip()
     if placeholder:
         terms.append(placeholder)
-        terms.extend(exact_semantic_definition_source_lookup_terms(placeholder))
+        policy, _ = exact_semantic_definition_placeholder_policy_for_mapping(
+            placeholder,
+            work_order,
+        )
+        terms.extend(
+            exact_semantic_definition_source_lookup_terms(
+                placeholder,
+                policy=policy,
+            )
+        )
     for value in [
         *list(work_order.get("search_targets", []) or []),
         *list(work_order.get("candidate_registered_obligation_ids", []) or []),

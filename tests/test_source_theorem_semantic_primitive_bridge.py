@@ -25,6 +25,14 @@ def _write_jsonl(path: Path, rows: list[dict[str, object]]) -> None:
     path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
 
 
+_SPLIT_CONFORMAL_POLICY_CONTEXT = {
+    "task_family": "split_conformal_finite_sample_coverage",
+    "question_id": "conformal_prediction_coverage",
+    "target_theorem_name": "split_conformal_coverage",
+    "target_theorem_goal_ids": ["split_conformal_finite_sample_coverage"],
+}
+
+
 def test_source_semantic_bridge_records_registered_support_without_proof_claim(
     tmp_path: Path,
 ) -> None:
@@ -169,7 +177,7 @@ def test_source_semantic_bridge_rejects_cross_task_policy_text_matches(
     check = manifest["checks"][0]
     assert check["semantic_support_policy_applicable"] is False
     assert check["semantic_support_policy_applicability"]["status"] == (
-        "TASK_SCOPED_POLICY_CONFLICT"
+        "GENERIC_DISCOVERY_NO_TASK_SCOPED_POLICY_MATCH"
     )
     assert check["registered_support_level"] == (
         "task_scoped_policy_not_applicable"
@@ -186,6 +194,7 @@ def test_semantic_placeholder_text_signals_are_policy_driven() -> None:
             "The proof must define covered from the exact source coverage event using hC.",
             "Needs exchangeability before the rank lemma applies.",
         ],
+        context=_SPLIT_CONFORMAL_POLICY_CONTEXT,
     ) == ("Exchangeable", "orderStat", "covered")
 
     assert placeholder_symbols_from_semantic_alignment_feedback(
@@ -194,6 +203,7 @@ def test_semantic_placeholder_text_signals_are_policy_driven() -> None:
             "Permutation invariance gives the uniform rank step.",
         ],
         include_executor_feedback_signals=True,
+        context=_SPLIT_CONFORMAL_POLICY_CONTEXT,
     ) == ("Exchangeable", "orderStat")
 
     assert placeholder_symbols_from_semantic_alignment_feedback(
@@ -212,7 +222,8 @@ def test_registered_support_reverse_placeholder_lookup_is_policy_driven() -> Non
             "prob_measure_univ",
             "unknown_support",
             "split_conformal_good_rank_set_inclusion_bridge",
-        ]
+        ],
+        context=_SPLIT_CONFORMAL_POLICY_CONTEXT,
     ) == ("orderStat", "Exchangeable", "MeasureProbability")
 
 
@@ -223,6 +234,7 @@ def test_theorem_closure_reduction_strategy_is_policy_driven() -> None:
             "split_conformal_good_rank_coverage_bridge",
             "split_conformal_bad_rank_reduction_bridge",
         ],
+        context=_SPLIT_CONFORMAL_POLICY_CONTEXT,
     ) == {
         "proof_obligation_id": "split_conformal_good_rank_coverage_bridge",
         "source_theorem_name": "splitConformalCoverage_of_goodRankCoverage",
@@ -235,11 +247,13 @@ def test_theorem_closure_reduction_strategy_is_policy_driven() -> None:
     assert theorem_closure_reduction_strategy_for_goal(
         goal_id="split_conformal_finite_sample_coverage",
         verified_bridge_ids=["split_conformal_bad_rank_reduction_bridge"],
+        context=_SPLIT_CONFORMAL_POLICY_CONTEXT,
     )["reduction_description"] == "bad-rank-budget-to-coverage"
 
     assert theorem_closure_reduction_strategy_for_goal(
         goal_id="unregistered_goal",
         verified_bridge_ids=["split_conformal_good_rank_coverage_bridge"],
+        context=_SPLIT_CONFORMAL_POLICY_CONTEXT,
     ) == {}
 
 
@@ -247,6 +261,7 @@ def test_semantic_primitive_gap_text_and_ids_are_policy_driven() -> None:
     primitive_id, gap = semantic_primitive_for_placeholder_symbol(
         "Exchangeable",
         target_theorem_name="split_conformal_coverage",
+        context=_SPLIT_CONFORMAL_POLICY_CONTEXT,
     )
 
     assert primitive_id == "exchangeability_to_uniform_rank_semantics"
@@ -257,6 +272,7 @@ def test_semantic_primitive_gap_text_and_ids_are_policy_driven() -> None:
     assert semantic_gap_for_placeholder_symbol(
         "orderStat",
         target_theorem_name="split_conformal_coverage",
+        context=_SPLIT_CONFORMAL_POLICY_CONTEXT,
     ) == (
         "Replace placeholder `orderStat` with reviewed finite-sample "
         "order-statistic/quantile semantics for `split_conformal_coverage`."
@@ -264,6 +280,7 @@ def test_semantic_primitive_gap_text_and_ids_are_policy_driven() -> None:
     assert semantic_gap_for_exact_goal_shape_obligation(
         "coverage_event_identification_from_hC",
         target_theorem_name="split_conformal_coverage",
+        context=_SPLIT_CONFORMAL_POLICY_CONTEXT,
     ) == (
         "Use the exact coverage-set hypothesis hC to identify the source theorem "
         "event with the covered event used by bridge lemmas for "
@@ -272,10 +289,12 @@ def test_semantic_primitive_gap_text_and_ids_are_policy_driven() -> None:
     assert semantic_primitive_id_for_gap(
         "formalize probability measure semantics",
         "source_theorem_semantic_primitives",
+        context=_SPLIT_CONFORMAL_POLICY_CONTEXT,
     ) == "probability_measure_semantics"
     assert semantic_primitive_id_for_gap(
         "formalize exchangeability rank uniformity semantics",
         "source_theorem_semantic_primitives",
+        context=_SPLIT_CONFORMAL_POLICY_CONTEXT,
     ) == "exchangeability_to_uniform_rank_semantics"
 
 
@@ -284,22 +303,26 @@ def test_semantic_primitive_registered_support_text_fallback_is_policy_driven() 
         primitive_id="source_theorem_semantic_primitive:unknown",
         semantic_primitive_gap="formalize probability measure semantics",
         semantic_primitive_gap_kind="source_theorem_semantic_primitives",
+        context=_SPLIT_CONFORMAL_POLICY_CONTEXT,
     ) == ("prob_measure_univ",)
     assert registered_support_for_semantic_primitive_text(
         primitive_id="source_theorem_semantic_primitive:unknown",
         semantic_primitive_gap="formalize order statistic quantile semantics",
         semantic_primitive_gap_kind="source_theorem_semantic_primitives",
+        context=_SPLIT_CONFORMAL_POLICY_CONTEXT,
     ) == ("split_conformal_good_rank_set_inclusion_bridge",)
     assert registered_support_for_semantic_primitive_text(
         primitive_id="source_theorem_semantic_primitive:unknown",
         semantic_primitive_gap="formalize exchangeability rank bridge",
         semantic_primitive_gap_kind="source_theorem_semantic_primitives",
+        context=_SPLIT_CONFORMAL_POLICY_CONTEXT,
     ) == ("split_conformal_bad_rank_budget_from_uniform_rank_bound",)
 
 
 def test_exact_goal_shape_obligation_inference_is_policy_driven() -> None:
     assert inferred_exact_goal_shape_obligation_ids(
         failure_classification="proof_body_verified_adapter_context_insufficient",
+        context=_SPLIT_CONFORMAL_POLICY_CONTEXT,
     ) == (
         "source_to_bridge_adapter_goal_shape_mismatch",
         "conjunctive_source_theorem_split",
@@ -311,6 +334,7 @@ def test_exact_goal_shape_obligation_inference_is_policy_driven() -> None:
     )
     assert inferred_exact_goal_shape_obligation_ids(
         trigger="EXACT_SOURCE_PROOF_BODY_VERIFIED_ADAPTER_CONTEXT_INSUFFICIENT",
+        context=_SPLIT_CONFORMAL_POLICY_CONTEXT,
     ) == (
         "source_to_bridge_adapter_goal_shape_mismatch",
         "conjunctive_source_theorem_split",
@@ -324,23 +348,28 @@ def test_exact_goal_shape_obligation_inference_is_policy_driven() -> None:
         failure_classification=(
             "proof_body_reduction_closure_adapter_instantiation_missing"
         ),
+        context=_SPLIT_CONFORMAL_POLICY_CONTEXT,
     ) == ("source_to_bridge_adapter_goal_shape_mismatch",)
     assert inferred_exact_goal_shape_obligation_ids(
         failure_classification="unregistered_failure_classification",
+        context=_SPLIT_CONFORMAL_POLICY_CONTEXT,
     ) == ()
 
 
 def test_exact_goal_shape_obligation_routes_are_policy_driven() -> None:
     assert exact_goal_shape_obligation_ids_for_route(
-        SOURCE_TO_BRIDGE_ADAPTER_INSTANTIATION_EXACT_GOAL_SHAPE_ROUTE
+        SOURCE_TO_BRIDGE_ADAPTER_INSTANTIATION_EXACT_GOAL_SHAPE_ROUTE,
+        context=_SPLIT_CONFORMAL_POLICY_CONTEXT,
     ) == ("source_to_bridge_adapter_goal_shape_mismatch",)
     assert exact_goal_shape_obligation_has_route(
         "source_to_bridge_adapter_goal_shape_mismatch",
         SOURCE_TO_BRIDGE_ADAPTER_INSTANTIATION_EXACT_GOAL_SHAPE_ROUTE,
+        context=_SPLIT_CONFORMAL_POLICY_CONTEXT,
     )
     assert not exact_goal_shape_obligation_has_route(
         "upper_coverage_bound_component",
         SOURCE_TO_BRIDGE_ADAPTER_INSTANTIATION_EXACT_GOAL_SHAPE_ROUTE,
+        context=_SPLIT_CONFORMAL_POLICY_CONTEXT,
     )
 
 
@@ -358,6 +387,7 @@ def test_exact_goal_shape_obligation_feedback_rules_are_policy_driven() -> None:
     assert inferred_exact_goal_shape_obligation_ids_from_feedback(
         failure_classification="proof_body_verified_adapter_context_insufficient",
         goal_text=goal_text,
+        context=_SPLIT_CONFORMAL_POLICY_CONTEXT,
     ) == (
         "source_to_bridge_adapter_goal_shape_mismatch",
         "conjunctive_source_theorem_split",
@@ -367,6 +397,36 @@ def test_exact_goal_shape_obligation_feedback_rules_are_policy_driven() -> None:
         "order_statistic_quantile_rank_instantiation",
         "coverage_event_identification_from_hC",
     )
+
+
+def test_policy_helpers_do_not_infer_split_conformal_support_without_task_scope() -> None:
+    unrelated_context = {
+        "task_family": "multiple_testing",
+        "question_id": "multiple_testing_fdr_bh",
+        "target_theorem_goal_ids": ["bh_fdr_control_independence"],
+    }
+
+    assert registered_support_for_semantic_primitive_text(
+        primitive_id="order_statistic_probability_rank",
+        semantic_primitive_gap="formalize probability measure and rank semantics",
+        semantic_primitive_gap_kind="source_theorem_semantic_primitives",
+    ) == ()
+    assert registered_support_for_semantic_primitive_text(
+        primitive_id="order_statistic_probability_rank",
+        semantic_primitive_gap="formalize probability measure and rank semantics",
+        semantic_primitive_gap_kind="source_theorem_semantic_primitives",
+        context=unrelated_context,
+    ) == ()
+    assert placeholder_symbols_from_semantic_alignment_feedback(
+        semantic_alignment_blockers=[
+            "The probability coverage argument mentions exchangeability and rank."
+        ],
+        context=unrelated_context,
+    ) == ()
+    assert inferred_exact_goal_shape_obligation_ids(
+        failure_classification="proof_body_verified_adapter_context_insufficient",
+        context=unrelated_context,
+    ) == ()
 
 
 def test_source_to_bridge_premise_semantic_gap_exports_repair_feedback(

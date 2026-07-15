@@ -30,10 +30,8 @@ PLACEHOLDER_DEFINITION_OPEN_STATUS = (
 SOURCE_TO_BRIDGE_ADAPTER_INSTANTIATION_EXACT_GOAL_SHAPE_ROUTE = (
     "source_to_bridge_adapter_instantiation"
 )
-DEFAULT_SEMANTIC_SUPPORT_POLICY_PATH = (
-    Path(__file__).resolve().parent
-    / "policies"
-    / "source_theorem_semantic_primitive_support.split_conformal.json"
+SEMANTIC_SUPPORT_POLICY_GLOB = (
+    "source_theorem_semantic_primitive_support.*.json"
 )
 _SOURCE_TO_BRIDGE_PREMISE_CONTEXT_KEYS = (
     "premise_name",
@@ -77,7 +75,9 @@ def _bool_like(value: Any, *, default: bool = False) -> bool:
 
 @lru_cache(maxsize=8)
 def _semantic_support_policy(policy_path: str = "") -> dict[str, Any]:
-    path = Path(policy_path) if policy_path else DEFAULT_SEMANTIC_SUPPORT_POLICY_PATH
+    if not policy_path:
+        return _generic_semantic_support_policy()
+    path = Path(policy_path)
     payload = json.loads(path.read_text(encoding="utf-8"))
     scope = str(payload.get("scope", "") or "").strip()
     scope_task_family = (
@@ -165,6 +165,42 @@ def _semantic_support_policy(policy_path: str = "") -> dict[str, Any]:
             exact_goal_shape_feedback_rules
         ),
     }
+
+
+def _generic_semantic_support_policy() -> dict[str, Any]:
+    return {
+        "policy_id": "generic_semantic_support_discovery_v1",
+        "schema_version": 1,
+        "scope": "generic_discovery",
+        "path": "",
+        "task_families": (),
+        "question_ids": (),
+        "theorem_target_ids": (),
+        "primitive_to_registered_support": {},
+        "semantic_primitive_text_to_registered_support": (),
+        "placeholder_symbol_to_registered_support": {},
+        "placeholder_symbol_to_semantic_primitive_id": {},
+        "placeholder_symbol_to_semantic_gap": {},
+        "placeholder_symbol_text_signals": {},
+        "semantic_primitive_id_text_rules": (),
+        "theorem_closure_reduction_strategies": {},
+        "exact_goal_shape_to_registered_support": {},
+        "exact_goal_shape_to_semantic_gap": {},
+        "exact_goal_shape_obligation_routes": {},
+        "exact_goal_shape_obligation_inference_rules": (),
+        "exact_goal_shape_obligation_feedback_rules": (),
+    }
+
+
+@lru_cache(maxsize=1)
+def _semantic_support_policy_candidates() -> tuple[dict[str, Any], ...]:
+    policy_dir = Path(__file__).resolve().parent / "policies"
+    if not policy_dir.is_dir():
+        return ()
+    return tuple(
+        _semantic_support_policy(str(path))
+        for path in sorted(policy_dir.glob(SEMANTIC_SUPPORT_POLICY_GLOB))
+    )
 
 
 def _normalize_policy_selector_values(value: Any) -> tuple[str, ...]:
@@ -506,8 +542,10 @@ def _normalize_theorem_closure_reduction_strategies(
     return normalized
 
 
-def _semantic_support_policy_summary() -> dict[str, Any]:
-    policy = _semantic_support_policy()
+def _semantic_support_policy_summary(
+    policy: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    policy = _selected_semantic_support_policy(policy=policy)
     primitive_support = policy["primitive_to_registered_support"]
     primitive_text_support = policy["semantic_primitive_text_to_registered_support"]
     semantic_primitive_id_text_rules = policy["semantic_primitive_id_text_rules"]
@@ -664,11 +702,98 @@ def _semantic_support_policy_applicability(
     }
 
 
+def _semantic_support_policy_for_context(
+    context: Mapping[str, Any] | None,
+    *,
+    fallback_question_id: str = "",
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    row = context if isinstance(context, Mapping) else {}
+    applicable: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    for policy in _semantic_support_policy_candidates():
+        applicability = _semantic_support_policy_applicability(
+            policy,
+            row,
+            fallback_question_id=fallback_question_id,
+        )
+        if applicability.get("applicable") is True:
+            applicable.append((policy, applicability))
+    if not applicable:
+        generic = _semantic_support_policy()
+        return generic, {
+            "policy_id": generic["policy_id"],
+            "work_order_id": _work_order_id(row),
+            "applicable": False,
+            "status": "GENERIC_DISCOVERY_NO_TASK_SCOPED_POLICY_MATCH",
+            "matched_selector_kinds": [],
+            "conflicting_selector_kinds": [],
+            "task_family": str(
+                row.get("task_family", "")
+                or row.get("primary_task_family", "")
+                or primary_task_family_from_mapping(row)
+                or ""
+            ),
+            "question_ids": compact_string_list(
+                row.get("question_id", fallback_question_id)
+            ),
+            "theorem_target_ids": compact_string_list(
+                row.get("target_theorem_goal_ids", [])
+                or row.get("theorem_target_ids", [])
+            ),
+            "boundary": (
+                "No task-scoped semantic-support policy matched. Runtime must use "
+                "generic source/RAG/prover discovery and may not infer a registered "
+                "support obligation from task vocabulary alone."
+            ),
+        }
+    applicable.sort(
+        key=lambda item: (
+            -len(item[1].get("matched_selector_kinds", []) or []),
+            str(item[0].get("policy_id", "") or ""),
+        )
+    )
+    selected_policy, selected_applicability = applicable[0]
+    if len(applicable) > 1 and len(
+        applicable[0][1].get("matched_selector_kinds", []) or []
+    ) == len(applicable[1][1].get("matched_selector_kinds", []) or []):
+        generic = _semantic_support_policy()
+        return generic, {
+            **selected_applicability,
+            "policy_id": generic["policy_id"],
+            "applicable": False,
+            "status": "GENERIC_DISCOVERY_AMBIGUOUS_TASK_SCOPED_POLICY_MATCH",
+            "candidate_policy_ids": [
+                str(policy.get("policy_id", "") or "")
+                for policy, _ in applicable
+            ],
+        }
+    return selected_policy, selected_applicability
+
+
+def _selected_semantic_support_policy(
+    *,
+    context: Mapping[str, Any] | None = None,
+    policy: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    if isinstance(policy, Mapping) and policy:
+        return dict(policy)
+    selected, _ = _semantic_support_policy_for_context(context)
+    return selected
+
+
 def registered_support_for_semantic_primitive(
     primitive_id: str,
+    *,
+    context: Mapping[str, Any] | None = None,
+    policy: Mapping[str, Any] | None = None,
 ) -> tuple[str, ...]:
-    policy = _semantic_support_policy()
-    return policy["primitive_to_registered_support"].get(primitive_id, ())
+    selected_policy = _selected_semantic_support_policy(
+        context=context,
+        policy=policy,
+    )
+    return selected_policy["primitive_to_registered_support"].get(
+        primitive_id,
+        (),
+    )
 
 
 def registered_support_for_semantic_primitive_text(
@@ -676,8 +801,13 @@ def registered_support_for_semantic_primitive_text(
     primitive_id: str = "",
     semantic_primitive_gap: str = "",
     semantic_primitive_gap_kind: str = "",
+    context: Mapping[str, Any] | None = None,
+    policy: Mapping[str, Any] | None = None,
 ) -> tuple[str, ...]:
-    policy = _semantic_support_policy()
+    selected_policy = _selected_semantic_support_policy(
+        context=context,
+        policy=policy,
+    )
     primitive_text = str(primitive_id or "").lower()
     work_order_text = " ".join(
         [
@@ -687,7 +817,7 @@ def registered_support_for_semantic_primitive_text(
         ]
     ).lower()
     registered_support_ids: list[str] = []
-    for rule in policy["semantic_primitive_text_to_registered_support"]:
+    for rule in selected_policy["semantic_primitive_text_to_registered_support"]:
         if _semantic_primitive_text_support_rule_matches(
             rule,
             primitive_text=primitive_text,
@@ -741,14 +871,16 @@ def registered_support_for_placeholder_symbol(
     symbol: str,
     *,
     context: Mapping[str, Any] | None = None,
+    policy: Mapping[str, Any] | None = None,
 ) -> tuple[str, ...]:
-    policy = _semantic_support_policy()
-    if context is not None and not _semantic_support_policy_applicability(
-        policy,
-        context,
-    ).get("applicable", False):
-        return ()
-    return policy["placeholder_symbol_to_registered_support"].get(symbol.strip(), ())
+    selected_policy = _selected_semantic_support_policy(
+        context=context,
+        policy=policy,
+    )
+    return selected_policy["placeholder_symbol_to_registered_support"].get(
+        symbol.strip(),
+        (),
+    )
 
 
 def _format_semantic_gap_template(
@@ -772,10 +904,17 @@ def semantic_gap_for_placeholder_symbol(
     symbol: str,
     *,
     target_theorem_name: str = "",
+    context: Mapping[str, Any] | None = None,
+    policy: Mapping[str, Any] | None = None,
 ) -> str:
-    policy = _semantic_support_policy()
+    if context is None and target_theorem_name:
+        context = {"target_theorem_name": target_theorem_name}
+    selected_policy = _selected_semantic_support_policy(
+        context=context,
+        policy=policy,
+    )
     normalized_symbol = str(symbol or "").strip()
-    template = policy["placeholder_symbol_to_semantic_gap"].get(
+    template = selected_policy["placeholder_symbol_to_semantic_gap"].get(
         normalized_symbol,
         "",
     )
@@ -792,10 +931,17 @@ def semantic_gap_for_exact_goal_shape_obligation(
     obligation_id: str,
     *,
     target_theorem_name: str = "",
+    context: Mapping[str, Any] | None = None,
+    policy: Mapping[str, Any] | None = None,
 ) -> str:
-    policy = _semantic_support_policy()
+    if context is None and target_theorem_name:
+        context = {"target_theorem_name": target_theorem_name}
+    selected_policy = _selected_semantic_support_policy(
+        context=context,
+        policy=policy,
+    )
     normalized_obligation_id = str(obligation_id or "").strip()
-    template = policy["exact_goal_shape_to_semantic_gap"].get(
+    template = selected_policy["exact_goal_shape_to_semantic_gap"].get(
         normalized_obligation_id,
         "",
     )
@@ -811,12 +957,17 @@ def inferred_exact_goal_shape_obligation_ids(
     *,
     failure_classification: str = "",
     trigger: str = "",
+    context: Mapping[str, Any] | None = None,
+    policy: Mapping[str, Any] | None = None,
 ) -> tuple[str, ...]:
-    policy = _semantic_support_policy()
+    selected_policy = _selected_semantic_support_policy(
+        context=context,
+        policy=policy,
+    )
     normalized_failure = str(failure_classification or "").strip()
     normalized_trigger = str(trigger or "").strip()
     obligation_ids: list[str] = []
-    for rule in policy["exact_goal_shape_obligation_inference_rules"]:
+    for rule in selected_policy["exact_goal_shape_obligation_inference_rules"]:
         failure_matches = (
             normalized_failure
             and normalized_failure in rule.get("failure_classifications", ())
@@ -835,12 +986,17 @@ def inferred_exact_goal_shape_obligation_ids_from_feedback(
     failure_classification: str = "",
     trigger: str = "",
     goal_text: str = "",
+    context: Mapping[str, Any] | None = None,
+    policy: Mapping[str, Any] | None = None,
 ) -> tuple[str, ...]:
-    policy = _semantic_support_policy()
+    selected_policy = _selected_semantic_support_policy(
+        context=context,
+        policy=policy,
+    )
     normalized_failure = str(failure_classification or "").strip()
     normalized_trigger = str(trigger or "").strip()
     obligation_ids: list[str] = []
-    for rule in policy["exact_goal_shape_obligation_feedback_rules"]:
+    for rule in selected_policy["exact_goal_shape_obligation_feedback_rules"]:
         if _exact_goal_shape_feedback_rule_matches(
             rule,
             failure_classification=normalized_failure,
@@ -888,10 +1044,19 @@ def _exact_goal_shape_feedback_rule_matches(
     return False
 
 
-def semantic_primitive_id_for_gap(gap_text: str, gap_kind: str = "") -> str:
-    policy = _semantic_support_policy()
+def semantic_primitive_id_for_gap(
+    gap_text: str,
+    gap_kind: str = "",
+    *,
+    context: Mapping[str, Any] | None = None,
+    policy: Mapping[str, Any] | None = None,
+) -> str:
+    selected_policy = _selected_semantic_support_policy(
+        context=context,
+        policy=policy,
+    )
     text = f"{gap_kind} {gap_text}".lower()
-    for rule in policy["semantic_primitive_id_text_rules"]:
+    for rule in selected_policy["semantic_primitive_id_text_rules"]:
         primitive_id = str(rule.get("semantic_primitive_id", "") or "").strip()
         if not primitive_id:
             continue
@@ -905,10 +1070,17 @@ def semantic_primitive_id_for_placeholder_symbol(
     symbol: str,
     *,
     target_theorem_name: str = "",
+    context: Mapping[str, Any] | None = None,
+    policy: Mapping[str, Any] | None = None,
 ) -> str:
-    policy = _semantic_support_policy()
+    if context is None and target_theorem_name:
+        context = {"target_theorem_name": target_theorem_name}
+    selected_policy = _selected_semantic_support_policy(
+        context=context,
+        policy=policy,
+    )
     normalized_symbol = str(symbol or "").strip()
-    primitive_id = policy["placeholder_symbol_to_semantic_primitive_id"].get(
+    primitive_id = selected_policy["placeholder_symbol_to_semantic_primitive_id"].get(
         normalized_symbol,
         "",
     )
@@ -917,10 +1089,14 @@ def semantic_primitive_id_for_placeholder_symbol(
     gap = semantic_gap_for_placeholder_symbol(
         normalized_symbol,
         target_theorem_name=target_theorem_name,
+        context=context,
+        policy=selected_policy,
     )
     primitive_id = semantic_primitive_id_for_gap(
         gap,
         "source_theorem_semantic_primitives",
+        context=context,
+        policy=selected_policy,
     )
     if primitive_id:
         return primitive_id
@@ -934,15 +1110,27 @@ def semantic_primitive_for_placeholder_symbol(
     symbol: str,
     *,
     target_theorem_name: str = "",
+    context: Mapping[str, Any] | None = None,
+    policy: Mapping[str, Any] | None = None,
 ) -> tuple[str, str]:
+    if context is None and target_theorem_name:
+        context = {"target_theorem_name": target_theorem_name}
+    selected_policy = _selected_semantic_support_policy(
+        context=context,
+        policy=policy,
+    )
     normalized_symbol = str(symbol or "").strip()
     primitive_id = semantic_primitive_id_for_placeholder_symbol(
         normalized_symbol,
         target_theorem_name=target_theorem_name,
+        context=context,
+        policy=selected_policy,
     )
     gap = semantic_gap_for_placeholder_symbol(
         normalized_symbol,
         target_theorem_name=target_theorem_name,
+        context=context,
+        policy=selected_policy,
     )
     if not gap:
         target = f" for `{target_theorem_name}`" if target_theorem_name else ""
@@ -955,10 +1143,16 @@ def semantic_primitive_for_placeholder_symbol(
 
 def placeholder_symbols_for_registered_support_ids(
     support_ids: Sequence[str],
+    *,
+    context: Mapping[str, Any] | None = None,
+    policy: Mapping[str, Any] | None = None,
 ) -> tuple[str, ...]:
-    policy = _semantic_support_policy()
+    selected_policy = _selected_semantic_support_policy(
+        context=context,
+        policy=policy,
+    )
     symbol_by_support_id: dict[str, str] = {}
-    for symbol, registered_support_ids in policy[
+    for symbol, registered_support_ids in selected_policy[
         "placeholder_symbol_to_registered_support"
     ].items():
         for support_id in registered_support_ids:
@@ -976,17 +1170,34 @@ def placeholder_symbols_for_registered_support_ids(
 
 def registered_support_for_exact_goal_shape_obligation(
     obligation_id: str,
+    *,
+    context: Mapping[str, Any] | None = None,
+    policy: Mapping[str, Any] | None = None,
 ) -> tuple[str, ...]:
-    policy = _semantic_support_policy()
-    return policy["exact_goal_shape_to_registered_support"].get(obligation_id, ())
+    selected_policy = _selected_semantic_support_policy(
+        context=context,
+        policy=policy,
+    )
+    return selected_policy["exact_goal_shape_to_registered_support"].get(
+        obligation_id,
+        (),
+    )
 
 
-def exact_goal_shape_obligation_ids_for_route(route_id: str) -> tuple[str, ...]:
-    policy = _semantic_support_policy()
+def exact_goal_shape_obligation_ids_for_route(
+    route_id: str,
+    *,
+    context: Mapping[str, Any] | None = None,
+    policy: Mapping[str, Any] | None = None,
+) -> tuple[str, ...]:
+    selected_policy = _selected_semantic_support_policy(
+        context=context,
+        policy=policy,
+    )
     normalized_route_id = str(route_id or "").strip()
     if not normalized_route_id:
         return ()
-    return policy["exact_goal_shape_obligation_routes"].get(
+    return selected_policy["exact_goal_shape_obligation_routes"].get(
         normalized_route_id,
         (),
     )
@@ -995,12 +1206,19 @@ def exact_goal_shape_obligation_ids_for_route(route_id: str) -> tuple[str, ...]:
 def exact_goal_shape_obligation_has_route(
     obligation_id: str,
     route_id: str,
+    *,
+    context: Mapping[str, Any] | None = None,
+    policy: Mapping[str, Any] | None = None,
 ) -> bool:
     normalized_obligation_id = str(obligation_id or "").strip()
     if not normalized_obligation_id:
         return False
     return normalized_obligation_id in set(
-        exact_goal_shape_obligation_ids_for_route(route_id)
+        exact_goal_shape_obligation_ids_for_route(
+            route_id,
+            context=context,
+            policy=policy,
+        )
     )
 
 
@@ -1008,9 +1226,16 @@ def theorem_closure_reduction_strategy_for_goal(
     *,
     goal_id: str,
     verified_bridge_ids: Sequence[str],
+    context: Mapping[str, Any] | None = None,
+    policy: Mapping[str, Any] | None = None,
 ) -> dict[str, str]:
-    policy = _semantic_support_policy()
-    strategies = policy["theorem_closure_reduction_strategies"].get(
+    if context is None and goal_id:
+        context = {"target_theorem_name": goal_id}
+    selected_policy = _selected_semantic_support_policy(
+        context=context,
+        policy=policy,
+    )
+    strategies = selected_policy["theorem_closure_reduction_strategies"].get(
         str(goal_id).strip(),
         (),
     )
@@ -1032,6 +1257,8 @@ def placeholder_symbols_from_semantic_alignment_feedback(
     explicit_placeholder_symbols: Sequence[str] = (),
     failure_classification: str = "",
     include_executor_feedback_signals: bool = False,
+    context: Mapping[str, Any] | None = None,
+    policy: Mapping[str, Any] | None = None,
 ) -> tuple[str, ...]:
     explicit_symbols = tuple(
         dict.fromkeys(
@@ -1042,8 +1269,11 @@ def placeholder_symbols_from_semantic_alignment_feedback(
     )
     if failure_classification == "formal_environment_placeholder_primitives":
         return explicit_symbols
-    policy = _semantic_support_policy()
-    text_signals = policy["placeholder_symbol_text_signals"]
+    selected_policy = _selected_semantic_support_policy(
+        context=context,
+        policy=policy,
+    )
+    text_signals = selected_policy["placeholder_symbol_text_signals"]
     lower_text = " ".join(
         str(value).strip()
         for value in [*semantic_alignment_blockers, *semantic_alignment_constraints]
@@ -1229,11 +1459,13 @@ def _semantic_primitive_queue_rows_from_proof_body_executor_learning_rows(
             )
             if str(value).strip()
         ]
+        policy_context = {**dict(input_summary), **dict(row)}
         if not exact_goal_shape_obligation_ids:
             exact_goal_shape_obligation_ids = list(
                 _inferred_exact_goal_shape_obligation_ids(
                     failure_classification=failure_classification,
                     trigger=str(row.get("trigger", "") or ""),
+                    context=policy_context,
                 )
             )
             exact_goal_shape_obligations = [
@@ -1244,6 +1476,7 @@ def _semantic_primitive_queue_rows_from_proof_body_executor_learning_rows(
                         or input_summary.get("target_theorem_name", "")
                         or ""
                     ),
+                    context=policy_context,
                 )
                 for obligation_id in exact_goal_shape_obligation_ids
             ]
@@ -1254,6 +1487,7 @@ def _semantic_primitive_queue_rows_from_proof_body_executor_learning_rows(
                 else _semantic_primitive_gap_for_exact_goal_shape_obligation(
                     obligation_id,
                     target_theorem_name="",
+                    context=policy_context,
                 )
             )
             for index, obligation_id in enumerate(exact_goal_shape_obligation_ids)
@@ -1284,6 +1518,7 @@ def _semantic_primitive_queue_rows_from_proof_body_executor_learning_rows(
         ]
         placeholder_symbols = _semantic_primitive_symbols_from_executor_feedback(
             input_summary=input_summary,
+            policy_context={**dict(row), **dict(input_summary)},
             semantic_alignment_blockers=semantic_alignment_blockers,
             semantic_alignment_constraints=semantic_alignment_constraints,
             failure_classification=failure_classification,
@@ -1362,6 +1597,7 @@ def _semantic_primitive_queue_rows_from_proof_body_executor_learning_rows(
             primitive_id, gap = _semantic_primitive_for_placeholder_symbol(
                 symbol,
                 target_theorem_name=target_theorem_name,
+                context={**dict(input_summary), **dict(row)},
             )
             work_order_id = (
                 "source_theorem_semantic_primitive_work_order:"
@@ -1447,7 +1683,10 @@ def _semantic_primitive_queue_rows_from_proof_body_executor_learning_rows(
                         [target_theorem_name] if target_theorem_name else []
                     ),
                     "candidate_registered_obligation_ids": list(
-                        registered_support_for_semantic_primitive(primitive_id)
+                        registered_support_for_semantic_primitive(
+                            primitive_id,
+                            context={**dict(row), **dict(input_summary)},
+                        )
                     ),
                     "proof_mode": "source_theorem_semantic_primitive_closure",
                     "runtime_queue_status": "PENDING_SOURCE_SEMANTIC_LEAN_PROOF_ATTEMPT",
@@ -1471,6 +1710,7 @@ def _semantic_primitive_queue_rows_from_proof_body_executor_learning_rows(
             gap = _semantic_primitive_gap_for_exact_goal_shape_obligation(
                 obligation_id,
                 target_theorem_name=target_theorem_name,
+                context=policy_context,
             )
             obligation_text = exact_goal_shape_obligation_by_id.get(
                 obligation_id,
@@ -1569,7 +1809,8 @@ def _semantic_primitive_queue_rows_from_proof_body_executor_learning_rows(
                     ),
                     "candidate_registered_obligation_ids": list(
                         _registered_support_for_exact_goal_shape_obligation(
-                            obligation_id
+                            obligation_id,
+                            context={**dict(row), **dict(input_summary)},
                         )
                     ),
                     "proof_mode": "source_theorem_semantic_primitive_closure",
@@ -1597,6 +1838,7 @@ def _semantic_primitive_queue_rows_from_proof_body_executor_learning_rows(
 def _semantic_primitive_symbols_from_executor_feedback(
     *,
     input_summary: Mapping[str, Any],
+    policy_context: Mapping[str, Any] | None = None,
     semantic_alignment_blockers: list[str],
     semantic_alignment_constraints: list[str],
     failure_classification: str,
@@ -1615,6 +1857,7 @@ def _semantic_primitive_symbols_from_executor_feedback(
             ],
             failure_classification=failure_classification,
             include_executor_feedback_signals=True,
+            context=policy_context or input_summary,
         )
     )
 
@@ -1623,10 +1866,12 @@ def _semantic_primitive_for_placeholder_symbol(
     symbol: str,
     *,
     target_theorem_name: str,
+    context: Mapping[str, Any] | None = None,
 ) -> tuple[str, str]:
     return semantic_primitive_for_placeholder_symbol(
         symbol,
         target_theorem_name=target_theorem_name,
+        context=context,
     )
 
 
@@ -1634,10 +1879,12 @@ def _semantic_primitive_gap_for_exact_goal_shape_obligation(
     obligation_id: str,
     *,
     target_theorem_name: str,
+    context: Mapping[str, Any] | None = None,
 ) -> str:
     gap = semantic_gap_for_exact_goal_shape_obligation(
         obligation_id,
         target_theorem_name=target_theorem_name,
+        context=context,
     )
     if gap:
         return gap
@@ -1649,17 +1896,24 @@ def _inferred_exact_goal_shape_obligation_ids(
     *,
     failure_classification: str,
     trigger: str,
+    context: Mapping[str, Any] | None = None,
 ) -> tuple[str, ...]:
     return inferred_exact_goal_shape_obligation_ids(
         failure_classification=failure_classification,
         trigger=trigger,
+        context=context,
     )
 
 
 def _registered_support_for_exact_goal_shape_obligation(
     obligation_id: str,
+    *,
+    context: Mapping[str, Any] | None = None,
 ) -> tuple[str, ...]:
-    return registered_support_for_exact_goal_shape_obligation(obligation_id)
+    return registered_support_for_exact_goal_shape_obligation(
+        obligation_id,
+        context=context,
+    )
 
 
 def run_source_theorem_semantic_primitive_proofengineer_bridge(
@@ -1682,19 +1936,28 @@ def run_source_theorem_semantic_primitive_proofengineer_bridge(
         out_dir=out_dir,
     )
     rows = _read_jsonl(queue_path)
-    semantic_support_policy = _semantic_support_policy()
-    policy_applicability_by_work_order = {
-        _work_order_id(row): _semantic_support_policy_applicability(
-            semantic_support_policy,
+    policy_selection_by_work_order = {
+        _work_order_id(row): _semantic_support_policy_for_context(
             row,
             fallback_question_id=question_id,
         )
         for row in rows
     }
+    policy_by_work_order = {
+        work_order_id: selection[0]
+        for work_order_id, selection in policy_selection_by_work_order.items()
+    }
+    policy_applicability_by_work_order = {
+        work_order_id: selection[1]
+        for work_order_id, selection in policy_selection_by_work_order.items()
+    }
     candidate_ids_by_work_order = {
         _work_order_id(row): _candidate_registered_obligation_ids(
             row,
-            policy=semantic_support_policy,
+            policy=policy_by_work_order.get(
+                _work_order_id(row),
+                _semantic_support_policy(),
+            ),
             policy_applicability=policy_applicability_by_work_order.get(
                 _work_order_id(row),
                 {},
@@ -1877,7 +2140,26 @@ def run_source_theorem_semantic_primitive_proofengineer_bridge(
         ),
         "kernel_verified_source_theorem_semantic_definition_ids": [],
         "n_kernel_verified_source_theorem_semantic_definition_ids": 0,
-        "semantic_support_policy": _semantic_support_policy_summary(),
+        "semantic_support_policy": _semantic_support_policy_summary(
+            next(
+                iter(policy_by_work_order.values()),
+                _semantic_support_policy(),
+            )
+            if len(
+                {
+                    str(policy.get("policy_id", "") or "")
+                    for policy in policy_by_work_order.values()
+                }
+            ) <= 1
+            else _semantic_support_policy()
+        ),
+        "semantic_support_policies": [
+            _semantic_support_policy_summary(policy)
+            for policy in {
+                str(row.get("policy_id", "") or ""): row
+                for row in policy_by_work_order.values()
+            }.values()
+        ],
         "semantic_closure_status": (
             SEMANTIC_SUPPORT_ONLY_STATUS
             if kernel_verified_candidate_ids
@@ -1987,6 +2269,8 @@ def _bridge_check(
         "schema_version": 1,
         "work_order_id": _work_order_id(row),
         "question_id": str(row.get("question_id", "") or ""),
+        "task_family": str(row.get("task_family", "") or ""),
+        "primary_task_family": str(row.get("primary_task_family", "") or ""),
         "semantic_primitive_id": str(row.get("semantic_primitive_id", "") or ""),
         "semantic_primitive_gap": str(row.get("semantic_primitive_gap", "") or ""),
         "semantic_primitive_gap_kind": str(
@@ -2111,6 +2395,7 @@ def _export_exact_goal_shape_proof_library_expansion_queue(
         if exact_goal_shape_obligation_has_route(
             obligation_id,
             SOURCE_TO_BRIDGE_ADAPTER_INSTANTIATION_EXACT_GOAL_SHAPE_ROUTE,
+            context=check,
         ):
             continue
         work_order_id = str(check.get("work_order_id", "") or "").strip()
@@ -2272,6 +2557,7 @@ def _export_exact_goal_shape_adapter_instantiation_queue(
         if not exact_goal_shape_obligation_has_route(
             obligation_id,
             SOURCE_TO_BRIDGE_ADAPTER_INSTANTIATION_EXACT_GOAL_SHAPE_ROUTE,
+            context=check,
         ):
             continue
         if check.get("registered_candidate_obligation_ids"):
@@ -2453,14 +2739,22 @@ def _candidate_registered_obligation_ids(
     ).strip()
     candidates = list(
         explicit
-        or _registered_support_for_exact_goal_shape_obligation(
-            exact_goal_shape_obligation_id
+        or registered_support_for_exact_goal_shape_obligation(
+            exact_goal_shape_obligation_id,
+            context=row,
+            policy=selected_policy,
         )
-        or registered_support_for_semantic_primitive(primitive_id)
+        or registered_support_for_semantic_primitive(
+            primitive_id,
+            context=row,
+            policy=selected_policy,
+        )
         or registered_support_for_semantic_primitive_text(
             primitive_id=primitive_id,
             semantic_primitive_gap=str(row.get("semantic_primitive_gap", "") or ""),
             semantic_primitive_gap_kind=gap_kind,
+            context=row,
+            policy=selected_policy,
         )
     )
     if candidates:
@@ -2629,8 +2923,8 @@ def _export_runtime_learning_rows(
                 "target_behavior": (
                     "Treat listed registered source-theorem semantic bridge obligations "
                     "as kernel-verified runtime memory. Do not treat them as full source "
-                    "theorem proof or as proof of unformalized exchangeability/order-statistic "
-                    "definitions unless separate exact primitive rows are verified."
+                    "theorem proof or as proof of any unformalized task definition "
+                    "unless separate exact primitive rows are verified."
                 ),
                 "acceptance_gate": (
                     "Only registered obligations with kernel_verified=true in the referenced "

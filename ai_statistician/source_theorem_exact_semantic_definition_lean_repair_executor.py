@@ -10,7 +10,7 @@ from typing import Any, Mapping, Sequence
 from .exact_semantic_definition_policy import (
     compact_exact_semantic_placeholder_key,
     exact_semantic_definition_import_policy_blocker,
-    exact_semantic_definition_placeholder_policy,
+    exact_semantic_definition_placeholder_policy_for_mapping,
 )
 from .fingerprint import stable_hash
 from .research_architect import KERNEL_PROOF_BOUNDARY
@@ -784,6 +784,7 @@ def _execution_result(
         candidate_declaration=candidate_declarations[0]
         if candidate_declarations
         else {},
+        context=task,
     )
     effective_lean_project = lean_project
     effective_lean_command = lean_command
@@ -1397,9 +1398,15 @@ def _candidate_definition_request(
         row,
         fallback_target=target_theorem_name,
     )
-    required_anchor_names = _required_anchor_names_for_placeholder(placeholder_symbol)
-    placeholder_policy = exact_semantic_definition_placeholder_policy(
-        placeholder_symbol
+    placeholder_policy, placeholder_policy_applicability = (
+        exact_semantic_definition_placeholder_policy_for_mapping(
+            placeholder_symbol,
+            row,
+        )
+    )
+    required_anchor_names = _required_anchor_names_for_placeholder(
+        placeholder_symbol,
+        policy=placeholder_policy,
     )
     explicit_available_anchor_names = [
         str(value).strip()
@@ -1433,7 +1440,8 @@ def _candidate_definition_request(
         name for name in required_anchor_names if name not in available_anchor_names
     ]
     required_adapter_object_names = _required_adapter_object_names_for_placeholder(
-        placeholder_symbol
+        placeholder_symbol,
+        policy=placeholder_policy,
     )
     available_adapter_object_names = [
         str(value).strip()
@@ -1457,6 +1465,7 @@ def _candidate_definition_request(
         "placeholder_symbol": placeholder_symbol,
         "placeholder_policy_id": placeholder_policy.policy_id,
         "placeholder_policy_scope": placeholder_policy.policy_scope,
+        "placeholder_policy_applicability": placeholder_policy_applicability,
         "semantic_goal": placeholder_policy.semantic_goal,
         "required_anchor_names": required_anchor_names,
         "available_anchor_names": available_anchor_names,
@@ -1507,22 +1516,22 @@ def _candidate_definition_request(
     return request
 
 
-def _required_anchor_names_for_placeholder(placeholder_symbol: str) -> list[str]:
-    return list(
-        exact_semantic_definition_placeholder_policy(
-            placeholder_symbol
-        ).required_anchor_names
-    )
+def _required_anchor_names_for_placeholder(
+    placeholder_symbol: str,
+    *,
+    policy: Any,
+) -> list[str]:
+    del placeholder_symbol
+    return list(policy.required_anchor_names)
 
 
 def _required_adapter_object_names_for_placeholder(
     placeholder_symbol: str,
+    *,
+    policy: Any,
 ) -> list[str]:
-    return list(
-        exact_semantic_definition_placeholder_policy(
-            placeholder_symbol
-        ).required_adapter_object_names
-    )
+    del placeholder_symbol
+    return list(policy.required_adapter_object_names)
 
 
 def _available_semantic_binders_by_name(
@@ -2060,6 +2069,7 @@ def _semantic_import_candidate_blocker(
     *,
     placeholder_symbol: str,
     candidate_declaration: Mapping[str, Any],
+    context: Mapping[str, Any] | None = None,
 ) -> str:
     if not candidate_declaration:
         return ""
@@ -2073,9 +2083,14 @@ def _semantic_import_candidate_blocker(
         )
     normalized_placeholder = _compact_identifier(placeholder_symbol)
     snippet = str(candidate_declaration.get("snippet", "") or "")
+    placeholder_policy, _ = exact_semantic_definition_placeholder_policy_for_mapping(
+        normalized_placeholder,
+        context,
+    )
     policy_blocker = exact_semantic_definition_import_policy_blocker(
         normalized_placeholder,
         snippet=snippet,
+        policy=placeholder_policy,
     )
     if policy_blocker:
         status = str(policy_blocker.get("source_semantic_review_status", "") or "")
@@ -2105,11 +2120,18 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
         else:
             context[key] = value
     if placeholder_symbol:
-        placeholder_policy = exact_semantic_definition_placeholder_policy(
-            placeholder_symbol
+        placeholder_policy, placeholder_policy_applicability = (
+            exact_semantic_definition_placeholder_policy_for_mapping(
+                placeholder_symbol,
+                row,
+            )
         )
         context.setdefault("placeholder_policy_id", placeholder_policy.policy_id)
         context.setdefault("placeholder_policy_scope", placeholder_policy.policy_scope)
+        context.setdefault(
+            "placeholder_policy_applicability",
+            placeholder_policy_applicability,
+        )
     candidate_request = context.get("candidate_definition_request", {})
     if isinstance(candidate_request, Mapping):
         target_theorem_name = str(
@@ -2124,8 +2146,11 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
         if placeholder_symbol and not normalized_request.get("placeholder_symbol"):
             normalized_request["placeholder_symbol"] = placeholder_symbol
         if placeholder_symbol:
-            placeholder_policy = exact_semantic_definition_placeholder_policy(
-                placeholder_symbol
+            placeholder_policy, placeholder_policy_applicability = (
+                exact_semantic_definition_placeholder_policy_for_mapping(
+                    placeholder_symbol,
+                    row,
+                )
             )
             normalized_request.setdefault(
                 "placeholder_policy_id",
@@ -2134,6 +2159,10 @@ def _exact_semantic_definition_context(row: Mapping[str, Any]) -> dict[str, Any]
             normalized_request.setdefault(
                 "placeholder_policy_scope",
                 placeholder_policy.policy_scope,
+            )
+            normalized_request.setdefault(
+                "placeholder_policy_applicability",
+                placeholder_policy_applicability,
             )
         if target_ids and not normalized_request.get("target_ids"):
             normalized_request["target_ids"] = list(target_ids)
@@ -2213,9 +2242,18 @@ def _candidate_definition_request_from_context(
     if placeholder and not request.get("placeholder_symbol"):
         request["placeholder_symbol"] = placeholder
     if placeholder:
-        placeholder_policy = exact_semantic_definition_placeholder_policy(placeholder)
+        placeholder_policy, placeholder_policy_applicability = (
+            exact_semantic_definition_placeholder_policy_for_mapping(
+                placeholder,
+                row,
+            )
+        )
         request.setdefault("placeholder_policy_id", placeholder_policy.policy_id)
         request.setdefault("placeholder_policy_scope", placeholder_policy.policy_scope)
+        request.setdefault(
+            "placeholder_policy_applicability",
+            placeholder_policy_applicability,
+        )
     if normalized_target_ids and not request.get("target_ids"):
         request["target_ids"] = list(dict.fromkeys(normalized_target_ids))
     normalize_exact_semantic_definition_signature_probe_context(request, *sources)

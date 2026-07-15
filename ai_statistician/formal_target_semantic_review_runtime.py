@@ -27,6 +27,7 @@ from .formal_target_semantic_reviewer_llm import (
 )
 from .llm_json_repair import PacketValidationError
 from .research_schema import OpenResearchQuestion
+from .typed_repair_handoff import build_typed_repair_handoff_contract
 
 
 RUNTIME_SCHEMA_VERSION = 1
@@ -1014,6 +1015,39 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             failure_classification = (
                 "formal_target_semantic_review_revision_budget_exhausted"
             )
+
+        if status == "REVISE" and next_task is not None:
+            typed_inputs = dict(next_task.inputs)
+            typed_context = dict(typed_inputs.get("architect_context", {}) or {})
+            feedback_loop = (
+                dict(typed_context.get("runtime_feedback_loop", {}) or {})
+                if isinstance(
+                    typed_context.get("runtime_feedback_loop", {}), Mapping
+                )
+                else {}
+            )
+            feedback_loop["direct_repair_handoff_contract"] = (
+                build_typed_repair_handoff_contract(
+                    source_reviewer_subsystem=(
+                        FORMAL_TARGET_SEMANTIC_REVIEWER_SUBSYSTEM
+                    ),
+                    source_task_id=task.task_id,
+                    target_repair_subsystem=next_task.owner_subsystem,
+                    target_task_id=next_task.task_id,
+                    feedback_artifact_id=review_packet_id,
+                    feedback_artifact_kind="FormalTargetSemanticReviewPacket",
+                    feedback_execution_id=execution_id,
+                    feedback_execution_artifact_kind=(
+                        "RuntimeFormalTargetSemanticReviewExecutionManifest"
+                    ),
+                    feedback_type="formal_target_semantic_review_feedback",
+                    revision_count=revision_count + 1,
+                    max_revisions=max_revisions,
+                )
+            )
+            typed_context["runtime_feedback_loop"] = feedback_loop
+            typed_inputs["architect_context"] = typed_context
+            next_task = replace(next_task, inputs=typed_inputs)
 
         evidence = EvidenceLedgerEntry(
             evidence_id="evidence:" + stable_hash([task.task_id, execution_id])[:20],

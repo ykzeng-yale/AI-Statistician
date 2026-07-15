@@ -433,7 +433,10 @@ def _repair_packet(row: Mapping[str, Any]) -> dict[str, Any]:
     recommended_tasks = _str_list(row.get("recommended_repair_tasks", []) or [])
     candidate_artifact_path = str(row.get("candidate_artifact_path", "") or "").strip()
     candidate_source = _read_candidate_source(candidate_artifact_path)
-    candidate_source_symbols = _source_candidate_environment_symbols(candidate_source)
+    candidate_source_symbols = _source_candidate_environment_symbols(
+        candidate_source,
+        context=row,
+    )
     if candidate_source_symbols:
         missing_symbols = list(dict.fromkeys([*missing_symbols, *candidate_source_symbols]))
     source_target_provenance = _source_theorem_target_provenance(row)
@@ -451,10 +454,14 @@ def _repair_packet(row: Mapping[str, Any]) -> dict[str, Any]:
     semantic_alignment_constraints = _str_list(
         source_target_provenance.get("semantic_alignment_constraints", []) or []
     )
-    declaration_hints = _formal_environment_declaration_hints(missing_symbols)
+    declaration_hints = _formal_environment_declaration_hints(
+        missing_symbols,
+        context=row,
+    )
     statement_hints = _statement_repair_hints(
         typeclass_blockers,
         missing_symbols=missing_symbols,
+        context=row,
     )
     signature_probe_plan = _lean_signature_probe_plan(
         missing_symbols=missing_symbols,
@@ -676,11 +683,17 @@ def _read_candidate_source(candidate_artifact_path: str) -> str:
         return ""
 
 
-def _source_candidate_environment_symbols(source: str) -> list[str]:
+def _source_candidate_environment_symbols(
+    source: str,
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> list[str]:
     if not source:
         return []
     symbol_positions: list[tuple[int, str]] = []
-    for symbol in exact_semantic_definition_formal_environment_symbol_names():
+    for symbol in exact_semantic_definition_formal_environment_symbol_names(
+        context=context,
+    ):
         match = re.search(rf"\b{re.escape(symbol)}\b", source)
         if match:
             symbol_positions.append((match.start(), symbol))
@@ -693,9 +706,16 @@ def _source_candidate_environment_symbols(source: str) -> list[str]:
     ]
 
 
-def _formal_environment_declaration_hints(missing_symbols: list[str]) -> list[dict[str, Any]]:
+def _formal_environment_declaration_hints(
+    missing_symbols: list[str],
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> list[dict[str, Any]]:
     return [
-        exact_semantic_definition_formal_environment_declaration_hint(symbol)
+        exact_semantic_definition_formal_environment_declaration_hint(
+            symbol,
+            context=context,
+        )
         for symbol in missing_symbols
     ]
 
@@ -704,11 +724,14 @@ def _statement_repair_hints(
     typeclass_blockers: list[str],
     *,
     missing_symbols: list[str] | None = None,
+    context: Mapping[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     hints: list[dict[str, str]] = []
     matched_blockers: set[str] = set()
     symbols = missing_symbols or []
-    for rule in exact_semantic_definition_formal_environment_statement_repair_rules():
+    for rule in exact_semantic_definition_formal_environment_statement_repair_rules(
+        context=context,
+    ):
         matched_for_blockers = [
             blocker
             for blocker in typeclass_blockers

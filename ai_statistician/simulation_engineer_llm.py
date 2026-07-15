@@ -29,6 +29,7 @@ from .generated_metric_contract import (
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
+from .semantic_review_feedback import compact_semantic_review_feedback
 from .theory_derivation_trace import (
     compact_theory_derivation_trace,
     theory_trace_alignment_contract,
@@ -366,6 +367,18 @@ def build_simulation_engineer_prompt(
         )
         else ""
     )
+    semantic_review_instruction = (
+        "Independent generated-code semantic review feedback is active: treat "
+        "runtime_environment_feedback.generated_code_semantic_review as binding. "
+        "Repair every rejected semantic dimension and finding against the exact "
+        "reviewed source, runtime arguments, results, theory trace, and frozen metric "
+        "protocol. Regenerate the simulation and let AgentRuntime execute it again; "
+        "do not respond by only changing metric paths or weakening a gate. "
+        if payload["runtime_environment_feedback"].get(
+            "generated_code_semantic_review"
+        )
+        else ""
+    )
     return (
         "Design a simulation and stress-test plan for the SimulatorEngineer subsystem. "
         "Return ONLY one compact JSON object matching required_output_contract. Include "
@@ -386,6 +399,7 @@ def build_simulation_engineer_prompt(
         + capability_feedback_instruction
         + packet_validation_instruction
         + theory_trace_alignment_instruction
+        + semantic_review_instruction
         + "If runtime_environment_feedback reports a rejected generated simulation "
         "draft or metric-gate failure, repair that concrete draft or omit "
         "simulation_code_drafts with a blocker; do not repeat the same unsafe, "
@@ -554,6 +568,10 @@ def _compact_simulation_environment_feedback(feedback: Mapping[str, Any]) -> dic
             char_limit=80,
         ),
         "theory_trace_downstream_alignment_feedback": theory_alignment_feedback,
+        "generated_code_semantic_review": compact_semantic_review_feedback(
+            feedback,
+            expected_feedback_type="generated_code_semantic_review_feedback",
+        ),
         "simulation_manifest_id": _truncate_text(
             feedback.get("simulation_manifest_id", ""),
             limit=180,

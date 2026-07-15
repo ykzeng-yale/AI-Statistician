@@ -41,8 +41,13 @@ BOUNDARY = (
 )
 
 
-def _bridge_premise_binder_names() -> tuple[str, ...]:
-    return exact_semantic_definition_source_to_bridge_premise_binder_aliases()
+def _bridge_premise_binder_names(
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> tuple[str, ...]:
+    return exact_semantic_definition_source_to_bridge_premise_binder_aliases(
+        context=context,
+    )
 
 
 @dataclass(frozen=True)
@@ -1128,7 +1133,7 @@ def _looks_like_lean_goal_continuation(line: str) -> bool:
     if "/" in line and ".lean:" in line:
         return False
     return bool(
-        line.startswith(("∀", "∃", "(", ")", "→", "↔", "MeasureTheory.", "ENNReal."))
+        line.startswith(("∀", "∃", "(", ")", "→", "↔"))
         or line[:1].islower()
         or line[:1].isupper()
     )
@@ -1144,11 +1149,18 @@ def _looks_like_proof_body_diagnostic_line(line: str) -> bool:
 
 def _bridge_premise_names_from_context(row: Mapping[str, Any]) -> tuple[str, ...]:
     context = _bridge_premise_context_text(row)
-    return _bridge_premise_names_in_lean_context(context)
+    return _bridge_premise_names_in_lean_context(
+        context,
+        policy_context=row,
+    )
 
 
-def _bridge_premise_names_in_lean_context(source: str) -> tuple[str, ...]:
-    policy_names = set(_bridge_premise_binder_names())
+def _bridge_premise_names_in_lean_context(
+    source: str,
+    *,
+    policy_context: Mapping[str, Any] | None = None,
+) -> tuple[str, ...]:
+    policy_names = set(_bridge_premise_binder_names(context=policy_context))
     names = [
         name
         for name in _lean_named_binder_names_in_order(source)
@@ -1389,10 +1401,18 @@ def _has_source_to_bridge_adapter_instantiation_obligation(
 ) -> bool:
     route_id = SOURCE_TO_BRIDGE_ADAPTER_INSTANTIATION_EXACT_GOAL_SHAPE_ROUTE
     obligation_id = str(row.get("exact_goal_shape_obligation_id", "") or "").strip()
-    if exact_goal_shape_obligation_has_route(obligation_id, route_id):
+    if exact_goal_shape_obligation_has_route(
+        obligation_id,
+        route_id,
+        context=row,
+    ):
         return True
     return any(
-        exact_goal_shape_obligation_has_route(obligation_id, route_id)
+        exact_goal_shape_obligation_has_route(
+            obligation_id,
+            route_id,
+            context=row,
+        )
         for obligation_id in _str_tuple(row.get("exact_goal_shape_obligation_ids", []))
     )
 

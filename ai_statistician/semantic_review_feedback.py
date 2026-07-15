@@ -1,0 +1,159 @@
+from __future__ import annotations
+
+from typing import Any, Mapping, Sequence
+
+
+def compact_semantic_review_feedback(
+    feedback: Mapping[str, Any] | None,
+    *,
+    expected_feedback_type: str,
+    max_rows: int = 8,
+    max_text_chars: int = 2400,
+) -> dict[str, Any]:
+    """Keep bounded independent-review findings intact for the repairing agent."""
+
+    if not isinstance(feedback, Mapping):
+        return {}
+    feedback_type = str(feedback.get("feedback_type", "") or "").strip()
+    if feedback_type != expected_feedback_type:
+        return {}
+
+    dimension_reviews = _compact_mapping_rows(
+        feedback.get("dimension_reviews", []),
+        keys=("dimension", "status", "rationale", "evidence_refs"),
+        max_rows=max_rows,
+        max_text_chars=max_text_chars,
+    )
+    findings = _compact_mapping_rows(
+        feedback.get("findings", []),
+        keys=("severity", "category", "summary", "required_change", "evidence_refs"),
+        max_rows=max_rows,
+        max_text_chars=max_text_chars,
+    )
+    repair_instructions = _compact_text_rows(
+        feedback.get("repair_instructions", []),
+        max_rows=max_rows,
+        max_text_chars=max_text_chars,
+    )
+    payload = {
+        "feedback_type": feedback_type,
+        "feedback_source": _bounded_text(
+            feedback.get("feedback_source", ""), max_text_chars
+        ),
+        "source_subsystem": _bounded_text(
+            feedback.get("source_subsystem", ""), max_text_chars
+        ),
+        "semantic_review_execution_id": _bounded_text(
+            feedback.get("semantic_review_execution_id", ""), max_text_chars
+        ),
+        "semantic_review_packet_id": _bounded_text(
+            feedback.get("semantic_review_packet_id", ""), max_text_chars
+        ),
+        "semantic_review_packet_hash": _bounded_text(
+            feedback.get("semantic_review_packet_hash", ""), max_text_chars
+        ),
+        "candidate_materialization_id": _bounded_text(
+            feedback.get("candidate_materialization_id", ""), max_text_chars
+        ),
+        "candidate_id": _bounded_text(
+            feedback.get("candidate_id", ""), max_text_chars
+        ),
+        "candidate_source_hash": _bounded_text(
+            feedback.get("candidate_source_hash", ""), max_text_chars
+        ),
+        "target_theorem_statement_hash": _bounded_text(
+            feedback.get("target_theorem_statement_hash", ""), max_text_chars
+        ),
+        "target_theorem_statement_hash_algorithm": _bounded_text(
+            feedback.get("target_theorem_statement_hash_algorithm", ""),
+            max_text_chars,
+        ),
+        "overall_verdict": _bounded_text(
+            feedback.get("overall_verdict", ""), max_text_chars
+        ),
+        "repair_owner_agent": _bounded_text(
+            feedback.get("repair_owner_agent", ""), max_text_chars
+        ),
+        "dimension_reviews": dimension_reviews,
+        "findings": findings,
+        "repair_instructions": repair_instructions,
+        "blocking_reason": _bounded_text(
+            feedback.get("blocking_reason", ""), max_text_chars
+        ),
+        "required_repair": _bounded_text(
+            feedback.get("required_repair", ""), max_text_chars
+        ),
+        "proof_evidence_status": _bounded_text(
+            feedback.get("proof_evidence_status", ""), max_text_chars
+        ),
+        "evidence_boundary": _bounded_text(
+            feedback.get("evidence_boundary", ""), max_text_chars
+        ),
+    }
+    return {
+        key: value
+        for key, value in payload.items()
+        if value not in (None, "", [], {})
+    }
+
+
+def _compact_mapping_rows(
+    value: Any,
+    *,
+    keys: Sequence[str],
+    max_rows: int,
+    max_text_chars: int,
+) -> list[dict[str, Any]]:
+    if not isinstance(value, list | tuple):
+        return []
+    rows: list[dict[str, Any]] = []
+    for raw_row in value:
+        if not isinstance(raw_row, Mapping):
+            continue
+        row: dict[str, Any] = {}
+        for key in keys:
+            raw_value = raw_row.get(key)
+            if isinstance(raw_value, list | tuple):
+                compact_value: Any = _compact_text_rows(
+                    raw_value,
+                    max_rows=max_rows,
+                    max_text_chars=max_text_chars,
+                )
+            elif isinstance(raw_value, Mapping):
+                compact_value = {
+                    str(child_key): _bounded_text(child_value, max_text_chars)
+                    for child_key, child_value in list(raw_value.items())[:max_rows]
+                }
+            else:
+                compact_value = _bounded_text(raw_value, max_text_chars)
+            if compact_value not in (None, "", [], {}):
+                row[key] = compact_value
+        if row:
+            rows.append(row)
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
+def _compact_text_rows(
+    value: Any,
+    *,
+    max_rows: int,
+    max_text_chars: int,
+) -> list[str]:
+    candidates = value if isinstance(value, list | tuple) else [value]
+    rows = [
+        _bounded_text(row, max_text_chars)
+        for row in candidates
+        if str(row or "").strip()
+    ]
+    return rows[:max_rows]
+
+
+def _bounded_text(value: Any, max_chars: int) -> str:
+    text = str(value or "").strip()
+    if len(text) <= max_chars:
+        return text
+    head_chars = max(1, max_chars // 2)
+    tail_chars = max(0, max_chars - head_chars - 5)
+    return text[:head_chars].rstrip() + " ... " + text[-tail_chars:].lstrip()
