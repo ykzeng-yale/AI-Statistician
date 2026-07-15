@@ -312,6 +312,7 @@ def build_contract_revision_task(
             "then replay the complete contract."
         ),
         inputs={
+            **dict(current_task.inputs),
             "question": dict(question_payload),
             "architect_context": next_architect_context,
             "environment_feedback": revision_environment_feedback,

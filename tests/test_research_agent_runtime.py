@@ -3592,12 +3592,20 @@ def test_formalization_gap_planner_agent_runtime_executes_bound_contract_revisio
     bridge = _runtime_gap_planner_bridge_fixture(question)
     blackboard = BlackboardState(project_id="gap-planner-bound-revision-runtime")
     blackboard.artifacts[str(bridge["bridge_id"])] = bridge
+    upstream_artifact_ids = {
+        "theory_packet_id": "theory:bound-revision",
+        "simulation_manifest_id": "simulation:bound-revision",
+        "algorithm_sandbox_manifest_id": "algorithm:bound-revision",
+    }
+    for artifact_id in upstream_artifact_ids.values():
+        blackboard.artifacts[artifact_id] = {"artifact_id": artifact_id}
     task = AgentTask(
         task_id="gap-planner-live-route:bound-revision-runtime",
         owner_subsystem="FormalizationGapPlanner",
         objective="Execute a bounded route-planner contract revision.",
         inputs={
             "question": runtime_module._question_to_payload(question),
+            **upstream_artifact_ids,
             "invoke_live_route_planner": True,
             "max_handoffs": 1,
             "max_route_requests_per_handoff": 1,
@@ -3790,6 +3798,11 @@ def test_formalization_gap_planner_agent_runtime_executes_bound_contract_revisio
     assert export_calls[1][
         "formalization_gap_planner_route_contract_feedback_jsonl"
     ]
+    revision_task = result.traces[0].next_task
+    assert revision_task is not None
+    assert {
+        key: revision_task.inputs.get(key) for key in upstream_artifact_ids
+    } == upstream_artifact_ids
     assert result.blackboard.handoff_ledger[0].from_subsystem == (
         "FormalizationGapPlanner"
     )
