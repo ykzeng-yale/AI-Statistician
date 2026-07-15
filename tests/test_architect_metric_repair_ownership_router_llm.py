@@ -20,14 +20,18 @@ from ai_statistician.research_schema import OpenResearchQuestion
 class _Backend:
     provider_name = "anthropic"
 
-    def __init__(self, payload: dict[str, object]) -> None:
-        self.payload = payload
+    def __init__(
+        self,
+        payload: dict[str, object] | list[dict[str, object]],
+    ) -> None:
+        self.payloads = payload if isinstance(payload, list) else [payload]
         self.requests = []
 
     def generate(self, request):
+        payload = self.payloads[min(len(self.requests), len(self.payloads) - 1)]
         self.requests.append(request)
         return GeneratorResponse(
-            text=json.dumps(self.payload),
+            text=json.dumps(payload),
             provider="anthropic",
             model=request.model,
             metadata={
@@ -99,19 +103,21 @@ def _routing_payload() -> dict[str, object]:
     }
 
 
-def test_repair_router_overrides_free_scope_with_artifact_bound_ownership() -> None:
-    backend = _Backend(_routing_payload())
-    semantic_review = _semantic_review_packet()
+def _route(
+    backend: _Backend,
+    *,
+    max_repair_attempts: int = 0,
+) -> dict[str, object]:
     theory_packet = {
         "packet_id": "theory_derivation:generic",
         "theory_derivation_packet": {"equation_chain": [{"step_id": "E1"}]},
     }
-    packet = LLMArchitectMetricRepairOwnershipRouterAgent(
+    return LLMArchitectMetricRepairOwnershipRouterAgent(
         provider=backend,
         config=ArchitectMetricRepairOwnershipRouterConfig(
             provider_name="anthropic",
             model="claude-opus-4-8",
-            max_repair_attempts=0,
+            max_repair_attempts=max_repair_attempts,
         ),
     ).route(
         question=OpenResearchQuestion(
@@ -130,7 +136,7 @@ def test_repair_router_overrides_free_scope_with_artifact_bound_ownership() -> N
                 {"requirement_id": "generic:metric"}
             ],
         },
-        semantic_review_packet=semantic_review,
+        semantic_review_packet=_semantic_review_packet(),
         trusted_lineage={
             "authoring_packet_id": "metric_authoring:generic",
             "authoring_packet_hash": stable_hash({"candidate": "generic"}),
@@ -138,6 +144,12 @@ def test_repair_router_overrides_free_scope_with_artifact_bound_ownership() -> N
             "source_theory_packet_hash": stable_hash(theory_packet),
         },
     )
+
+
+def test_repair_router_overrides_free_scope_with_artifact_bound_ownership() -> None:
+    backend = _Backend(_routing_payload())
+    semantic_review = _semantic_review_packet()
+    packet = _route(backend)
 
     assert packet["recommended_repair_scope"] == "upstream_theory"
     assert [
@@ -164,6 +176,31 @@ def test_repair_router_overrides_free_scope_with_artifact_bound_ownership() -> N
     )
     assert "Keep every change inside the metric contract" not in (
         backend.requests[0].user_prompt
+    )
+
+
+def test_repair_router_retries_a_resolved_but_contradictory_decision() -> None:
+    contradictory = _routing_payload()
+    first_decision = contradictory["decisions"][0]
+    first_decision["required_artifact_changes"] = [
+        {
+            "artifact_role": "metric_protocol_candidate",
+            "change_summary": "Repair only the candidate measurement.",
+        }
+    ]
+    first_decision[
+        "metric_author_can_repair_without_revising_source_theory"
+    ] = False
+    backend = _Backend([contradictory, _routing_payload()])
+
+    packet = _route(backend, max_repair_attempts=1)
+
+    assert len(backend.requests) == 2
+    assert packet["recommended_repair_scope"] == "upstream_theory"
+    assert packet["llm_json_repair_attempts"] == 1
+    assert (
+        "claims resolved ownership but its targets and repair flag contradict"
+        in backend.requests[1].user_prompt
     )
 
 
@@ -195,6 +232,36 @@ def test_repair_router_does_not_compensate_for_contradictory_targets() -> None:
     }
 
     assert architect_metric_repair_scope_from_decision(decision) == "unresolved"
+
+    packet = {
+        "proof_evidence_status": (
+            "ARCHITECT_METRIC_REPAIR_OWNERSHIP_NOT_PROOF_EVIDENCE"
+        ),
+        "execution_results_observed": False,
+        "question_id": "q_contradictory_owner",
+        "authoring_packet_id": "metric-authoring:contradictory",
+        "authoring_packet_hash": "authoring-hash",
+        "semantic_review_packet_id": "metric-review:contradictory",
+        "semantic_review_packet_hash": "review-hash",
+        "source_theory_packet_id": "theory:contradictory",
+        "source_theory_packet_hash": "theory-hash",
+        "routing_input_fingerprint": "routing-hash",
+        "reviewed_finding_count": 1,
+        "decisions": [
+            {
+                "finding_index": 0,
+                **decision,
+                "derived_repair_scope": "unresolved",
+                "rationale": "The fields disagree about who can repair it.",
+            }
+        ],
+        "recommended_repair_scope": "unresolved",
+    }
+    assert any(
+        "claims resolved ownership but its targets and repair flag contradict"
+        in error
+        for error in validate_architect_metric_repair_ownership_packet(packet)
+    )
 
 
 def test_repair_ownership_schema_transforms_for_anthropic() -> None:

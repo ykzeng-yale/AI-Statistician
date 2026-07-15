@@ -184,6 +184,12 @@ limited to migration of rehydrated historical artifacts before they re-enter a
 run. Therefore feedback hashes identify the actual parent packet consumed by a
 revision agent rather than a later metadata rewrite.
 
+A router row may declare ownership `resolved` only when its target set and
+metric-author repairability flag deterministically imply a routable owner.
+Contradictory resolved rows are validation errors and receive the normal bounded
+LLM repair prompt; they are not silently coerced to either artifact. A genuinely
+uncertain row remains `unresolved` and fails closed.
+
 The registry-backed `ProblemFormalizer`, `TheoryPlanner`, and
 `ResearchSimulator` described below remain legacy baseline providers. They are
 useful canaries and compatibility scaffolds, but they must be demoted from the

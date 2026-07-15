@@ -1460,6 +1460,15 @@ prover track measures Lean/RAG feedback and kernel subclaims. Only the strict
 track can unlock held-out PCA/extremes, and it still requires exact theorem
 kernel closure for every development family.
 
+The first optional-formal two-family run on `7e92f307` remained negative:
+survival consumed two router-owned, parent-hash-matching TheoryDeveloper
+revisions and a truncated-JSON retry, then exhausted metric-author review;
+sequential failed closed when one router row claimed resolved ownership but
+gave contradictory target and repairability fields. Local validation now sends
+that contradiction through the router's configured repair turn. This is a
+shared contract correction, not a sequential rule. The run reached no generated
+execution and changes neither strict `0/2` completion nor the held-out lock.
+
 Historical v8 evidence remains useful for later stages: both tasks were
 `BLOCKED`, score `95/118`, with 72 kernel-verified support subclaims and 8 formal
 gaps. Survival exposed a second-revision canonical hash defect. Sequential

@@ -1,13 +1,39 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-15T19:43:41Z",
+  "updated_at": "2026-07-15T20:38:46Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "domain-neutral AgentRuntime authority, cross-family evaluation, and exact theorem closure",
-  "latest_main_worker_patch": "The metric semantic reviewer remains responsible for identifying substantive defects, but it no longer has final authority over which artifact must change. A separate Opus repair-ownership router receives the immutable source-theory material, metric candidate, and finding substance with the reviewer's scope labels and global repair instructions removed; any owner or routing prescription embedded in finding prose is explicitly untrusted. It chooses source_theory_packet, metric_protocol_candidate, both, or unresolved by deciding whether source theory can remain exactly true and sufficient; contradictory or uncertain decisions fail closed. AgentRuntime routes an upstream decision to serious TheoryDeveloper and a metric-only decision to bounded metric authoring. At the runtime ownership boundary, initial tasks, produced artifacts, evidence, observations, and next tasks are snapshotted, and fresh blackboard artifacts are no longer post-processed after AgentRuntime returns. Legacy rehydration normalization remains a pre-use migration only. This fixes shared feedback ownership and parent-hash mutation without adding statistical formulas, task-family branches, Lean grammar, tactics, expected answers, a new orchestrator, or a generic provenance framework.",
-  "latest_main_worker_live_probe": "The latest fresh strict development-panel evidence is runs/main_worker_cross_family_development_20260715_v31_typed_theory_revision on the 765c6160 lineage. Both survival and sequential remain honestly BLOCKED at 78/125, with no generated algorithm/simulation execution, no kernel-verified subclaim, and no exact theorem closure. Survival ran Architect -> Retrieval -> TheoryDeveloper -> Architect once; its reviewer found a source-theory defect but mislabeled the repair owner as metric_contract, so no theory revision was dispatched. Sequential ran three serious TheoryDeveloper packets and two hash-bound upstream feedback revisions before exhausting the bounded theory-revision budget. This proves the real feedback loop executes, but not that it can yet produce independently accepted theory. Held-out PCA/extremes remains locked.",
-  "latest_main_worker_design_issue": "v31 narrows the immediate blocker to the quality and ownership of theory-review feedback, before coding, simulation, RAG, or Lean can run. The current patch fixes only the two shared mechanisms evidenced by that run: independent artifact ownership and immutable parent artifacts. The next diagnostic is a separate optional-formal two-family research-loop run that asks whether theory -> metric review -> generated code/simulation -> independent review -> revision can complete while retaining explicit formal gaps. The strict frozen panel remains an independent certification track and still requires exact source-theorem kernel closure. Longer-term debt remains the residual second orchestration plane, the 100k-line runtime, scientific Python and R execution, tactic-state Lean search, arbitrary-paper semantic ingest, and demotion of legacy task-family baselines. None should displace the immediate autonomous research-loop blocker. S14 remains false.",
+  "latest_main_worker_patch": "The metric semantic reviewer remains responsible for identifying substantive defects, but it no longer has final authority over which artifact must change. A separate Opus repair-ownership router receives the immutable source-theory material, metric candidate, and finding substance with the reviewer's scope labels and global repair instructions removed; any owner or routing prescription embedded in finding prose is explicitly untrusted. It chooses source_theory_packet, metric_protocol_candidate, both, or unresolved by deciding whether source theory can remain exactly true and sufficient. Contradictory or uncertain decisions fail closed, and a decision that claims resolved ownership while its target set and metric-author repair flag contradict now fails local validation so the configured router repair turn receives the exact error. AgentRuntime routes an upstream decision to serious TheoryDeveloper and a metric-only decision to bounded metric authoring. At the runtime ownership boundary, initial tasks, produced artifacts, evidence, observations, and next tasks are snapshotted, and fresh blackboard artifacts are no longer post-processed after AgentRuntime returns. Legacy rehydration normalization remains a pre-use migration only. This fixes shared feedback ownership and parent-hash mutation without adding statistical formulas, task-family branches, Lean grammar, tactics, expected answers, a new orchestrator, or a generic provenance framework.",
+  "latest_main_worker_live_probe": "The latest fresh optional-formal research-loop evidence is runs/main_worker_cross_family_research_loop_optional_20260715_v1 at commit 7e92f307. Both survival and sequential are honestly BLOCKED at 77/125; generated algorithm/simulation execution, kernel evidence, and exact theorem closure are all zero. Survival exercised three theory packets, two router-owned upstream feedback turns, one successful truncated-JSON validation retry, and three fresh metric gates. Both feedback packets still hash-match their final persisted parent theory artifacts. It ended after the final theory left only metric-contract defects but three bounded metric-author/reviewer attempts still failed. Sequential stopped at its first gate because one router decision claimed resolved ownership while naming only the metric artifact and also saying the metric author could not repair without theory; deterministic scope was correctly unresolved, but the packet validator did not spend its configured repair turn on that contradiction. The local follow-up now rejects that inconsistent resolved decision. This optional run is negative research-loop evidence and does not alter the frozen strict result or unlock held-out PCA/extremes.",
+  "latest_main_worker_design_issue": "The immediate blocker is now more precise. Artifact ownership routing and immutable parent lineage work live across two unrelated families, but the pre-execution theory/metric loop still completes 0/2 tasks. Serious TheoryDeveloper can ignore calibration findings or overflow a monolithic JSON packet; the metric author can consume repeated metric-only feedback without converging; and owner-router semantic contradictions need local repair feedback rather than silent unresolved blocking. The current follow-up fixes only the last interface defect. The next strict development rerun must determine whether the repaired router advances sequential and whether either family reaches generated code/simulation. A future theory workspace should separate long equation/lemma artifacts from a compact handoff instead of defining rigor by one bounded JSON packet. Longer-term debt remains the residual second orchestration plane, scientific Python and R execution, tactic-state Lean search, arbitrary-paper semantic ingest, and demotion of legacy task-family baselines. Strict exact theorem closure remains 0/2 and S14 remains false.",
+  "latest_optional_research_loop_probe": {
+    "run": "runs/main_worker_cross_family_research_loop_optional_20260715_v1",
+    "commit": "7e92f307",
+    "formal_verification_policy": "optional",
+    "question_statuses": [
+      "BLOCKED",
+      "BLOCKED"
+    ],
+    "scorecard": "77/125",
+    "live_generator_agents_enabled": 10,
+    "repair_ownership_router_model": "claude-opus-4-8",
+    "survival_theory_packets": 3,
+    "survival_upstream_feedback_revisions": 2,
+    "survival_theory_validation_retries": 1,
+    "survival_parent_feedback_hashes_match_persisted_artifacts": true,
+    "survival_final_repair_scope": "metric_contract",
+    "sequential_theory_packets": 1,
+    "sequential_final_repair_scope": "unresolved",
+    "sequential_resolved_router_contradiction_observed": true,
+    "generated_code_or_simulation_count": 0,
+    "kernel_verified_subclaims": 0,
+    "exact_source_theorem_closures": 0,
+    "strict_protocol_used": false,
+    "held_out_run_started": false,
+    "boundary": "This run validates live owner routing, theory feedback, fail-closed review, and immutable parent hashes. It does not establish accepted theory, generated implementation, simulation validity, Lean proof, strict cross-family completion, or held-out generalization."
+  },
   "latest_v31_typed_theory_revision": {
     "run": "runs/main_worker_cross_family_development_20260715_v31_typed_theory_revision",
     "lineage_commit": "765c6160",
@@ -113,7 +139,7 @@
   },
   "latest_local_regression": {
     "runtime_test_file": "tests/test_research_agent_runtime.py",
-    "result": "1125 passed in 4700.77s (1:18:20) on the final tree after independent repair-ownership routing and immutable AgentRuntime publication; focused router/AgentRuntime tests, static persisted-parent hash equality, compileall, JSON validation, and diff checks also passed",
+    "result": "1125 passed in 4700.77s (1:18:20) at 7e92f307 after independent repair-ownership routing and immutable AgentRuntime publication; the later contradictory-owner validation follow-up has 13 focused tests passed and 1 optional dependency skip, but has not repeated the full 1125-test file",
     "failed": 0,
     "validated_at": "2026-07-15T19:43:41Z",
     "boundary": "Local regression validates runtime contracts and orchestration behavior; it is not live LLM, statistical-semantic, or theorem-proof evidence."

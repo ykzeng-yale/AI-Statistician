@@ -181,6 +181,9 @@ def build_architect_metric_repair_ownership_prompt(
         "metric_protocol_candidate when the source theory can remain exactly true "
         "and sufficient and only its empirical measurement or typed evaluator "
         "representation must change. Target both when both artifacts must change. "
+        "For a resolved decision, metric_author_can_repair_without_revising_source_theory "
+        "must be true exactly when metric_protocol_candidate is the only target; "
+        "otherwise it must be false and source_theory_packet must be among the targets. "
         "Set ownership_certainty=unresolved when the supplied artifacts do not let "
         "you decide; do not guess. Do not derive replacement formulas, thresholds, "
         "task-family rules, code, results, or proof. Use each zero-based finding_index "
@@ -436,6 +439,14 @@ def validate_architect_metric_repair_ownership_packet(
                 f"repair ownership decision {finding_index} has invalid repair flag"
             )
         expected_scope = architect_metric_repair_scope_from_decision(decision)
+        if (
+            certainty == "resolved"
+            and expected_scope == ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED
+        ):
+            errors.append(
+                f"repair ownership decision {finding_index} claims resolved "
+                "ownership but its targets and repair flag contradict"
+            )
         if decision.get("derived_repair_scope") != expected_scope:
             errors.append(
                 f"repair ownership decision {finding_index} has inconsistent scope"
