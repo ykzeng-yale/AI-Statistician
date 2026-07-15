@@ -1408,6 +1408,89 @@ def pseudo_formal_packet_json_schema() -> dict[str, Any]:
     }
 
 
+def pseudo_formal_provider_envelope_json_schema() -> dict[str, Any]:
+    """Small generation envelope; full PF/BV semantics stay locally validated."""
+
+    return {
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "packet_id",
+            "theorem_id",
+            "source_artifact_id",
+            "blocks",
+        ],
+        "properties": {
+            "packet_id": {"type": "string", "minLength": 1},
+            "theorem_id": {"type": "string", "minLength": 1},
+            "source_artifact_id": {"type": "string", "minLength": 1},
+            "blocks": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "required": [
+                        "block_id",
+                        "block_type",
+                        "conclusion",
+                        "proof_text",
+                        "source_anchors",
+                        "semantic_primitive_requirements",
+                        "lean_feasibility",
+                        "faithfulness_status",
+                    ],
+                    "properties": {
+                        "block_id": {"type": "string", "minLength": 1},
+                        "block_type": {"type": "string", "minLength": 1},
+                        "premises": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                        "conclusion": {"type": "string", "minLength": 1},
+                        "proof_text": {"type": "string", "minLength": 1},
+                        "dependency_ids": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                        "scope_parent_id": {"type": "string"},
+                        "source_anchors": {
+                            "type": "array",
+                            "minItems": 1,
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": True,
+                                "required": ["kind", "id", "excerpt"],
+                                "properties": {
+                                    "kind": {"type": "string", "minLength": 1},
+                                    "id": {"type": "string", "minLength": 1},
+                                    "excerpt": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                    },
+                                },
+                            },
+                        },
+                        "semantic_primitive_requirements": {
+                            "type": "array",
+                            "minItems": 1,
+                            "items": {"type": "string"},
+                        },
+                        "lean_feasibility": {
+                            "type": "string",
+                            "minLength": 1,
+                        },
+                        "faithfulness_status": {
+                            "type": "string",
+                            "minLength": 1,
+                        },
+                    },
+                },
+            },
+        },
+    }
+
+
 def pseudo_formal_block_json_schema() -> dict[str, Any]:
     return {
         "$id": PSEUDO_FORMAL_BLOCK_SCHEMA_ID,

@@ -181,6 +181,38 @@ def _prompt_payload(prompt: str) -> dict[str, object]:
     return json.loads(prompt[json_start:])
 
 
+def test_required_pf_is_enforced_by_provider_schema_before_local_validation() -> None:
+    required_schema = formalizer_module._formalizer_json_schema(
+        pseudo_formalization_required=True,
+    )
+    optional_schema = formalizer_module._formalizer_json_schema(
+        pseudo_formalization_required=False,
+    )
+
+    assert "pseudo_formal_proof_packets" in required_schema["required"]
+    packet_array = required_schema["properties"]["pseudo_formal_proof_packets"]
+    assert packet_array["minItems"] == 1
+    assert packet_array["items"]["properties"]["blocks"]["minItems"] == 1
+    block_schema = packet_array["items"]["properties"]["blocks"]["items"]
+    assert {
+        "conclusion",
+        "proof_text",
+        "source_anchors",
+        "semantic_primitive_requirements",
+        "lean_feasibility",
+        "faithfulness_status",
+    }.issubset(block_schema["required"])
+    assert block_schema["properties"]["source_anchors"]["items"]["required"] == [
+        "kind",
+        "id",
+        "excerpt",
+    ]
+    assert "pseudo_formal_proof_packets" not in optional_schema["required"]
+    assert "minItems" not in optional_schema["properties"][
+        "pseudo_formal_proof_packets"
+    ]
+
+
 def test_formalizer_required_pf_prompt_includes_source_bound_packet_seed() -> None:
     question = _pseudo_formal_packet_eval_question()
     theory_packet = _pseudo_formal_packet_eval_theory_packet()

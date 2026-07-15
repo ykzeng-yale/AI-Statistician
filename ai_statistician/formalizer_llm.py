@@ -33,6 +33,7 @@ from .pseudo_formalization import (
     PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
     normalize_pseudo_formal_packet,
     pseudo_formal_block_work_order_rows,
+    pseudo_formal_provider_envelope_json_schema,
     pseudo_formal_routable_work_order_rows,
     pseudo_formal_validation_issue_repair_actions,
     pseudo_formal_validation_issue_summary,
@@ -136,13 +137,27 @@ class LLMFormalizerProofEngineerAgent:
             getattr(self.provider, "provider_name", self.config.provider_name)
             or self.config.provider_name
         ).lower()
+        requires_lean_candidate = _feedback_requires_formalizer_lean_candidate(
+            environment_feedback or {}
+        )
+        requires_repeated_syntax_contract = (
+            _feedback_has_repeated_syntax_failure_contract(
+                environment_feedback or {}
+            )
+        )
+        requires_pseudo_formalization = _feedback_requires_pseudo_formalization(
+            environment_feedback or {},
+            proof_bank_runtime_memory_summary or {},
+        )
         request = GeneratorRequest(
             system_prompt=FORMALIZER_SYSTEM_PROMPT,
             user_prompt=user_prompt,
             model=request_model,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
-            schema=FORMALIZER_JSON_SCHEMA,
+            schema=_formalizer_json_schema(
+                pseudo_formalization_required=requires_pseudo_formalization,
+            ),
             metadata={
                 "subsystem": "FormalizerProofEngineer",
                 "agent": "LLMFormalizerProofEngineerAgent",
@@ -171,19 +186,6 @@ class LLMFormalizerProofEngineerAgent:
                 or {},
                 environment_feedback=environment_feedback or {},
             )
-
-        requires_lean_candidate = _feedback_requires_formalizer_lean_candidate(
-            environment_feedback or {}
-        )
-        requires_repeated_syntax_contract = (
-            _feedback_has_repeated_syntax_failure_contract(
-                environment_feedback or {}
-            )
-        )
-        requires_pseudo_formalization = _feedback_requires_pseudo_formalization(
-            environment_feedback or {},
-            proof_bank_runtime_memory_summary or {},
-        )
 
         def validate_packet(packet: Mapping[str, Any]) -> list[str]:
             errors = validate_formalizer_packet(packet)
@@ -1516,6 +1518,27 @@ FORMALIZER_JSON_SCHEMA: dict[str, Any] = {
         "next_actions": {"type": "array", "minItems": 1},
     },
 }
+
+
+def _formalizer_json_schema(
+    *,
+    pseudo_formalization_required: bool,
+) -> dict[str, Any]:
+    schema = deepcopy(FORMALIZER_JSON_SCHEMA)
+    if not pseudo_formalization_required:
+        return schema
+
+    required = list(schema.get("required", []) or [])
+    if "pseudo_formal_proof_packets" not in required:
+        required.append("pseudo_formal_proof_packets")
+    schema["required"] = required
+
+    schema["properties"]["pseudo_formal_proof_packets"] = {
+        "type": "array",
+        "minItems": 1,
+        "items": pseudo_formal_provider_envelope_json_schema(),
+    }
+    return schema
 
 
 def validate_formalizer_packet(packet: Mapping[str, Any]) -> list[str]:
@@ -6574,6 +6597,20 @@ def _formalizer_mode_specific_instructions(
         )
         else {}
     )
+    formalization_gap_planner_action_work_order = (
+        runtime_environment_feedback.get(
+            "formalization_gap_planner_action_work_order",
+            {},
+        )
+        if isinstance(
+            runtime_environment_feedback.get(
+                "formalization_gap_planner_action_work_order",
+                {},
+            ),
+            Mapping,
+        )
+        else {}
+    )
     feedback_input_summary = (
         runtime_environment_feedback.get("input_summary", {})
         if isinstance(runtime_environment_feedback.get("input_summary", {}), Mapping)
@@ -6582,6 +6619,20 @@ def _formalizer_mode_specific_instructions(
     source_to_bridge_request_shortcuts = (
         _source_to_bridge_candidate_request_shortcuts(proof_memory_summary)
     )
+    if formalization_gap_planner_action_work_order:
+        instructions.append(
+            "A contract-valid FormalizationGapPlanner action work order is active. "
+            "Treat its formal_attempt_queue, planner_next_actions, and search_requests "
+            "as prioritized, immutable orchestration input. Use the available formal "
+            "source retriever/RAG context and model reasoning to materialize concrete "
+            "source-bound formal_targets for executable attempts, then let local "
+            "Lean/LSP diagnostics drive revision. Preserve the requested theorem and "
+            "declaration lineage; return a typed missing dependency when an action "
+            "cannot yet be materialized. Do not copy planner prose as a proof, invent "
+            "kernel success, restart statistical theory, or silently substitute a "
+            "weaker target. Consume the work order verbatim from "
+            "runtime_environment_feedback.formalization_gap_planner_action_work_order."
+        )
     if source_theorem_promotion_generation_request:
         promotion_target_rows = [
             row
@@ -8988,6 +9039,27 @@ def _compact_formalizer_environment_feedback(
         "repair_owner_agent": _compact_value(
             feedback.get("repair_owner_agent", "")
             or input_summary.get("repair_owner_agent", "")
+        ),
+        "formalization_gap_planner_action_work_order": _compact_value(
+            feedback.get("formalization_gap_planner_action_work_order", {})
+            or input_summary.get(
+                "formalization_gap_planner_action_work_order",
+                {},
+            )
+        ),
+        "formalization_gap_planner_action_work_order_id": _compact_value(
+            feedback.get("formalization_gap_planner_action_work_order_id", "")
+            or input_summary.get(
+                "formalization_gap_planner_action_work_order_id",
+                "",
+            )
+        ),
+        "formalization_gap_planner_action_work_order_hash": _compact_value(
+            feedback.get("formalization_gap_planner_action_work_order_hash", "")
+            or input_summary.get(
+                "formalization_gap_planner_action_work_order_hash",
+                "",
+            )
         ),
         "formal_target_semantic_review": compact_semantic_review_feedback(
             feedback,

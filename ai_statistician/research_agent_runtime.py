@@ -153,6 +153,11 @@ from .formalization_gap_planner_runtime_contract_revision import (
     contract_revision_handoff_errors as _runtime_formalization_gap_planner_contract_revision_handoff_errors,
     validate_contract_revision_artifact,
 )
+from .formalization_gap_planner_runtime_action_dispatch import (
+    dispatch_validated_action_work_order,
+    validate_action_work_order_binding,
+    validated_action_rows,
+)
 from .formalization_gap_planner_refinement_queue import (
     PROOF_EVIDENCE_BOUNDARY as FORMALIZATION_GAP_PLANNER_REFINEMENT_QUEUE_BOUNDARY,
     PROOF_EVIDENCE_STATUS as FORMALIZATION_GAP_PLANNER_REFINEMENT_QUEUE_STATUS,
@@ -418,6 +423,7 @@ from .verifier import ProofVerifier
 
 RUNTIME_SCHEMA_VERSION = 1
 RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS = 45000
+FORMALIZER_PACKET_MAX_SAME_LINEAGE_REPAIR_RETRIES = 1
 EXACT_SEMANTIC_AUTHORING_PROMPT_HANDOFF_COUNT_KEYS = (
     "n_prompt_packets_with_source_theorem_binders",
     "n_prompt_packets_with_exact_source_theorem_binders",
@@ -8466,6 +8472,14 @@ def _architect_initial_routing_decision(
             "question": _question_to_payload(question),
             "theory_packet_id": _architect_context_theory_packet_id(
                 architect_context
+            ),
+            "simulation_manifest_id": _architect_context_simulation_manifest_id(
+                architect_context
+            ),
+            "algorithm_sandbox_manifest_id": (
+                _architect_context_algorithm_sandbox_manifest_id(
+                    architect_context
+                )
             ),
             "formalization_manifest_id": formalization_manifest_id,
             "architect_context": context,
@@ -18358,6 +18372,61 @@ class FormalizationEvaluatorRuntimeSubsystem:
             or "FormalizationEvaluator"
         )
         question = _question_from_payload(task.inputs["question"])
+        _, planner_action_binding_errors = validate_action_work_order_binding(
+            task=task,
+            blackboard=blackboard,
+            question_id=question.id,
+        )
+        if planner_action_binding_errors:
+            failure_id = (
+                "formalization_gap_planner_action_binding_failure:"
+                + stable_hash(
+                    [task.task_id, planner_action_binding_errors]
+                )[:20]
+            )
+            failure_artifact = {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "artifact_kind": (
+                    "RuntimeFormalizationGapPlannerActionBindingFailure"
+                ),
+                "failure_id": failure_id,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "task_id": task.task_id,
+                "question": _question_to_payload(question),
+                "binding_errors": planner_action_binding_errors,
+                "proof_evidence_status": (
+                    "FORMALIZATION_GAP_PLANNER_ACTION_BINDING_FAILURE_"
+                    "NOT_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+            }
+            return AgentStepResult(
+                status="BLOCKED",
+                rationale=(
+                    "ProofEngineer rejected a missing, changed, or cross-task "
+                    "FormalizationGapPlanner action work order before invoking "
+                    "the model, retriever, or Lean environment."
+                ),
+                produced_artifacts={failure_id: failure_artifact},
+                observations=(
+                    EnvironmentObservation(
+                        observation_type=(
+                            "formalization_gap_planner_action_binding_failure"
+                        ),
+                        summary="; ".join(planner_action_binding_errors)[:500],
+                        payload={
+                            "failure_id": failure_id,
+                            "binding_errors": planner_action_binding_errors,
+                            "proof_evidence_status": failure_artifact[
+                                "proof_evidence_status"
+                            ],
+                        },
+                    ),
+                ),
+                failure_classification=(
+                    "formalization_gap_planner_action_work_order_binding_failed"
+                ),
+            )
         context = dict(task.inputs.get("architect_context", {}) or {})
         context["runtime_task"] = _runtime_task_prompt_summary(task)
         environment_feedback: Mapping[str, Any] = (
@@ -21137,6 +21206,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                         gap_planner_bridge_id=gap_planner_bridge_id,
                         architect_context=context,
                         lean_candidate_repair_feedback=lean_candidate_repair_feedback,
+                        source_task_inputs=task.inputs,
                         source_subsystem=subsystem_name,
                         repair_attempts_used=repair_attempts_used,
                         yield_after_attempts=yield_after_attempts,
@@ -23112,8 +23182,42 @@ def _formalizer_packet_validation_failure_result(
     validation_repair_directives = formalizer_validation_repair_directives(
         validation_errors
     )
+    prior_environment_feedback = (
+        environment_feedback
+        if isinstance(environment_feedback, Mapping)
+        else (
+            task.inputs.get("environment_feedback", {})
+            if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
+            else {}
+        )
+    )
+    try:
+        prior_packet_repair_retry_depth = max(
+            0,
+            int(
+                prior_environment_feedback.get(
+                    "formalizer_packet_repair_retry_depth",
+                    0,
+                )
+                or 0
+            ),
+        )
+    except (TypeError, ValueError):
+        prior_packet_repair_retry_depth = 0
+    packet_repair_lineage_active = bool(
+        str(
+            prior_environment_feedback.get(
+                "formalizer_packet_repair_root_failure_id",
+                "",
+            )
+            or ""
+        ).strip()
+        or str(task.task_id).startswith("formalize-repair:")
+    )
     packet_repair_retry_depth = (
-        1 if str(task.task_id).startswith("formalize-repair:") else 0
+        prior_packet_repair_retry_depth + 1
+        if packet_repair_lineage_active
+        else 0
     )
     missing_anchors = _formalizer_missing_semantic_anchor_references(validation_errors)
     uninstantiated_adapter_binders = (
@@ -23131,15 +23235,6 @@ def _formalizer_packet_validation_failure_result(
         _formalizer_source_theorem_candidate_materialization_contract_from_validation_errors(
             validation_errors,
             proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
-        )
-    )
-    prior_environment_feedback = (
-        environment_feedback
-        if isinstance(environment_feedback, Mapping)
-        else (
-            task.inputs.get("environment_feedback", {})
-            if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
-            else {}
         )
     )
     active_source_theorem_promotion_generation_request = (
@@ -23628,6 +23723,50 @@ def _formalizer_packet_validation_failure_result(
         "formalizer_validation_failure:"
         + stable_hash([task.task_id, exc.validation_label, validation_errors, exc.history])[:20]
     )
+    formalizer_packet_repair_root_failure_id = str(
+        prior_environment_feedback.get(
+            "formalizer_packet_repair_root_failure_id",
+            "",
+        )
+        or failure_id
+    )
+    whole_proof_agent_repair = bool(
+        str(active_proofengineer_repair_context.get("repair_scope", "") or "")
+        == "replace_entire_exact_declaration_proof_body"
+        and str(
+            active_proofengineer_repair_context.get(
+                "target_theorem_statement",
+                "",
+            )
+            or ""
+        ).strip()
+    )
+    packet_validation_escalation_active = bool(
+        packet_repair_retry_depth
+        >= FORMALIZER_PACKET_MAX_SAME_LINEAGE_REPAIR_RETRIES
+        and not source_theorem_promotion_generation_repair
+        and not whole_proof_agent_repair
+    )
+    packet_validation_escalation = (
+        {
+            "escalation_kind": "formalizer_repeated_packet_validation_loop",
+            "root_failure_id": formalizer_packet_repair_root_failure_id,
+            "latest_failure_id": failure_id,
+            "source_task_id": task.task_id,
+            "retry_depth": packet_repair_retry_depth,
+            "max_same_lineage_repair_retries": (
+                FORMALIZER_PACKET_MAX_SAME_LINEAGE_REPAIR_RETRIES
+            ),
+            "validation_error_fingerprint": stable_hash(validation_errors),
+            "required_next_subsystem": "FormalizationGapPlanner",
+            "proof_evidence_status": (
+                "FORMALIZER_PACKET_VALIDATION_ESCALATION_NOT_PROOF_EVIDENCE"
+            ),
+            "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+        }
+        if packet_validation_escalation_active
+        else {}
+    )
     learning_row = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "question_id": question.id,
@@ -23686,9 +23825,13 @@ def _formalizer_packet_validation_failure_result(
             ),
             "attempts": exc.attempts,
             "formalizer_packet_repair_retry_depth": packet_repair_retry_depth,
+            "formalizer_packet_repair_root_failure_id": (
+                formalizer_packet_repair_root_failure_id
+            ),
             "repeated_formalizer_packet_validation_failure": (
                 packet_repair_retry_depth > 0
             ),
+            "packet_validation_escalation": packet_validation_escalation,
             "formalizer_lean_repair_retry_depth": int(
                 prior_environment_feedback.get(
                     "formalizer_lean_repair_retry_depth",
@@ -23767,6 +23910,11 @@ def _formalizer_packet_validation_failure_result(
             missing_source_binding_contract_metadata
         ),
         "llm_json_repair_history": exc.history,
+        "formalizer_packet_repair_retry_depth": packet_repair_retry_depth,
+        "formalizer_packet_repair_root_failure_id": (
+            formalizer_packet_repair_root_failure_id
+        ),
+        "packet_validation_escalation": packet_validation_escalation,
         "proof_bank_runtime_memory_summary": dict(proof_bank_runtime_memory_summary),
         "learning_rows": [learning_row],
         "recommended_next_action": learning_row["target_behavior"],
@@ -23808,9 +23956,13 @@ def _formalizer_packet_validation_failure_result(
         ),
         "attempts": exc.attempts,
         "formalizer_packet_repair_retry_depth": packet_repair_retry_depth,
+        "formalizer_packet_repair_root_failure_id": (
+            formalizer_packet_repair_root_failure_id
+        ),
         "repeated_formalizer_packet_validation_failure": (
             packet_repair_retry_depth > 0
         ),
+        "packet_validation_escalation": packet_validation_escalation,
         "formalizer_lean_repair_retry_depth": int(
             prior_environment_feedback.get("formalizer_lean_repair_retry_depth", 0)
             or 0
@@ -23860,20 +24012,26 @@ def _formalizer_packet_validation_failure_result(
     next_inputs = dict(task.inputs)
     next_inputs["environment_feedback"] = repair_feedback
     next_inputs.setdefault("question", _question_to_payload(question))
-    whole_proof_agent_repair = bool(
-        str(
-            active_proofengineer_repair_context.get("repair_scope", "") or ""
+    if packet_validation_escalation_active:
+        next_task_objective = (
+            "Consume the latest validated FormalizationGapPlanner response for "
+            "this exact theorem lineage, or execute a bounded planner handoff if "
+            "none exists; do not issue another identical whole-packet retry."
         )
-        == "replace_entire_exact_declaration_proof_body"
-        and str(
-            active_proofengineer_repair_context.get(
-                "target_theorem_statement",
-                "",
-            )
-            or ""
-        ).strip()
-    )
-    if source_theorem_promotion_generation_repair:
+        next_task_acceptance_gate = (
+            "a validated planner action queue is compiled into typed runtime work, "
+            "or an explicit planner/infrastructure blocker is recorded without "
+            "claiming proof evidence"
+        )
+        planner_architect_context = (
+            dict(next_inputs.get("architect_context", {}) or {})
+            if isinstance(next_inputs.get("architect_context", {}), Mapping)
+            else {}
+        )
+        planner_architect_context["environment_feedback"] = repair_feedback
+        next_inputs["architect_context"] = planner_architect_context
+        next_inputs["consume_existing_live_route_planner"] = True
+    elif source_theorem_promotion_generation_repair:
         next_task_objective = (
             "Repair the lineage-bound source-theorem promotion response, preserve "
             "the exact requested targets, and route the materialized candidate to "
@@ -23932,7 +24090,10 @@ def _formalizer_packet_validation_failure_result(
         )
     next_task = AgentTask(
         task_id=(
-            f"proofengineer-source-promotion:{question.id}:"
+            f"gap-planner-packet-validation:{question.id}:"
+            f"{stable_hash([failure_id, packet_validation_escalation])[:8]}"
+            if packet_validation_escalation_active
+            else f"proofengineer-source-promotion:{question.id}:"
             f"{stable_hash([failure_id, repair_feedback])[:8]}"
             if source_theorem_promotion_generation_repair
             else f"proofengineer-whole-proof:{question.id}:"
@@ -23942,7 +24103,9 @@ def _formalizer_packet_validation_failure_result(
             f"{stable_hash([failure_id, repair_feedback])[:8]}"
         ),
         owner_subsystem=(
-            "ProofEngineer"
+            "FormalizationGapPlanner"
+            if packet_validation_escalation_active
+            else "ProofEngineer"
             if (
                 source_theorem_promotion_generation_repair
                 or whole_proof_agent_repair
@@ -23952,6 +24115,14 @@ def _formalizer_packet_validation_failure_result(
         objective=next_task_objective,
         inputs=next_inputs,
         allowed_tools=(
+            (
+                "formalization_gap_planner",
+                "formal_source_retriever",
+                "lean_lsp_mcp",
+                "evidence_ledger",
+            )
+            if packet_validation_escalation_active
+            else
             tuple(
                 dict.fromkeys(
                     (
@@ -23976,6 +24147,9 @@ def _formalizer_packet_validation_failure_result(
             "promotion response rematerialized for the exact compiler or an explicit "
             "typed blocker recorded"
             if source_theorem_promotion_generation_repair
+            else
+            "validated planner queue consumed or typed planner blocker recorded"
+            if packet_validation_escalation_active
             else
             "exact whole-proof candidate rerun or typed dependency blocker recorded"
             if whole_proof_agent_repair
@@ -24007,6 +24181,11 @@ def _formalizer_packet_validation_failure_result(
     return AgentStepResult(
         status="REVISE",
         rationale=(
+            "LLM Formalizer packet failed the same lineage-bound validation "
+            "contract after its bounded repair; runtime escalated to the typed "
+            "FormalizationGapPlanner path instead of issuing another identical retry."
+            if packet_validation_escalation_active
+            else
             "LLM ProofEngineer promotion response failed its request-bound target "
             "contract; structured feedback was preserved and routed back to the "
             "same promotion ProofEngineer loop."
@@ -27288,6 +27467,7 @@ def _formalizer_proof_state_routing_task(
             "Formalizer proof-state route revisions."
         ),
         inputs={
+            **dict(source_task.inputs),
             "question": _question_to_payload(question),
             "architect_context": context,
             "environment_feedback": dict(feedback),
@@ -28510,6 +28690,22 @@ def _formalizer_environment_feedback_with_formal_source_grounding(
         if isinstance(payload.get("proofengineer_repair_context", {}), Mapping)
         else {}
     )
+    planner_action_work_order = (
+        payload.get("formalization_gap_planner_action_work_order", {})
+        if isinstance(
+            payload.get("formalization_gap_planner_action_work_order", {}),
+            Mapping,
+        )
+        else {}
+    )
+    if planner_action_work_order:
+        repair_context = (
+            _proofengineer_repair_context_with_planner_action_search_requests(
+                repair_context,
+                work_order=planner_action_work_order,
+            )
+        )
+        payload["proofengineer_repair_context"] = repair_context
     if not repair_context:
         return payload
     local_lean_repair_contract = (
@@ -28526,6 +28722,49 @@ def _formalizer_environment_feedback_with_formal_source_grounding(
                 [],
             ),
         )
+    )
+    return payload
+
+
+def _proofengineer_repair_context_with_planner_action_search_requests(
+    context: Mapping[str, Any],
+    *,
+    work_order: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Compile validated planner searches into the existing RAG grounding path."""
+
+    payload = dict(context) if isinstance(context, Mapping) else {}
+    search_requests = [
+        dict(row)
+        for row in work_order.get("search_requests", []) or []
+        if isinstance(row, Mapping)
+    ]
+    query_seeds = [
+        str(value).strip()
+        for value in payload.get("retrieval_query_seeds", []) or []
+        if str(value).strip()
+    ]
+    query_seeds.extend(
+        str(row.get("query", "") or "").strip()
+        for row in search_requests
+        if str(row.get("query", "") or "").strip()
+    )
+    query_seeds = list(dict.fromkeys(query_seeds))
+    if not query_seeds:
+        return payload
+
+    payload.setdefault(
+        "context_kind",
+        "formalization_gap_planner_action_execution",
+    )
+    payload.setdefault("owner_subsystem", "ProofEngineer")
+    payload["planner_action_work_order_id"] = str(
+        work_order.get("work_order_id", "") or ""
+    )
+    payload["retrieval_query_seeds"] = query_seeds
+    payload["planner_search_requests"] = search_requests
+    payload["planner_search_request_status"] = (
+        "BOUND_TO_FORMAL_SOURCE_RETRIEVAL_NOT_PROOF_EVIDENCE"
     )
     return payload
 
@@ -30403,10 +30642,10 @@ def _critic_feedback_has_formalizer_packet_validation_escalation(
     escalation = feedback.get("packet_validation_escalation", {})
     if not isinstance(escalation, Mapping):
         return False
-    return (
-        str(escalation.get("escalation_kind", "") or "")
-        == "formalizer_repeated_syntax_packet_validation_loop"
-    )
+    return str(escalation.get("escalation_kind", "") or "") in {
+        "formalizer_repeated_packet_validation_loop",
+        "formalizer_repeated_syntax_packet_validation_loop",
+    }
 
 
 def _runtime_formalization_gap_planner_bridge_rows_from_blackboard(
@@ -30901,6 +31140,29 @@ def _critic_agenda_has_formalization_gap_planner_handoff(
         if row.get("formalization_gap_planner_execution_contexts"):
             return True
     return False
+
+
+def _runtime_formalization_gap_planner_validated_action_rows(
+    live_manifest: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    return validated_action_rows(live_manifest)
+
+
+def _runtime_formalization_gap_planner_action_dispatch_result(
+    *,
+    task: AgentTask,
+    blackboard: BlackboardState,
+    question: OpenResearchQuestion,
+    live_manifest: Mapping[str, Any],
+) -> AgentStepResult | None:
+    return dispatch_validated_action_work_order(
+        task=task,
+        blackboard=blackboard,
+        question_payload=_question_to_payload(question),
+        live_manifest=live_manifest,
+        schema_version=RUNTIME_SCHEMA_VERSION,
+        proof_evidence_boundary=KERNEL_PROOF_BOUNDARY,
+    )
 
 
 class FormalizationGapPlannerRuntimeSubsystem:
@@ -33187,6 +33449,27 @@ class FormalizationGapPlannerRuntimeSubsystem:
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
+        if task.inputs.get("consume_existing_live_route_planner") is True:
+            existing_live_manifest = _latest_artifact(
+                blackboard,
+                "runtime_formalization_gap_planner_live_route_planner_manifest:",
+            )
+            existing_question = (
+                existing_live_manifest.get("question", {})
+                if isinstance(existing_live_manifest.get("question", {}), Mapping)
+                else {}
+            )
+            if str(existing_question.get("id", "") or "") == question.id:
+                existing_dispatch = (
+                    _runtime_formalization_gap_planner_action_dispatch_result(
+                        task=task,
+                        blackboard=blackboard,
+                        question=question,
+                        live_manifest=existing_live_manifest,
+                    )
+                )
+                if existing_dispatch is not None:
+                    return existing_dispatch
         provider_retry_artifact, provider_retry_binding_errors = (
             _runtime_formalization_gap_planner_validated_provider_retry_artifact(
                 task,
@@ -33783,6 +34066,7 @@ class FormalizationGapPlannerRuntimeSubsystem:
                     "without treating route plans as proof evidence."
                 ),
                 inputs={
+                    **dict(task.inputs),
                     "question": _question_to_payload(question),
                     "architect_context": followup_architect_context,
                     "environment_feedback": followup_environment_feedback,
@@ -33847,6 +34131,27 @@ class FormalizationGapPlannerRuntimeSubsystem:
                     "separate downstream gates."
                 ),
             )
+        action_dispatch_result: AgentStepResult | None = None
+        if (
+            invoke_live_route_planner
+            and live_route_planner_feedback_loop_recorded
+            and contract_revision_task is None
+            and not live_route_planner_contract_feedback_rows
+            and provider_retry_task is None
+            and not live_route_planner_provider_retry_exhausted
+        ):
+            action_dispatch_result = (
+                _runtime_formalization_gap_planner_action_dispatch_result(
+                    task=task,
+                    blackboard=blackboard,
+                    question=question,
+                    live_manifest=live_route_planner_manifest,
+                )
+            )
+            if action_dispatch_result is not None:
+                produced_artifacts.update(
+                    action_dispatch_result.produced_artifacts
+                )
         manifest_id = (
             "runtime_formalization_gap_planner_execution_manifest:"
             + stable_hash(
@@ -34072,6 +34377,19 @@ class FormalizationGapPlannerRuntimeSubsystem:
             "live_route_planner_feedback_loop_recorded": (
                 live_route_planner_feedback_loop_recorded
             ),
+            "validated_action_dispatch_available": (
+                action_dispatch_result is not None
+            ),
+            "validated_action_dispatch_scheduled": bool(
+                action_dispatch_result is not None
+                and action_dispatch_result.next_task is not None
+            ),
+            "validated_action_dispatch_task_id": (
+                action_dispatch_result.next_task.task_id
+                if action_dispatch_result is not None
+                and action_dispatch_result.next_task is not None
+                else ""
+            ),
             "live_llm_invoked": bool(
                 live_route_planner_manifest.get("live_llm_invoked", False)
             ),
@@ -34223,7 +34541,13 @@ class FormalizationGapPlannerRuntimeSubsystem:
             },
         )
         if invoke_live_route_planner:
-            if contract_revision_task is not None:
+            if action_dispatch_result is not None:
+                status = action_dispatch_result.status
+                rationale = action_dispatch_result.rationale
+                failure_classification = (
+                    action_dispatch_result.failure_classification
+                )
+            elif contract_revision_task is not None:
                 status = "REVISE"
                 rationale = (
                     "FormalizationGapPlanner converted the structured contract "
@@ -34314,11 +34638,27 @@ class FormalizationGapPlannerRuntimeSubsystem:
             status=status,
             rationale=rationale,
             produced_artifacts=produced_artifacts,
-            observations=(observation,),
+            observations=(
+                observation,
+                *(
+                    action_dispatch_result.observations
+                    if action_dispatch_result is not None
+                    else ()
+                ),
+            ),
             tool_calls=tuple(tool_calls),
-            evidence_entries=(evidence,),
+            evidence_entries=(
+                evidence,
+                *(
+                    action_dispatch_result.evidence_entries
+                    if action_dispatch_result is not None
+                    else ()
+                ),
+            ),
             next_task=(
-                contract_revision_task
+                action_dispatch_result.next_task
+                if action_dispatch_result is not None
+                else contract_revision_task
                 or provider_retry_task
                 or live_route_planner_followup_task
             ),
@@ -34846,6 +35186,8 @@ class CriticEvaluatorRuntimeSubsystem:
                         "environment_feedback": gap_planner_feedback,
                         "formalization_manifest_id": formalization_manifest_id,
                         "theory_packet_id": theory_packet_id,
+                        "simulation_manifest_id": simulation_manifest_id,
+                        "algorithm_sandbox_manifest_id": algorithm_manifest_id,
                     },
                     allowed_tools=(
                         "formalization_gap_planner",
@@ -99429,6 +99771,7 @@ def _formalizer_lean_candidate_repair_budget_yield_to_gap_planner_task(
     gap_planner_bridge_id: str,
     architect_context: Mapping[str, Any],
     lean_candidate_repair_feedback: Mapping[str, Any],
+    source_task_inputs: Mapping[str, Any],
     source_subsystem: str,
     repair_attempts_used: int,
     yield_after_attempts: int,
@@ -99510,6 +99853,7 @@ def _formalizer_lean_candidate_repair_budget_yield_to_gap_planner_task(
             "Formalizer/ProofEngineer Lean-candidate repair budget is exhausted."
         ),
         inputs={
+            **dict(source_task_inputs),
             "question": _question_to_payload(question),
             "architect_context": context,
             "environment_feedback": feedback,

@@ -2437,6 +2437,11 @@ def test_formalization_gap_planner_runtime_subsystem_requests_live_followup_when
         objective="Execute gap-planner handoff smoke and schedule live route planning.",
         inputs={
             "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": "theory_derivation:live-followup-lineage",
+            "simulation_manifest_id": "simulation_manifest:live-followup-lineage",
+            "algorithm_sandbox_manifest_id": (
+                "algorithm_sandbox_manifest:live-followup-lineage"
+            ),
             "architect_context": {
                 "runtime_learning_memory": {
                     "artifact_kind": "RuntimeLearningMemoryContext",
@@ -2480,6 +2485,15 @@ def test_formalization_gap_planner_runtime_subsystem_requests_live_followup_when
     assert result.next_task.inputs["provider"] == "anthropic"
     assert result.next_task.inputs["model_tier"] == "auto"
     assert result.next_task.inputs["timeout_seconds"] > 0
+    assert result.next_task.inputs["theory_packet_id"] == (
+        "theory_derivation:live-followup-lineage"
+    )
+    assert result.next_task.inputs["simulation_manifest_id"] == (
+        "simulation_manifest:live-followup-lineage"
+    )
+    assert result.next_task.inputs["algorithm_sandbox_manifest_id"] == (
+        "algorithm_sandbox_manifest:live-followup-lineage"
+    )
     next_architect_context = result.next_task.inputs["architect_context"]
     next_memory = next_architect_context["runtime_learning_memory"]
     assert next_memory["handoff_boundary"].startswith(
@@ -2515,6 +2529,264 @@ def test_formalization_gap_planner_runtime_subsystem_requests_live_followup_when
         and row.status
         == "OFFLINE_HANDOFF_SMOKE_EXECUTED_LIVE_ROUTE_PLANNER_PENDING_NOT_PROOF_EVIDENCE"
         for row in result.evidence_entries
+    )
+
+
+def test_validated_gap_planner_actions_dispatch_once_to_proofengineer() -> None:
+    question = next(
+        row
+        for row in load_open_research_questions(
+            Path("examples/research_questions.json")
+        )
+        if row.id == "sequential_anytime_bernoulli"
+    )
+    theory_packet_id = "theory_derivation:planner_action_dispatch"
+    simulation_manifest_id = "simulation_manifest:planner_action_dispatch"
+    algorithm_manifest_id = "algorithm_sandbox_manifest:planner_action_dispatch"
+    blackboard = BlackboardState(project_id="planner-action-dispatch-test")
+    blackboard.artifacts.update(
+        {
+            theory_packet_id: _structured_theory_packet_fixture(theory_packet_id),
+            simulation_manifest_id: {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": simulation_manifest_id,
+                "simulation_passed": True,
+            },
+            algorithm_manifest_id: {
+                "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                "manifest_id": algorithm_manifest_id,
+                "n_executed": 1,
+            },
+        }
+    )
+    live_manifest = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeFormalizationGapPlannerLiveRoutePlannerManifest",
+        "manifest_id": "runtime_formalization_gap_planner_live_route_planner_manifest:test",
+        "question": runtime_module._question_to_payload(question),
+        "rows": [
+            {
+                "staged_followup_assembly_rows": [
+                    {
+                        "assembled_response_contract_ok": True,
+                        "assembled_llm_route_planner_row": {
+                            "llm_route_planner_row_id": "planner-row:sequential",
+                            "request_id": "planner-request:sequential",
+                            "route_id": "planner-route:sequential",
+                            "response_contract_ok": True,
+                            "route_adoption_status": (
+                                "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+                            ),
+                            "acceptance_status": "ACCEPTED_WITH_SEARCH_REQUESTS",
+                            "formal_attempt_queue": [
+                                {
+                                    "attempt_id": "attempt:sequential_bridge",
+                                    "formal_node_id": "formal-node:sequential",
+                                    "primitive": "sequential_boundary_bridge",
+                                    "target_prover_family": "lean4",
+                                    "owner": "lean_lsp_mcp",
+                                    "action": (
+                                        "Materialize the source-bound bridge and "
+                                        "request Lean LSP residual goals."
+                                    ),
+                                    "attempt_kind": "bridge_proof",
+                                    "prerequisite_formal_node_ids": [],
+                                    "expected_feedback": ["residual_goals"],
+                                    "target_primitives": [
+                                        "sequential_boundary_bridge"
+                                    ],
+                                }
+                            ],
+                            "planner_next_actions": [
+                                {
+                                    "owner": "lean_lsp_mcp",
+                                    "action": "Run local diagnostics on the bridge.",
+                                    "target_primitives": [
+                                        "sequential_boundary_bridge"
+                                    ],
+                                }
+                            ],
+                            "search_requests": [
+                                {
+                                    "request_kind": "formal_library",
+                                    "query": "sequential probability boundary declaration",
+                                    "reason": "retrieve the exact declaration signature",
+                                    "target_primitives": [
+                                        "sequential_boundary_bridge"
+                                    ],
+                                }
+                            ],
+                            "source_refs": ["source:sequential-theorem"],
+                            "semantic_alignment_risks": [],
+                            "uncertainty_flags": [],
+                        },
+                    }
+                ]
+            }
+        ],
+    }
+    task = AgentTask(
+        task_id="gap-planner-live-route:sequential:dispatch",
+        owner_subsystem="FormalizationGapPlanner",
+        objective="Dispatch validated planner actions.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "simulation_manifest_id": simulation_manifest_id,
+            "algorithm_sandbox_manifest_id": algorithm_manifest_id,
+            "architect_context": {},
+            "environment_feedback": {},
+        },
+    )
+
+    incomplete_inputs = dict(task.inputs)
+    incomplete_inputs.pop("algorithm_sandbox_manifest_id")
+    missing_lineage = (
+        runtime_module._runtime_formalization_gap_planner_action_dispatch_result(
+            task=replace(task, inputs=incomplete_inputs),
+            blackboard=blackboard,
+            question=question,
+            live_manifest=live_manifest,
+        )
+    )
+    assert missing_lineage is not None
+    assert missing_lineage.status == "BLOCKED"
+    assert missing_lineage.failure_classification == (
+        "formalization_gap_planner_action_upstream_lineage_missing"
+    )
+
+    result = runtime_module._runtime_formalization_gap_planner_action_dispatch_result(
+        task=task,
+        blackboard=blackboard,
+        question=question,
+        live_manifest=live_manifest,
+    )
+
+    assert result is not None
+    assert result.status == "REVISE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "ProofEngineer"
+    assert result.next_task.inputs["theory_packet_id"] == theory_packet_id
+    assert result.next_task.inputs["simulation_manifest_id"] == simulation_manifest_id
+    assert result.next_task.inputs["algorithm_sandbox_manifest_id"] == (
+        algorithm_manifest_id
+    )
+    work_order = next(iter(result.produced_artifacts.values()))
+    assert work_order["artifact_kind"] == (
+        "RuntimeFormalizationGapPlannerActionWorkOrder"
+    )
+    assert work_order["formal_attempt_queue"][0]["attempt_id"] == (
+        "attempt:sequential_bridge"
+    )
+    assert work_order["upstream_artifact_lineage"]["theory_packet_id"][
+        "artifact_id"
+    ] == theory_packet_id
+    assert work_order["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["formalization_gap_planner_action_work_order_id"] == (
+        work_order["work_order_id"]
+    )
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=blackboard.artifacts[theory_packet_id],
+        simulation_manifest=blackboard.artifacts[simulation_manifest_id],
+        algorithm_manifest=blackboard.artifacts[algorithm_manifest_id],
+        registered_problem={"question_id": question.id},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback=feedback,
+    )
+    assert "contract-valid FormalizationGapPlanner action work order is active" in prompt
+    assert "attempt:sequential_bridge" in prompt
+
+    blackboard.artifacts[live_manifest["manifest_id"]] = live_manifest
+    blackboard.artifacts.update(result.produced_artifacts)
+    bound_work_order, binding_errors = (
+        runtime_module.validate_action_work_order_binding(
+            task=result.next_task,
+            blackboard=blackboard,
+            question_id=question.id,
+        )
+    )
+    assert binding_errors == []
+    assert bound_work_order["work_order_id"] == work_order["work_order_id"]
+
+    unbound_inputs = dict(result.next_task.inputs)
+    unbound_inputs.pop("formalization_gap_planner_action_work_order_id")
+    unbound_inputs.pop("formalization_gap_planner_action_work_order_hash")
+    _, unbound_errors = runtime_module.validate_action_work_order_binding(
+        task=replace(result.next_task, inputs=unbound_inputs),
+        blackboard=blackboard,
+        question_id=question.id,
+    )
+    assert "planner action work_order_id missing" in unbound_errors
+    assert "planner action work order missing from blackboard" in unbound_errors
+
+    original_theory_packet = blackboard.artifacts[theory_packet_id]
+    blackboard.artifacts[theory_packet_id] = {
+        **original_theory_packet,
+        "tampered_after_dispatch": True,
+    }
+    _, upstream_tamper_errors = runtime_module.validate_action_work_order_binding(
+        task=result.next_task,
+        blackboard=blackboard,
+        question_id=question.id,
+    )
+    assert "planner action theory_packet_id artifact fingerprint mismatch" in (
+        upstream_tamper_errors
+    )
+    blackboard.artifacts[theory_packet_id] = original_theory_packet
+
+    blackboard.artifacts[live_manifest["manifest_id"]] = {
+        **live_manifest,
+        "rows": [],
+    }
+
+    class MustNotRunFormalizer:
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            raise AssertionError("binding failure must precede model generation")
+
+    binding_failure = ProofEngineerRuntimeSubsystem(
+        proposal_agent=MustNotRunFormalizer(),
+        proof_verifier=MockProofVerifier(),
+        max_proof_obligations=0,
+    ).run(result.next_task, blackboard)
+    assert binding_failure.status == "BLOCKED"
+    assert binding_failure.failure_classification == (
+        "formalization_gap_planner_action_work_order_binding_failed"
+    )
+    assert "planner action source live manifest fingerprint mismatch" in (
+        next(iter(binding_failure.produced_artifacts.values()))["binding_errors"]
+    )
+
+    blackboard.artifacts[live_manifest["manifest_id"]] = live_manifest
+    duplicate = runtime_module._runtime_formalization_gap_planner_action_dispatch_result(
+        task=task,
+        blackboard=blackboard,
+        question=question,
+        live_manifest=live_manifest,
+    )
+    assert duplicate is not None
+    assert duplicate.status == "BLOCKED"
+    assert duplicate.next_task is None
+    assert duplicate.failure_classification == (
+        "formalization_gap_planner_action_work_order_already_dispatched"
+    )
+
+    cross_task = runtime_module._runtime_formalization_gap_planner_action_dispatch_result(
+        task=task,
+        blackboard=blackboard,
+        question=question,
+        live_manifest={
+            **live_manifest,
+            "question": {"id": "different_question_lineage"},
+        },
+    )
+    assert cross_task is not None
+    assert cross_task.status == "BLOCKED"
+    assert cross_task.failure_classification == (
+        "formalization_gap_planner_action_cross_task_rejected"
     )
 
 
@@ -18746,6 +19018,13 @@ def test_architect_runtime_routes_gap_planner_gap_to_executor() -> None:
     assert result.next_task.inputs["formalization_manifest_id"] == (
         formalization_manifest_id
     )
+    assert result.next_task.inputs["theory_packet_id"] == theory_packet_id
+    assert result.next_task.inputs["simulation_manifest_id"] == (
+        simulation_manifest_id
+    )
+    assert result.next_task.inputs["algorithm_sandbox_manifest_id"] == (
+        algorithm_manifest_id
+    )
     assert result.next_task.inputs["formalization_gap_planner_bridge_ids"] == [
         bridge["bridge_id"]
     ]
@@ -29183,7 +29462,7 @@ def test_formalizer_validation_failure_routes_repeated_syntax_fail_closed_contra
     assert result.next_task.acceptance_gate == feedback["acceptance_gate"]
 
 
-def test_repeated_syntax_packet_validation_stays_in_compiler_feedback_loop() -> None:
+def test_repeated_packet_validation_escalates_out_of_identical_formalizer_loop() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     exc = PacketValidationError(
         validation_label="LLM Formalizer/ProofEngineer packet",
@@ -29261,22 +29540,34 @@ def test_repeated_syntax_packet_validation_stays_in_compiler_feedback_loop() -> 
     assert result.status == "REVISE"
     assert result.failure_classification == "formalizer_packet_validation_failed"
     assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
-    assert result.next_task.task_id.startswith("formalize-repair:")
-    assert "verbatim repeated Lean parser/LSP diagnostics" in (
+    assert result.next_task.owner_subsystem == "FormalizationGapPlanner"
+    assert result.next_task.task_id.startswith("gap-planner-packet-validation:")
+    assert result.next_task.inputs["consume_existing_live_route_planner"] is True
+    assert "do not issue another identical whole-packet retry" in (
         result.next_task.objective
     )
     feedback = result.next_task.inputs["environment_feedback"]
     assert feedback["failure_classification"] == "formalizer_packet_validation_failed"
-    assert "packet_validation_escalation" not in feedback
+    assert feedback["formalizer_packet_repair_retry_depth"] == 1
+    assert feedback["formalizer_packet_repair_root_failure_id"].startswith(
+        "formalizer_validation_failure:"
+    )
+    assert feedback["packet_validation_escalation"]["escalation_kind"] == (
+        "formalizer_repeated_packet_validation_loop"
+    )
+    assert feedback["packet_validation_escalation"][
+        "required_next_subsystem"
+    ] == "FormalizationGapPlanner"
     assert "Python-side syntax or tactic whitelist" in feedback["target_behavior"]
     artifact = next(iter(result.produced_artifacts.values()))
-    assert "packet_validation_escalation" not in artifact
+    assert artifact["packet_validation_escalation"] == feedback[
+        "packet_validation_escalation"
+    ]
+    assert artifact["formalizer_packet_repair_retry_depth"] == 1
     learning_tasks = {
         row["learning_task"] for row in artifact["learning_rows"]
     }
     assert "formalizer_packet_validation_feedback" in learning_tasks
-    assert "formalizer_repeated_syntax_packet_validation_escalation" not in learning_tasks
 
 
 def test_no_import_real_helper_is_diagnosed_by_local_lean(
@@ -32043,6 +32334,73 @@ def test_carried_proofengineer_feedback_is_enriched_with_formal_source_grounding
     assert "rank_threshold_bridge" in summary["top_hit_names"]
     assert summary["proof_evidence_status"] == (
         "FORMAL_SOURCE_RETRIEVAL_GROUNDING_NOT_PROOF_EVIDENCE"
+    )
+
+
+def test_planner_action_search_requests_drive_formal_source_grounding() -> None:
+    class DummyFormalSourceRetriever:
+        def __init__(self) -> None:
+            self.queries: list[str] = []
+
+        def search(self, query: str, *, k: int = 10) -> list[FormalSourceHit]:
+            self.queries.append(query)
+            return [
+                FormalSourceHit(
+                    declaration=FormalDeclaration(
+                        source_id="generic_lean_library",
+                        source_type="lean_library",
+                        path="Generic/Boundary.lean",
+                        line=12,
+                        kind="theorem",
+                        name="generic_boundary_bridge",
+                        namespace="Generic.Boundary",
+                        signature=(
+                            "theorem generic_boundary_bridge (p : Prop) : p -> p := id"
+                        ),
+                    ),
+                    score=0.91,
+                    matched_terms=("boundary", "bridge"),
+                )
+            ]
+
+    retriever = DummyFormalSourceRetriever()
+    feedback = {
+        "feedback_type": "formalization_gap_planner_action_work_order",
+        "formalization_gap_planner_action_work_order": {
+            "work_order_id": "planner-action-work-order:generic",
+            "search_requests": [
+                {
+                    "request_kind": "formal_library",
+                    "query": "generic boundary bridge declaration",
+                    "reason": "retrieve the exact declaration signature",
+                },
+                {
+                    "request_kind": "formal_library",
+                    "query": "generic boundary bridge declaration",
+                    "reason": "duplicate requests must not duplicate retrieval",
+                },
+            ],
+        },
+    }
+
+    enriched = runtime_module._formalizer_environment_feedback_with_formal_source_grounding(
+        feedback,
+        formal_source_retriever=retriever,
+    )
+
+    assert retriever.queries == ["generic boundary bridge declaration"]
+    context = enriched["proofengineer_repair_context"]
+    assert context["planner_action_work_order_id"] == (
+        "planner-action-work-order:generic"
+    )
+    assert context["retrieval_query_seeds"] == [
+        "generic boundary bridge declaration"
+    ]
+    assert context["formal_source_grounding_hits"][0]["hits"][0]["name"] == (
+        "generic_boundary_bridge"
+    )
+    assert context["planner_search_request_status"].endswith(
+        "NOT_PROOF_EVIDENCE"
     )
 
 
@@ -38054,6 +38412,13 @@ def test_formalization_routes_subclaim_proof_state_through_proofengineer_then_ga
     assert second.next_task is not None
     assert second.next_task.owner_subsystem == "FormalizationGapPlanner"
     assert second.next_task.task_id.startswith("gap-planner-proofstate-replan:")
+    assert second.next_task.inputs["theory_packet_id"] == "theory_packet:test"
+    assert second.next_task.inputs["simulation_manifest_id"] == (
+        "simulation_manifest:test"
+    )
+    assert second.next_task.inputs["algorithm_sandbox_manifest_id"] == (
+        "algorithm_sandbox_manifest:test"
+    )
     assert formalizer.environment_feedback_seen[1]["feedback_type"] == (
         "formalizer_proof_state_feedback"
     )
@@ -38371,6 +38736,13 @@ def test_agent_runtime_yields_formalizer_lean_repair_budget_to_gap_planner(
     assert gap_planner.bridge_seen is True
 
     yielded_task = gap_planner.tasks[0]
+    assert yielded_task.inputs["theory_packet_id"] == "theory_packet:test"
+    assert yielded_task.inputs["simulation_manifest_id"] == (
+        "simulation_manifest:test"
+    )
+    assert yielded_task.inputs["algorithm_sandbox_manifest_id"] == (
+        "algorithm_sandbox_manifest:test"
+    )
     feedback = yielded_task.inputs["environment_feedback"]
     assert feedback["feedback_type"] == (
         "formalizer_lean_candidate_repair_budget_gap_planner_handoff"
