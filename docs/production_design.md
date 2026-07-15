@@ -97,10 +97,11 @@ environment iteration into the main runtime:
 ```text
 AgentRuntime / Blackboard
   -> Architect subsystem
-  -> ArchitectMetricContractPlanner (Sonnet proposal)
-  -> ArchitectMetricSemanticReviewer (independent Opus pre-execution gate)
+  -> Retrieval / source-grounding subsystems
   -> ProblemFormalizer subsystem
   -> TheoryDeveloper subsystem
+  -> ArchitectMetricContractPlanner (Sonnet, theory-informed proposal)
+  -> ArchitectMetricSemanticReviewer (independent Opus pre-execution gate)
   -> AlgorithmEngineer / SimulationEngineer / SymbolicDeriver subsystems
   -> GeneratedCodeSemanticReviewer over exact source + execution lineage
   -> PaperTheoryExtractor and RAG/SearchMemory subsystems
@@ -126,13 +127,19 @@ empirical/implementation review evidence, never theorem proof evidence.
 
 Capability evaluation also separates metric-protocol authorship from protocol
 acceptance. The Sonnet Architect metric planner proposes a complete typed
-requirement set before any generated code or result exists. A separate Opus
-reviewer checks question/estimand alignment, identifiability, mathematical and
-numeric consistency, finite-sample attainability, exact evaluator semantics,
-and cross-requirement consistency. A rejected candidate is returned to the
-metric author with exact typed findings; rejected requirement rows and hashes
-remain in immutable revision history. Only an independently accepted set is
-frozen into the evidence contract. If post-execution review later identifies
+requirement set after TheoryDeveloper has named the procedure, estimand,
+assumptions, pivots, and experimental regime, but before any generated code or
+result exists. The runtime records an explicit
+`theory_prerequisite_pending -> theory_informed_authoring_required ->
+preexecution_review_accepted` phase transition and does not authorize generated
+execution in either pending phase. A separate Opus reviewer checks
+question/estimand alignment, identifiability, mathematical and numeric
+consistency, finite-sample attainability, exact evaluator semantics, and
+cross-requirement consistency. A rejected candidate is returned to the metric
+author with exact typed findings; rejected requirement rows and hashes remain
+in immutable revision history. Bounded rejection becomes a typed non-evidence
+artifact rather than a truncated exception. Only an independently accepted set
+is frozen into the evidence contract. If post-execution review later identifies
 the frozen protocol itself as malformed, AgentRuntime records
 `EVALUATION_PROTOCOL_REVISION_REQUIRED` and blocks the current candidate. It
 does not mutate a threshold after seeing results or spend the remaining task

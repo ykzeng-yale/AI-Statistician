@@ -1410,26 +1410,36 @@ Architect-owned AgentRuntime. It does not import their model clients,
 orchestrators, or result corpora.
 
 Architect requirements remain proposals, but their statistical meaning now has
-an independent pre-execution authority gate. A Sonnet author emits a complete
-typed candidate and a separate Opus reviewer evaluates six domain-general
-dimensions before code or results exist. `REVISE` feeds exact findings and the
-rejected candidate back to the author for a bounded full-contract rewrite;
-`ACCEPT` is valid only with distinct agent, model, and model-tier provenance and
-an exact requirement-set fingerprint. Every rejected set remains in revision
-history. Requirement pass is still empirical evidence only and cannot promote
-a theory or Lean claim.
+an independent pre-execution authority gate. The gate is theory-informed: the
+initial Architect plan records `theory_prerequisite_pending`, Retrieval and
+TheoryDeveloper define the procedure and assumptions, and TheoryDeveloper then
+returns a lossless semantic packet to a Sonnet metric author. A separate Opus
+reviewer evaluates six domain-general dimensions before code or results exist.
+`REVISE` feeds exact findings and the rejected candidate back to the author for
+a bounded full-contract rewrite; `ACCEPT` is valid only with distinct agent,
+model, and model-tier provenance and an exact requirement-set fingerprint. The
+runtime authorizes SimulationEvaluator only after that certificate and consumes
+the one-shot gate so later replans remain free to route other capability gaps.
+Every rejected set remains in typed revision history. Requirement pass is still
+empirical evidence only and cannot promote a theory or Lean claim.
 
 ## Frozen Cross-Family Correction
 
 The frozen development panel covers survival and sequential inference, not
-FDR. Its latest v8 evidence is intentionally negative: both tasks are
-`BLOCKED`, the scorecard is `95/118`, 72 kernel-verified support subclaims
-coexist with 8 formal gaps, and no exact source/frontier theorem is closed.
-Survival exposed a second-revision canonical hash defect. Sequential exercised
-metric failure, coding-agent repair, Architect replan, Formalizer compiler
-feedback, and staged route repair before the route-contract budget exhausted.
-The run also exposed post-hoc measurement-protocol rewriting and a semantically
-vacuous simulation that nevertheless passed its scalar gate.
+FDR. Its latest v29 evidence is intentionally negative: both tasks failed at
+Architect iteration one, the scorecard is `73/125`, no generated code ran, and
+no exact source/frontier theorem is closed. The independent reviewer correctly
+rejected question-only requirements whose procedures, pivots, or stopping
+strategies had not yet been specified. This exposed stage ordering, not missing
+survival or sequential special cases.
+
+Historical v8 evidence remains useful for later stages: both tasks were
+`BLOCKED`, score `95/118`, with 72 kernel-verified support subclaims and 8 formal
+gaps. Survival exposed a second-revision canonical hash defect. Sequential
+exercised metric failure, coding-agent repair, Architect replan, Formalizer
+compiler feedback, and staged route repair before the route-contract budget
+exhausted. It also exposed post-hoc measurement-protocol rewriting and a
+semantically vacuous simulation that nevertheless passed its scalar gate.
 
 The correction is at the agent interface, not in either task's mathematics.
 Staged route fragments now receive bounded LLM repair turns containing the

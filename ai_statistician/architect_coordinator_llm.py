@@ -29,6 +29,14 @@ from .generated_metric_contract import (
     validate_generated_metric_requirements,
 )
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
+from .metric_protocol_stage import (
+    METRIC_PROTOCOL_PHASE_NOT_REQUIRED,
+    METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED,
+    METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED,
+    METRIC_PROTOCOL_PHASE_THEORY_PREREQUISITE_PENDING,
+    METRIC_PROTOCOL_PHASES,
+    theory_informed_metric_protocol_material,
+)
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
 
@@ -199,6 +207,9 @@ class LLMArchitectCoordinatorAgent:
             runtime_contract=_architect_runtime_owned_evidence_contract(
                 architect_context=architect_context,
                 runtime_config=runtime_config,
+            ),
+            theory_protocol_material=(
+                theory_informed_metric_protocol_material(architect_context)
             ),
         )
         effective_architect_context = (
@@ -633,8 +644,10 @@ def build_architect_coordinator_prompt(
         "requires explicit diagnosis rather than an automatic gate change. Never edit a "
         "failed frozen threshold in place after observing results. "
         "When requested_evidence_contract.capability_eval_requires_typed_metric_contracts "
-        "is true, author empirical_metric_requirements before either coding agent "
-        "runs. Include at least one required row targeting AlgorithmEngineer and "
+        "is true, first obtain the structured TheoryDeveloper procedure and then "
+        "author empirical_metric_requirements before either coding agent runs. "
+        "Do not freeze procedure-dependent thresholds from the research question "
+        "alone. Include at least one required row targeting AlgorithmEngineer and "
         "one targeting SimulationEngineer. target_subsystems is the generated-code "
         "author namespace, not the runtime execution-owner namespace: every entry "
         "must be exactly AlgorithmEngineer or SimulationEngineer. SimulationEvaluator "
@@ -943,6 +956,11 @@ ARCHITECT_COORDINATOR_OUTPUT_CONTRACT: dict[str, Any] = {
         "capability_eval_requires_generated_simulation_code": "boolean",
         "capability_eval_requires_generated_code_semantic_review": "boolean",
         "capability_eval_requires_typed_metric_contracts": "boolean",
+        "empirical_metric_protocol_phase": (
+            "not_required|theory_prerequisite_pending|"
+            "theory_informed_authoring_required|preexecution_review_accepted"
+        ),
+        "metric_protocol_execution_authorized": "boolean",
         "capability_eval_requires_formalizer_lean_candidate": "boolean",
         "generated_sandbox_runtime_replicates": "positive integer",
         "generated_metric_contract_policy": (
@@ -1162,6 +1180,13 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
                     "type": "boolean"
                 },
                 "capability_eval_requires_typed_metric_contracts": {
+                    "type": "boolean"
+                },
+                "empirical_metric_protocol_phase": {
+                    "type": "string",
+                    "enum": list(METRIC_PROTOCOL_PHASES),
+                },
+                "metric_protocol_execution_authorized": {
                     "type": "boolean"
                 },
                 "capability_eval_requires_formalizer_lean_candidate": {
@@ -1410,9 +1435,12 @@ def _architect_packet_repair_context(
             "Author subsystem_execution_plan rows for the intended research path; runtime-owned mandatory-stage shells are appended after generation.",
             "Do not omit or rewrite runtime_owned_evidence_contract fields.",
             (
-                "In capability_eval, author required empirical_metric_requirements "
-                "for both coding subsystems on the first plan; on replans, preserve "
-                "any runtime-owned frozen requirement set unchanged."
+                "In capability_eval, preserve the runtime-owned metric phase. While "
+                "theory_prerequisite_pending, leave empirical_metric_requirements "
+                "empty and route retrieval/theory only. After the structured theory "
+                "handoff, author required rows for both coding subsystems and freeze "
+                "them only after independent review; preserve any accepted frozen "
+                "requirement set unchanged on replans."
             ),
             (
                 "In empirical_metric_requirements.target_subsystems, use only the "
@@ -1570,6 +1598,22 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                 "generated-code semantic review"
             )
         requirements = evidence_contract.get("empirical_metric_requirements", [])
+        metric_protocol_phase = str(
+            evidence_contract.get("empirical_metric_protocol_phase", "") or ""
+        ).strip()
+        metric_protocol_execution_authorized = evidence_contract.get(
+            "metric_protocol_execution_authorized"
+        )
+        if metric_protocol_phase not in METRIC_PROTOCOL_PHASES:
+            errors.append(
+                "evidence_contract.empirical_metric_protocol_phase must be a "
+                "recognized runtime phase"
+            )
+        if not isinstance(metric_protocol_execution_authorized, bool):
+            errors.append(
+                "evidence_contract.metric_protocol_execution_authorized must be a "
+                "boolean"
+            )
         expected_runtime_replicates = evidence_contract.get(
             "generated_sandbox_runtime_replicates"
         )
@@ -1583,6 +1627,15 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                 "generated_sandbox_runtime_replicates value"
             )
         if requirements not in (None, [], {}):
+            if evaluation_mode == "capability_eval" and (
+                metric_protocol_phase
+                != METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED
+                or metric_protocol_execution_authorized is not True
+            ):
+                errors.append(
+                    "capability_eval metric requirements authorize execution only "
+                    "after independent pre-execution review acceptance"
+                )
             errors.extend(
                 validate_generated_metric_requirements(
                     requirements,
@@ -1601,21 +1654,19 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                     ),
                 )
             )
-            if evidence_contract.get(
-                "empirical_metric_requirements_frozen_from_metric_planner"
-            ) is True:
+            if evaluation_mode == "capability_eval":
                 review = evidence_contract.get(
                     "empirical_metric_requirements_preexecution_review", {}
                 )
                 if not isinstance(review, Mapping):
                     errors.append(
-                        "metric-planner requirements require a typed "
+                        "capability-eval metric requirements require a typed "
                         "pre-execution semantic review certificate"
                     )
                 else:
                     if review.get("overall_verdict") != "ACCEPT":
                         errors.append(
-                            "metric-planner requirements require an ACCEPT "
+                            "capability-eval metric requirements require an ACCEPT "
                             "pre-execution semantic review"
                         )
                     for field in (
@@ -1659,10 +1710,16 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                             "to the frozen requirement set"
                         )
         elif evaluation_mode == "capability_eval":
-            errors.append(
-                "capability_eval requires Architect-authored "
-                "empirical_metric_requirements"
-            )
+            if (
+                metric_protocol_phase
+                != METRIC_PROTOCOL_PHASE_THEORY_PREREQUISITE_PENDING
+                or metric_protocol_execution_authorized is not False
+            ):
+                errors.append(
+                    "capability_eval may omit empirical_metric_requirements only "
+                    "while the TheoryDeveloper prerequisite is pending and metric "
+                    "protocol execution remains unauthorized"
+                )
         for field in (
             "formal_targets",
             "simulation_targets",
@@ -1850,6 +1907,33 @@ def _architect_runtime_owned_evidence_contract(
     if requested_path:
         contract["recommended_research_path"] = requested_path
     contract.update(_architect_runtime_capability_eval_contract(config))
+    capability_eval = bool(
+        contract.get("capability_eval_requires_typed_metric_contracts") is True
+    )
+    theory_material = theory_informed_metric_protocol_material(context)
+    accepted_requirements = bool(contract.get("empirical_metric_requirements"))
+    if not capability_eval:
+        contract["empirical_metric_protocol_phase"] = (
+            METRIC_PROTOCOL_PHASE_NOT_REQUIRED
+        )
+        contract["metric_protocol_execution_authorized"] = True
+    elif accepted_requirements:
+        contract["empirical_metric_protocol_phase"] = (
+            METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED
+        )
+        contract["metric_protocol_execution_authorized"] = True
+    elif theory_material:
+        contract["empirical_metric_requirements"] = []
+        contract["empirical_metric_protocol_phase"] = (
+            METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED
+        )
+        contract["metric_protocol_execution_authorized"] = False
+    else:
+        contract["empirical_metric_requirements"] = []
+        contract["empirical_metric_protocol_phase"] = (
+            METRIC_PROTOCOL_PHASE_THEORY_PREREQUISITE_PENDING
+        )
+        contract["metric_protocol_execution_authorized"] = False
     return contract
 
 

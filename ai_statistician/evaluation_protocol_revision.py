@@ -17,6 +17,112 @@ from .research_schema import OpenResearchQuestion
 EVALUATION_PROTOCOL_REVISION_SCHEMA_VERSION = 1
 
 
+def architect_preexecution_metric_protocol_rejection_result(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    semantic_review_history: list[dict[str, Any]],
+) -> AgentStepResult:
+    history = [dict(row) for row in semantic_review_history]
+    final_review = history[-1] if history else {}
+    manifest_id = "metric_protocol_preexecution_rejection:" + stable_hash(
+        [question.id, task.task_id, history]
+    )[:20]
+    candidate_packet_ids = [
+        str(row.get("authoring_packet_id", "") or "")
+        for row in history
+        if str(row.get("authoring_packet_id", "") or "").strip()
+    ]
+    review_packet_ids = [
+        str(row.get("semantic_review_packet_id", "") or "")
+        for row in history
+        if str(row.get("semantic_review_packet_id", "") or "").strip()
+    ]
+    manifest = {
+        "schema_version": EVALUATION_PROTOCOL_REVISION_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeArchitectMetricProtocolPreExecutionRejection",
+        "manifest_id": manifest_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question_id": question.id,
+        "task_id": task.task_id,
+        "disposition": "METRIC_PROTOCOL_PREEXECUTION_REJECTED",
+        "semantic_review_attempts": len(history),
+        "candidate_authoring_packet_ids": candidate_packet_ids,
+        "semantic_review_packet_ids": review_packet_ids,
+        "semantic_review_history": history,
+        "final_overall_verdict": str(
+            final_review.get("overall_verdict", "") or ""
+        ),
+        "final_findings": [
+            dict(row)
+            for row in final_review.get("findings", []) or []
+            if isinstance(row, Mapping)
+        ],
+        "final_repair_instructions": [
+            str(value)
+            for value in final_review.get("repair_instructions", []) or []
+            if str(value).strip()
+        ],
+        "generated_code_observed": False,
+        "simulation_results_observed": False,
+        "current_candidate_acceptance_eligible": False,
+        "execution_authorized": False,
+        "rejected_lineage_preserved": True,
+        "feedback_reusable_for_fresh_preexecution_authoring": True,
+        "proof_evidence_status": (
+            "METRIC_PROTOCOL_PREEXECUTION_REJECTION_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": (
+            "This artifact records independently rejected protocol candidates before "
+            "generated code or simulation execution. It is reusable authoring feedback, "
+            "but it is not execution, statistical acceptance, or theorem proof evidence."
+        ),
+    }
+    evidence = EvidenceLedgerEntry(
+        evidence_id="evidence:" + stable_hash([task.task_id, manifest_id])[:20],
+        task_id=task.task_id,
+        artifact_id=manifest_id,
+        evidence_type="metric_protocol_preexecution_rejection",
+        status="PREEXECUTION_PROTOCOL_REJECTED_NO_EXECUTION_AUTHORIZED",
+        boundary=str(manifest["boundary"]),
+        payload={
+            "disposition": manifest["disposition"],
+            "semantic_review_attempts": len(history),
+            "current_candidate_acceptance_eligible": False,
+            "execution_authorized": False,
+            "kernel_verified": False,
+        },
+    )
+    return AgentStepResult(
+        status="BLOCKED",
+        rationale=(
+            "Independent pre-execution semantic review rejected every bounded "
+            "metric-protocol candidate. Full candidate and review lineage is "
+            "preserved for a fresh theory-informed authoring turn; no coding or "
+            "simulation execution is authorized."
+        ),
+        produced_artifacts={manifest_id: manifest},
+        observations=(
+            EnvironmentObservation(
+                observation_type="metric_protocol_preexecution_rejection",
+                summary=(
+                    "bounded pre-execution protocol authoring rejected with full "
+                    "review history preserved"
+                ),
+                payload={
+                    "manifest_id": manifest_id,
+                    "disposition": manifest["disposition"],
+                    "semantic_review_attempts": len(history),
+                    "execution_authorized": False,
+                    "proof_evidence_status": manifest["proof_evidence_status"],
+                },
+            ),
+        ),
+        evidence_entries=(evidence,),
+        failure_classification="architect_metric_protocol_preexecution_rejected",
+    )
+
+
 def _architect_post_result_metric_protocol_revision_result(
     *,
     task: AgentTask,

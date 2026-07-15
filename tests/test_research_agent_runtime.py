@@ -118,6 +118,9 @@ from ai_statistician.formalizer_repair_policy import (
     formalizer_validation_repair_policy,
 )
 from ai_statistician.llm_json_repair import PacketValidationError
+from ai_statistician.metric_protocol_stage import (
+    build_theory_informed_metric_protocol_material,
+)
 from ai_statistician.pseudo_formalization import (
     PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
     PSEUDO_FORMAL_STRUCTURAL_DECOMPOSITION_REQUEST_ROW_KIND,
@@ -393,6 +396,62 @@ def _structured_theory_packet_fixture(
             "has_formalization_handoff": True,
         },
     }
+
+
+def _theory_informed_metric_context_fixture() -> dict[str, object]:
+    theory_packet = _structured_theory_packet_fixture()
+    theory_packet_id = str(theory_packet["packet_id"])
+    return {
+        "theory_packet_id": theory_packet_id,
+        "architect_metric_protocol_theory_material": (
+            build_theory_informed_metric_protocol_material(
+                theory_packet=theory_packet,
+                theory_packet_id=theory_packet_id,
+            )
+        ),
+        "architect_metric_protocol_gate": {
+            "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+            "source_theory_packet_id": theory_packet_id,
+            "required_disposition": "PREEXECUTION_REVIEW_ACCEPTED",
+            "execution_authorized": False,
+        },
+    }
+
+
+def _with_accepted_metric_protocol(
+    architect_context: dict[str, object],
+    *,
+    required_runtime_replicates: int,
+) -> dict[str, object]:
+    context = json.loads(json.dumps(architect_context))
+    response = _architect_sample_response(
+        required_runtime_replicates=required_runtime_replicates
+    )
+    contract = response["evidence_contract"]
+    requirements = contract["empirical_metric_requirements"]
+    requirement_set_id = runtime_module.generated_metric_requirement_set_id(
+        requirements
+    )
+    context["architect_metric_requirement_authoring"] = {
+        "artifact_kind": "ArchitectMetricRequirementAuthoringPacket",
+        "packet_id": "architect_metric_requirement_authoring:test-accepted",
+        "empirical_metric_requirements": requirements,
+        "empirical_metric_requirement_set_id": requirement_set_id,
+        "semantic_review_status": "ACCEPT",
+        "semantic_review_packet_id": (
+            "architect_metric_semantic_review:test-accepted"
+        ),
+        "semantic_review_packet_hash": "test-review-hash",
+        "semantic_review_model": "independent-test-reviewer",
+        "semantic_review_model_tier": "opus",
+        "semantic_review_independent_agent": True,
+        "semantic_review_independent_model": True,
+        "semantic_review_independent_model_tier": True,
+        "proof_evidence_status": (
+            "ARCHITECT_METRIC_REQUIREMENT_AUTHORING_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    return context
 
 
 def _typed_metric_contract_fixture(
@@ -1294,6 +1353,71 @@ def test_theory_developer_validation_failure_routes_compact_retry() -> None:
         "THEORY_DEVELOPER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
     )
     assert result.observations[0].payload["truncation_detected"] is True
+
+
+def test_theory_developer_routes_capability_eval_through_metric_protocol_gate() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    theory_packet = _structured_theory_packet_fixture(
+        "theory_derivation:metric-gate"
+    )
+
+    class StaticTheoryDeveloper:
+        def derive(self, *_args, **_kwargs):
+            return json.loads(json.dumps(theory_packet))
+
+    result = TheoryDeveloperRuntimeSubsystem(
+        theory_developer=StaticTheoryDeveloper(),  # type: ignore[arg-type]
+        n_runs=17,
+        seed=20260715,
+    ).run(
+        AgentTask(
+            task_id="theory:metric-gate",
+            owner_subsystem="TheoryDeveloper",
+            objective="Define the procedure before empirical protocol authoring.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": {
+                    "architect_runtime_plan": {
+                        "evidence_contract": {
+                            "capability_eval_requires_typed_metric_contracts": True,
+                            "empirical_metric_requirements": [],
+                            "empirical_metric_protocol_phase": (
+                                "theory_prerequisite_pending"
+                            ),
+                            "metric_protocol_execution_authorized": False,
+                        }
+                    }
+                },
+            },
+        ),
+        BlackboardState(project_id="theory-metric-gate"),
+    )
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert result.next_task.task_id.startswith("architect-metric-protocol:")
+    context = result.next_task.inputs["architect_context"]
+    material = context["architect_metric_protocol_theory_material"]
+    assert material["source_theory_packet_id"] == (
+        "theory_derivation:metric-gate"
+    )
+    assert material["execution_results_available"] is False
+    assert material["theory_semantic_material"][
+        "theory_derivation_packet"
+    ]["equation_chain"] == theory_packet["theory_derivation_packet"][
+        "equation_chain"
+    ]
+    gate = context["architect_metric_protocol_gate"]
+    assert gate["execution_authorized"] is False
+    assert gate["deferred_next_task"]["owner_subsystem"] == (
+        "SimulationEvaluator"
+    )
+    assert "simulation" not in {
+        artifact.get("artifact_kind", "").lower()
+        for artifact in result.produced_artifacts.values()
+        if isinstance(artifact, dict)
+    }
 
 
 def test_theory_developer_second_truncation_routes_ultra_compact_retry() -> None:
@@ -17674,6 +17798,10 @@ def test_runtime_executes_architect_routed_generated_simulation_gap(
             "boundary": "capability routing context; not proof evidence",
         }
     }
+    architect_context = _with_accepted_metric_protocol(
+        architect_context,
+        required_runtime_replicates=6,
+    )
     theory_developer = LLMTheoryDeveloperAgent(
         provider=StaticArchitectLLMProvider(_runtime_sample_response()),
         config=ResearchArchitectConfig(
@@ -18098,6 +18226,10 @@ def test_runtime_executes_architect_routed_generated_algorithm_gap(
             "boundary": "capability routing context; not proof evidence",
         },
     }
+    architect_context = _with_accepted_metric_protocol(
+        architect_context,
+        required_runtime_replicates=10,
+    )
     simulation_manifest = {
         "artifact_kind": "RuntimeSimulationManifest",
         "manifest_id": simulation_manifest_id,
@@ -18303,6 +18435,10 @@ def test_runtime_preserves_combined_coding_gap_simulation_gate_after_algorithm(
             "boundary": "capability routing context; not proof evidence",
         },
     }
+    architect_context = _with_accepted_metric_protocol(
+        architect_context,
+        required_runtime_replicates=10,
+    )
     theory_developer = LLMTheoryDeveloperAgent(
         provider=StaticArchitectLLMProvider(_runtime_sample_response()),
         config=ResearchArchitectConfig(
@@ -19226,6 +19362,10 @@ def test_runtime_executes_architect_routed_gap_planner_gap(
             "boundary": "capability routing context; not proof evidence",
         },
     }
+    architect_context = _with_accepted_metric_protocol(
+        architect_context,
+        required_runtime_replicates=10,
+    )
     theory_developer = LLMTheoryDeveloperAgent(
         provider=StaticArchitectLLMProvider(_runtime_sample_response()),
         config=ResearchArchitectConfig(
@@ -20743,6 +20883,8 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
     assert '"capability_eval_requires_generated_algorithm_code":true' in prompt
     assert '"capability_eval_requires_generated_simulation_code":true' in prompt
     assert '"capability_eval_requires_typed_metric_contracts":true' in prompt
+    assert '"empirical_metric_protocol_phase":"theory_prerequisite_pending"' in prompt
+    assert '"metric_protocol_execution_authorized":false' in prompt
     assert '"generated_sandbox_runtime_replicates":80' in prompt
     assert '"generated_metric_contract_policy":"typed_artifact_bound_required"' in prompt
     assert (
@@ -20786,12 +20928,11 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
     assert contract["generated_metric_requirement_authority_policy"] == (
         "architect_authored_coding_agent_bound_required"
     )
-    assert contract["empirical_metric_requirements"][0]["requirement_id"] == (
-        "architect:empirical-coverage"
+    assert contract["empirical_metric_requirements"] == []
+    assert contract["empirical_metric_protocol_phase"] == (
+        "theory_prerequisite_pending"
     )
-    assert contract["empirical_metric_requirements"][0][
-        "required_runtime_replicates"
-    ] == 80
+    assert contract["metric_protocol_execution_authorized"] is False
     assert contract["capability_eval_requires_formalizer_lean_candidate"] is True
     assert contract["capability_eval_requires_exact_source_theorem_prover"] is True
     assert contract["theorem_reduction_closure_proofengineer_required"] is True
@@ -20808,14 +20949,38 @@ def test_architect_metric_replan_preserves_first_accepted_requirement_set() -> N
         "formal_verification_policy": "optional",
         "n_runs": 100,
     }
+    initial_response = _architect_sample_response()
+    initial_requirements = initial_response["evidence_contract"][
+        "empirical_metric_requirements"
+    ]
     initial = _normalize_architect_packet(
-        _architect_sample_response(),
+        initial_response,
         question=question,
         model="claude-sonnet-4-6",
         model_tier="sonnet",
         provider_name="anthropic",
         raw_response="initial",
         runtime_config=runtime_config,
+        architect_context={
+            "architect_metric_requirement_authoring": {
+                "empirical_metric_requirements": initial_requirements,
+                "empirical_metric_requirement_set_id": (
+                    runtime_module.generated_metric_requirement_set_id(
+                        initial_requirements
+                    )
+                ),
+                "semantic_review_status": "ACCEPT",
+                "semantic_review_packet_id": (
+                    "architect_metric_semantic_review:accepted"
+                ),
+                "semantic_review_packet_hash": "review-hash",
+                "semantic_review_model": "claude-opus-4-8",
+                "semantic_review_model_tier": "opus",
+                "semantic_review_independent_agent": True,
+                "semantic_review_independent_model": True,
+                "semantic_review_independent_model_tier": True,
+            }
+        },
     )
     initial_requirement_set_id = initial["evidence_contract"][
         "empirical_metric_requirement_set_id"
@@ -20892,6 +21057,41 @@ def test_architect_metric_replan_preserves_first_accepted_requirement_set() -> N
         "simulation_targets"
     ]
     assert validate_architect_coordinator_packet(replanned) == []
+
+
+def test_architect_rejects_prior_metric_requirements_without_review_certificate() -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[1]
+    response = _architect_sample_response(required_runtime_replicates=80)
+    packet = _normalize_architect_packet(
+        response,
+        question=question,
+        model="claude-sonnet-4-6",
+        model_tier="sonnet",
+        provider_name="anthropic",
+        raw_response="unreviewed-prior-contract",
+        runtime_config={
+            "evaluation_mode": "capability_eval",
+            "n_runs": 100,
+        },
+        architect_context={
+            "architect_runtime_plan": {
+                "evidence_contract": response["evidence_contract"]
+            }
+        },
+    )
+
+    errors = validate_architect_coordinator_packet(packet)
+
+    assert any(
+        "require an ACCEPT pre-execution semantic review" in error
+        for error in errors
+    )
+    assert any(
+        "review certificate missing review_packet_id" in error
+        for error in errors
+    )
 
 
 def test_architect_validator_rejects_runtime_completion_policy_as_formal_target() -> None:
@@ -21013,6 +21213,91 @@ def test_architect_repair_contract_requires_object_shaped_array_rows() -> None:
     ]["quorum_rule"]
 
 
+def test_live_architect_defers_metric_authoring_until_theory_is_available() -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+
+    class InitialArchitectBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate(self, request):
+            self.requests.append(request)
+            return GeneratorResponse(
+                text=json.dumps(
+                    _architect_sample_response(required_runtime_replicates=17)
+                ),
+                provider="anthropic",
+                model=request.model,
+                metadata={
+                    "provider_structured_output_requested": bool(request.schema),
+                    "provider_structured_output_applied": bool(request.schema),
+                },
+            )
+
+    backend = InitialArchitectBackend()
+    packet = LLMArchitectCoordinatorAgent(
+        provider=backend,
+        config=ArchitectCoordinatorConfig(
+            provider_name="anthropic",
+            model="claude-sonnet-4-6",
+            model_tier="sonnet",
+        ),
+    ).propose(
+        question=question,
+        architect_context={},
+        runtime_config={
+            "evaluation_mode": "capability_eval",
+            "formal_verification_policy": "required",
+            "n_runs": 17,
+        },
+    )
+
+    assert [
+        request.metadata.get("subsystem") for request in backend.requests
+    ] == ["ArchitectCoordinator"]
+    contract = packet["evidence_contract"]
+    assert contract["empirical_metric_requirements"] == []
+    assert contract["empirical_metric_protocol_phase"] == (
+        "theory_prerequisite_pending"
+    )
+    assert contract["metric_protocol_execution_authorized"] is False
+    assert "metric_requirement_authoring" not in packet
+    assert validate_architect_coordinator_packet(packet) == []
+
+    class PendingCoordinator:
+        def propose(self, **_kwargs):
+            return packet
+
+    routed = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=PendingCoordinator(),  # type: ignore[arg-type]
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            n_runs=17,
+        ),
+    ).run(
+        AgentTask(
+            task_id="architect:metric-protocol-pending",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Route prerequisites before metric protocol authoring.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": {},
+            },
+        ),
+        BlackboardState(project_id="metric-protocol-pending"),
+    )
+    assert routed.next_task is not None
+    assert routed.next_task.owner_subsystem == "RetrievalMemory"
+    pending_routing = routed.next_task.inputs["architect_context"][
+        "architect_initial_routing"
+    ]
+    assert pending_routing["source"] == "metric_protocol_theory_prerequisite"
+
+
 def test_live_architect_preauthors_metric_contract_with_structured_substage() -> None:
     question = next(
         question
@@ -21118,7 +21403,7 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         ),
     ).propose(
         question=question,
-        architect_context={},
+        architect_context=_theory_informed_metric_context_fixture(),
         runtime_config={
             "evaluation_mode": "capability_eval",
             "formal_verification_policy": "required",
@@ -21141,6 +21426,14 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert review_request.metadata["model_tier"] == "opus"
     assert review_request.model != metric_request.model
     metric_prompt = json.loads(metric_request.user_prompt)
+    theory_material = metric_prompt["theory_developer_protocol_material"]
+    assert theory_material["source_theory_packet_id"] == (
+        "theory_derivation:structured"
+    )
+    assert theory_material["execution_results_available"] is False
+    assert theory_material["theory_semantic_material"][
+        "theory_derivation_contract"
+    ]["n_equation_chain_steps"] == 2
     hard_requirements = " ".join(metric_prompt["hard_requirements"])
     assert "exactly one independently compared scalar quantity" in hard_requirements
     assert "split them into separate requirement rows" in hard_requirements
@@ -21167,6 +21460,12 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert packet["evidence_contract"][
         "empirical_metric_requirements_frozen_from_metric_planner"
     ] is True
+    assert packet["evidence_contract"]["empirical_metric_protocol_phase"] == (
+        "preexecution_review_accepted"
+    )
+    assert packet["evidence_contract"][
+        "metric_protocol_execution_authorized"
+    ] is True
     assert packet["metric_requirement_authoring"][
         "provider_structured_output_applied"
     ] is True
@@ -21188,6 +21487,39 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     ] == packet["evidence_contract"]["empirical_metric_requirement_set_id"]
     assert review_certificate["execution_results_observed"] is False
     assert validate_architect_coordinator_packet(packet) == []
+
+    class AcceptedCoordinator:
+        def propose(self, **_kwargs):
+            return packet
+
+    metric_context = _theory_informed_metric_context_fixture()
+    routed = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=AcceptedCoordinator(),  # type: ignore[arg-type]
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            n_runs=17,
+        ),
+    ).run(
+        AgentTask(
+            task_id="architect-metric-protocol:accepted",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Route an independently accepted protocol to execution.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": metric_context,
+            },
+        ),
+        BlackboardState(project_id="metric-protocol-accepted"),
+    )
+    assert routed.next_task is not None
+    assert routed.next_task.owner_subsystem == "SimulationEvaluator"
+    assert routed.next_task.inputs["theory_packet_id"] == (
+        "theory_derivation:structured"
+    )
+    routing = routed.next_task.inputs["architect_context"][
+        "architect_initial_routing"
+    ]
+    assert routing["source"] == "theory_informed_metric_protocol_accepted"
 
 
 def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> None:
@@ -21329,7 +21661,7 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
         ),
     ).propose(
         question=question,
-        architect_context={},
+        architect_context=_theory_informed_metric_context_fixture(),
         runtime_config={
             "evaluation_mode": "capability_eval",
             "formal_verification_policy": "required",
@@ -21367,7 +21699,97 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
     assert authoring["semantic_review_history"][1][
         "empirical_metric_requirements"
     ] == accepted_rows
+    assert authoring["semantic_review_history"][1][
+        "source_theory_packet_id"
+    ] == "theory_derivation:structured"
     assert validate_architect_coordinator_packet(packet) == []
+
+
+def test_architect_runtime_persists_preexecution_metric_review_rejection() -> None:
+    from ai_statistician.architect_metric_contract_authoring import (
+        ArchitectMetricSemanticReviewRejected,
+    )
+
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    history = [
+        {
+            "revision_index": 0,
+            "authoring_packet_id": "metric-authoring:rejected",
+            "authoring_packet_hash": "authoring-hash",
+            "empirical_metric_requirement_set_id": "metric-set:rejected",
+            "empirical_metric_requirements": [
+                {
+                    "requirement_id": "generic:finite_sample_gate",
+                    "threshold": 1e-12,
+                }
+            ],
+            "semantic_review_packet_id": "metric-review:rejected",
+            "semantic_review_packet_hash": "review-hash",
+            "overall_verdict": "REVISE",
+            "dimension_reviews": [
+                {
+                    "dimension": "finite_sample_attainability_and_calibration",
+                    "status": "FAIL",
+                    "rationale": "The gate is unattainable at the fixed budget.",
+                }
+            ],
+            "findings": [
+                {
+                    "severity": "high",
+                    "category": "finite_sample_calibration",
+                    "summary": "The threshold is unsupported.",
+                    "required_change": "Re-derive the finite-sample gate.",
+                }
+            ],
+            "repair_instructions": [
+                "Re-derive the finite-sample gate before execution."
+            ],
+        }
+    ]
+
+    class RejectingCoordinator:
+        def propose(self, **_kwargs):
+            raise ArchitectMetricSemanticReviewRejected(
+                question_id=question.id,
+                semantic_review_history=history,
+            )
+
+    result = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=RejectingCoordinator(),  # type: ignore[arg-type]
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval"
+        ),
+    ).run(
+        AgentTask(
+            task_id="architect:metric-preexecution-rejection",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Freeze a reviewed pre-execution metric protocol.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": {},
+            },
+        ),
+        BlackboardState(project_id="metric-preexecution-rejection"),
+    )
+
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
+    assert result.failure_classification == (
+        "architect_metric_protocol_preexecution_rejected"
+    )
+    manifest = next(iter(result.produced_artifacts.values()))
+    assert manifest["artifact_kind"] == (
+        "RuntimeArchitectMetricProtocolPreExecutionRejection"
+    )
+    assert manifest["semantic_review_history"] == history
+    assert manifest["execution_authorized"] is False
+    assert manifest["generated_code_observed"] is False
+    assert manifest["simulation_results_observed"] is False
+    assert manifest["current_candidate_acceptance_eligible"] is False
+    assert manifest["feedback_reusable_for_fresh_preexecution_authoring"] is True
+    assert result.evidence_entries[0].payload["kernel_verified"] is False
 
 
 def test_source_theorem_promotion_planning_is_structured_and_task_agnostic() -> None:

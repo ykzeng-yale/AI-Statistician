@@ -25,10 +25,42 @@ from .llm_json_repair import (
     generate_validated_json_packet,
 )
 from .model_backend import GeneratorBackend, GeneratorRequest
+from .metric_protocol_stage import (
+    METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED,
+)
 from .research_schema import OpenResearchQuestion
 
 
 ARCHITECT_METRIC_REQUIREMENT_AUTHORING_SCHEMA_VERSION = 1
+
+
+class ArchitectMetricSemanticReviewRejected(PacketValidationError):
+    """Bounded pre-execution metric authoring exhausted without acceptance."""
+
+    def __init__(
+        self,
+        *,
+        question_id: str,
+        semantic_review_history: list[dict[str, Any]],
+    ) -> None:
+        history = [dict(row) for row in semantic_review_history]
+        last_review = history[-1] if history else {}
+        self.question_id = str(question_id)
+        self.semantic_review_history = history
+        super().__init__(
+            validation_label="Architect pre-execution metric semantic review",
+            attempts=len(history),
+            errors=[
+                "independent semantic reviewer did not accept any metric contract "
+                f"candidate after {len(history)} attempt(s)",
+                *[
+                    str(value)
+                    for value in last_review.get("repair_instructions", [])
+                    if str(value).strip()
+                ],
+            ],
+            history=history,
+        )
 
 
 @dataclass(frozen=True)
@@ -48,6 +80,7 @@ def author_reviewed_architect_metric_requirements(
     semantic_reviewer: LLMArchitectMetricSemanticReviewerAgent | None,
     question: OpenResearchQuestion,
     runtime_contract: Mapping[str, Any],
+    theory_protocol_material: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     if (
         runtime_contract.get("capability_eval_requires_typed_metric_contracts")
@@ -57,10 +90,37 @@ def author_reviewed_architect_metric_requirements(
         != "anthropic"
     ):
         return {}
+    if (
+        runtime_contract.get("empirical_metric_protocol_phase")
+        != METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED
+    ):
+        return {}
     if semantic_reviewer is None:
         raise ValueError(
             "capability-eval metric authoring requires an independent "
             "ArchitectMetricSemanticReviewer"
+        )
+
+    theory_material = (
+        dict(theory_protocol_material)
+        if isinstance(theory_protocol_material, Mapping)
+        else {}
+    )
+    if (
+        theory_material.get("artifact_kind")
+        != "RuntimeTheoryInformedMetricProtocolMaterial"
+        or theory_material.get("execution_results_available") is not False
+        or not str(
+            theory_material.get("source_theory_packet_id", "") or ""
+        ).strip()
+        or not isinstance(
+            theory_material.get("theory_semantic_material"), Mapping
+        )
+        or not theory_material.get("theory_semantic_material")
+    ):
+        raise ValueError(
+            "theory-informed metric authoring requires a structured, pre-execution "
+            "TheoryDeveloper semantic handoff"
         )
 
     runtime_replicates = int(
@@ -89,6 +149,7 @@ def author_reviewed_architect_metric_requirements(
             "description": question.description,
             "tags": list(question.tags),
         },
+        "theory_developer_protocol_material": theory_material,
         "runtime_owned_replicates": runtime_replicates,
         "target_namespace": generated_metric_requirement_target_namespace_contract(),
         "metric_evaluation_semantics": (
@@ -132,6 +193,12 @@ def author_reviewed_architect_metric_requirements(
                 "definitions and assumptions instead of relying on a memorized "
                 "approximation; place a concise derivation or exact source anchor in "
                 "source_anchors."
+            ),
+            (
+                "Bind every procedure, estimand, data-generating regime, pivot, and "
+                "calibration assumption to theory_developer_protocol_material. Do "
+                "not invent an unspecified estimator, test, stopping strategy, or "
+                "reference distribution merely to make a gate executable."
             ),
             (
                 "Audit mathematical feasibility before freezing each row: the "
@@ -256,6 +323,12 @@ def author_reviewed_architect_metric_requirements(
                     )[:20]
                 ),
                 "question_id": question.id,
+                "source_theory_packet_id": str(
+                    theory_material.get("source_theory_packet_id", "") or ""
+                ),
+                "source_theory_packet_hash": str(
+                    theory_material.get("source_theory_packet_hash", "") or ""
+                ),
                 "source_agent": "ArchitectMetricContractPlanner",
                 "provider_name": response.provider,
                 "model": response.model or request_model,
@@ -320,6 +393,7 @@ def author_reviewed_architect_metric_requirements(
             "metric_evaluation_semantics": (
                 generated_metric_evaluation_semantics_contract()
             ),
+            "theory_developer_protocol_material": theory_material,
             "empirical_metric_requirements": [
                 dict(row)
                 for row in authoring_packet.get(
@@ -342,6 +416,12 @@ def author_reviewed_architect_metric_requirements(
                 "empirical_metric_requirement_set_id": str(
                     authoring_packet["empirical_metric_requirement_set_id"]
                 ),
+                "source_theory_packet_id": str(
+                    theory_material.get("source_theory_packet_id", "") or ""
+                ),
+                "source_theory_packet_hash": str(
+                    theory_material.get("source_theory_packet_hash", "") or ""
+                ),
                 "source_agent": str(authoring_packet["source_agent"]),
                 "source_model": str(authoring_packet["model"]),
                 "source_model_tier": str(authoring_packet["model_tier"]),
@@ -355,6 +435,12 @@ def author_reviewed_architect_metric_requirements(
                 "authoring_packet_hash": authoring_packet_hash,
                 "empirical_metric_requirement_set_id": str(
                     authoring_packet["empirical_metric_requirement_set_id"]
+                ),
+                "source_theory_packet_id": str(
+                    theory_material.get("source_theory_packet_id", "") or ""
+                ),
+                "source_theory_packet_hash": str(
+                    theory_material.get("source_theory_packet_hash", "") or ""
                 ),
                 "empirical_metric_requirements": [
                     dict(row)
@@ -412,18 +498,7 @@ def author_reviewed_architect_metric_requirements(
         prior_authoring_packet = authoring_packet
         prior_review_packet = semantic_review_packet
 
-    last_review = semantic_review_history[-1] if semantic_review_history else {}
-    raise PacketValidationError(
-        validation_label="Architect pre-execution metric semantic review",
-        attempts=len(semantic_review_history),
-        errors=[
-            "independent semantic reviewer did not accept any metric contract "
-            f"candidate after {len(semantic_review_history)} attempt(s)",
-            *[
-                str(value)
-                for value in last_review.get("repair_instructions", [])
-                if str(value).strip()
-            ],
-        ],
-        history=semantic_review_history,
+    raise ArchitectMetricSemanticReviewRejected(
+        question_id=question.id,
+        semantic_review_history=semantic_review_history,
     )

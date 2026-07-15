@@ -36,6 +36,9 @@ from .architect_coordinator_llm import (
     architect_capability_gap_routing_agenda,
     architect_formal_target_is_completion_placeholder,
 )
+from .architect_metric_contract_authoring import (
+    ArchitectMetricSemanticReviewRejected,
+)
 from .algorithm_engineer_llm import (
     ALGORITHM_ENGINEER_BOUNDARY,
     ALGORITHM_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
@@ -83,6 +86,12 @@ from .generated_code_semantic_review_replan import (
 )
 from .evaluation_protocol_revision import (
     _architect_post_result_metric_protocol_revision_result,
+    architect_preexecution_metric_protocol_rejection_result,
+)
+from .metric_protocol_stage import (
+    METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED,
+    METRIC_PROTOCOL_PHASE_THEORY_PREREQUISITE_PENDING,
+    build_theory_informed_metric_protocol_material,
 )
 from .formal_target_semantic_reviewer_llm import (
     FORMAL_TARGET_SEMANTIC_REVIEW_BOUNDARY,
@@ -8031,15 +8040,26 @@ class ArchitectCoordinatorRuntimeSubsystem:
         )
         if protocol_revision_result is not None:
             return protocol_revision_result
+        context = _architect_context_with_rehydrated_metric_protocol_theory_material(
+            architect_context=context,
+            blackboard=blackboard,
+        )
         runtime_config_payload = asdict(self.runtime_config)
         runtime_config_payload["exact_source_theorem_prover_available"] = (
             self.exact_source_theorem_prover_available
         )
-        packet = self.coordinator.propose(
-            question=question,
-            architect_context=context,
-            runtime_config=runtime_config_payload,
-        )
+        try:
+            packet = self.coordinator.propose(
+                question=question,
+                architect_context=context,
+                runtime_config=runtime_config_payload,
+            )
+        except ArchitectMetricSemanticReviewRejected as exc:
+            return architect_preexecution_metric_protocol_rejection_result(
+                task=task,
+                question=question,
+                semantic_review_history=exc.semantic_review_history,
+            )
         packet_id = str(packet["packet_id"])
         context["architect_coordinator_proposal_id"] = packet_id
         capability_gap_routing_agenda = architect_capability_gap_routing_agenda(
@@ -8148,6 +8168,70 @@ class ArchitectCoordinatorRuntimeSubsystem:
         )
 
 
+def _architect_context_with_rehydrated_metric_protocol_theory_material(
+    *,
+    architect_context: Mapping[str, Any],
+    blackboard: BlackboardState,
+) -> dict[str, Any]:
+    context = dict(architect_context)
+    existing = context.get("architect_metric_protocol_theory_material", {})
+    if isinstance(existing, Mapping) and existing:
+        return context
+    theory_packet_id = _architect_context_theory_packet_id(context)
+    if not theory_packet_id:
+        return context
+    theory_packet = blackboard.artifacts.get(theory_packet_id, {})
+    if not isinstance(theory_packet, Mapping) or not theory_packet:
+        return context
+    context["architect_metric_protocol_theory_material"] = (
+        build_theory_informed_metric_protocol_material(
+            theory_packet=theory_packet,
+            theory_packet_id=theory_packet_id,
+        )
+    )
+    prior_contract = _architect_runtime_plan(context).get("evidence_contract", {})
+    if not isinstance(prior_contract, Mapping):
+        prior_contract = {}
+    accepted_authoring = context.get(
+        "architect_metric_requirement_authoring", {}
+    )
+    accepted_authoring_authorized = bool(
+        isinstance(accepted_authoring, Mapping)
+        and accepted_authoring.get("empirical_metric_requirements")
+        and accepted_authoring.get("semantic_review_status") == "ACCEPT"
+        and accepted_authoring.get("semantic_review_independent_agent") is True
+        and accepted_authoring.get("semantic_review_independent_model") is True
+        and accepted_authoring.get("semantic_review_independent_model_tier") is True
+    )
+    metric_protocol_already_authorized = bool(
+        (
+            prior_contract.get("empirical_metric_requirements")
+            and prior_contract.get("metric_protocol_execution_authorized") is True
+        )
+        or accepted_authoring_authorized
+    )
+    if not metric_protocol_already_authorized:
+        context.setdefault(
+            "architect_metric_protocol_gate",
+            {
+                "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+                "source_theory_packet_id": theory_packet_id,
+                "required_disposition": "PREEXECUTION_REVIEW_ACCEPTED",
+                "execution_authorized": False,
+                "rehydrated_from_blackboard": True,
+                "proof_evidence_status": (
+                    "ARCHITECT_METRIC_PROTOCOL_GATE_NOT_PROOF_EVIDENCE"
+                ),
+                "boundary": (
+                    "A prior TheoryDeveloper artifact was rehydrated for "
+                    "pre-execution metric authoring. Rehydration does not authorize "
+                    "execution or promote the theory proposal to proof evidence."
+                ),
+            },
+        )
+    return context
+
+
 def _architect_initial_routing_decision(
     *,
     question: OpenResearchQuestion,
@@ -8215,6 +8299,20 @@ def _architect_initial_routing_decision(
             deferred_meta_gap.get("requested_next_owner_subsystem", "")
         )
     context["architect_initial_routing"] = record
+    if record["source"] == "theory_informed_metric_protocol_accepted":
+        metric_gate = context.get("architect_metric_protocol_gate", {})
+        if isinstance(metric_gate, Mapping):
+            consumed_gate = dict(metric_gate)
+            consumed_gate["execution_authorized"] = True
+            consumed_gate["consumed"] = True
+            consumed_gate["accepted_requirement_set_id"] = str(
+                packet.get("evidence_contract", {}).get(
+                    "empirical_metric_requirement_set_id", ""
+                )
+                if isinstance(packet.get("evidence_contract", {}), Mapping)
+                else ""
+            )
+            context["architect_metric_protocol_gate"] = consumed_gate
     if selected["selected_subsystem"] == "TheoryDeveloper":
         feedback = selected.get("environment_feedback")
         if not feedback and selected.get("gap_row"):
@@ -8674,7 +8772,60 @@ def _architect_select_initial_subsystem(
     blackboard: BlackboardState,
     question_id: str = "",
 ) -> dict[str, Any]:
+    evidence_contract = packet.get("evidence_contract", {})
+    if not isinstance(evidence_contract, Mapping):
+        evidence_contract = {}
+    metric_protocol_phase = str(
+        evidence_contract.get("empirical_metric_protocol_phase", "") or ""
+    )
+    requested_for_metric_gate = _architect_packet_requested_subsystem(packet)
     gap_selection = _architect_capability_gap_requested_subsystem(architect_context)
+    if (
+        metric_protocol_phase
+        == METRIC_PROTOCOL_PHASE_THEORY_PREREQUISITE_PENDING
+        and evidence_contract.get("metric_protocol_execution_authorized") is False
+    ):
+        has_retrieval_context = bool(
+            architect_context.get("retrieval_memory_manifest_id")
+            or architect_context.get("retrieval_context")
+        )
+        pending_selection: dict[str, Any] = {
+            "requested_subsystem": str(
+                gap_selection.get("requested_subsystem", "")
+                if gap_selection
+                and gap_selection.get("meta_capability_gap_only") is not True
+                else requested_for_metric_gate
+            ),
+            "selected_subsystem": (
+                "TheoryDeveloper" if has_retrieval_context else "RetrievalMemory"
+            ),
+            "source": "metric_protocol_theory_prerequisite",
+            "requires_prerequisite_theory": True,
+        }
+        if gap_selection.get("gap_row"):
+            pending_selection["gap_row"] = gap_selection["gap_row"]
+        deferred_meta_gap = gap_selection.get("deferred_meta_capability_gap")
+        if isinstance(deferred_meta_gap, Mapping) and deferred_meta_gap:
+            pending_selection["deferred_meta_capability_gap"] = dict(
+                deferred_meta_gap
+            )
+        return pending_selection
+    metric_gate = architect_context.get("architect_metric_protocol_gate", {})
+    if (
+        isinstance(metric_gate, Mapping)
+        and metric_gate.get("artifact_kind")
+        == "RuntimeArchitectMetricProtocolGate"
+        and metric_gate.get("consumed") is not True
+        and metric_protocol_phase
+        == METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED
+        and evidence_contract.get("metric_protocol_execution_authorized") is True
+    ):
+        return {
+            "requested_subsystem": requested_for_metric_gate,
+            "selected_subsystem": "SimulationEvaluator",
+            "source": "theory_informed_metric_protocol_accepted",
+            "requires_prerequisite_theory": False,
+        }
     if gap_selection:
         if gap_selection.get("meta_capability_gap_only") is True:
             requested = _architect_packet_requested_subsystem(packet)
@@ -10515,7 +10666,7 @@ class TheoryDeveloperRuntimeSubsystem:
                 "theory_derivation_contract": theory_derivation_contract,
             },
         )
-        next_task = AgentTask(
+        simulation_task = AgentTask(
             task_id=f"simulation:{question.id}:{stable_hash(packet_id)[:8]}",
             owner_subsystem="SimulationEvaluator",
             objective=(
@@ -10542,9 +10693,83 @@ class TheoryDeveloperRuntimeSubsystem:
             ),
             stop_condition="simulation diagnostics recorded or rerouted to TheoryDeveloper",
         )
+        evidence_contract = _architect_runtime_plan(context).get(
+            "evidence_contract", {}
+        )
+        if not isinstance(evidence_contract, Mapping):
+            evidence_contract = {}
+        requires_metric_protocol_gate = bool(
+            evidence_contract.get(
+                "capability_eval_requires_typed_metric_contracts"
+            )
+            is True
+            and evidence_contract.get("empirical_metric_requirements")
+            in (None, [], {})
+            and evidence_contract.get("metric_protocol_execution_authorized")
+            is not True
+        )
+        if requires_metric_protocol_gate:
+            context["theory_packet_id"] = packet_id
+            context["architect_metric_protocol_theory_material"] = (
+                build_theory_informed_metric_protocol_material(
+                    theory_packet=packet,
+                    theory_packet_id=packet_id,
+                )
+            )
+            context["architect_metric_protocol_gate"] = {
+                "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+                "source_theory_packet_id": packet_id,
+                "deferred_next_task": asdict(simulation_task),
+                "required_disposition": "PREEXECUTION_REVIEW_ACCEPTED",
+                "execution_authorized": False,
+                "proof_evidence_status": (
+                    "ARCHITECT_METRIC_PROTOCOL_GATE_NOT_PROOF_EVIDENCE"
+                ),
+                "boundary": (
+                    "Theory is available, but generated code and simulation remain "
+                    "blocked until Architect metric authoring passes independent "
+                    "pre-execution semantic review."
+                ),
+            }
+            next_task = AgentTask(
+                task_id=(
+                    f"architect-metric-protocol:{question.id}:"
+                    f"{stable_hash([task.task_id, packet_id])[:8]}"
+                ),
+                owner_subsystem="ArchitectCoordinator",
+                objective=(
+                    "Author and independently review a theory-informed empirical "
+                    "metric protocol before any generated code or simulation runs."
+                ),
+                inputs={
+                    "question": _question_to_payload(question),
+                    "architect_context": context,
+                },
+                allowed_tools=("model_backend", "blackboard", "evidence_ledger"),
+                expected_artifacts=(
+                    "architect_coordinator_proposal",
+                    "architect_metric_requirement_authoring",
+                    "architect_metric_semantic_review",
+                ),
+                acceptance_gate=(
+                    "theory-bound metric requirements receive an independent ACCEPT "
+                    "certificate before execution is authorized"
+                ),
+                stop_condition=(
+                    "reviewed protocol is accepted and routed to simulation, or a "
+                    "typed pre-execution rejection preserves the full review lineage"
+                ),
+            )
+        else:
+            next_task = simulation_task
         return AgentStepResult(
             status="REROUTE",
-            rationale="LLM TheoryDeveloper produced a proposal; runtime is routing it to executable simulation feedback.",
+            rationale=(
+                "LLM TheoryDeveloper produced a proposal; runtime is routing it to "
+                "the theory-informed pre-execution metric gate."
+                if requires_metric_protocol_gate
+                else "LLM TheoryDeveloper produced a proposal; runtime is routing it to executable simulation feedback."
+            ),
             produced_artifacts={packet_id: packet},
             observations=(
                 EnvironmentObservation(

@@ -411,6 +411,31 @@ evidence motivated the independent pre-execution reviewer and explicit
 post-result protocol disposition above. A new cross-family live run is still
 required; unit and replay evidence cannot establish E2E readiness.
 
+The first reviewer-enabled v28 run failed before research execution because the
+new Anthropic structured-output enum nodes omitted explicit string types. That
+provider-schema defect was fixed and covered by an installed-SDK transform
+test. The subsequent v29 development run at commit `cd60e9c0` reached the live
+Sonnet author and independent Opus reviewer for both survival and sequential
+tasks, but all bounded candidates were rejected before code execution. The
+reviewer correctly identified procedure-dependent ambiguities: the planner had
+only the research question, because metric authoring still ran before
+TheoryDeveloper specified the estimator, pivot, stopping strategy, and sampling
+regime. Both tasks therefore failed at Architect iteration one with score
+73/125, zero generated executions, and zero proof claims. This is negative
+system evidence, not a reason to add survival or sequential formulas.
+
+The control plane now uses a typed three-phase gate. The initial plan may carry
+an empty requirement set only while `theory_prerequisite_pending` and execution
+is unauthorized. TheoryDeveloper routes a lossless semantic handoff back to
+Architect; the metric author and reviewer consume that material before an
+accepted requirement set can authorize SimulationEvaluator. Rejected histories
+are persisted as `RuntimeArchitectMetricProtocolPreExecutionRejection`
+artifacts, including every candidate, review dimension, finding, instruction,
+and hash. Existing theory artifacts are rehydrated from the blackboard on
+resume, and the accepted gate is consumed once so it cannot override later
+replans. A fresh cross-family run is still required; local tests do not
+establish E2E readiness.
+
 ## Reuse Rules
 
 An external mechanism may enter the default runtime only when all of the
