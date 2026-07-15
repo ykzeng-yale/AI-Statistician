@@ -32,6 +32,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     _adapter_targets_match,
     _available_formal_declaration_rows_for_context,
     _generator_model_for_request,
+    _formal_gap_boundary_is_anchored,
     _prompt_token_budget_preflight_errors,
     _prompt_token_budget_row,
     _prior_staged_followup_stage_dependencies_match,
@@ -16858,6 +16859,19 @@ def test_llm_route_planner_rejects_unanchored_formal_gap_boundary() -> None:
     assert "formal_gap_boundary must name the affected primitive" in error_text
     assert "formal_realization_dag_nodes[1]" in error_text
     assert "standalone_route.primitives[1]" in error_text
+
+
+def test_formal_gap_boundary_accepts_exact_short_structured_id() -> None:
+    row = {"primitive": "n2"}
+
+    assert _formal_gap_boundary_is_anchored(
+        "Cannot close primitive n2 until its bridge lemma is materialized.",
+        row,
+    )
+    assert not _formal_gap_boundary_is_anchored(
+        "Needs further investigation before adoption by the verification team.",
+        row,
+    )
 
 
 def test_llm_route_planner_rejects_source_backed_node_without_source_ref() -> None:

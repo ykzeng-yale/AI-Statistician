@@ -101810,6 +101810,16 @@ def test_capability_eval_full_live_preserves_explicit_gap_planner_timeout() -> N
     assert args.formalization_gap_planner_live_timeout_seconds == 45.0
 
 
+def test_capability_eval_full_live_gives_gap_planner_long_call_timeout() -> None:
+    args = _capability_eval_preset_args("full-live")
+    args.llm_timeout_seconds = 120.0
+    args.formalization_gap_planner_live_timeout_seconds = None
+
+    _apply_research_agent_runtime_capability_eval_preset(args)
+
+    assert args.formalization_gap_planner_live_timeout_seconds == 240.0
+
+
 def test_capability_eval_rejects_static_component_repair_gate_provider() -> None:
     args = _capability_eval_preset_args("minimal-live")
     _apply_research_agent_runtime_capability_eval_preset(args)

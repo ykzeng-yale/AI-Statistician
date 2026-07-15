@@ -22837,6 +22837,8 @@ def _formal_gap_boundary_is_anchored(
     boundary: str,
     row: Mapping[str, Any],
 ) -> bool:
+    if _formal_gap_boundary_has_exact_identity_anchor(boundary, row):
+        return True
     boundary_tokens = _formal_gap_boundary_anchor_tokens_from_text(boundary)
     if not boundary_tokens:
         return False
@@ -22844,6 +22846,47 @@ def _formal_gap_boundary_is_anchored(
     if not anchor_tokens:
         return False
     return bool(boundary_tokens & anchor_tokens)
+
+
+def _formal_gap_boundary_has_exact_identity_anchor(
+    boundary: str,
+    row: Mapping[str, Any],
+) -> bool:
+    boundary_terms = tuple(
+        re.findall(r"[a-z0-9]+", str(boundary or "").lower())
+    )
+    if not boundary_terms:
+        return False
+    identity_values: list[str] = []
+    for field_name in (
+        "primitive",
+        "primitives",
+        "target_primitive",
+        "target_primitives",
+        "residual_primitive",
+        "residual_primitives",
+        "declaration",
+        "candidate_declarations",
+        "node_id",
+        "route_id",
+    ):
+        identity_values.extend(_str_tuple(row.get(field_name, [])))
+    for value in identity_values:
+        anchor_terms = tuple(re.findall(r"[a-z0-9]+", value.lower()))
+        if not anchor_terms:
+            continue
+        if len(anchor_terms) == 1 and (
+            len(anchor_terms[0]) < 2
+            or anchor_terms[0] in FORMAL_GAP_BOUNDARY_TEXT_STOPWORDS
+        ):
+            continue
+        width = len(anchor_terms)
+        if any(
+            boundary_terms[index : index + width] == anchor_terms
+            for index in range(len(boundary_terms) - width + 1)
+        ):
+            return True
+    return False
 
 
 def _formal_gap_boundary_anchor_tokens(row: Mapping[str, Any]) -> set[str]:

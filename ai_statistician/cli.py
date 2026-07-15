@@ -531,6 +531,9 @@ _OPERATOR_DOTENV_FILENAMES = (
     "api_keys_AI_statistician.md",
 )
 FULL_LIVE_MIN_AGENT_RUNTIME_ITERATIONS = 24
+FULL_LIVE_MIN_GAP_PLANNER_PROVIDER_TIMEOUT_SECONDS = (
+    DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS * 2.0
+)
 
 
 def _resolve_dotenv_path(path: Path | str | None) -> Path:
@@ -14271,6 +14274,7 @@ def _apply_research_agent_runtime_capability_eval_preset(
         ):
             args.formalization_gap_planner_live_timeout_seconds = max(
                 1.0,
+                FULL_LIVE_MIN_GAP_PLANNER_PROVIDER_TIMEOUT_SECONDS,
                 float(
                     getattr(
                         args,

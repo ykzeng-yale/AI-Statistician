@@ -311,6 +311,46 @@ through v8: both survival and sequential tasks ended `BLOCKED`, with a
 gaps, and zero exact source-theorem closures. The held-out panel remains unrun,
 and no panel result has been promoted to exact source-theorem evidence.
 
+## July 15 Planner Follow-Through Evidence
+
+The live Formalizer PF/BV component run
+`main_worker_formalizer_pf_dynamic_schema_20260714_v23_source_anchor_envelope`
+produced a validator-accepted, source-anchored pseudo-formal packet with four
+work-order rows and three routable rows. Its evidence status remains explicitly
+non-proof; it did not establish a Lean theorem.
+
+Fresh development-panel run v24 reached generated simulation, independent
+semantic review, generated algorithm execution, Formalizer, local Lean/LSP
+feedback, ProofEngineer, and contract-valid GapPlanner actions in both the
+survival and sequential families. Both tasks then failed at the same generic
+handoff defect: contract-revision tasks discarded the upstream theory,
+simulation, and algorithm artifact IDs. The run ended `BLOCKED` 2/2 with an
+88/125 scorecard, zero kernel-verified subclaims, four formal gaps, and zero
+exact source-theorem closures. Commit `d9f04875` changed the revision task to
+inherit the current typed inputs and added a runtime regression for all three
+artifact IDs; the complete 1,110-test runtime file passed before the commit.
+
+Fresh v25 behaviorally confirmed that correction: the sequential task completed
+two lineage-bound contract revisions without the prior
+`formalization_gap_planner_action_upstream_lineage_missing` failure. It instead
+failed closed after the staged response contract remained incomplete. The only
+remaining stage error rejected a substantive boundary that explicitly named
+the short structured primitive ID `t1`; the old anchor heuristic ignored all
+tokens shorter than four characters. The current correction admits exact
+token-sequence matches against structured primitive/declaration/node/route IDs
+while retaining placeholder and unrelated-prose rejection. Replaying the exact
+v25 stage artifact changes the boundary result from rejected to anchored without
+altering its generated content.
+
+The v25 survival task independently exposed a provider-budget problem: both
+large route-planner calls returned zero tokens after the ordinary 120-second
+model timeout. Full-live now gives an otherwise unspecified GapPlanner call a
+240-second provider budget while preserving explicit operator overrides. v25
+ended `BLOCKED` 2/2 with a 95/125 scorecard; both generated simulations and both
+generated algorithms executed and passed independent semantic review, but
+kernel-verified subclaims and exact source-theorem closures remained zero. The
+PCA/extremes held-out panel therefore remains locked.
+
 ## Reuse Rules
 
 An external mechanism may enter the default runtime only when all of the
