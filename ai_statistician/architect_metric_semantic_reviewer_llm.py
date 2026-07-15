@@ -193,8 +193,14 @@ _DIMENSION_REVIEW_SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
     "required": ["dimension", "status", "rationale", "evidence_refs"],
     "properties": {
-        "dimension": {"enum": list(ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS)},
-        "status": {"enum": ["PASS", "FAIL", "UNCERTAIN"]},
+        "dimension": {
+            "type": "string",
+            "enum": list(ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS),
+        },
+        "status": {
+            "type": "string",
+            "enum": ["PASS", "FAIL", "UNCERTAIN"],
+        },
         "rationale": {"type": "string", "minLength": 1},
         "evidence_refs": {
             "type": "array",
@@ -216,7 +222,10 @@ _FINDING_SCHEMA: dict[str, Any] = {
         "evidence_refs",
     ],
     "properties": {
-        "severity": {"enum": ["low", "medium", "high", "critical"]},
+        "severity": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "critical"],
+        },
         "category": {"type": "string", "minLength": 1},
         "summary": {"type": "string", "minLength": 1},
         "required_change": {"type": "string", "minLength": 1},
@@ -247,7 +256,10 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
             "items": _DIMENSION_REVIEW_SCHEMA,
         },
         "findings": {"type": "array", "items": _FINDING_SCHEMA},
-        "overall_verdict": {"enum": ["ACCEPT", "REVISE"]},
+        "overall_verdict": {
+            "type": "string",
+            "enum": ["ACCEPT", "REVISE"],
+        },
         "repair_instructions": {
             "type": "array",
             "items": {"type": "string", "minLength": 1},

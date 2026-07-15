@@ -6,6 +6,7 @@ import pytest
 
 from ai_statistician.architect_metric_semantic_reviewer_llm import (
     ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS,
+    ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA,
     ArchitectMetricSemanticReviewerConfig,
     LLMArchitectMetricSemanticReviewerAgent,
     validate_architect_metric_semantic_review_packet,
@@ -146,3 +147,14 @@ def test_preexecution_metric_reviewer_fails_closed_when_model_is_not_independent
         _review(accept=True, reviewer_model="claude-sonnet-4-6")
 
     assert "requires an independent model" in str(exc_info.value)
+
+
+def test_metric_review_schema_transforms_for_anthropic_structured_output() -> None:
+    anthropic = pytest.importorskip("anthropic")
+
+    transformed = anthropic.transform_schema(
+        ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA
+    )
+
+    assert transformed["type"] == "object"
+    assert transformed["properties"]["overall_verdict"]["type"] == "string"
