@@ -37,7 +37,11 @@ def _question() -> OpenResearchQuestion:
     )
 
 
-def _review_response(*, accept: bool) -> dict[str, object]:
+def _review_response(
+    *,
+    accept: bool,
+    repair_scope: str = "source_code",
+) -> dict[str, object]:
     rows = [
         {
             "dimension": dimension,
@@ -66,14 +70,22 @@ def _review_response(*, accept: bool) -> dict[str, object]:
         "dimension_reviews": rows,
         "findings": findings,
         "overall_verdict": "ACCEPT" if accept else "REVISE",
+        "repair_scope": "none" if accept else repair_scope,
         "repair_owner": "AlgorithmEngineer",
         "repair_instructions": instructions,
     }
 
 
-def _reviewer(*, accept: bool, model: str = "static-opus-reviewer"):
+def _reviewer(
+    *,
+    accept: bool,
+    model: str = "static-opus-reviewer",
+    repair_scope: str = "source_code",
+):
     return LLMGeneratedCodeSemanticReviewerAgent(
-        provider=StaticJSONGeneratorBackend(_review_response(accept=accept)),
+        provider=StaticJSONGeneratorBackend(
+            _review_response(accept=accept, repair_scope=repair_scope)
+        ),
         config=GeneratedCodeSemanticReviewerConfig(
             provider_name="static",
             model=model,
@@ -90,6 +102,7 @@ def _runtime_fixture(
     capability_eval: bool = False,
     reviewer_model: str = "static-opus-reviewer",
     metric_failed: bool = False,
+    repair_scope: str = "source_code",
 ):
     question = _question()
     code = (
@@ -210,7 +223,11 @@ def _runtime_fixture(
         }
     )
     subsystem = GeneratedCodeSemanticReviewerRuntimeSubsystem(
-        reviewer=_reviewer(accept=accept, model=reviewer_model),
+        reviewer=_reviewer(
+            accept=accept,
+            model=reviewer_model,
+            repair_scope=repair_scope,
+        ),
         max_revisions=1,
     )
     return subsystem, dispatch["next_task"], blackboard, script_path
@@ -288,6 +305,8 @@ def test_semantic_reviewer_prompt_keeps_sibling_metrics_out_of_artifact_gate() -
     assert "requirements assigned to its author subsystem" in prompt
     assert "omitting a requirement assigned only to a sibling artifact" in prompt
     assert "reject any current-source proposal claim" in prompt
+    assert "repair_scope=upstream_contract_or_theory" in prompt
+    assert "does not authorize post-result threshold relaxation" in prompt
 
 
 def test_generated_code_semantic_reviewer_routes_rejection_to_fresh_generation(
@@ -385,6 +404,66 @@ def test_semantic_review_budget_exhaustion_resumes_deferred_architect_replan(
     )
     assert execution["semantic_review_accepted"] is False
     assert "accepted_generated_code_semantic_reviews" not in result.next_task.inputs
+
+
+def test_upstream_semantic_finding_routes_directly_to_architect(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        accept=False,
+        repair_scope="upstream_contract_or_theory",
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REROUTE"
+    assert result.failure_classification == (
+        "generated_code_semantic_review_upstream_repair_escalated_to_architect"
+    )
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["repair_scope"] == "upstream_contract_or_theory"
+    assert feedback["repair_owner_agent"] == "ArchitectCoordinator"
+    replan = result.next_task.inputs["architect_context"][
+        "runtime_generated_code_semantic_review_replan"
+    ]
+    assert replan["repair_scope"] == "upstream_contract_or_theory"
+    assert replan["source_manifest_id"] == "algorithm_sandbox_manifest:test"
+    assert replan["deferred_next_owner_subsystem"] == "FormalizationEvaluator"
+    assert "fresh candidate run" in replan["protocol_revision_policy"]
+    assert result.next_task.inputs[
+        "generated_code_semantic_review_revision_count"
+    ] == 0
+
+
+def test_source_semantic_revision_budget_escalates_even_without_deferred_architect(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accept=False)
+    work_order = blackboard.artifacts[str(task.inputs["work_order_id"])]
+    assert work_order["deferred_next_task"]["owner_subsystem"] == (
+        "FormalizationEvaluator"
+    )
+    work_order["review_revision_count"] = 1
+    task.inputs["work_order_hash"] = stable_hash(work_order)
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REROUTE"
+    assert result.failure_classification == (
+        "generated_code_semantic_review_revision_budget_escalated_to_architect"
+    )
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert result.next_task.inputs["environment_feedback"][
+        "semantic_review_revision_budget"
+    ] == {
+        "revisions_used": 1,
+        "max_revisions": 1,
+        "source_artifact_remains_unaccepted": True,
+    }
 
 
 def test_metric_failing_but_executed_code_is_independently_reviewed(
@@ -562,6 +641,34 @@ def test_semantic_review_validator_rejects_incomplete_dimension_set() -> None:
 
     assert any("each required dimension exactly once" in error for error in errors)
     assert any("overall_verdict must be ACCEPT" in error for error in errors)
+
+
+def test_semantic_review_validator_binds_upstream_scope_to_architect() -> None:
+    packet = {
+        **_review_response(
+            accept=False,
+            repair_scope="upstream_contract_or_theory",
+        ),
+        "proof_evidence_status": (
+            "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
+        ),
+        "kernel_verified": False,
+        "source_subsystem": "AlgorithmEngineer",
+        "work_order_id": "work-order:test",
+        "work_order_hash": "hash",
+        "source_manifest_id": "manifest:test",
+        "source_manifest_hash": "hash",
+        "review_input_fingerprint": "hash",
+    }
+
+    errors = validate_generated_code_semantic_review_packet(packet)
+
+    assert any(
+        "upstream semantic repair must route to ArchitectCoordinator" in error
+        for error in errors
+    )
+    packet["repair_owner"] = "ArchitectCoordinator"
+    assert validate_generated_code_semantic_review_packet(packet) == []
 
 
 def test_capability_scorecard_requires_both_independent_semantic_review_lanes() -> None:

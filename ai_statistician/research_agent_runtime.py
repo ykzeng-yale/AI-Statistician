@@ -76,6 +76,10 @@ from .generated_code_semantic_reviewer_llm import (
     LLMGeneratedCodeSemanticReviewerAgent,
     validate_generated_code_semantic_review_packet,
 )
+from .generated_code_semantic_review_replan import (
+    GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
+    build_generated_code_semantic_review_architect_replan_task,
+)
 from .formal_target_semantic_reviewer_llm import (
     FORMAL_TARGET_SEMANTIC_REVIEW_BOUNDARY,
     LLMFormalTargetSemanticReviewerAgent,
@@ -11361,7 +11365,6 @@ def _runtime_missing_formalization_handoff_result_if_needed(
     )
 
 
-GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM = "GeneratedCodeSemanticReviewer"
 GENERATED_CODE_SEMANTIC_REVIEW_AUTHOR_SUBSYSTEM_BY_RUNTIME_SOURCE = {
     "AlgorithmEngineer": "AlgorithmEngineer",
     "SimulationEvaluator": "SimulationEngineer",
@@ -12065,6 +12068,10 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         review_packet_id = str(review_packet.get("packet_id", "") or "")
         review_packet_hash = stable_hash(review_packet)
         verdict = str(review_packet.get("overall_verdict", "") or "")
+        repair_scope = str(review_packet.get("repair_scope", "") or "")
+        repair_owner_agent = str(
+            review_packet.get("repair_owner", "") or ""
+        )
         execution_id = "generated_code_semantic_review_execution:" + stable_hash(
             [work_order_id, work_order_hash, review_packet_id, review_packet_hash]
         )[:20]
@@ -12113,7 +12120,8 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 and reviewer_model != source_model
             ),
             "overall_verdict": verdict,
-            "repair_owner_agent": source_subsystem,
+            "repair_scope": repair_scope,
+            "repair_owner_agent": repair_owner_agent,
             "semantic_review_accepted": verdict == "ACCEPT",
             "review_revision_count": int(
                 work_order.get("review_revision_count", 0) or 0
@@ -12139,7 +12147,8 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "semantic_review_packet_id": review_packet_id,
             "semantic_review_packet_hash": review_packet_hash,
             "overall_verdict": verdict,
-            "repair_owner_agent": source_subsystem,
+            "repair_scope": repair_scope,
+            "repair_owner_agent": repair_owner_agent,
             "dimension_reviews": list(
                 review_packet.get("dimension_reviews", []) or []
             ),
@@ -12148,8 +12157,13 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 review_packet.get("repair_instructions", []) or []
             ),
             "required_repair": (
-                "Generate fresh code and rerun it under the same frozen Architect "
-                "measurement protocol while addressing every semantic finding."
+                "Route the exact findings to ArchitectCoordinator without changing "
+                "the frozen protocol in place; malformed requirements require a "
+                "versioned fresh candidate run."
+                if repair_scope == "upstream_contract_or_theory"
+                else "Generate fresh code and rerun it under the same frozen "
+                "Architect measurement protocol while addressing every semantic "
+                "finding."
             ),
             "proof_evidence_status": "NOT_PROOF_EVIDENCE",
             "evidence_boundary": GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
@@ -12209,7 +12223,10 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 "artifacts and the runtime is resuming the deferred task."
             )
             failure_classification = ""
-        elif revision_count < max_revisions:
+        elif (
+            repair_scope == "source_code"
+            and revision_count < max_revisions
+        ):
             repair_task = _agent_task_from_runtime_payload(repair_task_payload)
             next_inputs = dict(repair_task.inputs)
             prior_feedback = (
@@ -12276,106 +12293,56 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 "generation and execution."
             )
             failure_classification = "generated_code_semantic_review_revise"
-        elif str(deferred_task_payload.get("owner_subsystem", "") or "") == (
-            "ArchitectCoordinator"
-        ):
-            deferred_task = _agent_task_from_runtime_payload(deferred_task_payload)
-            next_inputs = dict(deferred_task.inputs)
-            prior_feedback = (
-                dict(next_inputs.get("environment_feedback", {}) or {})
-                if isinstance(next_inputs.get("environment_feedback", {}), Mapping)
-                else {}
+        else:
+            prior_feedback: dict[str, Any] = {}
+            for task_payload in (repair_task_payload, deferred_task_payload):
+                task_inputs = (
+                    task_payload.get("inputs", {})
+                    if isinstance(task_payload.get("inputs", {}), Mapping)
+                    else {}
+                )
+                task_feedback = task_inputs.get("environment_feedback", {})
+                if isinstance(task_feedback, Mapping):
+                    prior_feedback.update(dict(task_feedback))
+            escalation_classification = (
+                "generated_code_semantic_review_upstream_repair_escalated_to_architect"
+                if repair_scope == "upstream_contract_or_theory"
+                else "generated_code_semantic_review_revision_budget_escalated_to_architect"
             )
             escalation_feedback = {
                 **prior_feedback,
                 **feedback,
-                "failure_classification": (
-                    "generated_code_semantic_review_revision_budget_escalated_to_architect"
-                ),
+                "failure_classification": escalation_classification,
                 "semantic_review_revision_budget": {
                     "revisions_used": revision_count,
                     "max_revisions": max_revisions,
                     "source_artifact_remains_unaccepted": True,
                 },
             }
-            next_inputs["environment_feedback"] = escalation_feedback
-            next_inputs["generated_code_semantic_review_revision_count"] = (
-                revision_count
-            )
-            next_context = dict(next_inputs.get("architect_context", {}) or {})
-            next_context["environment_feedback"] = escalation_feedback
-            next_task_id = (
-                f"semantic-review-architect-replan:{question.id}:"
-                f"{stable_hash([execution_id, deferred_task.task_id])[:8]}"
-            )
-            handoff_revision_count = max(1, revision_count)
-            handoff_max_revisions = max(
-                handoff_revision_count,
-                max_revisions,
-            )
-            next_context["runtime_feedback_loop"] = {
-                **(
-                    dict(next_context.get("runtime_feedback_loop", {}) or {})
-                    if isinstance(
-                        next_context.get("runtime_feedback_loop", {}), Mapping
-                    )
-                    else {}
-                ),
-                "source_subsystem": GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
-                "handoff": "generated_code_semantic_review_architect_replan",
-                "semantic_review_execution_id": execution_id,
-                "generated_code_semantic_review_revision_count": revision_count,
-                "direct_repair_handoff_contract": (
-                    build_typed_repair_handoff_contract(
-                        source_reviewer_subsystem=(
-                            GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
-                        ),
-                        source_task_id=task.task_id,
-                        target_repair_subsystem=deferred_task.owner_subsystem,
-                        target_task_id=next_task_id,
-                        feedback_artifact_id=review_packet_id,
-                        feedback_artifact_kind=(
-                            "GeneratedCodeSemanticReviewPacket"
-                        ),
-                        feedback_execution_id=execution_id,
-                        feedback_execution_artifact_kind=(
-                            "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
-                        ),
-                        feedback_type=(
-                            "generated_code_semantic_review_feedback"
-                        ),
-                        revision_count=handoff_revision_count,
-                        max_revisions=handoff_max_revisions,
-                    )
-                ),
-            }
-            next_inputs["architect_context"] = next_context
-            next_task = replace(
-                deferred_task,
-                task_id=next_task_id,
-                inputs=next_inputs,
+            next_task = (
+                build_generated_code_semantic_review_architect_replan_task(
+                    question=question,
+                    review_task_id=task.task_id,
+                    work_order=work_order,
+                    escalation_feedback=escalation_feedback,
+                    review_packet_id=review_packet_id,
+                    review_execution_id=execution_id,
+                    revision_count=revision_count,
+                    max_revisions=max_revisions,
+                )
             )
             status = "REROUTE"
             rationale = (
-                "Generated code still failed independent semantic review after the "
-                "bounded local revision budget; the exact review and execution "
-                "lineage are routed to ArchitectCoordinator for cross-subsystem "
-                "replanning while the source artifact remains unaccepted."
+                "Independent semantic review found an upstream protocol or theory "
+                "blocker; exact findings and failed execution lineage are routed "
+                "to ArchitectCoordinator without post-result gate changes."
+                if repair_scope == "upstream_contract_or_theory"
+                else "Generated code still failed independent semantic review "
+                "after the bounded local revision budget; exact review and "
+                "execution lineage are routed to ArchitectCoordinator while the "
+                "source artifact remains unaccepted."
             )
-            failure_classification = (
-                "generated_code_semantic_review_revision_budget_escalated_to_architect"
-            )
-        else:
-            next_task = None
-            status = "BLOCKED"
-            rationale = (
-                "Generated code still failed independent semantic review after the "
-                "bounded revision budget; the runtime kept the capability blocker "
-                "open instead of accepting execution-only evidence."
-            )
-            failure_classification = (
-                "generated_code_semantic_review_revision_budget_exhausted"
-            )
+            failure_classification = escalation_classification
 
         evidence = EvidenceLedgerEntry(
             evidence_id="evidence:" + stable_hash([task.task_id, execution_id])[:20],
@@ -12394,6 +12361,8 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     work_order.get("source_manifest_id", "") or ""
                 ),
                 "overall_verdict": verdict,
+                "repair_scope": repair_scope,
+                "repair_owner_agent": repair_owner_agent,
                 "reviewer_model": reviewer_model,
                 "reviewer_model_tier": reviewer_tier,
                 "n_findings": len(review_packet.get("findings", []) or []),
@@ -22972,6 +22941,31 @@ def _formalizer_structural_response_validation_feedback(
     return {}
 
 
+FORMALIZATION_GAP_PLANNER_ACTION_BINDING_FEEDBACK_FIELDS = (
+    "formalization_gap_planner_action_work_order",
+    "formalization_gap_planner_action_work_order_id",
+    "formalization_gap_planner_action_work_order_hash",
+)
+
+
+def _formalizer_feedback_with_preserved_action_work_order_binding(
+    feedback: Mapping[str, Any],
+    *,
+    prior_environment_feedback: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    payload = dict(feedback)
+    if not isinstance(prior_environment_feedback, Mapping):
+        return payload
+    for field_name in FORMALIZATION_GAP_PLANNER_ACTION_BINDING_FEEDBACK_FIELDS:
+        value = prior_environment_feedback.get(field_name)
+        if isinstance(value, Mapping):
+            if value:
+                payload[field_name] = dict(value)
+        elif str(value or "").strip():
+            payload[field_name] = value
+    return payload
+
+
 def _formalizer_provider_failure_result(
     *,
     task: AgentTask,
@@ -23057,6 +23051,12 @@ def _formalizer_provider_failure_result(
         ),
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
     }
+    provider_feedback = (
+        _formalizer_feedback_with_preserved_action_work_order_binding(
+            provider_feedback,
+            prior_environment_feedback=environment_feedback,
+        )
+    )
     learning_row = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "RuntimeFormalizerProviderFailureLearningRow",
@@ -23995,6 +23995,10 @@ def _formalizer_packet_validation_failure_result(
         "proof_evidence_status": "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
     }
+    repair_feedback = _formalizer_feedback_with_preserved_action_work_order_binding(
+        repair_feedback,
+        prior_environment_feedback=prior_environment_feedback,
+    )
     target_ids = list(
         source_theorem_candidate_materialization_contract.get("target_ids", []) or []
     )
@@ -28012,7 +28016,10 @@ def _formalizer_lean_candidate_repair_feedback(
             feedback,
             prior_external_proof_search_result,
         )
-    return feedback
+    return _formalizer_feedback_with_preserved_action_work_order_binding(
+        feedback,
+        prior_environment_feedback=prior_feedback,
+    )
 
 
 def _enrich_repeated_formalizer_lean_candidate_feedback(

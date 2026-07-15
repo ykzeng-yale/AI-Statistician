@@ -308,6 +308,24 @@ def _author_architect_metric_requirements(
                 "minimum_pass_fraction describes how many comparisons must pass."
             ),
             (
+                "Before emitting any numeric constant, recompute it from the stated "
+                "definitions and assumptions instead of relying on a memorized "
+                "approximation; place a concise derivation or exact source anchor in "
+                "source_anchors."
+            ),
+            (
+                "Audit mathematical feasibility before freezing each row: the "
+                "comparison must be attainable for the named procedure, data-generating "
+                "regime, runtime budget, and estimand, and it must not contradict an "
+                "analytic bound or expectation stated by the same packet."
+            ),
+            (
+                "Translate the measurement_protocol into the evaluator's exact "
+                "operator-then-aggregation semantics and verify that its pass set is "
+                "equivalent to the prose, especially for upper versus lower limits "
+                "and at-most versus at-least counts."
+            ),
+            (
                 "Require raw measurements whenever they exist. Use bool/0/1 with "
                 "operator == and threshold 1 only for an intrinsically boolean "
                 "predicate."
@@ -687,6 +705,16 @@ def build_architect_coordinator_prompt(
         "that blocker explicitly. Do not rerun accepted upstream work merely to repair a "
         "coding-agent envelope, weaken its validator, or invent code, statistical "
         "results, Lean, or proof evidence in the Architect packet. "
+        "If architect_context.runtime_generated_code_semantic_review_replan is "
+        "present, use its exact independent findings, repair_scope, immutable review "
+        "lineage, and pending_artifact_ids as the current blocker. For source_code, "
+        "route a better-context fresh generation to the reviewed source subsystem. "
+        "For upstream_contract_or_theory, select the earliest upstream evidence owner. "
+        "If the frozen requirement itself is malformed, preserve its fingerprint and "
+        "the failed artifact, record EVALUATION_PROTOCOL_REVISION_REQUIRED, and stop "
+        "the current candidate from becoming accepted; a corrected protocol must be "
+        "independently reviewed and evaluated in a fresh candidate run. Never edit a "
+        "failed frozen threshold in place after observing results. "
         "When requested_evidence_contract.capability_eval_requires_typed_metric_contracts "
         "is true, author empirical_metric_requirements before either coding agent "
         "runs. Include at least one required row targeting AlgorithmEngineer and "
@@ -721,6 +749,12 @@ def build_architect_coordinator_prompt(
         "or minimum_pass_fraction separately describes the quorum. Require raw "
         "measurements rather than pre-thresholded pass flags whenever the underlying "
         "numeric quantity exists. "
+        "Before freezing a row, independently recompute every nontrivial numeric "
+        "constant from its definitions, check that the threshold is mathematically "
+        "attainable under the named procedure, regime, and runtime budget, and "
+        "translate the prose through the exact runtime comparison/aggregation order "
+        "to verify direction and quorum semantics. Put a concise derivation or exact "
+        "source anchor in source_anchors; do not trust a remembered approximation. "
         "These Architect requirements remain orchestration proposals, and passing "
         "their runtime contracts is empirical evidence only. "
         "Do not execute tools, do not claim simulations ran, and do not claim proof evidence.\n\n"
@@ -1477,6 +1511,11 @@ def _architect_packet_repair_context(
                 "For elementwise metric aggregations, threshold compares every raw "
                 "measurement and minimum_pass_count/minimum_pass_fraction separately "
                 "sets the quorum."
+            ),
+            (
+                "Recompute numeric constants, audit threshold attainability, and "
+                "verify that typed operator and aggregation direction exactly match "
+                "the measurement-protocol prose before freezing requirements."
             ),
         ],
     }

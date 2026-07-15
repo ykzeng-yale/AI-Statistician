@@ -351,6 +351,63 @@ generated algorithms executed and passed independent semantic review, but
 kernel-verified subclaims and exact source-theorem closures remained zero. The
 PCA/extremes held-out panel therefore remains locked.
 
+Fresh v26 confirmed the provider-budget correction behaviorally. The survival
+planner crossed the old 120-second boundary, returned a source-bound response,
+incrementally reused accepted staged fragments across two contract revisions,
+and finally compiled contract-valid action rows into an immutable
+ProofEngineer work order. The work order drove formal-source retrieval and a
+new LLM Formalizer packet, rather than being promoted as proof. That packet
+failed local validation because it emitted an empty optional PF/BV shell. The
+subsequent Formalizer repair task preserved the work-order ID and hash in its
+typed inputs but replaced the environment feedback containing the bound payload,
+so the next validator correctly failed closed before another model, retriever,
+or Lean call. Provider, packet-validation, and Lean-candidate repair feedback
+must all inherit the same immutable action binding; this is a generic child-task
+lineage invariant, not a survival-specific repair.
+
+The v26 sequential task exposed a separate upstream contract defect. Two fresh
+LLM simulations executed and were independently reviewed, but the reviewer
+found both an estimand substitution and an Architect-authored frozen gate that
+was mathematically infeasible for the named fixed Bernoulli likelihood-ratio
+process. The frozen source anchor claimed
+`KL(Bernoulli(0.75) || Bernoulli(0.5))` was about `0.415`; the expression written
+in the same requirement is about `0.131`, below its required `0.2` per-step
+growth threshold. A second optional requirement also encoded "at least eight
+rejections" while its prose intended "at most eight." The runtime correctly
+kept both defects open and did not let the coding agent weaken Architect
+authority. The design correction is an independent pre-execution semantic and
+mathematical-feasibility review of Architect metric requirements, with typed
+feedback routed to an Architect revision before thresholds are frozen and any
+empirical result is observed. Post-result threshold relaxation remains
+forbidden.
+
+The shared runtime correction now distinguishes independent semantic-review
+findings with a typed `repair_scope`. A defect resolvable entirely by fresh
+source code receives one bounded coding-agent revision. An internally
+inconsistent or infeasible frozen protocol, prose/operator conflict, or missing
+theory premise routes immediately to ArchitectCoordinator with the exact review
+packet, failed execution, pending artifact IDs, and immutable work-order
+lineage. Source-code review failures also escalate to Architect after the local
+budget even when the previously deferred task was formalization rather than an
+Architect task. Architect may route an upstream evidence producer or record
+`EVALUATION_PROTOCOL_REVISION_REQUIRED`; it may not mutate the failed frozen
+gate in place or promote the rejected artifact. The metric-authoring prompt also
+requires the LLM to recompute nontrivial constants, audit analytic feasibility,
+and translate prose through the exact comparison/aggregation semantics before
+freezing rows. This is a domain-general LLM reasoning and communication repair,
+not a sequential-test validator or a hardcoded numerical correction. A truly
+independent pre-execution metric-contract reviewer remains the stronger next
+architecture gate; prompt self-audit is useful but is not independent evidence.
+The pure typed Architect replan builder lives outside the central runtime in
+`generated_code_semantic_review_replan.py`, so this correction does not add
+another embedded orchestration policy block to the runtime monolith.
+
+Overall v26 ended `BLOCKED` 2/2 with a 94/125 scorecard, three generated
+simulation executions, one generated algorithm execution, zero kernel-verified
+subclaims, two formal gaps, and zero exact source-theorem closures. No legacy
+post-runtime theorem fallback ran, and the PCA/extremes held-out panel remains
+locked.
+
 ## Reuse Rules
 
 An external mechanism may enter the default runtime only when all of the

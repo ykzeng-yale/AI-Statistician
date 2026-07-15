@@ -16872,6 +16872,14 @@ def test_formal_gap_boundary_accepts_exact_short_structured_id() -> None:
         "Needs further investigation before adoption by the verification team.",
         row,
     )
+    assert _formal_gap_boundary_is_anchored(
+        "The local route still needs a bridge for primitive t1.",
+        {"node_id": "inode:t1"},
+    )
+    assert not _formal_gap_boundary_is_anchored(
+        "The id field needs further investigation.",
+        {"node_id": "inode:id"},
+    )
 
 
 def test_llm_route_planner_rejects_source_backed_node_without_source_ref() -> None:

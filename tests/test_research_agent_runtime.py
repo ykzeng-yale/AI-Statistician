@@ -2712,6 +2712,39 @@ def test_validated_gap_planner_actions_dispatch_once_to_proofengineer() -> None:
     assert binding_errors == []
     assert bound_work_order["work_order_id"] == work_order["work_order_id"]
 
+    validation_failure = runtime_module._formalizer_packet_validation_failure_result(
+        task=result.next_task,
+        question=question,
+        theory_packet_id=theory_packet_id,
+        simulation_manifest_id=simulation_manifest_id,
+        algorithm_sandbox_manifest_id=algorithm_manifest_id,
+        proof_bank_runtime_memory_summary={},
+        exc=PacketValidationError(
+            validation_label="LLM Formalizer/ProofEngineer packet",
+            attempts=1,
+            errors=[
+                "pseudo_formal_proof_packets[0] blocks must contain at least one "
+                "pseudo-formal block"
+            ],
+            history=[{"packet_id": "invalid-planner-action-response"}],
+        ),
+        environment_feedback=feedback,
+    )
+    assert validation_failure.next_task is not None
+    repair_feedback = validation_failure.next_task.inputs["environment_feedback"]
+    for field_name in (
+        "formalization_gap_planner_action_work_order",
+        "formalization_gap_planner_action_work_order_id",
+        "formalization_gap_planner_action_work_order_hash",
+    ):
+        assert repair_feedback[field_name] == feedback[field_name]
+    _, repair_binding_errors = runtime_module.validate_action_work_order_binding(
+        task=validation_failure.next_task,
+        blackboard=blackboard,
+        question_id=question.id,
+    )
+    assert repair_binding_errors == []
+
     unbound_inputs = dict(result.next_task.inputs)
     unbound_inputs.pop("formalization_gap_planner_action_work_order_id")
     unbound_inputs.pop("formalization_gap_planner_action_work_order_hash")
@@ -20736,6 +20769,10 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
     assert '"formal_target_authoring_contract"' in prompt
     assert '"metric_evaluation_semantics"' in prompt
     assert "separately describes the quorum" in prompt
+    assert "independently recompute every nontrivial numeric constant" in prompt
+    assert "check that the threshold is mathematically attainable" in prompt
+    assert "EVALUATION_PROTOCOL_REVISION_REQUIRED" in prompt
+    assert "Never edit a failed frozen threshold in place" in prompt
     assert "source theorem or required subclaims kernel verified" not in prompt
     contract = packet["evidence_contract"]
     assert contract["evaluation_mode"] == "capability_eval"
@@ -21049,6 +21086,12 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         hard_requirements
     )
     assert "operator == and threshold 1" in hard_requirements
+    assert "recompute it from the stated definitions" in hard_requirements
+    assert "Audit mathematical feasibility before freezing each row" in (
+        hard_requirements
+    )
+    assert "upper versus lower limits" in hard_requirements
+    assert "at-most versus at-least counts" in hard_requirements
     assert metric_prompt["metric_evaluation_semantics"]["authoring_example"][
         "threshold"
     ] == 0.10
@@ -83030,6 +83073,7 @@ def _static_generated_code_semantic_reviewer() -> (
                 ],
                 "findings": [],
                 "overall_verdict": "ACCEPT",
+                "repair_scope": "none",
                 "repair_owner": "AlgorithmEngineer",
                 "repair_instructions": [],
             }

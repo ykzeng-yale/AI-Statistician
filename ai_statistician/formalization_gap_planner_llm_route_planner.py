@@ -22880,12 +22880,22 @@ def _formal_gap_boundary_has_exact_identity_anchor(
             or anchor_terms[0] in FORMAL_GAP_BOUNDARY_TEXT_STOPWORDS
         ):
             continue
-        width = len(anchor_terms)
-        if any(
-            boundary_terms[index : index + width] == anchor_terms
-            for index in range(len(boundary_terms) - width + 1)
+        anchor_sequences = [anchor_terms]
+        terminal_term = anchor_terms[-1]
+        if (
+            len(anchor_terms) > 1
+            and len(terminal_term) >= 2
+            and any(character.isdigit() for character in terminal_term)
+            and terminal_term not in FORMAL_GAP_BOUNDARY_TEXT_STOPWORDS
         ):
-            return True
+            anchor_sequences.append((terminal_term,))
+        for anchor_sequence in anchor_sequences:
+            width = len(anchor_sequence)
+            if any(
+                boundary_terms[index : index + width] == anchor_sequence
+                for index in range(len(boundary_terms) - width + 1)
+            ):
+                return True
     return False
 
 
