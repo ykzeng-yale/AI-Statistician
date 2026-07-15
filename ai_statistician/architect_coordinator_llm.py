@@ -244,6 +244,18 @@ class LLMArchitectCoordinatorAgent:
             theory_protocol_material=(
                 theory_informed_metric_protocol_material(architect_context)
             ),
+            prior_rejection_context=(
+                architect_context.get(
+                    "architect_metric_protocol_prior_rejection", {}
+                )
+                if isinstance(
+                    architect_context.get(
+                        "architect_metric_protocol_prior_rejection", {}
+                    ),
+                    Mapping,
+                )
+                else {}
+            ),
         )
         effective_architect_context = (
             _architect_context_with_metric_requirement_authoring(

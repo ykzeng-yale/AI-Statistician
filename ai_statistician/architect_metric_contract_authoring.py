@@ -97,6 +97,7 @@ def author_reviewed_architect_metric_requirements(
     question: OpenResearchQuestion,
     runtime_contract: Mapping[str, Any],
     theory_protocol_material: Mapping[str, Any] | None = None,
+    prior_rejection_context: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     if (
         runtime_contract.get("capability_eval_requires_typed_metric_contracts")
@@ -243,6 +244,69 @@ def author_reviewed_architect_metric_requirements(
     semantic_review_history: list[dict[str, Any]] = []
     prior_authoring_packet: dict[str, Any] = {}
     prior_review_packet: dict[str, Any] = {}
+    carry_forward = (
+        dict(prior_rejection_context)
+        if isinstance(prior_rejection_context, Mapping)
+        else {}
+    )
+    carried_review = carry_forward.get("final_review", {})
+    if (
+        carry_forward.get("artifact_kind")
+        == "RuntimeArchitectMetricProtocolPriorRejectionContext"
+        and carry_forward.get("execution_results_available") is False
+        and carry_forward.get("current_candidate_acceptance_eligible") is False
+        and str(
+            carry_forward.get("current_source_theory_packet_id", "") or ""
+        )
+        == str(theory_material.get("source_theory_packet_id", "") or "")
+        and str(
+            carry_forward.get("current_source_theory_packet_hash", "") or ""
+        )
+        == str(theory_material.get("source_theory_packet_hash", "") or "")
+        and isinstance(carried_review, Mapping)
+        and carried_review.get("empirical_metric_requirements")
+    ):
+        prior_authoring_packet = {
+            "packet_id": str(
+                carried_review.get("authoring_packet_id", "") or ""
+            ),
+            "empirical_metric_requirement_set_id": str(
+                carried_review.get(
+                    "empirical_metric_requirement_set_id", ""
+                )
+                or ""
+            ),
+            "empirical_metric_requirements": [
+                dict(row)
+                for row in carried_review.get(
+                    "empirical_metric_requirements", []
+                )
+                if isinstance(row, Mapping)
+            ],
+        }
+        prior_review_packet = {
+            "packet_id": str(
+                carried_review.get("semantic_review_packet_id", "") or ""
+            ),
+            "dimension_reviews": [
+                dict(row)
+                for row in carried_review.get("dimension_reviews", []) or []
+                if isinstance(row, Mapping)
+            ],
+            "findings": [
+                dict(row)
+                for row in carried_review.get("findings", []) or []
+                if isinstance(row, Mapping)
+            ],
+            "repair_instructions": [
+                str(value)
+                for value in carried_review.get("repair_instructions", []) or []
+                if str(value).strip()
+            ],
+            "recommended_repair_scope": str(
+                carried_review.get("recommended_repair_scope", "") or ""
+            ),
+        }
     max_semantic_revisions = max(
         0, int(config.metric_semantic_reviewer_max_revisions or 0)
     )
@@ -277,10 +341,45 @@ def author_reviewed_architect_metric_requirements(
                 "repair_instructions": list(
                     prior_review_packet.get("repair_instructions", []) or []
                 ),
+                "cross_theory_revision_context": (
+                    {
+                        "source_rejection_manifest_id": carry_forward.get(
+                            "source_rejection_manifest_id", ""
+                        ),
+                        "source_rejection_manifest_hash": carry_forward.get(
+                            "source_rejection_manifest_hash", ""
+                        ),
+                        "prior_source_theory_packet_id": carried_review.get(
+                            "source_theory_packet_id", ""
+                        ),
+                        "prior_source_theory_packet_hash": carried_review.get(
+                            "source_theory_packet_hash", ""
+                        ),
+                        "current_source_theory_packet_id": str(
+                            theory_material.get("source_theory_packet_id", "")
+                            or ""
+                        ),
+                        "current_source_theory_packet_hash": str(
+                            theory_material.get("source_theory_packet_hash", "")
+                            or ""
+                        ),
+                        "boundary": str(
+                            carry_forward.get("boundary", "") or ""
+                        ),
+                    }
+                    if carry_forward
+                    else {}
+                ),
                 "revision_policy": (
-                    "Regenerate the complete contract before execution and address "
-                    "every independent finding. Do not merely relabel the old metric, "
-                    "drop a required author subsystem, or claim that execution passed."
+                    "Return the complete contract required by the schema, but repair "
+                    "the rejected contract in place. Preserve stable requirement_id "
+                    "values and all rows and fields not implicated by a finding unless "
+                    "the current revised theory requires a change. Edit, add, or remove "
+                    "only what is needed to resolve every finding; do not replace the "
+                    "metric portfolio with unrelated gates, drop a required author "
+                    "subsystem, or claim that execution passed. The current theory "
+                    "material is authoritative over stale assumptions in the rejected "
+                    "contract."
                 ),
             }
         request = GeneratorRequest(

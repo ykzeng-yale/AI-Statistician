@@ -1566,6 +1566,110 @@ def test_theory_developer_preserves_metric_protocol_revision_lineage() -> None:
     assert next_gate["execution_authorized"] is False
 
 
+def test_architect_rehydrates_prior_metric_rejection_for_revised_theory() -> None:
+    current_theory_id = "theory_derivation:current-revision"
+    prior_theory_id = "theory_derivation:prior-revision"
+    current_theory = _structured_theory_packet_fixture(current_theory_id)
+    prior_rows = [
+        {
+            "requirement_id": "generic:algorithm:metric",
+            "target_subsystems": ["AlgorithmEngineer"],
+            "metric_semantics": "a raw finite-sample measurement",
+        }
+    ]
+    rejection_id = "metric-protocol-rejection:carry-forward"
+    rejection = {
+        "artifact_kind": "RuntimeArchitectMetricProtocolPreExecutionRejection",
+        "manifest_id": rejection_id,
+        "question_id": "generic_question",
+        "source_theory_packet_id": prior_theory_id,
+        "source_theory_packet_hash": "prior-theory-hash",
+        "feedback_reusable_for_fresh_preexecution_authoring": True,
+        "execution_authorized": False,
+        "semantic_review_history": [
+            {
+                "source_theory_packet_id": prior_theory_id,
+                "source_theory_packet_hash": "prior-theory-hash",
+                "authoring_packet_id": "metric-authoring:prior",
+                "authoring_packet_hash": "metric-authoring-hash",
+                "empirical_metric_requirement_set_id": "metric-set:prior",
+                "empirical_metric_requirements": prior_rows,
+                "semantic_review_packet_id": "metric-review:prior",
+                "semantic_review_packet_hash": "metric-review-hash",
+                "recommended_repair_scope": "upstream_theory",
+                "dimension_reviews": [
+                    {
+                        "dimension": "mathematical_consistency",
+                        "status": "FAIL",
+                        "rationale": "The prior theory omitted a calibration.",
+                    }
+                ],
+                "findings": [
+                    {
+                        "severity": "high",
+                        "category": "missing_calibration",
+                        "summary": "The prior theory omitted a calibration.",
+                        "required_change": "Use the revised theory calibration.",
+                        "repair_scope": "upstream_theory",
+                    }
+                ],
+                "repair_instructions": [
+                    "Repair the candidate against the revised theory."
+                ],
+            }
+        ],
+    }
+    blackboard = BlackboardState(
+        project_id="metric-rejection-carry-forward",
+        artifacts={
+            current_theory_id: current_theory,
+            rejection_id: rejection,
+        },
+    )
+    rejection_hash_before = runtime_module.stable_hash(rejection)
+    existing_theory_material = build_theory_informed_metric_protocol_material(
+        theory_packet=current_theory,
+        theory_packet_id=current_theory_id,
+    )
+
+    context = runtime_module._architect_context_with_rehydrated_metric_protocol_theory_material(
+        architect_context={
+            "theory_packet_id": current_theory_id,
+            "architect_metric_protocol_theory_material": (
+                existing_theory_material
+            ),
+            "architect_metric_protocol_gate": {
+                "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+                "source_theory_packet_id": current_theory_id,
+                "rejection_manifest_ids": [rejection_id],
+                "upstream_theory_revision_count": 1,
+                "execution_authorized": False,
+            },
+        },
+        blackboard=blackboard,
+    )
+
+    carry_forward = context["architect_metric_protocol_prior_rejection"]
+    current_material = context["architect_metric_protocol_theory_material"]
+    assert carry_forward["source_rejection_manifest_id"] == rejection_id
+    assert carry_forward["source_rejection_manifest_hash"] == (
+        rejection_hash_before
+    )
+    assert carry_forward["current_source_theory_packet_id"] == current_theory_id
+    assert carry_forward["current_source_theory_packet_hash"] == (
+        current_material["source_theory_packet_hash"]
+    )
+    final_review = carry_forward["final_review"]
+    assert final_review["source_theory_packet_id"] == prior_theory_id
+    assert final_review["empirical_metric_requirements"] == prior_rows
+    assert final_review["findings"][0]["category"] == "missing_calibration"
+    assert carry_forward["execution_results_available"] is False
+    assert carry_forward["current_candidate_acceptance_eligible"] is False
+    assert runtime_module.stable_hash(blackboard.artifacts[rejection_id]) == (
+        rejection_hash_before
+    )
+
+
 @pytest.mark.parametrize("lineage_failure", ["missing_parent", "hash_mismatch"])
 def test_theory_developer_fails_closed_before_model_on_invalid_revision_lineage(
     lineage_failure: str,
@@ -21792,6 +21896,7 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
 
     rejected_rows = metric_rows(1e-12)
     accepted_rows = metric_rows(0.1)
+    prior_rows = metric_rows(0.9)
 
     class ReviewRepairBackend:
         provider_name = "anthropic"
@@ -21881,6 +21986,48 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
             )
 
     backend = ReviewRepairBackend()
+    context = _theory_informed_metric_context_fixture()
+    theory_material = context["architect_metric_protocol_theory_material"]
+    context["architect_metric_protocol_prior_rejection"] = {
+        "artifact_kind": (
+            "RuntimeArchitectMetricProtocolPriorRejectionContext"
+        ),
+        "source_rejection_manifest_id": "metric-rejection:prior",
+        "source_rejection_manifest_hash": "metric-rejection-hash",
+        "current_source_theory_packet_id": theory_material[
+            "source_theory_packet_id"
+        ],
+        "current_source_theory_packet_hash": theory_material[
+            "source_theory_packet_hash"
+        ],
+        "final_review": {
+            "source_theory_packet_id": "theory_derivation:prior",
+            "source_theory_packet_hash": "prior-theory-hash",
+            "authoring_packet_id": "metric-authoring:prior",
+            "empirical_metric_requirement_set_id": "metric-set:prior",
+            "empirical_metric_requirements": prior_rows,
+            "semantic_review_packet_id": "metric-review:prior",
+            "recommended_repair_scope": "upstream_theory",
+            "dimension_reviews": [],
+            "findings": [
+                {
+                    "severity": "high",
+                    "category": "prior_theory_calibration",
+                    "summary": "The prior threshold was not attainable.",
+                    "required_change": (
+                        "Repair the threshold using the revised theory."
+                    ),
+                    "repair_scope": "upstream_theory",
+                }
+            ],
+            "repair_instructions": [
+                "Repair the threshold using the revised theory."
+            ],
+        },
+        "execution_results_available": False,
+        "current_candidate_acceptance_eligible": False,
+        "boundary": "Rejected context is not acceptance or proof evidence.",
+    }
     packet = LLMArchitectCoordinatorAgent(
         provider=backend,
         config=ArchitectCoordinatorConfig(
@@ -21892,7 +22039,7 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
         ),
     ).propose(
         question=question,
-        architect_context=_theory_informed_metric_context_fixture(),
+        architect_context=context,
         runtime_config={
             "evaluation_mode": "capability_eval",
             "formal_verification_policy": "required",
@@ -21908,6 +22055,22 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
         "ArchitectMetricContractPlanner",
         "ArchitectMetricSemanticReviewer",
         "ArchitectCoordinator",
+    ]
+    first_prompt = json.loads(backend.requests[0].user_prompt)
+    first_repair = first_prompt["independent_semantic_review_repair"]
+    assert first_repair["revision_index"] == 0
+    assert first_repair["rejected_empirical_metric_requirements"] == prior_rows
+    assert first_repair["findings"][0]["category"] == (
+        "prior_theory_calibration"
+    )
+    assert first_repair["cross_theory_revision_context"][
+        "current_source_theory_packet_id"
+    ] == theory_material["source_theory_packet_id"]
+    assert "Preserve stable requirement_id" in first_repair[
+        "revision_policy"
+    ]
+    assert "do not replace the metric portfolio" in first_repair[
+        "revision_policy"
     ]
     repair_prompt = json.loads(backend.requests[2].user_prompt)
     repair = repair_prompt["independent_semantic_review_repair"]

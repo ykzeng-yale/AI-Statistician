@@ -8183,21 +8183,31 @@ def _architect_context_with_rehydrated_metric_protocol_theory_material(
     blackboard: BlackboardState,
 ) -> dict[str, Any]:
     context = dict(architect_context)
+    context.pop("architect_metric_protocol_prior_rejection", None)
     existing = context.get("architect_metric_protocol_theory_material", {})
-    if isinstance(existing, Mapping) and existing:
-        return context
-    theory_packet_id = _architect_context_theory_packet_id(context)
-    if not theory_packet_id:
-        return context
-    theory_packet = blackboard.artifacts.get(theory_packet_id, {})
-    if not isinstance(theory_packet, Mapping) or not theory_packet:
-        return context
-    context["architect_metric_protocol_theory_material"] = (
-        build_theory_informed_metric_protocol_material(
+    theory_material = dict(existing) if isinstance(existing, Mapping) else {}
+    if not theory_material:
+        theory_packet_id = _architect_context_theory_packet_id(context)
+        if not theory_packet_id:
+            return context
+        theory_packet = blackboard.artifacts.get(theory_packet_id, {})
+        if not isinstance(theory_packet, Mapping) or not theory_packet:
+            return context
+        theory_material = build_theory_informed_metric_protocol_material(
             theory_packet=theory_packet,
             theory_packet_id=theory_packet_id,
         )
+        context["architect_metric_protocol_theory_material"] = theory_material
+    theory_packet_id = str(
+        theory_material.get("source_theory_packet_id", "") or ""
     )
+    prior_rejection = _architect_metric_protocol_prior_rejection_context(
+        architect_context=context,
+        blackboard=blackboard,
+        current_theory_material=theory_material,
+    )
+    if prior_rejection:
+        context["architect_metric_protocol_prior_rejection"] = prior_rejection
     prior_contract = _architect_runtime_plan(context).get("evidence_contract", {})
     if not isinstance(prior_contract, Mapping):
         prior_contract = {}
@@ -8239,6 +8249,69 @@ def _architect_context_with_rehydrated_metric_protocol_theory_material(
             },
         )
     return context
+
+
+def _architect_metric_protocol_prior_rejection_context(
+    *,
+    architect_context: Mapping[str, Any],
+    blackboard: BlackboardState,
+    current_theory_material: Mapping[str, Any],
+) -> dict[str, Any]:
+    gate = architect_context.get("architect_metric_protocol_gate", {})
+    if not isinstance(gate, Mapping):
+        return {}
+    rejection_ids = [
+        str(value)
+        for value in gate.get("rejection_manifest_ids", []) or []
+        if str(value).strip()
+    ]
+    for rejection_id in reversed(rejection_ids):
+        rejection = blackboard.artifacts.get(rejection_id, {})
+        if (
+            not isinstance(rejection, Mapping)
+            or rejection.get("artifact_kind")
+            != "RuntimeArchitectMetricProtocolPreExecutionRejection"
+            or rejection.get("feedback_reusable_for_fresh_preexecution_authoring")
+            is not True
+            or rejection.get("execution_authorized") is not False
+        ):
+            continue
+        history = rejection.get("semantic_review_history", [])
+        if not isinstance(history, list) or not history:
+            continue
+        final_review = history[-1]
+        if not isinstance(final_review, Mapping):
+            continue
+        if not final_review.get("empirical_metric_requirements"):
+            continue
+        return {
+            "artifact_kind": (
+                "RuntimeArchitectMetricProtocolPriorRejectionContext"
+            ),
+            "source_rejection_manifest_id": rejection_id,
+            "source_rejection_manifest_hash": stable_hash(dict(rejection)),
+            "current_source_theory_packet_id": str(
+                current_theory_material.get("source_theory_packet_id", "")
+                or ""
+            ),
+            "current_source_theory_packet_hash": str(
+                current_theory_material.get("source_theory_packet_hash", "")
+                or ""
+            ),
+            "final_review": deepcopy(dict(final_review)),
+            "execution_results_available": False,
+            "current_candidate_acceptance_eligible": False,
+            "proof_evidence_status": (
+                "PRIOR_METRIC_REJECTION_CONTEXT_NOT_PROOF_EVIDENCE"
+            ),
+            "boundary": (
+                "This is immutable repair context from a rejected pre-execution "
+                "metric contract. The current revised theory is authoritative. "
+                "The prior candidate and review guide minimal re-authoring but do "
+                "not authorize execution or establish statistical or proof evidence."
+            ),
+        }
+    return {}
 
 
 def _architect_initial_routing_decision(
