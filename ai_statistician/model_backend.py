@@ -61,6 +61,9 @@ AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY = {
     "CriticEvaluator": "haiku",
     "bounded_route_triage": "haiku",
 }
+AI_STATISTICIAN_LLM_CONTEXTUAL_MODEL_TIER_POLICY = {
+    "TheoryDeveloper:serious": "opus",
+}
 CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS = {
     "fable": DEFAULT_CLAUDE_FABLE_GENERATOR_MODEL,
     "mythos_limited_availability": DEFAULT_CLAUDE_MYTHOS_GENERATOR_MODEL,
@@ -157,6 +160,7 @@ ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY = {
     "models_by_tier": DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER,
     "api_aliases_by_tier": DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER,
     "subsystem_model_tier_policy": AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
+    "contextual_model_tier_policy": AI_STATISTICIAN_LLM_CONTEXTUAL_MODEL_TIER_POLICY,
     "runtime_model_id_policy": (
         "AI Statistician resolves runtime calls to the Claude API IDs in "
         "models_by_tier. API aliases are recorded for operator reference only "
@@ -195,6 +199,7 @@ ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY = {
             "bounded_route_triage",
         ],
         "opus": [
+            "TheoryDeveloper serious capability/revision workspace",
             "ArchitectMetricSemanticReviewer",
             "GeneratedCodeSemanticReviewer",
             "FormalTargetSemanticReviewer",
@@ -550,6 +555,9 @@ def claude_tier_routing_contract(
         ],
         "tier_specific_model_env_vars": ANTHROPIC_CLAUDE_TIER_ENV_VARS,
         "subsystem_model_tier_policy": AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
+        "contextual_model_tier_policy": (
+            AI_STATISTICIAN_LLM_CONTEXTUAL_MODEL_TIER_POLICY
+        ),
         "all_ok": (
             DEFAULT_LIVE_GENERATOR_PROVIDER == "anthropic"
             and not set(PROHIBITED_AGENT_GENERATOR_PROVIDERS).intersection(

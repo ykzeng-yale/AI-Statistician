@@ -136,15 +136,40 @@ execution in either pending phase. A separate Opus reviewer checks
 question/estimand alignment, identifiability, mathematical and numeric
 consistency, finite-sample attainability, exact evaluator semantics, and
 cross-requirement consistency. A rejected candidate is returned to the metric
-author with exact typed findings; rejected requirement rows and hashes remain
-in immutable revision history. Bounded rejection becomes a typed non-evidence
-artifact rather than a truncated exception. Only an independently accepted set
-is frozen into the evidence contract. If post-execution review later identifies
-the frozen protocol itself as malformed, AgentRuntime records
+author only when the reviewer classifies every correction as
+`metric_contract`. If any correction requires a revised estimand, procedure,
+estimator, DGP, assumption, derivation, calibration, or feasibility argument,
+the reviewer assigns `upstream_theory`; metric rewriting stops immediately and
+AgentRuntime dispatches a typed TheoryDeveloper revision task. That task sees
+the complete immutable parent theory material plus the exact review findings,
+then returns through a fresh metric-author and independent-review gate. The
+revision count, parent packet, rejection manifest, and feedback packet remain
+hash-bound, and exhaustion fails closed without generated execution. Rejected
+requirement rows and hashes remain in immutable revision history. Bounded
+rejection becomes a typed non-evidence artifact rather than a truncated
+exception. Only an independently accepted set is frozen into the evidence
+contract. If post-execution review later identifies the frozen protocol itself
+as malformed, AgentRuntime records
 `EVALUATION_PROTOCOL_REVISION_REQUIRED` and blocks the current candidate. It
 does not mutate a threshold after seeing results or spend the remaining task
 budget rerunning the old research chain. This gate contains no task-family
 formula, expected answer, metric threshold, or Lean grammar.
+
+Capability evaluation and reviewer-routed theory repair use a serious
+TheoryDeveloper workspace, not the compact handoff budget. The model must
+produce five to eight dependency-linked derivation steps, at least four
+equation-chain rows, enough lemmas and critic findings to represent real
+dependencies, and explicit audits of DGP calibration, finite-sample
+feasibility, estimator/estimand alignment, assumptions, and rejected
+alternatives. These are domain-neutral output-depth and feedback contracts;
+the runtime does not derive statistical formulas or repair the theory itself.
+The compact packet remains a Sonnet route for non-capability discovery turns.
+Serious capability and upstream-revision turns have an independent Opus model
+field and at least an 8000-token output budget. Runtime topology resolves and
+checks the actual model ID and contextual tier before any agent runs, so an
+explicit Sonnet model cannot masquerade as an Opus serious workspace. Stronger
+model provenance remains proposal metadata, never empirical, statistical, or
+proof evidence.
 
 The registry-backed `ProblemFormalizer`, `TheoryPlanner`, and
 `ResearchSimulator` described below remain legacy baseline providers. They are

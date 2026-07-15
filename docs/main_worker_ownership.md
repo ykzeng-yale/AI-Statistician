@@ -1415,23 +1415,37 @@ initial Architect plan records `theory_prerequisite_pending`, Retrieval and
 TheoryDeveloper define the procedure and assumptions, and TheoryDeveloper then
 returns a lossless semantic packet to a Sonnet metric author. A separate Opus
 reviewer evaluates six domain-general dimensions before code or results exist.
-`REVISE` feeds exact findings and the rejected candidate back to the author for
-a bounded full-contract rewrite; `ACCEPT` is valid only with distinct agent,
-model, and model-tier provenance and an exact requirement-set fingerprint. The
-runtime authorizes SimulationEvaluator only after that certificate and consumes
-the one-shot gate so later replans remain free to route other capability gaps.
-Every rejected set remains in typed revision history. Requirement pass is still
-empirical evidence only and cannot promote a theory or Lean claim.
+Every `REVISE` finding names its responsible layer. `metric_contract` findings
+feed the rejected candidate back to the metric author for a bounded
+full-contract rewrite. Any `upstream_theory` finding stops that loop and routes
+the complete parent theory semantics plus immutable review lineage to
+TheoryDeveloper; the revised theory must then pass a fresh author/reviewer
+cycle. Capability-eval and upstream-revision turns use the serious theory
+contract: five to eight linked derivation steps, at least four equation rows,
+and explicit calibration, feasibility, assumption, and estimand audits. They
+use an independent Opus model route with an 8000-token minimum budget, while
+compact discovery remains Sonnet; topology validates the resolved serious
+model and contextual tier before execution. The runtime permits at most two
+upstream revisions and authorizes no execution until `ACCEPT` has distinct
+agent, model, and model-tier provenance plus an exact requirement-set
+fingerprint. Every rejected set remains in typed revision history. Model tier
+and requirement pass cannot promote a theory or Lean claim.
 
 ## Frozen Cross-Family Correction
 
 The frozen development panel covers survival and sequential inference, not
-FDR. Its latest v29 evidence is intentionally negative: both tasks failed at
-Architect iteration one, the scorecard is `73/125`, no generated code ran, and
-no exact source/frontier theorem is closed. The independent reviewer correctly
-rejected question-only requirements whose procedures, pivots, or stopping
-strategies had not yet been specified. This exposed stage ordering, not missing
-survival or sequential special cases.
+FDR. Its latest v30 evidence is intentionally negative: both tasks followed
+Architect, Retrieval, TheoryDeveloper, theory-informed metric author, and
+independent reviewer in the right order, then ended `BLOCKED`; the scorecard is
+`78/125`, no generated code ran, and no exact source/frontier theorem is
+closed. Survival exposed a missing theoretical DGP calibration. Sequential
+exposed a procedure/estimand and feasibility conflict. The reviewer detected
+both, but the v30 runtime could express only generic `REVISE`, so it wasted all
+bounded retries on the metric author instead of revising TheoryDeveloper. The
+typed repair-owner patch addresses that shared feedback defect; fresh v31 live
+evidence is still required. The patch passes all 1123 tests in
+`tests/test_research_agent_runtime.py`; that is contract/regression evidence,
+not cross-family live capability evidence.
 
 Historical v8 evidence remains useful for later stages: both tasks were
 `BLOCKED`, score `95/118`, with 72 kernel-verified support subclaims and 8 formal

@@ -23,6 +23,13 @@ ARCHITECT_SCHEMA_VERSION = 1
 THEORY_DERIVATION_NOT_PROOF_EVIDENCE = "LLM_THEORY_DERIVATION_NOT_PROOF_EVIDENCE"
 THEORY_MIN_DERIVATION_STEPS = 3
 THEORY_MIN_EQUATION_CHAIN_STEPS = 2
+THEORY_PROMPT_MODE_COMPACT = "compact_theory_discovery_packet"
+THEORY_PROMPT_MODE_SERIOUS_CAPABILITY = "serious_capability_theory_workspace"
+THEORY_PROMPT_MODE_SERIOUS_REVISION = "serious_upstream_theory_revision"
+THEORY_SERIOUS_PROMPT_MODES = (
+    THEORY_PROMPT_MODE_SERIOUS_CAPABILITY,
+    THEORY_PROMPT_MODE_SERIOUS_REVISION,
+)
 KERNEL_PROOF_BOUNDARY = (
     "LLM derivations, retrieval hits, and simulation predictions are proposal "
     "or diagnostic evidence only. Formal proof evidence requires AXLE/local "
@@ -83,6 +90,9 @@ class ResearchArchitectConfig:
     model: str = ""
     model_tier: str = "sonnet"
     max_tokens: int = 4500
+    serious_model: str = ""
+    serious_model_tier: str = "opus"
+    serious_max_tokens: int = 8000
     temperature: float = 0.2
     provider_name: str = "anthropic"
     max_repair_attempts: int = 2
@@ -124,27 +134,49 @@ class LLMTheoryDeveloperAgent:
         *,
         architect_context: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
+        context = dict(architect_context or {})
+        theory_prompt_mode = _theory_developer_prompt_mode(context)
+        serious_theory_mode = theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
+        effective_model_tier = (
+            self.config.serious_model_tier
+            if serious_theory_mode
+            else self.config.model_tier
+        )
+        effective_max_tokens = (
+            self.config.serious_max_tokens
+            if serious_theory_mode
+            else self.config.max_tokens
+        )
         user_prompt = build_theory_developer_prompt(
             question,
-            architect_context=architect_context or {},
+            architect_context=context,
         )
         request_model = resolve_generator_model(
             provider_name=self.config.provider_name,
-            requested_model=self.config.model,
-            model_tier=self.config.model_tier,
+            requested_model=(
+                self.config.serious_model
+                if serious_theory_mode
+                else self.config.model
+            ),
+            model_tier=effective_model_tier,
         )
         request = GeneratorRequest(
             system_prompt=THEORY_DEVELOPER_SYSTEM_PROMPT,
             user_prompt=user_prompt,
             model=request_model,
-            max_tokens=self.config.max_tokens,
+            max_tokens=effective_max_tokens,
             temperature=self.config.temperature,
             schema=THEORY_DEVELOPER_JSON_SCHEMA,
             metadata={
                 "subsystem": "TheoryDeveloper",
                 "agent": "LLMTheoryDeveloperAgent",
                 "provider_name": self.config.provider_name,
-                "model_tier": self.config.model_tier,
+                "model_tier": effective_model_tier,
+                "base_model_tier": self.config.model_tier,
+                "configured_serious_model": self.config.serious_model,
+                "serious_model_tier": self.config.serious_model_tier,
+                "theory_prompt_mode": theory_prompt_mode,
+                "serious_theory_mode": serious_theory_mode,
                 "resolved_model": request_model,
             },
         )
@@ -154,9 +186,10 @@ class LLMTheoryDeveloperAgent:
                 raw_payload,
                 question=question,
                 model=response.model or request_model,
-                model_tier=self.config.model_tier,
+                model_tier=effective_model_tier,
                 provider_name=self.config.provider_name or response.provider,
                 raw_response=raw_text,
+                theory_prompt_mode=theory_prompt_mode,
             )
 
         return generate_validated_json_packet(
@@ -284,25 +317,53 @@ def build_theory_developer_prompt(
     architect_context: Mapping[str, Any],
 ) -> str:
     compact_context = _compact_architect_context_for_prompt(architect_context)
+    theory_prompt_mode = _theory_developer_prompt_mode(architect_context)
+    serious_theory_mode = theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
     exact_semantic_instruction = (
         _theory_developer_downstream_exact_semantic_instruction(compact_context)
     )
-    payload = {
-        "question": {
-            "id": question.id,
-            "title": question.title,
-            "description": question.description,
-            "tags": list(question.tags),
-        },
-        "prompt_mode": {
-            "mode": "compact_theory_discovery_packet",
+    if serious_theory_mode:
+        prompt_mode = {
+            "mode": theory_prompt_mode,
+            "purpose": (
+                "derive or revise a research-grade statistical procedure with a "
+                "long enough equation chain, assumption audit, feasibility analysis, "
+                "and critic pass to support independent downstream authoring"
+            ),
+            "do_not_expand_full_retrieval_or_architect_json": True,
+        }
+        output_budget_key = "serious_theory_output_budget"
+        output_budget = {
+            "min_derivation_steps": 5,
+            "max_derivation_steps": 8,
+            "min_equation_chain_steps": 4,
+            "max_candidate_procedures": 2,
+            "max_theorem_goals": 2,
+            "max_lemma_cards": 4,
+            "max_formalization_requests": 2,
+            "max_critic_findings": 4,
+            "max_simulation_predictions": 4,
+            "max_next_actions": 3,
+            "max_string_chars": 600,
+            "instruction": (
+                "Return a complete valid JSON object within this budget. Develop the "
+                "primary procedure through five to eight dependency-linked derivation "
+                "steps and at least four equation-chain rows. Explicitly audit every "
+                "DGP calibration, finite-sample feasibility claim, estimand/procedure "
+                "alignment, rejected alternative, and assumption used downstream. "
+                "Include multiple lemmas or critic findings when needed to represent "
+                "real dependencies; do not compress unresolved contradictions into a "
+                "single vague risk sentence."
+            ),
+        }
+    else:
+        prompt_mode = {
+            "mode": THEORY_PROMPT_MODE_COMPACT,
             "purpose": "derive the core statistical object, procedure, theorem goals, and proof obligations without replaying full retrieval artifacts",
             "do_not_expand_full_retrieval_or_architect_json": True,
-        },
-        "architect_context": compact_context,
-        "required_output_contract": THEORY_DEVELOPER_OUTPUT_CONTRACT,
-        "validator_required_key_checklist": THEORY_DEVELOPER_VALIDATOR_CHECKLIST,
-        "concise_output_budget": {
+        }
+        output_budget_key = "concise_output_budget"
+        output_budget = {
             "min_derivation_steps": THEORY_MIN_DERIVATION_STEPS,
             "max_derivation_steps": 5,
             "min_equation_chain_steps": THEORY_MIN_EQUATION_CHAIN_STEPS,
@@ -323,30 +384,118 @@ def build_theory_developer_prompt(
                 "sentence or one equation fragment. Do not include essays, tables, "
                 "Markdown, or long simulation instructions."
             ),
+        }
+    payload = {
+        "question": {
+            "id": question.id,
+            "title": question.title,
+            "description": question.description,
+            "tags": list(question.tags),
         },
+        "prompt_mode": prompt_mode,
+        "architect_context": compact_context,
+        "required_output_contract": THEORY_DEVELOPER_OUTPUT_CONTRACT,
+        "validator_required_key_checklist": THEORY_DEVELOPER_VALIDATOR_CHECKLIST,
+        output_budget_key: output_budget,
         "proof_boundary": KERNEL_PROOF_BOUNDARY,
     }
     if exact_semantic_instruction:
         payload["downstream_exact_semantic_formalizer_instruction"] = (
             exact_semantic_instruction
         )
+    environment_feedback = compact_context.get("environment_feedback", {})
+    if (
+        isinstance(environment_feedback, Mapping)
+        and environment_feedback.get("artifact_kind")
+        == "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback"
+    ):
+        payload["metric_protocol_upstream_theory_revision_instruction"] = {
+            "required_behavior": (
+                "Regenerate the theory packet itself and address every routed "
+                "upstream finding at the estimand, procedure, estimator, DGP, "
+                "assumption, derivation, and feasibility layers. Preserve valid "
+                "parts of architect_context.metric_protocol_prior_theory_material "
+                "and explicitly replace the defective parts, but do not edit rejected metric rows, "
+                "invent execution results, or merely restate reviewer wording."
+            ),
+            "lineage_fields": {
+                "source_theory_packet_id": environment_feedback.get(
+                    "source_theory_packet_id", ""
+                ),
+                "feedback_id": environment_feedback.get("feedback_id", ""),
+                "upstream_theory_revision_count": environment_feedback.get(
+                    "upstream_theory_revision_count", ""
+                ),
+            },
+            "acceptance_gate": environment_feedback.get("acceptance_gate", ""),
+            "proof_evidence_status": environment_feedback.get(
+                "proof_evidence_status", ""
+            ),
+        }
+    serious_mode_label = (
+        "upstream-theory revision"
+        if theory_prompt_mode == THEORY_PROMPT_MODE_SERIOUS_REVISION
+        else "capability-theory pass"
+    )
+    mode_instruction = (
+        f"This is a serious {serious_mode_label}: preserve a rigorous equation "
+        "chain, lemma dependencies, assumption audit, feasibility derivations, and "
+        "all active critic feedback. Use more than one procedure, lemma, or critic "
+        "row when the mathematical alternatives or repair obligations genuinely "
+        "require them."
+        if serious_theory_mode
+        else "This is a focused first-pass discovery packet: exactly one primary "
+        "procedure, one theorem card, one lemma card, one formalization request, one "
+        "critic finding, and one next action, but at least three derivation steps and "
+        "two equation-chain rows."
+    )
     return (
         "Derive statistical theory artifacts for the Architect loop. Return ONLY "
         "JSON matching required_output_contract. Do not classify and stop. Do not "
-        "claim Lean/kernel proof evidence. Build a compact derivation trace that a "
-        "Formalizer/ProofEngineer can consume: name assumptions, write a short "
+        "claim Lean/kernel proof evidence. Build a structured derivation trace that a "
+        "Formalizer/ProofEngineer can consume: name assumptions, write an explicit "
         "equation chain, expose lemma dependencies, and state exactly which semantic "
         "alignment constraints must survive formalization. Before returning, check "
         "validator_required_key_checklist exactly, including "
         "all top_level_required_fields, theorem_cards[0].informal_statement, "
         "theorem_cards[0].proof_strategy, proof_plan, and simulation_ademp_spec. "
-        "This is a focused first-pass "
-        "discovery packet: exactly one primary procedure, one theorem card, one lemma "
-        "card, one formalization request, one critic finding, and one next action, "
-        "but at least three derivation steps and two equation-chain rows. Keep the "
-        "packet concise enough to finish as one valid JSON object; do not trade JSON "
-        "completeness for detail.\n\n"
+        + mode_instruction
+        + " Keep the packet within its declared budget and finish as one valid JSON "
+        "object; do not trade JSON completeness for detail.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
+    )
+
+
+def _theory_developer_prompt_mode(
+    architect_context: Mapping[str, Any],
+) -> str:
+    environment_feedback = architect_context.get("environment_feedback", {})
+    if (
+        isinstance(environment_feedback, Mapping)
+        and environment_feedback.get("artifact_kind")
+        == "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback"
+    ):
+        return THEORY_PROMPT_MODE_SERIOUS_REVISION
+    architect_plan = architect_context.get("architect_runtime_plan", {})
+    evidence_contract = (
+        architect_plan.get("evidence_contract", {})
+        if isinstance(architect_plan, Mapping)
+        else {}
+    )
+    if (
+        isinstance(evidence_contract, Mapping)
+        and evidence_contract.get("evaluation_mode") == "capability_eval"
+    ):
+        return THEORY_PROMPT_MODE_SERIOUS_CAPABILITY
+    return THEORY_PROMPT_MODE_COMPACT
+
+
+def _theory_developer_serious_mode(
+    architect_context: Mapping[str, Any],
+) -> bool:
+    return (
+        _theory_developer_prompt_mode(architect_context)
+        in THEORY_SERIOUS_PROMPT_MODES
     )
 
 
@@ -427,7 +576,11 @@ def _theory_developer_json_repair_context(
     validation_label: str,
     truncation_detected: bool,
 ) -> dict[str, Any]:
-    del original_user_prompt, bad_response, validation_label
+    serious_theory_mode = any(
+        f'"mode":"{mode}"' in original_user_prompt
+        for mode in THEORY_SERIOUS_PROMPT_MODES
+    )
+    del bad_response, validation_label
     return {
         "subsystem": "TheoryDeveloper",
         "truncation_detected": bool(truncation_detected),
@@ -456,7 +609,11 @@ def _theory_developer_json_repair_context(
                 "one assumption_ledger row, and formalization_handoff."
             ),
             (
-                "Use exactly one item for estimator_specs, theorem_cards, "
+                "In serious capability/revision mode, preserve the declared larger "
+                "derivation, equation, lemma, critic, and action budgets needed to "
+                "address all active findings."
+                if serious_theory_mode
+                else "Use exactly one item for estimator_specs, theorem_cards, "
                 "lemma_cards, formalization_requests, critic_findings, and "
                 "next_actions."
             ),
@@ -513,6 +670,36 @@ def _compact_architect_context_for_prompt(context: Mapping[str, Any]) -> dict[st
     environment_feedback = context.get("environment_feedback")
     if isinstance(environment_feedback, Mapping):
         compact["environment_feedback"] = _compact_environment_feedback_for_prompt(environment_feedback)
+
+    prior_theory_material = context.get(
+        "metric_protocol_prior_theory_material", {}
+    )
+    if (
+        isinstance(prior_theory_material, Mapping)
+        and prior_theory_material.get("artifact_kind")
+        == "RuntimeTheoryInformedMetricProtocolMaterial"
+        and prior_theory_material.get("execution_results_available") is False
+        and isinstance(
+            prior_theory_material.get("theory_semantic_material"), Mapping
+        )
+    ):
+        compact["metric_protocol_prior_theory_material"] = {
+            "artifact_kind": prior_theory_material.get("artifact_kind", ""),
+            "source_theory_packet_id": prior_theory_material.get(
+                "source_theory_packet_id", ""
+            ),
+            "source_theory_packet_hash": prior_theory_material.get(
+                "source_theory_packet_hash", ""
+            ),
+            "theory_semantic_material": dict(
+                prior_theory_material.get("theory_semantic_material", {})
+            ),
+            "execution_results_available": False,
+            "proof_evidence_status": prior_theory_material.get(
+                "proof_evidence_status", ""
+            ),
+            "boundary": prior_theory_material.get("boundary", ""),
+        }
 
     runtime_learning_memory = context.get("runtime_learning_memory")
     if isinstance(runtime_learning_memory, Mapping):
@@ -725,6 +912,8 @@ def _compact_environment_feedback_for_prompt(feedback: Mapping[str, Any]) -> dic
     failed_simulations = list(feedback.get("failed_simulations", []) or [])
     implementation_gaps = list(feedback.get("implementation_gaps", []) or [])
     compact = {
+        "artifact_kind": feedback.get("artifact_kind", ""),
+        "feedback_id": feedback.get("feedback_id", ""),
         "feedback_source": feedback.get("feedback_source", ""),
         "feedback_type": feedback.get("feedback_type", ""),
         "trigger": feedback.get("trigger", ""),
@@ -736,7 +925,20 @@ def _compact_environment_feedback_for_prompt(feedback: Mapping[str, Any]) -> dic
         "source_task_id": feedback.get("source_task_id", ""),
         "source_owner_subsystem": feedback.get("source_owner_subsystem", ""),
         "source_theory_packet_id": feedback.get("source_theory_packet_id", ""),
+        "source_theory_packet_hash": feedback.get("source_theory_packet_hash", ""),
+        "source_metric_protocol_rejection_manifest_id": feedback.get(
+            "source_metric_protocol_rejection_manifest_id", ""
+        ),
         "target_consumer_subsystem": feedback.get("target_consumer_subsystem", ""),
+        "recommended_repair_scope": feedback.get(
+            "recommended_repair_scope", ""
+        ),
+        "upstream_theory_revision_count": feedback.get(
+            "upstream_theory_revision_count", ""
+        ),
+        "max_upstream_theory_revisions": feedback.get(
+            "max_upstream_theory_revisions", ""
+        ),
         "critic_repair_round": feedback.get("critic_repair_round", ""),
         "next_critic_repair_round": feedback.get("next_critic_repair_round", ""),
         "max_critic_repair_rounds": feedback.get("max_critic_repair_rounds", ""),
@@ -759,6 +961,32 @@ def _compact_environment_feedback_for_prompt(feedback: Mapping[str, Any]) -> dic
         "proof_evidence_boundary": _truncate_text(feedback.get("proof_evidence_boundary", ""), 400),
         "boundary": _truncate_text(feedback.get("boundary", ""), 400),
     }
+    metric_protocol_findings = feedback.get("findings", [])
+    if isinstance(metric_protocol_findings, list) and metric_protocol_findings:
+        compact["metric_protocol_findings"] = [
+            _compact_feedback_row(row) for row in metric_protocol_findings[:8]
+        ]
+    metric_protocol_dimension_reviews = feedback.get("dimension_reviews", [])
+    if (
+        isinstance(metric_protocol_dimension_reviews, list)
+        and metric_protocol_dimension_reviews
+    ):
+        compact["metric_protocol_dimension_reviews"] = [
+            _compact_feedback_row(row)
+            for row in metric_protocol_dimension_reviews[:8]
+        ]
+    metric_protocol_repair_instructions = feedback.get(
+        "repair_instructions", []
+    )
+    if (
+        isinstance(metric_protocol_repair_instructions, list)
+        and metric_protocol_repair_instructions
+    ):
+        compact["metric_protocol_repair_instructions"] = [
+            _truncate_text(value, 600)
+            for value in metric_protocol_repair_instructions[:8]
+            if str(value).strip()
+        ]
     theory_alignment_feedback = feedback.get("theory_trace_downstream_alignment_feedback")
     if isinstance(theory_alignment_feedback, Mapping) and theory_alignment_feedback:
         compact["theory_trace_downstream_alignment_feedback"] = _compact_feedback_row(
@@ -1410,6 +1638,13 @@ THEORY_DEVELOPER_JSON_SCHEMA: dict[str, Any] = {
 
 def validate_theory_packet(packet: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
+    serious_theory_mode = packet.get("serious_theory_mode") is True
+    minimum_derivation_steps = (
+        5 if serious_theory_mode else THEORY_MIN_DERIVATION_STEPS
+    )
+    minimum_equation_chain_steps = (
+        4 if serious_theory_mode else THEORY_MIN_EQUATION_CHAIN_STEPS
+    )
     for field in (
         "problem_card",
         "theory_derivation_packet",
@@ -1429,10 +1664,13 @@ def validate_theory_packet(packet: Mapping[str, Any]) -> list[str]:
         errors.append("theory_derivation_packet must be an object")
     else:
         derivation_steps = derivation.get("derivation_steps", [])
-        if not isinstance(derivation_steps, list) or len(derivation_steps) < THEORY_MIN_DERIVATION_STEPS:
+        if (
+            not isinstance(derivation_steps, list)
+            or len(derivation_steps) < minimum_derivation_steps
+        ):
             errors.append(
                 "theory_derivation_packet.derivation_steps must contain at least "
-                f"{THEORY_MIN_DERIVATION_STEPS} steps"
+                f"{minimum_derivation_steps} steps"
             )
         else:
             for idx, row in enumerate(derivation_steps, start=1):
@@ -1446,10 +1684,13 @@ def validate_theory_packet(packet: Mapping[str, Any]) -> list[str]:
                 if not str(row.get("equation_or_argument", "")).strip():
                     errors.append(f"derivation step {idx} missing equation_or_argument")
         equation_chain = derivation.get("equation_chain", [])
-        if not isinstance(equation_chain, list) or len(equation_chain) < THEORY_MIN_EQUATION_CHAIN_STEPS:
+        if (
+            not isinstance(equation_chain, list)
+            or len(equation_chain) < minimum_equation_chain_steps
+        ):
             errors.append(
                 "theory_derivation_packet.equation_chain must contain at least "
-                f"{THEORY_MIN_EQUATION_CHAIN_STEPS} equation rows"
+                f"{minimum_equation_chain_steps} equation rows"
             )
         else:
             for idx, row in enumerate(equation_chain, start=1):
@@ -1506,8 +1747,12 @@ def _normalize_theory_packet(
     model_tier: str,
     provider_name: str,
     raw_response: str,
+    theory_prompt_mode: str = THEORY_PROMPT_MODE_COMPACT,
 ) -> dict[str, Any]:
     body = dict(payload)
+    serious_theory_mode = theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
+    body["theory_prompt_mode"] = theory_prompt_mode
+    body["serious_theory_mode"] = serious_theory_mode
     derivation_packet = body.get("theory_derivation_packet")
     if isinstance(derivation_packet, Mapping):
         body["theory_derivation_packet"] = _canonicalize_theory_derivation_packet(
@@ -1524,8 +1769,13 @@ def _normalize_theory_packet(
         else {}
     )
     body["theory_derivation_contract"] = {
-        "min_derivation_steps": THEORY_MIN_DERIVATION_STEPS,
-        "min_equation_chain_steps": THEORY_MIN_EQUATION_CHAIN_STEPS,
+        "min_derivation_steps": (
+            5 if serious_theory_mode else THEORY_MIN_DERIVATION_STEPS
+        ),
+        "min_equation_chain_steps": (
+            4 if serious_theory_mode else THEORY_MIN_EQUATION_CHAIN_STEPS
+        ),
+        "theory_prompt_mode": theory_prompt_mode,
         "n_derivation_steps": _safe_len(derivation.get("derivation_steps", [])),
         "n_equation_chain_steps": _safe_len(derivation.get("equation_chain", [])),
         "n_assumption_ledger_rows": _safe_len(derivation.get("assumption_ledger", [])),

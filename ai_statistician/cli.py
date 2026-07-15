@@ -11783,9 +11783,20 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
     theory_developer = LLMTheoryDeveloperAgent(
         provider=provider,
         config=ResearchArchitectConfig(
-            model=model,
-            model_tier="sonnet",
+            model=str(getattr(args, "llm_model", "") or ""),
+            model_tier=str(
+                getattr(args, "theory_model_tier", "sonnet") or "sonnet"
+            ),
             max_tokens=args.max_tokens,
+            serious_model=str(
+                getattr(args, "serious_theory_llm_model", "") or ""
+            ),
+            serious_model_tier=str(
+                getattr(args, "serious_theory_model_tier", "opus") or "opus"
+            ),
+            serious_max_tokens=int(
+                getattr(args, "serious_theory_max_tokens", 8000) or 0
+            ),
             temperature=args.temperature,
             provider_name=provider_name,
             max_repair_attempts=args.theory_max_repair_attempts,
@@ -11903,6 +11914,14 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                     args,
                     "generated_code_semantic_review_max_revisions",
                     1,
+                )
+                or 0
+            ),
+            metric_protocol_max_upstream_theory_revisions=int(
+                getattr(
+                    args,
+                    "architect_metric_protocol_max_upstream_theory_revisions",
+                    2,
                 )
                 or 0
             ),
@@ -14139,6 +14158,16 @@ def _apply_research_agent_runtime_capability_eval_preset(
         roots.append(str(default_source_root))
     args.source_theorem_exact_semantic_definition_source_root = roots
     if preset == "full-live":
+        if not str(
+            getattr(args, "serious_theory_model_tier", "") or ""
+        ).strip():
+            args.serious_theory_model_tier = "opus"
+        if not hasattr(args, "serious_theory_llm_model"):
+            args.serious_theory_llm_model = ""
+        if not hasattr(args, "serious_theory_max_tokens"):
+            args.serious_theory_max_tokens = (
+                ResearchArchitectConfig().serious_max_tokens
+            )
         args.formal_verification_policy = "required"
         args.formal_target_semantic_review_required = True
         args.max_iterations = max(
@@ -14789,6 +14818,25 @@ def _research_agent_runtime_capability_config_errors(
             "--formalizer-candidate-lean-lsp-mcp"
         )
     if str(getattr(args, "capability_eval_preset", "") or "") == "full-live":
+        serious_theory_model_tier = str(
+            getattr(args, "serious_theory_model_tier", "") or ""
+        ).strip().lower()
+        if serious_theory_model_tier != "opus":
+            errors.append(
+                "capability eval preset full-live requires Opus-tier serious "
+                "TheoryDeveloper workspaces; set "
+                "--serious-theory-model-tier opus"
+            )
+        serious_theory_max_tokens = int(
+            getattr(args, "serious_theory_max_tokens", 0) or 0
+        )
+        if serious_theory_max_tokens < ResearchArchitectConfig().serious_max_tokens:
+            errors.append(
+                "capability eval preset full-live requires a serious "
+                "TheoryDeveloper output budget of at least "
+                f"{ResearchArchitectConfig().serious_max_tokens} tokens; set "
+                "--serious-theory-max-tokens accordingly"
+            )
         if not bool(getattr(args, "openprover_hlm", False)):
             errors.append(
                 "capability eval preset full-live requires verifier-backed "
@@ -21476,7 +21524,33 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="model name for the TheoryDeveloper provider; Anthropic defaults to Claude Sonnet 4.6",
     )
+    research_agent_runtime.add_argument(
+        "--theory-model-tier",
+        choices=("haiku", "sonnet", "opus"),
+        default=ResearchArchitectConfig().model_tier,
+        help="Claude tier for compact TheoryDeveloper handoff packets",
+    )
     research_agent_runtime.add_argument("--max-tokens", type=int, default=ResearchArchitectConfig().max_tokens)
+    research_agent_runtime.add_argument(
+        "--serious-theory-llm-model",
+        default="",
+        help=(
+            "optional explicit model for capability and upstream-revision "
+            "TheoryDeveloper workspaces"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--serious-theory-model-tier",
+        choices=("haiku", "sonnet", "opus"),
+        default=ResearchArchitectConfig().serious_model_tier,
+        help="Claude tier for capability and upstream-revision theory workspaces",
+    )
+    research_agent_runtime.add_argument(
+        "--serious-theory-max-tokens",
+        type=int,
+        default=ResearchArchitectConfig().serious_max_tokens,
+        help="maximum output tokens for serious TheoryDeveloper workspaces",
+    )
     research_agent_runtime.add_argument("--temperature", type=float, default=0.2)
     research_agent_runtime.add_argument(
         "--theory-max-repair-attempts",
@@ -21539,6 +21613,15 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "maximum full metric-contract rewrites after independent "
             "pre-execution semantic review rejects a candidate"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--architect-metric-protocol-max-upstream-theory-revisions",
+        type=int,
+        default=2,
+        help=(
+            "maximum TheoryDeveloper revisions routed from independent "
+            "pre-execution metric review before the task fails closed"
         ),
     )
     research_agent_runtime.add_argument(

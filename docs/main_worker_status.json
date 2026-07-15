@@ -1,13 +1,31 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-15T12:51:02Z",
+  "updated_at": "2026-07-15T16:47:38Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "domain-neutral AgentRuntime authority, cross-family evaluation, and exact theorem closure",
-  "latest_main_worker_patch": "Capability-eval metric protocols now follow a domain-neutral typed phase gate: the initial Architect plan records theory_prerequisite_pending and cannot authorize generated execution; Retrieval and TheoryDeveloper define the procedure, estimand, assumptions, pivots, and regime; a lossless theory semantic handoff then drives Sonnet metric authoring and independent Opus review; only a fingerprint-bound ACCEPT certificate moves the phase to preexecution_review_accepted and permits SimulationEvaluator. Bounded rejection is persisted as RuntimeArchitectMetricProtocolPreExecutionRejection with every candidate, review dimension, finding, instruction, and hash. Resume can rehydrate theory material from the blackboard, and the accepted one-shot gate is consumed so later replans are not misrouted. All capability requirement sets, including inherited prior plans, now require an independent review certificate. No task-family formula, threshold, expected answer, Lean grammar, or theorem-specific repair was added.",
-  "latest_main_worker_live_probe": "The latest fresh development-panel evidence is runs/main_worker_cross_family_development_20260715_v29_preexecution_metric_review at commit cd60e9c0. Both right_censored_survival_km and sequential_anytime_bernoulli failed at Architect iteration one with score 73/125, zero generated executions, zero kernel-verified subclaims, and zero exact theorem closures. The live reviewer correctly rejected all bounded metric candidates because question-only authoring lacked TheoryDeveloper procedure semantics. v28 had separately exposed and led to a fix for Anthropic enum-schema typing. Held-out PCA/extremes remains locked.",
-  "latest_main_worker_design_issue": "The v29 question-only metric-authoring ordering defect is fixed locally through the theory-informed phase gate, but a fresh v30 cross-family live run is still pending and local tests cannot establish E2E readiness. Exact source/frontier theorem closure remains zero in the latest live evidence. The runtime monolith and residual second orchestration plane, serious TheoryDeveloper equation/lemma-DAG depth, tactic-state proof search and iterative Lean feedback, R and broader scientific Python execution, arbitrary-paper ingest, task-neutral cross-family generalization, and legacy research_lab family registry remain open design debt. S14 remains false.",
+  "latest_main_worker_patch": "The independent pre-execution metric reviewer now assigns every defect to a typed repair owner: metric_contract when candidate requirements can be rewritten without changing theory, or upstream_theory when the estimand, procedure, estimator, DGP, assumptions, derivation, calibration, or feasibility argument is missing or inconsistent. Metric-only findings remain in the bounded metric-author revision loop; any upstream finding immediately stops metric rewriting and returns immutable rejection lineage to TheoryDeveloper. AgentRuntime creates a typed non-proof feedback artifact, validates its question/owner/revision budget and full parent packet ID/hash before any model call, hydrates the complete parent theory semantics from the blackboard, and permits at most two theory revisions before failing closed. Compact discovery remains Sonnet. Capability-eval and upstream-revision turns resolve an independently configured Opus serious model with an 8000-token budget, five to eight dependency-linked derivation steps, at least four equation rows, a larger lemma/critic budget, and explicit feasibility and estimand-alignment audits. Runtime topology fails before agent execution if the actual Anthropic serious model or contextual tier is downgraded. No task-family formula, expected answer, metric threshold, Lean grammar, tactic, or theorem-specific repair was added.",
+  "latest_main_worker_live_probe": "The latest fresh development-panel evidence is runs/main_worker_cross_family_development_20260715_v30_theory_informed_metric_review at commit dac33397. Both right_censored_survival_km and sequential_anytime_bernoulli followed the intended Architect -> Retrieval -> TheoryDeveloper -> theory-informed metric planner -> independent reviewer order, with no generated execution before review. Both were honestly BLOCKED after three bounded metric candidates, score 78/125, generated code/simulation/Lean counts 0, kernel-verified subclaims 0, and exact theorem closures 0. Survival exposed an underived DGP calibration in the theory packet; sequential exposed an estimator/estimand and feasibility conflict in the theory packet. The reviewer detected the defects, but the runtime had no typed repair-owner route and incorrectly kept returning all feedback to the metric author. Held-out PCA/extremes remains locked.",
+  "latest_main_worker_design_issue": "v30 proves the theory-informed stage order is correct but also proves that REVISE alone is not a sufficient multi-agent feedback contract. The typed repair-owner, hash-bound parent hydration, serious Opus TheoryDeveloper route, and bounded theory revision loop pass the complete 1123-test runtime regression; a fresh v31 live run is still required to establish that both development families actually route through serious theory revision and then receive a fresh independent metric review. Exact source/frontier theorem closure remains zero. The 100k-line runtime monolith and residual second orchestration plane, tactic-state proof search and iterative Lean tool use, production R and broader scientific Python execution, arbitrary-paper semantic ingest, task-neutral held-out generalization, and legacy research_lab family registry remain open design debt. S14 remains false.",
+  "latest_v30_theory_informed_metric_review": {
+    "run": "runs/main_worker_cross_family_development_20260715_v30_theory_informed_metric_review",
+    "commit": "dac33397",
+    "question_statuses": [
+      "BLOCKED",
+      "BLOCKED"
+    ],
+    "scorecard": "78/125",
+    "stage_order_correct": true,
+    "generated_execution_before_review": false,
+    "generated_code_or_simulation_count": 0,
+    "kernel_verified_subclaims": 0,
+    "exact_source_theorem_closures": 0,
+    "reviewer_detected_upstream_theory_defects": true,
+    "typed_repair_owner_available_in_run": false,
+    "held_out_run_started": false,
+    "boundary": "This run validates live stage ordering and honest rejection only. It is not coding, simulation, statistical acceptance, Lean proof, or end-to-end capability evidence."
+  },
   "latest_cross_family_evaluation_protocol": {
     "path": "benchmarks/autonomous_cross_family_e2e_protocol_20260713.json",
     "protocol_id": "s14-cross-family-generalization-20260713-v2",
@@ -74,9 +92,9 @@
   },
   "latest_local_regression": {
     "runtime_test_file": "tests/test_research_agent_runtime.py",
-    "result": "1116 passed in 4344.98s (1:12:24) after the theory-informed pre-execution metric-protocol phase gate; focused Architect/TheoryDeveloper, semantic-review, downstream-gap, schema-transform, compile, and JSON checks also passed",
+    "result": "1123 passed in 4835.47s (1:20:35) after typed metric-review ownership, immutable upstream-theory revision lineage, and serious contextual model routing; 43 complete model/TheoryDeveloper/reviewer tests and 73 expanded Architect/TheoryDeveloper/topology/capability runtime tests also passed",
     "failed": 0,
-    "validated_at": "2026-07-15T12:49:48Z",
+    "validated_at": "2026-07-15T16:47:38Z",
     "boundary": "Local regression validates runtime contracts and orchestration behavior; it is not live LLM, statistical-semantic, or theorem-proof evidence."
   },
   "latest_four_stage_route_planner_live_probe": {

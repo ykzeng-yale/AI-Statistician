@@ -1420,6 +1420,232 @@ def test_theory_developer_routes_capability_eval_through_metric_protocol_gate() 
     }
 
 
+def test_theory_developer_preserves_metric_protocol_revision_lineage() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    theory_packet = _structured_theory_packet_fixture(
+        "theory_derivation:metric-gate-revised"
+    )
+    parent_theory_packet = _structured_theory_packet_fixture(
+        "theory_derivation:metric-gate-original"
+    )
+    captured_context: dict[str, Any] = {}
+
+    class StaticTheoryDeveloper:
+        def derive(self, *_args, **kwargs):
+            captured_context.update(kwargs.get("architect_context", {}))
+            return json.loads(json.dumps(theory_packet))
+
+    feedback = {
+        "artifact_kind": "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback",
+        "feedback_id": "metric-protocol-theory-feedback:1",
+        "question_id": question.id,
+        "source_theory_packet_id": "theory_derivation:metric-gate-original",
+        "source_theory_packet_hash": runtime_module.stable_hash(
+            parent_theory_packet
+        ),
+        "source_metric_protocol_rejection_manifest_id": (
+            "metric-protocol-rejection:1"
+        ),
+        "target_consumer_subsystem": "TheoryDeveloper",
+        "upstream_theory_revision_count": 1,
+        "max_upstream_theory_revisions": 2,
+        "execution_authorized": False,
+        "proof_evidence_status": (
+            "METRIC_PROTOCOL_UPSTREAM_THEORY_FEEDBACK_NOT_PROOF_EVIDENCE"
+        ),
+        "recommended_repair_scope": "upstream_theory",
+        "findings": [
+            {
+                "severity": "high",
+                "category": "missing theory calibration",
+                "summary": "The theory DGP is incomplete.",
+                "required_change": "Derive the missing calibration.",
+                "repair_scope": "upstream_theory",
+            }
+        ],
+        "required_revision": "Revise the theory packet itself.",
+        "acceptance_gate": "Fresh theory must pass independent metric review.",
+    }
+    revision_prompt = build_theory_developer_prompt(
+        question,
+        architect_context={
+            "environment_feedback": feedback,
+            "metric_protocol_prior_theory_material": (
+                build_theory_informed_metric_protocol_material(
+                    theory_packet=parent_theory_packet,
+                    theory_packet_id="theory_derivation:metric-gate-original",
+                )
+            ),
+        },
+    )
+    assert "metric_protocol_upstream_theory_revision_instruction" in revision_prompt
+    assert "serious_upstream_theory_revision" in revision_prompt
+    assert '"min_derivation_steps":5' in revision_prompt
+    assert '"min_equation_chain_steps":4' in revision_prompt
+    assert "missing theory calibration" in revision_prompt
+    assert "metric_protocol_prior_theory_material" in revision_prompt
+    assert parent_theory_packet["theory_derivation_packet"]["equation_chain"][0][
+        "step_id"
+    ] in revision_prompt
+    assert "do not edit rejected metric rows" in revision_prompt
+    result = TheoryDeveloperRuntimeSubsystem(
+        theory_developer=StaticTheoryDeveloper(),  # type: ignore[arg-type]
+        n_runs=17,
+        seed=20260715,
+    ).run(
+        AgentTask(
+            task_id="theory-metric-protocol-revision:test",
+            owner_subsystem="TheoryDeveloper",
+            objective="Revise upstream theory before metric authoring.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": {
+                    "architect_runtime_plan": {
+                        "evidence_contract": {
+                            "capability_eval_requires_typed_metric_contracts": True,
+                            "empirical_metric_requirements": [],
+                            "metric_protocol_execution_authorized": False,
+                        }
+                    },
+                    "architect_metric_protocol_gate": {
+                        "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+                        "source_theory_packet_id": (
+                            "theory_derivation:metric-gate-original"
+                        ),
+                        "rejection_manifest_ids": [
+                            "metric-protocol-rejection:1"
+                        ],
+                        "upstream_theory_revision_count": 1,
+                        "max_upstream_theory_revisions": 2,
+                        "execution_authorized": False,
+                    },
+                    "environment_feedback": feedback,
+                },
+                "environment_feedback": feedback,
+            },
+        ),
+        BlackboardState(
+            project_id="theory-metric-gate-revision",
+            artifacts={
+                "theory_derivation:metric-gate-original": parent_theory_packet
+            },
+        ),
+    )
+
+    prior_material = captured_context["metric_protocol_prior_theory_material"]
+    assert prior_material["source_theory_packet_id"] == (
+        "theory_derivation:metric-gate-original"
+    )
+    assert prior_material["execution_results_available"] is False
+    assert prior_material["theory_semantic_material"][
+        "theory_derivation_packet"
+    ]["equation_chain"] == parent_theory_packet["theory_derivation_packet"][
+        "equation_chain"
+    ]
+    revised_packet = next(iter(result.produced_artifacts.values()))
+    assert revised_packet["parent_theory_packet_id"] == (
+        "theory_derivation:metric-gate-original"
+    )
+    assert revised_packet[
+        "metric_protocol_upstream_theory_revision_feedback_id"
+    ] == "metric-protocol-theory-feedback:1"
+    assert revised_packet["metric_protocol_upstream_theory_revision_count"] == 1
+    assert result.next_task is not None
+    next_gate = result.next_task.inputs["architect_context"][
+        "architect_metric_protocol_gate"
+    ]
+    assert next_gate["upstream_theory_revision_count"] == 1
+    assert next_gate["max_upstream_theory_revisions"] == 2
+    assert next_gate["rejection_manifest_ids"] == [
+        "metric-protocol-rejection:1"
+    ]
+    assert next_gate["execution_authorized"] is False
+
+
+@pytest.mark.parametrize("lineage_failure", ["missing_parent", "hash_mismatch"])
+def test_theory_developer_fails_closed_before_model_on_invalid_revision_lineage(
+    lineage_failure: str,
+) -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    parent_packet_id = "theory_derivation:immutable-parent"
+    parent_packet = _structured_theory_packet_fixture(parent_packet_id)
+    derive_calls = 0
+
+    class MustNotRunTheoryDeveloper:
+        def derive(self, *_args: object, **_kwargs: object) -> dict[str, object]:
+            nonlocal derive_calls
+            derive_calls += 1
+            raise AssertionError("invalid revision lineage reached the model")
+
+    feedback = {
+        "artifact_kind": "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback",
+        "feedback_id": "metric-protocol-theory-feedback:invalid-lineage",
+        "question_id": question.id,
+        "source_theory_packet_id": parent_packet_id,
+        "source_theory_packet_hash": runtime_module.stable_hash(parent_packet),
+        "source_metric_protocol_rejection_manifest_id": (
+            "metric-protocol-rejection:invalid-lineage"
+        ),
+        "target_consumer_subsystem": "TheoryDeveloper",
+        "recommended_repair_scope": "upstream_theory",
+        "upstream_theory_revision_count": 1,
+        "max_upstream_theory_revisions": 2,
+        "execution_authorized": False,
+        "findings": [
+            {
+                "severity": "high",
+                "category": "upstream_semantic_gap",
+                "summary": "The parent theory requires revision.",
+                "required_change": "Revise the missing theory derivation.",
+                "repair_scope": "upstream_theory",
+            }
+        ],
+    }
+    artifacts: dict[str, Any] = {}
+    if lineage_failure == "hash_mismatch":
+        artifacts[parent_packet_id] = parent_packet
+        feedback["source_theory_packet_hash"] = "mismatched-parent-hash"
+
+    result = TheoryDeveloperRuntimeSubsystem(
+        theory_developer=MustNotRunTheoryDeveloper(),  # type: ignore[arg-type]
+        n_runs=17,
+        seed=20260715,
+    ).run(
+        AgentTask(
+            task_id=f"theory-invalid-lineage:{lineage_failure}",
+            owner_subsystem="TheoryDeveloper",
+            objective="Reject invalid immutable revision lineage.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": {"environment_feedback": feedback},
+                "environment_feedback": feedback,
+            },
+        ),
+        BlackboardState(
+            project_id=f"invalid-lineage:{lineage_failure}",
+            artifacts=artifacts,
+        ),
+    )
+
+    assert derive_calls == 0
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
+    assert result.failure_classification == (
+        "metric_protocol_upstream_theory_revision_context_invalid"
+    )
+    artifact = next(iter(result.produced_artifacts.values()))
+    assert artifact["artifact_kind"] == (
+        "RuntimeMetricProtocolUpstreamTheoryRevisionBlocked"
+    )
+    assert artifact["execution_authorized"] is False
+    assert artifact["model_call_authorized"] is False
+    assert result.evidence_entries[0].status == (
+        "BLOCKED_BEFORE_THEORY_MODEL_CALL"
+    )
+
+
 def test_theory_developer_second_truncation_routes_ultra_compact_retry() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[0]
     question_payload = runtime_module._question_to_payload(question)
@@ -21622,6 +21848,7 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
                                 "required_change": (
                                     "Re-derive and regenerate the complete metric contract."
                                 ),
+                                "repair_scope": "metric_contract",
                                 "evidence_refs": ["requirement:generic_gate"],
                             }
                         ]
@@ -21705,6 +21932,140 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
     assert validate_architect_coordinator_packet(packet) == []
 
 
+def test_live_architect_stops_metric_rewrites_for_upstream_theory_gap() -> None:
+    from ai_statistician.architect_metric_contract_authoring import (
+        ArchitectMetricSemanticReviewRejected,
+    )
+    from ai_statistician.architect_metric_semantic_reviewer_llm import (
+        ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS,
+    )
+
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    metric_rows = [
+        {
+            "requirement_id": f"generic:{target.lower()}:gate",
+            "target_subsystems": [target],
+            "metric_semantics": "a raw finite-sample measurement",
+            "measurement_protocol": (
+                "return one raw measurement for each of exactly 17 replicates"
+            ),
+            "required_runtime_replicates": 17,
+            "operator": "<=",
+            "threshold": 0.1,
+            "lower": None,
+            "upper": None,
+            "tolerance": 0.0,
+            "aggregation": "mean",
+            "minimum_pass_count": None,
+            "minimum_pass_fraction": None,
+            "required": True,
+            "source_anchors": ["theory:procedure"],
+            "boundary": "empirical control, not theorem proof evidence",
+        }
+        for target in ("AlgorithmEngineer", "SimulationEngineer")
+    ]
+
+    class UpstreamTheoryGapBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate(self, request):
+            self.requests.append(request)
+            subsystem = request.metadata.get("subsystem")
+            if subsystem == "ArchitectMetricContractPlanner":
+                payload = {"empirical_metric_requirements": metric_rows}
+            elif subsystem == "ArchitectMetricSemanticReviewer":
+                payload = {
+                    "dimension_reviews": [
+                        {
+                            "dimension": dimension,
+                            "status": (
+                                "FAIL"
+                                if dimension
+                                == "mathematical_and_numeric_internal_consistency"
+                                else "PASS"
+                            ),
+                            "rationale": (
+                                "The theory packet omits the DGP calibration needed "
+                                "to derive this candidate."
+                            ),
+                            "evidence_refs": ["theory:procedure"],
+                        }
+                        for dimension in (
+                            ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS
+                        )
+                    ],
+                    "findings": [
+                        {
+                            "severity": "high",
+                            "category": "missing theory calibration",
+                            "summary": (
+                                "The candidate invents a DGP constant absent from "
+                                "the TheoryDeveloper packet."
+                            ),
+                            "required_change": (
+                                "Derive and record the calibration in TheoryDeveloper."
+                            ),
+                            "repair_scope": "upstream_theory",
+                            "evidence_refs": ["theory:procedure"],
+                        }
+                    ],
+                    "overall_verdict": "REVISE",
+                    "repair_instructions": [
+                        "Revise upstream theory before another metric candidate."
+                    ],
+                }
+            else:
+                raise AssertionError(
+                    "ArchitectCoordinator must not run after upstream theory rejection"
+                )
+            return GeneratorResponse(
+                text=json.dumps(payload),
+                provider="anthropic",
+                model=request.model,
+                metadata={
+                    "provider_structured_output_requested": True,
+                    "provider_structured_output_applied": True,
+                },
+            )
+
+    backend = UpstreamTheoryGapBackend()
+    with pytest.raises(ArchitectMetricSemanticReviewRejected) as exc_info:
+        LLMArchitectCoordinatorAgent(
+            provider=backend,
+            config=ArchitectCoordinatorConfig(
+                provider_name="anthropic",
+                model="claude-sonnet-4-6",
+                model_tier="sonnet",
+                max_tokens=8000,
+                metric_semantic_reviewer_max_revisions=2,
+            ),
+        ).propose(
+            question=question,
+            architect_context=_theory_informed_metric_context_fixture(),
+            runtime_config={
+                "evaluation_mode": "capability_eval",
+                "formal_verification_policy": "required",
+                "n_runs": 17,
+                "exact_source_theorem_prover_available": True,
+            },
+        )
+
+    assert [request.metadata.get("subsystem") for request in backend.requests] == [
+        "ArchitectMetricContractPlanner",
+        "ArchitectMetricSemanticReviewer",
+    ]
+    assert exc_info.value.recommended_repair_scope == "upstream_theory"
+    assert len(exc_info.value.semantic_review_history) == 1
+    assert exc_info.value.source_theory_packet_id == (
+        "theory_derivation:structured"
+    )
+
+
 def test_architect_runtime_persists_preexecution_metric_review_rejection() -> None:
     from ai_statistician.architect_metric_contract_authoring import (
         ArchitectMetricSemanticReviewRejected,
@@ -21728,6 +22089,7 @@ def test_architect_runtime_persists_preexecution_metric_review_rejection() -> No
             "semantic_review_packet_id": "metric-review:rejected",
             "semantic_review_packet_hash": "review-hash",
             "overall_verdict": "REVISE",
+            "recommended_repair_scope": "metric_contract",
             "dimension_reviews": [
                 {
                     "dimension": "finite_sample_attainability_and_calibration",
@@ -21741,6 +22103,7 @@ def test_architect_runtime_persists_preexecution_metric_review_rejection() -> No
                     "category": "finite_sample_calibration",
                     "summary": "The threshold is unsupported.",
                     "required_change": "Re-derive the finite-sample gate.",
+                    "repair_scope": "metric_contract",
                 }
             ],
             "repair_instructions": [
@@ -21790,6 +22153,163 @@ def test_architect_runtime_persists_preexecution_metric_review_rejection() -> No
     assert manifest["current_candidate_acceptance_eligible"] is False
     assert manifest["feedback_reusable_for_fresh_preexecution_authoring"] is True
     assert result.evidence_entries[0].payload["kernel_verified"] is False
+
+
+def test_architect_runtime_routes_upstream_metric_review_to_theory_developer() -> None:
+    from ai_statistician.architect_metric_contract_authoring import (
+        ArchitectMetricSemanticReviewRejected,
+    )
+
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    history = [
+        {
+            "revision_index": 0,
+            "source_theory_packet_id": "theory_derivation:upstream-gap",
+            "source_theory_packet_hash": "theory-hash",
+            "authoring_packet_id": "metric-authoring:upstream-gap",
+            "authoring_packet_hash": "authoring-hash",
+            "empirical_metric_requirement_set_id": "metric-set:upstream-gap",
+            "semantic_review_packet_id": "metric-review:upstream-gap",
+            "semantic_review_packet_hash": "review-hash",
+            "overall_verdict": "REVISE",
+            "recommended_repair_scope": "upstream_theory",
+            "dimension_reviews": [
+                {
+                    "dimension": "mathematical_and_numeric_internal_consistency",
+                    "status": "FAIL",
+                    "rationale": "The theory packet omits a required calibration.",
+                }
+            ],
+            "findings": [
+                {
+                    "severity": "high",
+                    "category": "missing theory calibration",
+                    "summary": "The DGP is not fully specified by theory.",
+                    "required_change": (
+                        "Derive the missing DGP calibration in TheoryDeveloper."
+                    ),
+                    "repair_scope": "upstream_theory",
+                },
+                {
+                    "severity": "medium",
+                    "category": "metric binding format",
+                    "summary": "A metric row uses the wrong operator encoding.",
+                    "required_change": "Repair the metric-contract operator field.",
+                    "repair_scope": "metric_contract",
+                }
+            ],
+            "repair_instructions": [
+                "Revise the upstream theory before authoring another metric contract.",
+                "Repair the metric-contract operator field.",
+            ],
+        }
+    ]
+
+    class RejectingCoordinator:
+        def propose(self, **_kwargs):
+            raise ArchitectMetricSemanticReviewRejected(
+                question_id=question.id,
+                semantic_review_history=history,
+                source_theory_packet_id="theory_derivation:upstream-gap",
+                source_theory_packet_hash="theory-hash",
+            )
+
+    result = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=RejectingCoordinator(),  # type: ignore[arg-type]
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            metric_protocol_max_upstream_theory_revisions=2,
+        ),
+    ).run(
+        AgentTask(
+            task_id="architect:metric-upstream-theory-revision",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Route a rejected protocol to its responsible owner.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": {
+                    "theory_packet_id": "theory_derivation:upstream-gap",
+                    "architect_metric_protocol_gate": {
+                        "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+                        "source_theory_packet_id": (
+                            "theory_derivation:upstream-gap"
+                        ),
+                        "upstream_theory_revision_count": 0,
+                        "execution_authorized": False,
+                    },
+                },
+            },
+        ),
+        BlackboardState(project_id="metric-upstream-theory-revision"),
+    )
+
+    assert result.status == "REROUTE"
+    assert result.failure_classification == (
+        "architect_metric_protocol_upstream_theory_revision_requested"
+    )
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["recommended_repair_scope"] == "upstream_theory"
+    assert feedback["upstream_theory_revision_count"] == 1
+    assert feedback["findings"] == [history[0]["findings"][0]]
+    assert feedback["repair_instructions"] == [
+        "Derive the missing DGP calibration in TheoryDeveloper."
+    ]
+    assert feedback["execution_authorized"] is False
+    produced_kinds = {
+        artifact["artifact_kind"]
+        for artifact in result.produced_artifacts.values()
+    }
+    assert produced_kinds == {
+        "RuntimeArchitectMetricProtocolPreExecutionRejection",
+        "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback",
+    }
+    rejection = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact["artifact_kind"]
+        == "RuntimeArchitectMetricProtocolPreExecutionRejection"
+    )
+    assert rejection["upstream_theory_revision_routed"] is True
+    assert rejection["execution_authorized"] is False
+
+    exhausted = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=RejectingCoordinator(),  # type: ignore[arg-type]
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            metric_protocol_max_upstream_theory_revisions=2,
+        ),
+    ).run(
+        AgentTask(
+            task_id="architect:metric-upstream-theory-budget-exhausted",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Fail closed after the upstream theory revision budget.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": {
+                    "theory_packet_id": "theory_derivation:upstream-gap",
+                    "architect_metric_protocol_gate": {
+                        "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+                        "source_theory_packet_id": (
+                            "theory_derivation:upstream-gap"
+                        ),
+                        "upstream_theory_revision_count": 2,
+                        "max_upstream_theory_revisions": 2,
+                        "execution_authorized": False,
+                    },
+                },
+            },
+        ),
+        BlackboardState(project_id="metric-upstream-theory-budget-exhausted"),
+    )
+    assert exhausted.status == "BLOCKED"
+    assert exhausted.next_task is None
+    exhausted_manifest = next(iter(exhausted.produced_artifacts.values()))
+    assert exhausted_manifest["upstream_theory_revision_routed"] is False
+    assert exhausted_manifest["upstream_theory_revision_count"] == 2
 
 
 def test_source_theorem_promotion_planning_is_structured_and_task_agnostic() -> None:
@@ -41100,6 +41620,29 @@ def test_theory_developer_prompt_compacts_architect_and_retrieval_context() -> N
     assert "hit_0_0" in prompt
     assert "hit_0_3" not in prompt
     assert "signature_omitted" in prompt
+
+
+def test_theory_developer_capability_eval_uses_serious_theory_mode() -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[1]
+    prompt = build_theory_developer_prompt(
+        question,
+        architect_context={
+            "architect_runtime_plan": {
+                "evidence_contract": {"evaluation_mode": "capability_eval"}
+            }
+        },
+    )
+
+    assert "serious_capability_theory_workspace" in prompt
+    assert "serious_theory_output_budget" in prompt
+    assert '"min_derivation_steps":5' in prompt
+    assert '"max_derivation_steps":8' in prompt
+    assert '"min_equation_chain_steps":4' in prompt
+    assert '"max_critic_findings":4' in prompt
+    assert "finite-sample feasibility claim" in prompt
+    assert "exactly one primary procedure" not in prompt
     assert "s" * 800 not in prompt
     assert "x" * 800 not in prompt
     assert len(prompt) < 30000
@@ -100559,6 +101102,35 @@ def test_runtime_topology_resolves_empty_config_model_from_tier(
     assert row["model"] == "claude-sonnet-topology-test"
     assert row["model_tier"] == "sonnet"
     assert row["expected_model_tier"] == "sonnet"
+    assert row["configured_serious_model"] == ""
+    assert row["serious_model"] == "claude-opus-4-8"
+    assert row["serious_model_tier"] == "opus"
+    assert row["expected_serious_model_tier"] == "opus"
+    assert row["serious_max_tokens"] == 8000
+
+
+def test_runtime_topology_rejects_contextual_serious_theory_tier_downgrade() -> None:
+    developer = LLMTheoryDeveloperAgent(
+        provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+        config=ResearchArchitectConfig(
+            provider_name="anthropic",
+            serious_model_tier="sonnet",
+        ),
+    )
+
+    row = _llm_agent_topology_row(
+        "TheoryDeveloper",
+        developer,
+        role="deductive statistical theory discovery",
+    )
+    violations = runtime_module._llm_topology_policy_violations([row])
+
+    assert row["serious_model"] == "claude-sonnet-4-6"
+    assert row["expected_serious_model_tier"] == "opus"
+    assert any(
+        "serious workspace expected model_tier opus" in violation
+        for violation in violations
+    )
 
 
 def test_runtime_topology_audit_rejects_resolved_claude_tier_policy_violation() -> None:
@@ -100630,6 +101202,8 @@ def test_runtime_topology_summary_requires_live_backend_identity() -> None:
             "enabled_by_provider": {"anthropic": 1},
             "enabled_by_model_tier": {"sonnet": 1},
             "unsupported_generator_backends_enabled": 0,
+            "anthropic_serious_model_tier_mismatches": 1,
+            "contextual_model_tier_policy_mismatches": 1,
         },
         "llm_agents": [
             {
@@ -100649,6 +101223,8 @@ def test_runtime_topology_summary_requires_live_backend_identity() -> None:
     assert summary["enabled_provider_counts"] == {"anthropic": 1}
     assert summary["n_live_generator_agents_enabled"] == 0
     assert summary["live_generator_subsystems"] == []
+    assert summary["anthropic_serious_model_tier_mismatches"] == 1
+    assert summary["contextual_model_tier_policy_mismatches"] == 1
 
 
 def test_runtime_topology_summary_requires_explicit_live_backend_identity() -> None:
@@ -102037,6 +102613,10 @@ def test_local_lean_proof_state_provider_routes_placeholder_to_authoring_not_tac
 def _capability_eval_preset_args(preset: str) -> argparse.Namespace:
     return argparse.Namespace(
         capability_eval_preset=preset,
+        theory_model_tier="sonnet",
+        serious_theory_llm_model="",
+        serious_theory_model_tier="opus",
+        serious_theory_max_tokens=8000,
         max_iterations=12,
         provider="static",
         architect_coordinator_provider="none",
@@ -102383,6 +102963,9 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     assert args.max_iterations == 24
     assert args.min_task_families == 2
     assert args.formal_verification_policy == "required"
+    assert args.theory_model_tier == "sonnet"
+    assert args.serious_theory_model_tier == "opus"
+    assert args.serious_theory_max_tokens >= 8000
     assert args.formalization_gap_planner_live_route_planner is True
     assert args.formalization_gap_planner_live_max_handoffs == 1
     assert args.formalization_gap_planner_live_max_route_requests_per_handoff == 1
@@ -102429,6 +103012,21 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
         == "full"
     )
     assert _research_agent_runtime_capability_config_errors(args) == []
+
+    args.serious_theory_model_tier = "sonnet"
+    assert (
+        "capability eval preset full-live requires Opus-tier serious "
+        "TheoryDeveloper workspaces; set --serious-theory-model-tier opus"
+    ) in _research_agent_runtime_capability_config_errors(args)
+    args.serious_theory_model_tier = "opus"
+
+    args.serious_theory_max_tokens = 7999
+    assert any(
+        "serious TheoryDeveloper output budget of at least 8000 tokens"
+        in error
+        for error in _research_agent_runtime_capability_config_errors(args)
+    )
+    args.serious_theory_max_tokens = 8000
 
     args.pseudo_formal_block_verifier_runtime = False
     assert (

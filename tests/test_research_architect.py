@@ -291,6 +291,52 @@ def test_llm_theory_developer_validation_rejects_shallow_derivation_contract() -
     assert any("formalization_handoff" in error for error in errors)
 
 
+def test_capability_theory_mode_requires_deeper_equation_trace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ai_statistician.llm_json_repair import PacketValidationError
+
+    monkeypatch.setenv(
+        "AI_STATISTICIAN_CLAUDE_OPUS_MODEL",
+        "claude-opus-serious-theory-test",
+    )
+    provider = SequentialGeneratorBackend([_sample_response()])
+    developer = LLMTheoryDeveloperAgent(
+        provider=provider,
+        config=ResearchArchitectConfig(
+            provider_name="anthropic",
+            max_repair_attempts=0,
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc_info:
+        developer.derive(
+            OpenResearchQuestion(
+                id="serious_theory",
+                title="Serious theory mode",
+                description="Require a research-grade equation trace.",
+            ),
+            architect_context={
+                "architect_runtime_plan": {
+                    "evidence_contract": {"evaluation_mode": "capability_eval"}
+                }
+            },
+        )
+
+    assert "at least 5 steps" in str(exc_info.value)
+    assert "at least 4 equation rows" in str(exc_info.value)
+    assert len(provider.requests) == 1
+    request = provider.requests[0]
+    assert request.model == "claude-opus-serious-theory-test"
+    assert request.max_tokens == 8000
+    assert request.metadata["model_tier"] == "opus"
+    assert request.metadata["base_model_tier"] == "sonnet"
+    assert request.metadata["serious_theory_mode"] is True
+    assert request.metadata["theory_prompt_mode"] == (
+        "serious_capability_theory_workspace"
+    )
+
+
 def test_llm_theory_developer_repairs_invalid_json_packet_before_accepting() -> None:
     oversized_bad_response = {"problem_card": {"observed_data": "x" * 4000}}
     provider = SequentialGeneratorBackend(
@@ -603,6 +649,8 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
         "AI_STATISTICIAN_ANTHROPIC_HAIKU_MODEL",
         "AI_STATISTICIAN_CLAUDE_SONNET_MODEL",
         "AI_STATISTICIAN_ANTHROPIC_SONNET_MODEL",
+        "AI_STATISTICIAN_CLAUDE_OPUS_MODEL",
+        "AI_STATISTICIAN_ANTHROPIC_OPUS_MODEL",
         "AI_STATISTICIAN_THEORY_MODEL",
     ):
         monkeypatch.delenv(key, raising=False)
@@ -625,11 +673,20 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
     assert runtime_args.generated_code_semantic_reviewer_provider == "none"
     assert runtime_args.formal_target_semantic_reviewer_provider == "none"
     assert runtime_args.llm_model == ""
+    assert runtime_args.theory_model_tier == "sonnet"
+    assert runtime_args.serious_theory_llm_model == ""
+    assert runtime_args.serious_theory_model_tier == "opus"
+    assert runtime_args.serious_theory_max_tokens == 8000
     assert default_generator_model(
         runtime_args.provider,
         runtime_args.llm_model,
         model_tier="sonnet",
     ) == "claude-sonnet-4-6"
+    assert default_generator_model(
+        runtime_args.provider,
+        runtime_args.serious_theory_llm_model,
+        model_tier=runtime_args.serious_theory_model_tier,
+    ) == "claude-opus-4-8"
     assert loop_args.llm_theory_provider == "anthropic"
     assert loop_args.llm_theory_model == ""
     assert default_generator_model(

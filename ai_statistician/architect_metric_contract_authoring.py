@@ -6,6 +6,8 @@ from typing import Any, Mapping
 
 from .architect_metric_semantic_reviewer_llm import (
     ARCHITECT_METRIC_SEMANTIC_REVIEW_BOUNDARY,
+    ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_METRIC_CONTRACT,
+    ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY,
     LLMArchitectMetricSemanticReviewerAgent,
 )
 from .fingerprint import stable_hash
@@ -42,11 +44,19 @@ class ArchitectMetricSemanticReviewRejected(PacketValidationError):
         *,
         question_id: str,
         semantic_review_history: list[dict[str, Any]],
+        source_theory_packet_id: str = "",
+        source_theory_packet_hash: str = "",
     ) -> None:
         history = [dict(row) for row in semantic_review_history]
         last_review = history[-1] if history else {}
         self.question_id = str(question_id)
         self.semantic_review_history = history
+        self.source_theory_packet_id = str(source_theory_packet_id or "")
+        self.source_theory_packet_hash = str(source_theory_packet_hash or "")
+        self.recommended_repair_scope = str(
+            last_review.get("recommended_repair_scope", "")
+            or ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_METRIC_CONTRACT
+        )
         super().__init__(
             validation_label="Architect pre-execution metric semantic review",
             attempts=len(history),
@@ -471,6 +481,12 @@ def author_reviewed_architect_metric_requirements(
                 "overall_verdict": str(
                     semantic_review_packet.get("overall_verdict", "") or ""
                 ),
+                "recommended_repair_scope": str(
+                    semantic_review_packet.get(
+                        "recommended_repair_scope", ""
+                    )
+                    or ""
+                ),
                 "dimension_reviews": list(
                     semantic_review_packet.get("dimension_reviews", []) or []
                 ),
@@ -495,10 +511,29 @@ def author_reviewed_architect_metric_requirements(
                 ARCHITECT_METRIC_SEMANTIC_REVIEW_BOUNDARY
             )
             return authoring_packet
+        if semantic_review_packet.get("recommended_repair_scope") == (
+            ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
+        ):
+            raise ArchitectMetricSemanticReviewRejected(
+                question_id=question.id,
+                semantic_review_history=semantic_review_history,
+                source_theory_packet_id=str(
+                    theory_material.get("source_theory_packet_id", "") or ""
+                ),
+                source_theory_packet_hash=str(
+                    theory_material.get("source_theory_packet_hash", "") or ""
+                ),
+            )
         prior_authoring_packet = authoring_packet
         prior_review_packet = semantic_review_packet
 
     raise ArchitectMetricSemanticReviewRejected(
         question_id=question.id,
         semantic_review_history=semantic_review_history,
+        source_theory_packet_id=str(
+            theory_material.get("source_theory_packet_id", "") or ""
+        ),
+        source_theory_packet_hash=str(
+            theory_material.get("source_theory_packet_hash", "") or ""
+        ),
     )

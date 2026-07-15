@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 from ai_statistician.model_backend import (
+    AI_STATISTICIAN_LLM_CONTEXTUAL_MODEL_TIER_POLICY,
     AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
     ANTHROPIC_CLAUDE_TIER_ENV_VARS,
@@ -592,6 +593,11 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
         ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY["subsystem_model_tier_policy"]
         == AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY
     )
+    assert (
+        ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY["contextual_model_tier_policy"]
+        == AI_STATISTICIAN_LLM_CONTEXTUAL_MODEL_TIER_POLICY
+        == {"TheoryDeveloper:serious": "opus"}
+    )
     assert llm_subsystem_expected_model_tier("TheoryDeveloper") == "sonnet"
     assert llm_subsystem_expected_model_tier("FormalizerProofEngineer") == "sonnet"
     assert llm_subsystem_expected_model_tier("SimulationEngineer") == "sonnet"
@@ -719,6 +725,9 @@ def test_claude_tier_routing_contract_reports_subsystem_policy_and_warnings(
     assert clean_contract["environment_override_status"] == "OK"
     assert clean_contract["subsystem_model_tier_policy"] == (
         AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY
+    )
+    assert clean_contract["contextual_model_tier_policy"] == (
+        AI_STATISTICIAN_LLM_CONTEXTUAL_MODEL_TIER_POLICY
     )
     assert clean_contract["all_ok"] is True
 

@@ -45,6 +45,7 @@ def _review_payload(*, accept: bool) -> dict[str, object]:
                         "Regenerate the contract from an analytically justified "
                         "finite-sample target."
                     ),
+                    "repair_scope": "metric_contract",
                     "evidence_refs": ["requirement:generic_gate"],
                 }
             ]
@@ -139,6 +140,47 @@ def test_preexecution_metric_reviewer_returns_typed_revision_feedback() -> None:
     assert packet["overall_verdict"] == "REVISE"
     assert packet["repair_instructions"]
     assert packet["findings"][0]["severity"] == "high"
+    assert packet["findings"][0]["repair_scope"] == "metric_contract"
+    assert packet["recommended_repair_scope"] == "metric_contract"
+    assert validate_architect_metric_semantic_review_packet(packet) == []
+
+
+def test_preexecution_metric_reviewer_routes_missing_semantics_upstream() -> None:
+    payload = _review_payload(accept=False)
+    payload["findings"][0]["repair_scope"] = "upstream_theory"
+    backend = _Backend(payload)
+    packet = LLMArchitectMetricSemanticReviewerAgent(
+        provider=backend,
+        config=ArchitectMetricSemanticReviewerConfig(
+            provider_name="anthropic",
+            model="claude-opus-4-8",
+            model_tier="opus",
+            max_repair_attempts=0,
+        ),
+    ).review(
+        question=OpenResearchQuestion(
+            id="q_metric_theory_review",
+            title="Review missing theory semantics",
+            description="The DGP calibration is not specified by theory.",
+        ),
+        review_material={
+            "review_stage": "pre_execution_metric_contract_review",
+            "execution_results_available": False,
+            "empirical_metric_requirements": [
+                {"requirement_id": "generic_gate"}
+            ],
+        },
+        trusted_lineage={
+            "authoring_packet_id": "metric-authoring:theory-gap",
+            "authoring_packet_hash": stable_hash({"candidate": "theory-gap"}),
+            "empirical_metric_requirement_set_id": "metric-set:theory-gap",
+            "source_agent": "ArchitectMetricContractPlanner",
+            "source_model": "claude-sonnet-4-6",
+            "source_model_tier": "sonnet",
+        },
+    )
+
+    assert packet["recommended_repair_scope"] == "upstream_theory"
     assert validate_architect_metric_semantic_review_packet(packet) == []
 
 

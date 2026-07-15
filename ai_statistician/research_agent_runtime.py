@@ -87,6 +87,8 @@ from .generated_code_semantic_review_replan import (
 from .evaluation_protocol_revision import (
     _architect_post_result_metric_protocol_revision_result,
     architect_preexecution_metric_protocol_rejection_result,
+    metric_protocol_upstream_theory_revision_blocked_result,
+    metric_protocol_upstream_theory_revision_feedback_errors,
 )
 from .metric_protocol_stage import (
     METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED,
@@ -208,6 +210,7 @@ from .formalizer_candidate_identity import (
 )
 from .llm_json_repair import PacketValidationError
 from .model_backend import (
+    AI_STATISTICIAN_LLM_CONTEXTUAL_MODEL_TIER_POLICY,
     AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
     AnthropicGeneratorBackend,
@@ -7277,6 +7280,7 @@ class ResearchAgentRuntimeConfig:
     algorithm_engineer_generated_code_repair_yield_after_attempts: int = 0
     simulation_evaluator_generated_code_repair_yield_after_attempts: int = 0
     generated_code_semantic_review_max_revisions: int = 1
+    metric_protocol_max_upstream_theory_revisions: int = 2
     formal_target_semantic_review_required: bool = False
     formal_target_semantic_review_max_revisions: int = 2
     formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts: int = 0
@@ -8059,6 +8063,10 @@ class ArchitectCoordinatorRuntimeSubsystem:
                 task=task,
                 question=question,
                 semantic_review_history=exc.semantic_review_history,
+                architect_context=context,
+                max_upstream_theory_revisions=(
+                    self.runtime_config.metric_protocol_max_upstream_theory_revisions
+                ),
             )
         packet_id = str(packet["packet_id"])
         context["architect_coordinator_proposal_id"] = packet_id
@@ -10628,6 +10636,49 @@ class TheoryDeveloperRuntimeSubsystem:
         context["runtime_task"] = _runtime_task_prompt_summary(task)
         if "environment_feedback" in task.inputs:
             context["environment_feedback"] = task.inputs["environment_feedback"]
+        metric_protocol_revision_feedback = context.get(
+            "environment_feedback", {}
+        )
+        if not (
+            isinstance(metric_protocol_revision_feedback, Mapping)
+            and metric_protocol_revision_feedback.get("artifact_kind")
+            == "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback"
+        ):
+            metric_protocol_revision_feedback = {}
+        if metric_protocol_revision_feedback:
+            parent_theory_packet_id = str(
+                metric_protocol_revision_feedback.get(
+                    "source_theory_packet_id", ""
+                )
+                or ""
+            )
+            parent_theory_packet = blackboard.artifacts.get(
+                parent_theory_packet_id, {}
+            )
+            feedback_errors = (
+                metric_protocol_upstream_theory_revision_feedback_errors(
+                    metric_protocol_revision_feedback,
+                    question_id=question.id,
+                    parent_theory_packet=(
+                        parent_theory_packet
+                        if isinstance(parent_theory_packet, Mapping)
+                        else None
+                    ),
+                )
+            )
+            if feedback_errors:
+                return metric_protocol_upstream_theory_revision_blocked_result(
+                    task=task,
+                    question=question,
+                    feedback=metric_protocol_revision_feedback,
+                    validation_errors=feedback_errors,
+                )
+            context["metric_protocol_prior_theory_material"] = (
+                build_theory_informed_metric_protocol_material(
+                    theory_packet=parent_theory_packet,
+                    theory_packet_id=parent_theory_packet_id,
+                )
+            )
         try:
             packet = self.theory_developer.derive(question, architect_context=context)
         except PacketValidationError as exc:
@@ -10637,6 +10688,30 @@ class TheoryDeveloperRuntimeSubsystem:
                 context=context,
                 exc=exc,
             )
+        if metric_protocol_revision_feedback:
+            packet = dict(packet)
+            packet["parent_theory_packet_id"] = str(
+                metric_protocol_revision_feedback.get(
+                    "source_theory_packet_id", ""
+                )
+                or ""
+            )
+            packet["metric_protocol_upstream_theory_revision_feedback_id"] = str(
+                metric_protocol_revision_feedback.get("feedback_id", "") or ""
+            )
+            packet["metric_protocol_rejection_manifest_id"] = str(
+                metric_protocol_revision_feedback.get(
+                    "source_metric_protocol_rejection_manifest_id", ""
+                )
+                or ""
+            )
+            packet["metric_protocol_upstream_theory_revision_count"] = int(
+                metric_protocol_revision_feedback.get(
+                    "upstream_theory_revision_count", 0
+                )
+                or 0
+            )
+            packet["runtime_revision_artifact"] = True
         theory_control = _architect_control_payload(context, "TheoryDeveloper")
         packet["runtime_architect_control"] = theory_control
         packet_id = _unique_runtime_artifact_id(
@@ -10709,6 +10784,25 @@ class TheoryDeveloperRuntimeSubsystem:
             is not True
         )
         if requires_metric_protocol_gate:
+            prior_metric_gate = context.get(
+                "architect_metric_protocol_gate", {}
+            )
+            if not isinstance(prior_metric_gate, Mapping):
+                prior_metric_gate = {}
+            upstream_theory_revision_count = int(
+                prior_metric_gate.get("upstream_theory_revision_count", 0) or 0
+            )
+            max_upstream_theory_revisions = int(
+                prior_metric_gate.get("max_upstream_theory_revisions", 0) or 0
+            )
+            rejection_manifest_ids = [
+                str(value)
+                for value in prior_metric_gate.get(
+                    "rejection_manifest_ids", []
+                )
+                or []
+                if str(value).strip()
+            ]
             context["theory_packet_id"] = packet_id
             context["architect_metric_protocol_theory_material"] = (
                 build_theory_informed_metric_protocol_material(
@@ -10719,6 +10813,14 @@ class TheoryDeveloperRuntimeSubsystem:
             context["architect_metric_protocol_gate"] = {
                 "artifact_kind": "RuntimeArchitectMetricProtocolGate",
                 "source_theory_packet_id": packet_id,
+                "source_theory_revision_feedback_id": str(
+                    metric_protocol_revision_feedback.get("feedback_id", "")
+                    if metric_protocol_revision_feedback
+                    else ""
+                ),
+                "rejection_manifest_ids": rejection_manifest_ids,
+                "upstream_theory_revision_count": upstream_theory_revision_count,
+                "max_upstream_theory_revisions": max_upstream_theory_revisions,
                 "deferred_next_task": asdict(simulation_task),
                 "required_disposition": "PREEXECUTION_REVIEW_ACCEPTED",
                 "execution_authorized": False,
@@ -53761,6 +53863,9 @@ def _runtime_llm_topology(
             "expected_subsystem_model_tiers": (
                 AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY
             ),
+            "expected_contextual_model_tiers": (
+                AI_STATISTICIAN_LLM_CONTEXTUAL_MODEL_TIER_POLICY
+            ),
             "model_tier_assignment_policy": (
                 "centralized_subsystem_policy_from_model_backend"
             ),
@@ -53807,6 +53912,9 @@ def _runtime_llm_topology(
             "ArchitectMetricSemanticReviewer", "model"
         ),
         "theory_developer_model": _subsystem_field("TheoryDeveloper", "model"),
+        "theory_developer_serious_model": _subsystem_field(
+            "TheoryDeveloper", "serious_model"
+        ),
         "simulation_engineer_model": _subsystem_field("SimulationEngineer", "model"),
         "algorithm_engineer_model": _subsystem_field("AlgorithmEngineer", "model"),
         "formalizer_model": _subsystem_field("FormalizerProofEngineer", "model"),
@@ -53822,6 +53930,9 @@ def _runtime_llm_topology(
             "ArchitectMetricSemanticReviewer", "model_tier"
         ),
         "theory_developer_model_tier": _subsystem_field("TheoryDeveloper", "model_tier"),
+        "theory_developer_serious_model_tier": _subsystem_field(
+            "TheoryDeveloper", "serious_model_tier"
+        ),
         "simulation_engineer_model_tier": _subsystem_field(
             "SimulationEngineer", "model_tier"
         ),
@@ -53858,8 +53969,16 @@ def _runtime_llm_topology(
             "anthropic_model_tier_mismatches": sum(
                 1 for row in enabled if _anthropic_model_tier_mismatch(row)
             ),
+            "anthropic_serious_model_tier_mismatches": sum(
+                1
+                for row in enabled
+                if _anthropic_serious_model_tier_mismatch(row)
+            ),
             "subsystem_model_tier_policy_mismatches": sum(
                 1 for row in enabled if _subsystem_model_tier_mismatch(row)
+            ),
+            "contextual_model_tier_policy_mismatches": sum(
+                1 for row in enabled if _contextual_model_tier_mismatch(row)
             ),
             "resolved_claude_model_tier_policy_violations": len(
                 resolved_claude_model_tier_policy_violations
@@ -56715,8 +56834,14 @@ def _runtime_llm_topology_summary(topology: Mapping[str, Any]) -> dict[str, Any]
         "anthropic_model_tier_mismatches": int(
             counts.get("anthropic_model_tier_mismatches", 0) or 0
         ),
+        "anthropic_serious_model_tier_mismatches": int(
+            counts.get("anthropic_serious_model_tier_mismatches", 0) or 0
+        ),
         "subsystem_model_tier_policy_mismatches": int(
             counts.get("subsystem_model_tier_policy_mismatches", 0) or 0
+        ),
+        "contextual_model_tier_policy_mismatches": int(
+            counts.get("contextual_model_tier_policy_mismatches", 0) or 0
         ),
         "boundary": (
             "This is runtime generator provenance only. Static generators and live "
@@ -56740,9 +56865,15 @@ def _llm_topology_policy_violations(agents: list[dict[str, Any]]) -> list[str]:
         mismatch = _anthropic_model_tier_mismatch(row)
         if mismatch:
             violations.append(mismatch)
+        serious_mismatch = _anthropic_serious_model_tier_mismatch(row)
+        if serious_mismatch:
+            violations.append(serious_mismatch)
         subsystem_tier_mismatch = _subsystem_model_tier_mismatch(row)
         if subsystem_tier_mismatch:
             violations.append(subsystem_tier_mismatch)
+        contextual_tier_mismatch = _contextual_model_tier_mismatch(row)
+        if contextual_tier_mismatch:
+            violations.append(contextual_tier_mismatch)
     return violations
 
 
@@ -56774,6 +56905,22 @@ def _anthropic_model_tier_mismatch(row: Mapping[str, Any]) -> str:
     )
 
 
+def _anthropic_serious_model_tier_mismatch(row: Mapping[str, Any]) -> str:
+    if not str(row.get("serious_model_tier", "") or "").strip():
+        return ""
+    providers = {
+        str(row.get("provider_name", "") or "").strip().lower(),
+        str(row.get("backend_provider_name", "") or "").strip().lower(),
+    }
+    if "anthropic" not in providers:
+        return ""
+    return claude_model_tier_mismatch(
+        str(row.get("serious_model", "") or "").strip(),
+        str(row.get("serious_model_tier", "") or "").strip().lower(),
+        subject=f"{str(row.get('subsystem', '') or '').strip()} serious workspace",
+    )
+
+
 def _subsystem_model_tier_mismatch(row: Mapping[str, Any]) -> str:
     expected = str(row.get("expected_model_tier", "") or "").strip().lower()
     configured = str(row.get("model_tier", "") or "").strip().lower()
@@ -56785,6 +56932,20 @@ def _subsystem_model_tier_mismatch(row: Mapping[str, Any]) -> str:
         f"{row.get('subsystem')} expected model_tier {expected} by "
         f"AI Statistician LLM subsystem policy but is configured with "
         f"{configured or 'missing'}"
+    )
+
+
+def _contextual_model_tier_mismatch(row: Mapping[str, Any]) -> str:
+    expected = str(
+        row.get("expected_serious_model_tier", "") or ""
+    ).strip().lower()
+    configured = str(row.get("serious_model_tier", "") or "").strip().lower()
+    if not expected or configured == expected:
+        return ""
+    return (
+        f"{row.get('subsystem')} serious workspace expected model_tier "
+        f"{expected} by AI Statistician contextual LLM policy but is configured "
+        f"with {configured or 'missing'}"
     )
 
 
@@ -56820,7 +56981,7 @@ def _llm_agent_topology_row(
         requested_model=requested_model,
         model_tier=config_model_tier,
     )
-    return {
+    row = {
         "subsystem": subsystem,
         "enabled": True,
         "provider_name": provider_name,
@@ -56835,6 +56996,37 @@ def _llm_agent_topology_row(
         "max_tokens": int(getattr(config, "max_tokens", 0) or 0),
         "temperature": float(getattr(config, "temperature", 0.0) or 0.0),
     }
+    if subsystem == "TheoryDeveloper":
+        serious_model_tier = str(
+            getattr(config, "serious_model_tier", "")
+            or AI_STATISTICIAN_LLM_CONTEXTUAL_MODEL_TIER_POLICY.get(
+                "TheoryDeveloper:serious", ""
+            )
+        )
+        row.update(
+            {
+                "serious_model": resolve_generator_model(
+                    provider_name=provider_name,
+                    requested_model=str(
+                        getattr(config, "serious_model", "") or ""
+                    ),
+                    model_tier=serious_model_tier,
+                ),
+                "configured_serious_model": str(
+                    getattr(config, "serious_model", "") or ""
+                ),
+                "serious_model_tier": serious_model_tier,
+                "expected_serious_model_tier": (
+                    AI_STATISTICIAN_LLM_CONTEXTUAL_MODEL_TIER_POLICY.get(
+                        "TheoryDeveloper:serious", ""
+                    )
+                ),
+                "serious_max_tokens": int(
+                    getattr(config, "serious_max_tokens", 0) or 0
+                ),
+            }
+        )
+    return row
 
 
 def _implementation_gaps(
