@@ -310,7 +310,11 @@ def architect_preexecution_metric_protocol_rejection_result(
             "schema_version": EVALUATION_PROTOCOL_REVISION_SCHEMA_VERSION,
             "artifact_kind": "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback",
             "feedback_id": feedback_id,
-            "feedback_source": "ArchitectMetricSemanticReviewer",
+            "feedback_source": (
+                "ArchitectMetricRepairOwnershipRouter"
+                if final_review.get("repair_ownership_packet_id")
+                else "ArchitectMetricSemanticReviewer"
+            ),
             "feedback_type": "preexecution_metric_protocol_upstream_theory_revision",
             "trigger": "METRIC_PROTOCOL_REVIEW_REQUIRES_UPSTREAM_THEORY_REVISION",
             "failure_classification": (
@@ -321,6 +325,12 @@ def architect_preexecution_metric_protocol_rejection_result(
             "source_owner_subsystem": task.owner_subsystem,
             "target_consumer_subsystem": "TheoryDeveloper",
             "source_metric_protocol_rejection_manifest_id": manifest_id,
+            "repair_ownership_packet_id": str(
+                final_review.get("repair_ownership_packet_id", "") or ""
+            ),
+            "repair_ownership_packet_hash": str(
+                final_review.get("repair_ownership_packet_hash", "") or ""
+            ),
             "source_theory_packet_id": source_theory_packet_id,
             "source_theory_packet_hash": source_theory_packet_hash,
             "recommended_repair_scope": recommended_repair_scope,

@@ -56,6 +56,7 @@ AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY = {
     "SimulatorEngineer": "sonnet",
     "AlgorithmEngineer": "sonnet",
     "ArchitectMetricSemanticReviewer": "opus",
+    "ArchitectMetricRepairOwnershipRouter": "opus",
     "GeneratedCodeSemanticReviewer": "opus",
     "FormalTargetSemanticReviewer": "opus",
     "CriticEvaluator": "haiku",

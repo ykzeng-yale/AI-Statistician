@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Literal, Mapping, Protocol
@@ -108,7 +109,7 @@ class BlackboardState:
     def to_json(self) -> dict[str, Any]:
         return {
             "project_id": self.project_id,
-            "artifacts": self.artifacts,
+            "artifacts": deepcopy(self.artifacts),
             "evidence_ledger": [asdict(row) for row in self.evidence_ledger],
             "handoff_ledger": [asdict(row) for row in self.handoff_ledger],
             "active_blockers": list(self.active_blockers),
@@ -212,7 +213,7 @@ class AgentRuntime:
         max_transient_subsystem_retries: int = 0,
         progress_callback: Callable[[dict[str, Any]], None] | None = None,
     ) -> AgentRuntimeResult:
-        task = initial_task
+        task = deepcopy(initial_task)
         traces: list[RuntimeIterationTrace] = []
         final_status: RuntimeStatus = "MAX_ITERATIONS_REACHED"
         max_retries = max(0, int(max_transient_subsystem_retries))
@@ -349,6 +350,7 @@ class AgentRuntime:
                     blackboard=self.blackboard,
                 )
 
+            result = _snapshot_agent_step_result(result)
             self.blackboard.artifacts.update(result.produced_artifacts)
             self.blackboard.evidence_ledger.extend(result.evidence_entries)
             produced_artifact_ids = tuple(result.produced_artifacts.keys())
@@ -371,7 +373,7 @@ class AgentRuntime:
                 self.blackboard.active_blockers.append(result.rationale)
             trace = RuntimeIterationTrace(
                 iteration=iteration,
-                task=task,
+                task=deepcopy(task),
                 subsystem=subsystem_name,
                 status=result.status,
                 rationale=result.rationale,
@@ -381,7 +383,7 @@ class AgentRuntime:
                 evidence_ids=evidence_ids,
                 handoff_id=handoff_record.handoff_id if handoff_record is not None else "",
                 next_task_id=result.next_task.task_id if result.next_task is not None else "",
-                next_task=result.next_task,
+                next_task=deepcopy(result.next_task),
                 failure_classification=result.failure_classification,
             )
             traces.append(trace)
@@ -409,7 +411,7 @@ class AgentRuntime:
             if result.next_task is None:
                 final_status = result.status
                 break
-            task = result.next_task
+            task = deepcopy(result.next_task)
 
         return AgentRuntimeResult(
             status=final_status,
@@ -417,6 +419,21 @@ class AgentRuntime:
             blackboard=self.blackboard,
             traces=tuple(traces),
         )
+
+
+def _snapshot_agent_step_result(result: AgentStepResult) -> AgentStepResult:
+    """Break mutable aliases before artifacts and handoffs cross runtime ownership."""
+
+    return AgentStepResult(
+        status=result.status,
+        rationale=result.rationale,
+        produced_artifacts=deepcopy(result.produced_artifacts),
+        observations=deepcopy(result.observations),
+        tool_calls=deepcopy(result.tool_calls),
+        evidence_entries=deepcopy(result.evidence_entries),
+        next_task=deepcopy(result.next_task),
+        failure_classification=result.failure_classification,
+    )
 
 
 def _emit_progress(

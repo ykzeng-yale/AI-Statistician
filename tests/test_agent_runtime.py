@@ -253,6 +253,67 @@ def test_agent_runtime_handoff_policy_can_rewrite_next_task() -> None:
     )
 
 
+def test_agent_runtime_snapshots_artifacts_and_handoffs_across_subsystems() -> None:
+    shared_payload = {"nested": {"value": "original"}}
+    caller_payload = {"value": "caller-original"}
+
+    class Producer:
+        name = "Producer"
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            task.inputs["caller_context"]["value"] = "mutated-inside-runtime"
+            return AgentStepResult(
+                status="REROUTE",
+                rationale="publish an immutable artifact and route its context",
+                produced_artifacts={"artifact:shared": shared_payload},
+                next_task=AgentTask(
+                    task_id="mutate:shared",
+                    owner_subsystem="Mutator",
+                    objective="exercise downstream mutable inputs",
+                    inputs={"downstream_context": shared_payload},
+                ),
+            )
+
+    class Mutator:
+        name = "Mutator"
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            task.inputs["downstream_context"]["nested"]["value"] = "mutated"
+            shared_payload["nested"]["value"] = "mutated-outside-runtime"
+            return AgentStepResult(status="ACCEPTED", rationale="mutation attempted")
+
+    result = AgentRuntime(
+        subsystems={"Producer": Producer(), "Mutator": Mutator()},
+        blackboard=BlackboardState(project_id="immutable-snapshot-test"),
+    ).run(
+        AgentTask(
+            task_id="produce:shared",
+            owner_subsystem="Producer",
+            objective="publish one artifact",
+            inputs={"caller_context": caller_payload},
+        ),
+        max_iterations=2,
+    )
+
+    assert result.status == "ACCEPTED"
+    assert caller_payload == {"value": "caller-original"}
+    assert result.blackboard.artifacts["artifact:shared"] == {
+        "nested": {"value": "original"}
+    }
+    assert result.traces[0].next_task is not None
+    assert result.traces[0].next_task.inputs["downstream_context"] == {
+        "nested": {"value": "original"}
+    }
+
+
 def test_agent_runtime_retries_transient_subsystem_exception() -> None:
     subsystem = FlakySubsystem()
     result = AgentRuntime(

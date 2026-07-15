@@ -1403,6 +1403,10 @@ def test_theory_developer_routes_capability_eval_through_metric_protocol_gate() 
         "theory_derivation:metric-gate"
     )
     assert material["execution_results_available"] is False
+    stored_packet = result.produced_artifacts[material["source_theory_packet_id"]]
+    assert runtime_module.stable_hash(stored_packet) == material[
+        "source_theory_packet_hash"
+    ]
     assert material["theory_semantic_material"][
         "theory_derivation_packet"
     ]["equation_chain"] == theory_packet["theory_derivation_packet"][
@@ -22066,6 +22070,177 @@ def test_live_architect_stops_metric_rewrites_for_upstream_theory_gap() -> None:
     )
 
 
+def test_live_architect_uses_artifact_router_to_correct_repair_owner() -> None:
+    from ai_statistician.architect_metric_contract_authoring import (
+        ArchitectMetricSemanticReviewRejected,
+    )
+    from ai_statistician.architect_metric_semantic_reviewer_llm import (
+        ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS,
+    )
+
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    metric_rows = [
+        {
+            "requirement_id": f"generic:{target.lower()}:owner-routing",
+            "target_subsystems": [target],
+            "metric_semantics": "a raw finite-sample measurement",
+            "measurement_protocol": (
+                "return one raw measurement for each of exactly 17 replicates"
+            ),
+            "required_runtime_replicates": 17,
+            "operator": "<=",
+            "threshold": 0.1,
+            "lower": None,
+            "upper": None,
+            "tolerance": 0.0,
+            "aggregation": "mean",
+            "minimum_pass_count": None,
+            "minimum_pass_fraction": None,
+            "required": True,
+            "source_anchors": ["theory:equation"],
+            "boundary": "empirical control, not theorem proof evidence",
+        }
+        for target in ("AlgorithmEngineer", "SimulationEngineer")
+    ]
+
+    class MisclassifiedOwnerBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate(self, request):
+            self.requests.append(request)
+            subsystem = request.metadata.get("subsystem")
+            if subsystem == "ArchitectMetricContractPlanner":
+                payload = {"empirical_metric_requirements": metric_rows}
+            elif subsystem == "ArchitectMetricSemanticReviewer":
+                payload = {
+                    "dimension_reviews": [
+                        {
+                            "dimension": dimension,
+                            "status": (
+                                "FAIL"
+                                if dimension
+                                == "mathematical_and_numeric_internal_consistency"
+                                else "PASS"
+                            ),
+                            "rationale": (
+                                "The candidate exposes a contradiction in the "
+                                "source theory equation."
+                            ),
+                            "evidence_refs": ["theory_derivation_packet:E1"],
+                        }
+                        for dimension in (
+                            ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS
+                        )
+                    ],
+                    "findings": [
+                        {
+                            "severity": "high",
+                            "category": "inconsistent source derivation",
+                            "summary": (
+                                "The source theory equation itself is incorrect."
+                            ),
+                            "required_change": (
+                                "Correct the derivation and refresh its metric anchor."
+                            ),
+                            "repair_scope": "metric_contract",
+                            "evidence_refs": ["theory_derivation_packet:E1"],
+                        }
+                    ],
+                    "overall_verdict": "REVISE",
+                    "repair_instructions": [
+                        "Correct the responsible artifact before execution."
+                    ],
+                }
+            elif subsystem == "ArchitectMetricRepairOwnershipRouter":
+                payload = {
+                    "decisions": [
+                        {
+                            "finding_index": 0,
+                            "required_artifact_changes": [
+                                {
+                                    "artifact_role": "source_theory_packet",
+                                    "change_summary": (
+                                        "Correct the source theory derivation."
+                                    ),
+                                },
+                                {
+                                    "artifact_role": "metric_protocol_candidate",
+                                    "change_summary": (
+                                        "Refresh the dependent source anchor."
+                                    ),
+                                },
+                            ],
+                            "metric_author_can_repair_without_revising_source_theory": False,
+                            "ownership_certainty": "resolved",
+                            "rationale": (
+                                "The source equation cannot remain unchanged."
+                            ),
+                        }
+                    ]
+                }
+            else:
+                raise AssertionError(
+                    "ArchitectCoordinator must not run after routed rejection"
+                )
+            return GeneratorResponse(
+                text=json.dumps(payload),
+                provider="anthropic",
+                model=request.model,
+                metadata={
+                    "provider_structured_output_requested": True,
+                    "provider_structured_output_applied": True,
+                },
+            )
+
+    backend = MisclassifiedOwnerBackend()
+    with pytest.raises(ArchitectMetricSemanticReviewRejected) as exc_info:
+        LLMArchitectCoordinatorAgent(
+            provider=backend,
+            config=ArchitectCoordinatorConfig(
+                provider_name="anthropic",
+                model="claude-sonnet-4-6",
+                model_tier="sonnet",
+                max_tokens=8000,
+                metric_semantic_reviewer_max_revisions=2,
+                metric_repair_ownership_router_enabled=True,
+            ),
+        ).propose(
+            question=question,
+            architect_context=_theory_informed_metric_context_fixture(),
+            runtime_config={
+                "evaluation_mode": "capability_eval",
+                "formal_verification_policy": "required",
+                "n_runs": 17,
+                "exact_source_theorem_prover_available": True,
+            },
+        )
+
+    assert [request.metadata.get("subsystem") for request in backend.requests] == [
+        "ArchitectMetricContractPlanner",
+        "ArchitectMetricSemanticReviewer",
+        "ArchitectMetricRepairOwnershipRouter",
+    ]
+    assert exc_info.value.recommended_repair_scope == "upstream_theory"
+    history = exc_info.value.semantic_review_history
+    assert len(history) == 1
+    assert history[0]["semantic_reviewer_recommended_repair_scope"] == (
+        "metric_contract"
+    )
+    assert history[0]["recommended_repair_scope"] == "upstream_theory"
+    assert history[0]["findings"][0]["semantic_reviewer_repair_scope"] == (
+        "metric_contract"
+    )
+    assert history[0]["findings"][0]["repair_scope"] == "upstream_theory"
+    assert history[0]["repair_ownership_packet_id"].startswith(
+        "metric_repair_ownership:"
+    )
+
+
 def test_architect_runtime_persists_preexecution_metric_review_rejection() -> None:
     from ai_statistician.architect_metric_contract_authoring import (
         ArchitectMetricSemanticReviewRejected,
@@ -22173,6 +22348,8 @@ def test_architect_runtime_routes_upstream_metric_review_to_theory_developer() -
             "empirical_metric_requirement_set_id": "metric-set:upstream-gap",
             "semantic_review_packet_id": "metric-review:upstream-gap",
             "semantic_review_packet_hash": "review-hash",
+            "repair_ownership_packet_id": "repair-owner:upstream-gap",
+            "repair_ownership_packet_hash": "repair-owner-hash",
             "overall_verdict": "REVISE",
             "recommended_repair_scope": "upstream_theory",
             "dimension_reviews": [
@@ -22252,6 +22429,13 @@ def test_architect_runtime_routes_upstream_metric_review_to_theory_developer() -
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "TheoryDeveloper"
     feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["feedback_source"] == (
+        "ArchitectMetricRepairOwnershipRouter"
+    )
+    assert feedback["repair_ownership_packet_id"] == (
+        "repair-owner:upstream-gap"
+    )
+    assert feedback["repair_ownership_packet_hash"] == "repair-owner-hash"
     assert feedback["recommended_repair_scope"] == "upstream_theory"
     assert feedback["upstream_theory_revision_count"] == 1
     assert feedback["findings"] == [history[0]["findings"][0]]
@@ -101133,6 +101317,28 @@ def test_runtime_topology_rejects_contextual_serious_theory_tier_downgrade() -> 
     )
 
 
+def test_runtime_topology_records_metric_repair_ownership_router() -> None:
+    coordinator = LLMArchitectCoordinatorAgent(
+        provider=StaticArchitectLLMProvider(_architect_sample_response()),
+        config=ArchitectCoordinatorConfig(
+            provider_name="anthropic",
+            metric_repair_ownership_router_enabled=True,
+        ),
+    )
+
+    row = _llm_agent_topology_row(
+        "ArchitectMetricRepairOwnershipRouter",
+        coordinator.metric_repair_ownership_router,
+        role="artifact-bound pre-execution repair ownership",
+    )
+
+    assert row["enabled"] is True
+    assert row["model"] == "claude-opus-4-8"
+    assert row["model_tier"] == "opus"
+    assert row["expected_model_tier"] == "opus"
+    assert runtime_module._llm_topology_policy_violations([row]) == []
+
+
 def test_runtime_topology_audit_rejects_resolved_claude_tier_policy_violation() -> None:
     topology = {
         "policy_status": "OK",
@@ -102617,6 +102823,9 @@ def _capability_eval_preset_args(preset: str) -> argparse.Namespace:
         serious_theory_llm_model="",
         serious_theory_model_tier="opus",
         serious_theory_max_tokens=8000,
+        architect_metric_repair_ownership_router=False,
+        architect_metric_repair_ownership_router_llm_model="",
+        architect_metric_repair_ownership_router_max_tokens=5000,
         max_iterations=12,
         provider="static",
         architect_coordinator_provider="none",
@@ -102966,6 +103175,7 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     assert args.theory_model_tier == "sonnet"
     assert args.serious_theory_model_tier == "opus"
     assert args.serious_theory_max_tokens >= 8000
+    assert args.architect_metric_repair_ownership_router is True
     assert args.formalization_gap_planner_live_route_planner is True
     assert args.formalization_gap_planner_live_max_handoffs == 1
     assert args.formalization_gap_planner_live_max_route_requests_per_handoff == 1
@@ -103012,6 +103222,14 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
         == "full"
     )
     assert _research_agent_runtime_capability_config_errors(args) == []
+
+    args.architect_metric_repair_ownership_router = False
+    assert (
+        "capability eval preset full-live requires the independent "
+        "ArchitectMetricRepairOwnershipRouter; missing "
+        "--architect-metric-repair-ownership-router"
+    ) in _research_agent_runtime_capability_config_errors(args)
+    args.architect_metric_repair_ownership_router = True
 
     args.serious_theory_model_tier = "sonnet"
     assert (

@@ -600,6 +600,9 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
     )
     assert llm_subsystem_expected_model_tier("TheoryDeveloper") == "sonnet"
     assert llm_subsystem_expected_model_tier("FormalizerProofEngineer") == "sonnet"
+    assert llm_subsystem_expected_model_tier(
+        "ArchitectMetricRepairOwnershipRouter"
+    ) == "opus"
     assert llm_subsystem_expected_model_tier("SimulationEngineer") == "sonnet"
     assert llm_subsystem_expected_model_tier("AlgorithmEngineer") == "sonnet"
     assert llm_subsystem_expected_model_tier("CriticEvaluator") == "haiku"

@@ -5165,6 +5165,23 @@ def _build_architect_coordinator_agent_from_args(args: argparse.Namespace, *, de
                 "architect_metric_semantic_reviewer_max_revisions",
                 2,
             ),
+            metric_repair_ownership_router_enabled=bool(
+                getattr(
+                    args,
+                    "architect_metric_repair_ownership_router",
+                    False,
+                )
+            ),
+            metric_repair_ownership_router_model=getattr(
+                args,
+                "architect_metric_repair_ownership_router_llm_model",
+                "",
+            ),
+            metric_repair_ownership_router_max_tokens=getattr(
+                args,
+                "architect_metric_repair_ownership_router_max_tokens",
+                5000,
+            ),
         ),
     )
 
@@ -14158,6 +14175,7 @@ def _apply_research_agent_runtime_capability_eval_preset(
         roots.append(str(default_source_root))
     args.source_theorem_exact_semantic_definition_source_root = roots
     if preset == "full-live":
+        args.architect_metric_repair_ownership_router = True
         if not str(
             getattr(args, "serious_theory_model_tier", "") or ""
         ).strip():
@@ -14818,6 +14836,18 @@ def _research_agent_runtime_capability_config_errors(
             "--formalizer-candidate-lean-lsp-mcp"
         )
     if str(getattr(args, "capability_eval_preset", "") or "") == "full-live":
+        if not bool(
+            getattr(
+                args,
+                "architect_metric_repair_ownership_router",
+                False,
+            )
+        ):
+            errors.append(
+                "capability eval preset full-live requires the independent "
+                "ArchitectMetricRepairOwnershipRouter; missing "
+                "--architect-metric-repair-ownership-router"
+            )
         serious_theory_model_tier = str(
             getattr(args, "serious_theory_model_tier", "") or ""
         ).strip().lower()
@@ -21614,6 +21644,26 @@ def build_parser() -> argparse.ArgumentParser:
             "maximum full metric-contract rewrites after independent "
             "pre-execution semantic review rejects a candidate"
         ),
+    )
+    research_agent_runtime.add_argument(
+        "--architect-metric-repair-ownership-router",
+        action="store_true",
+        help=(
+            "independently route rejected metric-review findings by the "
+            "artifact that must change before any execution"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--architect-metric-repair-ownership-router-llm-model",
+        default="",
+        help=(
+            "repair-ownership router model; Anthropic defaults to Claude Opus"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--architect-metric-repair-ownership-router-max-tokens",
+        type=int,
+        default=5000,
     )
     research_agent_runtime.add_argument(
         "--architect-metric-protocol-max-upstream-theory-revisions",

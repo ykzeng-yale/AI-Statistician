@@ -4,10 +4,13 @@ import json
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from .architect_metric_repair_ownership_router_llm import (
+    LLMArchitectMetricRepairOwnershipRouterAgent,
+    apply_architect_metric_repair_ownership_routes,
+)
 from .architect_metric_semantic_reviewer_llm import (
     ARCHITECT_METRIC_SEMANTIC_REVIEW_BOUNDARY,
     ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_METRIC_CONTRACT,
-    ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY,
     LLMArchitectMetricSemanticReviewerAgent,
 )
 from .fingerprint import stable_hash
@@ -88,6 +91,9 @@ def author_reviewed_architect_metric_requirements(
     config: ArchitectMetricContractAuthoringConfig,
     request_model: str,
     semantic_reviewer: LLMArchitectMetricSemanticReviewerAgent | None,
+    repair_ownership_router: (
+        LLMArchitectMetricRepairOwnershipRouterAgent | None
+    ),
     question: OpenResearchQuestion,
     runtime_contract: Mapping[str, Any],
     theory_protocol_material: Mapping[str, Any] | None = None,
@@ -417,27 +423,55 @@ def author_reviewed_architect_metric_requirements(
                 "Every accepted target subsystem must remain covered by at least one required row.",
             ],
         }
+        trusted_review_lineage = {
+            "authoring_packet_id": str(authoring_packet["packet_id"]),
+            "authoring_packet_hash": authoring_packet_hash,
+            "empirical_metric_requirement_set_id": str(
+                authoring_packet["empirical_metric_requirement_set_id"]
+            ),
+            "source_theory_packet_id": str(
+                theory_material.get("source_theory_packet_id", "") or ""
+            ),
+            "source_theory_packet_hash": str(
+                theory_material.get("source_theory_packet_hash", "") or ""
+            ),
+            "source_agent": str(authoring_packet["source_agent"]),
+            "source_model": str(authoring_packet["model"]),
+            "source_model_tier": str(authoring_packet["model_tier"]),
+        }
         semantic_review_packet = semantic_reviewer.review(
             question=question,
             review_material=review_material,
-            trusted_lineage={
-                "authoring_packet_id": str(authoring_packet["packet_id"]),
-                "authoring_packet_hash": authoring_packet_hash,
-                "empirical_metric_requirement_set_id": str(
-                    authoring_packet["empirical_metric_requirement_set_id"]
-                ),
-                "source_theory_packet_id": str(
-                    theory_material.get("source_theory_packet_id", "") or ""
-                ),
-                "source_theory_packet_hash": str(
-                    theory_material.get("source_theory_packet_hash", "") or ""
-                ),
-                "source_agent": str(authoring_packet["source_agent"]),
-                "source_model": str(authoring_packet["model"]),
-                "source_model_tier": str(authoring_packet["model_tier"]),
-            },
+            trusted_lineage=trusted_review_lineage,
         )
         review_packet_hash = stable_hash(semantic_review_packet)
+        routed_findings = [
+            dict(row)
+            for row in semantic_review_packet.get("findings", []) or []
+            if isinstance(row, Mapping)
+        ]
+        recommended_repair_scope = str(
+            semantic_review_packet.get("recommended_repair_scope", "") or ""
+        )
+        repair_ownership_packet: dict[str, Any] = {}
+        if (
+            semantic_review_packet.get("overall_verdict") == "REVISE"
+            and repair_ownership_router is not None
+        ):
+            repair_ownership_packet = repair_ownership_router.route(
+                question=question,
+                review_material=review_material,
+                semantic_review_packet=semantic_review_packet,
+                trusted_lineage=trusted_review_lineage,
+            )
+            routed_findings = apply_architect_metric_repair_ownership_routes(
+                findings=semantic_review_packet.get("findings", []),
+                ownership_packet=repair_ownership_packet,
+            )
+            recommended_repair_scope = str(
+                repair_ownership_packet.get("recommended_repair_scope", "")
+                or ""
+            )
         semantic_review_history.append(
             {
                 "revision_index": revision_index,
@@ -481,18 +515,34 @@ def author_reviewed_architect_metric_requirements(
                 "overall_verdict": str(
                     semantic_review_packet.get("overall_verdict", "") or ""
                 ),
-                "recommended_repair_scope": str(
+                "semantic_reviewer_recommended_repair_scope": str(
                     semantic_review_packet.get(
                         "recommended_repair_scope", ""
                     )
                     or ""
                 ),
+                "recommended_repair_scope": recommended_repair_scope,
+                "repair_ownership_packet_id": str(
+                    repair_ownership_packet.get("packet_id", "") or ""
+                ),
+                "repair_ownership_packet_hash": (
+                    stable_hash(repair_ownership_packet)
+                    if repair_ownership_packet
+                    else ""
+                ),
+                "repair_ownership_model": str(
+                    repair_ownership_packet.get("model", "") or ""
+                ),
+                "repair_ownership_model_tier": str(
+                    repair_ownership_packet.get("model_tier", "") or ""
+                ),
+                "repair_ownership_decisions": list(
+                    repair_ownership_packet.get("decisions", []) or []
+                ),
                 "dimension_reviews": list(
                     semantic_review_packet.get("dimension_reviews", []) or []
                 ),
-                "findings": list(
-                    semantic_review_packet.get("findings", []) or []
-                ),
+                "findings": routed_findings,
                 "repair_instructions": list(
                     semantic_review_packet.get("repair_instructions", []) or []
                 ),
@@ -511,8 +561,8 @@ def author_reviewed_architect_metric_requirements(
                 ARCHITECT_METRIC_SEMANTIC_REVIEW_BOUNDARY
             )
             return authoring_packet
-        if semantic_review_packet.get("recommended_repair_scope") == (
-            ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
+        if recommended_repair_scope != (
+            ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_METRIC_CONTRACT
         ):
             raise ArchitectMetricSemanticReviewRejected(
                 question_id=question.id,
@@ -525,7 +575,12 @@ def author_reviewed_architect_metric_requirements(
                 ),
             )
         prior_authoring_packet = authoring_packet
-        prior_review_packet = semantic_review_packet
+        prior_review_packet = {
+            **dict(semantic_review_packet),
+            "findings": routed_findings,
+            "recommended_repair_scope": recommended_repair_scope,
+            "repair_ownership_packet": repair_ownership_packet,
+        }
 
     raise ArchitectMetricSemanticReviewRejected(
         question_id=question.id,

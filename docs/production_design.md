@@ -135,12 +135,13 @@ preexecution_review_accepted` phase transition and does not authorize generated
 execution in either pending phase. A separate Opus reviewer checks
 question/estimand alignment, identifiability, mathematical and numeric
 consistency, finite-sample attainability, exact evaluator semantics, and
-cross-requirement consistency. A rejected candidate is returned to the metric
-author only when the reviewer classifies every correction as
-`metric_contract`. If any correction requires a revised estimand, procedure,
-estimator, DGP, assumption, derivation, calibration, or feasibility argument,
-the reviewer assigns `upstream_theory`; metric rewriting stops immediately and
-AgentRuntime dispatches a typed TheoryDeveloper revision task. That task sees
+cross-requirement consistency. For a rejected candidate, a second Opus agent
+independently decides which immutable artifact must change. It sees the source
+theory, metric candidate, and substantive findings, but not the reviewer's
+scope label or global repair instruction. A metric-only decision returns to the
+bounded metric author. A source-theory decision stops metric rewriting and
+AgentRuntime dispatches a typed TheoryDeveloper revision task; contradictory or
+uncertain ownership fails closed. That task sees
 the complete immutable parent theory material plus the exact review findings,
 then returns through a fresh metric-author and independent-review gate. The
 revision count, parent packet, rejection manifest, and feedback packet remain
@@ -163,6 +164,10 @@ dependencies, and explicit audits of DGP calibration, finite-sample
 feasibility, estimator/estimand alignment, assumptions, and rejected
 alternatives. These are domain-neutral output-depth and feedback contracts;
 the runtime does not derive statistical formulas or repair the theory itself.
+They are packet-completeness bounds, not a definition of research quality or a
+claim that five to eight steps are mathematically sufficient. Independent
+review remains the authority, and a later artifact-backed theory workspace may
+expand beyond this handoff packet when the derivation requires it.
 The compact packet remains a Sonnet route for non-capability discovery turns.
 Serious capability and upstream-revision turns have an independent Opus model
 field and at least an 8000-token output budget. Runtime topology resolves and
@@ -170,6 +175,14 @@ checks the actual model ID and contextual tier before any agent runs, so an
 explicit Sonnet model cannot masquerade as an Opus serious workspace. Stronger
 model provenance remains proposal metadata, never empirical, statistical, or
 proof evidence.
+
+AgentRuntime publication is also an ownership boundary. It snapshots each
+subsystem result before placing artifacts, evidence, observations, or the next
+task on the blackboard. Fresh artifacts are persisted exactly as published and
+are never normalized after the runtime returns. Compatibility normalization is
+limited to migration of rehydrated historical artifacts before they re-enter a
+run. Therefore feedback hashes identify the actual parent packet consumed by a
+revision agent rather than a later metadata rewrite.
 
 The registry-backed `ProblemFormalizer`, `TheoryPlanner`, and
 `ResearchSimulator` described below remain legacy baseline providers. They are
@@ -601,6 +614,15 @@ question
   -> theory/proof/algorithm revision
   -> repeat until proved/validated, explicitly gapped, or budget exhausted
 ```
+
+Development uses three non-substitutable evaluation tracks. The research-loop
+track may make formal verification optional so theory, generated algorithm,
+DGP simulation, independent review, and revision can be diagnosed without a
+Lean infrastructure blocker; it must retain every formal gap explicitly. The
+progressive-prover track measures state-action Lean repair, retrieval, and
+kernel-checked subclaims. The strict cross-family track requires the complete
+fresh loop plus exact source-theorem kernel closure. Success in either earlier
+track cannot satisfy the strict track or unlock held-out tasks.
 
 Current honest boundary: `TheoryPlanner` already emits informal derivation text
 and theorem roadmaps, `FormalSubclaimProver` already performs real AXLE/Lean

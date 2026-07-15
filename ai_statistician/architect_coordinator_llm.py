@@ -5,6 +5,10 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
+from .architect_metric_repair_ownership_router_llm import (
+    ArchitectMetricRepairOwnershipRouterConfig,
+    LLMArchitectMetricRepairOwnershipRouterAgent,
+)
 from .architect_metric_semantic_reviewer_llm import (
     ARCHITECT_METRIC_SEMANTIC_REVIEW_BOUNDARY,
     ArchitectMetricSemanticReviewerConfig,
@@ -144,6 +148,10 @@ class ArchitectCoordinatorConfig:
     metric_semantic_reviewer_model_tier: str = "opus"
     metric_semantic_reviewer_max_tokens: int = 7000
     metric_semantic_reviewer_max_revisions: int = 2
+    metric_repair_ownership_router_enabled: bool = False
+    metric_repair_ownership_router_model: str = ""
+    metric_repair_ownership_router_model_tier: str = "opus"
+    metric_repair_ownership_router_max_tokens: int = 5000
 
 
 class LLMArchitectCoordinatorAgent:
@@ -156,6 +164,9 @@ class LLMArchitectCoordinatorAgent:
         config: ArchitectCoordinatorConfig = ArchitectCoordinatorConfig(),
         metric_semantic_reviewer: (
             LLMArchitectMetricSemanticReviewerAgent | None
+        ) = None,
+        metric_repair_ownership_router: (
+            LLMArchitectMetricRepairOwnershipRouterAgent | None
         ) = None,
     ) -> None:
         self.provider = provider
@@ -172,6 +183,27 @@ class LLMArchitectCoordinatorAgent:
                         model=config.metric_semantic_reviewer_model,
                         model_tier=config.metric_semantic_reviewer_model_tier,
                         max_tokens=config.metric_semantic_reviewer_max_tokens,
+                        temperature=0.0,
+                        provider_name=config.provider_name,
+                    ),
+                )
+            )
+        self.metric_repair_ownership_router = metric_repair_ownership_router
+        if (
+            self.metric_repair_ownership_router is None
+            and config.metric_repair_ownership_router_enabled
+        ):
+            self.metric_repair_ownership_router = (
+                LLMArchitectMetricRepairOwnershipRouterAgent(
+                    provider=provider,
+                    config=ArchitectMetricRepairOwnershipRouterConfig(
+                        model=config.metric_repair_ownership_router_model,
+                        model_tier=(
+                            config.metric_repair_ownership_router_model_tier
+                        ),
+                        max_tokens=(
+                            config.metric_repair_ownership_router_max_tokens
+                        ),
                         temperature=0.0,
                         provider_name=config.provider_name,
                     ),
@@ -203,6 +235,7 @@ class LLMArchitectCoordinatorAgent:
             ),
             request_model=request_model,
             semantic_reviewer=self.metric_semantic_reviewer,
+            repair_ownership_router=self.metric_repair_ownership_router,
             question=question,
             runtime_contract=_architect_runtime_owned_evidence_contract(
                 architect_context=architect_context,

@@ -11,6 +11,7 @@ import subprocess
 import sys
 import threading
 from collections import Counter
+from copy import deepcopy
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26390,6 +26391,8 @@ def _normalize_formalizer_lean_candidate_materialization_artifact(
 def _normalize_runtime_blackboard_artifacts(
     artifacts: Mapping[str, Any],
 ) -> dict[str, Any]:
+    """Migrate rehydrated artifacts before use, never fresh published artifacts."""
+
     normalized: dict[str, Any] = {}
     for artifact_id, artifact in artifacts.items():
         if (
@@ -26713,8 +26716,8 @@ def _runtime_artifact_with_architect_control(
         return artifact
     contract = control_seed.get("evidence_contract", {})
     if not isinstance(contract, Mapping) or not contract:
-        return dict(artifact)
-    payload = dict(artifact)
+        return deepcopy(dict(artifact))
+    payload = deepcopy(dict(artifact))
     existing_control = payload.get("runtime_architect_control", {})
     control = dict(existing_control) if isinstance(existing_control, Mapping) else {}
     control_contract = control.get("evidence_contract", {})
@@ -36407,9 +36410,6 @@ def run_research_agent_runtime(
             max_iterations=config.max_iterations,
             max_transient_subsystem_retries=config.max_subsystem_retries,
             progress_callback=record_progress,
-        )
-        result.blackboard.artifacts = _normalize_runtime_blackboard_artifacts(
-            result.blackboard.artifacts
         )
         result_json = result.to_json()
         result_path = out_dir / f"{_safe_identifier(question.id)}_runtime_result.json"
@@ -53763,6 +53763,18 @@ def _runtime_llm_topology(
             ),
         ),
         _llm_agent_topology_row(
+            "ArchitectMetricRepairOwnershipRouter",
+            (
+                architect_coordinator.metric_repair_ownership_router
+                if architect_coordinator is not None
+                else None
+            ),
+            role=(
+                "independent pre-execution routing of semantic-review findings "
+                "by the immutable artifact that must change"
+            ),
+        ),
+        _llm_agent_topology_row(
             "TheoryDeveloper",
             theory_developer,
             role="deductive statistical theory discovery and theorem/procedure proposal",
@@ -53888,6 +53900,9 @@ def _runtime_llm_topology(
         "architect_metric_semantic_reviewer_provider": _subsystem_field(
             "ArchitectMetricSemanticReviewer", "provider_name"
         ),
+        "architect_metric_repair_ownership_router_provider": _subsystem_field(
+            "ArchitectMetricRepairOwnershipRouter", "provider_name"
+        ),
         "theory_developer_provider": _subsystem_field("TheoryDeveloper", "provider_name"),
         "simulation_engineer_provider": _subsystem_field(
             "SimulationEngineer", "provider_name"
@@ -53911,6 +53926,9 @@ def _runtime_llm_topology(
         "architect_metric_semantic_reviewer_model": _subsystem_field(
             "ArchitectMetricSemanticReviewer", "model"
         ),
+        "architect_metric_repair_ownership_router_model": _subsystem_field(
+            "ArchitectMetricRepairOwnershipRouter", "model"
+        ),
         "theory_developer_model": _subsystem_field("TheoryDeveloper", "model"),
         "theory_developer_serious_model": _subsystem_field(
             "TheoryDeveloper", "serious_model"
@@ -53928,6 +53946,9 @@ def _runtime_llm_topology(
         "architect_model_tier": _subsystem_field("ArchitectCoordinator", "model_tier"),
         "architect_metric_semantic_reviewer_model_tier": _subsystem_field(
             "ArchitectMetricSemanticReviewer", "model_tier"
+        ),
+        "architect_metric_repair_ownership_router_model_tier": _subsystem_field(
+            "ArchitectMetricRepairOwnershipRouter", "model_tier"
         ),
         "theory_developer_model_tier": _subsystem_field("TheoryDeveloper", "model_tier"),
         "theory_developer_serious_model_tier": _subsystem_field(
@@ -60023,11 +60044,11 @@ def _architect_expected_artifacts(
 
 def _architect_control_payload(context: Mapping[str, Any], subsystem: str) -> dict[str, Any]:
     plan = _architect_runtime_plan(context)
-    row = _architect_subsystem_plan(context, subsystem)
+    row = deepcopy(_architect_subsystem_plan(context, subsystem))
     if not plan and not row:
         return {}
     evidence_gates = [
-        dict(item)
+        deepcopy(dict(item))
         for item in plan.get("evidence_gates", []) or []
         if isinstance(item, Mapping)
     ]
@@ -60044,7 +60065,7 @@ def _architect_control_payload(context: Mapping[str, Any], subsystem: str) -> di
             context.get("architect_coordinator_proposal_id", "")
         ),
         "subsystem": subsystem,
-        "subsystem_plan": row,
+        "subsystem_plan": deepcopy(row),
         "acceptance_gate": str(row.get("acceptance_gate", "")).strip(),
         "expected_artifacts": [
             str(item).strip()
@@ -60052,14 +60073,16 @@ def _architect_control_payload(context: Mapping[str, Any], subsystem: str) -> di
             if str(item).strip()
         ],
         "evidence_gates": evidence_gates,
-        "iteration_policy": dict(iteration_policy) if isinstance(iteration_policy, Mapping) else {},
-        "retrieval_strategy": dict(retrieval_strategy) if isinstance(retrieval_strategy, Mapping) else {},
-        "problem_analysis": dict(problem_analysis) if isinstance(problem_analysis, Mapping) else {},
-        "stat_knowledge_bank_plan": dict(knowledge_bank_plan) if isinstance(knowledge_bank_plan, Mapping) else {},
+        "iteration_policy": deepcopy(dict(iteration_policy)) if isinstance(iteration_policy, Mapping) else {},
+        "retrieval_strategy": deepcopy(dict(retrieval_strategy)) if isinstance(retrieval_strategy, Mapping) else {},
+        "problem_analysis": deepcopy(dict(problem_analysis)) if isinstance(problem_analysis, Mapping) else {},
+        "stat_knowledge_bank_plan": deepcopy(dict(knowledge_bank_plan)) if isinstance(knowledge_bank_plan, Mapping) else {},
         "literature_fair_comparison_plan": [
-            dict(item) for item in fair_comparison_plan if isinstance(item, Mapping)
+            deepcopy(dict(item))
+            for item in fair_comparison_plan
+            if isinstance(item, Mapping)
         ],
-        "evidence_contract": dict(evidence_contract),
+        "evidence_contract": deepcopy(dict(evidence_contract)),
         "formal_verification_policy": str(
             evidence_contract.get("formal_verification_policy", "") or ""
         ),
@@ -99012,7 +99035,6 @@ def _runtime_research_path_execution_summary(
         )
         if not isinstance(artifacts, Mapping):
             continue
-        artifacts = _normalize_runtime_blackboard_artifacts(artifacts)
         produced_artifact_ids = set(_runtime_trace_produced_artifact_ids(result))
         artifact_scope = (
             produced_artifact_ids if produced_artifact_ids else set(artifacts)

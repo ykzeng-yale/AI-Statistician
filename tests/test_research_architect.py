@@ -677,6 +677,9 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
     assert runtime_args.serious_theory_llm_model == ""
     assert runtime_args.serious_theory_model_tier == "opus"
     assert runtime_args.serious_theory_max_tokens == 8000
+    assert runtime_args.architect_metric_repair_ownership_router is False
+    assert runtime_args.architect_metric_repair_ownership_router_llm_model == ""
+    assert runtime_args.architect_metric_repair_ownership_router_max_tokens == 5000
     assert default_generator_model(
         runtime_args.provider,
         runtime_args.llm_model,
