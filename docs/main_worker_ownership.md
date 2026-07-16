@@ -1,6 +1,6 @@
 # Main Worker Ownership
 
-Updated: 2026-07-14
+Updated: 2026-07-16
 
 This document records the main-worker operating contract for AI Statistician.
 It complements `docs/multi_codex_coordination.md` and
@@ -27,6 +27,15 @@ evidence-contract semantics, live capability evaluation, repair-loop plumbing,
 and GitHub coordination. Other Codex sessions should still own focused lanes,
 but the main worker is responsible for making their outputs converge into the
 product path instead of becoming disconnected audits.
+
+The product test is deliberately smaller than the capability audit: on two
+unrelated fresh tasks, the same LLM-driven loop must derive a theory, validate
+its numeric claims with tools, generate and repair executable code, consume
+independent semantic feedback, generate and repair the exact Lean target, and
+either obtain kernel evidence or retain an explicit gap. Runtime code owns
+identity, hashes, permissions, budgets, execution, and evidence boundaries. It
+must not own the statistical answer, Lean grammar, tactic sequence, or a
+task-family shortcut. Scorecard rows diagnose this path; they are not the goal.
 
 ## Immediate Main Goal
 
@@ -66,6 +75,14 @@ Reach a live, GitHub-reviewable AI Statistician capability milestone:
    agenda rows and bounded pending-task memory must carry explicit
    `target_ids`, and missing explicit artifact ids must route back to the
    producing subsystem.
+9. Treat a repair as demonstrated only when runtime-derived lineage binds the
+   failed parent source/result, exact reviewer feedback, regenerated child
+   source/result, and later passing verdict. Temporal order or a shared question
+   id is insufficient.
+10. Require numerical derivations that control empirical gates to receive a
+    generic calculator or generated-code verification pass before execution is
+    authorized. This is a tool-feedback capability, not a library of
+    task-specific formulas.
 
 ## Evidence Gates
 
@@ -261,6 +278,41 @@ gap in the real prover loop; it does not close a fresh statistical theorem,
 S14, serious theory mode, R execution, or the second orchestration plane.
 
 Live evidence collected during this lane:
+
+- `runs/main_worker_cross_family_research_loop_optional_20260716_v4_cumulative_metric_finding_closure/research_agent_runtime_manifest.json`:
+  the fresh survival/sequential optional-formal run at `5452da26` scored
+  93/125 but remained not ready. Survival closed 14 blocking metric findings,
+  then executed a generated simulation that failed two of seven frozen gates;
+  the independent reviewer isolated the CI arithmetic error; a fresh generated
+  simulation passed all seven gates and independent review. Two generated
+  algorithm artifacts then passed 14/14 bindings. This is a real feedback
+  flow, but the child proposal/result is not yet immutably bound to the parent
+  review hashes, so the audit correctly does not count an artifact-bound repair
+  sequence. Sequential closed all carried findings and then stopped on a fresh,
+  substantive arithmetic defect: its claimed e-process drift has the wrong
+  sign, invalidating the dependent power calibration. This is honest negative
+  evidence for TheoryDeveloper numeric self-verification, not a reason to add a
+  Bernoulli formula to runtime code.
+
+- The same v4 run produced four Formalizer packets and four candidate
+  materialization manifests. Real Lean checked seven candidate rows. One
+  generated `km_martingale_decomposition` declaration compiled and a separate
+  `#check` verified the exact structured candidate identity, live-validating
+  the `859a6f0a` identity mechanism. Its proposition is only a self-equality,
+  however, so it remains candidate-artifact feedback and contributes zero
+  kernel-verified source subclaims. The KM normality theorem remained open with
+  four formal gaps. This is the intended boundary: compilation and name
+  identity cannot substitute for independent theorem semantics or exact source
+  theorem closure.
+
+- `5452da26` is now the bounded metric-review correction. The existing author
+  and reviewer carry runtime-owned finding ids and must explicitly close every
+  active item across both metric-only and TheoryDeveloper revisions. Survival
+  reached zero active findings; sequential's final ledger contains eight
+  `RESOLVED`, two `RESOLVED_BY_CURRENT_THEORY`, and two genuinely unresolved
+  numeric-calibration findings. No new agent, retry budget, statistic formula,
+  task-family branch, or scheduler was added. The full runtime regression is
+  1131 passed in 3955.53 seconds.
 
 - `runs/main_worker_s14_two_family_fresh_live_20260712_v1/research_agent_runtime_manifest.json`:
   a fresh Claude capability run exercised experimental-design and

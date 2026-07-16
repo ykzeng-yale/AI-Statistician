@@ -156,6 +156,21 @@ does not mutate a threshold after seeing results or spend the remaining task
 budget rerunning the old research chain. This gate contains no task-family
 formula, expected answer, metric threshold, or Lean grammar.
 
+Metric review is cumulative rather than conversational. Runtime assigns a
+stable id to each reviewer finding and stores the full immutable ledger, while
+the existing author receives the active unresolved rows and the existing
+reviewer must return one explicit resolution decision for each active id. A
+missing, duplicate, unknown, or still-unresolved id blocks `ACCEPT`; a later
+TheoryDeveloper packet may close a finding only with an explicit
+`RESOLVED_BY_CURRENT_THEORY` decision bound to current-artifact references.
+This mechanism prevents serial rewriting from making old defects disappear.
+It does not compare statistical meanings, deduplicate paraphrases, derive a
+formula, or decide that a finding is solved. The 2026-07-16 survival/sequential
+probe showed that this is sufficient infrastructure: survival advanced to
+execution after closing its ledger, while sequential retained two real numeric
+defects instead of silently forgetting them. Do not expand this ledger into a
+new scheduler or semantic rule engine.
+
 Capability evaluation and reviewer-routed theory repair use a serious
 TheoryDeveloper workspace, not the compact handoff budget. The model must
 produce five to eight dependency-linked derivation steps, at least four
@@ -175,6 +190,18 @@ checks the actual model ID and contextual tier before any agent runs, so an
 explicit Sonnet model cannot masquerade as an Opus serious workspace. Stronger
 model provenance remains proposal metadata, never empirical, statistical, or
 proof evidence.
+
+Serious theory also needs tools, not just a larger response budget. Numeric
+claims that determine a DGP, finite-sample gate, power target, or stopping rule
+should be emitted as structured verification obligations and checked by a
+generic calculator or generated scientific-code turn. The checked values and
+diagnostics return to TheoryDeveloper before the empirical protocol is frozen.
+Runtime may execute and hash that computation, but it must not parse the topic
+and supply the expected formula. The v4 sequential probe exposed the missing
+capability directly: the model's asserted Bernoulli e-process drift had the
+wrong sign, so every downstream power number was invalid. Adding that formula
+to Python would hide the defect; adding a reusable model-driven computation and
+feedback turn would improve the system.
 
 AgentRuntime publication is also an ownership boundary. It snapshots each
 subsystem result before placing artifacts, evidence, observations, or the next
@@ -200,6 +227,18 @@ Release audits, RAG package checks, frontier static coverage, and deterministic
 implementation traces are supporting evidence. They are not substitutes for a
 live coding-agent environment loop, deductive theory development, executable
 simulation/algorithm feedback, or kernel-verified theorem proving.
+
+The architecture should remain economical. A new component is justified only
+when it supplies a missing environment capability or preserves an authority
+boundary that the existing agents cannot express. After bounded Lean repair,
+one Architect replan should be enough to choose structural reformulation,
+source retrieval, or Critic/TheoryDeveloper feedback; a plan-repair call
+followed immediately by a second terminal-completion review is redundant when
+the same evidence boundary can be represented in one typed decision. Likewise,
+compiled Lean is progress only after exact statement identity and independent
+semantic non-vacuity review; a compiled self-equality must return as Formalizer
+feedback, not motivate a Python grammar rule. Optimize for the shortest honest
+feedback loop, not the largest audit manifest.
 
 Pseudo-formal verification is an in-loop support lane, not a fallback proof
 authority. When a Formalizer emits pending PF/BV blocks, the Architect may
