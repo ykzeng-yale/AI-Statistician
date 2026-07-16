@@ -1441,17 +1441,17 @@ the exact parent artifact seen by the revision agent.
 ## Frozen Cross-Family Correction
 
 The frozen development panel covers survival and sequential inference, not
-FDR. Its latest v31 evidence is intentionally negative: both tasks ended
-`BLOCKED` at `78/125`, no generated code ran, and no exact source/frontier
-theorem is closed. Survival produced one theory packet; its reviewer found a
-source-theory error but mislabeled the owner as `metric_contract`, so the theory
-agent never received it. Sequential produced three serious theory packets and
-consumed two upstream feedback turns before exhausting the bounded revision
-budget. This proves the revision loop is live but does not establish accepted
-theory. It also exposed that post-runtime control propagation changed published
-parent hashes. The current correction independently routes artifact ownership
-and removes that post-publication mutation; fresh live evidence is still
-required.
+FDR. The latest strict v32 evidence remains intentionally negative: both tasks
+ended `BLOCKED` at `77/125`, no generated code ran, and no exact source/frontier
+theorem is closed. The repaired ownership router no longer silently blocks on
+the sequential packet's contradictory target and repairability fields. Both
+families reached typed TheoryDeveloper revision, but the next metric gate
+started without the prior reusable rejection and regenerated a different
+contract. That shared communication defect is fixed by `2f3aae80`: after a
+theory revision, the metric author receives the immutable rejected rows and
+typed findings, verifies the parent lineage and zero-execution boundary, treats
+the current theory as authoritative, and repairs in place. This adds no
+task-family mathematics or new orchestration plane.
 
 Research-loop, progressive-prover, and strict cross-family evaluations remain
 separate. The optional-formal research track diagnoses theory, generated code,
@@ -1460,14 +1460,37 @@ prover track measures Lean/RAG feedback and kernel subclaims. Only the strict
 track can unlock held-out PCA/extremes, and it still requires exact theorem
 kernel closure for every development family.
 
-The first optional-formal two-family run on `7e92f307` remained negative:
-survival consumed two router-owned, parent-hash-matching TheoryDeveloper
-revisions and a truncated-JSON retry, then exhausted metric-author review;
-sequential failed closed when one router row claimed resolved ownership but
-gave contradictory target and repairability fields. Local validation now sends
-that contradiction through the router's configured repair turn. This is a
-shared contract correction, not a sequential rule. The run reached no generated
-execution and changes neither strict `0/2` completion nor the held-out lock.
+The fresh optional-formal v2 run on `2f3aae80` demonstrates both progress and a
+clear stopping point. Survival used one upstream theory revision, reached an
+accepted metric protocol, executed one live generated simulation and one live
+generated algorithm, passed three typed gates in each lane, and obtained two
+independent `ACCEPT` reviews bound to the exact executed artifacts. Sequential
+used two upstream theory revisions, but all three metric gates remained
+honestly rejected, so it reached no execution. The overall result is
+`MAX_ITERATIONS_REACHED` plus `BLOCKED`, `88/125`, zero kernel subclaims, and
+zero exact theorem closures. It changes neither strict `0/2` completion nor the
+held-out lock.
+
+Survival then exposed an existing focus error. Twelve Formalizer candidate
+materializations compiled zero candidates, while fourteen consecutive
+FormalizationEvaluator/ProofEngineer turns consumed the remainder of the
+question budget. `minimal-live` had no same-lane progress budget, so target
+identity and local Lean failures oscillated without yielding to retrieval,
+gap planning, theory revision, or Critic. The runtime also used a legacy text
+scan to infer a Lean declaration and interpreted the phrase `support lemma for
+KM` in a comment as declaration `for`. This must not be repaired with another
+Lean keyword exception. Generated candidates need a structured declaration
+identity, validated by Lean/LSP parser evidence, and the Architect needs a
+generic progress-aware budget that routes stalled proof work through
+tactic-state retrieval or structural revision.
+
+The focus lock is therefore explicit. LLM agents own mathematical derivation,
+Python/R and simulation code, Lean candidates, and revisions. Deterministic
+runtime owns identities, permissions, budgets, execution, schemas, and evidence
+boundaries. It must not encode statistical answers, Lean tactics, theorem
+grammar, or task-family corner cases. The next milestone is not a larger audit:
+it is two unrelated fresh tasks completing the same generated research loop,
+followed by exact target-bound local Lean/AXLE closure under the strict track.
 
 Historical v8 evidence remains useful for later stages: both tasks were
 `BLOCKED`, score `95/118`, with 72 kernel-verified support subclaims and 8 formal

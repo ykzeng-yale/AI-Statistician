@@ -630,6 +630,28 @@ kernel-checked subclaims. The strict cross-family track requires the complete
 fresh loop plus exact source-theorem kernel closure. Success in either earlier
 track cannot satisfy the strict track or unlock held-out tasks.
 
+The control plane must remain smaller than the research agents it coordinates.
+An LLM agent owns theory, experiment design, Python/R implementation, Lean
+authoring, and revision from environment feedback. Deterministic code may own
+artifact identity, permissions, budgets, typed transport, process execution,
+and evidence gates; it must not infer statistical answers, Lean declarations,
+grammar, or tactics from task-specific text. Candidate declaration identity
+must be emitted as structured agent output and checked through Lean/LSP parser
+evidence. Repeated failures need cumulative compiler/proof feedback and a
+progress-aware Architect budget that can switch to retrieval, structural
+reformulation, theory revision, or Critic instead of consuming the whole run in
+one unchanged repair lane.
+
+Fresh optional-formal v2 evidence at `2f3aae80` illustrates this boundary. One
+survival task reached generated simulation and algorithm execution plus
+independent semantic acceptance, but twelve Formalizer materialization rounds
+compiled zero candidates and the question exhausted its budget. A legacy text
+scan even read comment prose as Lean declaration `for`. The unrelated
+sequential task remained blocked at pre-execution metric review after two
+theory revisions. These are capability and control-plane defects, not reasons
+to add survival/sequential formulas or Lean keyword exceptions. Strict
+development completion remains `0/2` and held-out evaluation remains locked.
+
 Current honest boundary: `TheoryPlanner` already emits informal derivation text
 and theorem roadmaps, `FormalSubclaimProver` already performs real AXLE/Lean
 verification for registered proof-bank obligations, `ResearchSimulator` already
