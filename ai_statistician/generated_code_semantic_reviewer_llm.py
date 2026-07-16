@@ -179,7 +179,7 @@ def build_generated_code_semantic_review_prompt(
         "protocol during source-code repair. Use repair_scope=upstream_metric_contract "
         "only when that protocol is internally inconsistent or mathematically "
         "infeasible; use repair_scope=upstream_theory for a missing or contradictory "
-        "theory premise. Neither scope authorizes post-result threshold relaxation. "
+        "theory premise. These scopes do not authorize post-result threshold relaxation. "
         if confirmatory_empirical_evidence_eligible
         else "This is exploratory diagnostic execution with no frozen confirmatory "
         "protocol. Review whether the exact raw diagnostics can falsify or refine the "

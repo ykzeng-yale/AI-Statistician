@@ -11952,6 +11952,7 @@ def _runtime_generated_code_semantic_review_dispatch(
     architect_context: Mapping[str, Any],
     deferred_next_task: AgentTask,
     max_revisions: int,
+    metric_failure_feedback: Mapping[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     review_rows = _runtime_generated_code_semantic_review_rows(
         source_manifest,
@@ -12023,6 +12024,34 @@ def _runtime_generated_code_semantic_review_dispatch(
             ),
         )
     )
+    has_required_metric_failure = any(
+        isinstance(row.get("metric_contract_evaluation", {}), Mapping)
+        and row.get("metric_contract_evaluation", {}).get("all_required_passed")
+        is False
+        for row in review_rows
+    )
+    expected_metric_failure_classification = {
+        "AlgorithmEngineer": "generated_algorithm_sandbox_metric_gate_failed",
+        "SimulationEvaluator": "generated_simulation_sandbox_metric_gate_failed",
+    }.get(source_subsystem, "")
+    trusted_metric_failure_feedback = (
+        dict(metric_failure_feedback)
+        if isinstance(metric_failure_feedback, Mapping)
+        and has_required_metric_failure
+        and str(metric_failure_feedback.get("failure_classification", "") or "")
+        == expected_metric_failure_classification
+        else {}
+    )
+    accepted_next_task = deferred_next_task
+    if trusted_metric_failure_feedback:
+        accepted_next_task = _coding_agent_metric_gate_architect_task(
+            task=task,
+            question=question,
+            context=architect_context,
+            metric_feedback=trusted_metric_failure_feedback,
+            source_manifest_id=manifest_id,
+            deferred_next_owner_subsystem=deferred_next_task.owner_subsystem,
+        )
     work_order_id = "generated_code_semantic_review_work_order:" + stable_hash(
         [task.task_id, manifest_id, reviewed_artifacts, review_revision_count]
     )[:20]
@@ -12060,7 +12089,7 @@ def _runtime_generated_code_semantic_review_dispatch(
             confirmatory_empirical_evidence_eligible
         ),
         "repair_task": asdict(task),
-        "deferred_next_task": asdict(deferred_next_task),
+        "deferred_next_task": asdict(accepted_next_task),
         "proof_evidence_status": (
             "GENERATED_CODE_SEMANTIC_REVIEW_WORK_ORDER_NOT_PROOF_EVIDENCE"
         ),
@@ -14082,6 +14111,12 @@ class SimulationEvaluatorRuntimeSubsystem:
                         architect_context=effective_context,
                         deferred_next_task=next_task,
                         max_revisions=self.semantic_review_max_revisions,
+                        metric_failure_feedback=(
+                            feedback
+                            if generated_simulation_failure_classification
+                            == "generated_simulation_sandbox_metric_gate_failed"
+                            else None
+                        ),
                     )
                 )
                 if semantic_review_dispatch is not None:
@@ -15161,6 +15196,13 @@ class AlgorithmEngineerRuntimeSubsystem:
                 architect_context=effective_context,
                 deferred_next_task=next_task,
                 max_revisions=self.semantic_review_max_revisions,
+                metric_failure_feedback=(
+                    feedback
+                    if revision_required
+                    and revision_failure_classification
+                    == "generated_algorithm_sandbox_metric_gate_failed"
+                    else None
+                ),
             )
             if semantic_review_dispatch is not None:
                 work_order_id = str(semantic_review_dispatch["work_order_id"])
@@ -15438,7 +15480,7 @@ def _coding_agent_metric_gate_architect_task(
     source_manifest_id: str,
     deferred_next_owner_subsystem: str,
 ) -> AgentTask:
-    """Escalate repeated empirical failures without post-hoc gate weakening."""
+    """Route an independently reviewed empirical failure without gate weakening."""
 
     replan_context = dict(context)
     replan_context["environment_feedback"] = dict(metric_feedback)
@@ -15514,7 +15556,7 @@ def _coding_agent_metric_gate_architect_task(
         ),
         owner_subsystem="ArchitectCoordinator",
         objective=(
-            "Diagnose repeated generated-code empirical gate failures across "
+            "Diagnose generated-code empirical gate failures across "
             "theory, measurement protocol, simulation design, and implementation; "
             "choose the next typed worker without weakening frozen evidence gates."
         ),

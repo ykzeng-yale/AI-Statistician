@@ -49,9 +49,19 @@ second acceptance track, and it can never satisfy a confirmatory or proof gate.
 
 Do not grow this path with another role, scheduler, task-family formula,
 hand-written Lean grammar/tactic repair, expected answer, or scorecard-driven
-special case. The immediate product bottleneck is exact theorem identity and
-feedback-driven Lean proof search. Secondary cleanup is immutable parent-review
-to regenerated-child lineage and removal of redundant Architect guard turns.
+special case. The immediate product gate is completion of the optional/advisory
+research loop across unrelated families: rigorous theory, generated code and
+DGP diagnostics, independent review, evidence-driven revision, and Critic
+disposition. Progressive Lean work continues in parallel, while exact theorem
+closure remains a separate strict-certification gate; it must not consume all
+optional research turns or make non-Lean capability invisible.
+
+Use a strict complexity budget. When an existing reviewer scope, feedback
+artifact, or Architect route can express a failure, repair that path instead of
+adding another taxonomy, role, scheduler, or retry layer. A central runtime
+change should either remove a blind loop/control branch or show fresh
+cross-family capability improvement. Audit-row growth by itself is not product
+progress.
 
 ## Immediate Main Goal
 
@@ -1695,14 +1705,16 @@ This keeps the next milestone honest and small. Optional research-loop work must
 complete rigorous theory, generated algorithm, DGP simulation, independent
 review, and feedback revision on both development families. Survival's trace
 shows the precise next shared interface: when a frozen metric gate fails, the
-existing generated-code reviewer must dispose every failed contract as code,
-protocol, theory, or unresolved before it may `ACCEPT` or rerun the author. A
-protocol correction starts a fresh preregistered execution and cannot reuse the
-observed result. Sequential separately shows that productive theory/code/review
-work must reach Critic before the global turn budget expires. These are
-continuity and scheduling obligations inside the one AgentRuntime, not reasons
-to add another reviewer, scheduler, or blind retry layer. Formal Lean work
-continues progressively in parallel, while strict certification remains a
+existing generated-code reviewer already distinguishes source-code, metric-
+protocol, and theory defects. A semantic `REVISE` follows that existing scope;
+a semantic `ACCEPT` means the coding agent should not be rerun blindly, so the
+unchanged empirical failure returns to the existing Architect metric-replan
+path. A protocol correction still starts a fresh preregistered execution and
+cannot reuse the observed result. Sequential separately shows that productive
+theory/code/review work must reach Critic before the global turn budget expires.
+These are continuity obligations inside the one AgentRuntime, not reasons to
+add another taxonomy, reviewer, scheduler, or blind retry layer. Formal Lean
+work continues progressively in parallel, while strict certification remains a
 separate exact-kernel gate. No survival, sequential, FDR, conformal, Python, or
 Lean answer may be encoded into runtime repair logic.
 

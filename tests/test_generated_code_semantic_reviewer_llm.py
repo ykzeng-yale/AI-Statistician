@@ -142,6 +142,17 @@ def _runtime_fixture(
         "metric_contracts": [],
         "metric_contract_set_id": "metric-contracts:test",
         "metric_requirement_set_id": "metric-requirements:test",
+        "metric_contract_evaluation": {
+            "all_required_passed": not metric_failed,
+            "evaluations": [
+                {
+                    "contract_id": "metric-contract:test",
+                    "requirement_id": "frozen:algorithm-error",
+                    "required": True,
+                    "passed": not metric_failed,
+                }
+            ],
+        },
         "execution_smoke_passed": True,
         "smoke_passed": not metric_failed,
     }
@@ -213,6 +224,18 @@ def _runtime_fixture(
         architect_context=architect_context,
         deferred_next_task=deferred_task,
         max_revisions=1,
+        metric_failure_feedback=(
+            {
+                "feedback_type": "algorithm_sandbox_execution_feedback",
+                "feedback_id": "metric-feedback:test",
+                "failure_classification": (
+                    "generated_algorithm_sandbox_metric_gate_failed"
+                ),
+                "generated_algorithm_prototypes": [row],
+            }
+            if metric_failed
+            else None
+        ),
     )
     assert dispatch is not None
     blackboard = BlackboardState(project_id="semantic-review-test")
@@ -286,6 +309,40 @@ def test_generated_code_semantic_reviewer_accepts_and_resumes_deferred_task(
     assert materialization["review_material"][
         "source_responsibility_contract"
     ] == responsibility
+
+
+def test_semantically_accepted_metric_failure_routes_to_architect_without_retry(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        accept=True,
+        metric_failed=True,
+    )
+    work_order = blackboard.artifacts[str(task.inputs["work_order_id"])]
+
+    assert work_order["repair_task"]["owner_subsystem"] == "AlgorithmEngineer"
+    assert work_order["deferred_next_task"]["owner_subsystem"] == (
+        "ArchitectCoordinator"
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert result.next_task.task_id.startswith("semantic-review-accepted:")
+    assert result.next_task.inputs["environment_feedback"][
+        "failure_classification"
+    ] == "generated_algorithm_sandbox_metric_gate_failed"
+    replan = result.next_task.inputs["architect_context"][
+        "runtime_metric_gate_replan"
+    ]
+    assert replan["source_subsystem"] == "AlgorithmEngineer"
+    assert replan["deferred_next_owner_subsystem"] == "FormalizationEvaluator"
+    assert replan["metric_evaluations"][0]["passed"] is False
+    accepted = result.next_task.inputs["accepted_generated_code_semantic_reviews"]
+    assert accepted[0]["overall_verdict"] == "ACCEPT"
 
 
 def test_semantic_reviewer_prompt_keeps_sibling_metrics_out_of_artifact_gate() -> None:
@@ -559,6 +616,8 @@ def test_metric_failing_but_executed_code_is_independently_reviewed(
     result = subsystem.run(task, blackboard)
 
     assert result.status == "REVISE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "AlgorithmEngineer"
     materialization = next(
         row
         for row in result.produced_artifacts.values()

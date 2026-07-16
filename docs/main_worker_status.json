@@ -1,18 +1,19 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-16T18:29:34Z",
+  "updated_at": "2026-07-16T19:32:56Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "one domain-neutral LLM research loop under optional evaluation, progressive formalization in parallel, and separate strict exact-theorem certification",
-  "latest_main_worker_patch": "The existing ArchitectMetricSemanticReviewer now receives the exact active finding IDs in provider structured output and the active finding ledger in its existing JSON-repair context. Local validation reports the expected and received identities, so the same LLM can regenerate a complete review packet instead of losing prior findings. A speculative outer Architect retry, CLI setting, and scheduler path were removed before commit because the live run did not exercise them. The final patch adds no agent, scheduler, retry budget, task-family formula, generated-output rewrite, statistical answer, Lean grammar, or tactic rule.",
-  "latest_main_worker_live_probe": "Fresh optional-policy v8 covered survival and sequential from a clean start. The v7 metric-review packet crash did not recur: carried finding ledgers survived revised theory and repeated pre-execution review. V8 still completed 0/2. Survival stopped BLOCKED when post-execution review found the frozen evaluation protocol itself required a fresh independently reviewed run. Sequential reached MAX_ITERATIONS_REACHED with an independent semantic-review task pending after multiple real theory, simulation, review, and algorithm turns. The run recorded 39 traces, 10 generated simulation executions with 1 sandbox pass, and 3 generated algorithm executions with 1 sandbox pass. Its mixed full-capability audit was 86/125, all_ok=false, readiness=false, with zero kernel subclaims or exact theorem closures; that mixed score is diagnostic only, while optional research-loop completion is authoritatively 0/2.",
-  "latest_main_worker_design_issue": "The target remains one general LLM-driven statistical research loop: question-grounded rigorous derivation, generated algorithms, DGP-based exploration, independently frozen confirmation, semantic/compiler feedback, and memory-backed revision. Formalization is a parallel progressive lane under optional/advisory policy and a required kernel gate under strict policy; optional acceptance must never be mislabeled as proof. V8 moves the immediate non-Lean bottleneck from packet identity loss to failed-gate attribution and budget efficiency inside the existing loop. The same generated-code reviewer accepted Survival once without disposing its failed bias contract, reran the same bad binding, and only then classified it as a protocol defect. Every failed contract must receive a typed code/protocol/theory/unresolved disposition before ACCEPT or rerun; a protocol correction must start a fresh preregistered execution, never reuse the observed result. Sequential must also reach Critic before productive theory/code/review cycles exhaust the global turn budget. Do not answer this with another reviewer, scheduler, blind retry, or task-specific formula.",
+  "latest_main_worker_patch": "GeneratedCodeSemanticReviewer keeps its existing domain-neutral source_code, upstream_metric_contract, and upstream_theory scopes. When the exact reviewed artifact has a required metric failure and semantic review ACCEPTs the code, the deferred task now uses the existing Architect metric-replan route instead of blindly rerunning the coding agent; semantic REVISE/source_code still returns exact feedback to the source agent. The patch adds no role, schema, retry budget, task formula, output rewrite, Lean grammar, or tactic rule.",
+  "latest_main_worker_live_probe": "Fresh optional-policy v9 covered survival and sequential from a clean start and still completed 0/2. Survival failed after two Anthropic 529 overload responses, so it is provider-availability evidence rather than a design finding. Sequential completed a real Architect -> retrieval -> theory -> exploratory simulation -> independent review -> upstream theory revision -> simulation source-code repair -> confirmatory simulation -> algorithm -> Formalizer chain. The source-code REVISE path and accepted pass paths worked; the new semantic-ACCEPT plus metric-failure route was not exercised because the reviewed confirmatory simulation and algorithm passed. Formalizer materialized two LLM Lean candidates and obtained local Lean timeout/unknown-identifier feedback, then the subsystem raised a generic TypeError before returning typed repair feedback. V9 recorded 20 traces, 4 generated simulation executions with 1 sandbox pass, 1 generated algorithm execution with 1 sandbox pass, zero kernel subclaims, and zero exact theorem closures. Its mixed audit was 90/125, all_ok=false, readiness=false; that score is diagnostic only.",
+  "latest_main_worker_design_issue": "The target remains one general LLM-driven statistical research loop: question-grounded equation/lemma derivation, generated algorithms, DGP-based exploration and confirmation, independent semantic feedback, memory-backed revision, and Critic disposition. Optional/advisory research-loop completion is the immediate product gate. Progressive formalization runs in parallel, while exact kernel closure is a separate strict-certification gate; neither may be mislabeled as the other. V9 confirms that no new reviewer or scheduler is needed for coding repair. Its next generic blocker is narrower: a validated Formalizer packet reached candidate materialization and Lean diagnostics but an unpersisted optional value later caused `TypeError: 'bool' object is not iterable`. Offline replay of the same task, blackboard, RAG, materialization, and proof-state path returns typed REVISE normally, so do not guess a Lean fix or add broad coercion without capturing the exact packet/field in a fresh run.",
   "latest_optional_research_loop_probe": {
     "v6_run": "runs/main_worker_cross_family_research_loop_optional_20260716_v6_policy_aligned_research_acceptance",
     "v7_run": "runs/main_worker_cross_family_research_loop_optional_20260716_v7_parser_feedback_bounded_repairs",
     "v8_run": "runs/main_worker_cross_family_research_loop_optional_20260716_v8_metric_feedback_continuation",
-    "lineage_commit": "cb0e341a plus the current reviewer-context patch",
+    "v9_run": "runs/main_worker_cross_family_research_loop_optional_20260716_v9_semantic_accept_metric_replan",
+    "lineage_commit": "a3000625 plus the current semantic-accept metric-replan patch",
     "formal_verification_policy": "optional",
     "v6_question_statuses": [
       "ACCEPTED",
@@ -46,6 +47,23 @@
     "v8_metric_review_packet_failure_reproduced": false,
     "v8_survival_blocker": "post-execution semantic review invalidated the frozen metric protocol and requires a fresh independently reviewed run",
     "v8_sequential_blocker": "global 24-turn budget exhausted with a generated-code semantic-review task pending",
+    "v9_question_statuses": [
+      "FAILED",
+      "FAILED"
+    ],
+    "v9_scorecard": "90/125",
+    "v9_scorecard_role": "mixed full-capability diagnostic, not optional research-loop completion",
+    "v9_audit_all_ok": false,
+    "v9_runtime_traces": 20,
+    "v9_generated_simulation_executions": 4,
+    "v9_generated_simulation_sandbox_passes": 1,
+    "v9_generated_algorithm_executions": 1,
+    "v9_generated_algorithm_sandbox_passes": 1,
+    "v9_source_code_revision_path_exercised": true,
+    "v9_semantic_accept_metric_replan_path_exercised": false,
+    "v9_formalizer_lean_candidates_materialized": 2,
+    "v9_survival_blocker": "Anthropic 529 overload on the initial TheoryDeveloper call and the existing bounded transient retry",
+    "v9_sequential_blocker": "Formalizer obtained local Lean diagnostics for two generated candidates, then raised TypeError: 'bool' object is not iterable before typed repair feedback returned",
     "capability_ready_for_full_ai_statistician": false,
     "fresh_start": true,
     "task_families": [
@@ -56,7 +74,7 @@
     "exact_source_theorem_closures": 0,
     "strict_protocol_used": false,
     "held_out_run_started": false,
-    "boundary": "V6 is positive evidence that explicit optional policy can accept a research candidate while retaining formal debt and zero proof claims. V7 is positive evidence for bounded runnable coding feedback. V8 is positive evidence that exact finding context reaches repeated metric review, but negative evidence for complete research-loop continuity: both tasks remain incomplete. The 125-row audit mixes optional research and strict formal capabilities, so its score cannot replace the authoritative per-task optional result of 0/2. None of these runs is strict theorem closure, held-out generalization, or full AI-Statistician readiness."
+    "boundary": "V6 is positive evidence that explicit optional policy can accept a research candidate while retaining formal debt and zero proof claims. V7 is positive evidence for bounded runnable coding feedback. V8 is positive evidence that exact finding context reaches repeated metric review. V9 is positive evidence for a long cross-subsystem research chain, source-code repair, pass-path continuity, Formalizer generation, and real Lean feedback, but it did not exercise the new semantic-ACCEPT metric-replan route and both tasks still failed. The 125-row audit mixes optional research and strict formal capabilities, so its score cannot replace the authoritative per-task optional result of 0/2. None of these runs is strict theorem closure, held-out generalization, or full AI-Statistician readiness."
   },
   "latest_v32_owner_router_repair": {
     "run": "runs/main_worker_cross_family_development_20260715_v32_owner_router_repair",
