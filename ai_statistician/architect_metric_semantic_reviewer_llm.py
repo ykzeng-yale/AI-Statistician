@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping
@@ -70,6 +71,49 @@ class ArchitectMetricSemanticReviewerConfig:
     max_repair_attempts: int = 1
 
 
+def _active_prior_finding_ledger(
+    review_material: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    return [
+        dict(row)
+        for row in review_material.get("active_prior_finding_ledger", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("finding_id", "") or "").strip()
+    ]
+
+
+def _active_prior_finding_ids(
+    review_material: Mapping[str, Any],
+) -> list[str]:
+    return list(
+        dict.fromkeys(
+            str(row.get("finding_id", "") or "").strip()
+            for row in _active_prior_finding_ledger(review_material)
+        )
+    )
+
+
+def _architect_metric_semantic_review_repair_context(
+    review_material: Mapping[str, Any],
+) -> dict[str, Any]:
+    active_ledger = _active_prior_finding_ledger(review_material)
+    active_ids = _active_prior_finding_ids(review_material)
+    return {
+        "expected_prior_finding_ids": active_ids,
+        "active_prior_finding_ledger": active_ledger,
+        "repair_prompt_priority_instructions": [
+            (
+                "Set prior_finding_reviews=[] when expected_prior_finding_ids is "
+                "empty; otherwise emit exactly one row per listed ID and no others."
+            ),
+            (
+                "Use UNRESOLVED when the current candidate or current theory does "
+                "not explicitly close an active prior finding."
+            ),
+        ],
+    }
+
+
 class LLMArchitectMetricSemanticReviewerAgent:
     """Independent pre-execution reviewer for Architect metric contracts."""
 
@@ -105,7 +149,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
             model=request_model,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
-            schema=ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA,
+            schema=architect_metric_semantic_review_json_schema(review_material),
             metadata={
                 "subsystem": "ArchitectMetricSemanticReviewer",
                 "agent": "LLMArchitectMetricSemanticReviewerAgent",
@@ -141,6 +185,9 @@ class LLMArchitectMetricSemanticReviewerAgent:
             validate_packet=validate_architect_metric_semantic_review_packet,
             validation_label="Architect metric semantic review packet",
             max_repair_attempts=self.config.max_repair_attempts,
+            repair_context_builder=lambda **_kwargs: (
+                _architect_metric_semantic_review_repair_context(review_material)
+            ),
         )
 
 
@@ -350,6 +397,23 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
 }
 
 
+def architect_metric_semantic_review_json_schema(
+    review_material: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Bind structured output to the current immutable finding identities."""
+
+    schema = deepcopy(ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA)
+    active_ids = _active_prior_finding_ids(review_material)
+    prior_reviews_schema = schema["properties"]["prior_finding_reviews"]
+    prior_reviews_schema["minItems"] = len(active_ids)
+    prior_reviews_schema["maxItems"] = len(active_ids)
+    if active_ids:
+        prior_reviews_schema["items"]["properties"]["finding_id"]["enum"] = (
+            active_ids
+        )
+    return schema
+
+
 def validate_architect_metric_semantic_review_packet(
     packet: Mapping[str, Any],
 ) -> list[str]:
@@ -397,7 +461,9 @@ def validate_architect_metric_semantic_review_packet(
     if sorted(reviewed_prior_finding_ids) != sorted(expected_prior_finding_ids):
         errors.append(
             "prior_finding_reviews must cover every active prior finding_id "
-            "exactly once"
+            "exactly once; "
+            f"expected={json.dumps(expected_prior_finding_ids)}; "
+            f"received={json.dumps(reviewed_prior_finding_ids)}"
         )
 
     dimension_rows = packet.get("dimension_reviews", [])
@@ -551,11 +617,7 @@ def _normalize_architect_metric_semantic_review_packet(
         if isinstance(row, Mapping)
     ]
     body["prior_finding_reviews"] = prior_finding_reviews
-    active_prior_finding_ledger = [
-        dict(row)
-        for row in review_material.get("active_prior_finding_ledger", []) or []
-        if isinstance(row, Mapping)
-    ]
+    active_prior_finding_ledger = _active_prior_finding_ledger(review_material)
     active_prior_findings_by_id = {
         str(row.get("finding_id", "") or "").strip(): dict(
             row.get("finding", {})
@@ -582,8 +644,8 @@ def _normalize_architect_metric_semantic_review_packet(
             findings=[*findings, *unresolved_prior_findings],
         )
     )
-    body["expected_prior_finding_ids"] = list(
-        active_prior_findings_by_id
+    body["expected_prior_finding_ids"] = _active_prior_finding_ids(
+        review_material
     )
     body["unresolved_prior_findings"] = unresolved_prior_findings
     body.update(

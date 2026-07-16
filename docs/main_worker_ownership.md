@@ -1667,6 +1667,45 @@ research evaluation may disclose formal debt and continue; required evaluation
 still needs exact target-bound local Lean/AXLE closure. Held-out PCA/extremes
 remain locked, and strict completion remains zero of two development families.
 
+## 2026-07-16 Focus Check: Finding Identity, Not Another Loop
+
+The v7 survival failure was narrower than the surrounding architecture debt.
+The independent metric reviewer received a carried finding ledger, but its
+bounded JSON-repair prompt did not preserve the exact IDs the regenerated packet
+had to cover. The correction stays inside that existing reviewer call: provider
+structured output is bound to the current IDs, local validation reports expected
+and received identities, and the existing repair prompt includes the active
+ledger. A proposed outer Architect retry, new runtime budget, CLI flag, and its
+test scaffolding were removed because fresh live evidence did not exercise or
+justify a second orchestration loop.
+
+Fresh optional-policy v8 did not reproduce the packet failure across survival
+and sequential theory revisions. It recorded 39 runtime traces, 10 generated
+simulation executions, 3 generated algorithm executions, and independent
+semantic feedback, but completed zero of two tasks. Survival correctly stopped
+when post-execution review determined that the frozen protocol itself required a
+fresh independently reviewed run. Sequential exhausted 24 turns with a semantic
+review still pending after multiple productive theory, simulation, and algorithm
+cycles. The audit is `86/125`, `all_ok=false`, with zero kernel subclaims and zero
+exact theorem closures. That 125-row audit mixes research-loop and strict formal
+capabilities; it is a diagnostic, not the optional-track success measure. The
+authoritative optional result is per-task closure, currently `0/2`.
+
+This keeps the next milestone honest and small. Optional research-loop work must
+complete rigorous theory, generated algorithm, DGP simulation, independent
+review, and feedback revision on both development families. Survival's trace
+shows the precise next shared interface: when a frozen metric gate fails, the
+existing generated-code reviewer must dispose every failed contract as code,
+protocol, theory, or unresolved before it may `ACCEPT` or rerun the author. A
+protocol correction starts a fresh preregistered execution and cannot reuse the
+observed result. Sequential separately shows that productive theory/code/review
+work must reach Critic before the global turn budget expires. These are
+continuity and scheduling obligations inside the one AgentRuntime, not reasons
+to add another reviewer, scheduler, or blind retry layer. Formal Lean work
+continues progressively in parallel, while strict certification remains a
+separate exact-kernel gate. No survival, sequential, FDR, conformal, Python, or
+Lean answer may be encoded into runtime repair logic.
+
 ## Optional Future Delegation
 
 No other Codex worker is currently active. The main worker owns the commit

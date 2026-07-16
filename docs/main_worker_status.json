@@ -1,17 +1,18 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-16T15:58:09Z",
+  "updated_at": "2026-07-16T18:29:34Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
-  "current_lane": "domain-neutral AgentRuntime authority, cross-family evaluation, and exact theorem closure",
-  "latest_main_worker_patch": "The current shared coding-agent patch uses Python's standard ast parser inside the existing AlgorithmEngineer and SimulationEngineer packet validator, so malformed generated code is returned immediately to the same LLM through the existing exact-diagnostic repair prompt instead of consuming a full AgentRuntime turn. The minimal-live preset now gives both coding lanes one bounded runtime repair before yielding existing downstream work. It adds no agent, scheduler, task-family formula, generated-output rewrite, statistical answer, Lean grammar, or tactic rule.",
-  "latest_main_worker_live_probe": "Fresh v6 first proved the optional-policy correction: survival ended ACCEPTED with RESEARCH_CANDIDATE_ACCEPTED_WITH_FORMAL_GAPS while kernel proof counts stayed zero; sequential then exposed fourteen consecutive malformed generated-simulation attempts because minimal-live had no code-repair yield budget. Fresh v7 removed that loop: both families generated runnable exploratory simulations, received independent semantic REVISE feedback, regenerated, and received ACCEPT. V7 still completed 0/2: survival failed an Architect metric-review packet contract and sequential was honestly BLOCKED after all bounded pre-execution metric protocols were rejected. V6 scored 95/125 and v7 81/125; neither audit is all_ok or strict readiness evidence.",
-  "latest_main_worker_design_issue": "The target remains one general LLM-driven statistical research loop: question-grounded rigorous derivation, generated algorithms, DGP-based exploration, independently frozen confirmation, semantic/compiler feedback, and memory-backed revision. Formalization is a parallel progressive lane under optional/advisory policy and a required kernel gate under strict policy; optional acceptance must never be mislabeled as proof. The current next non-Lean bottleneck is metric-protocol author/reviewer reliability, not another scheduler or more retries. Preserve the existing agents and exact evidence boundaries; do not encode survival/sequential answers, Python/Lean rewrites, theorem grammar, or expected outputs in runtime code.",
+  "current_lane": "one domain-neutral LLM research loop under optional evaluation, progressive formalization in parallel, and separate strict exact-theorem certification",
+  "latest_main_worker_patch": "The existing ArchitectMetricSemanticReviewer now receives the exact active finding IDs in provider structured output and the active finding ledger in its existing JSON-repair context. Local validation reports the expected and received identities, so the same LLM can regenerate a complete review packet instead of losing prior findings. A speculative outer Architect retry, CLI setting, and scheduler path were removed before commit because the live run did not exercise them. The final patch adds no agent, scheduler, retry budget, task-family formula, generated-output rewrite, statistical answer, Lean grammar, or tactic rule.",
+  "latest_main_worker_live_probe": "Fresh optional-policy v8 covered survival and sequential from a clean start. The v7 metric-review packet crash did not recur: carried finding ledgers survived revised theory and repeated pre-execution review. V8 still completed 0/2. Survival stopped BLOCKED when post-execution review found the frozen evaluation protocol itself required a fresh independently reviewed run. Sequential reached MAX_ITERATIONS_REACHED with an independent semantic-review task pending after multiple real theory, simulation, review, and algorithm turns. The run recorded 39 traces, 10 generated simulation executions with 1 sandbox pass, and 3 generated algorithm executions with 1 sandbox pass. Its mixed full-capability audit was 86/125, all_ok=false, readiness=false, with zero kernel subclaims or exact theorem closures; that mixed score is diagnostic only, while optional research-loop completion is authoritatively 0/2.",
+  "latest_main_worker_design_issue": "The target remains one general LLM-driven statistical research loop: question-grounded rigorous derivation, generated algorithms, DGP-based exploration, independently frozen confirmation, semantic/compiler feedback, and memory-backed revision. Formalization is a parallel progressive lane under optional/advisory policy and a required kernel gate under strict policy; optional acceptance must never be mislabeled as proof. V8 moves the immediate non-Lean bottleneck from packet identity loss to failed-gate attribution and budget efficiency inside the existing loop. The same generated-code reviewer accepted Survival once without disposing its failed bias contract, reran the same bad binding, and only then classified it as a protocol defect. Every failed contract must receive a typed code/protocol/theory/unresolved disposition before ACCEPT or rerun; a protocol correction must start a fresh preregistered execution, never reuse the observed result. Sequential must also reach Critic before productive theory/code/review cycles exhaust the global turn budget. Do not answer this with another reviewer, scheduler, blind retry, or task-specific formula.",
   "latest_optional_research_loop_probe": {
     "v6_run": "runs/main_worker_cross_family_research_loop_optional_20260716_v6_policy_aligned_research_acceptance",
     "v7_run": "runs/main_worker_cross_family_research_loop_optional_20260716_v7_parser_feedback_bounded_repairs",
-    "lineage_commit": "1b80dd59 plus the current parser-feedback patch",
+    "v8_run": "runs/main_worker_cross_family_research_loop_optional_20260716_v8_metric_feedback_continuation",
+    "lineage_commit": "cb0e341a plus the current reviewer-context patch",
     "formal_verification_policy": "optional",
     "v6_question_statuses": [
       "ACCEPTED",
@@ -30,6 +31,21 @@
     "v7_repeated_python_syntax_loop_observed": false,
     "v7_survival_blocker": "Architect metric semantic-review packet omitted active prior-finding coverage after bounded local repair",
     "v7_sequential_blocker": "independent pre-execution review rejected every bounded metric-protocol candidate",
+    "v8_question_statuses": [
+      "BLOCKED",
+      "MAX_ITERATIONS_REACHED"
+    ],
+    "v8_scorecard": "86/125",
+    "v8_scorecard_role": "mixed full-capability diagnostic, not optional research-loop completion",
+    "v8_audit_all_ok": false,
+    "v8_runtime_traces": 39,
+    "v8_generated_simulation_executions": 10,
+    "v8_generated_simulation_sandbox_passes": 1,
+    "v8_generated_algorithm_executions": 3,
+    "v8_generated_algorithm_sandbox_passes": 1,
+    "v8_metric_review_packet_failure_reproduced": false,
+    "v8_survival_blocker": "post-execution semantic review invalidated the frozen metric protocol and requires a fresh independently reviewed run",
+    "v8_sequential_blocker": "global 24-turn budget exhausted with a generated-code semantic-review task pending",
     "capability_ready_for_full_ai_statistician": false,
     "fresh_start": true,
     "task_families": [
@@ -40,7 +56,7 @@
     "exact_source_theorem_closures": 0,
     "strict_protocol_used": false,
     "held_out_run_started": false,
-    "boundary": "V6 is positive evidence that explicit optional policy can accept a research candidate while retaining formal debt and zero proof claims. V7 is positive evidence for bounded runnable coding feedback but negative evidence for full research-loop completion. Neither run is strict theorem closure, held-out generalization, or full AI-Statistician readiness."
+    "boundary": "V6 is positive evidence that explicit optional policy can accept a research candidate while retaining formal debt and zero proof claims. V7 is positive evidence for bounded runnable coding feedback. V8 is positive evidence that exact finding context reaches repeated metric review, but negative evidence for complete research-loop continuity: both tasks remain incomplete. The 125-row audit mixes optional research and strict formal capabilities, so its score cannot replace the authoritative per-task optional result of 0/2. None of these runs is strict theorem closure, held-out generalization, or full AI-Statistician readiness."
   },
   "latest_v32_owner_router_repair": {
     "run": "runs/main_worker_cross_family_development_20260715_v32_owner_router_repair",
@@ -166,10 +182,10 @@
   },
   "latest_local_regression": {
     "runtime_test_file": "tests/test_research_agent_runtime.py",
-    "result": "1139 passed in 3799.45s (1:03:19). The first complete run exposed two stale integration expectations after the earlier optional-formal-policy correction; the strict legacy fixture now declares required policy at both Architect and runtime layers, while the default CLI fixture asserts optional research acceptance with disclosed formal gaps. Both selectors passed before this clean complete rerun.",
+    "result": "1139 passed in 3852.59s (1:04:12) on the final narrowed reviewer-context patch. The dedicated Architect metric reviewer suite also passed 7/7, and the Architect/metric runtime selector passed 11/11 before the complete rerun.",
     "failed": 0,
-    "validated_at": "2026-07-16T15:58:09Z",
-    "boundary": "Local regression validates runtime contracts and orchestration behavior. Fresh v6/v7 supply separate LLM and execution evidence. Neither tests nor live simulations are theorem-proof evidence, and v7 still completed zero of two development tasks."
+    "validated_at": "2026-07-16T18:29:34Z",
+    "boundary": "Local regression validates runtime contracts and orchestration behavior. Fresh v8 supplies separate LLM and execution evidence. Neither tests nor live simulations are theorem-proof evidence, and v8 still completed zero of two development tasks."
   },
   "latest_four_stage_route_planner_live_probe": {
     "run": "runs/main_worker_s14_v5_fdr_route_feedback_live_replay_20260713_v9_four_stage_split",
