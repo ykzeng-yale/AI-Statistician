@@ -150,6 +150,7 @@ ROUTEABLE_RUNTIME_SUBSYSTEMS = (
     *REQUIRED_ARCHITECT_SUBSYSTEMS,
     "GeneratedCodeSemanticReviewer",
     "FormalTargetSemanticReviewer",
+    "FormalizationGapPlanner",
     "ProofEngineer",
     "PseudoFormalBlockVerifier",
 )
@@ -12850,12 +12851,13 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     )
     simulation_live_counts: Counter[str] = Counter()
     for row in simulation:
-        simulation_live_counts.update(
-            _generated_sandbox_live_counts_from_rows(
-                row.get("generated_simulation_sandbox_prototypes", []),
-                generated_executor="generated_simulation_sandbox",
-            )
+        row_live_counts = _generated_sandbox_live_counts_from_rows(
+            row.get("generated_simulation_sandbox_prototypes", []),
+            generated_executor="generated_simulation_sandbox",
         )
+        if row.get("confirmatory_empirical_evidence_eligible") is False:
+            row_live_counts["passed"] = 0
+        simulation_live_counts.update(row_live_counts)
     algorithm_live_counts: Counter[str] = Counter()
     for row in algorithm:
         algorithm_live_counts.update(

@@ -62,6 +62,7 @@ from .generated_metric_repair_policy import (
 from .generated_metric_contract import (
     GENERATED_METRIC_CONTRACT_BOUNDARY,
     GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE,
+    GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED,
     GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED,
     bind_generated_metric_contract_authority,
     evaluate_generated_metric_contracts,
@@ -311,6 +312,7 @@ from .runtime_research_problem_adapter import (
     runtime_llm_research_authority_required,
 )
 from .simulation_engineer_llm import (
+    EMPIRICAL_EVALUATION_PHASE_EXPLORATORY,
     LLMSimulationEngineerAgent,
     SIMULATION_ENGINEER_BOUNDARY,
     SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
@@ -10915,12 +10917,13 @@ class TheoryDeveloperRuntimeSubsystem:
                     "ARCHITECT_METRIC_PROTOCOL_GATE_NOT_PROOF_EVIDENCE"
                 ),
                 "boundary": (
-                    "Theory is available, but generated code and simulation remain "
-                    "blocked until Architect metric authoring passes independent "
-                    "pre-execution semantic review."
+                    "Theory is available. Exploratory diagnostic simulation may run "
+                    "as non-promotable feedback, but confirmatory generated code and "
+                    "empirical acceptance remain blocked until Architect metric "
+                    "authoring passes independent pre-execution semantic review."
                 ),
             }
-            next_task = AgentTask(
+            metric_protocol_task = AgentTask(
                 task_id=(
                     f"architect-metric-protocol:{question.id}:"
                     f"{stable_hash([task.task_id, packet_id])[:8]}"
@@ -10928,7 +10931,7 @@ class TheoryDeveloperRuntimeSubsystem:
                 owner_subsystem="ArchitectCoordinator",
                 objective=(
                     "Author and independently review a theory-informed empirical "
-                    "metric protocol before any generated code or simulation runs."
+                    "metric protocol before confirmatory generated execution."
                 ),
                 inputs={
                     "question": _question_to_payload(question),
@@ -10949,13 +10952,46 @@ class TheoryDeveloperRuntimeSubsystem:
                     "typed pre-execution rejection preserves the full review lineage"
                 ),
             )
+            exploratory_context = dict(context)
+            exploratory_context["empirical_evaluation_phase"] = (
+                EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+            )
+            next_task = replace(
+                simulation_task,
+                task_id=(
+                    f"simulation-exploratory:{question.id}:"
+                    f"{stable_hash([task.task_id, packet_id])[:8]}"
+                ),
+                objective=(
+                    "Run one generated exploratory diagnostic simulation to falsify "
+                    "the draft theory before freezing confirmatory metrics."
+                ),
+                inputs={
+                    **dict(simulation_task.inputs),
+                    "architect_context": exploratory_context,
+                    "empirical_evaluation_phase": (
+                        EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+                    ),
+                    "deferred_metric_protocol_task": asdict(
+                        metric_protocol_task
+                    ),
+                },
+                acceptance_gate=(
+                    "generated code executes and yields reviewable raw diagnostics; "
+                    "the result remains ineligible for confirmatory acceptance"
+                ),
+                stop_condition=(
+                    "diagnostics route to theory/code repair or the independently "
+                    "reviewed metric-protocol gate"
+                ),
+            )
         else:
             next_task = simulation_task
         return AgentStepResult(
             status="REROUTE",
             rationale=(
                 "LLM TheoryDeveloper produced a proposal; runtime is routing it to "
-                "the theory-informed pre-execution metric gate."
+                "an exploratory generated simulation before the confirmatory metric gate."
                 if requires_metric_protocol_gate
                 else "LLM TheoryDeveloper produced a proposal; runtime is routing it to executable simulation feedback."
             ),
@@ -11927,6 +11963,12 @@ def _runtime_generated_code_semantic_review_dispatch(
     theory_packet_id = str(theory_packet.get("packet_id", "") or "").strip()
     proposal = dict(proposal_packet or {})
     proposal_packet_id = str(proposal.get("packet_id", "") or "").strip()
+    empirical_evaluation_phase = str(
+        source_manifest.get("empirical_evaluation_phase", "") or ""
+    ).strip()
+    confirmatory_empirical_evidence_eligible = bool(
+        source_manifest.get("confirmatory_empirical_evidence_eligible", True)
+    )
     review_revision_count = max(
         0,
         int(task.inputs.get("generated_code_semantic_review_revision_count", 0) or 0),
@@ -12013,6 +12055,10 @@ def _runtime_generated_code_semantic_review_dispatch(
         "capability_eval": capability_eval,
         "review_revision_count": review_revision_count,
         "max_revisions": max(0, int(max_revisions or 0)),
+        "empirical_evaluation_phase": empirical_evaluation_phase,
+        "confirmatory_empirical_evidence_eligible": (
+            confirmatory_empirical_evidence_eligible
+        ),
         "repair_task": asdict(task),
         "deferred_next_task": asdict(deferred_next_task),
         "proof_evidence_status": (
@@ -12029,6 +12075,10 @@ def _runtime_generated_code_semantic_review_dispatch(
         owner_subsystem=GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
         objective=(
             "Independently review the statistical and experimental semantics of "
+            "the exact exploratory code, actual runtime arguments, raw diagnostics, "
+            "and theory derivation without treating the run as confirmatory evidence."
+            if not confirmatory_empirical_evidence_eligible
+            else "Independently review the statistical and experimental semantics of "
             "the exact generated code, actual runtime arguments, returned metrics, "
             "theory derivation, and Architect-frozen measurement protocol."
         ),
@@ -12045,7 +12095,11 @@ def _runtime_generated_code_semantic_review_dispatch(
             "generated_code_semantic_review_execution_manifest",
         ),
         acceptance_gate=(
-            "an independent lineage-bound semantic review accepts every exact "
+            "an independent lineage-bound semantic review accepts the exact "
+            "artifact for diagnostic use without promoting empirical claims, or "
+            "routes concrete feedback to its author"
+            if not confirmatory_empirical_evidence_eligible
+            else "an independent lineage-bound semantic review accepts every exact "
             "generated artifact or routes concrete feedback to its coding agent"
         ),
         stop_condition=(
@@ -12062,6 +12116,10 @@ def _runtime_generated_code_semantic_review_dispatch(
         boundary=GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
         payload={
             "source_subsystem": source_subsystem,
+            "empirical_evaluation_phase": empirical_evaluation_phase,
+            "confirmatory_empirical_evidence_eligible": (
+                confirmatory_empirical_evidence_eligible
+            ),
             "source_manifest_id": manifest_id,
             "n_reviewed_artifacts": len(reviewed_artifacts),
             "next_owner_subsystem": GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
@@ -12170,6 +12228,12 @@ def _runtime_generated_code_semantic_review_material(
         )
     material = {
         "source_subsystem": source_subsystem,
+        "empirical_evaluation_phase": str(
+            work_order.get("empirical_evaluation_phase", "") or ""
+        ),
+        "confirmatory_empirical_evidence_eligible": bool(
+            work_order.get("confirmatory_empirical_evidence_eligible", True)
+        ),
         "source_manifest_id": str(
             work_order.get("source_manifest_id", "") or ""
         ),
@@ -12499,6 +12563,12 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         repair_owner_agent = str(
             review_packet.get("repair_owner", "") or ""
         )
+        empirical_evaluation_phase = str(
+            work_order.get("empirical_evaluation_phase", "") or ""
+        )
+        confirmatory_empirical_evidence_eligible = bool(
+            work_order.get("confirmatory_empirical_evidence_eligible", True)
+        )
         execution_id = "generated_code_semantic_review_execution:" + stable_hash(
             [work_order_id, work_order_hash, review_packet_id, review_packet_hash]
         )[:20]
@@ -12550,6 +12620,10 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "repair_scope": repair_scope,
             "repair_owner_agent": repair_owner_agent,
             "semantic_review_accepted": verdict == "ACCEPT",
+            "empirical_evaluation_phase": empirical_evaluation_phase,
+            "confirmatory_empirical_evidence_eligible": (
+                confirmatory_empirical_evidence_eligible
+            ),
             "review_revision_count": int(
                 work_order.get("review_revision_count", 0) or 0
             ),
@@ -12576,6 +12650,10 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "overall_verdict": verdict,
             "repair_scope": repair_scope,
             "repair_owner_agent": repair_owner_agent,
+            "empirical_evaluation_phase": empirical_evaluation_phase,
+            "confirmatory_empirical_evidence_eligible": (
+                confirmatory_empirical_evidence_eligible
+            ),
             "dimension_reviews": list(
                 review_packet.get("dimension_reviews", []) or []
             ),
@@ -12584,7 +12662,15 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 review_packet.get("repair_instructions", []) or []
             ),
             "required_repair": (
-                "Route the exact findings to ArchitectCoordinator without changing "
+                "Route the exact exploratory findings to ArchitectCoordinator or "
+                "TheoryDeveloper without promoting this diagnostic run."
+                if not confirmatory_empirical_evidence_eligible
+                and repair_scope
+                in GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_REPAIR_SCOPES
+                else "Generate fresh exploratory code, rerun it, and keep the result "
+                "ineligible for confirmatory acceptance."
+                if not confirmatory_empirical_evidence_eligible
+                else "Route the exact findings to ArchitectCoordinator without changing "
                 "the frozen protocol in place; malformed requirements require a "
                 "versioned fresh candidate run."
                 if repair_scope
@@ -12622,6 +12708,10 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                         work_order.get("source_manifest_id", "") or ""
                     ),
                     "overall_verdict": "ACCEPT",
+                    "empirical_evaluation_phase": empirical_evaluation_phase,
+                    "confirmatory_empirical_evidence_eligible": (
+                        confirmatory_empirical_evidence_eligible
+                    ),
                     "source_responsibility_contract_fingerprint": str(
                         work_order.get(
                             "source_responsibility_contract_fingerprint",
@@ -12784,6 +12874,10 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             artifact_id=execution_id,
             evidence_type="generated_code_semantic_review",
             status=(
+                "EXPLORATORY_SEMANTIC_REVIEW_ACCEPTED_NOT_CONFIRMATORY"
+                if verdict == "ACCEPT"
+                and not confirmatory_empirical_evidence_eligible
+                else
                 "SEMANTIC_REVIEW_ACCEPTED_NOT_PROOF_EVIDENCE"
                 if verdict == "ACCEPT"
                 else "SEMANTIC_REVIEW_REVISION_REQUIRED_NOT_PROOF_EVIDENCE"
@@ -12797,6 +12891,10 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 "overall_verdict": verdict,
                 "repair_scope": repair_scope,
                 "repair_owner_agent": repair_owner_agent,
+                "empirical_evaluation_phase": empirical_evaluation_phase,
+                "confirmatory_empirical_evidence_eligible": (
+                    confirmatory_empirical_evidence_eligible
+                ),
                 "reviewer_model": reviewer_model,
                 "reviewer_model_tier": reviewer_tier,
                 "n_findings": len(review_packet.get("findings", []) or []),
@@ -12821,6 +12919,10 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                             work_order.get("source_manifest_id", "") or ""
                         ),
                         "overall_verdict": verdict,
+                        "empirical_evaluation_phase": empirical_evaluation_phase,
+                        "confirmatory_empirical_evidence_eligible": (
+                            confirmatory_empirical_evidence_eligible
+                        ),
                         "next_owner_subsystem": (
                             next_task.owner_subsystem if next_task else ""
                         ),
@@ -12880,6 +12982,17 @@ class SimulationEvaluatorRuntimeSubsystem:
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
         context = dict(task.inputs.get("architect_context", {}) or {})
+        empirical_evaluation_phase = str(
+            task.inputs.get("empirical_evaluation_phase", "")
+            or context.get("empirical_evaluation_phase", "")
+            or ""
+        ).strip()
+        exploratory_diagnostic = bool(
+            empirical_evaluation_phase
+            == EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+        )
+        if empirical_evaluation_phase:
+            context["empirical_evaluation_phase"] = empirical_evaluation_phase
         environment_feedback: Mapping[str, Any] = (
             task.inputs.get("environment_feedback", {})
             if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
@@ -13071,7 +13184,7 @@ class SimulationEvaluatorRuntimeSubsystem:
             effective_context,
             environment_feedback,
             subsystem="SimulationEvaluator",
-        )
+        ) and not exploratory_diagnostic
         agentic_simulation_authority = bool(
             llm_research_authority or requires_generated_simulation_code
         )
@@ -13122,6 +13235,12 @@ class SimulationEvaluatorRuntimeSubsystem:
             architect_subsystem="SimulationEvaluator",
             target_subsystem="SimulationEngineer",
         )
+        if exploratory_diagnostic:
+            simulation_metric_requirements = []
+            simulation_metric_authority_policy = (
+                GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED
+            )
+            simulation_metric_authority_required = False
         simulation_code_drafts = _simulation_code_drafts(proposal_packet)
         if (
             requires_generated_simulation_code
@@ -13431,6 +13550,10 @@ class SimulationEvaluatorRuntimeSubsystem:
             procedures,
             require_generated_adapter=requires_generated_algorithm_code,
         )
+        confirmatory_empirical_evidence_eligible = not exploratory_diagnostic
+        confirmatory_simulation_passed = bool(
+            simulation_passed and confirmatory_empirical_evidence_eligible
+        )
         manifest_id = "simulation_manifest:" + stable_hash([task.task_id, packet_id, n_runs, seed])[:20]
         manifest = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -13439,6 +13562,14 @@ class SimulationEvaluatorRuntimeSubsystem:
             "created_at": datetime.now(timezone.utc).isoformat(),
             "question": _question_to_payload(question),
             "theory_packet_id": packet_id,
+            "empirical_evaluation_phase": empirical_evaluation_phase,
+            "exploratory_diagnostic": exploratory_diagnostic,
+            "confirmatory_empirical_evidence_eligible": (
+                confirmatory_empirical_evidence_eligible
+            ),
+            "exploratory_simulation_passed": bool(
+                simulation_passed and exploratory_diagnostic
+            ),
             "runtime_architect_control": simulation_control,
             "research_problem_authority": problem_authority,
             **problem_authority,
@@ -13480,9 +13611,23 @@ class SimulationEvaluatorRuntimeSubsystem:
             "n_live_generated_simulation_sandbox_execution_failed": (
                 n_live_generated_simulation_execution_failed
             ),
-            "n_generated_simulation_sandbox_passed": n_generated_simulation_passed,
+            "n_generated_simulation_sandbox_passed": (
+                n_generated_simulation_passed
+                if confirmatory_empirical_evidence_eligible
+                else 0
+            ),
             "n_live_generated_simulation_sandbox_passed": (
                 n_live_generated_simulation_passed
+                if confirmatory_empirical_evidence_eligible
+                else 0
+            ),
+            "n_exploratory_generated_simulation_sandbox_passed": (
+                n_generated_simulation_passed if exploratory_diagnostic else 0
+            ),
+            "n_live_exploratory_generated_simulation_sandbox_passed": (
+                n_live_generated_simulation_passed
+                if exploratory_diagnostic
+                else 0
             ),
             "n_generated_simulation_sandbox_metric_gate_failed": (
                 n_generated_simulation_metric_gate_failed
@@ -13520,9 +13665,12 @@ class SimulationEvaluatorRuntimeSubsystem:
             "typed_metric_contract_proof_evidence_status": (
                 GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
             ),
-            "simulation_passed": simulation_passed,
+            "simulation_passed": confirmatory_simulation_passed,
             "registered_simulation_passed": registered_simulation_passed,
-            "generated_simulation_passed": generated_simulation_passed,
+            "generated_simulation_passed": bool(
+                generated_simulation_passed
+                and confirmatory_empirical_evidence_eligible
+            ),
             "simulation_evidence_source": simulation_evidence_source,
             "implementation_gaps": implementation_gaps,
             "proof_evidence_status": "SIMULATION_NOT_PROOF_EVIDENCE",
@@ -13534,11 +13682,19 @@ class SimulationEvaluatorRuntimeSubsystem:
                 observation_type="simulation_result",
                 summary=(
                     f"source={simulation_evidence_source} "
-                    f"passed={simulation_passed}"
+                    f"diagnostic_passed={simulation_passed} "
+                    f"confirmatory_passed={confirmatory_simulation_passed}"
                 ),
                 payload={
                     "n_simulations": len(simulations),
-                    "simulation_passed": simulation_passed,
+                    "simulation_passed": confirmatory_simulation_passed,
+                    "exploratory_simulation_passed": bool(
+                        simulation_passed and exploratory_diagnostic
+                    ),
+                    "empirical_evaluation_phase": empirical_evaluation_phase,
+                    "confirmatory_empirical_evidence_eligible": (
+                        confirmatory_empirical_evidence_eligible
+                    ),
                     "simulation_evidence_source": simulation_evidence_source,
                     "registered_baseline_execution_skipped": bool(
                         registered_baseline_skip_reason
@@ -13552,7 +13708,16 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "n_generated_simulation_sandbox_execution_failed": (
                         n_generated_simulation_execution_failed
                     ),
-                    "n_generated_simulation_sandbox_passed": n_generated_simulation_passed,
+                    "n_generated_simulation_sandbox_passed": (
+                        n_generated_simulation_passed
+                        if confirmatory_empirical_evidence_eligible
+                        else 0
+                    ),
+                    "n_exploratory_generated_simulation_sandbox_passed": (
+                        n_generated_simulation_passed
+                        if exploratory_diagnostic
+                        else 0
+                    ),
                     "n_generated_simulation_sandbox_metric_gate_failed": (
                         n_generated_simulation_metric_gate_failed
                     ),
@@ -13572,7 +13737,10 @@ class SimulationEvaluatorRuntimeSubsystem:
             artifact_id=manifest_id,
             evidence_type="simulation",
             status=(
-                "EXECUTED_REPRODUCIBLY"
+                "EXPLORATORY_EXECUTED_NOT_CONFIRMATORY"
+                if exploratory_diagnostic
+                and (simulations or n_generated_simulation_executed > 0)
+                else "EXECUTED_REPRODUCIBLY"
                 if simulations or n_generated_simulation_executed > 0
                 else "NO_EXECUTABLE_SIMULATION"
             ),
@@ -13580,7 +13748,14 @@ class SimulationEvaluatorRuntimeSubsystem:
             payload={
                 "n_runs": n_runs,
                 "seed": seed,
-                "simulation_passed": simulation_passed,
+                "simulation_passed": confirmatory_simulation_passed,
+                "exploratory_simulation_passed": bool(
+                    simulation_passed and exploratory_diagnostic
+                ),
+                "empirical_evaluation_phase": empirical_evaluation_phase,
+                "confirmatory_empirical_evidence_eligible": (
+                    confirmatory_empirical_evidence_eligible
+                ),
                 "simulation_evidence_source": simulation_evidence_source,
                 "problem_formalization_source": str(
                     problem_authority.get("problem_formalization_source", "")
@@ -13592,7 +13767,16 @@ class SimulationEvaluatorRuntimeSubsystem:
                 "n_generated_simulation_sandbox_execution_failed": (
                     n_generated_simulation_execution_failed
                 ),
-                "n_generated_simulation_sandbox_passed": n_generated_simulation_passed,
+                "n_generated_simulation_sandbox_passed": (
+                    n_generated_simulation_passed
+                    if confirmatory_empirical_evidence_eligible
+                    else 0
+                ),
+                "n_exploratory_generated_simulation_sandbox_passed": (
+                    n_generated_simulation_passed
+                    if exploratory_diagnostic
+                    else 0
+                ),
                 "n_unsafe_generated_simulation_code_rejected": n_unsafe_generated_simulation_rejected,
                 "n_generated_simulation_typed_metric_contracts_evaluated": (
                     n_generated_simulation_typed_metric_contracts_evaluated
@@ -13719,6 +13903,40 @@ class SimulationEvaluatorRuntimeSubsystem:
                         "exhausted; routing diagnostics to FormalizationEvaluator "
                         "while keeping the generated simulation blocker open."
                     )
+                deferred_metric_protocol_payload = task.inputs.get(
+                    "deferred_metric_protocol_task", {}
+                )
+                if (
+                    exploratory_diagnostic
+                    and isinstance(deferred_metric_protocol_payload, Mapping)
+                    and deferred_metric_protocol_payload
+                ):
+                    deferred_gate = _agent_task_from_runtime_payload(
+                        deferred_metric_protocol_payload
+                    )
+                    deferred_inputs = dict(deferred_gate.inputs)
+                    deferred_context = dict(
+                        deferred_inputs.get("architect_context", {}) or {}
+                    )
+                    deferred_context["exploratory_diagnostic_feedback"] = feedback
+                    deferred_inputs["architect_context"] = deferred_context
+                    deferred_inputs["environment_feedback"] = feedback
+                    next_task = replace(
+                        deferred_gate,
+                        task_id=(
+                            f"exploration-budget-yield:{question.id}:"
+                            f"{stable_hash([manifest_id, deferred_gate.task_id])[:8]}"
+                        ),
+                        inputs=deferred_inputs,
+                    )
+                    yield_observation_type = (
+                        "exploratory_simulation_repair_budget_yield_to_metric_protocol"
+                    )
+                    yield_summary = (
+                        "Exploratory code exhausted its bounded repair budget; its "
+                        "non-confirmatory diagnostics remain visible while the existing "
+                        "Architect metric-protocol gate resumes."
+                    )
                 if (
                     generated_simulation_failure_classification
                     == "generated_simulation_sandbox_metric_gate_failed"
@@ -13767,7 +13985,11 @@ class SimulationEvaluatorRuntimeSubsystem:
                     )
                 )
                 simulation_rationale = (
-                    "Generated simulation sandbox repeatedly missed an "
+                    "Exploratory simulation exhausted its bounded code-repair budget; "
+                    "the failed diagnostic remains non-confirmatory and the existing "
+                    "metric-protocol gate is resuming."
+                    if exploratory_diagnostic
+                    else "Generated simulation sandbox repeatedly missed an "
                     "independent empirical gate; exact evaluations are routed "
                     "to ArchitectCoordinator for cross-subsystem diagnosis."
                     if next_task.owner_subsystem == "ArchitectCoordinator"
@@ -13799,6 +14021,26 @@ class SimulationEvaluatorRuntimeSubsystem:
                         yield_after_attempts
                     ),
                 }
+                revision_inputs = {
+                    "question": _question_to_payload(question),
+                    "theory_packet_id": packet_id,
+                    "architect_context": revision_context,
+                    "environment_feedback": feedback,
+                    "empirical_evaluation_phase": empirical_evaluation_phase,
+                    "n_runs": n_runs,
+                    "seed": seed,
+                }
+                deferred_metric_protocol_payload = task.inputs.get(
+                    "deferred_metric_protocol_task", {}
+                )
+                if (
+                    exploratory_diagnostic
+                    and isinstance(deferred_metric_protocol_payload, Mapping)
+                    and deferred_metric_protocol_payload
+                ):
+                    revision_inputs["deferred_metric_protocol_task"] = dict(
+                        deferred_metric_protocol_payload
+                    )
                 next_task = AgentTask(
                     task_id=f"simulation-revise:{question.id}:{stable_hash(feedback)[:8]}",
                     owner_subsystem="SimulationEvaluator",
@@ -13806,14 +14048,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                         "Repair the LLM-generated simulation stress-test draft using "
                         "local sandbox diagnostics before downstream algorithm/formalization."
                     ),
-                    inputs={
-                        "question": _question_to_payload(question),
-                        "theory_packet_id": packet_id,
-                        "architect_context": revision_context,
-                        "environment_feedback": feedback,
-                        "n_runs": n_runs,
-                        "seed": seed,
-                    },
+                    inputs=revision_inputs,
                     allowed_tools=("model_backend", "python", "filesystem_sandbox"),
                     expected_artifacts=_architect_expected_artifacts(
                         context,
@@ -13943,7 +14178,18 @@ class SimulationEvaluatorRuntimeSubsystem:
                     )
                 )
         if simulation_passed:
-            if implementation_gaps and not generated_algorithm_sandbox_manifest_id:
+            deferred_metric_protocol_payload = task.inputs.get(
+                "deferred_metric_protocol_task", {}
+            )
+            if (
+                exploratory_diagnostic
+                and isinstance(deferred_metric_protocol_payload, Mapping)
+                and deferred_metric_protocol_payload
+            ):
+                next_task = _agent_task_from_runtime_payload(
+                    deferred_metric_protocol_payload
+                )
+            elif implementation_gaps and not generated_algorithm_sandbox_manifest_id:
                 next_task = AgentTask(
                     task_id=f"algorithm:{question.id}:{stable_hash([packet_id, manifest_id])[:8]}",
                     owner_subsystem="AlgorithmEngineer",
@@ -14013,7 +14259,10 @@ class SimulationEvaluatorRuntimeSubsystem:
             return AgentStepResult(
                 status="REROUTE",
                 rationale=(
-                    "Runtime recorded executable simulation feedback and is routing "
+                    "Runtime recorded non-promotable exploratory diagnostics and is "
+                    "routing to the independent confirmatory metric-protocol gate."
+                    if exploratory_diagnostic
+                    else "Runtime recorded executable simulation feedback and is routing "
                     "remaining implementation/formalization feedback through the agent runtime."
                 ),
                 produced_artifacts=produced_artifacts,
@@ -15299,6 +15548,14 @@ def _simulation_engineer_packet_validation_failure_result(
     seed: int,
     replan_after_attempts: int = 0,
 ) -> AgentStepResult:
+    empirical_evaluation_phase = str(
+        task.inputs.get("empirical_evaluation_phase", "")
+        or context.get("empirical_evaluation_phase", "")
+        or ""
+    ).strip()
+    exploratory_diagnostic = bool(
+        empirical_evaluation_phase == EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+    )
     validation_errors = [str(error) for error in exc.errors]
     validation_state = _coding_agent_packet_validation_state(
         task=task,
@@ -15316,9 +15573,14 @@ def _simulation_engineer_packet_validation_failure_result(
         "validation_label": exc.validation_label,
         "validation_errors": validation_errors,
         "last_attempt_summary": exc.history[-1] if exc.history else {},
+        "empirical_evaluation_phase": empirical_evaluation_phase,
         **validation_state,
         "target_behavior": (
-            "Return a locally valid SimulationEngineer packet. In capability-"
+            "Return a locally valid exploratory SimulationEngineer packet with one "
+            "safe simulation_code_drafts row, raw finite diagnostics, and an empty "
+            "metric_contracts array. Preserve its non-confirmatory evidence boundary."
+            if exploratory_diagnostic
+            else "Return a locally valid SimulationEngineer packet. In capability-"
             "evaluation mode, include a safe simulation_code_drafts row and at "
             "least one artifact-bound metric_contracts row for every generated "
             "simulation_id. Preserve the runtime-owned simulator and evidence "
@@ -15326,6 +15588,12 @@ def _simulation_engineer_packet_validation_failure_result(
         ),
         "required_repair": (
             "Use the exact validator errors above. Each generated draft must use "
+            "language=python, entrypoint=run_sandbox, and define "
+            "run_sandbox(seed:int, replicates:int)->dict. Keep metric_contracts "
+            "empty and return raw diagnostics; this retry cannot satisfy a "
+            "confirmatory gate."
+            if exploratory_diagnostic
+            else "Use the exact validator errors above. Each generated draft must use "
             "language=python, entrypoint=run_sandbox, and define "
             "run_sandbox(seed:int, replicates:int)->dict. Each metric_contracts "
             "row must contain only a stable contract_id, the exact authoritative "
@@ -15348,6 +15616,7 @@ def _simulation_engineer_packet_validation_failure_result(
         "question": _question_to_payload(question),
         "task_id": task.task_id,
         "theory_packet_id": theory_packet_id,
+        "empirical_evaluation_phase": empirical_evaluation_phase,
         "validation_label": exc.validation_label,
         "failure_classification": "simulation_engineer_packet_validation_failed",
         "validation_errors": validation_errors,
@@ -60508,6 +60777,14 @@ def _runtime_environment_feedback_with_architect_directive(
     feedback: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload = dict(feedback) if isinstance(feedback, Mapping) else {}
+    empirical_evaluation_phase = str(
+        context.get("empirical_evaluation_phase", "") or ""
+    ).strip()
+    if empirical_evaluation_phase:
+        payload.setdefault(
+            "empirical_evaluation_phase",
+            empirical_evaluation_phase,
+        )
     runtime_task = context.get("runtime_task", {})
     if isinstance(runtime_task, Mapping) and runtime_task:
         payload.setdefault("runtime_task", dict(runtime_task))
@@ -61661,6 +61938,8 @@ def _runtime_generated_simulation_sandbox_passed_observed(
         if not isinstance(artifact, Mapping):
             continue
         if artifact.get("artifact_kind") != "RuntimeSimulationManifest":
+            continue
+        if artifact.get("confirmatory_empirical_evidence_eligible") is False:
             continue
         if question_id:
             artifact_question = artifact.get("question", {})
@@ -99042,6 +99321,12 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                     ),
                 )
             elif kind == "RuntimeSimulationManifest":
+                confirmatory_empirical_evidence_eligible = bool(
+                    artifact.get(
+                        "confirmatory_empirical_evidence_eligible",
+                        True,
+                    )
+                )
                 simulation_metric_counts = (
                     _generated_sandbox_metric_contract_counts_from_rows(
                         artifact.get("generated_simulation_sandbox_prototypes", []),
@@ -99068,6 +99353,8 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                 )
                 simulation["n_live_generated_simulation_sandbox_passed"] += int(
                     live_counts["passed"]
+                    if confirmatory_empirical_evidence_eligible
+                    else 0
                 )
                 simulation["n_generated_simulation_sandbox_metric_gate_failed"] += int(
                     artifact.get(
@@ -101489,6 +101776,12 @@ def _generated_simulation_revision_feedback(
         "feedback_id": feedback_id,
         "feedback_type": feedback_type,
         "simulation_manifest_id": source_manifest_id,
+        "empirical_evaluation_phase": str(
+            manifest.get("empirical_evaluation_phase", "") or ""
+        ),
+        "confirmatory_empirical_evidence_eligible": bool(
+            manifest.get("confirmatory_empirical_evidence_eligible", True)
+        ),
         "failure_classification": failure_classification,
         "n_generated_simulation_sandbox_prototypes": int(
             manifest.get("n_generated_simulation_sandbox_prototypes", 0) or 0

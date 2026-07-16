@@ -8,7 +8,7 @@ import json
 import shlex
 import shutil
 import sys
-from dataclasses import replace
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any
 
@@ -102,6 +102,7 @@ from ai_statistician.generated_code_semantic_reviewer_llm import (
     GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS,
     GeneratedCodeSemanticReviewerConfig,
     LLMGeneratedCodeSemanticReviewerAgent,
+    build_generated_code_semantic_review_prompt,
 )
 from ai_statistician.formalizer_llm import (
     FormalizerConfig,
@@ -348,6 +349,7 @@ from ai_statistician.theorem_reduction_closure_proofengineer_bridge import (
 )
 from ai_statistician.schema import ProofCheck
 from ai_statistician.simulation_engineer_llm import (
+    EMPIRICAL_EVALUATION_PHASE_EXPLORATORY,
     LLMSimulationEngineerAgent,
     SimulationEngineerConfig,
     _normalize_simulation_packet,
@@ -1355,7 +1357,7 @@ def test_theory_developer_validation_failure_routes_compact_retry() -> None:
     assert result.observations[0].payload["truncation_detected"] is True
 
 
-def test_theory_developer_routes_capability_eval_through_metric_protocol_gate() -> None:
+def test_theory_developer_runs_exploration_before_metric_protocol_gate() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[0]
     theory_packet = _structured_theory_packet_fixture(
         "theory_derivation:metric-gate"
@@ -1395,8 +1397,14 @@ def test_theory_developer_routes_capability_eval_through_metric_protocol_gate() 
 
     assert result.status == "REROUTE"
     assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
-    assert result.next_task.task_id.startswith("architect-metric-protocol:")
+    assert result.next_task.owner_subsystem == "SimulationEvaluator"
+    assert result.next_task.task_id.startswith("simulation-exploratory:")
+    assert result.next_task.inputs["empirical_evaluation_phase"] == (
+        "exploratory_diagnostic"
+    )
+    deferred_gate = result.next_task.inputs["deferred_metric_protocol_task"]
+    assert deferred_gate["owner_subsystem"] == "ArchitectCoordinator"
+    assert deferred_gate["task_id"].startswith("architect-metric-protocol:")
     context = result.next_task.inputs["architect_context"]
     material = context["architect_metric_protocol_theory_material"]
     assert material["source_theory_packet_id"] == (
@@ -1417,11 +1425,233 @@ def test_theory_developer_routes_capability_eval_through_metric_protocol_gate() 
     assert gate["deferred_next_task"]["owner_subsystem"] == (
         "SimulationEvaluator"
     )
+    assert "empirical_evaluation_phase" not in gate["deferred_next_task"][
+        "inputs"
+    ]
     assert "simulation" not in {
         artifact.get("artifact_kind", "").lower()
         for artifact in result.produced_artifacts.values()
         if isinstance(artifact, dict)
     }
+
+
+def test_exploratory_simulation_executes_but_cannot_satisfy_confirmatory_gate(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    theory_packet = _structured_theory_packet_fixture(
+        "theory_derivation:exploratory-runtime"
+    )
+    captured_feedback: dict[str, Any] = {}
+
+    class StaticSimulationEngineer:
+        def __init__(self, code: str | None = None) -> None:
+            self.code = code or (
+                "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                "    scale = max(1, replicates)\n"
+                "    return {'raw_drift': -0.00014 + 0.0 * seed / scale}\n"
+            )
+
+        def propose(self, **kwargs):
+            captured_feedback.update(kwargs.get("environment_feedback", {}))
+            return {
+                "artifact_kind": "SimulationEngineerProposalPacket",
+                "packet_id": "simulation_engineer_proposal:exploratory",
+                "source_agent": "LLMSimulationEngineerAgent",
+                "provider": "anthropic",
+                "backend_provider": "anthropic",
+                "model": "claude-sonnet-4-6",
+                "model_tier": "sonnet",
+                "theory_trace_alignment": (
+                    _structured_theory_trace_alignment_fixture()
+                ),
+                "simulation_targets": [
+                    {
+                        "procedure_id": "diagnostic",
+                        "estimand": "raw theory calibration",
+                    }
+                ],
+                "runtime_execution_plan": {
+                    "registered_simulator": "ResearchSimulator.run",
+                    "n_runs": 9,
+                    "seed": 7,
+                },
+                "critic_findings": [
+                    {
+                        "critic": "calibration",
+                        "finding": "inspect the raw sign",
+                        "reroute_if_confirmed": "TheoryDeveloper",
+                    }
+                ],
+                "simulation_code_drafts": [
+                    {
+                        "simulation_id": "diagnostic",
+                        "language": "python",
+                        "entrypoint": "run_sandbox",
+                        "code": self.code,
+                    }
+                ],
+                "metric_contracts": [],
+                "next_actions": [
+                    {
+                        "owner_agent": "TheoryDeveloper",
+                        "action": "inspect diagnostics",
+                        "acceptance_gate": "fresh theory addresses them",
+                    }
+                ],
+            }
+
+    deferred_gate = AgentTask(
+        task_id="architect-metric-protocol:after-exploration",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Freeze a confirmatory protocol.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": {},
+        },
+    )
+    task = AgentTask(
+        task_id="simulation-exploratory:runtime-test",
+        owner_subsystem="SimulationEvaluator",
+        objective="Run exploratory diagnostics.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet["packet_id"],
+            "architect_context": {
+                "runtime_evaluation_mode": "capability_eval",
+                "runtime_requested_evidence_contract": {
+                    "evaluation_mode": "capability_eval",
+                    "capability_eval_requires_generated_simulation_code": True,
+                    "capability_eval_requires_typed_metric_contracts": True,
+                },
+            },
+            "empirical_evaluation_phase": (
+                EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+            ),
+            "deferred_metric_protocol_task": asdict(deferred_gate),
+            "n_runs": 9,
+            "seed": 7,
+        },
+    )
+
+    result = SimulationEvaluatorRuntimeSubsystem(
+        proposal_agent=StaticSimulationEngineer(),  # type: ignore[arg-type]
+        sandbox_root=tmp_path / "exploratory-sandbox",
+    ).run(
+        task,
+        BlackboardState(
+            project_id="exploratory-runtime",
+            artifacts={str(theory_packet["packet_id"]): theory_packet},
+        ),
+    )
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert captured_feedback["empirical_evaluation_phase"] == (
+        EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+    )
+    manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeSimulationManifest"
+    )
+    assert manifest["exploratory_simulation_passed"] is True
+    assert manifest["confirmatory_empirical_evidence_eligible"] is False
+    assert manifest["simulation_passed"] is False
+    assert manifest["generated_simulation_passed"] is False
+    assert manifest["n_generated_simulation_sandbox_passed"] == 0
+    assert manifest["n_exploratory_generated_simulation_sandbox_passed"] == 1
+    assert result.evidence_entries[-1].status == (
+        "EXPLORATORY_EXECUTED_NOT_CONFIRMATORY"
+    )
+    exploratory_blackboard = BlackboardState(
+        project_id="exploratory-evidence-boundary",
+        artifacts=dict(result.produced_artifacts),
+    )
+    assert runtime_module._runtime_generated_simulation_sandbox_passed_observed(
+        exploratory_blackboard,
+        question_id=question.id,
+        theory_packet_id=str(theory_packet["packet_id"]),
+    ) is False
+    evidence_summary = _runtime_evidence_summary(
+        [{"blackboard": {"artifacts": result.produced_artifacts}}]
+    )
+    assert evidence_summary["simulation"][
+        "n_generated_simulation_sandbox_passed"
+    ] == 0
+    assert evidence_summary["simulation"][
+        "n_live_generated_simulation_sandbox_passed"
+    ] == 0
+    audit_result_path = tmp_path / "exploratory_runtime_result.json"
+    audit_result_path.write_text(
+        json.dumps(
+            {
+                "status": "MAX_ITERATIONS_REACHED",
+                "blackboard": {
+                    "project_id": "exploratory-evidence-boundary",
+                    "artifacts": result.produced_artifacts,
+                },
+                "traces": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    exploratory_audit_row = _audit_result_path(audit_result_path)
+    assert exploratory_audit_row.n_live_generated_simulation_sandbox_executed == 1
+    assert exploratory_audit_row.n_live_generated_simulation_sandbox_passed == 0
+
+    failed_result = SimulationEvaluatorRuntimeSubsystem(
+        proposal_agent=StaticSimulationEngineer(
+            "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+            "    raise RuntimeError('diagnostic execution failed')\n"
+        ),  # type: ignore[arg-type]
+        sandbox_root=tmp_path / "exploratory-failed-sandbox",
+    ).run(
+        task,
+        BlackboardState(
+            project_id="exploratory-runtime-failed",
+            artifacts={str(theory_packet["packet_id"]): theory_packet},
+        ),
+    )
+    assert failed_result.status == "REVISE"
+    assert failed_result.next_task is not None
+    assert failed_result.next_task.owner_subsystem == "SimulationEvaluator"
+    assert failed_result.next_task.inputs["empirical_evaluation_phase"] == (
+        EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+    )
+    assert failed_result.next_task.inputs["deferred_metric_protocol_task"] == (
+        asdict(deferred_gate)
+    )
+
+    budget_inputs = copy.deepcopy(task.inputs)
+    budget_context = budget_inputs["architect_context"]
+    budget_context["runtime_requested_evidence_contract"][
+        "capability_eval_simulation_evaluator_generated_code_repair_yield_after_attempts"
+    ] = 1
+    budget_context["runtime_feedback_loop"] = {
+        "simulation_evaluator_generated_code_repair_attempts_used": 1
+    }
+    budget_result = SimulationEvaluatorRuntimeSubsystem(
+        proposal_agent=StaticSimulationEngineer(
+            "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+            "    raise RuntimeError('diagnostic execution still failed')\n"
+        ),  # type: ignore[arg-type]
+        sandbox_root=tmp_path / "exploratory-budget-sandbox",
+    ).run(
+        replace(task, inputs=budget_inputs),
+        BlackboardState(
+            project_id="exploratory-runtime-budget",
+            artifacts={str(theory_packet["packet_id"]): theory_packet},
+        ),
+    )
+    assert budget_result.status == "REROUTE"
+    assert budget_result.next_task is not None
+    assert budget_result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert budget_result.next_task.task_id.startswith("exploration-budget-yield:")
+    assert budget_result.next_task.inputs["environment_feedback"][
+        "empirical_evaluation_phase"
+    ] == EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
 
 
 def test_theory_developer_preserves_metric_protocol_revision_lineage() -> None:
@@ -20581,6 +20811,9 @@ def test_architect_initial_routing_audit_extracts_non_evidence_decision() -> Non
             }
         ],
     )[:2] == ("ArchitectCoordinator", "RetrievalMemory")
+    assert audit_module._runtime_trace_sequence_uses_known_subsystems(
+        ["ArchitectCoordinator", "FormalizationGapPlanner"]
+    ) is True
     bad_record = dict(records[0])
     bad_record["proof_evidence_status"] = "PROOF_EVIDENCE"
     assert "invalid proof boundary" in _architect_initial_routing_record_errors(
@@ -24314,6 +24547,64 @@ def test_simulation_engineer_capability_eval_prompt_requires_generated_code() ->
     assert "Do not ask AgentRuntime to infer a metric" in prompt
 
 
+def test_simulation_engineer_exploratory_prompt_separates_diagnostics_from_gates() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    prompt = build_simulation_engineer_prompt(
+        question=question,
+        theory_packet=_structured_theory_packet_fixture(),
+        registered_problem={"problem_class": "unregistered"},
+        registered_procedures=[],
+        n_runs=20,
+        seed=7,
+        environment_feedback={
+            "empirical_evaluation_phase": (
+                EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+            ),
+            "architect_evidence_contract": {
+                "capability_eval_requires_generated_simulation_code": True,
+                "capability_eval_requires_typed_metric_contracts": True,
+                "generated_metric_requirement_authority_policy": (
+                    "architect_authored_coding_agent_bound_required"
+                ),
+                "empirical_metric_requirements": [],
+            },
+        },
+    )
+
+    assert "Exploratory diagnostic mode is active" in prompt
+    assert '"empirical_evaluation_phase":"exploratory_diagnostic"' in prompt
+    assert '"metric_contracts":[]' in prompt
+    assert '"typed_metric_contract_schema":{}' in prompt
+    assert '"authoritative_empirical_metric_requirements":[]' in prompt
+    assert "cannot be used as confirmatory empirical acceptance" in prompt
+    assert "must include every required generated-code and metric-contract" not in prompt
+
+
+def test_generated_code_semantic_reviewer_distinguishes_exploration_from_confirmation() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    exploratory_prompt = build_generated_code_semantic_review_prompt(
+        question=question,
+        review_material={
+            "empirical_evaluation_phase": EMPIRICAL_EVALUATION_PHASE_EXPLORATORY,
+            "confirmatory_empirical_evidence_eligible": False,
+            "exact_executed_artifacts": [],
+        },
+    )
+    confirmatory_prompt = build_generated_code_semantic_review_prompt(
+        question=question,
+        review_material={
+            "confirmatory_empirical_evidence_eligible": True,
+            "exact_executed_artifacts": [],
+        },
+    )
+
+    assert "exploratory diagnostic execution" in exploratory_prompt
+    assert "Never treat this run as empirical acceptance" in exploratory_prompt
+    assert "no protocol is frozen" in exploratory_prompt
+    assert "This is confirmatory execution" in confirmatory_prompt
+    assert "Preserve the frozen protocol" in confirmatory_prompt
+
+
 def test_simulation_engineer_prompt_uses_runtime_requested_capability_contract() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     feedback = _runtime_environment_feedback_with_architect_directive(
@@ -24559,6 +24850,106 @@ def test_simulation_engineer_uses_structured_binding_envelope_for_anthropic() ->
         packet,
         authoritative_metric_requirements=[requirement],
         require_authoritative_requirements=True,
+    ) == []
+
+
+def test_simulation_engineer_exploration_uses_code_envelope_without_gates() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    payload = {
+        "theory_trace_alignment": _structured_theory_trace_alignment_fixture(),
+        "simulation_targets": [
+            {"procedure_id": "diagnostic", "estimand": "question target"}
+        ],
+        "runtime_execution_plan": {
+            "registered_simulator": "ResearchSimulator.run",
+            "n_runs": 12,
+            "seed": 7,
+        },
+        "critic_findings": [
+            {
+                "critic": "calibration",
+                "finding": "check the sign of the claimed drift",
+                "reroute_if_confirmed": "TheoryDeveloper",
+            }
+        ],
+        "simulation_code_drafts": [
+            {
+                "simulation_id": "diagnostic",
+                "language": "python",
+                "entrypoint": "run_sandbox",
+                "code": (
+                    "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                    "    scale = max(1, replicates)\n"
+                    "    return {'raw_drift': -0.00014 + 0.0 * seed / scale}\n"
+                ),
+            }
+        ],
+        "metric_contracts": [],
+        "next_actions": [
+            {
+                "owner_agent": "TheoryDeveloper",
+                "action": "inspect raw diagnostic",
+                "acceptance_gate": "fresh theory reflects the executed value",
+            }
+        ],
+    }
+
+    class CaptureAnthropicBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate(self, request):
+            self.requests.append(request)
+            return GeneratorResponse(
+                text=json.dumps(payload),
+                provider="anthropic",
+                model=request.model,
+                metadata={},
+            )
+
+    backend = CaptureAnthropicBackend()
+    packet = LLMSimulationEngineerAgent(
+        provider=backend,
+        config=SimulationEngineerConfig(
+            provider_name="anthropic",
+            model="claude-sonnet-4-6",
+        ),
+    ).propose(
+        question=question,
+        theory_packet=_structured_theory_packet_fixture(),
+        registered_problem={"problem_class": "unregistered"},
+        registered_procedures=[],
+        n_runs=12,
+        seed=7,
+        environment_feedback={
+            "empirical_evaluation_phase": (
+                EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+            ),
+            "architect_evidence_contract": {
+                "capability_eval_requires_generated_simulation_code": True,
+                "capability_eval_requires_typed_metric_contracts": True,
+                "generated_metric_requirement_authority_policy": (
+                    "architect_authored_coding_agent_bound_required"
+                ),
+                "empirical_metric_requirements": [],
+            },
+        },
+    )
+
+    request = backend.requests[0]
+    assert request.metadata["provider_structured_output"] is True
+    assert request.metadata["requires_typed_metric_contracts"] is False
+    assert request.schema["properties"]["metric_contracts"]["maxItems"] == 0
+    assert packet["metric_contracts"] == []
+    assert packet["empirical_evaluation_phase"] == (
+        EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+    )
+    assert packet["confirmatory_empirical_evidence_eligible"] is False
+    assert _validate_capability_eval_generated_simulation_packet(
+        packet,
+        require_typed_metric_contracts=False,
     ) == []
 
 

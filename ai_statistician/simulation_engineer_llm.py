@@ -14,6 +14,7 @@ from .generated_metric_repair_policy import (
 from .generated_metric_contract import (
     GENERATED_METRIC_CONTRACT_BOUNDARY,
     GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE,
+    GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED,
     GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED,
     generated_metric_authority_repair_context,
     generated_metric_contract_binding_json_schema,
@@ -39,6 +40,7 @@ from .theory_derivation_trace import (
 
 
 SIMULATION_ENGINEER_SCHEMA_VERSION = 1
+EMPIRICAL_EVALUATION_PHASE_EXPLORATORY = "exploratory_diagnostic"
 SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE = "LLM_SIMULATION_PROPOSAL_NOT_EXECUTION_EVIDENCE"
 SIMULATION_ENGINEER_BOUNDARY = (
     "LLM SimulatorEngineer packets are simulation-design proposals only. They "
@@ -85,17 +87,28 @@ class LLMSimulationEngineerAgent:
         requires_generated_code = _feedback_requires_generated_simulation_code(
             feedback
         )
+        empirical_evaluation_phase = _feedback_empirical_evaluation_phase(feedback)
+        requires_typed_metric_contracts = bool(
+            requires_generated_code
+            and empirical_evaluation_phase
+            != EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+        )
         authoritative_metric_requirements = (
             generated_metric_requirements_from_context(
                 feedback,
                 target_subsystem="SimulationEngineer",
             )
+            if requires_typed_metric_contracts
+            else []
         )
         metric_requirement_authority_policy = (
-            generated_metric_requirement_authority_policy_from_context(feedback)
+            GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED
+            if empirical_evaluation_phase
+            == EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+            else generated_metric_requirement_authority_policy_from_context(feedback)
         )
         require_authoritative_requirements = bool(
-            requires_generated_code
+            requires_typed_metric_contracts
             and metric_requirement_authority_policy
             == GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED
         )
@@ -116,6 +129,7 @@ class LLMSimulationEngineerAgent:
         response_schema = _simulation_engineer_response_schema(
             authoritative_metric_requirements=authoritative_metric_requirements,
             requires_generated_code=requires_generated_code,
+            requires_typed_metric_contracts=requires_typed_metric_contracts,
         )
         provider_name = str(
             getattr(self.provider, "provider_name", self.config.provider_name)
@@ -137,6 +151,8 @@ class LLMSimulationEngineerAgent:
                 "provider_name": self.config.provider_name,
                 "model_tier": self.config.model_tier,
                 "resolved_model": request_model,
+                "empirical_evaluation_phase": empirical_evaluation_phase,
+                "requires_typed_metric_contracts": requires_typed_metric_contracts,
                 **(
                     {"provider_structured_output": True}
                     if use_provider_structured_output
@@ -163,6 +179,7 @@ class LLMSimulationEngineerAgent:
                 metric_requirement_authority_policy=(
                     metric_requirement_authority_policy
                 ),
+                empirical_evaluation_phase=empirical_evaluation_phase,
             )
 
         def validate_packet(packet: Mapping[str, Any]) -> list[str]:
@@ -176,6 +193,9 @@ class LLMSimulationEngineerAgent:
                         ),
                         require_authoritative_requirements=(
                             require_authoritative_requirements
+                        ),
+                        require_typed_metric_contracts=(
+                            requires_typed_metric_contracts
                         ),
                     )
                 )
@@ -218,12 +238,23 @@ def build_simulation_engineer_prompt(
     requires_generated_code = _feedback_requires_generated_simulation_code(
         compact_environment_feedback
     )
+    empirical_evaluation_phase = _feedback_empirical_evaluation_phase(
+        compact_environment_feedback
+    )
+    requires_typed_metric_contracts = bool(
+        requires_generated_code
+        and empirical_evaluation_phase
+        != EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+    )
     authoritative_metric_requirements = generated_metric_requirements_from_context(
         compact_environment_feedback,
         target_subsystem="SimulationEngineer",
-    )
+    ) if requires_typed_metric_contracts else []
     metric_requirement_authority_policy = (
-        generated_metric_requirement_authority_policy_from_context(
+        GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED
+        if empirical_evaluation_phase
+        == EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+        else generated_metric_requirement_authority_policy_from_context(
             compact_environment_feedback
         )
     )
@@ -244,6 +275,7 @@ def build_simulation_engineer_prompt(
         "registered_problem": dict(registered_problem),
         "registered_procedures": [dict(row) for row in registered_procedures],
         "runtime_environment_feedback": compact_environment_feedback,
+        "empirical_evaluation_phase": empirical_evaluation_phase,
         "runtime_execution_budget": {"n_runs": n_runs, "seed": seed},
         "registered_execution_owner": "AgentRuntime ResearchSimulator.run",
         "generated_simulation_code_contract": {
@@ -262,22 +294,25 @@ def build_simulation_engineer_prompt(
             generated_metric_contract_prompt_schema(
                 artifact_id_label="generated simulation_code_drafts simulation_id"
             )
-            if requires_generated_code
+            if requires_typed_metric_contracts
             else {}
         ),
         "metric_evaluation_semantics": (
             generated_metric_evaluation_semantics_contract()
-            if requires_generated_code
+            if requires_typed_metric_contracts
             else {}
         ),
         "authoritative_empirical_metric_requirements": (
-            authoritative_metric_requirements if requires_generated_code else []
+            authoritative_metric_requirements
+            if requires_typed_metric_contracts
+            else []
         ),
         "metric_requirement_authority_policy": (
             metric_requirement_authority_policy
         ),
         "required_output_contract": _simulation_engineer_output_contract(
-            requires_generated_code=requires_generated_code
+            requires_generated_code=requires_generated_code,
+            requires_typed_metric_contracts=requires_typed_metric_contracts,
         ),
         "boundary": SIMULATION_ENGINEER_BOUNDARY,
     }
@@ -290,6 +325,12 @@ def build_simulation_engineer_prompt(
             "run_sandbox and code defining def run_sandbox(seed: int, replicates: int) -> dict; "
             "include metric_contracts rows bound to the same simulation_id and to "
             "every authoritative empirical requirement"
+            if requires_typed_metric_contracts
+            else (
+                "include one safe simulation_code_drafts entry with entrypoint "
+                "exactly run_sandbox, return raw finite diagnostics, and leave "
+                "metric_contracts empty until confirmatory protocol review"
+            )
         )
     generated_simulation_instruction = (
         "Capability-eval mode is active: include exactly one safe "
@@ -310,14 +351,27 @@ def build_simulation_engineer_prompt(
         "or quorum. Never place a quorum in threshold or return pre-thresholded 0/1 "
         "flags for a measurable numeric quantity. Use 0/1 with operator == threshold 1 "
         "only for an intrinsically boolean predicate. "
-        if requires_generated_code
-        else ""
+        if requires_typed_metric_contracts
+        else (
+            "Exploratory diagnostic mode is active: include exactly one safe "
+            "simulation_code_drafts entry with entrypoint run_sandbox, set "
+            "metric_contracts to an empty array, and return raw finite diagnostics "
+            "that can falsify the proposed DGP, calibration, estimator, or theorem "
+            "claims. This execution is feedback for TheoryDeveloper and cannot be "
+            "used as confirmatory empirical acceptance; a fresh run under an "
+            "independently reviewed frozen protocol is required for promotion. "
+            if requires_generated_code
+            else ""
+        )
     )
     metric_gate_instruction = (
         generated_metric_gate_repair_instruction(
             artifact_label="generated simulation draft"
         )
-        if _feedback_reports_metric_gate_failure(payload["runtime_environment_feedback"])
+        if requires_typed_metric_contracts
+        and _feedback_reports_metric_gate_failure(
+            payload["runtime_environment_feedback"]
+        )
         else ""
     )
     sandbox_guard_instruction = (
@@ -354,12 +408,21 @@ def build_simulation_engineer_prompt(
     packet_validation_instruction = (
         "Local packet-validator feedback is active: read every exact "
         "runtime_environment_feedback.validation_errors row and rebuild the full "
-        "packet. Bind only the authoritative_empirical_metric_requirements rows "
-        "shown in this prompt for SimulationEngineer. Author only contract_id, exact "
-        "requirement_id, the generated simulation_id artifact binding, and a metric_path "
-        "that resolves against run_sandbox output. AgentRuntime materializes every "
-        "frozen authority field. Do not reuse a "
-        "contract from another subsystem or prior attempt. "
+        "packet. "
+        + (
+            "Bind only the authoritative_empirical_metric_requirements rows shown "
+            "in this prompt for SimulationEngineer. Author only contract_id, exact "
+            "requirement_id, the generated simulation_id artifact binding, and a "
+            "metric_path that resolves against run_sandbox output. AgentRuntime "
+            "materializes every frozen authority field. Do not reuse a contract "
+            "from another subsystem or prior attempt. "
+            if requires_typed_metric_contracts
+            else (
+                "This is exploratory diagnostic execution, so preserve one safe "
+                "generated draft, return raw finite diagnostics, and keep "
+                "metric_contracts empty. "
+            )
+        )
         if str(
             payload["runtime_environment_feedback"].get("feedback_type", "") or ""
         )
@@ -383,10 +446,17 @@ def build_simulation_engineer_prompt(
     semantic_review_instruction = (
         "Independent generated-code semantic review feedback is active: treat "
         "runtime_environment_feedback.generated_code_semantic_review as binding. "
-        "Repair every rejected semantic dimension and finding against the exact "
-        "reviewed source, runtime arguments, results, theory trace, and frozen metric "
-        "protocol. Regenerate the simulation and let AgentRuntime execute it again; "
-        "do not respond by only changing metric paths or weakening a gate. "
+        + (
+            "Repair every rejected semantic dimension and finding against the exact "
+            "reviewed source, runtime arguments, raw diagnostics, and theory trace. "
+            "Regenerate the exploratory simulation, keep metric_contracts empty, and "
+            "let AgentRuntime execute it again without claiming confirmatory acceptance. "
+            if not requires_typed_metric_contracts
+            else "Repair every rejected semantic dimension and finding against the exact "
+            "reviewed source, runtime arguments, results, theory trace, and frozen metric "
+            "protocol. Regenerate the simulation and let AgentRuntime execute it again; "
+            "do not respond by only changing metric paths or weakening a gate. "
+        )
         if payload["runtime_environment_feedback"].get(
             "generated_code_semantic_review"
         )
@@ -395,8 +465,17 @@ def build_simulation_engineer_prompt(
     return (
         "Design a simulation and stress-test plan for the SimulatorEngineer subsystem. "
         "Return ONLY one compact JSON object matching required_output_contract. Include "
-        "only the required fields. Keep descriptive lists short; capability-eval mode "
-        "must include every required generated-code and metric-contract row. You may "
+        "only the required fields. Keep descriptive lists short. "
+        + (
+            "Capability-eval mode must include every required generated-code and "
+            "metric-contract row. "
+            if requires_typed_metric_contracts
+            else "Exploratory mode must include one generated-code row and no "
+            "metric-contract rows. "
+            if requires_generated_code
+            else ""
+        )
+        + "You may "
         "name one runtime diagnostic, but do not claim that simulations "
         "were run or passed. Execution is owned by AgentRuntime. Use "
         "theory_packet_summary.theory_derivation_trace to align DGPs, estimands, "
@@ -480,6 +559,9 @@ def _compact_simulation_environment_feedback(feedback: Mapping[str, Any]) -> dic
         feedback
     )
     return {
+        "empirical_evaluation_phase": _feedback_empirical_evaluation_phase(
+            feedback
+        ),
         "architect_evidence_contract": _compact_architect_evidence_contract(
             feedback.get("architect_evidence_contract", {}),
             target_subsystem="SimulationEngineer",
@@ -653,6 +735,25 @@ def _compact_simulation_environment_feedback(feedback: Mapping[str, Any]) -> dic
         "required_repair": _truncate_text(feedback.get("required_repair", ""), limit=360),
         "boundary": _truncate_text(feedback.get("boundary", ""), limit=240),
     }
+
+
+def _feedback_empirical_evaluation_phase(feedback: Mapping[str, Any]) -> str:
+    if not isinstance(feedback, Mapping):
+        return ""
+    direct = str(feedback.get("empirical_evaluation_phase", "") or "").strip()
+    if direct:
+        return direct
+    for key in (
+        "architect_evidence_contract",
+        "runtime_requested_evidence_contract",
+    ):
+        contract = feedback.get(key, {})
+        if not isinstance(contract, Mapping):
+            continue
+        phase = str(contract.get("empirical_evaluation_phase", "") or "").strip()
+        if phase:
+            return phase
+    return ""
 
 
 def _feedback_reports_metric_gate_failure(feedback: Mapping[str, Any]) -> bool:
@@ -898,14 +999,17 @@ SIMULATION_ENGINEER_OUTPUT_CONTRACT: dict[str, Any] = {
 def _simulation_engineer_output_contract(
     *,
     requires_generated_code: bool,
+    requires_typed_metric_contracts: bool = True,
 ) -> dict[str, Any]:
     contract = dict(SIMULATION_ENGINEER_OUTPUT_CONTRACT)
-    if requires_generated_code:
+    if requires_generated_code and requires_typed_metric_contracts:
         contract["metric_contracts"] = [
             generated_metric_contract_prompt_schema(
                 artifact_id_label="generated simulation_code_drafts simulation_id"
             )
         ]
+    elif requires_generated_code:
+        contract["metric_contracts"] = []
     return contract
 
 
@@ -913,6 +1017,7 @@ def _simulation_engineer_response_schema(
     *,
     authoritative_metric_requirements: list[Mapping[str, Any]],
     requires_generated_code: bool,
+    requires_typed_metric_contracts: bool = True,
 ) -> dict[str, Any]:
     """Build a compact provider-native envelope for generated simulation code."""
 
@@ -1010,9 +1115,15 @@ def _simulation_engineer_response_schema(
             },
             "metric_contracts": {
                 "type": "array",
-                "minItems": max(1, len(requirement_ids)),
-                "items": generated_metric_contract_binding_json_schema(
-                    requirement_ids=requirement_ids,
+                **(
+                    {
+                        "minItems": max(1, len(requirement_ids)),
+                        "items": generated_metric_contract_binding_json_schema(
+                            requirement_ids=requirement_ids,
+                        ),
+                    }
+                    if requires_typed_metric_contracts
+                    else {"maxItems": 0}
                 ),
             },
             "next_actions": _simulation_next_actions_json_schema(),
@@ -1210,6 +1321,7 @@ def _validate_capability_eval_generated_simulation_packet(
     *,
     authoritative_metric_requirements: list[Mapping[str, Any]] | None = None,
     require_authoritative_requirements: bool = False,
+    require_typed_metric_contracts: bool = True,
 ) -> list[str]:
     """Capability eval must exercise generated stress-test code, not simulator-only rows."""
 
@@ -1229,18 +1341,24 @@ def _validate_capability_eval_generated_simulation_packet(
         for row in drafts
         if str(row.get("simulation_id", "") or "").strip()
     }
-    errors.extend(
-        validate_generated_metric_contracts(
-            packet.get("metric_contracts", []),
-            expected_artifact_ids=tuple(sorted(draft_ids)),
-            required_artifact_ids=tuple(sorted(draft_ids)),
-            authoritative_requirements=authoritative_metric_requirements,
-            target_subsystem="SimulationEngineer",
-            require_authoritative_requirements=(
-                require_authoritative_requirements
-            ),
+    if require_typed_metric_contracts:
+        errors.extend(
+            validate_generated_metric_contracts(
+                packet.get("metric_contracts", []),
+                expected_artifact_ids=tuple(sorted(draft_ids)),
+                required_artifact_ids=tuple(sorted(draft_ids)),
+                authoritative_requirements=authoritative_metric_requirements,
+                target_subsystem="SimulationEngineer",
+                require_authoritative_requirements=(
+                    require_authoritative_requirements
+                ),
+            )
         )
-    )
+    elif packet.get("metric_contracts", []) not in (None, [], {}):
+        errors.append(
+            "exploratory diagnostic simulation must leave metric_contracts empty; "
+            "only a fresh confirmatory run may bind frozen acceptance requirements"
+        )
     return sorted(set(errors))
 
 
@@ -1258,6 +1376,7 @@ def _normalize_simulation_packet(
     seed: int,
     authoritative_metric_requirements: list[Mapping[str, Any]] | None = None,
     metric_requirement_authority_policy: str = "",
+    empirical_evaluation_phase: str = "",
 ) -> dict[str, Any]:
     body = dict(payload)
     _normalize_simulation_code_draft_metadata(body)
@@ -1291,6 +1410,11 @@ def _normalize_simulation_packet(
     )
     body["metric_requirement_authority_policy"] = (
         metric_requirement_authority_policy
+    )
+    body["empirical_evaluation_phase"] = empirical_evaluation_phase
+    body["confirmatory_empirical_evidence_eligible"] = bool(
+        empirical_evaluation_phase
+        != EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
     )
     body["metric_contract_proof_evidence_status"] = (
         GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
