@@ -35853,6 +35853,21 @@ class CriticEvaluatorRuntimeSubsystem:
             context,
             self.runtime_config,
         )
+        critic_evidence_contract = (
+            critic_control.get("evidence_contract", {})
+            if isinstance(critic_control.get("evidence_contract", {}), Mapping)
+            else {}
+        )
+        explicit_formal_verification_policy = str(
+            critic_evidence_contract.get("formal_verification_policy", "") or ""
+        ).strip()
+        formal_verification_policy = _normalized_formal_verification_policy(
+            explicit_formal_verification_policy or "optional"
+        )
+        formal_required_for_final = formal_verification_policy == "required"
+        formal_debt_blocks_research_acceptance = bool(
+            formal_required_for_final or not explicit_formal_verification_policy
+        )
         critic_environment_feedback = (
             task.inputs.get("environment_feedback", {})
             if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
@@ -35872,7 +35887,8 @@ class CriticEvaluatorRuntimeSubsystem:
             )
         )
         should_route_to_gap_planner = (
-            formalizer_packet_validation_escalation_active
+            formal_debt_blocks_research_acceptance
+            and formalizer_packet_validation_escalation_active
             and bool(gap_planner_bridge_rows)
             and _critic_agenda_has_formalization_gap_planner_handoff(agenda)
         )
@@ -35881,16 +35897,27 @@ class CriticEvaluatorRuntimeSubsystem:
             formalization_manifest=formalization_manifest,
             critic_round=critic_round,
             max_critic_repair_rounds=max_critic_repair_rounds,
+            formal_verification_policy=(
+                formal_verification_policy
+                if explicit_formal_verification_policy
+                else "required"
+            ),
         )
         should_repair = should_repair_candidate and not should_route_to_gap_planner
+        formal_proof_work_pending = _critic_should_route_to_formalizer_proofengineer(
+            agenda=agenda,
+            formalization_manifest=formalization_manifest,
+        )
+        formal_debt_deferred_nonblocking = bool(
+            formal_proof_work_pending
+            and not formal_debt_blocks_research_acceptance
+        )
         should_route_to_formalizer = (
-            not formalizer_packet_validation_escalation_active
+            formal_debt_blocks_research_acceptance
+            and not formalizer_packet_validation_escalation_active
             and not should_route_to_gap_planner
             and not should_repair
-            and _critic_should_route_to_formalizer_proofengineer(
-                agenda=agenda,
-                formalization_manifest=formalization_manifest,
-            )
+            and formal_proof_work_pending
         )
         repair_feedback = _critic_repair_feedback(
             question=question,
@@ -36072,6 +36099,13 @@ class CriticEvaluatorRuntimeSubsystem:
                 "reroute_to_formalizer_proofengineer": (
                     should_route_to_formalizer
                 ),
+                "formal_verification_policy": formal_verification_policy,
+                "formal_verification_policy_explicit": bool(
+                    explicit_formal_verification_policy
+                ),
+                "formal_debt_deferred_nonblocking": (
+                    formal_debt_deferred_nonblocking
+                ),
                 "formalizer_packet_validation_escalation_active": (
                     formalizer_packet_validation_escalation_active
                 ),
@@ -36089,6 +36123,10 @@ class CriticEvaluatorRuntimeSubsystem:
                     else
                     "formal/proof feedback requires another theory-discovery pass"
                     if should_repair
+                    else
+                    "formal proof work remains recorded as non-blocking debt under "
+                    f"the {formal_verification_policy} policy"
+                    if formal_debt_deferred_nonblocking
                     else
                     "critic repair budget exhausted; unresolved formal/proof work remains pending"
                     if should_route_to_formalizer
@@ -36157,6 +36195,13 @@ class CriticEvaluatorRuntimeSubsystem:
                     ),
                     "reroute_to_formalizer_proofengineer": (
                         should_route_to_formalizer
+                    ),
+                    "formal_verification_policy": formal_verification_policy,
+                    "formal_verification_policy_explicit": bool(
+                        explicit_formal_verification_policy
+                    ),
+                    "formal_debt_deferred_nonblocking": (
+                        formal_debt_deferred_nonblocking
                     ),
                     "formalizer_packet_validation_escalation_active": (
                         formalizer_packet_validation_escalation_active
@@ -57813,19 +57858,27 @@ def _critic_should_reroute_to_theory(
     formalization_manifest: Mapping[str, Any],
     critic_round: int,
     max_critic_repair_rounds: int,
+    formal_verification_policy: str,
 ) -> bool:
     if critic_round >= max_critic_repair_rounds:
         return False
+    formal_required = (
+        _normalized_formal_verification_policy(formal_verification_policy)
+        == "required"
+    )
     formal_counts = formalization_manifest.get("counts", {}) if isinstance(formalization_manifest, Mapping) else {}
-    if int(formal_counts.get("formal_gap", 0) or 0) > 0:
-        return True
-    if int(formal_counts.get("proof_state_route_revisions", 0) or 0) > 0:
-        return True
-    if int(formal_counts.get("kernel_verified", 0) or 0) == 0 and int(formal_counts.get("proved", 0) or 0) > 0:
-        return True
+    if formal_required:
+        if int(formal_counts.get("formal_gap", 0) or 0) > 0:
+            return True
+        if int(formal_counts.get("proof_state_route_revisions", 0) or 0) > 0:
+            return True
+        if int(formal_counts.get("kernel_verified", 0) or 0) == 0 and int(formal_counts.get("proved", 0) or 0) > 0:
+            return True
     for row in agenda:
         agenda_id = str(row.get("id", ""))
-        if agenda_id.startswith(("formal_gap:", "proof_feedback:", "simulation:theory_revision")):
+        if agenda_id.startswith("simulation:theory_revision"):
+            return True
+        if formal_required and agenda_id.startswith(("formal_gap:", "proof_feedback:")):
             return True
     return False
 

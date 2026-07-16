@@ -27034,6 +27034,119 @@ def test_critic_evidence_contract_blocks_required_formal_verification_with_gaps(
     assert decision["formal_satisfied"] is False
 
 
+def test_critic_formal_reroute_respects_policy_and_keeps_simulation_blocking() -> None:
+    formalization_manifest = {
+        "counts": {
+            "formal_gap": 1,
+            "kernel_verified": 0,
+            "proved": 0,
+            "proof_state_route_revisions": 1,
+        }
+    }
+    formal_agenda = [{"id": "formal_gap:theorem_reduction_closure"}]
+
+    assert runtime_module._critic_should_reroute_to_theory(
+        agenda=formal_agenda,
+        formalization_manifest=formalization_manifest,
+        critic_round=0,
+        max_critic_repair_rounds=1,
+        formal_verification_policy="required",
+    ) is True
+    assert runtime_module._critic_should_reroute_to_theory(
+        agenda=formal_agenda,
+        formalization_manifest=formalization_manifest,
+        critic_round=0,
+        max_critic_repair_rounds=1,
+        formal_verification_policy="optional",
+    ) is False
+    assert runtime_module._critic_should_reroute_to_theory(
+        agenda=[{"id": "simulation:theory_revision"}],
+        formalization_manifest=formalization_manifest,
+        critic_round=0,
+        max_critic_repair_rounds=1,
+        formal_verification_policy="advisory",
+    ) is True
+
+
+def test_critic_subsystem_defers_optional_formal_debt_and_accepts_research_candidate() -> None:
+    context = {
+        "architect_runtime_plan": {
+            "evidence_contract": {
+                "formal_verification_policy": "optional",
+                "recommended_research_path": "dual_track",
+                "formal_required_for_final": False,
+                "simulation_required_for_final": True,
+                "must_disclose_formal_gaps": True,
+            },
+            "subsystem_execution_plan": [
+                {
+                    "subsystem": "CriticEvaluator",
+                    "acceptance_gate": (
+                        "accept a reviewed research candidate while disclosing formal debt"
+                    ),
+                    "expected_artifacts": ["critic_evaluator_manifest"],
+                }
+            ],
+        }
+    }
+    blackboard = BlackboardState(
+        project_id="test",
+        artifacts={
+            "simulation_manifest:test": {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": "simulation_manifest:test",
+                "simulation_passed": True,
+            },
+            "formalization_manifest:test": {
+                "artifact_kind": "RuntimeFormalizationManifest",
+                "manifest_id": "formalization_manifest:test",
+                "counts": {"formal_gap": 1, "kernel_verified": 0, "proved": 0},
+                "full_frontier_theorem_proved": False,
+                "deterministic_theorem_goals": [
+                    {"id": "generic_target", "status": "FORMAL_GAP"}
+                ],
+                "proof_bank_runtime_memory_summary": {},
+            },
+        },
+    )
+
+    result = CriticEvaluatorRuntimeSubsystem(
+        runtime_config=ResearchAgentRuntimeConfig(max_critic_repair_rounds=1)
+    ).run(
+        AgentTask(
+            task_id="critic:q_optional_formal_debt",
+            owner_subsystem="CriticEvaluator",
+            objective="review an optional-formal research candidate",
+            inputs={
+                "question": {
+                    "id": "q_optional_formal_debt",
+                    "title": "Optional formal debt task",
+                    "description": "Evaluate a generic statistical research candidate.",
+                    "tags": ["generic"],
+                },
+                "architect_context": context,
+            },
+        ),
+        blackboard,
+    )
+
+    manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact["artifact_kind"] == "RuntimeCriticEvaluatorManifest"
+    )
+    assert result.status == "ACCEPTED"
+    assert manifest["evidence_contract_decision"]["final_acceptance_status"] == (
+        "RESEARCH_CANDIDATE_ACCEPTED_WITH_FORMAL_GAPS"
+    )
+    assert manifest["runtime_reroute_decision"][
+        "formal_debt_deferred_nonblocking"
+    ] is True
+    assert manifest["runtime_reroute_decision"][
+        "reroute_to_formalizer_proofengineer"
+    ] is False
+
+
 def test_critic_subsystem_blocks_required_formal_policy_without_kernel_evidence() -> None:
     context = {
         "architect_runtime_plan": {
