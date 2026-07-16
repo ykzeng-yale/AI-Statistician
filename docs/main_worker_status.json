@@ -1,19 +1,21 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-16T19:32:56Z",
+  "updated_at": "2026-07-16T22:07:01Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
-  "current_lane": "one domain-neutral LLM research loop under optional evaluation, progressive formalization in parallel, and separate strict exact-theorem certification",
-  "latest_main_worker_patch": "GeneratedCodeSemanticReviewer keeps its existing domain-neutral source_code, upstream_metric_contract, and upstream_theory scopes. When the exact reviewed artifact has a required metric failure and semantic review ACCEPTs the code, the deferred task now uses the existing Architect metric-replan route instead of blindly rerunning the coding agent; semantic REVISE/source_code still returns exact feedback to the source agent. The patch adds no role, schema, retry budget, task formula, output rewrite, Lean grammar, or tactic rule.",
-  "latest_main_worker_live_probe": "Fresh optional-policy v9 covered survival and sequential from a clean start and still completed 0/2. Survival failed after two Anthropic 529 overload responses, so it is provider-availability evidence rather than a design finding. Sequential completed a real Architect -> retrieval -> theory -> exploratory simulation -> independent review -> upstream theory revision -> simulation source-code repair -> confirmatory simulation -> algorithm -> Formalizer chain. The source-code REVISE path and accepted pass paths worked; the new semantic-ACCEPT plus metric-failure route was not exercised because the reviewed confirmatory simulation and algorithm passed. Formalizer materialized two LLM Lean candidates and obtained local Lean timeout/unknown-identifier feedback, then the subsystem raised a generic TypeError before returning typed repair feedback. V9 recorded 20 traces, 4 generated simulation executions with 1 sandbox pass, 1 generated algorithm execution with 1 sandbox pass, zero kernel subclaims, and zero exact theorem closures. Its mixed audit was 90/125, all_ok=false, readiness=false; that score is diagnostic only.",
-  "latest_main_worker_design_issue": "The target remains one general LLM-driven statistical research loop: question-grounded equation/lemma derivation, generated algorithms, DGP-based exploration and confirmation, independent semantic feedback, memory-backed revision, and Critic disposition. Optional/advisory research-loop completion is the immediate product gate. Progressive formalization runs in parallel, while exact kernel closure is a separate strict-certification gate; neither may be mislabeled as the other. V9 confirms that no new reviewer or scheduler is needed for coding repair. Its next generic blocker is narrower: a validated Formalizer packet reached candidate materialization and Lean diagnostics but an unpersisted optional value later caused `TypeError: 'bool' object is not iterable`. Offline replay of the same task, blackboard, RAG, materialization, and proof-state path returns typed REVISE normally, so do not guess a Lean fix or add broad coercion without capturing the exact packet/field in a fresh run.",
+  "current_lane": "general optional research-loop completion first; scientific Python/R and serious theory breadth next; progressive Lean in parallel; strict exact-theorem certification separate",
+  "latest_main_worker_patch": "Keep one general research loop and remove control-plane interception. Architect metric authoring is deferred while exact generated-code or packet-validation feedback is the active replan, so a non-promotable source repair can run without authorizing confirmatory evidence. Metric author and independent reviewer now demand the smallest nonredundant failure-mode portfolio rather than treating more gates as more rigor. A bounded Formalizer/ProofEngineer budget yield now reaches the existing FormalizationGapPlanner directly, and an already planned final Critic receives local acceptance directly; two LLM coordinator calls that only resumed a pending task are removed. The patch adds no agent, task-family formula, generated-output rewrite, retry budget, Lean grammar, or tactic rule and preserves the kernel evidence boundary.",
+  "latest_main_worker_live_probe": "Fresh optional-policy v11 covered survival and sequential from a clean start and completed 2/2 as RESEARCH_CANDIDATE_ACCEPTED_WITH_FORMAL_GAPS. Across 42 traces it executed five generated simulations, two generated algorithms, and seven independent exact-artifact semantic reviews. Sequential review found an upstream theory defect, routed one typed TheoryDeveloper revision, reran exploration, then passed a freshly reviewed confirmatory contract. Both tasks subsequently generated Lean candidates and received real local Lean failure feedback; neither compiled or kernel-verified a theorem. The aggregate manifest records 13 formal gaps, zero kernel subclaims, zero exact theorem closures, and formal level none. Its mixed full-capability audit is 88/125 with all_ok=true and readiness=false; the CLI exit status is nonzero because full capability readiness remains false, not because either optional research task failed.",
+  "latest_main_worker_design_issue": "The product target is one LLM-driven statistical research loop: question-grounded equation and lemma derivation, generated Python/R algorithms, DGP exploration followed by frozen confirmation, independent semantic critique, feedback-driven revision, artifact memory, and Critic disposition. Optional/advisory research completion and progressive formalization are separate from strict exact-theorem certification. V11 demonstrates the non-Lean loop across survival and sequential, including one real theory-feedback cycle, but it also exposed remaining control excess: accepted metric portfolios contained 7 and 6 rows, and the optional formal tail used two Architect calls that made no scientific decision. The current patch removes those routing calls and makes the reviewer reject redundant rows without imposing a hardcoded row cap. This is not strict E2E proof readiness; scientific Python/R breadth, long-horizon theory workspace, tactic-state proving, arbitrary-paper ingest, and exact theorem closure remain open capability work.",
   "latest_optional_research_loop_probe": {
     "v6_run": "runs/main_worker_cross_family_research_loop_optional_20260716_v6_policy_aligned_research_acceptance",
     "v7_run": "runs/main_worker_cross_family_research_loop_optional_20260716_v7_parser_feedback_bounded_repairs",
     "v8_run": "runs/main_worker_cross_family_research_loop_optional_20260716_v8_metric_feedback_continuation",
     "v9_run": "runs/main_worker_cross_family_research_loop_optional_20260716_v9_semantic_accept_metric_replan",
-    "lineage_commit": "a3000625 plus the current semantic-accept metric-replan patch",
+    "v10_run": "runs/main_worker_cross_family_research_loop_optional_20260716_v10_formalizer_packet_replay",
+    "v11_run": "runs/main_worker_cross_family_research_loop_optional_20260716_v11_control_plane_focus",
+    "lineage_commit": "f7b66056 plus the current control-plane focus patch",
     "formal_verification_policy": "optional",
     "v6_question_statuses": [
       "ACCEPTED",
@@ -64,6 +66,30 @@
     "v9_formalizer_lean_candidates_materialized": 2,
     "v9_survival_blocker": "Anthropic 529 overload on the initial TheoryDeveloper call and the existing bounded transient retry",
     "v9_sequential_blocker": "Formalizer obtained local Lean diagnostics for two generated candidates, then raised TypeError: 'bool' object is not iterable before typed repair feedback returned",
+    "v10_question_statuses": [
+      "BLOCKED",
+      "BLOCKED"
+    ],
+    "v10_scorecard": "82/125",
+    "v10_design_finding": "Synchronous metric authoring intercepted an unrelated source-code replan, while repeated author/reviewer repair expanded or preserved a large gate portfolio instead of returning to the research task.",
+    "v11_question_statuses": [
+      "ACCEPTED",
+      "ACCEPTED"
+    ],
+    "v11_final_acceptance_status": "RESEARCH_CANDIDATE_ACCEPTED_WITH_FORMAL_GAPS",
+    "v11_scorecard": "88/125",
+    "v11_audit_all_ok": true,
+    "v11_runtime_traces": 42,
+    "v11_generated_simulation_executions": 5,
+    "v11_generated_algorithm_executions": 2,
+    "v11_independent_generated_code_semantic_reviews": 7,
+    "v11_theory_packets": 3,
+    "v11_upstream_theory_revisions": 1,
+    "v11_survival_metric_rows": 7,
+    "v11_sequential_metric_rows": 6,
+    "v11_formalizer_local_lean_checks": 22,
+    "v11_formalizer_local_lean_compiled": 0,
+    "v11_formal_gaps": 13,
     "capability_ready_for_full_ai_statistician": false,
     "fresh_start": true,
     "task_families": [
@@ -74,7 +100,7 @@
     "exact_source_theorem_closures": 0,
     "strict_protocol_used": false,
     "held_out_run_started": false,
-    "boundary": "V6 is positive evidence that explicit optional policy can accept a research candidate while retaining formal debt and zero proof claims. V7 is positive evidence for bounded runnable coding feedback. V8 is positive evidence that exact finding context reaches repeated metric review. V9 is positive evidence for a long cross-subsystem research chain, source-code repair, pass-path continuity, Formalizer generation, and real Lean feedback, but it did not exercise the new semantic-ACCEPT metric-replan route and both tasks still failed. The 125-row audit mixes optional research and strict formal capabilities, so its score cannot replace the authoritative per-task optional result of 0/2. None of these runs is strict theorem closure, held-out generalization, or full AI-Statistician readiness."
+    "boundary": "V6 first showed that explicit optional policy can accept a research candidate with disclosed formal debt. V7-V10 exposed bounded coding, metric-review, and control-routing failures without establishing completion. V11 is the first fresh two-family 2/2 optional research-loop result: theory, generated DGP simulation, independent review, frozen confirmation, generated algorithm, progressive Lean feedback, and final Critic all executed, with one upstream theory revision observed. Its 88/125 audit mixes optional research and strict formal capabilities and therefore cannot replace the authoritative labels: optional research loop 2/2, formal level none, kernel subclaims 0, exact theorem closures 0. This is not held-out generalization or full AI-Statistician readiness."
   },
   "latest_v32_owner_router_repair": {
     "run": "runs/main_worker_cross_family_development_20260715_v32_owner_router_repair",
@@ -200,10 +226,10 @@
   },
   "latest_local_regression": {
     "runtime_test_file": "tests/test_research_agent_runtime.py",
-    "result": "1139 passed in 3852.59s (1:04:12) on the final narrowed reviewer-context patch. The dedicated Architect metric reviewer suite also passed 7/7, and the Architect/metric runtime selector passed 11/11 before the complete rerun.",
+    "result": "1147 passed, 1 skipped in 2007.14s (0:33:27) across the complete runtime file plus the dedicated Architect metric semantic-review file. The six tests changed or directly implicated by the final control-plane simplification then passed 6/6 in 5.23s.",
     "failed": 0,
-    "validated_at": "2026-07-16T18:29:34Z",
-    "boundary": "Local regression validates runtime contracts and orchestration behavior. Fresh v8 supplies separate LLM and execution evidence. Neither tests nor live simulations are theorem-proof evidence, and v8 still completed zero of two development tasks."
+    "validated_at": "2026-07-16T22:07:01Z",
+    "boundary": "Local regression validates runtime contracts and orchestration behavior. Fresh v11 supplies separate LLM, generated-code, simulation, semantic-review, theory-revision, and Lean-diagnostic evidence. Tests and optional research acceptance are not theorem-proof evidence; v11 records zero kernel subclaims and zero exact theorem closures."
   },
   "latest_four_stage_route_planner_live_probe": {
     "run": "runs/main_worker_s14_v5_fdr_route_feedback_live_replay_20260713_v9_four_stage_split",

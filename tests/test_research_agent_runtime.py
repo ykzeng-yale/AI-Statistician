@@ -83,6 +83,7 @@ from ai_statistician.architect_coordinator_llm import (
     ARCHITECT_COORDINATOR_JSON_SCHEMA,
     ArchitectCoordinatorConfig,
     LLMArchitectCoordinatorAgent,
+    _architect_metric_authoring_deferred_for_active_replan,
     _architect_packet_repair_context,
     _normalize_architect_packet,
     architect_capability_gap_routing_agenda,
@@ -7954,6 +7955,95 @@ def test_architect_plan_guard_allows_planned_semantic_reviewer_handoff() -> None
     assert guarded.failure_classification == ""
 
 
+def test_architect_plan_guard_allows_bounded_formal_repair_budget_yield() -> None:
+    feedback = {
+        "failure_classification": (
+            "formalizer_lean_candidate_repair_budget_yield_to_gap_planner"
+        ),
+        "formalizer_lean_repair_attempts_used": 3,
+        "formalizer_lean_repair_yield_to_gap_planner_after_attempts": 3,
+    }
+    next_task = AgentTask(
+        task_id="gap-planner-handoff:q1:bounded",
+        owner_subsystem="FormalizationGapPlanner",
+        objective="record remaining formal debt after bounded repair",
+        inputs={
+            "question": {
+                "id": "q1",
+                "title": "bounded formal repair",
+                "description": "exercise a runtime-authorized budget yield",
+                "tags": [],
+            },
+            "environment_feedback": feedback,
+            "architect_context": {
+                "architect_runtime_plan": {
+                    "subsystem_execution_plan": [
+                        {
+                            "subsystem": "ProofEngineer",
+                            "objective": "attempt bounded formal repair",
+                        },
+                        {
+                            "subsystem": "CriticEvaluator",
+                            "objective": "make the final evidence decision",
+                        },
+                    ]
+                },
+                "runtime_feedback_loop": {
+                    "source_subsystem": "ProofEngineer",
+                    "handoff": (
+                        "formalizer_lean_candidate_repair_budget_yield_to_gap_planner"
+                    ),
+                },
+            },
+        },
+    )
+    original = AgentStepResult(
+        status="REROUTE",
+        rationale="bounded formal repair budget exhausted",
+        next_task=next_task,
+        failure_classification=(
+            "formalizer_lean_candidate_repair_budget_yield_to_gap_planner"
+        ),
+    )
+    source_task = AgentTask(
+        task_id="formalize-lean-repair:q1:bounded",
+        owner_subsystem="ProofEngineer",
+        objective="repair a generated Lean candidate",
+    )
+
+    guarded = _architect_plan_guard_handoff_policy(
+        iteration=4,
+        task=source_task,
+        subsystem_name="ProofEngineer",
+        result=original,
+        blackboard=BlackboardState(project_id="bounded-formal-budget-yield"),
+    )
+
+    assert guarded is original
+    assert guarded.next_task is next_task
+
+    under_budget_task = replace(
+        next_task,
+        inputs={
+            **next_task.inputs,
+            "environment_feedback": {
+                **feedback,
+                "formalizer_lean_repair_attempts_used": 2,
+            },
+        },
+    )
+    intercepted = _architect_plan_guard_handoff_policy(
+        iteration=3,
+        task=source_task,
+        subsystem_name="ProofEngineer",
+        result=replace(original, next_task=under_budget_task),
+        blackboard=BlackboardState(project_id="premature-formal-budget-yield"),
+    )
+    assert intercepted.next_task is not None
+    assert intercepted.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert intercepted.failure_classification == "architect_plan_repair_required"
+
+
 def test_architect_plan_guard_allows_lineage_bound_reviewer_repair_backedge() -> None:
     packet_id = "generated_code_semantic_review:packet"
     execution_id = "generated_code_semantic_review:execution"
@@ -8209,6 +8299,22 @@ def test_architect_completion_guard_routes_intermediate_acceptance_to_final_crit
                 },
             )
 
+    class FinalCritic:
+        name = "CriticEvaluator"
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            assert task.inputs["environment_feedback"][
+                "required_final_owner_subsystem"
+            ] == "CriticEvaluator"
+            return AgentStepResult(
+                status="ACCEPTED",
+                rationale="complete evidence contract reviewed",
+            )
+
     architect_context = {
         "architect_runtime_plan": {
             "subsystem_execution_plan": [
@@ -8224,7 +8330,10 @@ def test_architect_completion_guard_routes_intermediate_acceptance_to_final_crit
         }
     }
     runtime = AgentRuntime(
-        subsystems={"FormalizationGapPlanner": LocallyAcceptedGapPlanner()},
+        subsystems={
+            "FormalizationGapPlanner": LocallyAcceptedGapPlanner(),
+            "CriticEvaluator": FinalCritic(),
+        },
         blackboard=BlackboardState(project_id="architect-completion-guard-test"),
         handoff_policy=_architect_plan_guard_handoff_policy,
     )
@@ -8244,20 +8353,22 @@ def test_architect_completion_guard_routes_intermediate_acceptance_to_final_crit
                 "architect_context": architect_context,
             },
         ),
-        max_iterations=1,
+        max_iterations=2,
     )
     trace = result.traces[0]
 
-    assert result.status == "MAX_ITERATIONS_REACHED"
+    assert result.status == "ACCEPTED"
+    assert [row.subsystem for row in result.traces] == [
+        "FormalizationGapPlanner",
+        "CriticEvaluator",
+    ]
     assert trace.status == "REROUTE"
     assert trace.failure_classification == (
         "architect_terminal_completion_review_required"
     )
     assert trace.next_task is not None
-    assert trace.next_task.owner_subsystem == "ArchitectCoordinator"
-    pending_critic = trace.next_task.inputs["resume_pending_task"]
-    assert pending_critic["owner_subsystem"] == "CriticEvaluator"
-    assert pending_critic["inputs"]["question"]["id"] == "q1"
+    assert trace.next_task.owner_subsystem == "CriticEvaluator"
+    assert trace.next_task.inputs["question"]["id"] == "q1"
     assert trace.observations[-1].observation_type == (
         "architect_terminal_acceptance_review"
     )
@@ -8271,9 +8382,7 @@ def test_architect_completion_guard_routes_intermediate_acceptance_to_final_crit
     assert review_artifacts[0]["required_final_owner_subsystem"] == (
         "CriticEvaluator"
     )
-    assert result.blackboard.handoff_ledger[0].to_subsystem == (
-        "ArchitectCoordinator"
-    )
+    assert result.blackboard.handoff_ledger[0].to_subsystem == "CriticEvaluator"
     transition_summary = _runtime_handoff_transition_summary([result.to_json()])
     assert transition_summary["route_decision_sources"][
         "architect_terminal_acceptance_review"
@@ -22062,6 +22171,127 @@ def test_live_architect_defers_metric_authoring_until_theory_is_available() -> N
     assert pending_routing["source"] == "metric_protocol_theory_prerequisite"
 
 
+def test_live_architect_does_not_let_metric_authoring_intercept_source_repair() -> None:
+    question = next(
+        question
+        for question in load_open_research_questions(
+            Path("examples/research_questions.json")
+        )
+        if question.id == "sequential_anytime_bernoulli"
+    )
+
+    class SourceRepairArchitectBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate(self, request):
+            self.requests.append(request)
+            assert request.metadata.get("subsystem") == "ArchitectCoordinator"
+            payload = _architect_sample_response(required_runtime_replicates=17)
+            payload["next_actions"] = [
+                {
+                    "owner_agent": "SimulationEvaluator",
+                    "action": "regenerate the rejected exploratory source",
+                    "acceptance_gate": (
+                        "fresh code is executed and independently reviewed"
+                    ),
+                }
+            ]
+            return GeneratorResponse(
+                text=json.dumps(payload),
+                provider="anthropic",
+                model=request.model,
+                metadata={
+                    "provider_structured_output_requested": bool(request.schema),
+                    "provider_structured_output_applied": bool(request.schema),
+                },
+            )
+
+    context = _theory_informed_metric_context_fixture()
+    context["runtime_generated_code_semantic_review_replan"] = {
+        "artifact_kind": "RuntimeGeneratedCodeSemanticReviewReplanContext",
+        "source_subsystem": "SimulationEvaluator",
+        "repair_scope": "source_code",
+        "findings": [
+            {
+                "severity": "critical",
+                "summary": "The executed statistic is inverted.",
+                "required_change": "Generate a fresh corrected implementation.",
+            }
+        ],
+    }
+    backend = SourceRepairArchitectBackend()
+    packet = LLMArchitectCoordinatorAgent(
+        provider=backend,
+        config=ArchitectCoordinatorConfig(
+            provider_name="anthropic",
+            model="claude-sonnet-4-6",
+            model_tier="sonnet",
+        ),
+    ).propose(
+        question=question,
+        architect_context=context,
+        runtime_config={
+            "evaluation_mode": "capability_eval",
+            "formal_verification_policy": "optional",
+            "n_runs": 17,
+        },
+    )
+
+    assert [request.metadata.get("subsystem") for request in backend.requests] == [
+        "ArchitectCoordinator"
+    ]
+    contract = packet["evidence_contract"]
+    assert contract["empirical_metric_requirements"] == []
+    assert contract["empirical_metric_protocol_phase"] == (
+        "theory_informed_authoring_required"
+    )
+    assert contract["metric_protocol_execution_authorized"] is False
+    assert "metric_requirement_authoring" not in packet
+    assert validate_architect_coordinator_packet(packet) == []
+    assert _architect_metric_authoring_deferred_for_active_replan(
+        context
+    ) is True
+    assert _architect_metric_authoring_deferred_for_active_replan(
+        {
+            "runtime_generated_code_semantic_review_replan": {
+                "repair_scope": "upstream_metric_contract"
+            }
+        }
+    ) is False
+
+    class SourceRepairCoordinator:
+        def propose(self, **_kwargs):
+            return packet
+
+    routed = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=SourceRepairCoordinator(),  # type: ignore[arg-type]
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            formal_verification_policy="optional",
+            n_runs=17,
+        ),
+    ).run(
+        AgentTask(
+            task_id="architect:source-repair-before-metric-authoring",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Route exact source-code feedback before metric planning.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": context,
+            },
+        ),
+        BlackboardState(project_id="source-repair-before-metric-authoring"),
+    )
+    assert routed.next_task is not None
+    assert routed.next_task.owner_subsystem == "SimulationEvaluator"
+    assert routed.next_task.inputs["architect_context"][
+        "architect_initial_routing"
+    ]["source"] == "architect_packet"
+
+
 def test_live_architect_preauthors_metric_contract_with_structured_substage() -> None:
     question = next(
         question
@@ -22199,6 +22429,8 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         "theory_derivation_contract"
     ]["n_equation_chain_steps"] == 2
     hard_requirements = " ".join(metric_prompt["hard_requirements"])
+    assert "smallest nonredundant portfolio" in hard_requirements
+    assert "delete that row instead of adding more gates" in hard_requirements
     assert "exactly one independently compared scalar quantity" in hard_requirements
     assert "split them into separate requirement rows" in hard_requirements
     assert "Return exactly one required empirical metric row" not in hard_requirements

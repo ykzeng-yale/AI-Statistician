@@ -211,6 +211,19 @@ def author_reviewed_architect_metric_requirements(
                 "generated-code author subsystem; a row may correctly target both."
             ),
             (
+                "Prefer the smallest nonredundant portfolio that covers both author "
+                "subsystems and the central plausible implementation, simulation, or "
+                "DGP failure modes. Every row must distinguish a failure mode not "
+                "already covered; do not add structural, calibration, or convenience "
+                "checks merely because they are measurable."
+            ),
+            (
+                "When an independent review shows that a row is ambiguous, fragile, "
+                "or poorly calibrated and the remaining rows still cover its author "
+                "subsystem and failure mode, delete that row instead of adding more "
+                "gates or complicating the protocol."
+            ),
+            (
                 "Each row must represent exactly one independently compared scalar "
                 "quantity, or one homogeneous collection whose members share this "
                 "row's one operator, bounds, tolerance, aggregation, and quorum."
@@ -432,7 +445,10 @@ def author_reviewed_architect_metric_requirements(
                     "the rejected contract in place. Preserve stable requirement_id "
                     "values and all rows and fields not implicated by a finding unless "
                     "the current revised theory requires a change. Edit, add, or remove "
-                    "only what is needed to resolve every finding; do not replace the "
+                    "only what is needed to resolve every finding; an implicated row "
+                    "may be deleted when it is redundant and remaining rows preserve "
+                    "author-subsystem coverage and the central independent failure "
+                    "modes; do not replace the "
                     "metric portfolio with unrelated gates, drop a required author "
                     "subsystem, or claim that execution passed. The current theory "
                     "material is authoritative over stale assumptions in the rejected "

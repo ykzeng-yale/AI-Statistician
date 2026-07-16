@@ -155,6 +155,7 @@ def test_preexecution_metric_reviewer_accepts_only_with_independent_lineage() ->
     assert backend.requests[0].metadata["model_tier"] == "opus"
     assert backend.requests[0].metadata["provider_structured_output"] is True
     assert "before any coding agent" in backend.requests[0].user_prompt
+    assert "more gates are not more rigorous" in backend.requests[0].user_prompt
 
 
 def test_preexecution_metric_reviewer_returns_typed_revision_feedback() -> None:

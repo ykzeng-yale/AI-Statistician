@@ -222,41 +222,45 @@ class LLMArchitectCoordinatorAgent:
             requested_model=self.config.model,
             model_tier=self.config.model_tier,
         )
-        metric_authoring_packet = author_reviewed_architect_metric_requirements(
-            provider=self.provider,
-            config=ArchitectMetricContractAuthoringConfig(
-                max_tokens=self.config.max_tokens,
-                model_tier=self.config.model_tier,
-                provider_name=self.config.provider_name,
-                max_repair_attempts=self.config.max_repair_attempts,
-                metric_semantic_reviewer_max_revisions=(
-                    self.config.metric_semantic_reviewer_max_revisions
+        metric_authoring_packet: dict[str, Any] = {}
+        if not _architect_metric_authoring_deferred_for_active_replan(
+            architect_context
+        ):
+            metric_authoring_packet = author_reviewed_architect_metric_requirements(
+                provider=self.provider,
+                config=ArchitectMetricContractAuthoringConfig(
+                    max_tokens=self.config.max_tokens,
+                    model_tier=self.config.model_tier,
+                    provider_name=self.config.provider_name,
+                    max_repair_attempts=self.config.max_repair_attempts,
+                    metric_semantic_reviewer_max_revisions=(
+                        self.config.metric_semantic_reviewer_max_revisions
+                    ),
                 ),
-            ),
-            request_model=request_model,
-            semantic_reviewer=self.metric_semantic_reviewer,
-            repair_ownership_router=self.metric_repair_ownership_router,
-            question=question,
-            runtime_contract=_architect_runtime_owned_evidence_contract(
-                architect_context=architect_context,
-                runtime_config=runtime_config,
-            ),
-            theory_protocol_material=(
-                theory_informed_metric_protocol_material(architect_context)
-            ),
-            prior_rejection_context=(
-                architect_context.get(
-                    "architect_metric_protocol_prior_rejection", {}
-                )
-                if isinstance(
+                request_model=request_model,
+                semantic_reviewer=self.metric_semantic_reviewer,
+                repair_ownership_router=self.metric_repair_ownership_router,
+                question=question,
+                runtime_contract=_architect_runtime_owned_evidence_contract(
+                    architect_context=architect_context,
+                    runtime_config=runtime_config,
+                ),
+                theory_protocol_material=(
+                    theory_informed_metric_protocol_material(architect_context)
+                ),
+                prior_rejection_context=(
                     architect_context.get(
                         "architect_metric_protocol_prior_rejection", {}
-                    ),
-                    Mapping,
-                )
-                else {}
-            ),
-        )
+                    )
+                    if isinstance(
+                        architect_context.get(
+                            "architect_metric_protocol_prior_rejection", {}
+                        ),
+                        Mapping,
+                    )
+                    else {}
+                ),
+            )
         effective_architect_context = (
             _architect_context_with_metric_requirement_authoring(
                 architect_context,
@@ -319,6 +323,22 @@ class LLMArchitectCoordinatorAgent:
             max_repair_attempts=self.config.max_repair_attempts,
             repair_context_builder=build_repair_context,
         )
+
+
+def _architect_metric_authoring_deferred_for_active_replan(
+    architect_context: Mapping[str, Any],
+) -> bool:
+    """Keep metric planning from intercepting an unrelated feedback turn."""
+
+    code_replan = architect_context.get(
+        "runtime_generated_code_semantic_review_replan", {}
+    )
+    if isinstance(code_replan, Mapping) and code_replan:
+        return str(code_replan.get("repair_scope", "") or "").strip() != (
+            "upstream_metric_contract"
+        )
+    packet_replan = architect_context.get("runtime_packet_validation_replan", {})
+    return bool(isinstance(packet_replan, Mapping) and packet_replan)
 
 
 def _architect_context_with_metric_requirement_authoring(
@@ -712,7 +732,10 @@ def build_architect_coordinator_prompt(
         "failed frozen threshold in place after observing results. "
         "When requested_evidence_contract.capability_eval_requires_typed_metric_contracts "
         "is true, first obtain the structured TheoryDeveloper procedure and then "
-        "author empirical_metric_requirements before either coding agent runs. "
+        "author empirical_metric_requirements before confirmatory coding or empirical "
+        "acceptance. A non-promotable exploratory source-code repair may run first "
+        "when exact reviewer feedback is the active Architect blocker; it cannot "
+        "authorize or influence a later confirmatory metric contract. "
         "Do not freeze procedure-dependent thresholds from the research question "
         "alone. Include at least one required row targeting AlgorithmEngineer and "
         "one targeting SimulationEngineer. target_subsystems is the generated-code "
@@ -1779,13 +1802,17 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
         elif evaluation_mode == "capability_eval":
             if (
                 metric_protocol_phase
-                != METRIC_PROTOCOL_PHASE_THEORY_PREREQUISITE_PENDING
+                not in {
+                    METRIC_PROTOCOL_PHASE_THEORY_PREREQUISITE_PENDING,
+                    METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED,
+                }
                 or metric_protocol_execution_authorized is not False
             ):
                 errors.append(
                     "capability_eval may omit empirical_metric_requirements only "
-                    "while the TheoryDeveloper prerequisite is pending and metric "
-                    "protocol execution remains unauthorized"
+                    "while the TheoryDeveloper prerequisite or an explicit "
+                    "theory-informed authoring turn remains pending and metric "
+                    "protocol execution stays unauthorized"
                 )
         for field in (
             "formal_targets",

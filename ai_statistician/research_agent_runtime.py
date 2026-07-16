@@ -9603,38 +9603,11 @@ def _architect_terminal_acceptance_review_policy(
         "architect_plan_subsystems": list(dict.fromkeys(planned_subsystems)),
         "pending_critic_task_id": critic_task.task_id,
     }
-    review_task = AgentTask(
-        task_id=(
-            f"architect-completion-review:{question_id}:"
-            f"{stable_hash([review_id, critic_task.task_id])[:8]}"
-        ),
-        owner_subsystem="ArchitectCoordinator",
-        objective=(
-            "Review an intermediate subsystem's local acceptance and route the "
-            "complete evidence state to CriticEvaluator before final acceptance."
-        ),
-        inputs={
-            "question": dict(question_payload),
-            "architect_context": context,
-            "resume_pending_task": asdict(critic_task),
-            "terminal_acceptance_review_contract": review_artifact,
-        },
-        allowed_tools=("model_backend", "blackboard"),
-        expected_artifacts=(
-            "architect_coordinator_proposal",
-            "architect_terminal_acceptance_review",
-        ),
-        acceptance_gate=(
-            "ArchitectCoordinator refreshes the evidence contract and routes to "
-            "CriticEvaluator before terminal acceptance."
-        ),
-        stop_condition="coordinator routes the pending CriticEvaluator task",
-    )
     observation = EnvironmentObservation(
         observation_type="architect_terminal_acceptance_review",
         summary=(
-            f"{subsystem_name} satisfied a local gate; Architect review is "
-            "routing the full evidence state to CriticEvaluator."
+            f"{subsystem_name} satisfied a local gate; the runtime is routing "
+            "the full evidence state directly to the planned CriticEvaluator."
         ),
         payload=review_artifact,
     )
@@ -9657,7 +9630,7 @@ def _architect_terminal_acceptance_review_policy(
         status="REROUTE",
         rationale=(
             f"Architect completion guard intercepted terminal ACCEPTED from "
-            f"{subsystem_name}; routing to ArchitectCoordinator and then "
+            f"{subsystem_name} and routed directly to the already planned "
             "CriticEvaluator for the complete evidence-contract decision."
         ),
         produced_artifacts={
@@ -9667,10 +9640,56 @@ def _architect_terminal_acceptance_review_policy(
         observations=result.observations + (observation,),
         tool_calls=result.tool_calls,
         evidence_entries=result.evidence_entries + (evidence,),
-        next_task=review_task,
+        next_task=critic_task,
         failure_classification=(
             "architect_terminal_completion_review_required"
         ),
+    )
+
+
+def _formalizer_budget_yield_handoff_is_runtime_authorized(
+    *,
+    subsystem_name: str,
+    next_task: AgentTask,
+    runtime_feedback_loop: Mapping[str, Any],
+) -> bool:
+    """Recognize the bounded formal-repair yield already authorized by runtime."""
+
+    if (
+        str(runtime_feedback_loop.get("handoff", "") or "")
+        != "formalizer_lean_candidate_repair_budget_yield_to_gap_planner"
+        or next_task.owner_subsystem != "FormalizationGapPlanner"
+        or not next_task.task_id.startswith("gap-planner-handoff:")
+    ):
+        return False
+    if _canonical_architect_subsystem(
+        runtime_feedback_loop.get("source_subsystem")
+    ) != _canonical_architect_subsystem(subsystem_name):
+        return False
+    inputs = next_task.inputs if isinstance(next_task.inputs, Mapping) else {}
+    feedback = (
+        inputs.get("environment_feedback", {})
+        if isinstance(inputs.get("environment_feedback", {}), Mapping)
+        else {}
+    )
+    try:
+        attempts_used = int(
+            feedback.get("formalizer_lean_repair_attempts_used", 0) or 0
+        )
+        yield_after = int(
+            feedback.get(
+                "formalizer_lean_repair_yield_to_gap_planner_after_attempts",
+                0,
+            )
+            or 0
+        )
+    except (TypeError, ValueError):
+        return False
+    return bool(
+        str(feedback.get("failure_classification", "") or "")
+        == "formalizer_lean_candidate_repair_budget_yield_to_gap_planner"
+        and yield_after > 0
+        and attempts_used >= yield_after
     )
 
 
@@ -9712,6 +9731,12 @@ def _architect_plan_guard_handoff_policy(
         )
         else {}
     )
+    if _formalizer_budget_yield_handoff_is_runtime_authorized(
+        subsystem_name=subsystem_name,
+        next_task=next_task,
+        runtime_feedback_loop=runtime_feedback_loop,
+    ):
+        return result
     direct_repair_contract = runtime_feedback_loop.get(
         "direct_repair_handoff_contract",
         {},
