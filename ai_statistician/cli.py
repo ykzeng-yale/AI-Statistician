@@ -531,6 +531,7 @@ _OPERATOR_DOTENV_FILENAMES = (
     "api_keys_AI_statistician.md",
 )
 FULL_LIVE_MIN_AGENT_RUNTIME_ITERATIONS = 24
+MINIMAL_LIVE_FORMALIZER_LEAN_REPAIR_YIELD_AFTER_ATTEMPTS = 3
 FULL_LIVE_MIN_GAP_PLANNER_PROVIDER_TIMEOUT_SECONDS = (
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS * 2.0
 )
@@ -14174,6 +14175,21 @@ def _apply_research_agent_runtime_capability_eval_preset(
     if not roots and default_source_root.exists():
         roots.append(str(default_source_root))
     args.source_theorem_exact_semantic_definition_source_root = roots
+    if (
+        preset == "minimal-live"
+        and int(
+            getattr(
+                args,
+                "formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts",
+                0,
+            )
+            or 0
+        )
+        <= 0
+    ):
+        args.formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts = (
+            MINIMAL_LIVE_FORMALIZER_LEAN_REPAIR_YIELD_AFTER_ATTEMPTS
+        )
     if preset == "full-live":
         args.architect_metric_repair_ownership_router = True
         if not str(

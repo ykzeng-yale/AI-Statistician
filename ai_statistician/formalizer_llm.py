@@ -1009,6 +1009,13 @@ def build_formalizer_prompt(
                     "expected_status=NEEDS_KERNEL_CHECK in either formal_targets or "
                     "source_to_bridge_premise_derivation_candidates; "
                     "proof_bank_obligation_requests alone do not satisfy this gate. "
+                    "Every formal_targets Lean candidate must also provide "
+                    "candidate_lean_declaration as the exact Lean-resolvable declaration "
+                    "name emitted by lean_statement_sketch, including namespace "
+                    "qualification when needed; this candidate identity is separate from "
+                    "source_theorem_target_provenance.target_lean_declaration, and "
+                    "AgentRuntime will not infer it by parsing generated Lean text and "
+                    "will ask Lean to #check it. "
                     "A source_to_bridge_premise_derivation_candidates entry must copy "
                     "premise_candidate_declaration_name from the runtime request and "
                     "its Lean source must declare theorem <that exact name>. "
@@ -1095,7 +1102,9 @@ def build_formalizer_prompt(
         lean_candidate_instruction = (
             "Capability-eval mode is active for Formalizer/ProofEngineer: include "
             "one compact concrete Lean theorem sketch with "
-            "expected_status=NEEDS_KERNEL_CHECK. Prefer the exact task-bound source "
+            "expected_status=NEEDS_KERNEL_CHECK and set candidate_lean_declaration "
+            "to the exact declaration emitted by that sketch. Prefer the exact "
+            "task-bound source "
             "theorem only when its objects, assumptions, quantifiers, and conclusion "
             "can be represented faithfully. Otherwise keep that source theorem as "
             "FORMAL_GAP and emit a clearly provenance-marked support or "
@@ -1227,6 +1236,11 @@ FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
             "id": "string",
             "informal_source": "string",
             "lean_statement_sketch": "string",
+            "candidate_lean_declaration": (
+                "exact Lean-resolvable declaration name emitted by "
+                "lean_statement_sketch, namespace-qualified when needed; candidate "
+                "identity checked by Lean, not source-theorem provenance"
+            ),
             "lean_imports": ["Mathlib"],
             "semantic_alignment_constraints": ["string"],
             "source_theorem_target_provenance": {
@@ -1388,6 +1402,7 @@ def _formalizer_output_contract_for_prompt(
                     "must not be FORMAL_GAP, helper-only, source-to-bridge-only, "
                     "sorry/admit/by?/exact?, or prose"
                 ),
+                "candidate_lean_declaration": target_identity,
                 "lean_imports": [
                     "narrow verified imports only; do not guess unavailable Mathlib root"
                 ],
@@ -3531,6 +3546,15 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
             errors.append(
                 "capability_eval formal target "
                 f"{target_id} must set expected_status=NEEDS_KERNEL_CHECK"
+            )
+        candidate_declaration = str(
+            row.get("candidate_lean_declaration", "") or ""
+        ).strip()
+        if not candidate_declaration:
+            errors.append(
+                "capability_eval formal target "
+                f"{target_id} must provide candidate_lean_declaration for the "
+                "exact declaration emitted by lean_statement_sketch"
             )
         placeholder_error = _lean_statement_placeholder_syntax_error(source)
         if placeholder_error:

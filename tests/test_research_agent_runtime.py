@@ -10859,6 +10859,9 @@ def test_runtime_target_identity_audit_prefers_pending_memory_over_history() -> 
                 "learning_task": "source_to_bridge_premise_derivation_feedback",
                 "runtime_learning_row_id": "proof_feedback:current",
                 "target_theorem_name": "split_conformal_finite_sample_coverage",
+                "candidate_lean_declaration": (
+                    "split_conformal_finite_sample_coverage"
+                ),
                 "target_ids": ["split_conformal_finite_sample_coverage"],
             }
         ],
@@ -25012,6 +25015,8 @@ def test_formalizer_capability_eval_prompt_requires_lean_candidate() -> None:
     assert "initial_source_theorem_target_shape_guard" not in prompt
     assert "probability_or_measure_coverage_claim" not in prompt
     assert "proof_bank_obligation_requests alone do not satisfy this gate" in prompt
+    assert "candidate_lean_declaration" in prompt
+    assert "AgentRuntime will not infer it by parsing generated Lean text" in prompt
 
 
 def test_formalizer_capability_eval_validator_requires_lean_candidate() -> None:
@@ -25044,6 +25049,9 @@ def test_formalizer_capability_eval_validator_requires_lean_candidate() -> None:
             "formal_targets": [
                 {
                     "id": "helper",
+                    "candidate_lean_declaration": (
+                        "ai_statistician_formalizer_repair_candidate"
+                    ),
                     "lean_statement_sketch": (
                         "theorem ai_statistician_formalizer_repair_candidate "
                         "(n : Nat) : n = n := by\n"
@@ -25493,9 +25501,12 @@ def test_formalizer_normalizes_materialization_and_bridge_source_aliases() -> No
     packet = _normalize_formalizer_packet(
         {
             "formal_targets": [
-                {
-                    "id": "split_conformal_finite_sample_coverage",
-                    "informal_source": "exact source theorem candidate",
+                    {
+                        "id": "split_conformal_finite_sample_coverage",
+                        "candidate_lean_declaration": (
+                            "split_conformal_finite_sample_coverage"
+                        ),
+                        "informal_source": "exact source theorem candidate",
                     "lean_source": (
                         "theorem split_conformal_finite_sample_coverage "
                         "(Omega : Type) "
@@ -25725,9 +25736,12 @@ def test_formalizer_capability_eval_validator_allows_non_source_helper_with_gap(
                         ),
                     },
                 },
-                {
-                    "id": "ai_statistician_formalizer_helper_smoke",
-                    "informal_source": (
+                    {
+                        "id": "ai_statistician_formalizer_helper_smoke",
+                        "candidate_lean_declaration": (
+                            "ai_statistician_formalizer_helper_smoke"
+                        ),
+                        "informal_source": (
                         "diagnostic helper candidate only; not the source theorem"
                     ),
                     "lean_statement_sketch": (
@@ -26090,6 +26104,9 @@ def test_formalizer_capability_eval_validator_does_not_guess_target_semantics() 
             "formal_targets": [
                 {
                     "id": "split_conformal_rank_coverage_arith",
+                    "candidate_lean_declaration": (
+                        "split_conformal_rank_coverage_arith"
+                    ),
                     "informal_source": "arithmetic support lemma for coverage",
                     "lean_statement_sketch": (
                         "theorem split_conformal_rank_coverage_arith "
@@ -26133,9 +26150,12 @@ def test_formalizer_capability_eval_validator_defers_domain_alignment_to_reviewe
                 "tags": ["conformal", "coverage"],
             },
             "formal_targets": [
-                {
-                    "id": "split_conformal_finite_sample_coverage",
-                    "informal_source": "source theorem for marginal coverage",
+                    {
+                        "id": "split_conformal_finite_sample_coverage",
+                        "candidate_lean_declaration": (
+                            "split_conformal_finite_sample_coverage"
+                        ),
+                        "informal_source": "source theorem for marginal coverage",
                     "lean_statement_sketch": (
                         "theorem split_conformal_finite_sample_coverage "
                         "(n : Nat) : (n : Int) = n := by\n"
@@ -29336,9 +29356,12 @@ def test_formalizer_candidate_materialization_runs_local_lean_when_enabled(
         proposal_packet={
             "packet_id": "formalizer_proposal:local_lean_candidate",
             "formal_targets": [
-                {
-                    "id": "id_candidate_local_lean",
-                    "lean_statement_sketch": (
+                    {
+                        "id": "id_candidate_local_lean",
+                        "candidate_lean_declaration": (
+                            "ai_statistician_identity_candidate_local_lean"
+                        ),
+                        "lean_statement_sketch": (
                         "theorem ai_statistician_identity_candidate_local_lean "
                         "(p : Prop) (hp : p) : p := by\n"
                         "  exact hp\n"
@@ -29940,9 +29963,12 @@ def test_formalizer_candidate_materialization_preserves_source_theorem_target_sc
         proposal_packet={
             "packet_id": "formalizer_proposal:target_scoped_helper",
             "formal_targets": [
-                {
-                    "id": "split_conformal_core_prop_coverage_bridge_helper",
-                    "lean_statement_sketch": (
+                    {
+                        "id": "split_conformal_core_prop_coverage_bridge_helper",
+                        "candidate_lean_declaration": (
+                            "split_conformal_core_prop_coverage_bridge_helper"
+                        ),
+                        "lean_statement_sketch": (
                         "theorem split_conformal_core_prop_coverage_bridge_helper "
                         "(covered_event no_bad_rank : Prop) "
                         "(h_impl : no_bad_rank -> covered_event) "
@@ -30198,9 +30224,12 @@ def test_formalizer_candidate_materialization_mirrors_project_local_lsp_artifact
         proposal_packet={
             "packet_id": "formalizer_proposal:lsp_mirror_candidate",
             "formal_targets": [
-                {
-                    "id": "ai_statistician_lsp_mirror_candidate",
-                    "lean_statement_sketch": (
+                    {
+                        "id": "ai_statistician_lsp_mirror_candidate",
+                        "candidate_lean_declaration": (
+                            "ai_statistician_lsp_mirror_candidate"
+                        ),
+                        "lean_statement_sketch": (
                         "theorem ai_statistician_lsp_mirror_candidate "
                         "(p : Prop) (hp : p) : p := by\n"
                         "  exact hp\n"
@@ -30438,6 +30467,7 @@ def test_formalizer_candidate_materialization_routes_type_star_to_local_lean(
             "formal_targets": [
                 {
                     "id": "type_star_candidate",
+                    "candidate_lean_declaration": "type_star_candidate",
                     "lean_statement_sketch": (
                         "theorem type_star_candidate "
                         "{Omega : Type*} (p : Prop) : p -> p := by\n"
@@ -30464,10 +30494,173 @@ def test_formalizer_candidate_materialization_routes_type_star_to_local_lean(
     assert row["precheck_status"] == "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE"
     assert row["artifact_path"]
     assert row["target_lean_declaration"] == "type_star_candidate"
+    assert row["candidate_lean_declaration"] == "type_star_candidate"
+    assert row["target_lean_location_source"] == (
+        "formalizer_structured_candidate_declaration_exact_source_location"
+    )
     assert row["local_lean_attempted"] is True
     assert row["precheck_errors"] == []
     assert row["blocking_precheck_errors"] == []
     assert row["local_lean_exit_status"] != "0"
+
+
+def test_formalizer_candidate_identity_ignores_lean_words_in_comments(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    task = AgentTask(
+        task_id="task:formalizer_structured_candidate_identity",
+        owner_subsystem="FormalizationEvaluator",
+        objective="preserve the Formalizer-authored candidate declaration identity",
+    )
+    manifest = _materialize_formalizer_lean_candidate_artifacts(
+        root=tmp_path / "formalizer_lean_candidates",
+        question=question,
+        task=task,
+        proposal_packet={
+            "packet_id": "formalizer_proposal:structured_candidate_identity",
+            "formal_targets": [
+                {
+                    "id": "km_support_candidate",
+                    "candidate_lean_declaration": "km_martingale_mean_zero_step",
+                    "lean_statement_sketch": (
+                        "/-- Minimal support lemma for KM. --/\n"
+                        "theorem km_martingale_mean_zero_step "
+                        "(p : Prop) (hp : p) : p := by\n"
+                        "  exact hp\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": False,
+                    },
+                }
+            ],
+        },
+        local_lean=True,
+    )
+
+    row = manifest["candidate_rows"][0]
+    assert row["candidate_lean_declaration"] == (
+        "km_martingale_mean_zero_step"
+    )
+    assert row["target_lean_declaration"] == (
+        "km_martingale_mean_zero_step"
+    )
+    assert row["target_lean_declaration"] != "for"
+    assert row["target_lean_line"] == 2
+    assert row["target_lean_location_source"] == (
+        "formalizer_structured_candidate_declaration_exact_source_location"
+    )
+    assert row["local_lean_source_compiled"] is True
+    assert row["candidate_identity_lean_checked"] is True
+    assert row["candidate_identity_lean_verified"] is True
+    assert row["candidate_identity_probe_artifact_path"]
+    assert row["local_lean_compiled"] is True
+    assert manifest["n_live_proof_state_requests"] == 1
+
+
+def test_formalizer_candidate_identity_is_verified_by_lean_not_python_grammar(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    manifest = _materialize_formalizer_lean_candidate_artifacts(
+        root=tmp_path / "formalizer_lean_candidates",
+        question=question,
+        task=AgentTask(
+            task_id="task:formalizer_candidate_identity_lean_probe",
+            owner_subsystem="FormalizationEvaluator",
+            objective="let Lean reject an incorrect structured candidate identity",
+        ),
+        proposal_packet={
+            "packet_id": "formalizer_proposal:identity_lean_probe",
+            "formal_targets": [
+                {
+                    "id": "km_support_candidate",
+                    "candidate_lean_declaration": "for",
+                    "lean_statement_sketch": (
+                        "/-- Minimal support lemma for KM. --/\n"
+                        "theorem km_martingale_mean_zero_step "
+                        "(p : Prop) (hp : p) : p := by\n"
+                        "  exact hp\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": True,
+                        "target_lean_declaration": "for",
+                        "source_theorem_goal_id": "km_martingale_mean_zero_step",
+                    },
+                }
+            ],
+        },
+        local_lean=True,
+    )
+
+    row = manifest["candidate_rows"][0]
+    assert row["target_lean_declaration"] == "for"
+    assert row["target_lean_line"] == 1
+    assert row["local_lean_source_compiled"] is True
+    assert row["candidate_identity_lean_checked"] is True
+    assert row["candidate_identity_lean_verified"] is False
+    assert row["candidate_identity_lean_exit_status"] != "0"
+    assert row["local_lean_compiled"] is False
+    assert row["source_theorem_candidate_evidence_eligible"] is False
+    assert manifest["n_live_proof_state_requests"] == 0
+
+
+def test_capability_candidate_identity_fails_closed_without_structured_name(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    task = AgentTask(
+        task_id="task:formalizer_missing_structured_candidate_identity",
+        owner_subsystem="FormalizationEvaluator",
+        objective="require the Formalizer to identify its own Lean candidate",
+        inputs={
+            "architect_context": {
+                "runtime_evaluation_mode": "capability_eval",
+                "runtime_requested_evidence_contract": {
+                    "capability_eval_requires_formalizer_lean_candidate": True,
+                },
+            }
+        },
+    )
+    manifest = _materialize_formalizer_lean_candidate_artifacts(
+        root=tmp_path / "formalizer_lean_candidates",
+        question=question,
+        task=task,
+        proposal_packet={
+            "packet_id": "formalizer_proposal:missing_structured_identity",
+            "formal_targets": [
+                {
+                    "id": "km_support_candidate",
+                    "lean_statement_sketch": (
+                        "/-- Minimal support lemma for KM. --/\n"
+                        "theorem km_martingale_mean_zero_step "
+                        "(p : Prop) (hp : p) : p := by\n"
+                        "  exact hp\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": False,
+                    },
+                }
+            ],
+        },
+        local_lean=False,
+    )
+
+    row = manifest["candidate_rows"][0]
+    assert row["candidate_lean_declaration"] == ""
+    assert row["target_lean_declaration"] == ""
+    assert row["target_lean_line"] == 0
+    assert row["target_lean_location_source"] == (
+        "structured_candidate_declaration_missing"
+    )
+    assert manifest["n_live_proof_state_requests"] == 0
+    assert any(
+        "missing structured candidate_lean_declaration" in error
+        for error in row["precheck_errors"]
+    )
 
 
 def test_repeated_syntax_contract_sends_revised_source_theorem_to_lean(
@@ -30565,9 +30758,10 @@ def test_repeated_syntax_contract_routes_type_star_helper_to_lean(
         proposal_packet={
             "packet_id": "formalizer_proposal:repeated_syntax_helper_retry",
             "formal_targets": [
-                {
-                    "id": "diagnostic_helper_retry",
-                    "informal_source": "diagnostic helper after repeated syntax failure",
+                    {
+                        "id": "diagnostic_helper_retry",
+                        "candidate_lean_declaration": "diagnostic_helper_retry",
+                        "informal_source": "diagnostic helper after repeated syntax failure",
                     "lean_statement_sketch": (
                         "theorem diagnostic_helper_retry "
                         "{Omega : Type*} (p : Prop) : p -> p := by\n"
@@ -30632,9 +30826,10 @@ def test_repeated_syntax_contract_sends_helper_formal_target_to_lean(
         proposal_packet={
             "packet_id": "formalizer_proposal:repeated_syntax_helper_formal_target",
             "formal_targets": [
-                {
-                    "id": "diagnostic_helper_retry",
-                    "informal_source": "diagnostic helper after repeated syntax failure",
+                    {
+                        "id": "diagnostic_helper_retry",
+                        "candidate_lean_declaration": "diagnostic_helper_retry",
+                        "informal_source": "diagnostic helper after repeated syntax failure",
                     "lean_statement_sketch": (
                         "theorem diagnostic_helper_retry "
                         "(p q : Prop) (h : p -> q) (hp : p) : q := by\n"
@@ -30726,6 +30921,7 @@ def test_capability_eval_allows_lean_to_check_repeated_syntax_candidate() -> Non
             "formal_targets": [
                 {
                     "id": "diagnostic_helper_retry",
+                    "candidate_lean_declaration": "diagnostic_helper_retry",
                     "informal_source": "diagnostic helper after repeated parser failure",
                     "lean_statement_sketch": (
                         "theorem diagnostic_helper_retry "
@@ -30760,6 +30956,7 @@ def test_capability_eval_allows_revised_formal_target_after_syntax_failure() -> 
             "formal_targets": [
                 {
                     "id": "diagnostic_helper_retry",
+                    "candidate_lean_declaration": "diagnostic_helper_retry",
                     "informal_source": "diagnostic helper after repeated parser failure",
                     "lean_statement_sketch": (
                         "theorem diagnostic_helper_retry "
@@ -30793,10 +30990,11 @@ def test_formalizer_validator_accepts_revised_candidate_after_syntax_failure() -
         provider=StaticArchitectLLMProvider(
             {
                 "formal_targets": [
-                    {
-                        "id": "aipw_helper_retry",
-                        "informal_source": (
-                            "helper retry after repeated parser failure"
+                        {
+                            "id": "aipw_helper_retry",
+                            "candidate_lean_declaration": "aipw_helper_retry",
+                            "informal_source": (
+                                "helper retry after repeated parser failure"
                         ),
                         "lean_statement_sketch": (
                             "theorem aipw_helper_retry "
@@ -30898,10 +31096,13 @@ def test_runtime_materializes_revised_candidate_after_repeated_syntax_failure(
                             "source_theorem_goal_id": "aipw_double_robustness",
                         },
                     },
-                    {
-                        "id": "aipw_positivity_ne_zero_helper",
-                        "informal_source": (
-                            "helper formal target retry after repeated parser failure"
+                        {
+                            "id": "aipw_positivity_ne_zero_helper",
+                            "candidate_lean_declaration": (
+                                "aipw_positivity_ne_zero_helper"
+                            ),
+                            "informal_source": (
+                                "helper formal target retry after repeated parser failure"
                         ),
                         "lean_statement_sketch": (
                             "theorem aipw_positivity_ne_zero_helper "
@@ -31205,6 +31406,7 @@ def test_no_import_real_helper_is_diagnosed_by_local_lean(
             "formal_targets": [
                 {
                     "id": "real_support_helper",
+                    "candidate_lean_declaration": "real_support_helper",
                     "informal_source": "bad no-import Real helper",
                     "lean_statement_sketch": (
                         "theorem real_support_helper "
@@ -31329,6 +31531,7 @@ def test_mathlib_root_failure_does_not_precheck_reject_no_import_candidate(
             "formal_targets": [
                 {
                     "id": "real_support_helper",
+                    "candidate_lean_declaration": "real_support_helper",
                     "informal_source": "bad no-import Real helper",
                     "lean_statement_sketch": (
                         "theorem real_support_helper "
@@ -31376,6 +31579,9 @@ def test_formalizer_candidate_materialization_defers_target_semantics_to_reviewe
             "formal_targets": [
                 {
                     "id": "split_conformal_finite_sample_coverage",
+                    "candidate_lean_declaration": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
                     "informal_source": (
                         "For exchangeable calibration and test scores, the split "
                         "conformal prediction set satisfies marginal coverage "
@@ -31475,6 +31681,9 @@ def test_formalizer_candidate_materialization_allows_string_false_helper_target(
                 {
                     "id": (
                         "split_conformal_marginal_coverage_finite_sample_prop_helper"
+                    ),
+                    "candidate_lean_declaration": (
+                        "split_conformal_coverage_lower_bound_prop_helper"
                     ),
                     "informal_source": (
                         "Diagnostic Prop helper for the split conformal coverage "
@@ -31606,6 +31815,7 @@ def test_formalizer_candidate_materialization_rejects_formal_gap_placeholder_in_
             "formal_targets": [
                 {
                     "id": "split_conformal_coverage_lb",
+                    "candidate_lean_declaration": "split_conformal_coverage_lb",
                     "informal_source": "coverage lower bound target with unresolved rank lemma",
                     "lean_statement_sketch": (
                         "theorem split_conformal_coverage_lb : True := by\n"
@@ -31660,6 +31870,7 @@ def test_formalizer_candidate_materialization_diagnoses_unavailable_import(
             "formal_targets": [
                 {
                     "id": "bad_import_candidate",
+                    "candidate_lean_declaration": "bad_import_candidate",
                     "informal_source": "candidate imports a guessed Mathlib path",
                     "lean_statement_sketch": (
                         "import Mathlib.Probability.ProbabilityMeasure\n\n"
@@ -31730,6 +31941,7 @@ def test_formalizer_candidate_materialization_diagnoses_mathlib_umbrella_import(
             "formal_targets": [
                 {
                     "id": "mathlib_umbrella_candidate",
+                    "candidate_lean_declaration": "mathlib_umbrella_candidate",
                     "informal_source": "candidate imports the unavailable umbrella",
                     "lean_statement_sketch": (
                         "import Mathlib\n\n"
@@ -31853,6 +32065,7 @@ def test_formalizer_candidate_materialization_rejects_import_without_lean_projec
             "formal_targets": [
                 {
                     "id": "import_without_project",
+                    "candidate_lean_declaration": "import_without_project",
                     "lean_statement_sketch": (
                         "import Mathlib\n\n"
                         "theorem import_without_project (n : Nat) : n = n := by\n"
@@ -39594,6 +39807,7 @@ def test_formalization_revises_formalizer_after_local_lean_candidate_failure(
                 "formal_targets": [
                     {
                         "id": "bad_local_lean_candidate",
+                        "candidate_lean_declaration": "bad_local_lean_candidate",
                         "informal_source": "deliberately unknown Lean identifier",
                         "lean_statement_sketch": (
                             "theorem bad_local_lean_candidate : "
@@ -39849,6 +40063,15 @@ def test_formalization_revises_formalizer_after_local_lean_candidate_failure(
     assert formalizer.seen_environment_feedback[-1]["repair_owner_agent"] == (
         "ProofEngineer"
     )
+
+    second_retry_result = subsystem.run(retry_result.next_task, blackboard)
+    second_retry_feedback = second_retry_result.next_task.inputs[
+        "environment_feedback"
+    ]
+    assert second_retry_feedback["formalizer_lean_repair_retry_depth"] == 2
+    assert second_retry_feedback[
+        "repeated_formalizer_lean_candidate_failure"
+    ] is True
 
 
 def test_formalization_routes_subclaim_proof_state_through_proofengineer_then_gap_planner(
@@ -40312,12 +40535,13 @@ def test_agent_runtime_yields_formalizer_lean_repair_budget_to_gap_planner(
             "architect_context": {
                 "runtime_evaluation_mode": "capability_eval",
                 "runtime_requested_evidence_contract": {
-                    "capability_eval_formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts": 1,
+                    "capability_eval_formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts": 3,
                 },
             },
             "environment_feedback": {
                 "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
                 "repair_owner_agent": "ProofEngineer",
+                "formalizer_lean_repair_retry_depth": 2,
             },
         },
         allowed_tools=("model_backend", "local_lean", "lean_lsp_mcp"),
@@ -40352,10 +40576,10 @@ def test_agent_runtime_yields_formalizer_lean_repair_budget_to_gap_planner(
     assert feedback["failure_classification"] == (
         "formalizer_lean_candidate_repair_budget_yield_to_gap_planner"
     )
-    assert feedback["formalizer_lean_repair_attempts_used"] == 1
+    assert feedback["formalizer_lean_repair_attempts_used"] == 3
     assert (
         feedback["formalizer_lean_repair_yield_to_gap_planner_after_attempts"]
-        == 1
+        == 3
     )
     assert feedback["proof_evidence_status"] == (
         "FORMALIZER_LEAN_REPAIR_GAP_PLANNER_YIELD_NOT_PROOF_EVIDENCE"
@@ -40395,6 +40619,9 @@ def test_formalizer_live_prover_inspects_compiled_candidate_when_required(
                 "formal_targets": [
                     {
                         "id": "compiled_live_prover_candidate",
+                        "candidate_lean_declaration": (
+                            "compiled_live_prover_candidate"
+                        ),
                         "informal_source": "minimal compiled candidate for live prover inspection",
                         "lean_statement_sketch": (
                             "theorem compiled_live_prover_candidate "
@@ -40727,6 +40954,9 @@ def test_runtime_manifest_exposes_formalizer_local_lean_candidate_counts(
                 "formal_targets": [
                     {
                         "id": "manifest_bad_local_lean_candidate",
+                        "candidate_lean_declaration": (
+                            "manifest_bad_local_lean_candidate"
+                        ),
                         "informal_source": "deliberately unknown Lean identifier",
                         "lean_statement_sketch": (
                             "theorem manifest_bad_local_lean_candidate : "
@@ -67174,6 +67404,7 @@ def test_source_promotion_waits_for_all_placeholder_semantic_support(
         "formal_targets": [
             {
                 "id": "split_conformal_coverage",
+                "candidate_lean_declaration": "split_conformal_coverage",
                 "lean_statement_sketch": (
                     "theorem split_conformal_coverage : True := by trivial"
                 ),
@@ -67680,6 +67911,9 @@ def test_source_theorem_promotion_seed_blocks_unresolved_semantic_placeholders(
             "source_formalizer_packet_id": "formalizer_proposal:semantic_gate",
             "source_formal_target_id": "target:split_conformal_finite_sample_coverage",
             "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "candidate_lean_declaration": (
+                "split_conformal_finite_sample_coverage"
+            ),
             "target_ids": ["split_conformal_finite_sample_coverage"],
             "target_theorem_goal_ids": ["split_conformal_finite_sample_coverage"],
             "lean_statement_sketch": "theorem split_conformal_finite_sample_coverage",
@@ -73254,6 +73488,7 @@ def test_formalizer_normalizer_marks_executable_lean_as_kernel_check_work() -> N
         "formal_targets": [
             {
                 "id": "split_conformal_finite_sample_coverage_source_theorem",
+                "candidate_lean_declaration": "normalized_status_formal_target",
                 "informal_source": "candidate Lean source should be checked",
                 "lean_statement_sketch": (
                     "theorem normalized_status_formal_target "
@@ -73387,6 +73622,9 @@ def test_formalizer_normalizer_preserves_candidate_for_semantic_reviewer(
         "formal_targets": [
             {
                 "id": "split_conformal_finite_sample_coverage_source_to_bridge_adapter",
+                "candidate_lean_declaration": (
+                    "split_conformal_finite_sample_coverage_source_to_bridge_adapter"
+                ),
                 "informal_source": "helper adapter, not the source coverage theorem",
                 "lean_statement_sketch": (
                     "theorem split_conformal_finite_sample_coverage_source_to_bridge_adapter "
@@ -73847,6 +74085,9 @@ def test_formalizer_normalizer_fail_closes_repeated_syntax_formal_gap_sorry() ->
             },
             {
                 "id": "split_conformal_syntax_feedback_probe",
+                "candidate_lean_declaration": (
+                    "split_conformal_syntax_feedback_probe"
+                ),
                 "informal_source": "compiler-feedback probe for the same repair loop",
                 "lean_statement_sketch": (
                     "theorem split_conformal_syntax_feedback_probe "
@@ -74985,9 +75226,10 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
         "artifact_kind": "FormalizerProofEngineerProposalPacket",
         "packet_id": "formalizer_proposal:source_promotion",
         "formal_targets": [
-            {
-                "id": "split_conformal_finite_sample_coverage_lean",
-                "source_theorem_route_id": "route:split_conformal_source",
+                {
+                    "id": "split_conformal_finite_sample_coverage_lean",
+                    "candidate_lean_declaration": "split_conformal_coverage",
+                    "source_theorem_route_id": "route:split_conformal_source",
                 "source_theorem_statement": (
                     "split conformal finite-sample coverage source theorem"
                 ),
@@ -74999,9 +75241,16 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
                     "(h_coverage : coverage_claim) : coverage_claim := by "
                     "exact h_coverage"
                 ),
-                "lean_imports": ["Mathlib", "StatInference.Conformal"],
-                "semantic_alignment_constraints": ["marginal coverage only"],
-            }
+                    "lean_imports": ["Mathlib", "StatInference.Conformal"],
+                    "semantic_alignment_constraints": ["marginal coverage only"],
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": True,
+                        "target_lean_declaration": "split_conformal_coverage",
+                        "source_theorem_goal_id": (
+                            "split_conformal_finite_sample_coverage"
+                        ),
+                    },
+                }
         ],
     }
     rows = _runtime_source_theorem_promotion_work_order_rows(
@@ -103197,6 +103446,10 @@ def test_capability_eval_minimal_live_preset_populates_required_runtime_paths() 
     assert args.run_formalizer_lean_candidate_repair_eval is False
     assert args.run_formalizer_pseudo_formal_packet_eval is False
     assert args.run_pseudo_formal_block_verifier_eval is False
+    assert (
+        args.formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts
+        == 3
+    )
     assert _research_agent_runtime_capability_config_errors(args) == []
     assert _research_agent_runtime_local_lean_preflight_errors(args) == []
 

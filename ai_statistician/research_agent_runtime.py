@@ -20066,11 +20066,17 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     )
                 )
                 if lean_candidate_repair_feedback is not None:
-                    repair_retry_depth = (
-                        1
-                        if str(task.task_id).startswith("formalize-lean-repair:")
-                        else 0
+                    repair_retry_depth = max(
+                        0,
+                        _runtime_safe_int(
+                            environment_feedback.get(
+                                "formalizer_lean_repair_retry_depth",
+                                0,
+                            )
+                        ),
                     )
+                    if str(task.task_id).startswith("formalize-lean-repair:"):
+                        repair_retry_depth += 1
                     lean_candidate_repair_feedback[
                         "formalizer_lean_repair_retry_depth"
                     ] = repair_retry_depth
@@ -25608,6 +25614,15 @@ def _materialize_formalizer_lean_candidate_artifacts(
         schema_version=RUNTIME_SCHEMA_VERSION,
         proof_evidence_boundary=KERNEL_PROOF_BOUNDARY,
     )
+    architect_context = (
+        task.inputs.get("architect_context", {})
+        if isinstance(task.inputs.get("architect_context", {}), Mapping)
+        else {}
+    )
+    structured_candidate_identity_required = bool(
+        _runtime_context_requires_formalizer_lean_candidate(architect_context)
+        or repair_target_identity_contract.get("required", False)
+    )
     manifest_id = (
         "formalizer_lean_candidate_materialization:"
         + stable_hash([task.task_id, proposal_packet.get("packet_id", ""), candidate_sources])[:20]
@@ -25621,13 +25636,34 @@ def _materialize_formalizer_lean_candidate_artifacts(
     for index, candidate in enumerate(candidate_sources, start=1):
         source = str(candidate.get("lean_source", "") or "")
         candidate_id = str(candidate.get("candidate_id", "") or f"candidate_{index}")
+        candidate_metadata = dict(candidate.get("candidate_metadata", {}) or {})
+        candidate_lean_declaration = str(
+            candidate.get("candidate_lean_declaration", "") or ""
+        ).strip()
+        target_location = _formalizer_lean_candidate_declaration_location(
+            source,
+            candidate_lean_declaration=candidate_lean_declaration,
+        )
         precheck_errors = _formalizer_lean_candidate_precheck_errors(
             source,
-            candidate_metadata=candidate.get("candidate_metadata", {}),
+            candidate_metadata=candidate_metadata,
             source_field=str(candidate.get("source_field", "") or ""),
             local_lean_repair_contract=active_local_lean_repair_contract,
             lean_project=lean_project,
         )
+        if not candidate_lean_declaration:
+            if structured_candidate_identity_required:
+                precheck_errors.append(
+                    "Lean candidate missing structured candidate_lean_declaration; "
+                    "AgentRuntime will not infer declaration identity from Lean source"
+                )
+        elif int(target_location.get("target_lean_line", 0) or 0) <= 0:
+            precheck_errors.append(
+                "Lean candidate structured candidate_lean_declaration was not "
+                "located in the exact generated source: "
+                + candidate_lean_declaration
+            )
+        precheck_errors = sorted(set(precheck_errors))
         blocking_precheck_errors = (
             _formalizer_lean_candidate_blocking_precheck_errors(precheck_errors)
         )
@@ -25656,6 +25692,7 @@ def _materialize_formalizer_lean_candidate_artifacts(
         local_lean_result = (
             _run_formalizer_lean_candidate_local_check(
                 artifact_path=Path(artifact_path),
+                candidate_lean_declaration=candidate_lean_declaration,
                 lean_project=lean_project,
                 lean_timeout=lean_timeout,
             )
@@ -25663,6 +25700,8 @@ def _materialize_formalizer_lean_candidate_artifacts(
             else {
                 "local_lean_attempted": False,
                 "local_lean_compiled": False,
+                "local_lean_source_compiled": False,
+                "local_lean_source_exit_status": "",
                 "local_lean_exit_status": "",
                 "local_lean_stdout": "",
                 "local_lean_stderr": "",
@@ -25674,12 +25713,20 @@ def _materialize_formalizer_lean_candidate_artifacts(
                     if not local_lean
                     else "candidate_rejected_by_precheck_or_not_materialized"
                 ),
+                "candidate_identity_lean_checked": False,
+                "candidate_identity_lean_verified": False,
+                "candidate_identity_probe_artifact_path": "",
+                "candidate_identity_lean_exit_status": "",
+                "candidate_identity_lean_stdout": "",
+                "candidate_identity_lean_stderr": "",
+                "candidate_identity_lean_command": [],
             }
         )
-        target_location = (
-            _formalizer_lean_candidate_declaration_location(source)
-            if artifact_path
-            else {}
+        candidate_identity_lean_checked = _bool_like(
+            local_lean_result.get("candidate_identity_lean_checked", False)
+        )
+        candidate_identity_lean_verified = _bool_like(
+            local_lean_result.get("candidate_identity_lean_verified", False)
         )
         live_proof_state_request = (
             _formalizer_lean_candidate_live_proof_state_request(
@@ -25691,14 +25738,20 @@ def _materialize_formalizer_lean_candidate_artifacts(
                 source_hash=source_hash,
             )
             if artifact_path
+            and (
+                not candidate_identity_lean_checked
+                or candidate_identity_lean_verified
+            )
             else {}
         )
-        candidate_metadata = dict(candidate.get("candidate_metadata", {}) or {})
         source_theorem_target_known = _source_theorem_target_known_value(
             candidate_metadata.get("source_theorem_target_provenance", {})
         )
         candidate_target_source = dict(candidate)
         candidate_target_source["candidate_metadata"] = candidate_metadata
+        candidate_target_source["candidate_lean_declaration"] = (
+            candidate_lean_declaration
+        )
         for key in (
             "target_lean_line",
             "target_lean_column",
@@ -25742,11 +25795,23 @@ def _materialize_formalizer_lean_candidate_artifacts(
                 "target_identity_unbound_not_source_theorem",
                 False,
             )
+            or not (
+                candidate_lean_declaration
+                and int(target_location.get("target_lean_line", 0) or 0) > 0
+            )
+        )
+        structured_candidate_identity_available = bool(
+            candidate_lean_declaration
+            and int(target_location.get("target_lean_line", 0) or 0) > 0
         )
         source_theorem_candidate_evidence_eligible = (
             not diagnostic_helper_not_source_theorem
             and not support_candidate_not_source_theorem
             and not target_identity_not_source_theorem
+            and (
+                not candidate_identity_lean_checked
+                or candidate_identity_lean_verified
+            )
         )
         local_lean_compiled = _bool_like(
             local_lean_result.get("local_lean_compiled", False)
@@ -25781,7 +25846,60 @@ def _materialize_formalizer_lean_candidate_artifacts(
                 "target_lean_declaration": str(
                     target_location.get("target_lean_declaration", "") or ""
                 ),
-                "target_lean_location_source": "legacy_runtime_source_scan",
+                "candidate_lean_declaration": candidate_lean_declaration,
+                "candidate_lean_declaration_source": str(
+                    candidate.get("candidate_lean_declaration_source", "") or ""
+                ),
+                "structured_candidate_identity_required": (
+                    structured_candidate_identity_required
+                ),
+                "structured_candidate_identity_available": (
+                    structured_candidate_identity_available
+                ),
+                "candidate_identity_lean_checked": (
+                    candidate_identity_lean_checked
+                ),
+                "candidate_identity_lean_verified": (
+                    candidate_identity_lean_verified
+                ),
+                "candidate_identity_probe_artifact_path": str(
+                    local_lean_result.get(
+                        "candidate_identity_probe_artifact_path",
+                        "",
+                    )
+                    or ""
+                ),
+                "candidate_identity_lean_exit_status": str(
+                    local_lean_result.get(
+                        "candidate_identity_lean_exit_status",
+                        "",
+                    )
+                    or ""
+                ),
+                "candidate_identity_lean_stdout": str(
+                    local_lean_result.get(
+                        "candidate_identity_lean_stdout",
+                        "",
+                    )
+                    or ""
+                )[:1000],
+                "candidate_identity_lean_stderr": str(
+                    local_lean_result.get(
+                        "candidate_identity_lean_stderr",
+                        "",
+                    )
+                    or ""
+                )[:1000],
+                "candidate_identity_lean_command": list(
+                    local_lean_result.get(
+                        "candidate_identity_lean_command",
+                        [],
+                    )
+                    or []
+                ),
+                "target_lean_location_source": str(
+                    target_location.get("target_lean_location_source", "") or ""
+                ),
                 "target_ids": list(target_context.get("target_ids", []) or []),
                 "target_theorem_goal_ids": list(
                     target_context.get("target_theorem_goal_ids", []) or []
@@ -25810,6 +25928,13 @@ def _materialize_formalizer_lean_candidate_artifacts(
                 ),
                 "local_lean_compiled": _bool_like(
                     local_lean_result.get("local_lean_compiled", False)
+                ),
+                "local_lean_source_compiled": _bool_like(
+                    local_lean_result.get("local_lean_source_compiled", False)
+                ),
+                "local_lean_source_exit_status": str(
+                    local_lean_result.get("local_lean_source_exit_status", "")
+                    or ""
                 ),
                 "local_lean_exit_status": str(
                     local_lean_result.get("local_lean_exit_status", "") or ""
@@ -25845,10 +25970,10 @@ def _materialize_formalizer_lean_candidate_artifacts(
                 "support_candidate_not_source_theorem": (
                     support_candidate_not_source_theorem
                 ),
+                **repair_target_identity,
                 "source_theorem_candidate_evidence_eligible": (
                     source_theorem_candidate_evidence_eligible
                 ),
-                **repair_target_identity,
                 "proof_evidence_status": proof_evidence_status,
                 "source_theorem_proof_evidence_status": (
                     _formalizer_candidate_source_theorem_proof_evidence_status(
@@ -26268,10 +26393,20 @@ def _normalize_formalizer_lean_candidate_materialization_artifact(
             target_identity_mismatch_not_source_theorem
             or target_identity_unbound_not_source_theorem
         )
+        candidate_identity_lean_checked = _bool_like(
+            candidate.get("candidate_identity_lean_checked", False)
+        )
+        candidate_identity_lean_verified = _bool_like(
+            candidate.get("candidate_identity_lean_verified", False)
+        )
         source_theorem_candidate_evidence_eligible = (
             not diagnostic_helper_not_source_theorem
             and not support_candidate_not_source_theorem
             and not target_identity_not_source_theorem
+            and (
+                not candidate_identity_lean_checked
+                or candidate_identity_lean_verified
+            )
         )
         local_lean_attempted = _bool_like(
             candidate.get("local_lean_attempted", False)
@@ -27081,10 +27216,45 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                 "target_lean_declaration": str(
                     candidate.get("target_lean_declaration", "") or ""
                 ),
+                "candidate_lean_declaration": str(
+                    candidate.get("candidate_lean_declaration", "") or ""
+                ),
+                "candidate_lean_declaration_source": str(
+                    candidate.get("candidate_lean_declaration_source", "") or ""
+                ),
+                "structured_candidate_identity_required": _bool_like(
+                    candidate.get("structured_candidate_identity_required", False)
+                ),
+                "structured_candidate_identity_available": _bool_like(
+                    candidate.get("structured_candidate_identity_available", False)
+                ),
+                "candidate_identity_lean_checked": _bool_like(
+                    candidate.get("candidate_identity_lean_checked", False)
+                ),
+                "candidate_identity_lean_verified": _bool_like(
+                    candidate.get("candidate_identity_lean_verified", False)
+                ),
+                "candidate_identity_probe_artifact_path": str(
+                    candidate.get("candidate_identity_probe_artifact_path", "")
+                    or ""
+                ),
+                "candidate_identity_lean_exit_status": str(
+                    candidate.get("candidate_identity_lean_exit_status", "")
+                    or ""
+                ),
+                "target_lean_location_source": str(
+                    candidate.get("target_lean_location_source", "") or ""
+                ),
                 "precheck_status": str(candidate.get("precheck_status", "") or ""),
                 "precheck_errors": list(candidate.get("precheck_errors", []) or []),
                 "local_lean_attempted": local_lean_attempted,
                 "local_lean_compiled": local_lean_compiled,
+                "local_lean_source_compiled": _bool_like(
+                    candidate.get("local_lean_source_compiled", False)
+                ),
+                "local_lean_source_exit_status": str(
+                    candidate.get("local_lean_source_exit_status", "") or ""
+                ),
                 "local_lean_exit_status": str(
                     candidate.get("local_lean_exit_status", "") or ""
                 ),
@@ -27252,30 +27422,37 @@ def _formalizer_lean_candidate_materialization_learning_rows(
 
 def _formalizer_lean_candidate_declaration_location(
     source: str,
+    *,
+    candidate_lean_declaration: str,
 ) -> dict[str, Any]:
-    declaration = _lean_declaration_name(source)
+    """Locate a structured agent-authored identity without parsing Lean source."""
+
+    declaration = str(candidate_lean_declaration or "").strip()
     if not declaration:
         return {
             "target_lean_line": 0,
             "target_lean_column": 0,
             "target_lean_declaration": "",
+            "target_lean_location_source": "structured_candidate_declaration_missing",
         }
-    pattern = re.compile(
-        r"\b(?:theorem|lemma|def|example|abbrev)\s+"
-        + re.escape(declaration)
-        + r"\b"
-    )
     for index, line in enumerate(source.splitlines(), start=1):
-        if pattern.search(line):
+        column = line.find(declaration)
+        if column >= 0:
             return {
                 "target_lean_line": index,
-                "target_lean_column": max(line.find(declaration) + 1, 1),
+                "target_lean_column": column + 1,
                 "target_lean_declaration": declaration,
+                "target_lean_location_source": (
+                    "formalizer_structured_candidate_declaration_exact_source_location"
+                ),
             }
     return {
-        "target_lean_line": 1,
-        "target_lean_column": 1,
+        "target_lean_line": 0,
+        "target_lean_column": 0,
         "target_lean_declaration": declaration,
+        "target_lean_location_source": (
+            "structured_candidate_declaration_not_located_in_exact_source"
+        ),
     }
 
 
@@ -28081,6 +28258,39 @@ def _formalizer_lean_candidate_repair_feedback(
                 "target_lean_declaration": str(
                     row.get("target_lean_declaration", "") or ""
                 ),
+                "candidate_lean_declaration": str(
+                    row.get("candidate_lean_declaration", "") or ""
+                ),
+                "candidate_lean_declaration_source": str(
+                    row.get("candidate_lean_declaration_source", "") or ""
+                ),
+                "structured_candidate_identity_required": _bool_like(
+                    row.get("structured_candidate_identity_required", False)
+                ),
+                "structured_candidate_identity_available": _bool_like(
+                    row.get("structured_candidate_identity_available", False)
+                ),
+                "candidate_identity_lean_checked": _bool_like(
+                    row.get("candidate_identity_lean_checked", False)
+                ),
+                "candidate_identity_lean_verified": _bool_like(
+                    row.get("candidate_identity_lean_verified", False)
+                ),
+                "candidate_identity_probe_artifact_path": str(
+                    row.get("candidate_identity_probe_artifact_path", "") or ""
+                ),
+                "candidate_identity_lean_exit_status": str(
+                    row.get("candidate_identity_lean_exit_status", "") or ""
+                ),
+                "candidate_identity_lean_stdout_excerpt": str(
+                    row.get("candidate_identity_lean_stdout", "") or ""
+                )[:900],
+                "candidate_identity_lean_stderr_excerpt": str(
+                    row.get("candidate_identity_lean_stderr", "") or ""
+                )[:900],
+                "target_lean_location_source": str(
+                    row.get("target_lean_location_source", "") or ""
+                ),
                 "source_hash": str(row.get("source_hash", "") or ""),
                 "target_ids": list(row.get("target_ids", []) or []),
                 "target_theorem_goal_ids": list(
@@ -28186,6 +28396,12 @@ def _formalizer_lean_candidate_repair_feedback(
                 ),
                 "local_lean_compiled": _bool_like(
                     row.get("local_lean_compiled", False)
+                ),
+                "local_lean_source_compiled": _bool_like(
+                    row.get("local_lean_source_compiled", False)
+                ),
+                "local_lean_source_exit_status": str(
+                    row.get("local_lean_source_exit_status", "") or ""
                 ),
                 "local_lean_exit_status": str(
                     row.get("local_lean_exit_status", "") or ""
@@ -30391,15 +30607,24 @@ def _formalizer_lean_candidate_sources(
             or premise_name
             or f"source_to_bridge_premise_candidate_{index}"
         )
+        candidate_lean_declaration = str(
+            row.get("premise_candidate_declaration_name", "") or ""
+        ).strip()
         rows.append(
             {
                 "candidate_id": candidate_id,
                 "candidate_kind": "source_to_bridge_premise_derivation_candidate",
                 "source_field": "source_to_bridge_premise_derivation_candidates",
                 "lean_source": source,
+                "candidate_lean_declaration": candidate_lean_declaration,
+                "candidate_lean_declaration_source": (
+                    "source_to_bridge_premise_derivation_candidates."
+                    "premise_candidate_declaration_name"
+                ),
                 "candidate_metadata": {
                     "premise_name": premise_name,
                     "premise_names": premise_names,
+                    "candidate_lean_declaration": candidate_lean_declaration,
                     "target_theorem_name": str(
                         row.get("target_theorem_name", "") or ""
                     ),
@@ -30430,14 +30655,47 @@ def _formalizer_lean_candidate_sources(
             str(row.get("id", "") or "").strip()
             or f"formal_target_candidate_{index}"
         )
+        provenance = (
+            dict(row.get("source_theorem_target_provenance", {}) or {})
+            if isinstance(
+                row.get("source_theorem_target_provenance", {}),
+                Mapping,
+            )
+            else {}
+        )
+        candidate_lean_declaration = str(
+            row.get("candidate_lean_declaration", "") or ""
+        ).strip()
+        candidate_lean_declaration_source = (
+            "formal_targets.candidate_lean_declaration"
+            if candidate_lean_declaration
+            else ""
+        )
+        if (
+            not candidate_lean_declaration
+            and _source_theorem_target_known_value(provenance) is True
+        ):
+            candidate_lean_declaration = str(
+                provenance.get("target_lean_declaration", "") or ""
+            ).strip()
+            if candidate_lean_declaration:
+                candidate_lean_declaration_source = (
+                    "formal_targets.source_theorem_target_provenance."
+                    "target_lean_declaration"
+                )
         rows.append(
             {
                 "candidate_id": candidate_id,
                 "candidate_kind": "formal_target_lean_statement_sketch",
                 "source_field": "formal_targets",
                 "lean_source": source,
+                "candidate_lean_declaration": candidate_lean_declaration,
+                "candidate_lean_declaration_source": (
+                    candidate_lean_declaration_source
+                ),
                 "candidate_metadata": {
                     "expected_status": expected_status,
+                    "candidate_lean_declaration": candidate_lean_declaration,
                     "informal_source": str(row.get("informal_source", "") or ""),
                     "semantic_alignment_constraints": list(
                         row.get("semantic_alignment_constraints", []) or []
@@ -30447,14 +30705,7 @@ def _formalizer_lean_candidate_sources(
                         list | tuple | set,
                     )
                     else [],
-                    "source_theorem_target_provenance": dict(
-                        row.get("source_theorem_target_provenance", {}) or {}
-                    )
-                    if isinstance(
-                        row.get("source_theorem_target_provenance", {}),
-                        Mapping,
-                    )
-                    else {},
+                    "source_theorem_target_provenance": provenance,
                 },
             }
         )
@@ -30505,47 +30756,109 @@ def _formalizer_formal_target_should_skip_lean_candidate_materialization(
 def _run_formalizer_lean_candidate_local_check(
     *,
     artifact_path: Path,
+    candidate_lean_declaration: str = "",
     lean_project: Path | None,
     lean_timeout: int,
 ) -> dict[str, Any]:
     timeout_s = max(1, int(lean_timeout or 30))
     project = Path(lean_project) if lean_project is not None else None
-    if project is not None:
-        cmd = ["lake", "env", "lean", str(artifact_path.resolve())]
-        cwd = str(project)
-    else:
-        cmd = ["lean", str(artifact_path.resolve())]
-        cwd = str(artifact_path.parent)
-    try:
-        completed = subprocess.run(
-            cmd,
-            cwd=cwd,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
+
+    def run_lean(path: Path) -> tuple[str, str, str, list[str]]:
+        if project is not None:
+            command = ["lake", "env", "lean", str(path.resolve())]
+            cwd = str(project)
+        else:
+            command = ["lean", str(path.resolve())]
+            cwd = str(path.parent)
+        try:
+            completed = subprocess.run(
+                command,
+                cwd=cwd,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=timeout_s,
+            )
+            return (
+                str(int(completed.returncode)),
+                completed.stdout.strip(),
+                completed.stderr.strip(),
+                command,
+            )
+        except FileNotFoundError as exc:
+            return "not_found", "", str(exc), command
+        except subprocess.TimeoutExpired as exc:
+            return (
+                "timeout",
+                str(exc.stdout or "").strip(),
+                f"timeout after {timeout_s}s: {exc.stderr or ''}".strip(),
+                command,
+            )
+
+    source_exit_status, source_stdout, source_stderr, source_command = run_lean(
+        artifact_path
+    )
+    declaration = str(candidate_lean_declaration or "").strip()
+    identity_checked = False
+    identity_verified = False
+    identity_probe_path = ""
+    identity_exit_status = ""
+    identity_stdout = ""
+    identity_stderr = ""
+    identity_command: list[str] = []
+    if source_exit_status == "0" and declaration:
+        identity_checked = True
+        probe_path = artifact_path.with_name(
+            artifact_path.stem + ".candidate_identity_probe.lean"
         )
-        exit_status = str(int(completed.returncode))
-        stdout = completed.stdout.strip()
-        stderr = completed.stderr.strip()
-    except FileNotFoundError as exc:
-        exit_status = "not_found"
-        stdout = ""
-        stderr = str(exc)
-    except subprocess.TimeoutExpired as exc:
-        exit_status = "timeout"
-        stdout = str(exc.stdout or "").strip()
-        stderr = f"timeout after {timeout_s}s: {exc.stderr or ''}".strip()
+        identity_probe_path = str(probe_path)
+        try:
+            source = artifact_path.read_text(encoding="utf-8")
+            probe_path.write_text(
+                source.rstrip() + "\n\n#check " + declaration + "\n",
+                encoding="utf-8",
+            )
+            (
+                identity_exit_status,
+                identity_stdout,
+                identity_stderr,
+                identity_command,
+            ) = run_lean(probe_path)
+            identity_verified = identity_exit_status == "0"
+        except OSError as exc:
+            identity_exit_status = "probe_write_error"
+            identity_stderr = str(exc)
+
+    exit_status = source_exit_status
+    stdout = source_stdout
+    stderr = source_stderr
+    if identity_checked and not identity_verified:
+        exit_status = identity_exit_status
+        stdout = "\n".join(
+            value for value in (source_stdout, identity_stdout) if value
+        )
+        stderr = "\n".join(
+            value for value in (source_stderr, identity_stderr) if value
+        )
     return {
         "local_lean_attempted": True,
         "local_lean_compiled": exit_status == "0",
+        "local_lean_source_compiled": source_exit_status == "0",
+        "local_lean_source_exit_status": source_exit_status,
         "local_lean_exit_status": exit_status,
         "local_lean_stdout": stdout[:4000],
         "local_lean_stderr": stderr[:4000],
-        "local_lean_command": cmd,
+        "local_lean_command": source_command,
         "local_lean_project": str(project or ""),
         "local_lean_timeout": timeout_s,
         "local_lean_skipped_reason": "",
+        "candidate_identity_lean_checked": identity_checked,
+        "candidate_identity_lean_verified": identity_verified,
+        "candidate_identity_probe_artifact_path": identity_probe_path,
+        "candidate_identity_lean_exit_status": identity_exit_status,
+        "candidate_identity_lean_stdout": identity_stdout[:4000],
+        "candidate_identity_lean_stderr": identity_stderr[:4000],
+        "candidate_identity_lean_command": identity_command,
     }
 
 
@@ -30607,6 +30920,12 @@ def _formalizer_lean_candidate_diagnostic_only_precheck_error(error: str) -> boo
     text = str(error or "")
     return bool(
         text.startswith("Lean parser/syntax error:")
+        or text.startswith(
+            "Lean candidate missing structured candidate_lean_declaration"
+        )
+        or text.startswith(
+            "Lean candidate structured candidate_lean_declaration was not located"
+        )
         or text.startswith(
             "Lean candidate imports unavailable module in configured project:"
         )
@@ -77110,15 +77429,19 @@ def _runtime_source_theorem_formal_environment_work_order_rows_from_formalizer_t
         ):
             continue
         target_lean_declaration = str(
-            source_target_provenance.get("target_lean_declaration", "") or ""
+            source_target_provenance.get("target_lean_declaration", "")
+            or target.get("candidate_lean_declaration", "")
+            or ""
         ).strip()
         target_lean_declaration_source = (
             "formalizer_structured_source_theorem_target_provenance"
-            if target_lean_declaration
-            else "legacy_lean_source_scan"
+            if source_target_provenance.get("target_lean_declaration")
+            else (
+                "formalizer_structured_candidate_declaration"
+                if target_lean_declaration
+                else "structured_target_declaration_missing"
+            )
         )
-        if not target_lean_declaration:
-            target_lean_declaration = _lean_declaration_name(lean_statement_sketch)
         target_theorem_name = (
             target_lean_declaration
             or str(target.get("target_theorem_name", "") or "").strip()
@@ -77286,9 +77609,9 @@ def _runtime_source_theorem_formal_environment_work_order_rows_from_formalizer_t
                 "target_lean_location_source": str(
                     materialized_candidate.get(
                         "target_lean_location_source",
-                        "legacy_runtime_source_scan",
+                        "structured_target_location_missing",
                     )
-                    or "legacy_runtime_source_scan"
+                    or "structured_target_location_missing"
                 ),
                 "candidate_source_hash": str(
                     materialized_candidate.get("source_hash", "") or ""
@@ -78753,12 +79076,14 @@ def _formalizer_source_theorem_promotion_work_orders(
         source_formal_target_id = str(target.get("id", "") or "").strip()
         if not source_formal_target_id:
             continue
-        target_lean_declaration = _lean_declaration_name(
-            str(target.get("lean_statement_sketch", "") or "")
-        )
         source_target_provenance = _source_theorem_target_provenance_from_row(
             target
         )
+        target_lean_declaration = str(
+            target.get("candidate_lean_declaration", "")
+            or source_target_provenance.get("target_lean_declaration", "")
+            or ""
+        ).strip()
         explicit_source_target_known = _source_theorem_target_known_value(
             source_target_provenance
         )
@@ -78780,6 +79105,7 @@ def _formalizer_source_theorem_promotion_work_orders(
                 active_proof_body_diagnostic.get("target_theorem_name", "") or ""
             ).strip()
             if source_target_name:
+                target_lean_declaration = source_target_name
                 source_target_provenance["target_lean_declaration"] = (
                     source_target_name
                 )
@@ -88497,8 +88823,13 @@ def _runtime_source_theorem_promotion_handoff_rows(
         work_order_id = str(item.get("work_order_id", "") or "").strip()
         source_target_id = str(item.get("source_formal_target_id", "") or "").strip()
         lean_statement_sketch = str(item.get("lean_statement_sketch", "") or "").strip()
-        target_lean_declaration = _lean_declaration_name(lean_statement_sketch)
         source_target_provenance = _source_theorem_target_provenance_from_row(item)
+        target_lean_declaration = str(
+            item.get("candidate_lean_declaration", "")
+            or item.get("target_lean_declaration", "")
+            or source_target_provenance.get("target_lean_declaration", "")
+            or ""
+        ).strip()
         target_theorem_name = str(
             item.get("target_theorem_name", "")
             or target_lean_declaration
@@ -93575,24 +93906,6 @@ def _runtime_source_theorem_integrator_bridge_learning_rows(
             }
         )
     return rows
-
-
-def _lean_declaration_name(lean_statement: str) -> str:
-    # Source-theorem promotion sketches often include support definitions before
-    # the actual theorem. Prefer theorem/lemma declarations so the ProofEngineer
-    # does not try to promote a helper `def` such as qHat as the source theorem.
-    match = re.search(
-        r"\b(?:theorem|lemma)\s+([A-Za-z_][A-Za-z0-9_'.]*)",
-        lean_statement,
-    )
-    if match:
-        return match.group(1)
-    match = re.search(
-        r"\b(?:def|example)\s+([A-Za-z_][A-Za-z0-9_'.]*)",
-        lean_statement,
-    )
-    return match.group(1) if match else ""
-
 
 def _runtime_input_context_summary(architect_context: Mapping[str, Any]) -> dict[str, Any]:
     requested_contract = (
