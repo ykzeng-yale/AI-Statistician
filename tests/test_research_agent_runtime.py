@@ -25225,6 +25225,32 @@ def test_algorithm_engineer_capability_eval_validator_accepts_generated_draft() 
     assert errors == []
 
 
+def test_algorithm_engineer_capability_eval_validator_rejects_python_syntax() -> None:
+    errors = _validate_capability_eval_generated_algorithm_packet(
+        {
+            "implementation_targets": [
+                {"estimator_id": "E1", "registered_template_hint": "none"}
+            ],
+            "sandbox_code_drafts": [
+                {
+                    "estimator_id": "E1",
+                    "language": "python",
+                    "entrypoint": "run_sandbox",
+                    "code": (
+                        "def run_sandbox(seed, replicates):\n"
+                        " def helper():\n"
+                        " return 1\n"
+                    ),
+                }
+            ],
+            "metric_contracts": [_typed_metric_contract_fixture("E1")],
+        },
+        implementation_gaps=[{"estimator_id": "E1"}],
+    )
+
+    assert any("generated Python draft syntax error" in error for error in errors)
+
+
 def test_algorithm_engineer_normalizes_sandbox_draft_metadata() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     packet = _normalize_algorithm_packet(
@@ -25479,6 +25505,29 @@ def test_simulation_engineer_capability_eval_validator_requires_generated_draft(
     assert errors == [
         "capability_eval requires at least one Claude/OpenAI-generated simulation_code_drafts entry"
     ]
+
+
+def test_simulation_engineer_capability_eval_validator_rejects_python_syntax() -> None:
+    errors = _validate_capability_eval_generated_simulation_packet(
+        {
+            "simulation_code_drafts": [
+                {
+                    "simulation_id": "diagnostic",
+                    "language": "python",
+                    "entrypoint": "run_sandbox",
+                    "code": (
+                        "def run_sandbox(seed, replicates):\n"
+                        " def helper():\n"
+                        " return 1\n"
+                    ),
+                }
+            ],
+            "metric_contracts": [],
+        },
+        require_typed_metric_contracts=False,
+    )
+
+    assert any("generated Python draft syntax error" in error for error in errors)
 
 
 def test_simulation_engineer_normalizes_generated_code_draft_metadata() -> None:
@@ -86287,10 +86336,13 @@ def test_research_agent_runtime_records_theory_to_simulation_loop_in_legacy_base
         provider=StaticArchitectLLMProvider(_runtime_sample_response()),
         config=ResearchArchitectConfig(provider_name="static", model="static-theory-model"),
     )
+    architect_response = _architect_sample_response(required_runtime_replicates=80)
+    architect_evidence_contract = architect_response["evidence_contract"]
+    assert isinstance(architect_evidence_contract, dict)
+    architect_evidence_contract["formal_verification_policy"] = "required"
+    architect_evidence_contract["formal_required_for_final"] = True
     architect_coordinator = LLMArchitectCoordinatorAgent(
-        provider=StaticArchitectLLMProvider(
-            _architect_sample_response(required_runtime_replicates=80)
-        ),
+        provider=StaticArchitectLLMProvider(architect_response),
         config=ArchitectCoordinatorConfig(provider_name="static", model="static-architect-model"),
     )
     simulation_engineer = LLMSimulationEngineerAgent(
@@ -86323,7 +86375,12 @@ def test_research_agent_runtime_records_theory_to_simulation_loop_in_legacy_base
         architect_context={
             "research_problem_authority_mode": "legacy_baseline",
         },
-        config=ResearchAgentRuntimeConfig(n_runs=80, seed=20260528, max_iterations=12),
+        config=ResearchAgentRuntimeConfig(
+            n_runs=80,
+            seed=20260528,
+            max_iterations=12,
+            formal_verification_policy="required",
+        ),
     )
 
     assert manifest["runtime_stage"] == "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
@@ -104189,6 +104246,8 @@ def test_capability_eval_minimal_live_preset_populates_required_runtime_paths() 
         args.formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts
         == 3
     )
+    assert args.algorithm_engineer_generated_code_repair_yield_after_attempts == 1
+    assert args.simulation_evaluator_generated_code_repair_yield_after_attempts == 1
     assert _research_agent_runtime_capability_config_errors(args) == []
     assert _research_agent_runtime_local_lean_preflight_errors(args) == []
 
@@ -107134,6 +107193,11 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert len(completion["rows"]) == 1
     assert completion["rows"][0]["status"] in manifest["status_counts"]
     assert completion["rows"][0]["last_completed_subsystem"]
+    assert completion["rows"][0]["formal_verification_policy"] == "optional"
+    assert completion["rows"][0]["final_acceptance_status"] == (
+        "RESEARCH_CANDIDATE_ACCEPTED_WITH_FORMAL_GAPS"
+    )
+    assert completion["rows"][0]["formal_satisfied"] is False
     assert "not theorem proof evidence" in completion["boundary"]
     assert manifest["runtime_input_context"]["artifact_kind"] == "RuntimeInputContextSummary"
     assert manifest["runtime_input_context"]["runtime_learning_memory_supplied"] is True
@@ -107286,8 +107350,8 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     audit = audit_research_agent_runtime(out_dir, root / "out_audit")
     assert audit["all_ok"] is True
     assert audit["result_errors"] == []
-    assert audit["n_budget_exhausted_with_pending_next_task"] == 1
-    assert audit["n_budgeted_continuation_contract_ok"] == 1
+    assert audit["n_budget_exhausted_with_pending_next_task"] == 0
+    assert audit["n_budgeted_continuation_contract_ok"] == 0
     assert audit["capability_ready_for_full_ai_statistician"] is False
     assert audit["capability_status"] == "CONTRACT_OK_WITH_CAPABILITY_GAPS"
     scorecard = audit["capability_scorecard"]

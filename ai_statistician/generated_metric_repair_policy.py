@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import ast
+
 GENERATED_METRIC_REPAIR_POLICY_NOT_PROOF_EVIDENCE = (
     "GENERATED_METRIC_REPAIR_POLICY_NOT_PROOF_EVIDENCE"
 )
@@ -96,6 +98,18 @@ def generated_python_sandbox_safe_subset_contract() -> dict[str, object]:
             "Passing it is implementation evidence, not theorem proof evidence."
         ),
     }
+
+
+def generated_python_syntax_errors(code: str) -> list[str]:
+    """Return standard-parser diagnostics for a generated Python draft."""
+
+    if not str(code or "").strip():
+        return []
+    try:
+        ast.parse(str(code), mode="exec")
+    except SyntaxError as exc:
+        return [f"generated Python draft syntax error: {exc}"]
+    return []
 
 
 def generated_python_sandbox_guard_repair_instruction(*, artifact_label: str) -> str:

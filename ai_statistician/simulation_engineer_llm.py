@@ -10,6 +10,7 @@ from .generated_metric_repair_policy import (
     generated_metric_gate_repair_instruction,
     generated_python_sandbox_guard_repair_instruction,
     generated_python_sandbox_safe_subset_contract,
+    generated_python_syntax_errors,
 )
 from .generated_metric_contract import (
     GENERATED_METRIC_CONTRACT_BOUNDARY,
@@ -1336,6 +1337,8 @@ def _validate_capability_eval_generated_simulation_packet(
             "capability_eval requires at least one Claude/OpenAI-generated "
             "simulation_code_drafts entry"
         )
+    for row in drafts:
+        errors.extend(generated_python_syntax_errors(str(row.get("code", ""))))
     draft_ids = {
         str(row.get("simulation_id", "") or "").strip()
         for row in drafts

@@ -1629,6 +1629,44 @@ and Lean targets must be authored by LLM agents from question, paper/RAG,
 critic, execution, and compiler feedback. No legacy registry branch may count
 toward held-out generalization or exact theorem closure.
 
+## 2026-07-16 Focus Check: Optional Acceptance and Bounded Coding Feedback
+
+The product target is unchanged: general LLM research agents must derive the
+statistical argument, generate algorithms and DGP experiments, consume real
+execution/reviewer/compiler feedback, and revise their own artifacts. Runtime
+owns schemas, immutable identity, budgets, execution, and evidence authority.
+It must not contain question answers, statistical-family formulas, generated
+source rewrites, Lean grammar, or tactics.
+
+Fresh v6 proved that the declared optional formalization policy had previously
+been only nominal. After the Critic routing correction, survival terminated as
+`RESEARCH_CANDIDATE_ACCEPTED_WITH_FORMAL_GAPS` while kernel evidence remained
+zero. The same run then exposed fourteen consecutive malformed sequential
+simulation drafts: `minimal-live` had no coding-lane yield budget, so one parser
+failure mode consumed the remaining global turns.
+
+The follow-up patch stays inside existing mechanisms. Standard `ast.parse`
+diagnostics now participate in the AlgorithmEngineer and SimulationEngineer
+LLM packet validate-repair loop. `minimal-live` gives each coding lane one
+bounded runtime repair before yielding existing downstream work. The runtime
+does not repair code or recognize a question family. Forty-five focused coding,
+simulation, and preset tests pass. The complete AgentRuntime regression also
+passes: 1,139 tests in 3,799.45 seconds.
+
+Fresh v7 removed the repeated syntax loop. Both survival and sequential
+produced runnable exploratory simulations, received an independent semantic
+`REVISE`, regenerated, and received `ACCEPT`. It still completed zero tasks:
+survival failed a metric-review packet contract and sequential was honestly
+blocked after all bounded pre-execution protocols were rejected. This is not
+readiness evidence. It identifies metric-protocol author/reviewer reliability
+as the next non-Lean bottleneck without justifying another reviewer, scheduler,
+or larger blind retry budget.
+
+Progressive Lean/RAG work remains separate and cumulative. Optional/advisory
+research evaluation may disclose formal debt and continue; required evaluation
+still needs exact target-bound local Lean/AXLE closure. Held-out PCA/extremes
+remain locked, and strict completion remains zero of two development families.
+
 ## Optional Future Delegation
 
 No other Codex worker is currently active. The main worker owns the commit

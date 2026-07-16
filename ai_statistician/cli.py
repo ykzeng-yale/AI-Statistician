@@ -14180,6 +14180,32 @@ def _apply_research_agent_runtime_capability_eval_preset(
         and int(
             getattr(
                 args,
+                "algorithm_engineer_generated_code_repair_yield_after_attempts",
+                0,
+            )
+            or 0
+        )
+        <= 0
+    ):
+        args.algorithm_engineer_generated_code_repair_yield_after_attempts = 1
+    if (
+        preset == "minimal-live"
+        and int(
+            getattr(
+                args,
+                "simulation_evaluator_generated_code_repair_yield_after_attempts",
+                0,
+            )
+            or 0
+        )
+        <= 0
+    ):
+        args.simulation_evaluator_generated_code_repair_yield_after_attempts = 1
+    if (
+        preset == "minimal-live"
+        and int(
+            getattr(
+                args,
                 "formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts",
                 0,
             )
