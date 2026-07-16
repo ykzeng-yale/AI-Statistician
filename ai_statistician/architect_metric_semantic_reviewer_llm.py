@@ -7,11 +7,16 @@ from typing import Any, Mapping
 
 from .fingerprint import stable_hash
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
+from .metric_protocol_finding_ledger import (
+    METRIC_PROTOCOL_FINDING_UNRESOLVED,
+    METRIC_PROTOCOL_PRIOR_FINDING_REVIEW_STATUSES,
+    normalize_metric_protocol_findings,
+)
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
 
 
-ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 1
+ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 2
 ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -169,7 +174,15 @@ def build_architect_metric_semantic_review_prompt(
         "confuse an expectation with an all-replicates event, or are not plausibly "
         "attainable at the fixed runtime budget. Do not invent task-family rules, "
         "hardcoded formulas, replacement thresholds, source code, or observed "
-        "results. Assign every finding repair_scope=metric_contract only when the "
+        "results. When review_material.active_prior_finding_ledger is nonempty, "
+        "return exactly one prior_finding_reviews row for every listed finding_id. "
+        "Mark it RESOLVED only when the current candidate itself closes the issue, "
+        "RESOLVED_BY_CURRENT_THEORY only when the current source theory now closes "
+        "it, and UNRESOLVED otherwise. Cite current candidate or theory fields; do "
+        "not infer resolution merely because a prior finding is absent from the new "
+        "candidate. Recheck the complete contract after those row-level decisions "
+        "so a repair does not introduce a different inconsistency. Assign every "
+        "finding repair_scope=metric_contract only when the "
         "candidate protocol can be corrected without changing or supplementing the "
         "TheoryDeveloper packet. Assign repair_scope=upstream_theory when correction "
         "requires a new or revised estimand, procedure, estimator, DGP, assumption, "
@@ -196,6 +209,14 @@ not write implementation code, use observed results, or claim proof evidence.
 
 
 ARCHITECT_METRIC_SEMANTIC_REVIEW_OUTPUT_CONTRACT: dict[str, Any] = {
+    "prior_finding_reviews": [
+        {
+            "finding_id": "an exact finding_id from active_prior_finding_ledger",
+            "status": "RESOLVED|RESOLVED_BY_CURRENT_THEORY|UNRESOLVED",
+            "rationale": "current-artifact evidence for this disposition",
+            "evidence_refs": ["current theory/candidate field reference"],
+        }
+    ],
     "dimension_reviews": [
         {
             "dimension": "one required dimension",
@@ -274,17 +295,42 @@ _FINDING_SCHEMA: dict[str, Any] = {
 }
 
 
+_PRIOR_FINDING_REVIEW_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["finding_id", "status", "rationale", "evidence_refs"],
+    "properties": {
+        "finding_id": {"type": "string", "minLength": 1},
+        "status": {
+            "type": "string",
+            "enum": list(METRIC_PROTOCOL_PRIOR_FINDING_REVIEW_STATUSES),
+        },
+        "rationale": {"type": "string", "minLength": 1},
+        "evidence_refs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "minLength": 1},
+        },
+    },
+}
+
+
 ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "additionalProperties": False,
     "required": [
+        "prior_finding_reviews",
         "dimension_reviews",
         "findings",
         "overall_verdict",
         "repair_instructions",
     ],
     "properties": {
+        "prior_finding_reviews": {
+            "type": "array",
+            "items": _PRIOR_FINDING_REVIEW_SCHEMA,
+        },
         "dimension_reviews": {
             "type": "array",
             "minItems": len(ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS),
@@ -316,6 +362,43 @@ def validate_architect_metric_semantic_review_packet(
         errors.append("Architect metric review must be marked pre_execution_review=true")
     if packet.get("execution_results_observed") is not False:
         errors.append("Architect metric review cannot observe execution results")
+
+    expected_prior_finding_ids = [
+        str(value).strip()
+        for value in packet.get("expected_prior_finding_ids", []) or []
+        if str(value).strip()
+    ]
+    prior_finding_reviews = packet.get("prior_finding_reviews", [])
+    if not isinstance(prior_finding_reviews, list):
+        errors.append("prior_finding_reviews must be an array")
+        prior_finding_reviews = []
+    reviewed_prior_finding_ids: list[str] = []
+    unresolved_prior_findings = 0
+    for row in prior_finding_reviews:
+        if not isinstance(row, Mapping):
+            errors.append("prior_finding_reviews entries must be objects")
+            continue
+        finding_id = str(row.get("finding_id", "") or "").strip()
+        status = str(row.get("status", "") or "").strip().upper()
+        reviewed_prior_finding_ids.append(finding_id)
+        if status not in METRIC_PROTOCOL_PRIOR_FINDING_REVIEW_STATUSES:
+            errors.append(f"invalid prior finding status for {finding_id}")
+        if status == METRIC_PROTOCOL_FINDING_UNRESOLVED:
+            unresolved_prior_findings += 1
+        if not str(row.get("rationale", "") or "").strip():
+            errors.append(f"prior finding review {finding_id} missing rationale")
+        evidence_refs = row.get("evidence_refs", [])
+        if not isinstance(evidence_refs, list) or not any(
+            str(value or "").strip() for value in evidence_refs
+        ):
+            errors.append(
+                f"prior finding review {finding_id} missing evidence_refs"
+            )
+    if sorted(reviewed_prior_finding_ids) != sorted(expected_prior_finding_ids):
+        errors.append(
+            "prior_finding_reviews must cover every active prior finding_id "
+            "exactly once"
+        )
 
     dimension_rows = packet.get("dimension_reviews", [])
     if not isinstance(dimension_rows, list):
@@ -380,6 +463,7 @@ def validate_architect_metric_semantic_review_packet(
         if len(statuses) == len(ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS)
         and all(status == "PASS" for status in statuses)
         and high_findings == 0
+        and unresolved_prior_findings == 0
         else "REVISE"
     )
     verdict = str(packet.get("overall_verdict", "") or "").strip().upper()
@@ -394,11 +478,21 @@ def validate_architect_metric_semantic_review_packet(
         or not any(str(value or "").strip() for value in repair_instructions)
     ):
         errors.append("REVISE Architect metric review requires repair_instructions")
-    if verdict == "REVISE" and not findings:
-        errors.append("REVISE Architect metric review requires typed findings")
+    if verdict == "REVISE" and not findings and unresolved_prior_findings == 0:
+        errors.append(
+            "REVISE Architect metric review requires typed findings or an "
+            "unresolved prior finding"
+        )
     expected_repair_scope = architect_metric_semantic_recommended_repair_scope(
         verdict=verdict,
-        findings=findings,
+        findings=[
+            *findings,
+            *[
+                dict(row)
+                for row in packet.get("unresolved_prior_findings", []) or []
+                if isinstance(row, Mapping)
+            ],
+        ],
     )
     if packet.get("recommended_repair_scope") != expected_repair_scope:
         errors.append(
@@ -445,14 +539,53 @@ def _normalize_architect_metric_semantic_review_packet(
         trusted_lineage.get("source_model_tier", "") or ""
     ).strip()
     body = dict(payload)
-    findings = body.get("findings", [])
+    findings = normalize_metric_protocol_findings(
+        question_id=question.id,
+        findings=body.get("findings", []),
+        preserve_existing_ids=False,
+    )
+    body["findings"] = findings
+    prior_finding_reviews = [
+        dict(row)
+        for row in body.get("prior_finding_reviews", []) or []
+        if isinstance(row, Mapping)
+    ]
+    body["prior_finding_reviews"] = prior_finding_reviews
+    active_prior_finding_ledger = [
+        dict(row)
+        for row in review_material.get("active_prior_finding_ledger", []) or []
+        if isinstance(row, Mapping)
+    ]
+    active_prior_findings_by_id = {
+        str(row.get("finding_id", "") or "").strip(): dict(
+            row.get("finding", {})
+        )
+        for row in active_prior_finding_ledger
+        if str(row.get("finding_id", "") or "").strip()
+        and isinstance(row.get("finding", {}), Mapping)
+    }
+    unresolved_prior_finding_ids = {
+        str(row.get("finding_id", "") or "").strip()
+        for row in prior_finding_reviews
+        if str(row.get("status", "") or "").strip().upper()
+        == METRIC_PROTOCOL_FINDING_UNRESOLVED
+    }
+    unresolved_prior_findings = [
+        dict(active_prior_findings_by_id[finding_id])
+        for finding_id in active_prior_findings_by_id
+        if finding_id in unresolved_prior_finding_ids
+    ]
     verdict = str(body.get("overall_verdict", "") or "").strip().upper()
     body["recommended_repair_scope"] = (
         architect_metric_semantic_recommended_repair_scope(
             verdict=verdict,
-            findings=findings,
+            findings=[*findings, *unresolved_prior_findings],
         )
     )
+    body["expected_prior_finding_ids"] = list(
+        active_prior_findings_by_id
+    )
+    body["unresolved_prior_findings"] = unresolved_prior_findings
     body.update(
         {
             "question_id": question.id,

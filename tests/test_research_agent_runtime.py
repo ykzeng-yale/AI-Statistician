@@ -1606,6 +1606,7 @@ def test_architect_rehydrates_prior_metric_rejection_for_revised_theory() -> Non
                 ],
                 "findings": [
                     {
+                        "finding_id": "metric_protocol_finding:prior",
                         "severity": "high",
                         "category": "missing_calibration",
                         "summary": "The prior theory omitted a calibration.",
@@ -1615,6 +1616,25 @@ def test_architect_rehydrates_prior_metric_rejection_for_revised_theory() -> Non
                 ],
                 "repair_instructions": [
                     "Repair the candidate against the revised theory."
+                ],
+                "cumulative_finding_ledger": [
+                    {
+                        "finding_id": "metric_protocol_finding:prior",
+                        "status": "UNRESOLVED",
+                        "first_seen_revision_index": 0,
+                        "latest_seen_revision_index": 0,
+                        "source_review_packet_ids": ["metric-review:prior"],
+                        "finding": {
+                            "finding_id": "metric_protocol_finding:prior",
+                            "severity": "high",
+                            "category": "missing_calibration",
+                            "summary": "The prior theory omitted a calibration.",
+                            "required_change": (
+                                "Use the revised theory calibration."
+                            ),
+                            "repair_scope": "upstream_theory",
+                        },
+                    }
                 ],
             }
         ],
@@ -1663,11 +1683,185 @@ def test_architect_rehydrates_prior_metric_rejection_for_revised_theory() -> Non
     assert final_review["source_theory_packet_id"] == prior_theory_id
     assert final_review["empirical_metric_requirements"] == prior_rows
     assert final_review["findings"][0]["category"] == "missing_calibration"
+    assert len(carry_forward["semantic_review_history"]) == 1
+    assert carry_forward["cumulative_finding_ledger"][0]["finding_id"] == (
+        "metric_protocol_finding:prior"
+    )
     assert carry_forward["execution_results_available"] is False
     assert carry_forward["current_candidate_acceptance_eligible"] is False
     assert runtime_module.stable_hash(blackboard.artifacts[rejection_id]) == (
         rejection_hash_before
     )
+
+
+def test_metric_protocol_finding_ledger_closes_prior_defects_explicitly() -> None:
+    from ai_statistician.metric_protocol_finding_ledger import (
+        active_metric_protocol_finding_ledger,
+        normalize_metric_protocol_findings,
+        update_metric_protocol_finding_ledger,
+    )
+
+    first_finding = {
+        "finding_id": "model_supplied_identity_must_not_be_trusted",
+        "severity": "high",
+        "category": "finite_sample_calibration",
+        "summary": "The first quorum rejects a correct method too often.",
+        "required_change": "Recalibrate the quorum before execution.",
+        "repair_scope": "metric_contract",
+        "evidence_refs": ["requirement:first"],
+    }
+    normalized_model_finding = normalize_metric_protocol_findings(
+        question_id="generic_question",
+        findings=[first_finding],
+        preserve_existing_ids=False,
+    )[0]
+    assert normalized_model_finding["finding_id"].startswith(
+        "metric_protocol_finding:"
+    )
+    assert normalized_model_finding["finding_id"] != first_finding[
+        "finding_id"
+    ]
+    ledger = update_metric_protocol_finding_ledger(
+        question_id="generic_question",
+        prior_ledger=[],
+        prior_finding_reviews=[],
+        current_findings=[normalized_model_finding],
+        current_verdict="REVISE",
+        review_packet_id="metric-review:0",
+        revision_index=0,
+    )
+    first_finding_id = ledger[0]["finding_id"]
+    assert ledger[0]["status"] == "UNRESOLVED"
+
+    second_finding = {
+        "severity": "medium",
+        "category": "typed_evaluator_order",
+        "summary": "The aggregate and comparison are reversed.",
+        "required_change": "Align the row with evaluator order.",
+        "repair_scope": "metric_contract",
+        "evidence_refs": ["requirement:second"],
+    }
+    ledger = update_metric_protocol_finding_ledger(
+        question_id="generic_question",
+        prior_ledger=ledger,
+        prior_finding_reviews=[
+            {
+                "finding_id": first_finding_id,
+                "status": "RESOLVED",
+                "rationale": "The revised quorum has a current calibration.",
+                "evidence_refs": ["candidate:revised_quorum"],
+            }
+        ],
+        current_findings=[second_finding],
+        current_verdict="REVISE",
+        review_packet_id="metric-review:1",
+        revision_index=1,
+    )
+    assert ledger[0]["status"] == "RESOLVED"
+    assert ledger[0]["first_seen_revision_index"] == 0
+    active = active_metric_protocol_finding_ledger(ledger)
+    assert len(active) == 1
+    assert active[0]["finding"]["category"] == "typed_evaluator_order"
+
+    second_finding_id = active[0]["finding_id"]
+    ledger = update_metric_protocol_finding_ledger(
+        question_id="generic_question",
+        prior_ledger=ledger,
+        prior_finding_reviews=[
+            {
+                "finding_id": second_finding_id,
+                "status": "RESOLVED_BY_CURRENT_THEORY",
+                "rationale": "The revised theory fixes the evaluator target.",
+                "evidence_refs": ["theory:current"],
+            }
+        ],
+        current_findings=[],
+        current_verdict="ACCEPT",
+        review_packet_id="metric-review:2",
+        revision_index=2,
+    )
+    assert active_metric_protocol_finding_ledger(ledger) == []
+    assert {row["status"] for row in ledger} == {
+        "RESOLVED",
+        "RESOLVED_BY_CURRENT_THEORY",
+    }
+
+
+def test_metric_semantic_reviewer_cannot_accept_without_prior_finding_closure() -> None:
+    from ai_statistician.architect_metric_semantic_reviewer_llm import (
+        ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS,
+        ArchitectMetricSemanticReviewerConfig,
+        LLMArchitectMetricSemanticReviewerAgent,
+    )
+
+    class MissingClosureBackend:
+        provider_name = "anthropic"
+
+        def generate(self, request):
+            return GeneratorResponse(
+                text=json.dumps(
+                    {
+                        "prior_finding_reviews": [],
+                        "dimension_reviews": [
+                            {
+                                "dimension": dimension,
+                                "status": "PASS",
+                                "rationale": "The current candidate is coherent.",
+                                "evidence_refs": ["candidate:current"],
+                            }
+                            for dimension in (
+                                ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS
+                            )
+                        ],
+                        "findings": [],
+                        "overall_verdict": "ACCEPT",
+                        "repair_instructions": [],
+                    }
+                ),
+                provider="anthropic",
+                model=request.model,
+            )
+
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    with pytest.raises(PacketValidationError) as exc_info:
+        LLMArchitectMetricSemanticReviewerAgent(
+            provider=MissingClosureBackend(),  # type: ignore[arg-type]
+            config=ArchitectMetricSemanticReviewerConfig(
+                provider_name="anthropic",
+                model_tier="opus",
+                max_repair_attempts=0,
+            ),
+        ).review(
+            question=question,
+            review_material={
+                "execution_results_available": False,
+                "active_prior_finding_ledger": [
+                    {
+                        "finding_id": "metric_protocol_finding:unclosed",
+                        "status": "UNRESOLVED",
+                        "finding": {
+                            "severity": "high",
+                            "category": "unclosed_calibration",
+                            "summary": "The prior calibration is unresolved.",
+                            "required_change": "Close it against current artifacts.",
+                            "repair_scope": "metric_contract",
+                            "evidence_refs": ["candidate:prior"],
+                        },
+                    }
+                ],
+            },
+            trusted_lineage={
+                "authoring_packet_id": "metric-authoring:current",
+                "authoring_packet_hash": "metric-authoring-hash",
+                "empirical_metric_requirement_set_id": "metric-set:current",
+                "source_agent": "ArchitectMetricContractPlanner",
+                "source_model": "claude-sonnet-4-6",
+                "source_model_tier": "sonnet",
+            },
+        )
+    assert "cover every active prior finding_id" in str(exc_info.value)
 
 
 @pytest.mark.parametrize("lineage_failure", ["missing_parent", "hash_mismatch"])
@@ -21924,7 +22118,31 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
             elif subsystem == "ArchitectMetricSemanticReviewer":
                 self.review_calls += 1
                 accepted = self.review_calls > 1
+                review_prompt = json.loads(
+                    request.user_prompt.split("\n\n", 1)[1]
+                )
+                active_prior_findings = review_prompt["review_material"].get(
+                    "active_prior_finding_ledger", []
+                )
                 payload = {
+                    "prior_finding_reviews": [
+                        {
+                            "finding_id": row["finding_id"],
+                            "status": (
+                                "RESOLVED_BY_CURRENT_THEORY"
+                                if self.review_calls == 1
+                                else "RESOLVED"
+                            ),
+                            "rationale": (
+                                "The current theory and candidate now close this "
+                                "specific prior defect."
+                            ),
+                            "evidence_refs": [
+                                "current_theory_and_candidate:generic_gate"
+                            ],
+                        }
+                        for row in active_prior_findings
+                    ],
                     "dimension_reviews": [
                         {
                             "dimension": dimension,
@@ -22066,6 +22284,11 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
     assert first_repair["findings"][0]["category"] == (
         "prior_theory_calibration"
     )
+    assert len(first_repair["active_prior_finding_ledger"]) == 1
+    prior_finding_id = first_repair["active_prior_finding_ledger"][0][
+        "finding_id"
+    ]
+    assert first_repair["required_prior_finding_ids"] == [prior_finding_id]
     assert first_repair["cross_theory_revision_context"][
         "current_source_theory_packet_id"
     ] == theory_material["source_theory_packet_id"]
@@ -22079,6 +22302,10 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
     repair = repair_prompt["independent_semantic_review_repair"]
     assert repair["rejected_empirical_metric_requirements"] == rejected_rows
     assert repair["findings"][0]["severity"] == "high"
+    assert len(repair["active_prior_finding_ledger"]) == 1
+    assert repair["active_prior_finding_ledger"][0]["finding"][
+        "category"
+    ] == "finite_sample_calibration"
     assert "execution" not in json.dumps(repair).lower() or (
         "before execution" in json.dumps(repair).lower()
     )
@@ -22099,6 +22326,14 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
     assert authoring["semantic_review_history"][1][
         "source_theory_packet_id"
     ] == "theory_derivation:structured"
+    final_ledger = authoring["cumulative_finding_ledger"]
+    assert {row["status"] for row in final_ledger} == {
+        "RESOLVED",
+        "RESOLVED_BY_CURRENT_THEORY",
+    }
+    assert authoring["semantic_review_history"][1][
+        "active_unresolved_finding_ids"
+    ] == []
     assert validate_architect_coordinator_packet(packet) == []
 
 

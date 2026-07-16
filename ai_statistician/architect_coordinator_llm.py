@@ -375,6 +375,20 @@ def _architect_context_with_metric_requirement_authoring(
             "semantic_review_independent_model_tier": bool(
                 semantic_review.get("independent_model_tier")
             ),
+            "cumulative_finding_ledger": [
+                dict(row)
+                for row in metric_authoring_packet.get(
+                    "cumulative_finding_ledger", []
+                )
+                or []
+                if isinstance(row, Mapping)
+            ],
+            "cumulative_finding_ledger_fingerprint": str(
+                metric_authoring_packet.get(
+                    "cumulative_finding_ledger_fingerprint", ""
+                )
+                or ""
+            ),
             "boundary": GENERATED_METRIC_REQUIREMENT_BOUNDARY,
         }
     return context
@@ -450,6 +464,14 @@ def _architect_metric_requirement_authoring_summary(
         "semantic_review_history": [
             dict(row) for row in review_history if isinstance(row, Mapping)
         ],
+        "cumulative_finding_ledger": [
+            dict(row)
+            for row in packet.get("cumulative_finding_ledger", []) or []
+            if isinstance(row, Mapping)
+        ],
+        "cumulative_finding_ledger_fingerprint": str(
+            packet.get("cumulative_finding_ledger_fingerprint", "") or ""
+        ),
         "semantic_review_boundary": str(
             packet.get("semantic_review_boundary", "") or ""
         ),

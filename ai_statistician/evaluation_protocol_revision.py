@@ -237,6 +237,23 @@ def architect_preexecution_metric_protocol_rejection_result(
         "candidate_authoring_packet_ids": candidate_packet_ids,
         "semantic_review_packet_ids": review_packet_ids,
         "semantic_review_history": history,
+        "cumulative_finding_ledger": [
+            dict(row)
+            for row in final_review.get("cumulative_finding_ledger", []) or []
+            if isinstance(row, Mapping)
+        ],
+        "cumulative_finding_ledger_fingerprint": str(
+            final_review.get("cumulative_finding_ledger_fingerprint", "")
+            or ""
+        ),
+        "active_unresolved_finding_ids": [
+            str(value)
+            for value in final_review.get(
+                "active_unresolved_finding_ids", []
+            )
+            or []
+            if str(value).strip()
+        ],
         "recommended_repair_scope": recommended_repair_scope,
         "source_theory_packet_id": source_theory_packet_id,
         "source_theory_packet_hash": source_theory_packet_hash,

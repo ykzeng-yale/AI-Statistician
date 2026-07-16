@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from .architect_metric_repair_ownership_router_llm import (
+    ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED,
     LLMArchitectMetricRepairOwnershipRouterAgent,
     apply_architect_metric_repair_ownership_routes,
 )
@@ -12,6 +13,7 @@ from .architect_metric_semantic_reviewer_llm import (
     ARCHITECT_METRIC_SEMANTIC_REVIEW_BOUNDARY,
     ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_METRIC_CONTRACT,
     LLMArchitectMetricSemanticReviewerAgent,
+    architect_metric_semantic_recommended_repair_scope,
 )
 from .fingerprint import stable_hash
 from .generated_metric_contract import (
@@ -33,10 +35,16 @@ from .model_backend import GeneratorBackend, GeneratorRequest
 from .metric_protocol_stage import (
     METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED,
 )
+from .metric_protocol_finding_ledger import (
+    active_metric_protocol_finding_ledger,
+    metric_protocol_finding_ledger_fingerprint,
+    metric_protocol_finding_ledger_from_review_history,
+    update_metric_protocol_finding_ledger,
+)
 from .research_schema import OpenResearchQuestion
 
 
-ARCHITECT_METRIC_REQUIREMENT_AUTHORING_SCHEMA_VERSION = 1
+ARCHITECT_METRIC_REQUIREMENT_AUTHORING_SCHEMA_VERSION = 2
 
 
 class ArchitectMetricSemanticReviewRejected(PacketValidationError):
@@ -74,6 +82,26 @@ class ArchitectMetricSemanticReviewRejected(PacketValidationError):
             ],
             history=history,
         )
+
+
+def _metric_protocol_combined_repair_scope(
+    *,
+    verdict: str,
+    findings: list[dict[str, Any]],
+) -> str:
+    if str(verdict or "").strip().upper() == "ACCEPT":
+        return "none"
+    scopes = {
+        str(row.get("repair_scope", "") or "").strip()
+        for row in findings
+        if isinstance(row, Mapping)
+    }
+    if ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED in scopes:
+        return ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED
+    return architect_metric_semantic_recommended_repair_scope(
+        verdict=verdict,
+        findings=findings,
+    )
 
 
 @dataclass(frozen=True)
@@ -250,7 +278,7 @@ def author_reviewed_architect_metric_requirements(
         else {}
     )
     carried_review = carry_forward.get("final_review", {})
-    if (
+    carry_forward_valid = bool(
         carry_forward.get("artifact_kind")
         == "RuntimeArchitectMetricProtocolPriorRejectionContext"
         and carry_forward.get("execution_results_available") is False
@@ -265,7 +293,18 @@ def author_reviewed_architect_metric_requirements(
         == str(theory_material.get("source_theory_packet_hash", "") or "")
         and isinstance(carried_review, Mapping)
         and carried_review.get("empirical_metric_requirements")
-    ):
+    )
+    cumulative_finding_ledger: list[dict[str, Any]] = []
+    if carry_forward_valid:
+        carried_history = carry_forward.get("semantic_review_history", [])
+        if not isinstance(carried_history, list) or not carried_history:
+            carried_history = [dict(carried_review)]
+        cumulative_finding_ledger = (
+            metric_protocol_finding_ledger_from_review_history(
+                question_id=question.id,
+                semantic_review_history=carried_history,
+            )
+        )
         prior_authoring_packet = {
             "packet_id": str(
                 carried_review.get("authoring_packet_id", "") or ""
@@ -311,6 +350,19 @@ def author_reviewed_architect_metric_requirements(
         0, int(config.metric_semantic_reviewer_max_revisions or 0)
     )
     for revision_index in range(max_semantic_revisions + 1):
+        active_finding_ledger = active_metric_protocol_finding_ledger(
+            cumulative_finding_ledger
+        )
+        active_finding_ids = [
+            str(row.get("finding_id", "") or "")
+            for row in active_finding_ledger
+            if str(row.get("finding_id", "") or "").strip()
+        ]
+        active_finding_ledger_fingerprint = (
+            metric_protocol_finding_ledger_fingerprint(active_finding_ledger)
+            if active_finding_ledger
+            else ""
+        )
         candidate_prompt_payload = dict(prompt_payload)
         if prior_review_packet:
             candidate_prompt_payload["independent_semantic_review_repair"] = {
@@ -340,6 +392,11 @@ def author_reviewed_architect_metric_requirements(
                 "findings": list(prior_review_packet.get("findings", []) or []),
                 "repair_instructions": list(
                     prior_review_packet.get("repair_instructions", []) or []
+                ),
+                "active_prior_finding_ledger": active_finding_ledger,
+                "required_prior_finding_ids": active_finding_ids,
+                "active_prior_finding_ledger_fingerprint": (
+                    active_finding_ledger_fingerprint
                 ),
                 "cross_theory_revision_context": (
                     {
@@ -379,7 +436,11 @@ def author_reviewed_architect_metric_requirements(
                     "metric portfolio with unrelated gates, drop a required author "
                     "subsystem, or claim that execution passed. The current theory "
                     "material is authoritative over stale assumptions in the rejected "
-                    "contract."
+                    "contract. Resolve every active_prior_finding_ledger row in this "
+                    "one complete revision and then rerun a whole-contract numeric, "
+                    "estimand, DGP, evaluator-order, and cross-row consistency audit. "
+                    "Do not treat a finding as resolved merely because it is absent "
+                    "from the latest review prose."
                 ),
             }
         request = GeneratorRequest(
@@ -407,6 +468,10 @@ def author_reviewed_architect_metric_requirements(
                 "semantic_review_revision_index": revision_index,
                 "semantic_review_feedback_packet_id": str(
                     prior_review_packet.get("packet_id", "") or ""
+                ),
+                "active_prior_finding_count": len(active_finding_ids),
+                "active_prior_finding_ledger_fingerprint": (
+                    active_finding_ledger_fingerprint
                 ),
             },
         )
@@ -452,6 +517,10 @@ def author_reviewed_architect_metric_requirements(
                 "parent_authoring_packet_id": parent_packet_id,
                 "semantic_review_feedback_packet_id": str(
                     prior_review_packet.get("packet_id", "") or ""
+                ),
+                "repair_target_finding_ids": active_finding_ids,
+                "repair_target_finding_ledger_fingerprint": (
+                    active_finding_ledger_fingerprint
                 ),
                 "empirical_metric_requirements": requirement_rows,
                 "empirical_metric_requirement_set_id": (
@@ -509,6 +578,10 @@ def author_reviewed_architect_metric_requirements(
                 generated_metric_evaluation_semantics_contract()
             ),
             "theory_developer_protocol_material": theory_material,
+            "active_prior_finding_ledger": active_finding_ledger,
+            "active_prior_finding_ledger_fingerprint": (
+                active_finding_ledger_fingerprint
+            ),
             "empirical_metric_requirements": [
                 dict(row)
                 for row in authoring_packet.get(
@@ -544,18 +617,16 @@ def author_reviewed_architect_metric_requirements(
             trusted_lineage=trusted_review_lineage,
         )
         review_packet_hash = stable_hash(semantic_review_packet)
-        routed_findings = [
+        routed_current_findings = [
             dict(row)
             for row in semantic_review_packet.get("findings", []) or []
             if isinstance(row, Mapping)
         ]
-        recommended_repair_scope = str(
-            semantic_review_packet.get("recommended_repair_scope", "") or ""
-        )
         repair_ownership_packet: dict[str, Any] = {}
         if (
             semantic_review_packet.get("overall_verdict") == "REVISE"
             and repair_ownership_router is not None
+            and routed_current_findings
         ):
             repair_ownership_packet = repair_ownership_router.route(
                 question=question,
@@ -563,14 +634,49 @@ def author_reviewed_architect_metric_requirements(
                 semantic_review_packet=semantic_review_packet,
                 trusted_lineage=trusted_review_lineage,
             )
-            routed_findings = apply_architect_metric_repair_ownership_routes(
+            routed_current_findings = apply_architect_metric_repair_ownership_routes(
                 findings=semantic_review_packet.get("findings", []),
                 ownership_packet=repair_ownership_packet,
             )
-            recommended_repair_scope = str(
-                repair_ownership_packet.get("recommended_repair_scope", "")
-                or ""
-            )
+        cumulative_finding_ledger = update_metric_protocol_finding_ledger(
+            question_id=question.id,
+            prior_ledger=cumulative_finding_ledger,
+            prior_finding_reviews=semantic_review_packet.get(
+                "prior_finding_reviews", []
+            ),
+            current_findings=routed_current_findings,
+            current_verdict=str(
+                semantic_review_packet.get("overall_verdict", "") or ""
+            ),
+            review_packet_id=str(semantic_review_packet["packet_id"]),
+            revision_index=revision_index,
+        )
+        active_finding_ledger_after_review = (
+            active_metric_protocol_finding_ledger(cumulative_finding_ledger)
+        )
+        current_finding_ids = {
+            str(row.get("finding_id", "") or "")
+            for row in routed_current_findings
+            if str(row.get("finding_id", "") or "").strip()
+        }
+        carried_findings = []
+        for ledger_row in active_finding_ledger_after_review:
+            finding_id = str(ledger_row.get("finding_id", "") or "")
+            finding = ledger_row.get("finding", {})
+            if finding_id in current_finding_ids or not isinstance(
+                finding, Mapping
+            ):
+                continue
+            carried = dict(finding)
+            carried["carried_forward_finding_id"] = finding_id
+            carried_findings.append(carried)
+        routed_findings = [*routed_current_findings, *carried_findings]
+        recommended_repair_scope = _metric_protocol_combined_repair_scope(
+            verdict=str(
+                semantic_review_packet.get("overall_verdict", "") or ""
+            ),
+            findings=routed_findings,
+        )
         semantic_review_history.append(
             {
                 "revision_index": revision_index,
@@ -638,6 +744,42 @@ def author_reviewed_architect_metric_requirements(
                 "repair_ownership_decisions": list(
                     repair_ownership_packet.get("decisions", []) or []
                 ),
+                "repair_target_finding_ids": list(
+                    authoring_packet.get("repair_target_finding_ids", []) or []
+                ),
+                "repair_target_finding_ledger_fingerprint": str(
+                    authoring_packet.get(
+                        "repair_target_finding_ledger_fingerprint", ""
+                    )
+                    or ""
+                ),
+                "prior_finding_reviews": [
+                    dict(row)
+                    for row in semantic_review_packet.get(
+                        "prior_finding_reviews", []
+                    )
+                    if isinstance(row, Mapping)
+                ],
+                "cumulative_finding_ledger": [
+                    dict(row) for row in cumulative_finding_ledger
+                ],
+                "cumulative_finding_ledger_fingerprint": (
+                    metric_protocol_finding_ledger_fingerprint(
+                        cumulative_finding_ledger
+                    )
+                    if cumulative_finding_ledger
+                    else ""
+                ),
+                "active_unresolved_finding_ids": [
+                    str(row.get("finding_id", "") or "")
+                    for row in active_finding_ledger_after_review
+                    if str(row.get("finding_id", "") or "").strip()
+                ],
+                "carried_forward_finding_ids": [
+                    str(row.get("carried_forward_finding_id", "") or "")
+                    for row in carried_findings
+                    if str(row.get("carried_forward_finding_id", "") or "").strip()
+                ],
                 "dimension_reviews": list(
                     semantic_review_packet.get("dimension_reviews", []) or []
                 ),
@@ -656,6 +798,16 @@ def author_reviewed_architect_metric_requirements(
             authoring_packet["semantic_review_packet_hash"] = review_packet_hash
             authoring_packet["semantic_review_revision_count"] = revision_index
             authoring_packet["semantic_review_history"] = semantic_review_history
+            authoring_packet["cumulative_finding_ledger"] = [
+                dict(row) for row in cumulative_finding_ledger
+            ]
+            authoring_packet["cumulative_finding_ledger_fingerprint"] = (
+                metric_protocol_finding_ledger_fingerprint(
+                    cumulative_finding_ledger
+                )
+                if cumulative_finding_ledger
+                else ""
+            )
             authoring_packet["semantic_review_boundary"] = (
                 ARCHITECT_METRIC_SEMANTIC_REVIEW_BOUNDARY
             )

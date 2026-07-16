@@ -8298,6 +8298,19 @@ def _architect_metric_protocol_prior_rejection_context(
                 current_theory_material.get("source_theory_packet_hash", "")
                 or ""
             ),
+            "semantic_review_history": [
+                deepcopy(dict(row))
+                for row in history
+                if isinstance(row, Mapping)
+            ],
+            "cumulative_finding_ledger": [
+                deepcopy(dict(row))
+                for row in final_review.get(
+                    "cumulative_finding_ledger", []
+                )
+                or []
+                if isinstance(row, Mapping)
+            ],
             "final_review": deepcopy(dict(final_review)),
             "execution_results_available": False,
             "current_candidate_acceptance_eligible": False,
