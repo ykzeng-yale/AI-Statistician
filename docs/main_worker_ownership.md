@@ -37,6 +37,22 @@ identity, hashes, permissions, budgets, execution, and evidence boundaries. It
 must not own the statistical answer, Lean grammar, tactic sequence, or a
 task-family shortcut. Scorecard rows diagnose this path; they are not the goal.
 
+## Focus Guardrail
+
+The intended product loop is now explicit: TheoryDeveloper derives the claim;
+SimulationEngineer gets one bounded, non-promotable generated diagnostic turn;
+the existing independent reviewer returns semantic feedback; Architect freezes
+the confirmatory protocol; fresh simulation and algorithm code run under that
+protocol; Formalizer/ProofEngineer then iterate on exact Lean candidates using
+retrieval, compiler, and proof-state feedback. Exploration is feedback, not a
+second acceptance track, and it can never satisfy a confirmatory or proof gate.
+
+Do not grow this path with another role, scheduler, task-family formula,
+hand-written Lean grammar/tactic repair, expected answer, or scorecard-driven
+special case. The immediate product bottleneck is exact theorem identity and
+feedback-driven Lean proof search. Secondary cleanup is immutable parent-review
+to regenerated-child lineage and removal of redundant Architect guard turns.
+
 ## Immediate Main Goal
 
 Reach a live, GitHub-reviewable AI Statistician capability milestone:
