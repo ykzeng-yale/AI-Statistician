@@ -636,11 +636,11 @@ authoring, and revision from environment feedback. Deterministic code may own
 artifact identity, permissions, budgets, typed transport, process execution,
 and evidence gates; it must not infer statistical answers, Lean declarations,
 grammar, or tactics from task-specific text. Candidate declaration identity
-must be emitted as structured agent output and checked through Lean/LSP parser
-evidence. Repeated failures need cumulative compiler/proof feedback and a
-progress-aware Architect budget that can switch to retrieval, structural
-reformulation, theory revision, or Critic instead of consuming the whole run in
-one unchanged repair lane.
+must be emitted as structured agent output and checked by real Lean against the
+unchanged generated source. Repeated failures need cumulative compiler/proof
+feedback and a progress-aware Architect budget that can switch to retrieval,
+structural reformulation, theory revision, or Critic instead of consuming the
+whole run in one unchanged repair lane.
 
 Fresh optional-formal v2 evidence at `2f3aae80` illustrates this boundary. One
 survival task reached generated simulation and algorithm execution plus
@@ -651,6 +651,35 @@ sequential task remained blocked at pre-execution metric review after two
 theory revisions. These are capability and control-plane defects, not reasons
 to add survival/sequential formulas or Lean keyword exceptions. Strict
 development completion remains `0/2` and held-out evaluation remains locked.
+
+Commit `859a6f0a` corrects those two Formalizer control defects narrowly. The
+Formalizer now declares `candidate_lean_declaration` in its typed packet; the
+runtime writes the original source and a separate `#check` identity probe, and
+records source compilation separately from identity verification. Minimal-live
+yields a repeated repair to the existing FormalizationGapPlanner bridge after
+three cumulative attempts. The patch adds no Lean parser, grammar table,
+tactic, task-family formula, or orchestration plane, and its complete runtime
+regression is `1129 passed`.
+
+The next fresh optional-formal v3 run is intentionally negative evidence: both
+survival and sequential stopped at theory-informed metric review, with
+`77/125`, no generated code or simulation, and no Formalizer or Lean call.
+Survival exhausted three metric-only rewrites on numeric/quorum calibration;
+sequential exhausted two upstream theory revisions while estimator, stopping
+estimand, and calibration constants remained inconsistent. Thus the immediate
+bottleneck is not Lean. It is the theory-to-experiment interface, and the
+correct response is not another validator layer. The existing author should
+receive cumulative unresolved findings, close each one explicitly, run a
+whole-contract consistency audit, and use calculator or generated-code feedback
+for numeric calibration.
+
+Optional research and strict acceptance must remain distinct. A bounded pilot
+may execute a frozen but unaccepted protocol for diagnosis only, with its
+artifact labeled non-acceptance evidence. The confirmatory run must use an
+untouched protocol, fresh randomness/data, and independent review. Strict E2E
+continues to require accepted pre-execution gates and exact kernel closure. This
+lets the statistical research loop make progress without allowing post-result
+threshold relaxation to masquerade as validation.
 
 Current honest boundary: `TheoryPlanner` already emits informal derivation text
 and theorem roadmaps, `FormalSubclaimProver` already performs real AXLE/Lean

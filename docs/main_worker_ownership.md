@@ -1479,18 +1479,47 @@ identity and local Lean failures oscillated without yielding to retrieval,
 gap planning, theory revision, or Critic. The runtime also used a legacy text
 scan to infer a Lean declaration and interpreted the phrase `support lemma for
 KM` in a comment as declaration `for`. This must not be repaired with another
-Lean keyword exception. Generated candidates need a structured declaration
-identity, validated by Lean/LSP parser evidence, and the Architect needs a
-generic progress-aware budget that routes stalled proof work through
-tactic-state retrieval or structural revision.
+Lean keyword exception. Commit `859a6f0a` removes that inference from the
+candidate path: the Formalizer emits `candidate_lean_declaration`, the runtime
+preserves the original source, and real Lean checks the exact name through a
+separate `#check` artifact. Source compilation and identity verification remain
+distinct evidence. The same commit gives minimal-live three cumulative
+same-lane repairs before yielding the existing typed bridge to
+FormalizationGapPlanner. It does not add a parser, tactic rule, theorem formula,
+or new scheduler. The complete runtime regression is `1129 passed`.
+
+The fresh optional-formal v3 run on `859a6f0a` did not reach either mechanism.
+Both families stopped earlier at pre-execution experiment-contract review with
+`BLOCKED`, `77/125`, zero generated execution, zero Formalizer candidates, and
+zero kernel checks. Survival's three author/reviewer rounds found serial
+metric-only calibration and quorum defects. Sequential executed two upstream
+TheoryDeveloper revisions, but its third contract still mixed a mixture
+e-process with fixed-alternative diagnostics and inconsistent stopping-time
+calibration. The reviewer was right to reject both, but a run that spends all
+of its research effort discovering protocol arithmetic one defect at a time is
+not the intended AI Statistician loop.
+
+This negative result narrows the next correction. Keep one existing
+author/reviewer interface, carry a cumulative unresolved-finding ledger, require
+the author to close each item and rerun a whole-contract consistency pass, and
+let the LLM use calculator or generated-code feedback for numeric calibration.
+Do not respond with more review agents, a larger blind retry count, or
+survival/sequential formulas in Python. In the optional research track, a
+frozen but not yet acceptance-eligible protocol may drive a bounded pilot whose
+results are explicitly non-acceptance evidence; final empirical acceptance must
+use an untouched confirmatory execution and independent review. The strict
+track continues to require pre-registered accepted gates and exact theorem
+kernel closure.
 
 The focus lock is therefore explicit. LLM agents own mathematical derivation,
 Python/R and simulation code, Lean candidates, and revisions. Deterministic
 runtime owns identities, permissions, budgets, execution, schemas, and evidence
 boundaries. It must not encode statistical answers, Lean tactics, theorem
 grammar, or task-family corner cases. The next milestone is not a larger audit:
-it is two unrelated fresh tasks completing the same generated research loop,
-followed by exact target-bound local Lean/AXLE closure under the strict track.
+it is two unrelated fresh tasks completing rigorous theory, generated
+algorithm, DGP simulation, independent criticism, and feedback revision on the
+optional track. Progressive Lean/RAG accumulation continues in parallel; exact
+target-bound local Lean/AXLE closure remains the separate strict-track gate.
 
 Historical v8 evidence remains useful for later stages: both tasks were
 `BLOCKED`, score `95/118`, with 72 kernel-verified support subclaims and 8 formal
