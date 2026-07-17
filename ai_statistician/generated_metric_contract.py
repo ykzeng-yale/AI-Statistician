@@ -35,7 +35,6 @@ GENERATED_METRIC_CONTRACT_AGGREGATIONS: tuple[str, ...] = (
     "at_least_fraction",
 )
 GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS: tuple[str, ...] = (
-    "AlgorithmEngineer",
     "SimulationEngineer",
 )
 GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED = (
@@ -82,26 +81,31 @@ def generated_sandbox_runtime_replicates(n_runs: int) -> int:
 
 
 def generated_metric_requirement_target_namespace_contract() -> dict[str, Any]:
-    """Describe coding-agent targets separately from runtime execution owners."""
+    """Describe the generated experiment owner for empirical acceptance gates."""
 
     return {
-        "namespace": "generated_code_author_subsystems",
+        "namespace": "generated_empirical_evaluation_subsystems",
         "field": "target_subsystems",
         "allowed_exact_values": list(
             GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
         ),
         "entry_rule": (
             "every array entry must equal one allowed value exactly; do not use "
-            "a runtime execution-owner name in this coding-agent author namespace"
+            "a runtime execution-owner name in this empirical-author namespace"
         ),
         "capability_eval_required_coverage": [
             {"target_subsystems": [target]}
             for target in GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
         ],
         "runtime_execution_owner_by_author_subsystem": {
-            "AlgorithmEngineer": "AlgorithmEngineer",
             "SimulationEngineer": "SimulationEvaluator",
         },
+        "algorithm_acceptance_boundary": (
+            "AlgorithmEngineer owns executable estimator implementation. Its exact "
+            "source and smoke result require independent semantic review, but "
+            "finite-sample statistical performance is evaluated only by the "
+            "downstream SimulationEngineer experiment that consumes that artifact."
+        ),
     }
 
 

@@ -186,7 +186,7 @@ def author_reviewed_architect_metric_requirements(
     prompt_payload = {
         "task": (
             "Author the pre-execution empirical acceptance requirements used by "
-            "the AI Statistician coding and simulation agents."
+            "the AI Statistician confirmatory simulation agent."
         ),
         "question": {
             "id": question.id,
@@ -208,12 +208,15 @@ def author_reviewed_architect_metric_requirements(
         "hard_requirements": [
             (
                 "Return at least one required empirical metric row for each "
-                "generated-code author subsystem; a row may correctly target both."
+                "generated empirical-evaluation subsystem. Algorithm implementation "
+                "is accepted by execution plus independent semantic review; do not "
+                "assign finite-sample statistical-performance thresholds to the "
+                "AlgorithmEngineer artifact itself."
             ),
             (
-                "Prefer the smallest nonredundant portfolio that covers both author "
-                "subsystems and the central plausible implementation, simulation, or "
-                "DGP failure modes. Every row must distinguish a failure mode not "
+                "Prefer the smallest nonredundant portfolio that covers the central "
+                "plausible estimator, simulation, or DGP failure modes in the composed "
+                "confirmatory experiment. Every row must distinguish a failure mode not "
                 "already covered; do not add structural, calibration, or convenience "
                 "checks merely because they are measurable."
             ),
@@ -606,9 +609,10 @@ def author_reviewed_architect_metric_requirements(
                 if isinstance(row, Mapping)
             ],
             "pre_execution_invariants": [
-                "No generated code, simulation output, metric result, or acceptance decision exists yet.",
+                "No confirmatory simulation output, empirical metric result, or acceptance decision exists yet.",
+                "A reviewed AlgorithmEngineer source artifact may exist, but its smoke diagnostics cannot tune statistical thresholds.",
                 "Review the candidate contract without proposing a post-result relaxation.",
-                "Every accepted target subsystem must remain covered by at least one required row.",
+                "Every empirical-evaluation target subsystem must remain covered by at least one required row.",
             ],
         }
         trusted_review_lineage = {

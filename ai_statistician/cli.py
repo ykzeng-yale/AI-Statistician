@@ -15260,7 +15260,6 @@ def _algorithm_engineer_generated_code_repair_eval(args: argparse.Namespace) -> 
             temperature=args.temperature,
             n_runs=args.runs,
             seed=args.seed,
-            target_coverage=args.target_coverage,
             max_repair_attempts=args.max_repair_attempts,
         )
     except Exception as exc:
@@ -23144,7 +23143,7 @@ def build_parser() -> argparse.ArgumentParser:
         "algorithm-engineer-generated-code-repair-eval",
         help=(
             "component eval for AlgorithmEngineer generated-code repair: inject "
-            "a prior metric-gate failure, call a generator backend, execute the "
+            "a prior execution failure, call a generator backend, execute the "
             "new Python sandbox locally, and record fail-then-pass evidence"
         ),
     )
@@ -23197,17 +23196,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=20260623,
     )
     algorithm_engineer_generated_code_repair_eval.add_argument(
-        "--target-coverage",
-        type=float,
-        default=0.9,
-    )
-    algorithm_engineer_generated_code_repair_eval.add_argument(
         "--max-repair-attempts",
         type=int,
         default=4,
         help=(
             "bounded generated-code repair attempts after the initial proposal; "
-            "default allows validation repair and metric-gate repair"
+            "default allows validation and sandbox-execution repair"
         ),
     )
     algorithm_engineer_generated_code_repair_eval.add_argument(

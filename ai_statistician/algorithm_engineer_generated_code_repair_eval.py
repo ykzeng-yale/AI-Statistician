@@ -8,7 +8,7 @@ from typing import Any, Mapping
 from .agent_runtime import AgentTask, BlackboardState
 from .algorithm_engineer_llm import AlgorithmEngineerConfig, LLMAlgorithmEngineerAgent
 from .generated_metric_repair_policy import (
-    generated_metric_gate_repair_instruction,
+    generated_code_sandbox_guard_repair_instruction,
 )
 from .model_backend import (
     OpenAIResponsesGeneratorBackend,
@@ -45,12 +45,11 @@ def run_algorithm_engineer_generated_code_repair_eval(
     temperature: float = 0.1,
     n_runs: int = 24,
     seed: int = 20260623,
-    target_coverage: float = 0.9,
     max_repair_attempts: int = 4,
 ) -> dict[str, Any]:
     """Run a narrow generated-code repair eval for AlgorithmEngineer.
 
-    This is a component capability eval: it injects a prior metric-gate failure,
+    This is a component capability eval: it injects a prior execution failure,
     asks the configured generator-backed AlgorithmEngineer to repair it with a
     new generated Python sandbox draft, executes that draft locally, and records
     whether the failure was followed by a passing generated draft. It is not
@@ -87,12 +86,10 @@ def run_algorithm_engineer_generated_code_repair_eval(
         ),
     )
 
-    estimator_id = "generated_split_conformal_repair_probe"
+    estimator_id = "generated_algorithm_repair_probe"
     theory_packet_id = "theory:generated_code_repair_eval"
-    simulation_manifest_id = "simulation:generated_code_repair_eval"
-    prior_failure_manifest = _prior_metric_gate_failure_manifest(
+    prior_failure_manifest = _prior_execution_failure_manifest(
         estimator_id=estimator_id,
-        target_coverage=target_coverage,
         question={
             "id": question.id,
             "title": question.title,
@@ -110,33 +107,20 @@ def run_algorithm_engineer_generated_code_repair_eval(
                 "estimator_specs": [
                     {
                         "id": estimator_id,
-                        "name": "Generated split conformal repair probe",
+                        "name": "Generated algorithm repair probe",
                         "algorithm_sketch": (
-                            "Implement a bounded generated-Python sandbox for a "
-                            "split-conformal-style coverage diagnostic. Return "
-                            "finite metrics including empirical_coverage, "
-                            "target_coverage, mean_width, and sandbox_failed."
+                            "Implement the estimator described by this theory packet "
+                            "as a bounded generated-code sandbox and return finite "
+                            "smoke diagnostics suitable for semantic review."
                         ),
-                        "validation_metrics": [
-                            "empirical_coverage",
-                            "target_coverage",
-                            "mean_width",
-                        ],
-                        "target_coverage": target_coverage,
+                        "validation_metrics": ["sandbox_failed", "replicates"],
                     }
                 ],
-            },
-            simulation_manifest_id: {
-                "schema_version": 1,
-                "artifact_kind": "RuntimeSimulationManifest",
-                "manifest_id": simulation_manifest_id,
-                "simulation_passed": True,
-                "boundary": "Injected fixture for AlgorithmEngineer component eval.",
             },
             prior_failure_manifest["manifest_id"]: prior_failure_manifest,
         },
     )
-    feedback = _prior_metric_gate_feedback(
+    feedback = _prior_execution_failure_feedback(
         manifest=prior_failure_manifest,
     )
     subsystem = AlgorithmEngineerRuntimeSubsystem(
@@ -150,7 +134,7 @@ def run_algorithm_engineer_generated_code_repair_eval(
         task_id=f"algorithm-repair-eval:{question.id}",
         owner_subsystem="AlgorithmEngineer",
         objective=(
-            "Repair a metric-gate-failing generated Python sandbox draft. "
+            "Repair an execution-failing generated Python sandbox draft. "
             "Use generated code only; do not route to registered templates."
         ),
         inputs={
@@ -161,7 +145,7 @@ def run_algorithm_engineer_generated_code_repair_eval(
                 "tags": list(question.tags),
             },
             "theory_packet_id": theory_packet_id,
-            "simulation_manifest_id": simulation_manifest_id,
+            "simulation_manifest_id": "",
             "implementation_gaps": [
                 {
                     "estimator_id": estimator_id,
@@ -186,7 +170,7 @@ def run_algorithm_engineer_generated_code_repair_eval(
         expected_artifacts=("algorithm_sandbox_manifest",),
         acceptance_gate=(
             "a later Claude/OpenAI-generated sandbox draft passes local execution "
-            "and statistical metric gates after the injected failure"
+            "after the injected failure"
         ),
         stop_condition="generated-code repair evidence recorded",
     )
@@ -215,7 +199,7 @@ def run_algorithm_engineer_generated_code_repair_eval(
         latest_algorithm_manifest = _latest_algorithm_sandbox_manifest(
             result.produced_artifacts
         )
-        if _algorithm_manifest_passes_generated_metric_gate(
+        if _algorithm_manifest_passes_execution_gate(
             latest_algorithm_manifest
         ) and int(
             sequence_counts.get(
@@ -293,7 +277,6 @@ def run_algorithm_engineer_generated_code_repair_eval(
     sandbox_clean = bool(
         n_generated_executed > 0
         and n_passed > 0
-        and n_metric_gate_failed == 0
         and n_unsafe_rejected == 0
     )
     manifest = {
@@ -359,8 +342,9 @@ def run_algorithm_engineer_generated_code_repair_eval(
         "proof_evidence_status": ALGORITHM_REPAIR_EVAL_NOT_PROOF_EVIDENCE,
         "boundary": (
             "This component eval checks whether AlgorithmEngineer can consume "
-            "local generated-code failure feedback and produce a later generated "
-            "Python draft that passes sandbox and metric gates. It is not theorem "
+            "local generated-code execution feedback and produce a later generated "
+            "draft that passes the sandbox. Statistical performance belongs to the "
+            "downstream SimulationEngineer. This is not theorem "
             "proof evidence, not production algorithm registration, and not a "
             "full AgentRuntime research success."
         ),
@@ -410,13 +394,12 @@ def _latest_algorithm_sandbox_manifest(
     )
 
 
-def _algorithm_manifest_passes_generated_metric_gate(
+def _algorithm_manifest_passes_execution_gate(
     manifest: Mapping[str, Any],
 ) -> bool:
     return bool(
         int(manifest.get("n_generated_code_executed", 0) or 0) > 0
         and int(manifest.get("n_passed", 0) or 0) > 0
-        and int(manifest.get("n_metric_gate_failed", 0) or 0) == 0
         and int(manifest.get("n_unsafe_generated_code_rejected", 0) or 0) == 0
     )
 
@@ -506,41 +489,35 @@ def _repair_eval_provider(
     )
 
 
-def _prior_metric_gate_failure_manifest(
+def _prior_execution_failure_manifest(
     *,
     estimator_id: str,
-    target_coverage: float,
     question: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "schema_version": 1,
         "artifact_kind": "RuntimeAlgorithmSandboxManifest",
-        "manifest_id": "algorithm_sandbox_manifest:injected_metric_gate_failure",
+        "manifest_id": "algorithm_sandbox_manifest:injected_execution_failure",
         "created_at": "2026-01-01T00:00:00+00:00",
         "prototypes": [
             {
                 "estimator_id": estimator_id,
-                "prototype_status": "FAILED_METRIC_GATE",
+                "prototype_status": "FAILED",
                 "executor": "generated_python_sandbox",
                 "smoke_passed": False,
-                "execution_smoke_passed": True,
-                "metric_gate_errors": [
-                    "empirical_coverage is degenerate zero coverage",
-                    "empirical_coverage below target_coverage",
-                ],
-                "metrics": {
-                    "empirical_coverage": 0.0,
-                    "target_coverage": target_coverage,
-                    "mean_width": 1.0,
-                    "sandbox_failed": False,
-                },
+                "execution_smoke_passed": False,
+                "returncode": 1,
+                "stderr_summary": "NameError: prior generated draft did not execute",
+                "metrics": {},
             }
         ],
         "n_prototypes": 1,
-        "n_executed": 1,
+        "n_executed": 0,
         "n_passed": 0,
-        "n_metric_gate_failed": 1,
-        "n_generated_code_executed": 1,
+        "n_metric_gate_failed": 0,
+        "n_generated_code_executed": 0,
+        "n_generated_code_execution_attempted": 1,
+        "n_generated_code_execution_failed": 1,
         "n_unsafe_generated_code_rejected": 0,
         "boundary": (
             "Injected prior failure for generated-code repair eval; not proof "
@@ -557,13 +534,13 @@ def _prior_metric_gate_failure_manifest(
     return payload
 
 
-def _prior_metric_gate_feedback(
+def _prior_execution_failure_feedback(
     *,
     manifest: Mapping[str, Any],
 ) -> dict[str, Any]:
     feedback_type = "algorithm_sandbox_execution_feedback"
     source_manifest_id = str(manifest.get("manifest_id", ""))
-    failure_classification = "generated_algorithm_sandbox_metric_gate_failed"
+    failure_classification = "generated_algorithm_sandbox_execution_failed"
     prototypes = [
         row
         for row in manifest.get("prototypes", []) or []
@@ -580,13 +557,15 @@ def _prior_metric_gate_feedback(
         "algorithm_sandbox_manifest_id": source_manifest_id,
         "failure_classification": failure_classification,
         "n_prototypes": 1,
-        "n_executed": 1,
+        "n_executed": 0,
         "n_passed": 0,
-        "n_metric_gate_failed": 1,
-        "n_generated_code_executed": 1,
+        "n_metric_gate_failed": 0,
+        "n_generated_code_executed": 0,
+        "n_generated_code_execution_attempted": 1,
+        "n_generated_code_execution_failed": 1,
         "n_unsafe_generated_code_rejected": 0,
         "prototypes": prototypes,
-        "required_repair": generated_metric_gate_repair_instruction(
+        "required_repair": generated_code_sandbox_guard_repair_instruction(
             artifact_label="generated Python sandbox",
         ),
         "boundary": (

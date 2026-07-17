@@ -212,37 +212,83 @@ def _audit_task_e2e(
     simulation_rows = _artifacts_of_kind(
         artifact_rows, "RuntimeSimulationManifest"
     )
+    accepted_algorithm_manifest_ids = {
+        str(row.get("manifest_id", "") or "")
+        for row in algorithm_rows
+        if str(row.get("theory_packet_id", "") or "") == theory_packet_id
+        and _artifact_question_id(row) == question_id
+        and _safe_int(row.get("n_live_generated_code_executed")) > 0
+        and _safe_int(row.get("n_passed")) > 0
+    }
+    accepted_simulation_manifest_ids = {
+        str(row.get("manifest_id", "") or "")
+        for row in simulation_rows
+        if str(row.get("theory_packet_id", "") or "") == theory_packet_id
+        and _artifact_question_id(row) == question_id
+        and row.get("confirmatory_empirical_evidence_eligible") is True
+        and _safe_int(row.get("n_live_generated_simulation_sandbox_executed")) > 0
+        and _safe_int(row.get("n_live_generated_simulation_sandbox_passed")) > 0
+    }
     algorithm_execution = bool(
         _safe_int(summary.get("n_live_generated_code_sandbox_executed")) > 0
-        and any(
-            str(row.get("theory_packet_id", "") or "") == theory_packet_id
-            and _artifact_question_id(row) == question_id
-            and _safe_int(row.get("n_live_generated_code_executed")) > 0
-            and _safe_int(row.get("n_passed")) > 0
-            for row in algorithm_rows
-        )
+        and accepted_algorithm_manifest_ids
     )
     simulation_execution = bool(
         _safe_int(summary.get("n_live_generated_simulation_sandbox_executed")) > 0
-        and any(
-            str(row.get("theory_packet_id", "") or "") == theory_packet_id
-            and _artifact_question_id(row) == question_id
-            and _safe_int(row.get("n_live_generated_simulation_sandbox_executed"))
-            > 0
-            and _safe_int(row.get("n_live_generated_simulation_sandbox_passed"))
-            > 0
-            for row in simulation_rows
-        )
+        and accepted_simulation_manifest_ids
+    )
+    semantic_review_rows = _artifacts_of_kind(
+        artifact_rows,
+        "RuntimeGeneratedCodeSemanticReviewExecutionManifest",
+    )
+    algorithm_semantic_review = _has_independent_accepted_semantic_review(
+        semantic_review_rows,
+        question_id=question_id,
+        source_subsystem="AlgorithmEngineer",
+        source_manifest_ids=accepted_algorithm_manifest_ids,
+    )
+    simulation_semantic_review = _has_independent_accepted_semantic_review(
+        semantic_review_rows,
+        question_id=question_id,
+        source_subsystem="SimulationEvaluator",
+        source_manifest_ids=accepted_simulation_manifest_ids,
+        require_confirmatory=True,
     )
     repair_counts = _generated_sandbox_repair_sequence_counts(artifacts)
-    artifact_bound_repairs = bool(
-        _safe_int(
+    algorithm_failure_observed = any(
+        str(row.get("theory_packet_id", "") or "") == theory_packet_id
+        and _artifact_question_id(row) == question_id
+        and (
+            _safe_int(row.get("n_generated_code_execution_failed")) > 0
+            or _safe_int(row.get("n_unsafe_generated_code_rejected")) > 0
+        )
+        for row in algorithm_rows
+    )
+    simulation_failure_observed = any(
+        str(row.get("theory_packet_id", "") or "") == theory_packet_id
+        and _artifact_question_id(row) == question_id
+        and (
+            _safe_int(row.get("n_generated_simulation_sandbox_execution_failed"))
+            > 0
+            or _safe_int(row.get("n_unsafe_generated_simulation_code_rejected"))
+            > 0
+            or _safe_int(row.get("n_generated_simulation_sandbox_metric_gate_failed"))
+            > 0
+        )
+        for row in simulation_rows
+    )
+    algorithm_feedback_closed = bool(
+        not algorithm_failure_observed
+        or _safe_int(
             repair_counts.get(
                 "n_live_generated_code_sandbox_failed_then_passed_repair_sequences"
             )
         )
         > 0
-        and _safe_int(
+    )
+    simulation_feedback_closed = bool(
+        not simulation_failure_observed
+        or _safe_int(
             repair_counts.get(
                 "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences"
             )
@@ -309,8 +355,19 @@ def _audit_task_e2e(
         "theory_trace_consumed_by_required_subsystems": theory_handoff_complete,
         "formal_source_rag_observed": formal_source_rag,
         "live_generated_algorithm_executed": algorithm_execution,
+        "independent_algorithm_semantic_review_accepted": (
+            algorithm_semantic_review
+        ),
         "live_generated_simulation_executed": simulation_execution,
-        "artifact_bound_algorithm_and_simulation_repairs": artifact_bound_repairs,
+        "independent_simulation_semantic_review_accepted": (
+            simulation_semantic_review
+        ),
+        "algorithm_feedback_closed_if_failure_observed": (
+            algorithm_feedback_closed
+        ),
+        "simulation_feedback_closed_if_failure_observed": (
+            simulation_feedback_closed
+        ),
         "linked_formalization_manifest": bool(linked_formalization),
         "live_lean_verifier_feedback": lean_feedback,
         "exact_source_theorem_kernel_verified": exact_source_proof,
@@ -324,6 +381,14 @@ def _audit_task_e2e(
         "result_status": str(result.get("status", "") or ""),
         "theory_packet_id": theory_packet_id,
         "theory_consumers": sorted(theory_consumers),
+        "accepted_algorithm_manifest_ids": sorted(
+            accepted_algorithm_manifest_ids
+        ),
+        "accepted_simulation_manifest_ids": sorted(
+            accepted_simulation_manifest_ids
+        ),
+        "algorithm_failure_observed": algorithm_failure_observed,
+        "simulation_failure_observed": simulation_failure_observed,
         "formalization_manifest_id": str(
             (linked_formalization or {}).get("manifest_id", "") or ""
         ),
@@ -544,6 +609,32 @@ def _exact_source_proof(
             continue
         return manifest, matching_targets
     return None, []
+
+
+def _has_independent_accepted_semantic_review(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    question_id: str,
+    source_subsystem: str,
+    source_manifest_ids: set[str],
+    require_confirmatory: bool = False,
+) -> bool:
+    if not source_manifest_ids:
+        return False
+    return any(
+        str(row.get("question_id", "") or "") == question_id
+        and str(row.get("source_subsystem", "") or "") == source_subsystem
+        and str(row.get("source_manifest_id", "") or "") in source_manifest_ids
+        and row.get("semantic_review_accepted") is True
+        and row.get("independent_agent") is True
+        and row.get("independent_model") is True
+        and str(row.get("reviewer_model_tier", "") or "").lower() == "opus"
+        and (
+            not require_confirmatory
+            or row.get("confirmatory_empirical_evidence_eligible") is True
+        )
+        for row in rows
+    )
 
 
 def _artifacts_of_kind(

@@ -18,7 +18,9 @@ from ai_statistician.research_agent_runtime import (
     ArchitectCoordinatorRuntimeSubsystem,
     GeneratedCodeSemanticReviewerRuntimeSubsystem,
     ResearchAgentRuntimeConfig,
+    _runtime_algorithm_handoff_receipt,
     _runtime_generated_code_semantic_review_dispatch,
+    _runtime_validated_algorithm_handoff,
 )
 from ai_statistician.research_agent_runtime_audit import (
     _audit_result_path,
@@ -173,11 +175,6 @@ def _runtime_fixture(
                 ),
                 "empirical_metric_requirements": [
                     {
-                        "requirement_id": "frozen:algorithm-error",
-                        "target_subsystems": ["AlgorithmEngineer"],
-                        "metric_name": "estimated_error",
-                    },
-                    {
                         "requirement_id": "frozen:simulation-calibration",
                         "target_subsystems": ["SimulationEngineer"],
                         "metric_name": "calibration",
@@ -288,9 +285,7 @@ def test_generated_code_semantic_reviewer_accepts_and_resumes_deferred_task(
     assert responsibility["generated_code_author_subsystem"] == (
         "AlgorithmEngineer"
     )
-    assert responsibility["assigned_requirement_ids"] == [
-        "frozen:algorithm-error"
-    ]
+    assert responsibility["assigned_requirement_ids"] == []
     assert responsibility["sibling_only_requirement_refs"] == [
         {
             "requirement_id": "frozen:simulation-calibration",
@@ -311,7 +306,83 @@ def test_generated_code_semantic_reviewer_accepts_and_resumes_deferred_task(
     ] == responsibility
 
 
-def test_semantically_accepted_metric_failure_routes_to_architect_without_retry(
+def test_accepted_algorithm_review_hands_exact_source_to_simulation(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, script_path = _runtime_fixture(
+        tmp_path,
+        accept=True,
+    )
+    result = subsystem.run(task, blackboard)
+    blackboard.artifacts.update(result.produced_artifacts)
+    assert result.next_task is not None
+    context = result.next_task.inputs["architect_context"]
+
+    handoff = result.next_task.inputs["upstream_algorithm_handoff"]
+    assert _runtime_validated_algorithm_handoff(
+        task=result.next_task,
+        architect_context=context,
+        blackboard=blackboard,
+        question_id=_question().id,
+        theory_packet_id="theory:test",
+        algorithm_sandbox_manifest_id="algorithm_sandbox_manifest:test",
+    ) == handoff
+
+    exact = handoff["exact_algorithm_artifacts"][0]
+    assert exact["estimator_id"] == "generated-estimator"
+    assert exact["exact_source_code"] == script_path.read_text(encoding="utf-8")
+    assert exact["exact_source_hash"] == stable_hash(exact["exact_source_code"])
+    receipt = _runtime_algorithm_handoff_receipt(handoff)
+    assert receipt["algorithm_sandbox_manifest_id"] == (
+        "algorithm_sandbox_manifest:test"
+    )
+    assert receipt["exact_algorithm_artifact_refs"][0][
+        "exact_source_hash"
+    ] == exact["exact_source_hash"]
+    assert receipt["handoff_fingerprint"] == stable_hash(handoff)
+    assert receipt["mechanical_estimator_invocation_verified"] is False
+    prompt = build_simulation_engineer_prompt(
+        question=_question(),
+        theory_packet={"packet_id": "theory:test", "theorem_cards": []},
+        registered_problem={},
+        registered_procedures=[],
+        n_runs=50,
+        seed=12,
+        environment_feedback={"upstream_algorithm_handoff": handoff},
+    )
+    assert json.dumps(exact["exact_source_code"])[1:-1] in prompt
+    assert exact["exact_source_hash"] in prompt
+    assert "Do not silently replace it" in prompt
+
+
+def test_algorithm_handoff_rejects_tampered_review_materialization(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accept=True)
+    result = subsystem.run(task, blackboard)
+    blackboard.artifacts.update(result.produced_artifacts)
+    assert result.next_task is not None
+    materialization = next(
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewMaterialization"
+    )
+    materialization["review_material"]["exact_executed_artifacts"][0][
+        "exact_source_code"
+    ] += "\n# changed after review\n"
+
+    assert _runtime_validated_algorithm_handoff(
+        task=result.next_task,
+        architect_context=result.next_task.inputs["architect_context"],
+        blackboard=blackboard,
+        question_id=_question().id,
+        theory_packet_id="theory:test",
+        algorithm_sandbox_manifest_id="algorithm_sandbox_manifest:test",
+    ) == {}
+
+
+def test_algorithm_review_cannot_accept_legacy_metric_gate_failure(
     tmp_path: Path,
 ) -> None:
     subsystem, task, blackboard, _ = _runtime_fixture(
@@ -319,30 +390,13 @@ def test_semantically_accepted_metric_failure_routes_to_architect_without_retry(
         accept=True,
         metric_failed=True,
     )
-    work_order = blackboard.artifacts[str(task.inputs["work_order_id"])]
-
-    assert work_order["repair_task"]["owner_subsystem"] == "AlgorithmEngineer"
-    assert work_order["deferred_next_task"]["owner_subsystem"] == (
-        "ArchitectCoordinator"
-    )
-
     result = subsystem.run(task, blackboard)
 
-    assert result.status == "REROUTE"
-    assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
-    assert result.next_task.task_id.startswith("semantic-review-accepted:")
-    assert result.next_task.inputs["environment_feedback"][
-        "failure_classification"
-    ] == "generated_algorithm_sandbox_metric_gate_failed"
-    replan = result.next_task.inputs["architect_context"][
-        "runtime_metric_gate_replan"
-    ]
-    assert replan["source_subsystem"] == "AlgorithmEngineer"
-    assert replan["deferred_next_owner_subsystem"] == "FormalizationEvaluator"
-    assert replan["metric_evaluations"][0]["passed"] is False
-    accepted = result.next_task.inputs["accepted_generated_code_semantic_reviews"]
-    assert accepted[0]["overall_verdict"] == "ACCEPT"
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
+    assert result.failure_classification == (
+        "accepted_algorithm_handoff_materialization_failed"
+    )
 
 
 def test_semantic_reviewer_prompt_keeps_sibling_metrics_out_of_artifact_gate() -> None:
@@ -702,8 +756,10 @@ def test_coding_agent_prompts_preserve_independent_semantic_findings() -> None:
         assert "as binding" in prompt
         assert "do not respond by only changing metric paths" in prompt
         assert '"metric_evaluation_semantics"' in prompt
-        assert "Never place a quorum in threshold" in prompt
-        assert "pre-thresholded 0/1 flags" in prompt
+    assert "Never place a quorum in threshold" in simulation_prompt
+    assert "pre-thresholded 0/1 flags" in simulation_prompt
+    assert "Set metric_contracts to an empty array" in algorithm_prompt
+    assert "Never place a quorum in threshold" not in algorithm_prompt
 
 
 def test_generated_code_semantic_reviewer_rejects_tampered_source_before_model_call(

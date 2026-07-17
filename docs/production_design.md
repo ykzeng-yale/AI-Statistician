@@ -80,16 +80,30 @@ manifest is older or manually authored. That makes prover residual feedback
 feed back into source-grounded route synthesis before the system exports a new
 target-prover replay path.
 
-1. The theory layer emits only estimator families with registered formal
-   obligations.
-2. The formal layer proves Mathlib-backed obligations through a verifier.
-3. The algorithm layer uses vetted implementations for the estimator family.
-4. The simulator measures bias, RMSE, empirical SE, estimated SE, and 95%
-   coverage.
-5. Retrieval is audited over the full local statistics proof bank rather than
-   treated as a hard-coded lemma lookup.
-6. Every run writes a JSON trace that can be used for debugging, evaluation,
-   and future training.
+The canonical product loop is deliberately small:
+
+1. TheoryDeveloper derives the estimand, estimator/test/procedure, assumptions,
+   equation chain, theorem claims, and DGP implications.
+2. AlgorithmEngineer turns that theory artifact into executable Python or R;
+   sandbox execution and an independent semantic reviewer accept implementation
+   fidelity, not finite-sample statistical performance.
+3. Architect freezes the smallest sufficient confirmatory experiment protocol
+   after the algorithm artifact exists but before confirmatory results exist.
+4. SimulationEngineer designs DGPs and stress tests around the accepted algorithm
+   artifact; fresh execution and independent review route defects to the code,
+   theory, DGP, or protocol owner.
+5. Formalizer/ProofEngineer and formal RAG progress in parallel under claim-level
+   required/optional/advisory policy. Only Lean/AXLE/kernel evidence proves a
+   theorem, and an open formal gap does not stop unrelated research work.
+6. AgentRuntime owns typed transport, execution, hashes, budgets, permissions,
+   scheduling, and evidence labels. It does not own statistical formulas,
+   expected answers, task-family thresholds, Lean grammar, or tactics.
+
+The current handoff supplies exact independently reviewed AlgorithmEngineer
+source and hashes to SimulationEngineer and records that receipt. A generic
+cross-language estimator ABI that mechanically invokes the same source inside
+the generated DGP harness is still open work; prompt visibility and reviewer
+inspection must not be reported as mechanical reuse.
 
 The next aligned architecture work is to promote the LLM agent loop and
 environment iteration into the main runtime:
@@ -100,10 +114,12 @@ AgentRuntime / Blackboard
   -> Retrieval / source-grounding subsystems
   -> ProblemFormalizer subsystem
   -> TheoryDeveloper subsystem
-  -> ArchitectMetricContractPlanner (Sonnet, theory-informed proposal)
-  -> ArchitectMetricSemanticReviewer (independent Opus pre-execution gate)
-  -> AlgorithmEngineer / SimulationEngineer / SymbolicDeriver subsystems
-  -> GeneratedCodeSemanticReviewer over exact source + execution lineage
+  -> AlgorithmEngineer
+  -> GeneratedCodeSemanticReviewer over exact estimator source + smoke execution
+  -> ArchitectMetricContractPlanner (Sonnet, confirmatory experiment proposal)
+  -> ArchitectMetricSemanticReviewer (independent Opus pre-confirmation gate)
+  -> SimulationEngineer consumes the reviewed estimator handoff
+  -> GeneratedCodeSemanticReviewer over exact experiment source + execution lineage
   -> PaperTheoryExtractor and RAG/SearchMemory subsystems
   -> Formalizer / ProofEngineer / LeanProver subsystems
   -> Critics, validators, and EvidenceLedger
@@ -131,8 +147,10 @@ Python drafts default to `stdlib` and retain the conservative
 `scientific_wasm`, `language=python|r`, and only the pinned packages it imports.
 That profile reuses Pyodide for NumPy, SciPy, pandas, scikit-learn, and
 statsmodels, and WebR for base R and its bundled statistical packages. Both run
-under the same AgentRuntime seed, replicate budget, metric contract,
-content-hashed artifact lineage, independent semantic review, and repair loop.
+under the same AgentRuntime execution, content-hashed artifact lineage,
+independent semantic review, and repair loop. Only SimulationEngineer owns the
+confirmatory DGP performance metric contract; AlgorithmEngineer owns executable
+implementation fidelity and smoke diagnostics.
 The outer macOS sandbox denies network, process forking, and non-runtime process
 execution, supplies a secret-free environment, permits host reads only from
 pinned runtimes and exact code/request artifacts, and permits host writes only
@@ -144,11 +162,12 @@ plane and not proof evidence.
 Capability evaluation also separates metric-protocol authorship from protocol
 acceptance. The Sonnet Architect metric planner proposes a complete typed
 requirement set after TheoryDeveloper has named the procedure, estimand,
-assumptions, pivots, and experimental regime, but before any generated code or
+assumptions, pivots, and experimental regime and AlgorithmEngineer has produced
+an independently reviewed implementation, but before any confirmatory simulation
 result exists. The runtime records an explicit
 `theory_prerequisite_pending -> theory_informed_authoring_required ->
-preexecution_review_accepted` phase transition and does not authorize generated
-execution in either pending phase. A separate Opus reviewer checks
+preexecution_review_accepted` phase transition and does not authorize
+confirmatory simulation in either pending phase. A separate Opus reviewer checks
 question/estimand alignment, identifiability, mathematical and numeric
 consistency, finite-sample attainability, exact evaluator semantics, and
 cross-requirement consistency. For a rejected candidate, a second Opus agent

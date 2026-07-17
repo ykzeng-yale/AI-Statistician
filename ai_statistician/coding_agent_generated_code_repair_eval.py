@@ -49,7 +49,7 @@ def run_coding_agent_generated_code_repair_eval(
     This aggregates the AlgorithmEngineer and SimulationEngineer component
     evals. It is intentionally strict: the combined capability is true only
     when both generator-backed workers show fail-then-pass generated Python
-    repair evidence under local sandbox/metric gates. Static replay may exercise
+    repair evidence under their role-specific local gates. Static replay may exercise
     plumbing but never counts as capability evidence.
     """
 
@@ -75,7 +75,6 @@ def run_coding_agent_generated_code_repair_eval(
             temperature=temperature,
             n_runs=n_runs,
             seed=seed,
-            target_coverage=target_coverage,
             max_repair_attempts=max_repair_attempts,
         )
     except Exception as exc:

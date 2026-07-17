@@ -3162,6 +3162,17 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
         payload,
         "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences",
     )
+    algorithm_execution_failures = _runtime_manifest_int(
+        payload,
+        "n_live_generated_code_execution_failed",
+    ) + _runtime_manifest_int(payload, "n_live_unsafe_generated_code_rejected")
+    algorithm_metric_failures = max(
+        _runtime_manifest_int(payload, "n_live_generated_code_metric_gate_failed"),
+        _runtime_manifest_int(
+            payload,
+            "n_live_generated_code_sandbox_metric_gate_failed",
+        ),
+    )
     simulation_executed = _runtime_manifest_int(
         payload,
         "n_live_generated_simulation_sandbox_executed",
@@ -3173,6 +3184,23 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
     simulation_metric_repair_sequences = _runtime_manifest_int(
         payload,
         "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences",
+    )
+    simulation_execution_failures = _runtime_manifest_int(
+        payload,
+        "n_live_generated_simulation_execution_failed",
+    ) + _runtime_manifest_int(
+        payload,
+        "n_live_unsafe_generated_simulation_code_rejected",
+    )
+    simulation_metric_failures = max(
+        _runtime_manifest_int(
+            payload,
+            "n_live_generated_simulation_metric_gate_failed",
+        ),
+        _runtime_manifest_int(
+            payload,
+            "n_live_generated_simulation_sandbox_metric_gate_failed",
+        ),
     )
     formalizer_checked = _runtime_manifest_int(
         payload,
@@ -3513,10 +3541,15 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
             ),
         },
         {
-            "capability_id": "generated_algorithm_repair_loop_observed",
-            "passed": algorithm_repair_sequences > 0,
+            "capability_id": "generated_algorithm_failure_feedback_closed",
+            "passed": (
+                algorithm_execution_failures <= 0
+                or algorithm_repair_sequences > 0
+            ),
             "count": algorithm_repair_sequences,
             "evidence": (
+                "n_live_generated_algorithm_execution_or_safety_failures="
+                f"{algorithm_execution_failures}; "
                 "n_live_generated_code_sandbox_failed_then_passed_repair_sequences="
                 f"{algorithm_repair_sequences}; "
                 "n_generated_code_sandbox_failed_then_passed_repair_sequences="
@@ -3526,32 +3559,28 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
             ),
             "blocker": (
                 ""
-                if algorithm_repair_sequences > 0
+                if algorithm_execution_failures <= 0
+                or algorithm_repair_sequences > 0
                 else (
-                    "one-shot generated algorithm execution and attached component "
-                    "calibration are not evidence of integrated autonomous code repair"
+                    "an integrated generated algorithm execution or safety failure "
+                    "has no same-lineage passing repair"
                 )
             ),
         },
         {
-            "capability_id": "generated_algorithm_metric_repair_loop_observed",
-            "passed": algorithm_metric_repair_sequences > 0,
-            "count": algorithm_metric_repair_sequences,
+            "capability_id": "generated_algorithm_empirical_metric_gate_absent",
+            "passed": algorithm_metric_failures <= 0,
+            "count": algorithm_metric_failures,
             "evidence": (
-                "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences="
-                f"{algorithm_metric_repair_sequences}; "
-                "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences="
-                f"{_runtime_manifest_int(payload, 'n_generated_code_sandbox_metric_failed_then_passed_repair_sequences')}; "
-                "n_live_generated_code_sandbox_failed_then_passed_repair_sequences="
-                f"{algorithm_repair_sequences}"
+                "n_live_generated_algorithm_metric_gate_failures="
+                f"{algorithm_metric_failures}"
             ),
             "blocker": (
                 ""
-                if algorithm_metric_repair_sequences > 0
+                if algorithm_metric_failures <= 0
                 else (
-                    "generic generated algorithm fail-then-pass repair did not "
-                    "demonstrate a statistical metric-gate feedback repair inside "
-                    "the integrated AgentRuntime loop"
+                    "AlgorithmEngineer was incorrectly evaluated by a statistical "
+                    "performance gate; move that requirement to SimulationEngineer"
                 )
             ),
         },
@@ -3577,10 +3606,15 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
             ),
         },
         {
-            "capability_id": "generated_simulation_repair_loop_observed",
-            "passed": simulation_repair_sequences > 0,
+            "capability_id": "generated_simulation_failure_feedback_closed",
+            "passed": (
+                simulation_execution_failures <= 0
+                or simulation_repair_sequences > 0
+            ),
             "count": simulation_repair_sequences,
             "evidence": (
+                "n_live_generated_simulation_execution_or_safety_failures="
+                f"{simulation_execution_failures}; "
                 "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences="
                 f"{simulation_repair_sequences}; "
                 "n_generated_simulation_sandbox_failed_then_passed_repair_sequences="
@@ -3590,18 +3624,24 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
             ),
             "blocker": (
                 ""
-                if simulation_repair_sequences > 0
+                if simulation_execution_failures <= 0
+                or simulation_repair_sequences > 0
                 else (
-                    "one-shot generated simulation execution and attached component "
-                    "calibration are not evidence of integrated autonomous simulation repair"
+                    "an integrated generated simulation execution or safety failure "
+                    "has no same-lineage passing repair"
                 )
             ),
         },
         {
-            "capability_id": "generated_simulation_metric_repair_loop_observed",
-            "passed": simulation_metric_repair_sequences > 0,
+            "capability_id": "generated_simulation_metric_feedback_closed",
+            "passed": (
+                simulation_metric_failures <= 0
+                or simulation_metric_repair_sequences > 0
+            ),
             "count": simulation_metric_repair_sequences,
             "evidence": (
+                "n_live_generated_simulation_metric_gate_failures="
+                f"{simulation_metric_failures}; "
                 "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences="
                 f"{simulation_metric_repair_sequences}; "
                 "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences="
@@ -3611,11 +3651,11 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
             ),
             "blocker": (
                 ""
-                if simulation_metric_repair_sequences > 0
+                if simulation_metric_failures <= 0
+                or simulation_metric_repair_sequences > 0
                 else (
-                    "generic generated simulation fail-then-pass repair did not "
-                    "demonstrate a statistical metric-gate feedback repair inside "
-                    "the integrated AgentRuntime loop"
+                    "a generated confirmatory simulation metric failure has no "
+                    "same-lineage passing repair"
                 )
             ),
         },
@@ -4158,10 +4198,23 @@ def _runtime_coding_agent_capability_table(payload: Mapping[str, Any]) -> dict[s
             ),
         },
         "algorithm_repair_loop_observed": algorithm_repair_sequences > 0,
+        "algorithm_failure_feedback_closed": (
+            algorithm_execution_failures <= 0
+            or algorithm_repair_sequences > 0
+        ),
+        "algorithm_empirical_metric_gate_absent": algorithm_metric_failures <= 0,
         "algorithm_metric_repair_loop_observed": (
             algorithm_metric_repair_sequences > 0
         ),
         "simulation_repair_loop_observed": simulation_repair_sequences > 0,
+        "simulation_failure_feedback_closed": (
+            simulation_execution_failures <= 0
+            or simulation_repair_sequences > 0
+        ),
+        "simulation_metric_feedback_closed": (
+            simulation_metric_failures <= 0
+            or simulation_metric_repair_sequences > 0
+        ),
         "simulation_metric_repair_loop_observed": (
             simulation_metric_repair_sequences > 0
         ),
@@ -4214,15 +4267,14 @@ def _runtime_coding_agent_capability_learning_rows(
         capability_id = str(row.get("capability_id", "") or "").strip()
         if not capability_id:
             continue
-        if capability_id == "generated_algorithm_repair_loop_observed":
+        if capability_id == "generated_algorithm_failure_feedback_closed":
             next_owner = "AlgorithmEngineer"
             target_behavior = (
                 "Run a Claude/OpenAI-generated algorithm-code fail-then-pass "
                 "repair loop inside the integrated AgentRuntime: generated "
                 "Python executes locally, exposes sandbox failure output, revises "
                 "from that feedback, and passes the generated-code sandbox in the "
-                "runtime manifest. Metric-gate feedback repair is tracked by a "
-                "separate required capability row."
+                "runtime manifest."
             )
             recommended_eval = integrated_eval_command
             success_metric = (
@@ -4230,32 +4282,26 @@ def _runtime_coding_agent_capability_learning_rows(
                 "in the integrated AgentRuntime manifest; static/replay drafts "
                 "and attached component calibration alone do not satisfy this row"
             )
-        elif capability_id == "generated_algorithm_metric_repair_loop_observed":
-            next_owner = "AlgorithmEngineer"
+        elif capability_id == "generated_algorithm_empirical_metric_gate_absent":
+            next_owner = "ArchitectCoordinator"
             target_behavior = (
-                "Run a Claude/OpenAI-generated algorithm-code metric-gate "
-                "fail-then-pass repair loop inside the integrated AgentRuntime: "
-                "the first generated Python draft executes but fails the "
-                "statistical metric gate, the metric diagnostics are fed back "
-                "to the code agent, and the revised generated artifact passes "
-                "the metric gate."
+                "Remove finite-sample statistical-performance gates from "
+                "AlgorithmEngineer and bind them to the downstream "
+                "SimulationEngineer confirmatory experiment."
             )
             recommended_eval = integrated_eval_command
             success_metric = (
-                "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences>0 "
-                "in the integrated AgentRuntime manifest; generic sandbox "
-                "fail-then-pass repair alone does not satisfy statistical "
-                "coding-agent capability"
+                "n_live_generated_code_metric_gate_failed=0 and "
+                "n_live_generated_code_sandbox_metric_gate_failed=0"
             )
-        elif capability_id == "generated_simulation_repair_loop_observed":
+        elif capability_id == "generated_simulation_failure_feedback_closed":
             next_owner = "SimulationEvaluator"
             target_behavior = (
                 "Run a Claude/OpenAI-generated simulation-code fail-then-pass "
                 "repair loop inside the integrated AgentRuntime: generated "
                 "stress-test code executes locally, exposes the failure output, "
                 "revises from that feedback, and passes the sandbox in the "
-                "runtime manifest. Metric-gate feedback repair is tracked by a "
-                "separate required capability row."
+                "runtime manifest."
             )
             recommended_eval = integrated_eval_command
             success_metric = (
@@ -4263,7 +4309,7 @@ def _runtime_coding_agent_capability_learning_rows(
                 "in the integrated AgentRuntime manifest; static/replay drafts "
                 "and attached component calibration alone do not satisfy this row"
             )
-        elif capability_id == "generated_simulation_metric_repair_loop_observed":
+        elif capability_id == "generated_simulation_metric_feedback_closed":
             next_owner = "SimulationEvaluator"
             target_behavior = (
                 "Run a Claude/OpenAI-generated simulation-code metric-gate "
@@ -8261,6 +8307,209 @@ def _architect_context_with_rehydrated_metric_protocol_theory_material(
     return context
 
 
+def _runtime_exact_algorithm_artifacts(
+    review_material: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    exact_artifacts: list[dict[str, Any]] = []
+    for raw_row in review_material.get("exact_executed_artifacts", []) or []:
+        if not isinstance(raw_row, Mapping):
+            continue
+        source_row = raw_row.get("source_row", {})
+        source = str(raw_row.get("exact_source_code", "") or "")
+        result = raw_row.get("exact_result", {})
+        if not (
+            isinstance(source_row, Mapping)
+            and source
+            and isinstance(result, Mapping)
+            and source_row.get("smoke_passed") is True
+            and str(source_row.get("script_hash", "") or "")
+            == stable_hash(source)
+            and str(source_row.get("result_hash", "") or "")
+            == stable_hash(result)
+            and str(raw_row.get("exact_source_hash", "") or "")
+            == stable_hash(source)
+            and str(raw_row.get("exact_result_hash", "") or "")
+            == stable_hash(result)
+        ):
+            continue
+        exact_artifacts.append(
+            {
+                "estimator_id": str(
+                    source_row.get("estimator_id", "")
+                    or raw_row.get("artifact_id", "")
+                    or ""
+                ),
+                "language": str(source_row.get("language", "") or ""),
+                "dependencies": list(source_row.get("dependencies", []) or []),
+                "exact_source_code": source,
+                "exact_source_hash": stable_hash(source),
+                "exact_smoke_result": dict(result),
+                "exact_smoke_result_hash": stable_hash(result),
+            }
+        )
+    return exact_artifacts
+
+
+def _runtime_accepted_algorithm_handoff_from_review(
+    *,
+    question_id: str,
+    theory_packet_id: str,
+    source_manifest: Mapping[str, Any],
+    review_material: Mapping[str, Any],
+    execution_manifest: Mapping[str, Any],
+    review_packet: Mapping[str, Any],
+) -> dict[str, Any]:
+    exact_artifacts = _runtime_exact_algorithm_artifacts(review_material)
+    if not exact_artifacts:
+        return {}
+    payload = {
+        "source": "accepted_algorithm_semantic_review_materialization",
+        "question_id": question_id,
+        "algorithm_sandbox_manifest_id": str(
+            source_manifest.get("manifest_id", "") or ""
+        ),
+        "algorithm_sandbox_manifest_hash": stable_hash(source_manifest),
+        "semantic_review_execution_id": str(
+            execution_manifest.get("execution_id", "") or ""
+        ),
+        "semantic_review_packet_id": str(review_packet.get("packet_id", "") or ""),
+        "semantic_review_packet_hash": stable_hash(review_packet),
+        "materialization_id": str(
+            execution_manifest.get("materialization_id", "") or ""
+        ),
+        "materialization_hash": str(
+            execution_manifest.get("materialization_hash", "") or ""
+        ),
+        "theory_packet_id": theory_packet_id,
+        "exact_algorithm_artifacts": exact_artifacts,
+        "consumption_contract": (
+            "Confirmatory SimulationEngineer evaluates these exact reviewed "
+            "implementations and may not silently substitute a new estimator."
+        ),
+        "proof_evidence_status": "ACCEPTED_ALGORITHM_HANDOFF_NOT_PROOF_EVIDENCE",
+        "boundary": (
+            "This is executable implementation lineage, not confirmatory "
+            "statistical acceptance or theorem proof."
+        ),
+    }
+    payload["handoff_id"] = "accepted_algorithm_handoff:" + stable_hash(payload)[:20]
+    return payload
+
+
+def _runtime_validated_algorithm_handoff(
+    *,
+    task: AgentTask,
+    architect_context: Mapping[str, Any],
+    blackboard: BlackboardState,
+    question_id: str,
+    theory_packet_id: str,
+    algorithm_sandbox_manifest_id: str,
+) -> dict[str, Any]:
+    raw = task.inputs.get(
+        "upstream_algorithm_handoff",
+        architect_context.get("upstream_algorithm_handoff", {}),
+    )
+    handoff = dict(raw) if isinstance(raw, Mapping) else {}
+    manifest = blackboard.artifacts.get(algorithm_sandbox_manifest_id, {})
+    execution = blackboard.artifacts.get(
+        str(handoff.get("semantic_review_execution_id", "") or ""), {}
+    )
+    packet = blackboard.artifacts.get(
+        str(handoff.get("semantic_review_packet_id", "") or ""), {}
+    )
+    materialization = blackboard.artifacts.get(
+        str(handoff.get("materialization_id", "") or ""), {}
+    )
+    review_material = (
+        materialization.get("review_material", {})
+        if isinstance(materialization, Mapping)
+        else {}
+    )
+    expected_artifacts = (
+        _runtime_exact_algorithm_artifacts(review_material)
+        if isinstance(review_material, Mapping)
+        else []
+    )
+    if not (
+        handoff
+        and isinstance(manifest, Mapping)
+        and isinstance(execution, Mapping)
+        and isinstance(packet, Mapping)
+        and isinstance(materialization, Mapping)
+        and handoff.get("question_id") == question_id
+        and handoff.get("theory_packet_id") == theory_packet_id
+        and handoff.get("algorithm_sandbox_manifest_id")
+        == algorithm_sandbox_manifest_id
+        and handoff.get("algorithm_sandbox_manifest_hash") == stable_hash(manifest)
+        and manifest.get("artifact_kind") == "RuntimeAlgorithmSandboxManifest"
+        and manifest.get("theory_packet_id") == theory_packet_id
+        and int(manifest.get("n_generated_code_executed", 0) or 0) > 0
+        and int(manifest.get("n_passed", 0) or 0) > 0
+        and execution.get("semantic_review_accepted") is True
+        and execution.get("source_subsystem") == "AlgorithmEngineer"
+        and execution.get("source_manifest_id") == algorithm_sandbox_manifest_id
+        and execution.get("source_manifest_hash") == stable_hash(manifest)
+        and execution.get("review_packet_hash") == stable_hash(packet)
+        and execution.get("materialization_hash") == stable_hash(materialization)
+        and packet.get("overall_verdict") == "ACCEPT"
+        and materialization.get("review_input_fingerprint")
+        == stable_hash(review_material)
+        and handoff.get("exact_algorithm_artifacts") == expected_artifacts
+        and expected_artifacts
+    ):
+        return {}
+    return handoff
+
+
+def _runtime_algorithm_handoff_receipt(
+    handoff: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    if not isinstance(handoff, Mapping) or not handoff:
+        return {}
+    artifact_refs = [
+        {
+            "estimator_id": str(row.get("estimator_id", "") or ""),
+            "language": str(row.get("language", "") or ""),
+            "exact_source_hash": str(row.get("exact_source_hash", "") or ""),
+            "exact_smoke_result_hash": str(
+                row.get("exact_smoke_result_hash", "") or ""
+            ),
+        }
+        for row in handoff.get("exact_algorithm_artifacts", []) or []
+        if isinstance(row, Mapping)
+    ]
+    return {
+        "artifact_kind": "RuntimeAcceptedAlgorithmHandoffReceipt",
+        "algorithm_sandbox_manifest_id": str(
+            handoff.get("algorithm_sandbox_manifest_id", "") or ""
+        ),
+        "algorithm_sandbox_manifest_hash": str(
+            handoff.get("algorithm_sandbox_manifest_hash", "") or ""
+        ),
+        "semantic_review_execution_id": str(
+            handoff.get("semantic_review_execution_id", "") or ""
+        ),
+        "semantic_review_packet_id": str(
+            handoff.get("semantic_review_packet_id", "") or ""
+        ),
+        "semantic_review_packet_hash": str(
+            handoff.get("semantic_review_packet_hash", "") or ""
+        ),
+        "theory_packet_id": str(handoff.get("theory_packet_id", "") or ""),
+        "exact_algorithm_artifact_refs": artifact_refs,
+        "handoff_fingerprint": stable_hash(handoff),
+        "exact_artifact_supplied_to_simulation_generator": bool(artifact_refs),
+        "mechanical_estimator_invocation_verified": False,
+        "proof_evidence_status": "ALGORITHM_HANDOFF_RECEIPT_NOT_PROOF_EVIDENCE",
+        "boundary": (
+            "This receipt proves which reviewed implementation source was supplied "
+            "to SimulationEngineer and its independent reviewer. Until a shared "
+            "estimator ABI executes that source directly inside the DGP harness, it "
+            "does not by itself prove mechanical reuse or statistical correctness."
+        ),
+    }
+
+
 def _architect_metric_protocol_prior_rejection_context(
     *,
     architect_context: Mapping[str, Any],
@@ -8925,9 +9174,29 @@ def _architect_select_initial_subsystem(
         == METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED
         and evidence_contract.get("metric_protocol_execution_authorized") is True
     ):
+        algorithm_required = bool(
+            evidence_contract.get(
+                "capability_eval_requires_generated_algorithm_code"
+            )
+            is True
+        )
+        algorithm_manifest_id = (
+            _architect_context_algorithm_sandbox_manifest_id(
+                architect_context
+            )
+        )
+        selected_subsystem = (
+            "AlgorithmEngineer"
+            if algorithm_required
+            and not _architect_blackboard_artifact_present(
+                blackboard,
+                algorithm_manifest_id,
+            )
+            else "SimulationEvaluator"
+        )
         return {
             "requested_subsystem": requested_for_metric_gate,
-            "selected_subsystem": "SimulationEvaluator",
+            "selected_subsystem": selected_subsystem,
             "source": "theory_informed_metric_protocol_accepted",
             "requires_prerequisite_theory": False,
         }
@@ -9094,13 +9363,11 @@ def _architect_feasible_initial_subsystem(
     if requested == "AlgorithmEngineer":
         if not _architect_context_theory_packet_id(architect_context):
             return "TheoryDeveloper"
-        if not _architect_context_simulation_manifest_id(architect_context):
-            return "SimulationEvaluator"
         if not _architect_context_implementation_gaps(
             architect_context,
             blackboard=blackboard,
         ):
-            return "SimulationEvaluator"
+            return "TheoryDeveloper"
         return "AlgorithmEngineer"
     if requested == "FormalizationEvaluator":
         theory_packet_id = _architect_context_theory_packet_id(architect_context)
@@ -9414,15 +9681,25 @@ def _architect_context_implementation_gaps(
     simulation_manifest_id = _architect_context_simulation_manifest_id(
         architect_context
     )
-    if not simulation_manifest_id:
+    if simulation_manifest_id:
+        simulation_manifest = blackboard.artifacts.get(simulation_manifest_id, {})
+        if isinstance(simulation_manifest, Mapping):
+            rows = simulation_manifest.get("implementation_gaps", [])
+            if isinstance(rows, Sequence) and not isinstance(rows, (str, bytes)):
+                normalized = [
+                    dict(row) for row in rows if isinstance(row, Mapping)
+                ]
+                if normalized:
+                    return normalized
+    theory_packet_id = _architect_context_theory_packet_id(architect_context)
+    theory_packet = blackboard.artifacts.get(theory_packet_id, {})
+    if not isinstance(theory_packet, Mapping) or not theory_packet:
         return []
-    simulation_manifest = blackboard.artifacts.get(simulation_manifest_id, {})
-    if not isinstance(simulation_manifest, Mapping):
-        return []
-    rows = simulation_manifest.get("implementation_gaps", [])
-    if not isinstance(rows, Sequence) or isinstance(rows, (str, bytes)):
-        return []
-    return [dict(row) for row in rows if isinstance(row, Mapping)]
+    return _implementation_gaps(
+        theory_packet,
+        [],
+        require_generated_adapter=True,
+    )
 
 
 def _canonical_architect_subsystem(value: Any) -> str:
@@ -10895,6 +11172,19 @@ class TheoryDeveloperRuntimeSubsystem:
         )
         if not isinstance(evidence_contract, Mapping):
             evidence_contract = {}
+        requires_generated_algorithm = bool(
+            evidence_contract.get(
+                "capability_eval_requires_generated_algorithm_code"
+            )
+            is True
+        )
+        implementation_gaps = _implementation_gaps(
+            packet,
+            [],
+            require_generated_adapter=requires_generated_algorithm,
+        )
+        if implementation_gaps:
+            context["implementation_gaps"] = implementation_gaps
         requires_metric_protocol_gate = bool(
             evidence_contract.get(
                 "capability_eval_requires_typed_metric_contracts"
@@ -10932,6 +11222,38 @@ class TheoryDeveloperRuntimeSubsystem:
                     theory_packet_id=packet_id,
                 )
             )
+            algorithm_task = AgentTask(
+                task_id=f"algorithm:{question.id}:{stable_hash(packet_id)[:8]}",
+                owner_subsystem="AlgorithmEngineer",
+                objective=(
+                    "Implement the TheoryDeveloper estimator as an executable "
+                    "artifact before any DGP-based statistical evaluation."
+                ),
+                inputs={
+                    "question": _question_to_payload(question),
+                    "theory_packet_id": packet_id,
+                    "simulation_manifest_id": "",
+                    "implementation_gaps": implementation_gaps,
+                    "architect_context": context,
+                    "n_runs": self.n_runs,
+                    "seed": self.seed,
+                },
+                allowed_tools=("model_backend", "python", "filesystem_sandbox"),
+                expected_artifacts=_architect_expected_artifacts(
+                    context,
+                    "AlgorithmEngineer",
+                    ("algorithm_sandbox_manifest",),
+                ),
+                acceptance_gate=_architect_acceptance_gate(
+                    context,
+                    "AlgorithmEngineer",
+                    "the generated estimator executes and receives independent semantic review",
+                ),
+                stop_condition=(
+                    "accepted estimator artifact routes to DGP-based simulation or "
+                    "typed repair feedback returns to its owner"
+                ),
+            )
             context["architect_metric_protocol_gate"] = {
                 "artifact_kind": "RuntimeArchitectMetricProtocolGate",
                 "source_theory_packet_id": packet_id,
@@ -10950,10 +11272,10 @@ class TheoryDeveloperRuntimeSubsystem:
                     "ARCHITECT_METRIC_PROTOCOL_GATE_NOT_PROOF_EVIDENCE"
                 ),
                 "boundary": (
-                    "Theory is available. Exploratory diagnostic simulation may run "
-                    "as non-promotable feedback, but confirmatory generated code and "
-                    "empirical acceptance remain blocked until Architect metric "
-                    "authoring passes independent pre-execution semantic review."
+                    "Theory is available. AlgorithmEngineer may implement and smoke-test "
+                    "the estimator, but confirmatory simulation remains blocked until "
+                    "the empirical protocol passes independent pre-execution review. "
+                    "No generated result can relax that protocol."
                 ),
             }
             metric_protocol_task = AgentTask(
@@ -10985,46 +11307,19 @@ class TheoryDeveloperRuntimeSubsystem:
                     "typed pre-execution rejection preserves the full review lineage"
                 ),
             )
-            exploratory_context = dict(context)
-            exploratory_context["empirical_evaluation_phase"] = (
-                EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+            algorithm_inputs = dict(algorithm_task.inputs)
+            algorithm_inputs["architect_context"] = context
+            algorithm_inputs["deferred_metric_protocol_task"] = asdict(
+                metric_protocol_task
             )
-            next_task = replace(
-                simulation_task,
-                task_id=(
-                    f"simulation-exploratory:{question.id}:"
-                    f"{stable_hash([task.task_id, packet_id])[:8]}"
-                ),
-                objective=(
-                    "Run one generated exploratory diagnostic simulation to falsify "
-                    "the draft theory before freezing confirmatory metrics."
-                ),
-                inputs={
-                    **dict(simulation_task.inputs),
-                    "architect_context": exploratory_context,
-                    "empirical_evaluation_phase": (
-                        EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
-                    ),
-                    "deferred_metric_protocol_task": asdict(
-                        metric_protocol_task
-                    ),
-                },
-                acceptance_gate=(
-                    "generated code executes and yields reviewable raw diagnostics; "
-                    "the result remains ineligible for confirmatory acceptance"
-                ),
-                stop_condition=(
-                    "diagnostics route to theory/code repair or the independently "
-                    "reviewed metric-protocol gate"
-                ),
-            )
+            next_task = replace(algorithm_task, inputs=algorithm_inputs)
         else:
             next_task = simulation_task
         return AgentStepResult(
             status="REROUTE",
             rationale=(
                 "LLM TheoryDeveloper produced a proposal; runtime is routing it to "
-                "an exploratory generated simulation before the confirmatory metric gate."
+                "AlgorithmEngineer before independent confirmatory-protocol review and simulation."
                 if requires_metric_protocol_gate
                 else "LLM TheoryDeveloper produced a proposal; runtime is routing it to executable simulation feedback."
             ),
@@ -12752,6 +13047,30 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         if verdict == "ACCEPT":
             deferred_task = _agent_task_from_runtime_payload(deferred_task_payload)
             next_inputs = dict(deferred_task.inputs)
+            algorithm_handoff: dict[str, Any] = {}
+            if source_subsystem == "AlgorithmEngineer":
+                algorithm_handoff = _runtime_accepted_algorithm_handoff_from_review(
+                    question_id=question.id,
+                    theory_packet_id=str(
+                        work_order.get("theory_packet_id", "") or ""
+                    ),
+                    source_manifest=source_manifest,
+                    review_material=review_material,
+                    execution_manifest=execution_manifest,
+                    review_packet=review_packet,
+                )
+                if not algorithm_handoff:
+                    return AgentStepResult(
+                        status="BLOCKED",
+                        rationale=(
+                            "The accepted AlgorithmEngineer review could not produce "
+                            "a hash-bound exact-source handoff for SimulationEngineer."
+                        ),
+                        produced_artifacts=produced_artifacts,
+                        failure_classification=(
+                            "accepted_algorithm_handoff_materialization_failed"
+                        ),
+                    )
             accepted_reviews = [
                 dict(row)
                 for row in next_inputs.get(
@@ -12788,6 +13107,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             next_context["accepted_generated_code_semantic_reviews"] = (
                 accepted_reviews
             )
+            if algorithm_handoff:
+                next_inputs["upstream_algorithm_handoff"] = algorithm_handoff
+                next_context["upstream_algorithm_handoff"] = algorithm_handoff
             next_inputs["architect_context"] = next_context
             next_task = replace(
                 deferred_task,
@@ -13077,6 +13399,103 @@ class SimulationEvaluatorRuntimeSubsystem:
         )
         if trace_repair_result is not None:
             return trace_repair_result
+        algorithm_sandbox_manifest_id = str(
+            task.inputs.get("algorithm_sandbox_manifest_id", "")
+            or context.get("algorithm_sandbox_manifest_id", "")
+            or context.get("previous_algorithm_sandbox_manifest_id", "")
+            or ""
+        ).strip()
+        upstream_algorithm_handoff: dict[str, Any] = {}
+        requires_accepted_algorithm_handoff = bool(
+            not exploratory_diagnostic
+            and context.get(
+                "confirmatory_simulation_requires_accepted_algorithm_handoff"
+            )
+            is True
+        )
+        if requires_accepted_algorithm_handoff:
+            upstream_algorithm_handoff = (
+                _runtime_validated_algorithm_handoff(
+                    task=task,
+                    architect_context=context,
+                    blackboard=blackboard,
+                    question_id=question.id,
+                    theory_packet_id=packet_id,
+                    algorithm_sandbox_manifest_id=(
+                        algorithm_sandbox_manifest_id
+                    ),
+                )
+            )
+            if not upstream_algorithm_handoff:
+                simulation_manifest_id = str(
+                    context.get("previous_simulation_manifest_id", "")
+                    or context.get("simulation_manifest_id", "")
+                    or ""
+                )
+                missing_handoff = (
+                    _runtime_missing_algorithm_handoff_result_if_needed(
+                        source_subsystem="SimulationEvaluator",
+                        task=task,
+                        question=question,
+                        context=context,
+                        algorithm_sandbox_manifest_id=(
+                            algorithm_sandbox_manifest_id
+                        ),
+                        algorithm_manifest={},
+                        theory_packet_id=packet_id,
+                        simulation_manifest_id=simulation_manifest_id,
+                        implementation_gaps=(
+                            _architect_context_implementation_gaps(
+                                context,
+                                blackboard=blackboard,
+                            )
+                        ),
+                        n_runs=task.inputs.get("n_runs", 100),
+                        seed=task.inputs.get("seed", 20260528),
+                    )
+                )
+                if missing_handoff is not None:
+                    return missing_handoff
+                return AgentStepResult(
+                    status="BLOCKED",
+                    rationale=(
+                        "Confirmatory simulation requires a hash-bound, independently "
+                        "reviewed AlgorithmEngineer artifact, but no artifact identity "
+                        "was available to recover."
+                    ),
+                    observations=(
+                        EnvironmentObservation(
+                            observation_type="accepted_algorithm_handoff_missing",
+                            summary=(
+                                "confirmatory simulation refused to run without an "
+                                "accepted algorithm artifact"
+                            ),
+                            payload={
+                                "question_id": question.id,
+                                "theory_packet_id": packet_id,
+                                "algorithm_sandbox_manifest_id": (
+                                    algorithm_sandbox_manifest_id
+                                ),
+                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                            },
+                        ),
+                    ),
+                    failure_classification="accepted_algorithm_handoff_missing",
+                )
+            context["upstream_algorithm_handoff"] = (
+                upstream_algorithm_handoff
+            )
+            environment_feedback = {
+                **dict(environment_feedback),
+                "upstream_algorithm_handoff": upstream_algorithm_handoff,
+            }
+            effective_context = (
+                _runtime_context_with_environment_feedback_contract(
+                    context,
+                    environment_feedback,
+                    subsystem="SimulationEvaluator",
+                )
+            )
         runtime_theory_trace_contract = _runtime_theory_trace_consumption_contract(
             consumer_subsystem="SimulationEngineer",
             source_theory_packet_id=packet_id,
@@ -13628,6 +14047,9 @@ class SimulationEvaluatorRuntimeSubsystem:
             "exploratory_diagnostic": exploratory_diagnostic,
             "confirmatory_empirical_evidence_eligible": (
                 confirmatory_empirical_evidence_eligible
+            ),
+            "upstream_algorithm_handoff_receipt": (
+                _runtime_algorithm_handoff_receipt(upstream_algorithm_handoff)
             ),
             "exploratory_simulation_passed": bool(
                 simulation_passed and exploratory_diagnostic
@@ -14477,21 +14899,6 @@ class AlgorithmEngineerRuntimeSubsystem:
         algorithm_theory_trace_alignment_contract: dict[str, Any] = {}
         produced_artifacts: dict[str, Any] = {}
         observations: list[EnvironmentObservation] = []
-        metric_gate_refresh_result = (
-            _algorithm_sandbox_metric_gate_refresh_result_if_needed(
-                task=task,
-                question=question,
-                context=context,
-                environment_feedback=environment_feedback,
-                blackboard=blackboard,
-                theory_packet_id=packet_id,
-                simulation_manifest_id=simulation_manifest_id,
-                n_runs=int(task.inputs.get("n_runs", self.n_runs) or self.n_runs),
-                seed=int(task.inputs.get("seed", self.seed) or self.seed),
-            )
-        )
-        if metric_gate_refresh_result is not None:
-            return metric_gate_refresh_result
         if self.proposal_agent is not None and implementation_gaps:
             try:
                 if not environment_feedback:
@@ -14602,21 +15009,6 @@ class AlgorithmEngineerRuntimeSubsystem:
             effective_context,
             environment_feedback,
         )
-        requires_typed_metric_contracts = _runtime_requires_typed_metric_contracts(
-            effective_context,
-            environment_feedback,
-            subsystem="AlgorithmEngineer",
-        )
-        (
-            algorithm_metric_requirements,
-            algorithm_metric_authority_policy,
-            algorithm_metric_authority_required,
-        ) = _runtime_generated_metric_requirement_authority(
-            effective_context,
-            environment_feedback,
-            architect_subsystem="AlgorithmEngineer",
-            target_subsystem="AlgorithmEngineer",
-        )
         for gap in implementation_gaps:
             estimator_id = str(gap.get("estimator_id", ""))
             spec = _estimator_spec(packet, estimator_id)
@@ -14628,137 +15020,17 @@ class AlgorithmEngineerRuntimeSubsystem:
                 question=question,
             )
             if code_draft:
-                estimator_metric_contracts = generated_metric_contracts_for_artifact(
-                    (proposal_packet or {}).get("metric_contracts", []),
-                    artifact_id=estimator_id,
-                )
-                if requires_typed_metric_contracts and not estimator_metric_contracts:
-                    prototype_rows.append(
-                        _annotate_generated_sandbox_prototype_provenance(
-                            {
-                                "estimator_id": estimator_id,
-                                "prototype_status": (
-                                    "TYPED_METRIC_CONTRACT_REQUIRED_BUT_MISSING"
-                                ),
-                                "executor": "generated_python_sandbox",
-                                "spec": dict(spec),
-                                "reason": (
-                                    "Capability evaluation requires at least one "
-                                    "validated typed metric contract bound to this "
-                                    "canonical estimator_id before execution."
-                                ),
-                                "metric_contracts": [],
-                                "metric_contract_set_id": "",
-                                "metric_contract_evaluation": {},
-                                "metric_contract_proof_evidence_status": (
-                                    GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
-                                ),
-                                "metric_contract_boundary": (
-                                    GENERATED_METRIC_CONTRACT_BOUNDARY
-                                ),
-                                "metric_gate_policy_mode": (
-                                    "typed_artifact_bound_required_missing"
-                                ),
-                                "smoke_passed": False,
-                                "execution_smoke_passed": False,
-                                "promotion_ready": False,
-                                "llm_algorithm_engineer_target": proposal_target,
-                            },
-                            proposal_packet=proposal_packet,
-                            repair_feedback=environment_feedback,
-                        )
-                    )
-                    continue
-                (
-                    estimator_metric_contracts,
-                    metric_authority_errors,
-                ) = _runtime_bind_and_validate_generated_metric_authority(
-                    estimator_metric_contracts,
-                    artifact_id=estimator_id,
-                    authoritative_requirements=algorithm_metric_requirements,
-                    target_subsystem="AlgorithmEngineer",
-                    require_authoritative_requirements=(
-                        algorithm_metric_authority_required
-                    ),
-                )
-                if metric_authority_errors:
-                    prototype_rows.append(
-                        _annotate_generated_sandbox_prototype_provenance(
-                            {
-                                "estimator_id": estimator_id,
-                                "prototype_status": (
-                                    "METRIC_REQUIREMENT_AUTHORITY_REJECTED"
-                                ),
-                                "executor": "generated_python_sandbox",
-                                "spec": dict(spec),
-                                "reason": (
-                                    "Generated required metric contracts did not "
-                                    "preserve the independent Architect requirement set."
-                                ),
-                                "metric_contracts": estimator_metric_contracts,
-                                "metric_contract_set_id": (
-                                    generated_metric_contract_set_id(
-                                        estimator_metric_contracts
-                                    )
-                                ),
-                                "metric_requirement_set_id": (
-                                    generated_metric_requirement_set_id(
-                                        algorithm_metric_requirements
-                                    )
-                                ),
-                                "metric_requirement_authority_policy": (
-                                    algorithm_metric_authority_policy
-                                ),
-                                "metric_requirement_authority_required": (
-                                    algorithm_metric_authority_required
-                                ),
-                                "metric_requirement_authority_errors": (
-                                    metric_authority_errors
-                                ),
-                                "metric_requirement_authority_validated": False,
-                                "metric_contract_evaluation": {},
-                                "metric_contract_proof_evidence_status": (
-                                    GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
-                                ),
-                                "metric_contract_boundary": (
-                                    GENERATED_METRIC_CONTRACT_BOUNDARY
-                                ),
-                                "metric_gate_policy_mode": (
-                                    "architect_requirement_authority_rejected"
-                                ),
-                                "smoke_passed": False,
-                                "execution_smoke_passed": False,
-                                "promotion_ready": False,
-                                "llm_algorithm_engineer_target": proposal_target,
-                            },
-                            proposal_packet=proposal_packet,
-                            repair_feedback=environment_feedback,
-                        )
-                    )
-                    continue
                 prototype, tool_call = _run_generated_code_sandbox(
                     sandbox_dir=sandbox_dir,
                     estimator_id=estimator_id,
                     spec=spec,
                     code_draft=code_draft,
-                    metric_contracts=estimator_metric_contracts,
+                    metric_contracts=(),
                     validation_context={
                         "question": _question_to_payload(question),
                         "architect_context": effective_context,
                         "environment_feedback": dict(environment_feedback),
                         "implementation_gap": dict(gap),
-                        "authoritative_metric_requirements": (
-                            algorithm_metric_requirements
-                        ),
-                        "metric_requirement_authority_policy": (
-                            algorithm_metric_authority_policy
-                        ),
-                        "require_authoritative_metric_requirements": (
-                            algorithm_metric_authority_required
-                        ),
-                        "metric_requirement_target_subsystem": (
-                            "AlgorithmEngineer"
-                        ),
                     },
                     n_runs=int(task.inputs.get("n_runs", self.n_runs) or self.n_runs),
                     seed=int(task.inputs.get("seed", self.seed) or self.seed),
@@ -15013,6 +15285,13 @@ class AlgorithmEngineerRuntimeSubsystem:
             },
         )
         produced_artifacts[manifest_id] = manifest
+        deferred_metric_protocol_payload = task.inputs.get(
+            "deferred_metric_protocol_task", {}
+        )
+        has_deferred_metric_protocol = bool(
+            isinstance(deferred_metric_protocol_payload, Mapping)
+            and deferred_metric_protocol_payload
+        )
         revision_required = bool(
             self.proposal_agent is not None
             and implementation_gaps
@@ -15075,58 +15354,30 @@ class AlgorithmEngineerRuntimeSubsystem:
                 and yield_after_attempts > 0
                 and repair_attempts_used >= yield_after_attempts
             ):
-                deferred_next_task = (
-                    _algorithm_engineer_repair_budget_yield_to_formalization_task(
-                        question=question,
-                        theory_packet_id=packet_id,
-                        simulation_manifest_id=simulation_manifest_id,
-                        algorithm_sandbox_manifest_id=manifest_id,
-                        architect_context=effective_context,
-                        algorithm_feedback=feedback,
-                        failure_classification=revision_failure_classification,
-                        repair_attempts_used=repair_attempts_used,
-                        yield_after_attempts=yield_after_attempts,
-                    )
-                )
-                next_task = (
-                    _coding_agent_metric_gate_architect_task(
-                        task=task,
-                        question=question,
-                        context={
-                            **effective_context,
-                            "theory_packet_id": packet_id,
-                            "simulation_manifest_id": simulation_manifest_id,
-                            "algorithm_sandbox_manifest_id": manifest_id,
-                        },
-                        metric_feedback=feedback,
-                        source_manifest_id=manifest_id,
-                        deferred_next_owner_subsystem=(
-                            deferred_next_task.owner_subsystem
-                        ),
-                    )
-                    if revision_failure_classification
-                    == "generated_algorithm_sandbox_metric_gate_failed"
-                    else deferred_next_task
+                next_task = _coding_agent_repair_budget_architect_task(
+                    task=task,
+                    question=question,
+                    context={
+                        **effective_context,
+                        "theory_packet_id": packet_id,
+                        "simulation_manifest_id": simulation_manifest_id,
+                        "algorithm_sandbox_manifest_id": manifest_id,
+                    },
+                    repair_feedback=feedback,
+                    source_manifest_id=manifest_id,
+                    repair_attempts_used=repair_attempts_used,
+                    yield_after_attempts=yield_after_attempts,
                 )
                 observations.append(
                     EnvironmentObservation(
                         observation_type=(
-                            "algorithm_metric_gate_architect_replan"
-                            if next_task.owner_subsystem
-                            == "ArchitectCoordinator"
-                            else "algorithm_engineer_repair_budget_yield_to_formalization"
+                            "algorithm_engineer_repair_budget_architect_replan"
                         ),
                         summary=(
-                            "AlgorithmEngineer exhausted its local metric repair "
-                            "budget; routing exact empirical failures to "
-                            "ArchitectCoordinator without weakening the frozen "
-                            "gate."
-                            if next_task.owner_subsystem
-                            == "ArchitectCoordinator"
-                            else "AlgorithmEngineer generated-code repair budget "
-                            "was exhausted; routing diagnostics to "
-                            "FormalizationEvaluator while keeping the algorithm "
-                            "blocker open."
+                            "AlgorithmEngineer exhausted its local generated-code "
+                            "repair budget; routing exact execution diagnostics to "
+                            "ArchitectCoordinator for theory, implementation, or "
+                            "interface replanning."
                         ),
                         payload={
                             "algorithm_sandbox_manifest_id": manifest_id,
@@ -15179,6 +15430,15 @@ class AlgorithmEngineerRuntimeSubsystem:
                         "seed": int(task.inputs.get("seed", self.seed) or self.seed),
                         "architect_context": revision_context,
                         "environment_feedback": feedback,
+                        **(
+                            {
+                                "deferred_metric_protocol_task": dict(
+                                    deferred_metric_protocol_payload
+                                )
+                            }
+                            if has_deferred_metric_protocol
+                            else {}
+                        ),
                     },
                     allowed_tools=("python", "filesystem_sandbox"),
                     expected_artifacts=_architect_expected_artifacts(
@@ -15193,6 +15453,26 @@ class AlgorithmEngineerRuntimeSubsystem:
                     ),
                     stop_condition="repaired algorithm sandbox feedback recorded",
                 )
+        elif has_deferred_metric_protocol:
+            deferred_gate = _agent_task_from_runtime_payload(
+                deferred_metric_protocol_payload
+            )
+            deferred_inputs = dict(deferred_gate.inputs)
+            deferred_context = dict(
+                deferred_inputs.get("architect_context", {}) or {}
+            )
+            deferred_context["previous_algorithm_sandbox_manifest_id"] = manifest_id
+            deferred_context["algorithm_sandbox_manifest_id"] = manifest_id
+            deferred_context["implementation_gaps"] = implementation_gaps
+            deferred_inputs["architect_context"] = deferred_context
+            next_task = replace(
+                deferred_gate,
+                task_id=(
+                    f"algorithm-accepted-metric-protocol:{question.id}:"
+                    f"{stable_hash([manifest_id, deferred_gate.task_id])[:8]}"
+                ),
+                inputs=deferred_inputs,
+            )
         elif _runtime_generated_simulation_required_before_formalization(
             context=effective_context,
             environment_feedback=environment_feedback,
@@ -15391,6 +15671,70 @@ def _coding_agent_packet_validation_state(
             threshold > 0 and consecutive_round >= threshold
         ),
     }
+
+
+def _coding_agent_repair_budget_architect_task(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    context: Mapping[str, Any],
+    repair_feedback: Mapping[str, Any],
+    source_manifest_id: str,
+    repair_attempts_used: int,
+    yield_after_attempts: int,
+) -> AgentTask:
+    replan_context = dict(context)
+    replan_context["environment_feedback"] = dict(repair_feedback)
+    replan_context["runtime_coding_agent_repair_budget_replan"] = {
+        "artifact_kind": "RuntimeCodingAgentRepairBudgetReplanContext",
+        "source_task_id": task.task_id,
+        "source_subsystem": task.owner_subsystem,
+        "source_manifest_id": source_manifest_id,
+        "failure_classification": str(
+            repair_feedback.get("failure_classification", "") or ""
+        ),
+        "repair_attempts_used": int(repair_attempts_used),
+        "yield_after_attempts": int(yield_after_attempts),
+        "implementation_gaps": [
+            dict(row)
+            for row in task.inputs.get("implementation_gaps", []) or []
+            if isinstance(row, Mapping)
+        ],
+        "routing_contract": (
+            "Select a theory, implementation, interface, or execution-environment "
+            "repair from the exact diagnostics. Do not invent statistical acceptance, "
+            "treat a failed implementation as accepted, or use formalization progress "
+            "to close the empirical blocker."
+        ),
+        "proof_evidence_status": (
+            "CODING_AGENT_REPAIR_BUDGET_REPLAN_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    return AgentTask(
+        task_id=(
+            f"architect-code-replan:{question.id}:"
+            f"{stable_hash([task.task_id, source_manifest_id, repair_feedback])[:8]}"
+        ),
+        owner_subsystem="ArchitectCoordinator",
+        objective=(
+            "Replan an unresolved generated-code implementation failure after the "
+            "source worker exhausted its bounded local repair budget."
+        ),
+        inputs={
+            "question": _question_to_payload(question),
+            "architect_context": replan_context,
+            "environment_feedback": dict(repair_feedback),
+        },
+        allowed_tools=("model_backend", "evidence_ledger"),
+        expected_artifacts=("architect_coordinator_proposal",),
+        acceptance_gate=(
+            "validated Architect proposal routes an evidence-producing repair or "
+            "records a typed blocker without weakening execution gates"
+        ),
+        stop_condition=(
+            "amended route selects a theory, code, interface, or environment repair"
+        ),
+    )
 
 
 def _coding_agent_packet_validation_architect_task(
@@ -57879,9 +58223,10 @@ def _implementation_gaps(
                 ),
                 "reason": (
                     "Agentic execution requires this LLM estimator spec to pass "
-                    "through generated code, sandbox execution, typed metric gates, "
-                    "and independent semantic review. A registered template cannot "
-                    "satisfy that evidence gate."
+                    "through generated code, sandbox execution, and independent "
+                    "semantic review. DGP-based statistical-performance gates belong "
+                    "to the downstream SimulationEngineer experiment. A registered "
+                    "template cannot satisfy this generated-artifact evidence gate."
                     if require_generated_adapter
                     else "LLM estimator spec has no registered executable algorithm "
                     "in this runtime slice."
@@ -60966,7 +61311,7 @@ def _runtime_algorithm_sandbox_feedback_from_learning_memory(
         target_component="algorithm",
         capability_ids=(
             "generated_algorithm_code_executed_locally",
-            "generated_algorithm_repair_loop_observed",
+            "generated_algorithm_failure_feedback_closed",
         ),
     )
     if feedback:
@@ -61012,7 +61357,7 @@ def _runtime_generated_simulation_feedback_from_learning_memory(
         target_component="simulation",
         capability_ids=(
             "generated_simulation_code_executed_locally",
-            "generated_simulation_repair_loop_observed",
+            "generated_simulation_failure_feedback_closed",
         ),
     )
     if feedback:
@@ -61271,13 +61616,13 @@ def _runtime_coding_agent_capability_feedback_from_learning_memory(
         )
         if target == "algorithm":
             requested_contract["capability_eval_requires_generated_algorithm_code"] = True
-            if capability_id == "generated_algorithm_repair_loop_observed":
+            if capability_id == "generated_algorithm_failure_feedback_closed":
                 requested_contract[
                     "capability_eval_requires_generated_algorithm_repair_loop"
                 ] = True
         elif target == "simulation":
             requested_contract["capability_eval_requires_generated_simulation_code"] = True
-            if capability_id == "generated_simulation_repair_loop_observed":
+            if capability_id == "generated_simulation_failure_feedback_closed":
                 requested_contract[
                     "capability_eval_requires_generated_simulation_repair_loop"
                 ] = True
@@ -61782,6 +62127,8 @@ def _runtime_requires_typed_metric_contracts(
     *,
     subsystem: str,
 ) -> bool:
+    if subsystem == "AlgorithmEngineer":
+        return False
     return _runtime_context_contract_flag(
         context,
         subsystem=subsystem,
@@ -61811,6 +62158,12 @@ def _runtime_generated_metric_requirement_authority(
     policy = generated_metric_requirement_authority_policy_from_context(
         authority_context
     )
+    if target_subsystem == "AlgorithmEngineer":
+        return (
+            [],
+            GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED,
+            False,
+        )
     return (
         requirements,
         policy,
@@ -62250,6 +62603,9 @@ def _generated_simulation_required_before_formalization_task(
     )
     context["previous_simulation_manifest_id"] = simulation_manifest_id
     context["previous_algorithm_sandbox_manifest_id"] = algorithm_sandbox_manifest_id
+    context[
+        "confirmatory_simulation_requires_accepted_algorithm_handoff"
+    ] = True
     return AgentTask(
         task_id=(
             f"simulation-required:{question.id}:"
@@ -62263,6 +62619,7 @@ def _generated_simulation_required_before_formalization_task(
         inputs={
             "question": _question_to_payload(question),
             "theory_packet_id": packet_id,
+            "algorithm_sandbox_manifest_id": algorithm_sandbox_manifest_id,
             "architect_context": context,
             "environment_feedback": feedback,
             "n_runs": n_runs,
@@ -62286,7 +62643,6 @@ def _generated_simulation_required_before_formalization_task(
         ),
         stop_condition="required generated simulation capability evidence recorded",
     )
-
 
 def _latest_artifact(blackboard: BlackboardState, prefix: str) -> dict[str, Any]:
     for key in reversed(list(blackboard.artifacts.keys())):
@@ -100977,14 +101333,14 @@ def _simulation_evaluator_repair_budget_yield_to_algorithm_task(
         "implementation_gaps": gap_rows,
         "target_behavior": (
             "Implement and execute every open estimator gap while preserving the "
-            "failed generated-simulation diagnostics. AlgorithmEngineer must emit "
-            "artifact-bound typed metric contracts and AgentRuntime must evaluate "
-            "them; the simulation blocker remains open for later replanning."
+            "failed generated-simulation diagnostics. AlgorithmEngineer must produce "
+            "a theory-faithful executable artifact; the SimulationEngineer-owned "
+            "empirical blocker remains open for later replanning."
         ),
         "acceptance_gate": (
-            "AlgorithmEngineer emits one generated sandbox draft and at least one "
-            "typed metric contract for every canonical implementation-gap id; "
-            "AgentRuntime records bounded execution and exact contract evaluation."
+            "AlgorithmEngineer emits one generated sandbox draft for every canonical "
+            "implementation-gap id, AgentRuntime records bounded execution, and an "
+            "independent semantic review is required before downstream acceptance."
         ),
         "runtime_requested_evidence_contract": {
             "capability_eval_requires_generated_algorithm_code": True,
@@ -101176,339 +101532,6 @@ def _formalizer_lean_candidate_repair_budget_yield_to_gap_planner_task(
             "offline gap-planner replay, prompt staging, or bounded live route "
             "planning completed with proof boundary preserved"
         ),
-    )
-
-
-def _algorithm_sandbox_metric_gate_refresh_result_if_needed(
-    *,
-    task: AgentTask,
-    question: OpenResearchQuestion,
-    context: Mapping[str, Any],
-    environment_feedback: Mapping[str, Any],
-    blackboard: BlackboardState,
-    theory_packet_id: str,
-    simulation_manifest_id: str,
-    n_runs: int,
-    seed: int,
-) -> AgentStepResult | None:
-    failure_classification = str(
-        environment_feedback.get("failure_classification", "") or ""
-    )
-    if failure_classification != "generated_algorithm_sandbox_metric_gate_failed":
-        return None
-    previous_manifest_id = str(
-        context.get("previous_algorithm_sandbox_manifest_id", "")
-        or environment_feedback.get("algorithm_sandbox_manifest_id", "")
-        or (
-            context.get("runtime_feedback_loop", {}).get(
-                "algorithm_sandbox_manifest_id",
-                "",
-            )
-            if isinstance(context.get("runtime_feedback_loop", {}), Mapping)
-            else ""
-        )
-        or ""
-    ).strip()
-    if not previous_manifest_id:
-        return None
-    previous_manifest = blackboard.artifacts.get(previous_manifest_id, {})
-    if not isinstance(previous_manifest, Mapping):
-        return None
-    if int(previous_manifest.get("n_metric_gate_failed", 0) or 0) <= 0:
-        return None
-    prototypes = [
-        row
-        for row in previous_manifest.get("prototypes", []) or []
-        if isinstance(row, Mapping)
-    ]
-    if not prototypes:
-        return None
-    (
-        metric_requirements,
-        _metric_authority_policy,
-        metric_authority_required,
-    ) = _runtime_generated_metric_requirement_authority(
-        context,
-        environment_feedback,
-        architect_subsystem="AlgorithmEngineer",
-        target_subsystem="AlgorithmEngineer",
-    )
-
-    refreshed_prototypes: list[dict[str, Any]] = []
-    refresh_rows: list[dict[str, Any]] = []
-    n_refreshed_failures = 0
-    for row in prototypes:
-        refreshed_row = dict(row)
-        prior_errors = list(_str_tuple(row.get("metric_gate_errors", [])))
-        needs_refresh = (
-            str(row.get("prototype_status", "") or "") == "FAILED_METRIC_GATE"
-            or bool(prior_errors)
-        )
-        if needs_refresh:
-            typed_metric_contracts = [
-                dict(contract)
-                for contract in row.get("metric_contracts", []) or []
-                if isinstance(contract, Mapping)
-            ]
-            if not typed_metric_contracts:
-                missing_contract_error = (
-                    "metric-gate refresh requires at least one prior typed metric "
-                    "contract bound to the sandbox artifact"
-                )
-                refreshed_row["prototype_status"] = "FAILED_METRIC_GATE"
-                refreshed_row["smoke_passed"] = False
-                refreshed_row["metric_gate_errors"] = sorted(
-                    set([*prior_errors, missing_contract_error])
-                )
-                refresh_rows.append(
-                    {
-                        "estimator_id": str(row.get("estimator_id", "") or ""),
-                        "prototype_status_before": str(
-                            row.get("prototype_status", "") or ""
-                        ),
-                        "prior_metric_gate_errors": prior_errors[:10],
-                        "recomputed_metric_gate_errors": [missing_contract_error],
-                        "execution_smoke_passed": bool(
-                            row.get(
-                                "execution_smoke_passed",
-                                row.get("smoke_passed") is True,
-                            )
-                        ),
-                    }
-                )
-                refreshed_prototypes.append(refreshed_row)
-                continue
-            recomputed_errors = _generated_sandbox_metric_gate_errors(
-                row.get("metrics", {}),
-                context={
-                    "question": _question_to_payload(question),
-                    "architect_context": dict(context),
-                    "environment_feedback": dict(environment_feedback),
-                    "estimator_id": str(row.get("estimator_id", "") or ""),
-                    "spec": row.get("spec", {}) if isinstance(row.get("spec", {}), Mapping) else {},
-                    "typed_metric_contracts": typed_metric_contracts,
-                    "metric_contract_artifact_id": str(
-                        row.get("estimator_id", "") or ""
-                    ),
-                    "authoritative_metric_requirements": metric_requirements,
-                    "metric_requirement_target_subsystem": "AlgorithmEngineer",
-                    "require_authoritative_metric_requirements": (
-                        metric_authority_required
-                    ),
-                },
-                code=_generated_python_sandbox_code_excerpt(row),
-            )
-            refresh_rows.append(
-                {
-                    "estimator_id": str(row.get("estimator_id", "") or ""),
-                    "prototype_status_before": str(
-                        row.get("prototype_status", "") or ""
-                    ),
-                    "prior_metric_gate_errors": prior_errors[:10],
-                    "recomputed_metric_gate_errors": recomputed_errors[:10],
-                    "execution_smoke_passed": bool(
-                        row.get(
-                            "execution_smoke_passed",
-                            row.get("smoke_passed") is True,
-                        )
-                    ),
-                }
-            )
-            if (
-                not recomputed_errors
-                and bool(
-                    row.get(
-                        "execution_smoke_passed",
-                        row.get("smoke_passed") is True,
-                    )
-                )
-            ):
-                refreshed_row["prototype_status"] = "EXECUTED"
-                refreshed_row["smoke_passed"] = True
-                refreshed_row["metric_gate_errors"] = []
-                refreshed_row["metric_gate_refresh"] = {
-                    "source_algorithm_sandbox_manifest_id": previous_manifest_id,
-                    "prior_metric_gate_errors": prior_errors[:10],
-                    "recomputed_metric_gate_errors": [],
-                    "proof_evidence_status": (
-                        "ALGORITHM_SANDBOX_METRIC_GATE_REFRESH_NOT_PROOF_EVIDENCE"
-                    ),
-                }
-                n_refreshed_failures += 1
-            else:
-                refreshed_row["metric_gate_errors"] = recomputed_errors
-                if recomputed_errors:
-                    refreshed_row["prototype_status"] = "FAILED_METRIC_GATE"
-                    refreshed_row["smoke_passed"] = False
-        refreshed_prototypes.append(refreshed_row)
-
-    if n_refreshed_failures <= 0:
-        return None
-    remaining_metric_failures = sum(
-        1
-        for row in refreshed_prototypes
-        if str(row.get("prototype_status", "") or "") == "FAILED_METRIC_GATE"
-    )
-    if remaining_metric_failures > 0:
-        return None
-
-    refreshed_manifest_id = "algorithm_sandbox_manifest:" + stable_hash(
-        [
-            "metric_gate_refresh",
-            task.task_id,
-            previous_manifest_id,
-            refreshed_prototypes,
-        ]
-    )[:20]
-    refreshed_manifest = dict(previous_manifest)
-    refreshed_manifest.update(
-        {
-            "manifest_id": refreshed_manifest_id,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "source_algorithm_sandbox_manifest_id": previous_manifest_id,
-            "prototypes": refreshed_prototypes,
-            "n_prototypes": len(refreshed_prototypes),
-            "n_executed": sum(
-                1
-                for row in refreshed_prototypes
-                if row.get("prototype_status") in {"EXECUTED", "FAILED_METRIC_GATE"}
-            ),
-            "n_passed": sum(
-                1 for row in refreshed_prototypes if row.get("smoke_passed") is True
-            ),
-            "n_metric_gate_failed": 0,
-            "n_generated_code_executed": sum(
-                1
-                for row in refreshed_prototypes
-                if row.get("executor") == "generated_python_sandbox"
-                and _generated_sandbox_row_executed(row)
-            ),
-            "n_live_generated_code_executed": sum(
-                1
-                for row in refreshed_prototypes
-                if row.get("executor") == "generated_python_sandbox"
-                and _generated_sandbox_row_executed(row)
-                and _generated_sandbox_row_live_generated(row)
-            ),
-            "n_live_generated_code_metric_gate_failed": 0,
-            "metric_gate_refresh": {
-                "source_algorithm_sandbox_manifest_id": previous_manifest_id,
-                "n_refreshed_failures": n_refreshed_failures,
-                "refresh_rows": refresh_rows[:10],
-                "execution_evidence_status": (
-                    "PRIOR_SANDBOX_EXECUTION_REEVALUATED_BY_CURRENT_METRIC_GATE"
-                ),
-                "proof_evidence_status": (
-                    "ALGORITHM_SANDBOX_METRIC_GATE_REFRESH_NOT_PROOF_EVIDENCE"
-                ),
-                "boundary": (
-                    "Metric-gate refresh re-evaluates prior bounded sandbox "
-                    "outputs with the current metric-gate logic. It is not new "
-                    "code execution, not production registration, and not theorem "
-                    "proof evidence."
-                ),
-            },
-        }
-    )
-    evidence = EvidenceLedgerEntry(
-        evidence_id="evidence:"
-        + stable_hash([task.task_id, refreshed_manifest_id])[:20],
-        task_id=task.task_id,
-        artifact_id=refreshed_manifest_id,
-        evidence_type="algorithm_sandbox_metric_gate_refresh",
-        status="PRIOR_SANDBOX_EXECUTION_REEVALUATED_NOT_PROOF_EVIDENCE",
-        boundary=ALGORITHM_ENGINEER_BOUNDARY,
-        payload={
-            "source_algorithm_sandbox_manifest_id": previous_manifest_id,
-            "n_refreshed_failures": n_refreshed_failures,
-            "n_passed": refreshed_manifest["n_passed"],
-            "n_metric_gate_failed": 0,
-            "execution_evidence_status": (
-                "PRIOR_SANDBOX_EXECUTION_REEVALUATED_BY_CURRENT_METRIC_GATE"
-            ),
-            "proof_evidence_status": (
-                "ALGORITHM_SANDBOX_METRIC_GATE_REFRESH_NOT_PROOF_EVIDENCE"
-            ),
-        },
-    )
-    context_with_feedback = dict(context)
-    context_with_feedback["previous_algorithm_sandbox_manifest_id"] = (
-        refreshed_manifest_id
-    )
-    feedback = {
-        "feedback_type": "algorithm_sandbox_metric_gate_refresh",
-        "failure_classification": "generated_algorithm_sandbox_metric_gate_stale",
-        "source_failure_classification": failure_classification,
-        "source_algorithm_sandbox_manifest_id": previous_manifest_id,
-        "algorithm_sandbox_manifest_id": refreshed_manifest_id,
-        "n_refreshed_failures": n_refreshed_failures,
-        "target_behavior": (
-            "Continue downstream execution using the refreshed algorithm sandbox "
-            "manifest; the previous metric-gate blocker was stale under current "
-            "gate logic."
-        ),
-        "execution_evidence_status": (
-            "PRIOR_SANDBOX_EXECUTION_REEVALUATED_BY_CURRENT_METRIC_GATE"
-        ),
-        "proof_evidence_status": (
-            "ALGORITHM_SANDBOX_METRIC_GATE_REFRESH_NOT_PROOF_EVIDENCE"
-        ),
-        "boundary": refreshed_manifest["metric_gate_refresh"]["boundary"],
-    }
-    context_with_feedback["environment_feedback"] = feedback
-    if _runtime_generated_simulation_required_before_formalization(
-        context=context_with_feedback,
-        environment_feedback=feedback,
-        blackboard=blackboard,
-        question=question,
-        theory_packet_id=theory_packet_id,
-    ):
-        next_task = _generated_simulation_required_before_formalization_task(
-            question=question,
-            packet_id=theory_packet_id,
-            simulation_manifest_id=simulation_manifest_id,
-            algorithm_sandbox_manifest_id=refreshed_manifest_id,
-            architect_context=context_with_feedback,
-            n_runs=n_runs,
-            seed=seed,
-        )
-    else:
-        next_task = _formalization_task(
-            question=question,
-            packet_id=theory_packet_id,
-            simulation_manifest_id=simulation_manifest_id,
-            algorithm_sandbox_manifest_id=refreshed_manifest_id,
-            architect_context=context_with_feedback,
-        )
-    return AgentStepResult(
-        status="REROUTE",
-        rationale=(
-            "Prior generated AlgorithmEngineer sandbox metric-gate failure was "
-            "stale under the current metric gate; runtime refreshed the manifest "
-            "from prior bounded execution outputs and is routing downstream."
-        ),
-        produced_artifacts={refreshed_manifest_id: refreshed_manifest},
-        observations=(
-            EnvironmentObservation(
-                observation_type="algorithm_sandbox_metric_gate_refresh",
-                summary=(
-                    "recomputed prior generated algorithm sandbox metric gate "
-                    f"for {previous_manifest_id}; refreshed_failures="
-                    f"{n_refreshed_failures}"
-                ),
-                payload={
-                    "source_algorithm_sandbox_manifest_id": previous_manifest_id,
-                    "algorithm_sandbox_manifest_id": refreshed_manifest_id,
-                    "n_refreshed_failures": n_refreshed_failures,
-                    "next_owner_subsystem": next_task.owner_subsystem,
-                    "proof_evidence_status": (
-                        "ALGORITHM_SANDBOX_METRIC_GATE_REFRESH_NOT_PROOF_EVIDENCE"
-                    ),
-                },
-            ),
-        ),
-        evidence_entries=(evidence,),
-        next_task=next_task,
     )
 
 

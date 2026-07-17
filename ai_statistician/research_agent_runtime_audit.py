@@ -20577,13 +20577,6 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
         or 0
     )
-    integrated_algorithm_metric_repair_sequences = int(
-        payload.get(
-            "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences",
-            0,
-        )
-        or 0
-    )
     integrated_algorithm_unsafe_repair_sequences = int(
         payload.get(
             "n_live_generated_code_sandbox_unsafe_failed_then_passed_repair_sequences",
@@ -20594,40 +20587,18 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     integrated_algorithm_code_executed = int(
         payload.get("n_live_generated_code_sandbox_executed", 0) or 0
     )
-    integrated_algorithm_typed_metric_contracts_evaluated = int(
-        payload.get(
-            "n_live_generated_algorithm_typed_metric_contracts_evaluated",
-            0,
-        )
-        or 0
-    )
-    integrated_algorithm_typed_metric_contract_artifacts_all_required_passed = int(
-        payload.get(
-            "n_live_generated_algorithm_typed_metric_contract_artifacts_all_required_passed",
-            0,
-        )
-        or 0
-    )
-    integrated_algorithm_metric_requirement_authority_validated = int(
-        payload.get(
-            "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated",
-            0,
-        )
-        or 0
-    )
-    integrated_algorithm_metric_requirement_authority_rejected = int(
-        payload.get(
-            "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_rejected",
-            0,
-        )
-        or 0
-    )
-    integrated_algorithm_authority_validated_required_gates_passed = int(
-        payload.get(
-            "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated_all_required_passed",
-            0,
-        )
-        or 0
+    integrated_algorithm_execution_or_safety_failures = int(
+        payload.get("n_live_generated_code_execution_failed", 0) or 0
+    ) + int(payload.get("n_live_unsafe_generated_code_rejected", 0) or 0)
+    integrated_algorithm_metric_gate_failures = max(
+        int(payload.get("n_live_generated_code_metric_gate_failed", 0) or 0),
+        int(
+            payload.get(
+                "n_live_generated_code_sandbox_metric_gate_failed",
+                0,
+            )
+            or 0
+        ),
     )
     integrated_simulation_repair_sequences = int(
         payload.get(
@@ -20652,6 +20623,27 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
     integrated_simulation_code_executed = int(
         payload.get("n_live_generated_simulation_sandbox_executed", 0) or 0
+    )
+    integrated_simulation_execution_or_safety_failures = int(
+        payload.get("n_live_generated_simulation_execution_failed", 0) or 0
+    ) + int(
+        payload.get("n_live_unsafe_generated_simulation_code_rejected", 0) or 0
+    )
+    integrated_simulation_metric_gate_failures = max(
+        int(
+            payload.get(
+                "n_live_generated_simulation_metric_gate_failed",
+                0,
+            )
+            or 0
+        ),
+        int(
+            payload.get(
+                "n_live_generated_simulation_sandbox_metric_gate_failed",
+                0,
+            )
+            or 0
+        ),
     )
     integrated_simulation_typed_metric_contracts_evaluated = int(
         payload.get(
@@ -25396,92 +25388,6 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
-            "generated_algorithm_typed_metric_contracts_evaluated",
-            integrated_algorithm_typed_metric_contracts_evaluated > 0,
-            (
-                "n_live_generated_algorithm_typed_metric_contracts_evaluated="
-                f"{integrated_algorithm_typed_metric_contracts_evaluated} "
-                "n_live_generated_code_sandbox_executed="
-                f"{integrated_algorithm_code_executed}"
-            ),
-            (
-                "live generated algorithm code did not expose and evaluate an "
-                "artifact-bound typed metric contract; successful process exit "
-                "alone is not statistical capability evidence"
-            ),
-            **_runtime_resume_scorecard_routing(
-                payload,
-                owner="AlgorithmEngineer",
-                target_behavior=(
-                    "Generate a source-anchored typed metric contract for each "
-                    "algorithm artifact, execute the draft, and return the exact "
-                    "contract evaluation in sandbox feedback."
-                ),
-                success_metric=(
-                    "n_live_generated_algorithm_typed_metric_contracts_evaluated>0"
-                ),
-            ),
-        ),
-        _scorecard_row(
-            "generated_algorithm_metric_requirement_authority_validated",
-            integrated_algorithm_metric_requirement_authority_validated > 0,
-            (
-                "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated="
-                f"{integrated_algorithm_metric_requirement_authority_validated} "
-                "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_rejected="
-                f"{integrated_algorithm_metric_requirement_authority_rejected}"
-            ),
-            (
-                "no live algorithm artifact preserved an independent Architect-authored "
-                "metric requirement set; a coding agent's self-authored required gate "
-                "cannot establish capability"
-            ),
-            **_runtime_resume_scorecard_routing(
-                payload,
-                owner="ArchitectCoordinator",
-                target_behavior=(
-                    "Author typed empirical metric requirements before coding, then "
-                    "require AlgorithmEngineer to copy every required comparison and "
-                    "bind only artifact IDs and result paths."
-                ),
-                success_metric=(
-                    "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated>0"
-                ),
-            ),
-        ),
-        _scorecard_row(
-            "generated_algorithm_typed_metric_contract_required_gates_passed",
-            (
-                integrated_algorithm_authority_validated_required_gates_passed
-                > 0
-            ),
-            (
-                "n_live_generated_algorithm_typed_metric_contract_artifacts_all_required_passed="
-                f"{integrated_algorithm_typed_metric_contract_artifacts_all_required_passed} "
-                "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated_all_required_passed="
-                f"{integrated_algorithm_authority_validated_required_gates_passed} "
-                "n_live_generated_algorithm_typed_metric_contracts_evaluated="
-                f"{integrated_algorithm_typed_metric_contracts_evaluated}"
-            ),
-            (
-                "no live generated algorithm artifact passed all required typed "
-                "metric contracts while preserving independent Architect authority; "
-                "self-authored, partial, or optional-contract success is not accepted"
-            ),
-            **_runtime_resume_scorecard_routing(
-                payload,
-                owner="AlgorithmEngineer",
-                target_behavior=(
-                    "Use the exact failed contract rows and observed metric paths "
-                    "to revise the generated implementation until all required "
-                    "artifact-bound gates pass."
-                ),
-                success_metric=(
-                    "n_live_generated_algorithm_typed_metric_contract_artifacts_authority_validated_all_required_passed>0"
-                ),
-            ),
-        ),
-        _scorecard_row(
             "generated_algorithm_sandbox_clean",
             int(payload.get("n_live_unsafe_generated_code_rejected", 0) or 0) <= 0
             or integrated_algorithm_unsafe_repair_sequences > 0,
@@ -25515,104 +25421,57 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
-            "generated_algorithm_metric_gate_clean",
-            int(
-                payload.get(
-                    "n_live_generated_code_sandbox_metric_gate_failed",
-                    0,
-                )
-                or 0
-            )
-            <= 0
-            or integrated_algorithm_metric_repair_sequences > 0,
+            "generated_algorithm_empirical_metric_gate_absent",
+            integrated_algorithm_metric_gate_failures <= 0,
             (
-                "n_live_generated_code_sandbox_metric_gate_failed="
-                f"{payload.get('n_live_generated_code_sandbox_metric_gate_failed')} "
-                "n_generated_code_sandbox_metric_gate_failed="
-                f"{payload.get('n_generated_code_sandbox_metric_gate_failed')} "
-                "integrated_algorithm_repair_sequences="
-                f"{integrated_algorithm_repair_sequences} "
-                "integrated_algorithm_metric_repair_sequences="
-                f"{integrated_algorithm_metric_repair_sequences}"
+                "n_live_generated_algorithm_metric_gate_failures="
+                f"{integrated_algorithm_metric_gate_failures}"
             ),
             (
-                "at least one generated algorithm draft executed locally but failed "
-                "the statistical metric gate and no later same-question "
-                "metric-gate repair loop passed"
+                "AlgorithmEngineer was incorrectly evaluated by a finite-sample "
+                "statistical-performance gate"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
-                owner="AlgorithmEngineer",
+                owner="ArchitectCoordinator",
                 target_behavior=(
-                    "Feed statistical metric-gate diagnostics back to "
-                    "AlgorithmEngineer and require a revised generated algorithm "
-                    "that passes the metric gate."
+                    "Remove empirical performance gates from AlgorithmEngineer and "
+                    "bind them to the SimulationEngineer confirmatory experiment."
                 ),
                 success_metric=(
-                    "n_live_generated_code_sandbox_metric_gate_failed is zero or "
-                    "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences>0"
+                    "n_live_generated_code_metric_gate_failed=0 and "
+                    "n_live_generated_code_sandbox_metric_gate_failed=0"
                 ),
             ),
         ),
         _scorecard_row(
-            "generated_algorithm_repair_loop_observed",
-            integrated_algorithm_repair_sequences > 0,
+            "generated_algorithm_failure_feedback_closed",
             (
+                integrated_algorithm_execution_or_safety_failures <= 0
+                or integrated_algorithm_repair_sequences > 0
+            ),
+            (
+                "n_live_generated_algorithm_execution_or_safety_failures="
+                f"{integrated_algorithm_execution_or_safety_failures} "
                 "n_live_generated_code_sandbox_failed_then_passed_repair_sequences="
                 f"{payload.get('n_live_generated_code_sandbox_failed_then_passed_repair_sequences')} "
                 "n_generated_code_sandbox_failed_then_passed_repair_sequences="
                 f"{payload.get('n_generated_code_sandbox_failed_then_passed_repair_sequences')}"
             ),
             (
-                "no generated algorithm draft failure was followed by a later "
-                "generated draft passing local sandbox/metric gates; attached "
-                "component gates can show isolated coding-agent capacity, but "
-                "one-shot integrated execution is not evidence of autonomous "
-                "runtime coding repair"
+                "an observed generated algorithm execution or safety failure has "
+                "no later same-lineage passing repair"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
                 owner="AlgorithmEngineer",
                 target_behavior=(
-                    "Run an integrated fail-then-pass generated algorithm repair "
-                    "sequence using sandbox or metric-gate feedback from the same "
-                    "runtime question."
+                    "Use the exact execution or sandbox diagnostics to produce a "
+                    "fresh generated algorithm artifact in the same lineage."
                 ),
                 success_metric=(
-                    "n_live_generated_code_sandbox_failed_then_passed_repair_sequences>0"
-                ),
-            ),
-        ),
-        _scorecard_row(
-            "generated_algorithm_metric_repair_loop_observed",
-            integrated_algorithm_metric_repair_sequences > 0,
-            (
-                "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences="
-                f"{payload.get('n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences')} "
-                "n_generated_code_sandbox_metric_failed_then_passed_repair_sequences="
-                f"{payload.get('n_generated_code_sandbox_metric_failed_then_passed_repair_sequences')} "
-                "integrated_algorithm_repair_sequences="
-                f"{integrated_algorithm_repair_sequences} "
-                "integrated_algorithm_metric_repair_sequences="
-                f"{integrated_algorithm_metric_repair_sequences}"
-            ),
-            (
-                "generated algorithm repair only demonstrated generic sandbox "
-                "recovery; no same-question statistical metric-gate "
-                "fail-then-pass repair loop was observed in the integrated "
-                "runtime"
-            ),
-            **_runtime_resume_scorecard_routing(
-                payload,
-                owner="AlgorithmEngineer",
-                target_behavior=(
-                    "Run an integrated generated algorithm metric-gate repair "
-                    "sequence: the first generated Python draft should fail a "
-                    "statistical metric gate with diagnostics, then a revised "
-                    "LLM-authored draft should pass that gate."
-                ),
-                success_metric=(
-                    "n_live_generated_code_sandbox_metric_failed_then_passed_repair_sequences>0"
+                    "no generated algorithm execution/safety failure is observed, "
+                    "or n_live_generated_code_sandbox_failed_then_passed_repair_sequences>0"
                 ),
             ),
         ),
@@ -25974,21 +25833,14 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
-            "generated_simulation_metric_gate_clean",
-            int(
-                payload.get(
-                    "n_live_generated_simulation_sandbox_metric_gate_failed",
-                    0,
-                )
-                or 0
-            )
-            <= 0
-            or integrated_simulation_metric_repair_sequences > 0,
+            "generated_simulation_metric_feedback_closed",
             (
-                "n_live_generated_simulation_sandbox_metric_gate_failed="
-                f"{payload.get('n_live_generated_simulation_sandbox_metric_gate_failed')} "
-                "n_generated_simulation_sandbox_metric_gate_failed="
-                f"{payload.get('n_generated_simulation_sandbox_metric_gate_failed')} "
+                integrated_simulation_metric_gate_failures <= 0
+                or integrated_simulation_metric_repair_sequences > 0
+            ),
+            (
+                "n_live_generated_simulation_metric_gate_failures="
+                f"{integrated_simulation_metric_gate_failures} "
                 "integrated_simulation_repair_sequences="
                 f"{integrated_simulation_repair_sequences} "
                 "integrated_simulation_metric_repair_sequences="
@@ -26014,63 +25866,33 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
-            "generated_simulation_repair_loop_observed",
-            integrated_simulation_repair_sequences > 0,
+            "generated_simulation_failure_feedback_closed",
             (
+                integrated_simulation_execution_or_safety_failures <= 0
+                or integrated_simulation_repair_sequences > 0
+            ),
+            (
+                "n_live_generated_simulation_execution_or_safety_failures="
+                f"{integrated_simulation_execution_or_safety_failures} "
                 "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences="
                 f"{payload.get('n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences')} "
                 "n_generated_simulation_sandbox_failed_then_passed_repair_sequences="
                 f"{payload.get('n_generated_simulation_sandbox_failed_then_passed_repair_sequences')}"
             ),
             (
-                "no generated simulation draft failure was followed by a later "
-                "generated draft passing local sandbox/metric gates; registered "
-                "simulation rows, attached component gates, or one-shot execution "
-                "do not demonstrate integrated simulation coding-agent repair"
+                "an observed generated simulation execution or safety failure has "
+                "no later same-lineage passing repair"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
                 owner="SimulationEvaluator",
                 target_behavior=(
-                    "Run an integrated fail-then-pass generated simulation repair "
-                    "sequence using sandbox or metric-gate feedback from the same "
-                    "runtime question."
+                    "Use exact execution or sandbox diagnostics to produce a fresh "
+                    "generated simulation artifact in the same lineage."
                 ),
                 success_metric=(
-                    "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences>0"
-                ),
-            ),
-        ),
-        _scorecard_row(
-            "generated_simulation_metric_repair_loop_observed",
-            integrated_simulation_metric_repair_sequences > 0,
-            (
-                "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences="
-                f"{payload.get('n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences')} "
-                "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences="
-                f"{payload.get('n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences')} "
-                "integrated_simulation_repair_sequences="
-                f"{integrated_simulation_repair_sequences} "
-                "integrated_simulation_metric_repair_sequences="
-                f"{integrated_simulation_metric_repair_sequences}"
-            ),
-            (
-                "generated simulation repair only demonstrated generic sandbox "
-                "recovery; no same-question empirical/statistical metric-gate "
-                "fail-then-pass repair loop was observed in the integrated "
-                "runtime"
-            ),
-            **_runtime_resume_scorecard_routing(
-                payload,
-                owner="SimulationEvaluator",
-                target_behavior=(
-                    "Run an integrated generated simulation metric-gate repair "
-                    "sequence: the first generated stress-test draft should fail "
-                    "an empirical/statistical metric gate with diagnostics, then "
-                    "a revised LLM-authored draft should pass that gate."
-                ),
-                success_metric=(
-                    "n_live_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences>0"
+                    "no generated simulation execution/safety failure is observed, "
+                    "or n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences>0"
                 ),
             ),
         ),

@@ -8,23 +8,16 @@ from typing import Any, Mapping
 from .fingerprint import stable_hash
 from .generated_metric_repair_policy import (
     generated_code_sandbox_guard_repair_instruction,
-    generated_metric_gate_repair_instruction,
     generated_python_sandbox_safe_subset_contract,
     generated_python_syntax_errors,
 )
 from .generated_metric_contract import (
     GENERATED_METRIC_CONTRACT_BOUNDARY,
     GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE,
-    GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED,
-    generated_metric_authority_repair_context,
-    generated_metric_contract_binding_json_schema,
-    generated_metric_contract_prompt_schema,
+    GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED,
     generated_metric_contract_set_id,
-    generated_metric_evaluation_semantics_contract,
-    generated_metric_requirement_authority_policy_from_context,
     generated_metric_requirements_for_subsystem,
     generated_metric_requirement_set_id,
-    generated_metric_requirements_from_context,
     materialize_generated_metric_contract_bindings,
     validate_generated_metric_contracts,
 )
@@ -102,20 +95,6 @@ class LLMAlgorithmEngineerAgent:
         requires_generated_code = _feedback_requires_generated_algorithm_code(
             feedback
         )
-        authoritative_metric_requirements = (
-            generated_metric_requirements_from_context(
-                feedback,
-                target_subsystem="AlgorithmEngineer",
-            )
-        )
-        metric_requirement_authority_policy = (
-            generated_metric_requirement_authority_policy_from_context(feedback)
-        )
-        require_authoritative_requirements = bool(
-            requires_generated_code
-            and metric_requirement_authority_policy
-            == GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED
-        )
         user_prompt = build_algorithm_engineer_prompt(
             question=question,
             theory_packet=theory_packet,
@@ -130,7 +109,6 @@ class LLMAlgorithmEngineerAgent:
         )
         response_schema = _algorithm_engineer_response_schema(
             implementation_gaps=implementation_gaps,
-            authoritative_metric_requirements=authoritative_metric_requirements,
             requires_generated_code=requires_generated_code,
         )
         provider_name = str(
@@ -173,11 +151,9 @@ class LLMAlgorithmEngineerAgent:
                 theory_packet=theory_packet,
                 implementation_gaps=implementation_gaps,
                 requires_generated_code=requires_generated_code,
-                authoritative_metric_requirements=(
-                    authoritative_metric_requirements
-                ),
+                authoritative_metric_requirements=[],
                 metric_requirement_authority_policy=(
-                    metric_requirement_authority_policy
+                    GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED
                 ),
             )
 
@@ -188,24 +164,23 @@ class LLMAlgorithmEngineerAgent:
                     _validate_capability_eval_generated_algorithm_packet(
                         packet,
                         implementation_gaps=implementation_gaps,
-                        authoritative_metric_requirements=(
-                            authoritative_metric_requirements
-                        ),
-                        require_authoritative_requirements=(
-                            require_authoritative_requirements
-                        ),
                     )
                 )
             return sorted(set(errors))
 
         def build_repair_context(**_kwargs: Any) -> dict[str, Any]:
-            return generated_metric_authority_repair_context(
-                authoritative_metric_requirements,
-                target_subsystem="AlgorithmEngineer",
-                artifact_id_label=(
-                    "canonical implementation-gap estimator_id from the corrected packet"
+            return {
+                "canonical_implementation_gap_ids": (
+                    _canonical_implementation_gap_ids(implementation_gaps)
                 ),
-            )
+                "metric_contracts_required": False,
+                "repair_prompt_priority_instructions": [
+                    "Preserve every canonical estimator_id unchanged.",
+                    "Repair the exact packet or generated-code defect.",
+                    "Return metric_contracts as an empty array.",
+                ],
+                "boundary": ALGORITHM_ENGINEER_BOUNDARY,
+            }
 
         return generate_validated_json_packet(
             provider=self.provider,
@@ -233,15 +208,6 @@ def build_algorithm_engineer_prompt(
     requires_generated_code = _feedback_requires_generated_algorithm_code(
         runtime_environment_feedback
     )
-    authoritative_metric_requirements = generated_metric_requirements_from_context(
-        runtime_environment_feedback,
-        target_subsystem="AlgorithmEngineer",
-    )
-    metric_requirement_authority_policy = (
-        generated_metric_requirement_authority_policy_from_context(
-            runtime_environment_feedback
-        )
-    )
     payload = {
         "question": {
             "id": question.id,
@@ -261,23 +227,11 @@ def build_algorithm_engineer_prompt(
         "canonical_implementation_gap_ids": _canonical_implementation_gap_ids(
             implementation_gaps
         ),
-        "typed_metric_contract_schema": (
-            generated_metric_contract_prompt_schema(
-                artifact_id_label="canonical implementation-gap estimator_id"
-            )
-            if requires_generated_code
-            else {}
-        ),
-        "metric_evaluation_semantics": (
-            generated_metric_evaluation_semantics_contract()
-            if requires_generated_code
-            else {}
-        ),
-        "authoritative_empirical_metric_requirements": (
-            authoritative_metric_requirements if requires_generated_code else []
-        ),
+        "typed_metric_contract_schema": {},
+        "metric_evaluation_semantics": {},
+        "authoritative_empirical_metric_requirements": [],
         "metric_requirement_authority_policy": (
-            metric_requirement_authority_policy
+            GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED
         ),
         "runtime_environment_feedback": runtime_environment_feedback,
         "registered_runtime_templates": registered_algorithm_template_prompt_rows(),
@@ -300,7 +254,7 @@ def build_algorithm_engineer_prompt(
             ],
         },
         "required_output_contract": _algorithm_engineer_output_contract(
-            requires_generated_code=requires_generated_code
+            requires_generated_code=requires_generated_code,
         ),
         "boundary": ALGORITHM_ENGINEER_BOUNDARY,
     }
@@ -314,49 +268,33 @@ def build_algorithm_engineer_prompt(
             "templates may be referenced only as baselines"
         )
     generated_code_instruction = (
-        "Capability-eval mode is active: for every ID in "
-        "canonical_implementation_gap_ids, include exactly one matching "
-        "implementation_targets row and one safe sandbox_code_drafts row with "
-        "at least one metric_contracts row bound to the same artifact ID. "
-        "For every row in authoritative_empirical_metric_requirements, emit a "
-        "binding for every generated artifact containing only contract_id, the exact "
-        "requirement_id, artifact_id, and metric_path. AgentRuntime deterministically "
-        "joins the immutable authority fields; do not repeat or rewrite thresholds, "
-        "operators, aggregation, quorum, semantics, or source anchors. "
-        "Do not rely on metric-name or prose inference; AgentRuntime rejects invented "
-        "or weakened required gates and evaluates only the typed contract. "
-        "Return raw finite measurements at every metric_path whenever an underlying "
-        "numeric quantity exists. For identity/mean/min/max, AgentRuntime aggregates "
-        "then compares once. For all/any/at_least_count/at_least_fraction, it applies "
-        "operator and threshold to each raw value, then applies the boolean aggregation "
-        "or quorum. Never place a quorum in threshold or return pre-thresholded 0/1 "
-        "flags for a measurable numeric quantity. Use 0/1 with operator == threshold 1 "
-        "only for an intrinsically boolean predicate. "
-        "entrypoint exactly \"run_sandbox\" and code defining either Python "
-        "def run_sandbox(seed: int, replicates: int) -> dict or R "
-        "run_sandbox <- function(seed, replicates). Declare language, "
-        "execution_profile, and only dependencies actually imported. Set every "
-        "implementation_targets row registered_template_hint to none so AgentRuntime "
-        "can test Claude-generated algorithm code execution. Registered templates may "
-        "be named only in prose as baselines; they will not be executed for this "
-        "capability gate. Treat each supplied implementation_gaps estimator_id as "
-        "an exact task-artifact foreign key: copy it unchanged into the matching "
-        "implementation_targets and sandbox_code_drafts rows rather than inventing "
-        "a clearer alias. Use execution_profile=scientific_wasm when mature "
-        "scientific Python libraries or R materially improve implementation "
-        "fidelity; otherwise use the stdlib Python profile. "
+        (
+            "Capability-eval mode is active: for every ID in "
+            "canonical_implementation_gap_ids, include exactly one matching "
+            "implementation_targets row and one safe sandbox_code_drafts row. "
+            "Set metric_contracts to an empty array. Return meaningful finite "
+            "smoke diagnostics that let the independent reviewer inspect implementation "
+            "semantics. Do not invent a finite-sample performance gate: the downstream "
+            "SimulationEngineer owns DGP-based statistical evaluation of this exact "
+            "algorithm artifact. entrypoint exactly \"run_sandbox\" and code defining either Python "
+            "def run_sandbox(seed: int, replicates: int) -> dict or R "
+            "run_sandbox <- function(seed, replicates). Declare language, "
+            "execution_profile, and only dependencies actually imported. Set every "
+            "implementation_targets row registered_template_hint to none so AgentRuntime "
+            "can test Claude-generated algorithm code execution. Registered templates may "
+            "be named only in prose as baselines; they will not be executed for this "
+            "capability gate. Treat each supplied implementation_gaps estimator_id as "
+            "an exact task-artifact foreign key: copy it unchanged into the matching "
+            "implementation_targets and sandbox_code_drafts rows rather than inventing "
+            "a clearer alias. Use execution_profile=scientific_wasm when mature "
+            "scientific Python libraries or R materially improve implementation "
+            "fidelity; otherwise use the stdlib Python profile. "
+        )
         if requires_generated_code
         else (
             "Prefer registered runtime templates over sandbox_code_drafts; leave "
             "sandbox_code_drafts empty whenever a template matches. "
         )
-    )
-    metric_gate_instruction = (
-        generated_metric_gate_repair_instruction(
-            artifact_label="generated algorithm draft"
-        )
-        if _feedback_reports_metric_gate_failure(payload["runtime_environment_feedback"])
-        else ""
     )
     sandbox_guard_instruction = (
         generated_code_sandbox_guard_repair_instruction(
@@ -379,10 +317,10 @@ def build_algorithm_engineer_prompt(
     capability_feedback_instruction = (
         "Integrated coding-agent capability feedback is active: consume "
         "runtime_environment_feedback as the current capability gap to close. "
-        "Produce one bounded safe algorithm run_sandbox draft and typed metric "
-        "contract for every canonical implementation-gap ID, expose them through "
-        "sandbox_code_drafts and metric_contracts, and let AgentRuntime execute "
-        "and score each draft for this run. Do not satisfy this with a registered template, "
+        "Produce one bounded safe algorithm run_sandbox draft for every canonical "
+        "implementation-gap ID, expose it through sandbox_code_drafts, leave "
+        "metric_contracts empty, and let AgentRuntime execute it for this run. "
+        "Do not satisfy this with a registered template, "
         "static replay, or component-gate artifact. "
         if _feedback_reports_coding_capability_feedback(
             payload["runtime_environment_feedback"]
@@ -392,12 +330,9 @@ def build_algorithm_engineer_prompt(
     packet_validation_instruction = (
         "Local packet-validator feedback is active: read every exact "
         "runtime_environment_feedback.validation_errors row and rebuild the full "
-        "packet. Bind only the authoritative_empirical_metric_requirements rows "
-        "shown in this prompt for AlgorithmEngineer. Author only contract_id, exact "
-        "requirement_id, the canonical estimator_id artifact binding, and a metric_path "
-        "that resolves against run_sandbox output. AgentRuntime materializes every "
-        "frozen authority field. Do not reuse a "
-        "contract from another subsystem or prior attempt. "
+        "packet. Preserve every canonical estimator_id, repair the exact generated "
+        "source or envelope defect, and leave metric_contracts empty. Statistical "
+        "performance requirements belong to the downstream SimulationEngineer. "
         if str(
             payload["runtime_environment_feedback"].get("feedback_type", "") or ""
         )
@@ -433,10 +368,9 @@ def build_algorithm_engineer_prompt(
         "Design implementation and sandbox-validation artifacts for the AlgorithmEngineer subsystem. "
         "Return ONLY one compact JSON object matching required_output_contract. Keep "
         "descriptive lists short, but include one implementation target, generated "
-        "draft, and typed metric contract for every canonical gap ID. Include only "
-        "required fields. "
+        "draft for every canonical gap ID, and an empty metric_contracts array. "
+        "Include only required fields. "
         + generated_code_instruction
-        + metric_gate_instruction
         + sandbox_guard_instruction
         + component_gate_instruction
         + capability_feedback_instruction
@@ -731,18 +665,6 @@ def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict
     }
 
 
-def _feedback_reports_metric_gate_failure(feedback: Mapping[str, Any]) -> bool:
-    if not isinstance(feedback, Mapping):
-        return False
-    failure = str(feedback.get("failure_classification", "") or "")
-    if "metric_gate" in failure:
-        return True
-    for row in feedback.get("prototypes", []) or []:
-        if isinstance(row, Mapping) and row.get("metric_gate_errors"):
-            return True
-    return False
-
-
 def _feedback_reports_coding_component_gate(feedback: Mapping[str, Any]) -> bool:
     if not isinstance(feedback, Mapping):
         return False
@@ -998,18 +920,13 @@ def _algorithm_engineer_output_contract(*, requires_generated_code: bool) -> dic
                 ),
             }
         ]
-        contract["metric_contracts"] = [
-            generated_metric_contract_prompt_schema(
-                artifact_id_label="canonical implementation-gap estimator_id"
-            )
-        ]
+        contract["metric_contracts"] = []
     return contract
 
 
 def _algorithm_engineer_response_schema(
     *,
     implementation_gaps: list[Mapping[str, Any]],
-    authoritative_metric_requirements: list[Mapping[str, Any]],
     requires_generated_code: bool,
 ) -> dict[str, Any]:
     """Build a compact provider-native envelope for generated-code mode."""
@@ -1017,20 +934,10 @@ def _algorithm_engineer_response_schema(
     if not requires_generated_code:
         return ALGORITHM_ENGINEER_JSON_SCHEMA
     gap_ids = _canonical_implementation_gap_ids(implementation_gaps)
-    requirement_ids = [
-        str(row.get("requirement_id", "") or "").strip()
-        for row in authoritative_metric_requirements
-        if isinstance(row, Mapping)
-        and str(row.get("requirement_id", "") or "").strip()
-    ]
     estimator_id_schema: dict[str, Any] = {"type": "string", "minLength": 1}
     if gap_ids:
         estimator_id_schema["enum"] = gap_ids
     required_artifact_rows = max(1, len(gap_ids))
-    required_binding_rows = max(
-        1,
-        len(requirement_ids) * required_artifact_rows,
-    )
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -1110,11 +1017,7 @@ def _algorithm_engineer_response_schema(
             },
             "metric_contracts": {
                 "type": "array",
-                "minItems": required_binding_rows,
-                "items": generated_metric_contract_binding_json_schema(
-                    requirement_ids=requirement_ids,
-                    artifact_ids=gap_ids,
-                ),
+                "maxItems": 0,
             },
             "next_actions": _next_actions_json_schema(),
         },
@@ -1299,8 +1202,6 @@ def _validate_capability_eval_generated_algorithm_packet(
     packet: Mapping[str, Any],
     *,
     implementation_gaps: list[Mapping[str, Any]],
-    authoritative_metric_requirements: list[Mapping[str, Any]] | None = None,
-    require_authoritative_requirements: bool = False,
 ) -> list[str]:
     """Capability eval must exercise Claude-generated code, not a template path."""
 
@@ -1344,18 +1245,11 @@ def _validate_capability_eval_generated_algorithm_packet(
             "implementation-gap estimator_id; missing: "
             + ", ".join(sorted(missing_ids))
         )
-    errors.extend(
-        validate_generated_metric_contracts(
-            packet.get("metric_contracts", []),
-            expected_artifact_ids=tuple(sorted(expected_ids)),
-            required_artifact_ids=tuple(sorted(expected_ids)),
-            authoritative_requirements=authoritative_metric_requirements,
-            target_subsystem="AlgorithmEngineer",
-            require_authoritative_requirements=(
-                require_authoritative_requirements
-            ),
+    if packet.get("metric_contracts", []) not in (None, [], {}):
+        errors.append(
+            "AlgorithmEngineer must leave metric_contracts empty; downstream "
+            "SimulationEngineer owns empirical performance acceptance"
         )
-    )
     return errors
 
 

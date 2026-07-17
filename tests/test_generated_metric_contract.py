@@ -44,7 +44,7 @@ def _contract(**overrides: object) -> dict[str, object]:
 def _requirement(**overrides: object) -> dict[str, object]:
     row: dict[str, object] = {
         "requirement_id": "architect:criterion-control",
-        "target_subsystems": ["AlgorithmEngineer", "SimulationEngineer"],
+        "target_subsystems": ["SimulationEngineer"],
         "metric_semantics": "scenario-wise excess above the declared target",
         "measurement_protocol": (
             "compute one excess value for each preregistered stress scenario"
@@ -70,17 +70,15 @@ def test_metric_requirement_target_namespace_is_explicit_and_machine_readable() 
         GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
     )
     assert namespace["runtime_execution_owner_by_author_subsystem"] == {
-        "AlgorithmEngineer": "AlgorithmEngineer",
         "SimulationEngineer": "SimulationEvaluator",
     }
     assert namespace["capability_eval_required_coverage"] == [
-        {"target_subsystems": ["AlgorithmEngineer"]},
         {"target_subsystems": ["SimulationEngineer"]},
     ]
     assert schema["properties"]["target_subsystems"]["items"]["enum"] == [
-        "AlgorithmEngineer",
         "SimulationEngineer",
     ]
+    assert "semantic review" in namespace["algorithm_acceptance_boundary"]
     assert schema["properties"]["operator"]["enum"] == list(
         GENERATED_METRIC_CONTRACT_OPERATORS
     )
@@ -177,8 +175,8 @@ def test_generated_metric_contract_validator_is_artifact_bound() -> None:
 
 
 def test_metric_authority_repair_context_is_complete_and_subsystem_scoped() -> None:
-    algorithm_only = _requirement(
-        requirement_id="algorithm-only",
+    unsupported_algorithm_row = _requirement(
+        requirement_id="unsupported-algorithm-row",
         target_subsystems=["AlgorithmEngineer"],
     )
     simulation_only = _requirement(
@@ -187,7 +185,7 @@ def test_metric_authority_repair_context_is_complete_and_subsystem_scoped() -> N
     )
 
     context = generated_metric_authority_repair_context(
-        [algorithm_only, simulation_only],
+        [unsupported_algorithm_row, simulation_only],
         target_subsystem="SimulationEngineer",
         artifact_id_label="simulation_code_drafts[*].simulation_id",
     )
@@ -256,7 +254,7 @@ def test_binding_only_contract_materializes_frozen_architect_authority() -> None
             }
         ],
         authoritative_requirements=[requirement],
-        target_subsystem="AlgorithmEngineer",
+        target_subsystem="SimulationEngineer",
     )
 
     contract = contracts[0]
@@ -274,7 +272,7 @@ def test_binding_only_contract_materializes_frozen_architect_authority() -> None
         expected_artifact_ids=("artifact:generated-candidate",),
         required_artifact_ids=("artifact:generated-candidate",),
         authoritative_requirements=[requirement],
-        target_subsystem="AlgorithmEngineer",
+        target_subsystem="SimulationEngineer",
         require_authoritative_requirements=True,
     ) == []
 
@@ -295,7 +293,7 @@ def test_runtime_join_discards_attempted_coding_agent_gate_weakening() -> None:
             }
         ],
         authoritative_requirements=[requirement],
-        target_subsystem="AlgorithmEngineer",
+        target_subsystem="SimulationEngineer",
     )
 
     contract = contracts[0]
@@ -313,7 +311,7 @@ def test_runtime_join_discards_attempted_coding_agent_gate_weakening() -> None:
         artifact_id="artifact:generated-candidate",
         runtime_replicates=80,
         authoritative_requirements=[requirement],
-        target_subsystem="AlgorithmEngineer",
+        target_subsystem="SimulationEngineer",
         require_authoritative_requirements=True,
     )
     assert evaluation["metric_requirement_authority_validated"] is True
@@ -332,7 +330,7 @@ def test_unknown_requirement_binding_still_fails_closed() -> None:
             }
         ],
         authoritative_requirements=[requirement],
-        target_subsystem="AlgorithmEngineer",
+        target_subsystem="SimulationEngineer",
     )
 
     errors = validate_generated_metric_contracts(
@@ -340,7 +338,7 @@ def test_unknown_requirement_binding_still_fails_closed() -> None:
         expected_artifact_ids=("artifact:generated-candidate",),
         required_artifact_ids=("artifact:generated-candidate",),
         authoritative_requirements=[requirement],
-        target_subsystem="AlgorithmEngineer",
+        target_subsystem="SimulationEngineer",
         require_authoritative_requirements=True,
     )
     assert any("not an authoritative requirement" in error for error in errors)
@@ -483,7 +481,7 @@ def test_authoritative_metric_requirement_rejects_invented_or_weakened_gate() ->
         expected_artifact_ids=("artifact:generated-candidate",),
         required_artifact_ids=("artifact:generated-candidate",),
         authoritative_requirements=[requirement],
-        target_subsystem="AlgorithmEngineer",
+        target_subsystem="SimulationEngineer",
         require_authoritative_requirements=True,
     )
 
@@ -515,7 +513,7 @@ def test_authoritative_metric_requirement_binds_and_evaluates_quorum() -> None:
     bound = bind_generated_metric_contract_authority(
         [contract],
         authoritative_requirements=[requirement],
-        target_subsystem="AlgorithmEngineer",
+        target_subsystem="SimulationEngineer",
     )
 
     evaluation = evaluate_generated_metric_contracts(
@@ -524,13 +522,13 @@ def test_authoritative_metric_requirement_binds_and_evaluates_quorum() -> None:
         artifact_id="artifact:generated-candidate",
         runtime_replicates=80,
         authoritative_requirements=[requirement],
-        target_subsystem="AlgorithmEngineer",
+        target_subsystem="SimulationEngineer",
         require_authoritative_requirements=True,
     )
 
     assert validate_generated_metric_requirements(
         [requirement],
-        required_target_subsystems=("AlgorithmEngineer", "SimulationEngineer"),
+        required_target_subsystems=("SimulationEngineer",),
     ) == []
     assert bound[0]["authority_requirement_fingerprint"]
     assert generated_metric_requirement_set_id([requirement])
@@ -565,7 +563,7 @@ def test_authoritative_metric_requirement_fails_when_runtime_budget_differs() ->
     bound = bind_generated_metric_contract_authority(
         [contract],
         authoritative_requirements=[requirement],
-        target_subsystem="AlgorithmEngineer",
+        target_subsystem="SimulationEngineer",
     )
 
     evaluation = evaluate_generated_metric_contracts(
@@ -574,7 +572,7 @@ def test_authoritative_metric_requirement_fails_when_runtime_budget_differs() ->
         artifact_id="artifact:generated-candidate",
         runtime_replicates=40,
         authoritative_requirements=[requirement],
-        target_subsystem="AlgorithmEngineer",
+        target_subsystem="SimulationEngineer",
         require_authoritative_requirements=True,
     )
 

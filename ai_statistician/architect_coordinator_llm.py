@@ -606,7 +606,7 @@ def build_architect_coordinator_prompt(
         "schema repair. Keep non-plan lists to at most 2 short strings or 1 short "
         "object. subsystem_execution_plan is exempt. In capability_eval, "
         "empirical_metric_requirements is also exempt and must contain the minimum "
-        "rows needed to cover both generated-code author subsystems. Include compact "
+        "rows needed for the confirmatory SimulationEngineer experiment. Include compact "
         "objects for the "
         "workers you select and any mandatory stages whose objective or ordering you "
         "want to specialize. AgentRuntime will append provenance-marked empty shells "
@@ -731,18 +731,20 @@ def build_architect_coordinator_prompt(
         "requires explicit diagnosis rather than an automatic gate change. Never edit a "
         "failed frozen threshold in place after observing results. "
         "When requested_evidence_contract.capability_eval_requires_typed_metric_contracts "
-        "is true, first obtain the structured TheoryDeveloper procedure and then "
-        "author empirical_metric_requirements before confirmatory coding or empirical "
-        "acceptance. A non-promotable exploratory source-code repair may run first "
-        "when exact reviewer feedback is the active Architect blocker; it cannot "
-        "authorize or influence a later confirmatory metric contract. "
+        "is true, first obtain the structured TheoryDeveloper procedure, let "
+        "AlgorithmEngineer implement and independently review the estimator, and then "
+        "freeze empirical_metric_requirements before confirmatory simulation. An "
+        "explicit exploratory simulation may run only with an accepted algorithm "
+        "artifact and remains ineligible for confirmatory acceptance. "
         "Do not freeze procedure-dependent thresholds from the research question "
-        "alone. Include at least one required row targeting AlgorithmEngineer and "
-        "one targeting SimulationEngineer. target_subsystems is the generated-code "
-        "author namespace, not the runtime execution-owner namespace: every entry "
-        "must be exactly AlgorithmEngineer or SimulationEngineer. SimulationEvaluator "
-        "executes SimulationEngineer output but is not a valid target_subsystems "
-        "value. Give every row an immutable requirement "
+        "alone. Include the smallest sufficient set of required rows targeting "
+        "SimulationEngineer. AlgorithmEngineer owns the executable estimator and "
+        "is accepted through sandbox execution plus independent semantic review; "
+        "do not assign finite-sample performance thresholds to that implementation "
+        "artifact. target_subsystems is the generated empirical-evaluation author "
+        "namespace: every entry must be exactly SimulationEngineer. "
+        "SimulationEvaluator executes SimulationEngineer output but is not a valid "
+        "target_subsystems value. Give every row an immutable requirement "
         "id, precise metric semantics and measurement protocol, numeric comparison, "
         "aggregation/quorum, and source anchors. Every required row must encode one "
         "independent scalar comparison or one homogeneous collection comparison. Split "
@@ -1528,14 +1530,16 @@ def _architect_packet_repair_context(
                 "In capability_eval, preserve the runtime-owned metric phase. While "
                 "theory_prerequisite_pending, leave empirical_metric_requirements "
                 "empty and route retrieval/theory only. After the structured theory "
-                "handoff, author required rows for both coding subsystems and freeze "
-                "them only after independent review; preserve any accepted frozen "
-                "requirement set unchanged on replans."
+                "handoff and AlgorithmEngineer artifact, author the smallest "
+                "confirmatory simulation requirement set and freeze it only after "
+                "independent review; preserve any accepted frozen requirement set "
+                "unchanged on replans."
             ),
             (
                 "In empirical_metric_requirements.target_subsystems, use only the "
-                "exact generated-code author values AlgorithmEngineer or "
-                "SimulationEngineer. SimulationEvaluator is a runtime execution "
+                "exact empirical-evaluation author value SimulationEngineer. "
+                "AlgorithmEngineer implementation acceptance uses execution plus "
+                "independent semantic review. SimulationEvaluator is a runtime execution "
                 "owner and is invalid in this field."
             ),
             (
@@ -1730,8 +1734,7 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                 validate_generated_metric_requirements(
                     requirements,
                     required_target_subsystems=(
-                        "AlgorithmEngineer",
-                        "SimulationEngineer",
+                        GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
                     )
                     if evaluation_mode == "capability_eval"
                     else (),

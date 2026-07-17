@@ -45,10 +45,11 @@ def _complete_task(
     algorithm_failed_prototype = {
         "estimator_id": f"algorithm:{question_id}",
         "executor": "generated_python_sandbox",
-        "prototype_status": "FAILED_METRIC_GATE",
+        "prototype_status": "FAILED",
         "script_hash": stable_hash(f"bad algorithm code:{question_id}"),
         "smoke_passed": False,
-        "metric_gate_errors": ["coverage below target"],
+        "execution_smoke_passed": False,
+        "stderr_summary": "NameError: generated estimator did not execute",
         "source_llm_proposal_id": f"algorithm_proposal:{question_id}:failed",
         "source_llm_proposal_provider": "anthropic",
         "source_llm_proposal_backend_provider": "anthropic",
@@ -60,7 +61,7 @@ def _complete_task(
     algorithm_feedback_id = _generated_sandbox_feedback_id(
         feedback_type="algorithm_sandbox_execution_feedback",
         source_manifest_id=algorithm_failed_id,
-        failure_classification="generated_algorithm_sandbox_metric_gate_failed",
+        failure_classification="generated_algorithm_sandbox_execution_failed",
         prototype_rows=[algorithm_failed_prototype],
     )
     algorithm_passed_prototype = {
@@ -81,7 +82,7 @@ def _complete_task(
         "feedback_id": algorithm_feedback_id,
         "feedback_type": "algorithm_sandbox_execution_feedback",
         "feedback_failure_classification": (
-            "generated_algorithm_sandbox_metric_gate_failed"
+            "generated_algorithm_sandbox_execution_failed"
         ),
         "parent_manifest_id": algorithm_failed_id,
         "parent_prototype_artifact_ids": [
@@ -219,6 +220,7 @@ def _complete_task(
             "generated_simulation_sandbox_prototypes": [
                 simulation_failed_prototype
             ],
+            "n_generated_simulation_sandbox_metric_gate_failed": 1,
         },
         simulation_id: {
             "artifact_kind": "RuntimeSimulationManifest",
@@ -228,6 +230,7 @@ def _complete_task(
             "theory_packet_id": packet_id,
             "n_live_generated_simulation_sandbox_executed": 1,
             "n_live_generated_simulation_sandbox_passed": 1,
+            "confirmatory_empirical_evidence_eligible": True,
             "generated_simulation_sandbox_prototypes": [
                 simulation_passed_prototype
             ],
@@ -243,6 +246,7 @@ def _complete_task(
             "theory_packet_id": packet_id,
             "simulation_manifest_id": simulation_id,
             "prototypes": [algorithm_failed_prototype],
+            "n_generated_code_execution_failed": 1,
         },
         algorithm_id: {
             "artifact_kind": "RuntimeAlgorithmSandboxManifest",
@@ -257,6 +261,38 @@ def _complete_task(
             "theory_trace_consumption_contract": _theory_contract(
                 packet_id, "AlgorithmEngineer"
             ),
+        },
+        f"generated_code_semantic_review_execution:{question_id}:algorithm": {
+            "artifact_kind": (
+                "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
+            ),
+            "execution_id": (
+                f"generated_code_semantic_review_execution:{question_id}:algorithm"
+            ),
+            "question_id": question_id,
+            "source_subsystem": "AlgorithmEngineer",
+            "source_manifest_id": algorithm_id,
+            "semantic_review_accepted": True,
+            "independent_agent": True,
+            "independent_model": True,
+            "reviewer_model_tier": "opus",
+            "confirmatory_empirical_evidence_eligible": True,
+        },
+        f"generated_code_semantic_review_execution:{question_id}:simulation": {
+            "artifact_kind": (
+                "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
+            ),
+            "execution_id": (
+                f"generated_code_semantic_review_execution:{question_id}:simulation"
+            ),
+            "question_id": question_id,
+            "source_subsystem": "SimulationEvaluator",
+            "source_manifest_id": simulation_id,
+            "semantic_review_accepted": True,
+            "independent_agent": True,
+            "independent_model": True,
+            "reviewer_model_tier": "opus",
+            "confirmatory_empirical_evidence_eligible": True,
         },
         f"formalizer_proposal:{question_id}": {
             "artifact_kind": "FormalizerProofEngineerProposalPacket",
@@ -390,15 +426,47 @@ def test_fresh_start_cross_task_e2e_requires_two_complete_per_task_lineages() ->
     assert len(audit["complete_source_proof_lineage_ids"]) == 2
 
 
+def test_fresh_start_cross_task_e2e_accepts_first_pass_correct_agents() -> None:
+    manifest, results, summaries = _complete_suite()
+    for result, summary in zip(results, summaries, strict=True):
+        artifacts = result["blackboard"]["artifacts"]
+        for artifact_id in list(artifacts):
+            if artifact_id.endswith(":failed"):
+                del artifacts[artifact_id]
+        for artifact in artifacts.values():
+            if not isinstance(artifact, dict):
+                continue
+            for key in ("prototypes", "generated_simulation_sandbox_prototypes"):
+                for prototype in artifact.get(key, []) or []:
+                    if isinstance(prototype, dict):
+                        prototype.pop("repair_lineage", None)
+        summary[
+            "n_live_generated_code_sandbox_failed_then_passed_repair_sequences"
+        ] = 0
+        summary[
+            "n_live_generated_simulation_sandbox_failed_then_passed_repair_sequences"
+        ] = 0
+
+    audit = audit_fresh_start_cross_task_e2e(
+        runtime_manifest=manifest,
+        result_payloads=results,
+        row_summaries=summaries,
+    )
+
+    assert audit["cross_task_full_e2e_generalization_demonstrated"] is True
+    assert all(row["algorithm_failure_observed"] is False for row in audit["task_rows"])
+    assert all(row["simulation_failure_observed"] is False for row in audit["task_rows"])
+
+
 @pytest.mark.parametrize(
     ("mutation", "missing_gate"),
     [
         ("resume", None),
         ("same_family", None),
-        ("aggregate_only_repair", "artifact_bound_algorithm_and_simulation_repairs"),
-        ("same_script_replay", "artifact_bound_algorithm_and_simulation_repairs"),
-        ("forged_prototype_id", "artifact_bound_algorithm_and_simulation_repairs"),
-        ("cross_task_feedback", "artifact_bound_algorithm_and_simulation_repairs"),
+        ("aggregate_only_repair", "algorithm_feedback_closed_if_failure_observed"),
+        ("same_script_replay", "algorithm_feedback_closed_if_failure_observed"),
+        ("forged_prototype_id", "algorithm_feedback_closed_if_failure_observed"),
+        ("cross_task_feedback", "algorithm_feedback_closed_if_failure_observed"),
         ("proof_target_drift", "exact_source_theorem_kernel_verified"),
         ("runtime_generated_proof", "exact_source_theorem_kernel_verified"),
         ("fixture_provider", "exact_source_theorem_kernel_verified"),
@@ -476,7 +544,7 @@ def test_fresh_start_cross_task_e2e_fails_closed(
                 feedback_type="algorithm_sandbox_execution_feedback",
                 source_manifest_id=foreign_manifest["manifest_id"],
                 failure_classification=(
-                    "generated_algorithm_sandbox_metric_gate_failed"
+                        "generated_algorithm_sandbox_execution_failed"
                 ),
                 prototype_rows=[foreign_prototype],
             )
