@@ -56,8 +56,8 @@ from .lean_proof_agent_contract import (
     without_legacy_python_lean_strategy_fields,
 )
 from .generated_metric_repair_policy import (
+    generated_code_sandbox_guard_repair_instruction,
     generated_metric_gate_repair_instruction,
-    generated_python_sandbox_guard_repair_instruction,
 )
 from .generated_metric_contract import (
     GENERATED_METRIC_CONTRACT_BOUNDARY,
@@ -85,6 +85,14 @@ from .generated_code_semantic_reviewer_llm import (
 from .generated_code_semantic_review_replan import (
     GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
     build_generated_code_semantic_review_architect_replan_task,
+)
+from .scientific_sandbox import (
+    SCIENTIFIC_WASM_SANDBOX_PROFILE,
+    execute_scientific_sandbox,
+    generated_code_execution_contract_errors,
+    normalized_generated_code_language,
+    normalized_generated_code_profile,
+    normalized_scientific_dependencies,
 )
 from .evaluation_protocol_revision import (
     _architect_post_result_metric_protocol_revision_result,
@@ -14728,7 +14736,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                         )
                     )
                     continue
-                prototype, tool_call = _run_generated_python_sandbox(
+                prototype, tool_call = _run_generated_code_sandbox(
                     sandbox_dir=sandbox_dir,
                     estimator_id=estimator_id,
                     spec=spec,
@@ -101624,7 +101632,7 @@ def _algorithm_sandbox_revision_feedback(
             "explicitly choose a matching registered template/unsupported blocker "
             "instead of repeating the same non-executable or metric-failing draft"
             + " "
-            + generated_python_sandbox_guard_repair_instruction(
+            + generated_code_sandbox_guard_repair_instruction(
                 artifact_label="generated algorithm draft"
             )
             + metric_gate_repair
@@ -101939,7 +101947,7 @@ def _generated_simulation_revision_feedback(
             "gate, or omit the generated draft with an explicit blocker instead "
             "of repeating the same non-executable or metric-failing code"
             + " "
-            + generated_python_sandbox_guard_repair_instruction(
+            + generated_code_sandbox_guard_repair_instruction(
                 artifact_label="generated simulation draft"
             )
             + metric_gate_repair
@@ -101968,7 +101976,7 @@ def _run_generated_simulation_sandbox(
             artifact_id=simulation_id,
         )
     )
-    prototype, tool_call = _run_generated_python_sandbox(
+    prototype, tool_call = _run_generated_code_sandbox(
         sandbox_dir=sandbox_dir,
         estimator_id=simulation_id,
         spec={
@@ -101991,8 +101999,8 @@ def _run_generated_simulation_sandbox(
     )
     simulation_boundary = (
         "Generated simulation sandbox drafts are untrusted LLM stress-test "
-        "proposals. AgentRuntime runs only drafts that pass the conservative "
-        "generated-Python guard in a bounded subprocess. Passing results are "
+        "proposals. AgentRuntime runs only drafts accepted by the selected "
+        "bounded stdlib or scientific-WASM profile. Passing results are "
         "simulation evidence only, not theorem proof evidence."
     )
     prototype = dict(prototype)
@@ -102011,11 +102019,12 @@ def _run_generated_simulation_sandbox(
     if execution_smoke_passed and metric_gate_errors:
         prototype["prototype_status"] = "FAILED_METRIC_GATE"
     prototype["boundary"] = simulation_boundary
+    tool_language = normalized_generated_code_language(code_draft.get("language"))
     wrapped_tool_call = ToolCallRecord(
         tool_name=(
-            "python.generated_simulation_sandbox"
-            if tool_call.tool_name == "python.generated_algorithm_sandbox"
-            else "python.generated_simulation_sandbox_precheck"
+            f"{tool_language}.generated_simulation_sandbox"
+            if tool_call.tool_name.endswith(".generated_algorithm_sandbox")
+            else f"{tool_language}.generated_simulation_sandbox_precheck"
         ),
         inputs={
             **dict(tool_call.inputs),
@@ -102194,6 +102203,313 @@ def _generated_python_sandbox_environment(sandbox_dir: Path) -> dict[str, str]:
         if value:
             environment[key] = value
     return environment
+
+
+def _run_generated_code_sandbox(
+    *,
+    sandbox_dir: Path,
+    estimator_id: str,
+    spec: Mapping[str, Any],
+    code_draft: Mapping[str, Any],
+    validation_context: Mapping[str, Any] | None = None,
+    n_runs: int,
+    seed: int,
+    timeout_s: int,
+    metric_contracts: Sequence[Mapping[str, Any]] = (),
+) -> tuple[dict[str, Any], ToolCallRecord]:
+    """Dispatch one generated draft without creating a second evaluation path."""
+
+    normalized_draft = dict(code_draft)
+    language = normalized_generated_code_language(normalized_draft.get("language"))
+    profile = normalized_generated_code_profile(
+        normalized_draft.get("execution_profile"),
+        language=language,
+    )
+    normalized_draft["language"] = language
+    normalized_draft["execution_profile"] = profile
+    normalized_draft["dependencies"] = list(
+        normalized_scientific_dependencies(
+            normalized_draft.get("dependencies", []),
+            language=language,
+        )
+    )
+    contract_errors = generated_code_execution_contract_errors(normalized_draft)
+    if language == "python" and profile == "stdlib" and not contract_errors:
+        return _run_generated_python_sandbox(
+            sandbox_dir=sandbox_dir,
+            estimator_id=estimator_id,
+            spec=spec,
+            code_draft=normalized_draft,
+            validation_context=validation_context,
+            n_runs=n_runs,
+            seed=seed,
+            timeout_s=timeout_s,
+            metric_contracts=metric_contracts,
+        )
+    return _run_generated_scientific_sandbox(
+        sandbox_dir=sandbox_dir,
+        estimator_id=estimator_id,
+        spec=spec,
+        code_draft=normalized_draft,
+        validation_context=validation_context,
+        n_runs=n_runs,
+        seed=seed,
+        timeout_s=timeout_s,
+        metric_contracts=metric_contracts,
+        contract_errors=contract_errors,
+    )
+
+
+def _run_generated_scientific_sandbox(
+    *,
+    sandbox_dir: Path,
+    estimator_id: str,
+    spec: Mapping[str, Any],
+    code_draft: Mapping[str, Any],
+    validation_context: Mapping[str, Any] | None,
+    n_runs: int,
+    seed: int,
+    timeout_s: int,
+    metric_contracts: Sequence[Mapping[str, Any]],
+    contract_errors: Sequence[str] = (),
+) -> tuple[dict[str, Any], ToolCallRecord]:
+    code = str(code_draft.get("code", "") or "")
+    language = normalized_generated_code_language(code_draft.get("language"))
+    requested_profile = normalized_generated_code_profile(
+        code_draft.get("execution_profile"),
+        language=language,
+    )
+    dependencies = normalized_scientific_dependencies(
+        code_draft.get("dependencies", []),
+        language=language,
+    )
+    validation_payload = dict(validation_context or {})
+    typed_metric_contracts = [dict(row) for row in metric_contracts]
+    metric_contract_set_id = generated_metric_contract_set_id(
+        typed_metric_contracts
+    )
+    authoritative_metric_requirements = [
+        dict(row)
+        for row in validation_payload.get(
+            "authoritative_metric_requirements", []
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    metric_requirement_set_id = generated_metric_requirement_set_id(
+        authoritative_metric_requirements
+    )
+    metric_requirement_authority_policy = str(
+        validation_payload.get("metric_requirement_authority_policy", "") or ""
+    )
+    metric_requirement_authority_required = bool(
+        validation_payload.get("require_authoritative_metric_requirements", False)
+    )
+    replicates = generated_sandbox_runtime_replicates(n_runs)
+    execution = None
+    if not contract_errors:
+        execution = execute_scientific_sandbox(
+            sandbox_dir=sandbox_dir,
+            artifact_id=estimator_id,
+            language=language,
+            code=code,
+            dependencies=dependencies,
+            seed=seed,
+            replicates=replicates,
+            timeout_s=timeout_s,
+        )
+    errors = list(contract_errors)
+    if execution is not None:
+        errors.extend(execution.errors)
+    metrics = dict(execution.metrics) if execution is not None else {}
+    execution_smoke_passed = bool(
+        execution is not None
+        and execution.status == "EXECUTED"
+        and metrics
+        and not bool(metrics.get("sandbox_failed", False))
+        and _metrics_are_finite(metrics)
+    )
+    metric_gate_policy_mode = (
+        "typed_artifact_bound"
+        if typed_metric_contracts
+        else "execution_only_no_typed_contract"
+    )
+    metric_context = {
+        "estimator_id": estimator_id,
+        "metric_contract_artifact_id": estimator_id,
+        "typed_metric_contracts": typed_metric_contracts,
+        "runtime_replicates": replicates,
+        "spec": spec,
+        "code_draft": code_draft,
+        **validation_payload,
+    }
+    metric_gate_errors, metric_contract_evaluation, metric_gate_policy_mode = (
+        _generated_sandbox_metric_gate_result(
+            metrics,
+            context=metric_context,
+            code=code,
+        )
+        if execution_smoke_passed
+        else ([], {}, metric_gate_policy_mode)
+    )
+    smoke_passed = execution_smoke_passed and not metric_gate_errors
+    prototype_status = "FAILED"
+    if contract_errors or (
+        execution is not None and execution.status == "REJECTED_CONTRACT"
+    ):
+        prototype_status = "REJECTED_UNSAFE_GENERATED_CODE"
+    elif execution is not None and execution.status in {
+        "RUNTIME_UNAVAILABLE",
+        "DEPENDENCY_CACHE_UNPREPARED",
+    }:
+        prototype_status = "SCIENTIFIC_RUNTIME_UNAVAILABLE"
+    elif execution_smoke_passed:
+        prototype_status = "FAILED_METRIC_GATE" if metric_gate_errors else "EXECUTED"
+    boundary = (
+        execution.boundary
+        if execution is not None
+        else (
+            "Generated scientific code is an untrusted implementation proposal. "
+            "Rejected metadata or source is not execution evidence and never proof evidence."
+        )
+    )
+    script_path = execution.code_path if execution is not None else ""
+    result_path = execution.result_path if execution is not None else ""
+    request_path = execution.request_path if execution is not None else ""
+    returncode = execution.returncode if execution is not None else -1
+    stdout_summary = (
+        _generated_sandbox_diagnostic_excerpt(execution.stdout_summary)
+        if execution is not None
+        else ""
+    )
+    stderr_summary = (
+        _generated_sandbox_diagnostic_excerpt(execution.stderr_summary)
+        if execution is not None
+        else _generated_sandbox_diagnostic_excerpt("; ".join(errors))
+    )
+    metric_gate_targets = (
+        {
+            "metric_contract_set_id": metric_contract_set_id,
+            "n_metric_contracts": len(typed_metric_contracts),
+            "runtime_replicates": replicates,
+        }
+        if typed_metric_contracts
+        else {}
+    )
+    prototype = {
+        "estimator_id": estimator_id,
+        "prototype_status": prototype_status,
+        "executor": "generated_python_sandbox",
+        "executor_family": "generated_algorithm_sandbox",
+        "executor_profile": requested_profile,
+        "language": language,
+        "dependencies": list(dependencies),
+        "backend": (
+            execution.backend
+            if execution is not None
+            else ("webr" if language == "r" else "pyodide")
+        ),
+        "isolation_provider": (
+            execution.isolation_provider if execution is not None else ""
+        ),
+        "spec": dict(spec),
+        "script_path": script_path,
+        "request_path": request_path,
+        "runner_path": "",
+        "result_path": result_path,
+        "script_hash": stable_hash(code),
+        "request_hash": execution.request_hash if execution is not None else "",
+        "code_excerpt": code[:2000],
+        "runtime_seed": seed,
+        "runtime_replicates": replicates,
+        "result_hash": stable_hash(metrics) if metrics else "",
+        "returncode": returncode,
+        "execution_attempted": bool(
+            execution is not None and execution.execution_attempted
+        ),
+        "subprocess_environment_keys": (
+            list(execution.subprocess_environment_keys)
+            if execution is not None
+            else []
+        ),
+        "resource_limits": (
+            dict(execution.resource_limits) if execution is not None else {}
+        ),
+        "stdout_summary": stdout_summary,
+        "stderr_summary": stderr_summary,
+        "result_parse_error": (
+            execution.result_parse_error if execution is not None else ""
+        ),
+        "safety_errors": (
+            errors if prototype_status == "REJECTED_UNSAFE_GENERATED_CODE" else []
+        ),
+        "runtime_errors": (
+            errors if prototype_status != "REJECTED_UNSAFE_GENERATED_CODE" else []
+        ),
+        "metrics": metrics,
+        "metric_gate_targets": metric_gate_targets,
+        "metric_contracts": typed_metric_contracts,
+        "metric_contract_set_id": metric_contract_set_id,
+        "metric_requirement_set_id": metric_requirement_set_id,
+        "metric_requirement_authority_policy": metric_requirement_authority_policy,
+        "metric_requirement_authority_required": metric_requirement_authority_required,
+        "metric_requirement_authority_validated": bool(
+            metric_contract_evaluation.get(
+                "metric_requirement_authority_validated", False
+            )
+        ),
+        "metric_contract_evaluation": metric_contract_evaluation,
+        "metric_contract_proof_evidence_status": (
+            GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
+        ),
+        "metric_contract_boundary": GENERATED_METRIC_CONTRACT_BOUNDARY,
+        "metric_gate_policy_mode": metric_gate_policy_mode,
+        "execution_smoke_passed": execution_smoke_passed,
+        "metric_gate_errors": metric_gate_errors,
+        "smoke_passed": smoke_passed,
+        "promotion_ready": False,
+        "boundary": boundary,
+    }
+    tool_call = ToolCallRecord(
+        tool_name=(
+            f"{language}.generated_algorithm_sandbox"
+            if execution is not None and execution.execution_attempted
+            else f"{language}.generated_sandbox_precheck"
+        ),
+        inputs={
+            "replicates": replicates,
+            "seed": seed,
+            "script_path": script_path,
+            "entrypoint": "run_sandbox",
+            "language": language,
+            "execution_profile": requested_profile,
+            "dependencies": list(dependencies),
+        },
+        output_paths=tuple(
+            path for path in (request_path, result_path) if path
+        ),
+        input_hash=stable_hash(
+            {
+                "code": code,
+                "replicates": replicates,
+                "seed": seed,
+                "language": language,
+                "dependencies": list(dependencies),
+            }
+        ),
+        output_hash=stable_hash(metrics) if metrics else "",
+        exit_status=(
+            str(returncode)
+            if execution is not None and execution.execution_attempted
+            else "rejected"
+            if contract_errors
+            else "blocked"
+        ),
+        stdout_summary=stdout_summary,
+        stderr_summary=stderr_summary,
+        safety_boundary=boundary,
+    )
+    return prototype, tool_call
 
 
 def _run_generated_python_sandbox(

@@ -112,28 +112,27 @@ def generated_python_syntax_errors(code: str) -> list[str]:
     return []
 
 
-def generated_python_sandbox_guard_repair_instruction(*, artifact_label: str) -> str:
-    """Prompt repair instruction for drafts rejected by the static guard."""
+def generated_code_sandbox_guard_repair_instruction(*, artifact_label: str) -> str:
+    """Profile-aware repair instruction for generated Python or R drafts."""
 
-    label = artifact_label.strip() or "generated Python sandbox draft"
+    label = artifact_label.strip() or "generated code sandbox draft"
     return (
-        f"Generated-Python sandbox guard repair is active for the {label}: "
-        "the next draft must keep all mutable state local to run_sandbox, avoid "
-        "global/nonlocal, avoid classes/with/file/network/subprocess/eval/exec, "
-        "and use only plain module imports: import math, import statistics, or "
-        "import random. Do not write from statistics import mean/stdev or call "
-        "bare helper aliases such as mean(), stdev(), or sqrt(); use "
-        "sum(values) / len(values), explicit variance/std loops, or "
-        "module-qualified calls such as statistics.mean(values), "
-        "statistics.stdev(values), and math.sqrt(x). For stochastic simulations, "
-        "prefer local RNG objects such as rng = random.Random(seed + rep) and "
-        "use its public methods. Public operations on sandbox-local lists, dicts, "
-        "sets, tuples, and allowed-module objects are available; private/dunder "
-        "attributes, frame-reflection access, protected-name rebinding, and "
-        "reflective str.format/format_map calls remain forbidden. "
-        "Return a JSON-serializable dict with string "
-        "keys and finite scalar/list/dict metric values. "
-        "Do not hand-roll closure-based RNG state that requires nonlocal. "
+        f"Generated-code sandbox guard repair is active for the {label}: choose "
+        "one declared execution profile and repair against its exact contract. "
+        "For execution_profile=stdlib, use language=python, dependencies=[], and "
+        "the conservative pure-Python subset: avoid global/nonlocal, do not reuse "
+        "those names as bare calls, do not write from statistics import mean/stdev, "
+        "use module-qualified helpers or expressions such as sum(values) / len(values), "
+        "and use local RNG objects such as "
+        "rng = random.Random(seed + rep). For execution_profile=scientific_wasm, "
+        "use language=python or r, declare only supported packages actually used, "
+        "and rely on mature numerical/statistical package APIs instead of recreating "
+        "their internals. In both profiles keep mutable state local to run_sandbox, "
+        "use seed and replicates, avoid file/network/subprocess/eval/exec and host "
+        "runtime bridges, and return a named JSON-finite metric object. Preserve the "
+        "profile, package list, compiler/runtime diagnostics, metric paths, and frozen "
+        "acceptance contract when repairing an executed draft. Passing execution is "
+        "empirical implementation evidence only, never theorem proof evidence. "
     )
 
 def generated_metric_gate_repair_instruction(*, artifact_label: str) -> str:

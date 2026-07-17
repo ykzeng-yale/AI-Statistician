@@ -7,8 +7,8 @@ from typing import Any, Mapping
 
 from .fingerprint import stable_hash
 from .generated_metric_repair_policy import (
+    generated_code_sandbox_guard_repair_instruction,
     generated_metric_gate_repair_instruction,
-    generated_python_sandbox_guard_repair_instruction,
     generated_python_sandbox_safe_subset_contract,
     generated_python_syntax_errors,
 )
@@ -33,6 +33,15 @@ from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
 from .semantic_review_feedback import compact_semantic_review_feedback
+from .scientific_sandbox import (
+    PYTHON_SCIENTIFIC_DEPENDENCIES,
+    R_SCIENTIFIC_DEPENDENCIES,
+    generated_code_execution_contract_errors,
+    normalized_generated_code_language,
+    normalized_generated_code_profile,
+    normalized_scientific_dependencies,
+    scientific_sandbox_contract,
+)
 from .theory_derivation_trace import (
     compact_theory_derivation_trace,
     theory_trace_alignment_contract,
@@ -281,10 +290,11 @@ def build_simulation_engineer_prompt(
         "registered_execution_owner": "AgentRuntime ResearchSimulator.run",
         "generated_simulation_code_contract": {
             "status": "optional custom stress-test fallback",
-            "language": "python",
             "entrypoint": "run_sandbox",
             "function_signature": "def run_sandbox(seed: int, replicates: int) -> dict",
-            "safe_subset": generated_python_sandbox_safe_subset_contract(),
+            "r_function_signature": "run_sandbox <- function(seed, replicates)",
+            "execution_contract": scientific_sandbox_contract(),
+            "stdlib_safe_subset": generated_python_sandbox_safe_subset_contract(),
             "runtime_policy": (
                 "AgentRuntime will statically inspect and execute safe drafts "
                 "inside a bounded local sandbox. Failed or unsafe drafts are "
@@ -323,7 +333,8 @@ def build_simulation_engineer_prompt(
         )
         payload["generated_simulation_code_contract"]["capability_eval_default"] = (
             "include one safe simulation_code_drafts entry with entrypoint exactly "
-            "run_sandbox and code defining def run_sandbox(seed: int, replicates: int) -> dict; "
+            "run_sandbox in Python or R, with language, execution_profile, and "
+            "dependencies declared; "
             "include metric_contracts rows bound to the same simulation_id and to "
             "every authoritative empirical requirement"
             if requires_typed_metric_contracts
@@ -335,8 +346,10 @@ def build_simulation_engineer_prompt(
         )
     generated_simulation_instruction = (
         "Capability-eval mode is active: include exactly one safe "
-        "simulation_code_drafts entry with entrypoint exactly \"run_sandbox\" and code "
-        "defining def run_sandbox(seed: int, replicates: int) -> dict so AgentRuntime "
+        "simulation_code_drafts entry with entrypoint exactly \"run_sandbox\", "
+        "declared language/execution_profile/dependencies, and a Python def "
+        "run_sandbox(seed: int, replicates: int) -> dict or R run_sandbox <- "
+        "function(seed, replicates), so AgentRuntime "
         "can execute and evaluate your custom stress-test code. For every row in "
         "authoritative_empirical_metric_requirements, emit a metric_contracts binding "
         "bound to that exact simulation_id containing only contract_id, the exact "
@@ -376,7 +389,7 @@ def build_simulation_engineer_prompt(
         else ""
     )
     sandbox_guard_instruction = (
-        generated_python_sandbox_guard_repair_instruction(
+        generated_code_sandbox_guard_repair_instruction(
             artifact_label="generated simulation draft"
         )
         if requires_generated_code
@@ -493,6 +506,10 @@ def build_simulation_engineer_prompt(
         + packet_validation_instruction
         + theory_trace_alignment_instruction
         + semantic_review_instruction
+        + "Choose scientific_wasm when mature scientific Python libraries or R "
+        "materially improve stress-test fidelity; otherwise use stdlib Python. "
+        "Declare only packages actually used, prefer mature package APIs, and do "
+        "not use file/network/subprocess/host-bridge/reflection access. "
         + "If runtime_environment_feedback reports a rejected generated simulation "
         "draft or metric-gate failure, repair that concrete draft or omit "
         "simulation_code_drafts with a blocker; do not repeat the same unsafe, "
@@ -990,8 +1007,10 @@ SIMULATION_ENGINEER_OUTPUT_CONTRACT: dict[str, Any] = {
         {
             "simulation_id": "string",
             "language": "python",
+            "execution_profile": "stdlib or scientific_wasm",
+            "dependencies": [],
             "entrypoint": "run_sandbox",
-            "code": "optional safe Python code",
+            "code": "optional safe Python or R code",
         }
     ],
 }
@@ -1096,12 +1115,29 @@ def _simulation_engineer_response_schema(
                     "required": [
                         "simulation_id",
                         "language",
+                        "execution_profile",
+                        "dependencies",
                         "entrypoint",
                         "code",
                     ],
                     "properties": {
                         "simulation_id": {"type": "string", "minLength": 1},
-                        "language": {"type": "string", "enum": ["python"]},
+                        "language": {"type": "string", "enum": ["python", "r"]},
+                        "execution_profile": {
+                            "type": "string",
+                            "enum": ["stdlib", "scientific_wasm"],
+                        },
+                        "dependencies": {
+                            "type": "array",
+                            "uniqueItems": True,
+                            "items": {
+                                "type": "string",
+                                "enum": list(
+                                    PYTHON_SCIENTIFIC_DEPENDENCIES
+                                    + R_SCIENTIFIC_DEPENDENCIES
+                                ),
+                            },
+                        },
                         "entrypoint": {
                             "type": "string",
                             "enum": ["run_sandbox"],
@@ -1225,8 +1261,7 @@ def validate_simulation_engineer_packet(packet: Mapping[str, Any]) -> list[str]:
         if not isinstance(row, Mapping):
             errors.append("simulation_code_drafts entries must be objects")
             continue
-        if str(row.get("language", "")).strip().lower() != "python":
-            errors.append("simulation_code_drafts language must be python")
+        errors.extend(generated_code_execution_contract_errors(row))
         if str(row.get("entrypoint", "")).strip() not in {"", "run_sandbox"}:
             errors.append("simulation_code_drafts entrypoint must be run_sandbox")
         if not str(row.get("simulation_id", "")).strip():
@@ -1338,7 +1373,8 @@ def _validate_capability_eval_generated_simulation_packet(
             "simulation_code_drafts entry"
         )
     for row in drafts:
-        errors.extend(generated_python_syntax_errors(str(row.get("code", ""))))
+        if normalized_generated_code_language(row.get("language")) == "python":
+            errors.extend(generated_python_syntax_errors(str(row.get("code", ""))))
     draft_ids = {
         str(row.get("simulation_id", "") or "").strip()
         for row in drafts
@@ -1500,11 +1536,18 @@ def _normalize_simulation_code_draft_metadata(body: dict[str, Any]) -> None:
             normalized_drafts.append(row)
             continue
         normalized = dict(row)
-        language = str(normalized.get("language", "") or "").strip().lower()
-        if language in {"", "py", "py3", "python3", "python 3"} and str(
-            normalized.get("code", "") or ""
-        ).strip():
-            normalized["language"] = "python"
+        language = normalized_generated_code_language(normalized.get("language"))
+        normalized["language"] = language
+        normalized["execution_profile"] = normalized_generated_code_profile(
+            normalized.get("execution_profile"),
+            language=language,
+        )
+        normalized["dependencies"] = list(
+            normalized_scientific_dependencies(
+                normalized.get("dependencies", []),
+                language=language,
+            )
+        )
         entrypoint = str(normalized.get("entrypoint", "") or "").strip()
         if _is_run_sandbox_signature_entrypoint(entrypoint):
             normalized["entrypoint"] = "run_sandbox"

@@ -125,6 +125,22 @@ lineage, and reviewer independence; they contain no theorem-family formula,
 metric threshold, expected answer, or Lean grammar. The result remains
 empirical/implementation review evidence, never theorem proof evidence.
 
+Generated code has one typed execution contract with two profiles. Existing
+Python drafts default to `stdlib` and retain the conservative
+`math`/`statistics`/`random` guard. A draft may instead declare
+`scientific_wasm`, `language=python|r`, and only the pinned packages it imports.
+That profile reuses Pyodide for NumPy, SciPy, pandas, scikit-learn, and
+statsmodels, and WebR for base R and its bundled statistical packages. Both run
+under the same AgentRuntime seed, replicate budget, metric contract,
+content-hashed artifact lineage, independent semantic review, and repair loop.
+The outer macOS sandbox denies network, process forking, and non-runtime process
+execution, supplies a secret-free environment, permits host reads only from
+pinned runtimes and exact code/request artifacts, and permits host writes only
+to exact result/log artifacts; the language runtime remains
+WebAssembly-isolated. Runtime absence or an unprepared package cache fails
+closed. This is a coding environment capability, not a second orchestration
+plane and not proof evidence.
+
 Capability evaluation also separates metric-protocol authorship from protocol
 acceptance. The Sonnet Architect metric planner proposes a complete typed
 requirement set after TheoryDeveloper has named the procedure, estimand,
@@ -2487,8 +2503,9 @@ that reuse auditable.
   Bernoulli proportions, and constant estimators.
 - Add a Loogle/Lean Finder/ReProver retrieval provider and measure cold-to-RAG
   proof lift on the local statistics proof bank.
-- Add sandboxed execution before allowing any LLM-written Python algorithm into
-  the registry.
+- Extend the scientific-WASM sandbox beyond the current macOS isolation provider
+  and pinned Python/base-R package set before considering any generated artifact
+  for a separately reviewed production registry.
 - Add a Lean project for long-lived statistics definitions that should become
   Mathlib or `StatInference` contributions.
 - Continue formalizing stronger statistical guarantees beyond the current

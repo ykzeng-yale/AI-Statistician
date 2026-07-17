@@ -7,8 +7,8 @@ from typing import Any, Mapping
 
 from .agent_runtime import AgentTask, BlackboardState
 from .generated_metric_repair_policy import (
+    generated_code_sandbox_guard_repair_instruction,
     generated_metric_gate_repair_instruction,
-    generated_python_sandbox_guard_repair_instruction,
 )
 from .model_backend import (
     OpenAIResponsesGeneratorBackend,
@@ -56,7 +56,7 @@ def run_simulation_engineer_generated_code_repair_eval(
 
     This component eval injects a prior generated simulation metric-gate
     failure, asks the configured generator-backed SimulationEngineer to repair
-    it with a new generated Python stress-test draft, executes that draft
+    it with a new generated Python or R stress-test draft, executes that draft
     locally through the existing AgentRuntime simulation sandbox, and records
     whether the failure was followed by a passing generated draft. It is not
     theorem proof evidence and is not a full AgentRuntime research success.
@@ -575,7 +575,7 @@ def _prior_metric_gate_feedback(
             artifact_label="generated simulation sandbox",
         )
         + " "
-        + generated_python_sandbox_guard_repair_instruction(
+        + generated_code_sandbox_guard_repair_instruction(
             artifact_label="generated simulation sandbox"
         ),
         "runtime_requested_evidence_contract": {

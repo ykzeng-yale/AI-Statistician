@@ -1,0 +1,12 @@
+{
+  "name": "ai-statistician-scientific-runtime",
+  "private": true,
+  "description": "Pinned WebAssembly runtimes for generated scientific Python and R code",
+  "scripts": {
+    "prepare:scientific-sandbox": "node ai_statistician/runtime_assets/prepare_scientific_sandbox.mjs"
+  },
+  "dependencies": {
+    "pyodide": "314.0.2",
+    "webr": "0.6.0"
+  }
+}

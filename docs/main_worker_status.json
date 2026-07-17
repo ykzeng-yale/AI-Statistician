@@ -1,13 +1,49 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-16T22:07:01Z",
+  "updated_at": "2026-07-17T00:11:07Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
-  "current_lane": "general optional research-loop completion first; scientific Python/R and serious theory breadth next; progressive Lean in parallel; strict exact-theorem certification separate",
-  "latest_main_worker_patch": "Keep one general research loop and remove control-plane interception. Architect metric authoring is deferred while exact generated-code or packet-validation feedback is the active replan, so a non-promotable source repair can run without authorizing confirmatory evidence. Metric author and independent reviewer now demand the smallest nonredundant failure-mode portfolio rather than treating more gates as more rigor. A bounded Formalizer/ProofEngineer budget yield now reaches the existing FormalizationGapPlanner directly, and an already planned final Critic receives local acceptance directly; two LLM coordinator calls that only resumed a pending task are removed. The patch adds no agent, task-family formula, generated-output rewrite, retry budget, Lean grammar, or tactic rule and preserves the kernel evidence boundary.",
+  "current_lane": "general optional research-loop completion established on two development families; scientific Python/R execution integrated; serious theory breadth and progressive Lean next; strict exact-theorem certification separate",
+  "latest_main_worker_patch": "Add one typed scientific_wasm execution profile to the existing generated-code contract and AgentRuntime dispatch. AlgorithmEngineer and SimulationEngineer may select Python or R and declare only pinned dependencies; stdlib Python remains the backward-compatible default. Pyodide executes NumPy/SciPy/pandas/scikit-learn/statsmodels and WebR executes real R in a separate secret-free, resource-bounded macOS sandbox. Seatbelt denies network, process forking, and non-runtime process execution, allows host reads only from pinned runtimes and exact code/request artifacts, and allows writes only to exact result/log artifacts. The existing seed/replicate budget, typed metric authority, content-hashed draft/request/result lineage, semantic reviewer, repair feedback, promotion boundary, and proof boundary are unchanged. This adds no agent, orchestration plane, task-family formula, expected answer, Lean grammar, or tactic rule.",
   "latest_main_worker_live_probe": "Fresh optional-policy v11 covered survival and sequential from a clean start and completed 2/2 as RESEARCH_CANDIDATE_ACCEPTED_WITH_FORMAL_GAPS. Across 42 traces it executed five generated simulations, two generated algorithms, and seven independent exact-artifact semantic reviews. Sequential review found an upstream theory defect, routed one typed TheoryDeveloper revision, reran exploration, then passed a freshly reviewed confirmatory contract. Both tasks subsequently generated Lean candidates and received real local Lean failure feedback; neither compiled or kernel-verified a theorem. The aggregate manifest records 13 formal gaps, zero kernel subclaims, zero exact theorem closures, and formal level none. Its mixed full-capability audit is 88/125 with all_ok=true and readiness=false; the CLI exit status is nonzero because full capability readiness remains false, not because either optional research task failed.",
-  "latest_main_worker_design_issue": "The product target is one LLM-driven statistical research loop: question-grounded equation and lemma derivation, generated Python/R algorithms, DGP exploration followed by frozen confirmation, independent semantic critique, feedback-driven revision, artifact memory, and Critic disposition. Optional/advisory research completion and progressive formalization are separate from strict exact-theorem certification. V11 demonstrates the non-Lean loop across survival and sequential, including one real theory-feedback cycle, but it also exposed remaining control excess: accepted metric portfolios contained 7 and 6 rows, and the optional formal tail used two Architect calls that made no scientific decision. The current patch removes those routing calls and makes the reviewer reject redundant rows without imposing a hardcoded row cap. This is not strict E2E proof readiness; scientific Python/R breadth, long-horizon theory workspace, tactic-state proving, arbitrary-paper ingest, and exact theorem closure remain open capability work.",
+  "latest_main_worker_design_issue": "The product target remains one LLM-driven statistical research loop: question-grounded equation and lemma derivation, generated Python/R algorithms, DGP exploration followed by frozen confirmation, independent semantic critique, feedback-driven revision, artifact memory, and Critic disposition. Optional/advisory research completion and progressive formalization remain separate from strict exact-theorem certification. The current patch closes the prior host-execution gap for a pinned scientific Python/base-R package set on macOS without changing the control plane. It does not yet provide a cross-platform isolation provider, arbitrary CRAN/PyPI installation, long-horizon theory workspace, tactic-state proving, arbitrary-paper ingest, or exact theorem closure. V11 remains the latest cross-family research-loop evidence; this component and integrated execution evidence does not raise strict full-system readiness by itself.",
+  "latest_scientific_code_runtime": {
+    "base_commit": "d77bc9d9",
+    "execution_profiles": [
+      "stdlib",
+      "scientific_wasm"
+    ],
+    "languages": [
+      "python",
+      "r"
+    ],
+    "python_backend": "Pyodide 314.0.2",
+    "r_backend": "WebR 0.6.0",
+    "prepared_python_packages": [
+      "numpy",
+      "scipy",
+      "pandas",
+      "scikit-learn",
+      "statsmodels"
+    ],
+    "integrated_algorithm_probe": "AlgorithmEngineerRuntimeSubsystem consumed an R draft through WebR and recorded generated_code_executed=1, passed=1, tool=r.generated_algorithm_sandbox, next status REROUTE.",
+    "integrated_simulation_probe": "SimulationEvaluatorRuntimeSubsystem consumed a NumPy draft through Pyodide and recorded generated_simulation_executed=1, passed=1, tool=python.generated_simulation_sandbox, next status REROUTE.",
+    "full_stack_probe": "NumPy, SciPy, pandas, scikit-learn, and statsmodels loaded together under the isolated executor and returned finite agreeing regression metrics.",
+    "security_probe": "Generated R did not inherit a deliberately injected host secret. A live webr::eval_js attack reached Node process.getBuiltinModule but received EPERM when it tried to read /etc/hosts or a repository file, and a child-process launch was denied; normal Python/R execution still passed. Generated scientific Python rejects undeclared host bridges; npm audit reported zero known vulnerabilities.",
+    "focused_tests": "86 passed",
+    "full_runtime_tests": "1149 passed in 2046.23 seconds on the final host-filesystem/process-isolation tree",
+    "kernel_verified_subclaims": 0,
+    "exact_source_theorem_closures": 0,
+    "capability_ready_for_full_ai_statistician": false,
+    "remaining_limits": [
+      "macOS sandbox-exec is the only enabled host isolation provider",
+      "R support is limited to WebR-bundled base packages",
+      "package preparation is a trusted repository setup step",
+      "successful generated-code execution is not production promotion or proof evidence"
+    ],
+    "boundary": "This establishes real scientific Python/R execution and same-AgentRuntime feedback integration. It is not cross-platform closure, arbitrary package support, held-out statistical generalization, or exact theorem proof evidence."
+  },
   "latest_optional_research_loop_probe": {
     "v6_run": "runs/main_worker_cross_family_research_loop_optional_20260716_v6_policy_aligned_research_acceptance",
     "v7_run": "runs/main_worker_cross_family_research_loop_optional_20260716_v7_parser_feedback_bounded_repairs",
@@ -3376,7 +3412,16 @@
     "PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_research_agent_runtime.py -k 'algorithm_engineer_prompt or algorithm_engineer_capability_eval or algorithm_engineer_exposes_and_requires_every_canonical_gap_id or coding_component_gate_memory_replays_to_algorithm_and_simulation_prompts or research_agent_runtime_records_theory_to_simulation_loop' # 12 passed, 1068 deselected after all-gap canonical coding-agent prompt/validator alignment",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_research_agent_runtime.py # final tree 1080 passed in 1571.15s after canonical artifact lineage, generated-code execution feedback, sandbox capability isolation, and explicit coverage-contract fixes",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_core.py::SystemTests::test_research_knowledge_audit_checks_sources_and_problem_retrieval # 1 passed in 8.43s with 33/33 source references locally ready",
-    "PYTHONPATH=$PWD .venv/bin/python -m compileall -q ai_statistician tests/test_research_agent_runtime.py # passed"
+    "PYTHONPATH=$PWD .venv/bin/python -m compileall -q ai_statistician tests/test_research_agent_runtime.py # passed",
+    "npm ci --no-audit --no-fund && npm run prepare:scientific-sandbox # passed from a clean node_modules install; all pinned Pyodide scientific wheels cached locally",
+    "direct execute_scientific_sandbox live probes # Pyodide+NumPy EXECUTED; WebR+base/stats R EXECUTED; injected host secret absent in R; exact Python ValueError returned for repair",
+    "direct full scientific-stack probe # NumPy, SciPy, pandas, scikit-learn, and statsmodels loaded together and returned finite matching regression slopes",
+    "direct AlgorithmEngineerRuntimeSubsystem/SimulationEvaluatorRuntimeSubsystem probes # R/WebR algorithm executed=1 passed=1 REROUTE; NumPy/Pyodide simulation executed=1 passed=1 REROUTE",
+    "PYTHONPATH=$PWD .venv/bin/pytest -q tests/test_scientific_sandbox.py tests/test_research_agent_runtime.py -k 'scientific or algorithm_engineer or simulation_engineer or generated_algorithm or generated_simulation' # 86 passed, 1063 deselected",
+    "PYTHONPATH=$PWD .venv/bin/pytest -q tests/test_research_agent_runtime.py tests/test_scientific_sandbox.py --maxfail=1 # final tree 1149 passed in 2046.23s",
+    "PYTHONPATH=$PWD .venv/bin/pytest -q tests/test_scientific_sandbox.py && PYTHONPATH=$PWD .venv/bin/pytest -q tests/test_research_agent_runtime.py -k 'algorithm_engineer or simulation_engineer or generated_algorithm_sandbox or generated_simulation_sandbox' # final output and host-filesystem allowlist hardening: 8 passed plus 67 passed, 1074 deselected; WebR Node bridge host-file read probe returned EPERM",
+    "PYTHONPATH=$PWD .venv/bin/python -m compileall -q ai_statistician tests/test_scientific_sandbox.py tests/test_research_agent_runtime.py; node --check ai_statistician/runtime_assets/scientific_sandbox_runner.mjs; node --check ai_statistician/runtime_assets/prepare_scientific_sandbox.mjs; npm audit --omit=dev --audit-level=high; jq empty docs/main_worker_status.json package.json package-lock.json; git diff --check # passed; npm audit found 0 vulnerabilities",
+    "uv build --wheel --out-dir /tmp/ai-statistician-wheel-check; unzip -l /tmp/ai-statistician-wheel-check/*.whl # passed; scientific_sandbox.py and both runtime_assets/*.mjs are packaged"
   ],
   "current_blockers": [
     "The four-stage planner removes the observed route-core output truncation, but the newest live FDR replay stopped at formal realization with two declaration-scope mismatches and two missing all-pairs DAG paths. The declaration lineage and prompt contract are patched, but a fresh current-code runtime seed has not yet completed all four stages, full assembly, or target-prover replay.",
@@ -3385,7 +3430,7 @@
     "Fresh experimental-design and multiple-testing V4 lineages both reached all six live Claude agents, generated execution, Formalizer, local Lean/LSP feedback, ProofEngineer, clean formal RAG, and bounded live route revision. Both ended BLOCKED; scorecard=90/111, integrated scorecard=86/105, kernel-verified support subclaims=66, formal gaps=8, exact source/frontier theorem closure=0, fresh complete E2E tasks=0/2, and S14=false.",
     "Both V4 route-planner lineages produced structured revision feedback with zero provider failures, and each final revision had 3/3 individually valid stage envelopes, but the final formal_attempt_queue invented IDs absent from the accepted route-core fragment. The post-probe planner now sends accepted upstream fragments, canonical nested schemas, and dependency fingerprints to downstream stages; no fresh V5 live run has yet demonstrated a contract-valid assembled route or target-prover replay.",
     "Generated-metric requirements no longer scan whole-blackboard vocabulary, but explicit acceptance fields are still natural-language and are not yet artifact-bound metric path/operator/threshold/tolerance/aggregation contracts. Formalizer target-shape policy also retains semantic vocabulary inference. Replace both with task/theory/RAG-derived typed contracts instead of adding keyword exceptions.",
-    "The generated scientific sandbox remains limited to math/statistics/random pure Python and has no production R executor; it cannot yet support arbitrary modern statistical algorithms or simulations.",
+    "The generated-code sandbox now executes a pinned modern scientific Python stack and base R through Pyodide/WebR on macOS, but cross-platform host isolation, arbitrary CRAN/PyPI packages, and separately reviewed production promotion remain open.",
     "The 26,378-declaration, 75,497-edge EmpericalProcessLEAN graph and proof bank are connected to default RAG, but broad natural-language retrieval still has weak ranking/high fanout; retrieval quality must improve through query/context/reranking feedback rather than theorem-specific aliases.",
     "Independent local Lean recheck passed 5/6 selected cross-family proof-bank assets; randomization_variance_decomposition_bridge has a real type mismatch that must be repaired by the generated whole-proof loop, not by a human patch.",
     "AXLE credentials now pass the doctor preflight, but this live evaluation still uses local Lake/Lean as the final kernel gate; AXLE readiness is infrastructure availability, not proof evidence.",

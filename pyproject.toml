@@ -30,4 +30,4 @@ ai-statistician = "ai_statistician.cli:main"
 include = ["ai_statistician*"]
 
 [tool.setuptools.package-data]
-ai_statistician = ["policies/*.json"]
+ai_statistician = ["policies/*.json", "runtime_assets/*.mjs"]

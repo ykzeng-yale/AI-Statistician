@@ -7,8 +7,8 @@ from typing import Any, Mapping
 
 from .fingerprint import stable_hash
 from .generated_metric_repair_policy import (
+    generated_code_sandbox_guard_repair_instruction,
     generated_metric_gate_repair_instruction,
-    generated_python_sandbox_guard_repair_instruction,
     generated_python_sandbox_safe_subset_contract,
     generated_python_syntax_errors,
 )
@@ -37,6 +37,15 @@ from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
 from .semantic_review_feedback import compact_semantic_review_feedback
+from .scientific_sandbox import (
+    PYTHON_SCIENTIFIC_DEPENDENCIES,
+    R_SCIENTIFIC_DEPENDENCIES,
+    generated_code_execution_contract_errors,
+    normalized_generated_code_language,
+    normalized_generated_code_profile,
+    normalized_scientific_dependencies,
+    scientific_sandbox_contract,
+)
 from .theory_derivation_trace import (
     compact_theory_derivation_trace,
     theory_trace_alignment_contract,
@@ -274,11 +283,12 @@ def build_algorithm_engineer_prompt(
         "registered_runtime_templates": registered_algorithm_template_prompt_rows(),
         "generated_code_sandbox_contract": {
             "status": "optional fallback when no registered template matches",
-            "language": "python",
             "entrypoint": "run_sandbox",
             "function_signature": "def run_sandbox(seed: int, replicates: int) -> dict",
+            "r_function_signature": "run_sandbox <- function(seed, replicates)",
             "default": "leave sandbox_code_drafts empty when a registered template matches",
-            "safe_subset": generated_python_sandbox_safe_subset_contract(),
+            "execution_contract": scientific_sandbox_contract(),
+            "stdlib_safe_subset": generated_python_sandbox_safe_subset_contract(),
             "runtime_policy": (
                 "AgentRuntime will statically inspect and execute safe drafts only "
                 "inside a bounded sandbox; unsafe or nonconforming drafts are rejected."
@@ -322,16 +332,19 @@ def build_algorithm_engineer_prompt(
         "or quorum. Never place a quorum in threshold or return pre-thresholded 0/1 "
         "flags for a measurable numeric quantity. Use 0/1 with operator == threshold 1 "
         "only for an intrinsically boolean predicate. "
-        "entrypoint exactly \"run_sandbox\" and code defining "
-        "def run_sandbox(seed: int, replicates: int) -> dict. Set every "
+        "entrypoint exactly \"run_sandbox\" and code defining either Python "
+        "def run_sandbox(seed: int, replicates: int) -> dict or R "
+        "run_sandbox <- function(seed, replicates). Declare language, "
+        "execution_profile, and only dependencies actually imported. Set every "
         "implementation_targets row registered_template_hint to none so AgentRuntime "
         "can test Claude-generated algorithm code execution. Registered templates may "
         "be named only in prose as baselines; they will not be executed for this "
         "capability gate. Treat each supplied implementation_gaps estimator_id as "
         "an exact task-artifact foreign key: copy it unchanged into the matching "
         "implementation_targets and sandbox_code_drafts rows rather than inventing "
-        "a clearer alias. Every generated draft must use language \"python\", "
-        "entrypoint \"run_sandbox\", and code with the run_sandbox definition. "
+        "a clearer alias. Use execution_profile=scientific_wasm when mature "
+        "scientific Python libraries or R materially improve implementation "
+        "fidelity; otherwise use the stdlib Python profile. "
         if requires_generated_code
         else (
             "Prefer registered runtime templates over sandbox_code_drafts; leave "
@@ -346,7 +359,7 @@ def build_algorithm_engineer_prompt(
         else ""
     )
     sandbox_guard_instruction = (
-        generated_python_sandbox_guard_repair_instruction(
+        generated_code_sandbox_guard_repair_instruction(
             artifact_label="generated algorithm draft"
         )
         if requires_generated_code
@@ -442,17 +455,15 @@ def build_algorithm_engineer_prompt(
         "If runtime_environment_feedback reports rejected or failed sandbox code, repair that concrete "
         "draft or switch to a supported registered-template/adapter plan; do not repeat the same unsafe "
         "or non-executable code. "
-        "For sandbox_code_drafts, obey the generated_code_sandbox_contract safe_subset exactly: do not "
-        "use imports other than plain import math/statistics/random; do not use from-import helper aliases, "
-        "NumPy/SciPy/sklearn/pandas/statsmodels/torch/JAX, class definitions, file/network "
-        "operations or private/dunder/reflection access. Public operations on sandbox-local "
-        "collections and objects returned by allowed modules are available. "
-        "Do not call bare helpers such as mean(), stdev(), or sqrt(); use sum(values) / len(values), explicit "
-        "variance/std loops, or module-qualified calls such as statistics.mean(values), statistics.stdev(values), "
-        "and math.sqrt(x). If runtime_environment_feedback.forbidden_generated_code_calls is nonempty, do not reuse "
-        "those names as bare calls in the next draft. If the requested "
-        "prototype needs those tools, omit sandbox_code_drafts and describe the registered-template or "
-        "human-reviewed adapter plan instead. For this compact packet, do not include "
+        "For sandbox_code_drafts, obey the selected profile in "
+        "generated_code_sandbox_contract. The stdlib profile permits only its "
+        "listed pure-Python subset. Do not call bare helpers in that profile; "
+        "use module-qualified calls. The scientific_wasm profile permits only "
+        "declared pinned scientific packages or base R packages and forbids "
+        "file/network/subprocess/host-bridge/reflection access. Prefer mature "
+        "package APIs for numerical and statistical machinery. If the requested "
+        "prototype cannot run under either profile, omit the draft and report the "
+        "actual missing runtime capability. For this compact packet, do not include "
         "sandbox_code_drafts unless registered_template_hint is none for every implementation target.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str)
     )
@@ -978,6 +989,8 @@ def _algorithm_engineer_output_contract(*, requires_generated_code: bool) -> dic
                     "corresponding ID unchanged"
                 ),
                 "language": "python",
+                "execution_profile": "stdlib or scientific_wasm",
+                "dependencies": [],
                 "entrypoint": "run_sandbox",
                 "code": (
                     "def run_sandbox(seed: int, replicates: int) -> dict:\n"
@@ -1060,12 +1073,29 @@ def _algorithm_engineer_response_schema(
                     "required": [
                         "estimator_id",
                         "language",
+                        "execution_profile",
+                        "dependencies",
                         "entrypoint",
                         "code",
                     ],
                     "properties": {
                         "estimator_id": estimator_id_schema,
-                        "language": {"type": "string", "enum": ["python"]},
+                        "language": {"type": "string", "enum": ["python", "r"]},
+                        "execution_profile": {
+                            "type": "string",
+                            "enum": ["stdlib", "scientific_wasm"],
+                        },
+                        "dependencies": {
+                            "type": "array",
+                            "uniqueItems": True,
+                            "items": {
+                                "type": "string",
+                                "enum": list(
+                                    PYTHON_SCIENTIFIC_DEPENDENCIES
+                                    + R_SCIENTIFIC_DEPENDENCIES
+                                ),
+                            },
+                        },
                         "entrypoint": {
                             "type": "string",
                             "enum": ["run_sandbox"],
@@ -1186,8 +1216,7 @@ def validate_algorithm_engineer_packet(packet: Mapping[str, Any]) -> list[str]:
         if not isinstance(row, Mapping):
             errors.append("sandbox_code_drafts entries must be objects")
             continue
-        if str(row.get("language", "")).strip().lower() != "python":
-            errors.append("sandbox_code_drafts language must be python")
+        errors.extend(generated_code_execution_contract_errors(row))
         if str(row.get("entrypoint", "")).strip() not in {"", "run_sandbox"}:
             errors.append("sandbox_code_drafts entrypoint must be run_sandbox")
         if not str(row.get("estimator_id", "")).strip():
@@ -1283,7 +1312,8 @@ def _validate_capability_eval_generated_algorithm_packet(
             "capability_eval requires at least one Claude/OpenAI-generated sandbox_code_drafts entry"
         )
     for row in drafts:
-        errors.extend(generated_python_syntax_errors(str(row.get("code", ""))))
+        if normalized_generated_code_language(row.get("language")) == "python":
+            errors.extend(generated_python_syntax_errors(str(row.get("code", ""))))
     for row in targets:
         template = str(row.get("registered_template_hint", "none") or "none").strip()
         if template != "none":
@@ -1475,11 +1505,18 @@ def _normalize_algorithm_sandbox_code_drafts(
             alias = _algorithm_estimator_id_alias(normalized)
             if alias:
                 normalized["estimator_id"] = alias
-        language = str(normalized.get("language", "") or "").strip().lower()
-        if language in {"", "py", "py3", "python3", "python 3"} and str(
-            normalized.get("code", "") or ""
-        ).strip():
-            normalized["language"] = "python"
+        language = normalized_generated_code_language(normalized.get("language"))
+        normalized["language"] = language
+        normalized["execution_profile"] = normalized_generated_code_profile(
+            normalized.get("execution_profile"),
+            language=language,
+        )
+        normalized["dependencies"] = list(
+            normalized_scientific_dependencies(
+                normalized.get("dependencies", []),
+                language=language,
+            )
+        )
         if (
             default_estimator_id
             and not str(normalized.get("estimator_id", "") or "").strip()

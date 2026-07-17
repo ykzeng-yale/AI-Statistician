@@ -35,6 +35,25 @@ lives in `ai_statistician/`.
 
 ## Quick Start
 
+Generated algorithm and simulation drafts default to the conservative Python
+stdlib sandbox. To enable the pinned scientific Python and R profile on macOS,
+prepare the repository-local Pyodide and WebR runtimes once:
+
+```bash
+npm ci
+npm run prepare:scientific-sandbox
+```
+
+AlgorithmEngineer and SimulationEngineer may then declare
+`execution_profile=scientific_wasm` with only the packages they use. Generated
+code still runs without inherited secrets or network access in a bounded
+subprocess. The macOS host-filesystem policy permits reads only from pinned
+runtimes and the exact code/request artifacts, and writes only the exact
+result/log artifacts. Metrics remain implementation/simulation evidence rather
+than production registration or theorem proof evidence. If the isolated runtime
+is absent, AgentRuntime records an explicit capability blocker instead of
+silently executing generated code in the host Python or R process.
+
 ```bash
 python3 -m ai_statistician.cli list
 python3 -m ai_statistician.cli demo --runs 300 --out runs/smoke
