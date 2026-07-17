@@ -39098,6 +39098,9 @@ def run_research_agent_runtime(
         else "not_run"
     )
     exact_semantic_definition_legacy_post_runtime_fallback_used = False
+    legacy_post_runtime_formal_fallback_allowed = not bool(
+        config.formal_target_semantic_review_required
+    )
     (
         source_semantic_agent_runtime_work_orders,
         source_semantic_agent_runtime_executions,
@@ -39120,23 +39123,26 @@ def run_research_agent_runtime(
         and source_theorem_semantic_primitive_work_order_rows
         and not source_semantic_agent_runtime_work_orders
     ):
-        source_semantic_bridge_manifest = (
-            run_source_theorem_semantic_primitive_proofengineer_bridge(
-                out_dir=out_dir
-                / "runtime_source_theorem_semantic_primitive_proofengineer_bridge",
-                queue_jsonl=source_theorem_semantic_primitive_work_orders_path,
-                question_id=questions[0].id if len(questions) == 1 else "",
-                local_lean=config.source_semantic_proofengineer_local_lean,
-                lean_project=(
-                    Path(config.source_semantic_proofengineer_lean_project)
-                    if config.source_semantic_proofengineer_lean_project
-                    else None
-                ),
-                lean_timeout=config.source_semantic_proofengineer_lean_timeout,
+        if legacy_post_runtime_formal_fallback_allowed:
+            source_semantic_bridge_manifest = (
+                run_source_theorem_semantic_primitive_proofengineer_bridge(
+                    out_dir=out_dir
+                    / "runtime_source_theorem_semantic_primitive_proofengineer_bridge",
+                    queue_jsonl=source_theorem_semantic_primitive_work_orders_path,
+                    question_id=questions[0].id if len(questions) == 1 else "",
+                    local_lean=config.source_semantic_proofengineer_local_lean,
+                    lean_project=(
+                        Path(config.source_semantic_proofengineer_lean_project)
+                        if config.source_semantic_proofengineer_lean_project
+                        else None
+                    ),
+                    lean_timeout=config.source_semantic_proofengineer_lean_timeout,
+                )
             )
-        )
-        source_semantic_execution_mode = "legacy_post_runtime_derived_execution"
-        source_semantic_legacy_post_runtime_fallback_used = True
+            source_semantic_execution_mode = "legacy_post_runtime_derived_execution"
+            source_semantic_legacy_post_runtime_fallback_used = True
+        else:
+            source_semantic_execution_mode = "legacy_post_runtime_execution_disabled"
     (
         source_theorem_promotion_agent_runtime_work_orders,
         source_theorem_promotion_agent_runtime_executions,
@@ -39156,27 +39162,32 @@ def run_research_agent_runtime(
         and not source_theorem_promotion_agent_runtime_work_orders
         and not exact_source_proof_body_agent_runtime_work_orders
     ):
-        source_theorem_promotion_bridge_manifest = (
-            _run_runtime_source_theorem_promotion_proofengineer_bridge(
-                seed_queue_dir=source_theorem_promotion_materialization_seed_queue_dir,
-                out_dir=out_dir
-                / "runtime_source_theorem_promotion_proofengineer_bridge",
-                local_lean=config.source_theorem_promotion_proofengineer_local_lean,
-                overwrite_artifacts=(
-                    config.source_theorem_promotion_proofengineer_overwrite_artifacts
-                ),
-                lean_project=(
-                    Path(config.source_theorem_promotion_proofengineer_lean_project)
-                    if config.source_theorem_promotion_proofengineer_lean_project
-                    else None
-                ),
-                lean_timeout=config.source_theorem_promotion_proofengineer_lean_timeout,
+        if legacy_post_runtime_formal_fallback_allowed:
+            source_theorem_promotion_bridge_manifest = (
+                _run_runtime_source_theorem_promotion_proofengineer_bridge(
+                    seed_queue_dir=source_theorem_promotion_materialization_seed_queue_dir,
+                    out_dir=out_dir
+                    / "runtime_source_theorem_promotion_proofengineer_bridge",
+                    local_lean=config.source_theorem_promotion_proofengineer_local_lean,
+                    overwrite_artifacts=(
+                        config.source_theorem_promotion_proofengineer_overwrite_artifacts
+                    ),
+                    lean_project=(
+                        Path(config.source_theorem_promotion_proofengineer_lean_project)
+                        if config.source_theorem_promotion_proofengineer_lean_project
+                        else None
+                    ),
+                    lean_timeout=config.source_theorem_promotion_proofengineer_lean_timeout,
+                )
             )
-        )
-        source_theorem_promotion_execution_mode = (
-            "legacy_post_runtime_derived_execution"
-        )
-        source_theorem_promotion_legacy_post_runtime_fallback_used = True
+            source_theorem_promotion_execution_mode = (
+                "legacy_post_runtime_derived_execution"
+            )
+            source_theorem_promotion_legacy_post_runtime_fallback_used = True
+        else:
+            source_theorem_promotion_execution_mode = (
+                "legacy_post_runtime_execution_disabled"
+            )
     source_theorem_promotion_bridge_learning_rows = (
         _runtime_source_theorem_promotion_bridge_learning_rows(
             source_theorem_promotion_bridge_manifest
@@ -40980,7 +40991,10 @@ def run_research_agent_runtime(
                     _runtime_generated_next_action_learning_rows(next_action_rows)
                 )
                 _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
-        if config.source_theorem_exact_semantic_definition_source_lookup:
+        if (
+            legacy_post_runtime_formal_fallback_allowed
+            and config.source_theorem_exact_semantic_definition_source_lookup
+        ):
             late_lookup_manifest = (
                 run_source_theorem_exact_semantic_definition_source_lookup(
                     out_dir=out_dir
@@ -42137,7 +42151,8 @@ def run_research_agent_runtime(
         dict[str, Any]
     ] = []
     source_theorem_exact_semantic_definition_source_lookup_enabled = bool(
-        not exact_semantic_definition_agent_runtime_work_orders
+        legacy_post_runtime_formal_fallback_allowed
+        and not exact_semantic_definition_agent_runtime_work_orders
         and (
             config.source_theorem_exact_semantic_definition_source_lookup
             or (
@@ -42146,6 +42161,14 @@ def run_research_agent_runtime(
             )
         )
     )
+    if (
+        source_theorem_exact_semantic_definition_work_order_rows
+        and not exact_semantic_definition_agent_runtime_work_orders
+        and not legacy_post_runtime_formal_fallback_allowed
+    ):
+        exact_semantic_definition_execution_mode = (
+            "legacy_post_runtime_execution_disabled"
+        )
     if (
         source_theorem_exact_semantic_definition_source_lookup_enabled
         and source_theorem_exact_semantic_definition_work_order_rows
@@ -48668,6 +48691,9 @@ def run_research_agent_runtime(
     manifest[
         "exact_semantic_definition_legacy_post_runtime_fallback_used"
     ] = exact_semantic_definition_legacy_post_runtime_fallback_used
+    manifest["legacy_post_runtime_formal_fallback_allowed"] = (
+        legacy_post_runtime_formal_fallback_allowed
+    )
     manifest["exact_semantic_definition_agent_runtime_boundary"] = (
         "Typed AgentRuntime execution binds source lookup, LLM authoring, semantic "
         "review, verifier feedback, and exact proof-body execution to immutable work "

@@ -2170,6 +2170,12 @@ def _architect_runtime_capability_eval_contract(
         "capability_eval_requires_generated_algorithm_code": capability_eval,
         "capability_eval_requires_generated_simulation_code": capability_eval,
         "capability_eval_requires_generated_code_semantic_review": capability_eval,
+        "capability_eval_requires_formal_target_semantic_review": bool(
+            capability_eval
+            and runtime_config.get(
+                "formal_target_semantic_review_required", False
+            )
+        ),
         "capability_eval_requires_typed_metric_contracts": capability_eval,
         "capability_eval_requires_formalizer_lean_candidate": capability_eval,
         "generated_sandbox_runtime_replicates": (

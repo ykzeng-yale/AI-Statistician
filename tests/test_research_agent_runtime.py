@@ -116,6 +116,10 @@ from ai_statistician.formalizer_llm import (
     build_formalizer_prompt,
     validate_formalizer_packet,
 )
+from ai_statistician.formal_target_semantic_reviewer_llm import (
+    FormalTargetSemanticReviewerConfig,
+    LLMFormalTargetSemanticReviewerAgent,
+)
 from ai_statistician.formalizer_repair_policy import (
     formalizer_validation_repair_policy,
 )
@@ -23637,6 +23641,103 @@ def test_architect_runtime_routes_upstream_metric_review_to_theory_developer() -
     assert exhausted_manifest["upstream_theory_revision_count"] == 2
 
 
+def test_architect_runtime_routes_unresolved_metric_ownership_to_theory_clarification() -> None:
+    from ai_statistician.architect_metric_contract_authoring import (
+        ArchitectMetricSemanticReviewRejected,
+    )
+
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    parent_theory = _structured_theory_packet_fixture(
+        "theory_derivation:ownership-uncertain"
+    )
+    history = [
+        {
+            "revision_index": 0,
+            "source_theory_packet_id": parent_theory["packet_id"],
+            "source_theory_packet_hash": runtime_module.stable_hash(parent_theory),
+            "authoring_packet_id": "metric-authoring:ownership-uncertain",
+            "authoring_packet_hash": "authoring-hash",
+            "empirical_metric_requirement_set_id": "metric-set:ownership-uncertain",
+            "semantic_review_packet_id": "metric-review:ownership-uncertain",
+            "semantic_review_packet_hash": "review-hash",
+            "overall_verdict": "REVISE",
+            "recommended_repair_scope": "unresolved",
+            "findings": [
+                {
+                    "severity": "medium",
+                    "category": "calibration ownership",
+                    "summary": (
+                        "The supplied artifacts do not show whether the calibration "
+                        "belongs to theory or only to its empirical measurement."
+                    ),
+                    "required_change": (
+                        "Clarify the theoretical calibration before re-authoring."
+                    ),
+                    "repair_scope": "unresolved",
+                }
+            ],
+            "repair_instructions": [
+                "Clarify calibration ownership before execution."
+            ],
+        }
+    ]
+
+    class RejectingCoordinator:
+        def propose(self, **_kwargs):
+            raise ArchitectMetricSemanticReviewRejected(
+                question_id=question.id,
+                semantic_review_history=history,
+                source_theory_packet_id=parent_theory["packet_id"],
+                source_theory_packet_hash=runtime_module.stable_hash(parent_theory),
+            )
+
+    result = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=RejectingCoordinator(),  # type: ignore[arg-type]
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            metric_protocol_max_upstream_theory_revisions=2,
+        ),
+    ).run(
+        AgentTask(
+            task_id="architect:metric-owner-clarification",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Route unresolved ownership without authorizing execution.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": {
+                    "theory_packet_id": parent_theory["packet_id"],
+                    "architect_metric_protocol_gate": {
+                        "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+                        "source_theory_packet_id": parent_theory["packet_id"],
+                        "upstream_theory_revision_count": 0,
+                        "execution_authorized": False,
+                    },
+                },
+            },
+        ),
+        BlackboardState(
+            project_id="metric-owner-clarification",
+            artifacts={parent_theory["packet_id"]: parent_theory},
+        ),
+    )
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["recommended_repair_scope"] == "unresolved"
+    assert feedback["ownership_clarification_required"] is True
+    assert feedback["findings"] == history[0]["findings"]
+    assert feedback["execution_authorized"] is False
+    assert runtime_module.metric_protocol_upstream_theory_revision_feedback_errors(
+        feedback,
+        question_id=question.id,
+        parent_theory_packet=parent_theory,
+    ) == []
+
+
 def test_source_theorem_promotion_planning_is_structured_and_task_agnostic() -> None:
     structured_row = {
         "artifact_kind": "SourceTheoremFormalEnvironmentWorkOrder",
@@ -24177,6 +24278,7 @@ def test_architect_coordinator_elaborates_required_capability_worker_graph() -> 
         runtime_config={
             "evaluation_mode": "capability_eval",
             "formal_verification_policy": "required",
+            "formal_target_semantic_review_required": True,
             "theorem_closure_proofengineer_bridge": True,
         },
     )
@@ -24190,6 +24292,7 @@ def test_architect_coordinator_elaborates_required_capability_worker_graph() -> 
     assert plan_by_subsystem["RetrievalMemory"]["objective"] == "retrieve context"
     for subsystem in (
         "SimulationEvaluator",
+        "FormalTargetSemanticReviewer",
         "ProofEngineer",
         "FormalizationGapPlanner",
         "TheoremReductionClosureProofEngineer",
@@ -63666,6 +63769,105 @@ def test_runtime_semantic_definition_repair_queue_drives_formalizer_target_mode(
         "semantic_definition_review_blocked"
     )
     assert diagnostics[0]["semantic_definition_risks"]
+
+
+def test_review_first_runtime_disables_legacy_post_runtime_formal_fallbacks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    semantic_work_order = {
+        "artifact_kind": "SourceTheoremSemanticPrimitiveWorkOrder",
+        "work_order_id": "source_semantic:review-first",
+        "question_id": question.id,
+        "semantic_primitive_id": "semantic_primitive:review-first",
+        "semantic_primitive_gap": "A source semantic primitive remains open.",
+        "runtime_queue_status": "PENDING_SOURCE_SEMANTIC_LEAN_PROOF_ATTEMPT",
+        "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+    }
+    exact_work_order = {
+        "artifact_kind": "RuntimeSourceTheoremExactSemanticDefinitionWorkOrder",
+        "work_order_id": "exact_semantic:review-first",
+        "question_id": question.id,
+        "target_theorem_name": "review_first_target",
+        "placeholder_symbol": "reviewFirstPrimitive",
+        "search_targets": ["reviewFirstPrimitive"],
+        "source_theorem_ready_for_exact_proof_body": False,
+        "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+    }
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_source_theorem_semantic_primitive_work_order_rows",
+        lambda _results: [dict(semantic_work_order)],
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_source_theorem_exact_semantic_definition_work_order_rows_from_semantic_primitive_work_orders",
+        lambda _rows: [dict(exact_work_order)],
+    )
+
+    def forbidden_fallback(**_kwargs: object) -> dict[str, object]:
+        raise AssertionError("review-first runtime must not execute post-runtime proof work")
+
+    monkeypatch.setattr(
+        runtime_module,
+        "run_source_theorem_semantic_primitive_proofengineer_bridge",
+        forbidden_fallback,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "run_source_theorem_exact_semantic_definition_source_lookup",
+        forbidden_fallback,
+    )
+
+    manifest = run_research_agent_runtime(
+        [question],
+        tmp_path / "runtime",
+        theory_developer=LLMTheoryDeveloperAgent(
+            provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+            config=ResearchArchitectConfig(
+                provider_name="static",
+                model="static-theory-model",
+            ),
+        ),
+        generated_code_semantic_reviewer=(
+            _static_generated_code_semantic_reviewer()
+        ),
+        formal_target_semantic_reviewer=LLMFormalTargetSemanticReviewerAgent(
+            provider=StaticArchitectLLMProvider({}),
+            config=FormalTargetSemanticReviewerConfig(
+                provider_name="static",
+                model="static-opus-formal-target-reviewer",
+                model_tier="opus",
+            ),
+        ),
+        config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            max_iterations=1,
+            formal_target_semantic_review_required=True,
+            source_semantic_proofengineer_bridge=True,
+            source_theorem_exact_semantic_definition_source_lookup=True,
+        ),
+    )
+
+    assert manifest["legacy_post_runtime_formal_fallback_allowed"] is False
+    assert manifest["source_semantic_legacy_post_runtime_fallback_used"] is False
+    assert manifest["source_semantic_proofengineer_execution_mode"] == (
+        "legacy_post_runtime_execution_disabled"
+    )
+    assert manifest[
+        "exact_semantic_definition_legacy_post_runtime_fallback_used"
+    ] is False
+    assert manifest["exact_semantic_definition_execution_mode"] == (
+        "legacy_post_runtime_execution_disabled"
+    )
+    assert (
+        manifest["source_theorem_exact_semantic_definition_source_lookup_ran"]
+        is False
+    )
 
 
 def test_runtime_internal_exact_semantic_lookup_appends_learning_rows(

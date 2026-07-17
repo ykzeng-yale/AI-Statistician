@@ -102,8 +102,13 @@ class _SequenceBackend:
         )
 
 
-def _review(*, accept: bool, reviewer_model: str = "claude-opus-4-8"):
-    backend = _Backend(_review_payload(accept=accept))
+def _review(
+    *,
+    accept: bool,
+    reviewer_model: str = "claude-opus-4-8",
+    payload: dict[str, object] | None = None,
+):
+    backend = _Backend(payload or _review_payload(accept=accept))
     material = {
         "review_stage": "pre_execution_metric_contract_review",
         "execution_results_available": False,
@@ -167,6 +172,32 @@ def test_preexecution_metric_reviewer_returns_typed_revision_feedback() -> None:
     assert packet["findings"][0]["repair_scope"] == "metric_contract"
     assert packet["recommended_repair_scope"] == "metric_contract"
     assert validate_architect_metric_semantic_review_packet(packet) == []
+
+
+def test_preexecution_metric_reviewer_accepts_low_severity_advisory_uncertainty() -> None:
+    payload = _review_payload(accept=True)
+    payload["dimension_reviews"][-1]["status"] = "UNCERTAIN"
+    payload["dimension_reviews"][-1]["rationale"] = (
+        "A redundant row can be simplified, but it does not change the pass set."
+    )
+    payload["findings"] = [
+        {
+            "severity": "low",
+            "category": "redundant_gate",
+            "summary": "One row duplicates a stronger gate.",
+            "required_change": "Remove the redundant row in later cleanup.",
+            "repair_scope": "metric_contract",
+            "evidence_refs": ["requirement:generic_gate"],
+        }
+    ]
+
+    packet, backend, _ = _review(accept=True, payload=payload)
+
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["recommended_repair_scope"] == "none"
+    assert packet["findings"][0]["severity"] == "low"
+    assert validate_architect_metric_semantic_review_packet(packet) == []
+    assert "advisory UNCERTAIN" in backend.requests[0].user_prompt
 
 
 def test_preexecution_metric_reviewer_routes_missing_semantics_upstream() -> None:

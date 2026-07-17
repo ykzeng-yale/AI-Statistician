@@ -14,6 +14,9 @@ from .generated_metric_contract import generated_metric_requirement_set_id
 from .architect_metric_semantic_reviewer_llm import (
     ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY,
 )
+from .architect_metric_repair_ownership_router_llm import (
+    ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED,
+)
 from .research_schema import OpenResearchQuestion
 
 
@@ -31,10 +34,19 @@ def metric_protocol_upstream_theory_revision_feedback_errors(
         "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback"
     ):
         errors.append("feedback artifact_kind is not upstream theory revision")
-    if feedback.get("recommended_repair_scope") != (
-        ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
-    ):
-        errors.append("feedback repair scope is not upstream_theory")
+    ownership_clarification_required = (
+        feedback.get("ownership_clarification_required") is True
+    )
+    expected_repair_scope = (
+        ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED
+        if ownership_clarification_required
+        else ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
+    )
+    if feedback.get("recommended_repair_scope") != expected_repair_scope:
+        errors.append(
+            "feedback repair scope does not match its theory revision or "
+            "ownership-clarification route"
+        )
     if str(feedback.get("question_id", "") or "") != str(question_id or ""):
         errors.append("feedback question_id does not match the runtime question")
     for field in (
@@ -58,11 +70,9 @@ def metric_protocol_upstream_theory_revision_feedback_errors(
             if not isinstance(finding, Mapping):
                 errors.append(f"feedback finding {index} is not an object")
                 continue
-            if finding.get("repair_scope") != (
-                ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
-            ):
+            if finding.get("repair_scope") != expected_repair_scope:
                 errors.append(
-                    f"feedback finding {index} is not owned by upstream_theory"
+                    f"feedback finding {index} does not match the routed scope"
                 )
             if not str(finding.get("required_change", "") or "").strip():
                 errors.append(f"feedback finding {index} missing required_change")
@@ -211,9 +221,15 @@ def architect_preexecution_metric_protocol_rejection_result(
         metric_gate.get("upstream_theory_revision_count", 0) or 0
     )
     max_theory_revisions = max(0, int(max_upstream_theory_revisions or 0))
+    ownership_clarification_required = bool(
+        recommended_repair_scope == ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED
+    )
     route_upstream_theory = bool(
         recommended_repair_scope
-        == ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
+        in {
+            ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY,
+            ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED,
+        }
         and upstream_theory_revision_count < max_theory_revisions
     )
     source_theory_packet_id = str(
@@ -279,6 +295,7 @@ def architect_preexecution_metric_protocol_rejection_result(
         "upstream_theory_revision_count": upstream_theory_revision_count,
         "max_upstream_theory_revisions": max_theory_revisions,
         "upstream_theory_revision_routed": route_upstream_theory,
+        "ownership_clarification_required": ownership_clarification_required,
         "proof_evidence_status": (
             "METRIC_PROTOCOL_PREEXECUTION_REJECTION_NOT_PROOF_EVIDENCE"
         ),
@@ -300,12 +317,16 @@ def architect_preexecution_metric_protocol_rejection_result(
     )
     if route_upstream_theory:
         next_revision_count = upstream_theory_revision_count + 1
+        routed_finding_scope = (
+            ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED
+            if ownership_clarification_required
+            else ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
+        )
         upstream_findings = [
             dict(row)
             for row in final_review.get("findings", []) or []
             if isinstance(row, Mapping)
-            and row.get("repair_scope")
-            == ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
+            and row.get("repair_scope") == routed_finding_scope
         ]
         if not upstream_findings:
             upstream_findings = [
@@ -333,7 +354,11 @@ def architect_preexecution_metric_protocol_rejection_result(
                 else "ArchitectMetricSemanticReviewer"
             ),
             "feedback_type": "preexecution_metric_protocol_upstream_theory_revision",
-            "trigger": "METRIC_PROTOCOL_REVIEW_REQUIRES_UPSTREAM_THEORY_REVISION",
+            "trigger": (
+                "METRIC_PROTOCOL_REVIEW_REQUIRES_OWNER_CLARIFICATION"
+                if ownership_clarification_required
+                else "METRIC_PROTOCOL_REVIEW_REQUIRES_UPSTREAM_THEORY_REVISION"
+            ),
             "failure_classification": (
                 "architect_metric_protocol_upstream_theory_revision_required"
             ),
@@ -351,6 +376,9 @@ def architect_preexecution_metric_protocol_rejection_result(
             "source_theory_packet_id": source_theory_packet_id,
             "source_theory_packet_hash": source_theory_packet_hash,
             "recommended_repair_scope": recommended_repair_scope,
+            "ownership_clarification_required": (
+                ownership_clarification_required
+            ),
             "upstream_theory_revision_count": next_revision_count,
             "max_upstream_theory_revisions": max_theory_revisions,
             "dimension_reviews": [
@@ -362,11 +390,20 @@ def architect_preexecution_metric_protocol_rejection_result(
             "repair_instructions": upstream_repair_instructions,
             "high_priority_agenda": upstream_findings,
             "required_revision": (
-                "Revise the TheoryDeveloper packet itself so its estimand, procedure, "
-                "estimator, DGP, assumptions, derivation, and feasibility claims are "
-                "internally consistent and sufficiently specified for independent "
-                "metric authoring. Do not patch the rejected metric rows or invent "
-                "observed results."
+                (
+                    "Clarify or revise the TheoryDeveloper packet so the unresolved "
+                    "artifact ownership can be decided from explicit estimand, DGP, "
+                    "derivation, calibration, and feasibility material. Do not patch "
+                    "the rejected metric rows or invent observed results."
+                )
+                if ownership_clarification_required
+                else (
+                    "Revise the TheoryDeveloper packet itself so its estimand, "
+                    "procedure, estimator, DGP, assumptions, derivation, and "
+                    "feasibility claims are internally consistent and sufficiently "
+                    "specified for independent metric authoring. Do not patch the "
+                    "rejected metric rows or invent observed results."
+                )
             ),
             "acceptance_gate": (
                 "A fresh structured TheoryDeveloper packet addresses every routed "
@@ -419,7 +456,7 @@ def architect_preexecution_metric_protocol_rejection_result(
             ),
             owner_subsystem="TheoryDeveloper",
             objective=(
-                "Revise the upstream statistical theory from independent "
+                "Clarify or revise the upstream statistical theory from independent "
                 "pre-execution metric-review feedback."
             ),
             inputs={
@@ -445,10 +482,20 @@ def architect_preexecution_metric_protocol_rejection_result(
             "architect_metric_protocol_upstream_theory_revision_requested"
         )
         rationale = (
-            "Independent pre-execution review found an upstream theory defect. "
-            "The rejected metric lineage is preserved and the typed findings are "
-            "routed to TheoryDeveloper within the configured revision budget; no "
-            "coding or simulation execution is authorized."
+            (
+                "Independent ownership review could not determine whether the metric "
+                "author can repair the finding without additional source-theory "
+                "semantics. The rejected lineage is preserved and the finding is "
+                "routed to TheoryDeveloper for bounded clarification; no coding or "
+                "simulation execution is authorized."
+            )
+            if ownership_clarification_required
+            else (
+                "Independent pre-execution review found an upstream theory defect. "
+                "The rejected metric lineage is preserved and the typed findings are "
+                "routed to TheoryDeveloper within the configured revision budget; no "
+                "coding or simulation execution is authorized."
+            )
         )
 
     evidence = EvidenceLedgerEntry(

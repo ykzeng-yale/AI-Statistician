@@ -414,15 +414,31 @@ def build_theory_developer_prompt(
         and environment_feedback.get("artifact_kind")
         == "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback"
     ):
+        ownership_clarification_required = (
+            environment_feedback.get("ownership_clarification_required") is True
+        )
         payload["metric_protocol_upstream_theory_revision_instruction"] = {
             "required_behavior": (
-                "Regenerate the theory packet itself and address every routed "
-                "upstream finding at the estimand, procedure, estimator, DGP, "
-                "assumption, derivation, and feasibility layers. Preserve valid "
-                "parts of architect_context.metric_protocol_prior_theory_material "
-                "and explicitly replace the defective parts, but do not edit rejected metric rows, "
-                "invent execution results, or merely restate reviewer wording."
+                (
+                    "Regenerate the theory packet and make the estimand, procedure, "
+                    "estimator, DGP, assumptions, derivation, calibration, and "
+                    "feasibility material explicit enough to resolve every routed "
+                    "ownership uncertainty. Revise claims only where needed; do not "
+                    "edit rejected metric rows, invent execution results, or merely "
+                    "restate reviewer wording."
+                )
+                if ownership_clarification_required
+                else (
+                    "Regenerate the theory packet itself and address every routed "
+                    "upstream finding at the estimand, procedure, estimator, DGP, "
+                    "assumption, derivation, and feasibility layers. Preserve valid "
+                    "parts of architect_context.metric_protocol_prior_theory_material "
+                    "and explicitly replace the defective parts, but do not edit "
+                    "rejected metric rows, invent execution results, or merely "
+                    "restate reviewer wording."
+                )
             ),
+            "ownership_clarification_required": ownership_clarification_required,
             "lineage_fields": {
                 "source_theory_packet_id": environment_feedback.get(
                     "source_theory_packet_id", ""
@@ -971,6 +987,9 @@ def _compact_environment_feedback_for_prompt(feedback: Mapping[str, Any]) -> dic
         "target_consumer_subsystem": feedback.get("target_consumer_subsystem", ""),
         "recommended_repair_scope": feedback.get(
             "recommended_repair_scope", ""
+        ),
+        "ownership_clarification_required": feedback.get(
+            "ownership_clarification_required", ""
         ),
         "upstream_theory_revision_count": feedback.get(
             "upstream_theory_revision_count", ""

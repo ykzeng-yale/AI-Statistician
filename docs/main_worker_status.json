@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-17T12:16:30Z",
+  "updated_at": "2026-07-17T14:59:37Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
-  "current_lane": "keep one canonical research loop and reuse the existing direct formal loop. Fresh v35 completed TheoryDeveloper -> generated algorithm -> independent review -> frozen confirmatory protocol -> generated DGP simulation -> independent review for two development families under advisory policy. The current strict work is only to route each exact generated theorem through independent semantic review before the existing OpenProver/Lean feedback worker. Do not add agents, planners, task formulas, Lean grammar/tactic rules, or held-out patches; PCA/extremes stay sealed.",
-  "latest_main_worker_patch": "Allow only hash/path/declaration/target-bound generated formal_targets to enter independent whole-target semantic review without falsely claiming that a source theorem is already known. Reviewer ACCEPT establishes the current theorem-target identity and unlocks the existing typed OpenProver/exact-Lean path; it is still not proof evidence. The full-live preset no longer auto-enables or requires the expensive live staged gap planner. No task formula, expected answer, Lean grammar/tactic rule, agent, reviewer, gate, or orchestration plane was added.",
-  "latest_main_worker_live_probe": "Fresh v35 remains the latest two-family advisory research-loop evidence: 2/2 RESEARCH_CANDIDATE_ACCEPTED_FORMAL_ADVISORY, five generated algorithm executions and independent accepts, two generated simulations and independent accepts, and two mechanically verified estimator invocations. For the strict routing correction, both real v34 Formalizer artifacts were replayed: the failed original target and the compiling statement-drifted repair now require independent semantic review before proof search. A bounded live Claude Opus v36 replay returned REVISE to FormalizationEvaluator with one critical and two high semantic-weakening findings. The first replay call was correctly rejected for missing synthetic lineage hashes; the successful retry supplied the same immutable work-order/theory/proposal/candidate hashes required by AgentRuntime. All replay output is semantic-review evidence, not Lean proof.",
-  "latest_main_worker_design_issue": "The direct prover machinery was not missing: ProofEngineer -> ExactSourceTheoremProver -> ProofEngineer, OpenProver HLM, task-bound formal retrieval, compiler/proof-state feedback, exact local Lean reruns, and kernel authority already exist. The actual defect was routing generated targets around semantic review and into statement repair/staged planning. That defect is fixed and the live staged planner is optional. The next strict gate is a fresh development run that shows reviewer-routed target revision and then the existing OpenProver/Lean loop without the prior token explosion. Exact source-theorem closure is still zero, and no held-out task may be opened.",
+  "current_lane": "keep one canonical loop: TheoryDeveloper -> generated algorithm -> independent code review -> smallest frozen confirmatory protocol -> generated DGP simulation -> independent review, with Formalizer -> exact-target semantic review -> existing OpenProver/Lean feedback in parallel. Fresh v39 completed the non-Lean loop for both development families and directly routed Formalizer revisions without Architect plan-repair detours. Do not add agents, planners, task formulas, Lean grammar/tactic rules, audit-score patches, or held-out fixes; PCA/extremes stay sealed.",
+  "latest_main_worker_patch": "Preserve the small loop under bounded uncertainty and strict formal review. Low-severity advisory metric uncertainty may pass without repeated rewrites; unresolved artifact ownership uses the existing bounded TheoryDeveloper clarification loop while execution remains closed; the Architect receives the mandatory formal-target reviewer in its initial evidence contract. Review-first runs also disable every legacy post-runtime formal fallback, so source-semantic, promotion, and exact-definition work can continue only as typed AgentRuntime tasks. No statistical answer, threshold, task-family branch, Lean grammar/tactic rule, agent, planner, or orchestration plane was added.",
+  "latest_main_worker_live_probe": "Fresh strict v39 ran survival and sequential from a clean start. Both completed TheoryDeveloper, hash-bound generated algorithm execution, independent algorithm review, independently reviewed frozen metric protocol, generated confirmatory simulation, and independent simulation review. The formal-target reviewer then rejected all three bounded Formalizer targets per task because they substituted generic or trivial support lemmas for the exact KM/Greenwood CLT and Bernoulli anytime-valid theorem. Status is BLOCKED 2/2, strict exact-theorem closure is 0/2, kernel-verified subclaims are 0, and proof search correctly stayed disabled. V39 used no Architect plan-repair detours; its post-runtime legacy fallback observation motivated the current fail-closed removal and is not completion evidence.",
+  "latest_main_worker_design_issue": "The immediate blocker is exact-target retention, not code execution, simulation, or Lean syntax repair. Under library pressure the Formalizer weakens a source theorem into a support lemma instead of preserving the exact assumptions, quantifiers, asymptotic regime, and conclusion or emitting an explicit FORMAL_GAP. The next shared mechanism must require exact target preservation or honest formal debt before the existing tactic-state/OpenProver path can run. The 92/121 v39 scorecard is a mixed diagnostic and must not drive work toward legacy bridge counters; exact source-theorem closure remains zero and held-out tasks remain sealed.",
   "latest_runtime_role_boundary_alignment": {
     "canonical_empirical_loop": "TheoryDeveloper -> AlgorithmEngineer execution -> independent algorithm semantic review -> Architect confirmatory protocol -> SimulationEngineer execution -> independent simulation semantic review -> owner-routed revision",
     "algorithm_acceptance": "sandbox execution plus independent semantic acceptance; no finite-sample empirical performance gate",
@@ -23,34 +23,40 @@
     "fresh_live_two_family_strict_completion_verified": false,
     "strict_e2e_capability_ready": false,
     "verification": {
-      "research_agent_runtime": "1144 passed in 1778.85 seconds",
-      "affected_supporting_tests": "13 formal-target semantic-review tests passed; 8 focused generated-target, hash-drift, fail-closed, and full-live preset tests passed with 1136 deselected",
+      "research_agent_runtime": "1146 passed in 1748.66 seconds on the current bounded-feedback and review-first legacy-fallback patch",
+      "affected_supporting_tests": "20 metric/formal-target reviewer tests passed with 1 skipped; 14 focused runtime routing, full-live preset, and review-first fallback tests passed",
       "focused_empirical_loop_tests": "the previously pushed TheoryDeveloper retry and metric-lineage regression remains covered by the complete runtime suite",
-      "fresh_start_cross_task_e2e_tests": "fresh v35 advisory research loop accepted both development tasks; real v34 formal-target artifacts replay through the corrected review-first route; bounded live v36 Opus review returned REVISE; frozen strict completion remains unverified",
+      "fresh_start_cross_task_e2e_tests": "fresh strict v39 completed theory/code/confirmatory-simulation for both development tasks, then blocked both at exact-target semantic review; frozen strict completion remains 0/2",
       "py_compile": "passed",
       "git_diff_check": "passed after final status update"
     },
     "boundary": "Fresh v35 verifies advisory research-loop completion only. V34 artifact replay plus the v36 live review verifies review-first target routing only. Neither establishes theorem closure, held-out generalization, or proof evidence."
   },
   "latest_strict_formal_routing_probe": {
-    "implementation": "reuse existing FormalTargetSemanticReviewer, ProofEngineer, ExactSourceTheoremProver, OpenProver HLM, formal RAG, compiler feedback, and exact local Lean; change only generated-target eligibility and full-live planner defaults",
-    "failed_v34_target_replay": "INDEPENDENT_SEMANTIC_FAITHFULNESS_REVIEW_REQUIRED",
-    "compiled_statement_drift_v34_target_replay": "INDEPENDENT_SEMANTIC_FAITHFULNESS_REVIEW_REQUIRED",
-    "live_review_run": "runs/main_worker_v34_formal_target_semantic_review_replay_20260717_v36",
-    "live_review_model_tier": "opus",
-    "live_review_verdict": "REVISE",
-    "live_review_repair_owner": "FormalizationEvaluator",
-    "live_review_findings": {
-      "critical": 1,
-      "high": 2
-    },
+    "implementation": "reuse the existing FormalTargetSemanticReviewer, ProofEngineer, ExactSourceTheoremProver, OpenProver HLM, formal RAG, compiler feedback, and exact local Lean; keep all formal continuation inside typed AgentRuntime tasks",
+    "fresh_strict_run": "runs/main_worker_cross_family_development_20260717_v39_small_loop_strict",
+    "question_statuses": [
+      "BLOCKED",
+      "BLOCKED"
+    ],
+    "research_loops_completed_before_formal_gate": 2,
+    "generated_algorithm_executions": 3,
+    "generated_algorithm_sandbox_passes": 3,
+    "generated_simulation_executions": 2,
+    "generated_simulation_sandbox_passes": 2,
+    "formal_target_semantic_review_executions": 6,
+    "formal_target_semantic_review_accepts": 0,
+    "architect_plan_repair_detours": 0,
+    "terminal_classification": "formal_target_semantic_review_revision_budget_exhausted",
+    "capability_scorecard": "92/121 mixed diagnostic; not readiness",
     "live_gap_planner_enabled_by_full_live_default": false,
+    "legacy_post_runtime_formal_fallback_allowed_after_current_patch": false,
     "task_specific_rules_added": false,
     "lean_grammar_or_tactic_rules_added": false,
     "new_agents_or_orchestration_planes_added": false,
     "source_theorem_kernel_closures": 0,
     "capability_ready_for_full_ai_statistician": false,
-    "boundary": "Semantic review establishes whether an exact generated target represents the current theorem; it does not prove that theorem. Only the subsequent exact Lean/AXLE/kernel gate can establish proof evidence."
+    "boundary": "V39 establishes two fresh research loops and an honest exact-target blocker. It does not establish target acceptance, Lean proof search success, theorem closure, held-out generalization, or full AI Statistician readiness."
   },
   "latest_two_family_research_and_formal_cost_probe": {
     "advisory_run": "runs/main_worker_cross_family_research_loop_20260717_v35_advisory",

@@ -100,23 +100,24 @@ The canonical product loop is deliberately small:
    expected answers, task-family thresholds, Lean grammar, or tactics.
 
 The Python/R estimator ABI binds the exact independently reviewed
-AlgorithmEngineer source into the generated DGP harness. The fresh v35 advisory
-probe completed this research loop for survival and sequential tasks: five
-algorithm executions passed independent review, two generated simulations
-passed independent review, and both simulations mechanically invoked their
-hash-bound accepted estimators. Sequential also completed an independent
-reviewer-routed upstream theory revision with intact parent and feedback
-lineage. This is two-family research-loop evidence, not held-out generalization
-or theorem-proof evidence.
+AlgorithmEngineer source into the generated DGP harness. The fresh v39 strict
+probe completed this research loop for survival and sequential tasks before the
+formal gate: three algorithm executions passed, both final algorithms passed
+independent review, two generated confirmatory simulations passed their frozen
+metric contracts and independent review, and no Architect plan-repair detour
+was needed. Both tasks then blocked at exact-target semantic review. This is
+two-family research-loop evidence, not held-out generalization or theorem-proof
+evidence.
 
-The immediate priority is therefore repeatability of this small research loop
-under provider and validation failures, plus a shorter strict formal loop. In a
-partial v34 strict probe, the staged formalization-gap planner consumed 191269
-provider tokens and still failed to assemble its output schema. That route is
-too complex. Formal work should use a bounded current-goal/local-context ->
+The immediate priority is exact-target retention inside the shorter strict
+formal loop. In v39 the Formalizer repeatedly replaced the requested
+KM/Greenwood CLT and Bernoulli anytime-valid theorem with generic or trivial
+support lemmas. The independent reviewer correctly rejected those targets and
+kept proof search closed. Formal work should preserve the exact theorem or emit
+an explicit `FORMAL_GAP`, then use a bounded current-goal/local-context ->
 task-bound retrieval -> LLM action -> Lean diagnostic loop, with Lean/AXLE/kernel
-as the only proof authority. Candidate populations, MCTS, monolith
-decomposition, extra reviewers, and reserved held-out tasks remain deferred.
+as the only proof authority. Candidate populations, MCTS, extra reviewers,
+audit-score repairs, and reserved held-out tasks remain deferred.
 
 The required short formal loop was already present: typed ProofEngineer ->
 ExactSourceTheoremProver -> ProofEngineer handoffs, OpenProver HLM generation,
@@ -130,18 +131,20 @@ allows only a non-helper, evidence-eligible, path/hash/declaration/target-bound
 generated formal target into semantic review. It remains unknown and ineligible
 for kernel promotion until the independent reviewer accepts that exact statement;
 only then can the existing OpenProver/Lean loop run, and only a kernel rerun can
-prove it. The `full-live` preset no longer enables or requires the live staged
-gap planner. Explicitly enabled planner routing remains an optional bounded
-diagnostic fallback.
+prove it. Review-first runs also disable legacy post-runtime source-semantic,
+promotion, and exact-definition execution. Those queues may remain visible as
+formal debt, but any verifier or repair side effect must run through an
+Architect-visible typed AgentRuntime worker. The `full-live` preset no longer
+enables or requires the live staged gap planner.
 
-Replay of both v34 artifacts exercised this correction. The first failed target
-and the later compiling but statement-drifted target now both stop at independent
-semantic review. A bounded live Opus replay returned `REVISE` to
-FormalizationEvaluator because the target was a trivial nonnegativity surrogate
-rather than the requested survival theorem. Those task-specific findings were
-generated from the question, theory packet, and exact target at runtime; they are
-stored only as non-proof run evidence and are not code or policy rules. This is
-evidence of correct target routing, not exact theorem closure.
+Fresh v39 exercised this correction end to end. Six bounded Opus reviews across
+the two tasks returned `REVISE` because every generated target weakened or
+dropped central assumptions, quantifiers, asymptotic/probabilistic regimes, or
+conclusion clauses. Those findings were generated from each question, theory
+packet, and exact target at runtime; they are stored only as non-proof run
+evidence and are not code or policy rules. The run finished `BLOCKED` 2/2 with
+zero exact theorem closures. This is evidence of correct target routing and an
+identified Formalizer capability gap, not Lean proof evidence.
 
 The next aligned architecture work is to promote the LLM agent loop and
 environment iteration into the main runtime:
@@ -213,8 +216,10 @@ independently decides which immutable artifact must change. It sees the source
 theory, metric candidate, and substantive findings, but not the reviewer's
 scope label or global repair instruction. A metric-only decision returns to the
 bounded metric author. A source-theory decision stops metric rewriting and
-AgentRuntime dispatches a typed TheoryDeveloper revision task; contradictory or
-uncertain ownership fails closed. That task sees
+AgentRuntime dispatches a typed TheoryDeveloper revision task. When ownership
+is genuinely unresolved because the source theory is underspecified, the same
+bounded TheoryDeveloper loop receives an explicit clarification request while
+execution remains closed. That task sees
 the complete immutable parent theory material plus the exact review findings,
 then returns through a fresh metric-author and independent-review gate. The
 revision count, parent packet, rejection manifest, and feedback packet remain
@@ -288,7 +293,9 @@ A router row may declare ownership `resolved` only when its target set and
 metric-author repairability flag deterministically imply a routable owner.
 Contradictory resolved rows are validation errors and receive the normal bounded
 LLM repair prompt; they are not silently coerced to either artifact. A genuinely
-uncertain row remains `unresolved` and fails closed.
+uncertain row remains `unresolved`; it may request one bounded TheoryDeveloper
+clarification, but it never authorizes metric execution or silently chooses an
+owner.
 
 The registry-backed `ProblemFormalizer`, `TheoryPlanner`, and
 `ResearchSimulator` described below remain legacy baseline providers. They are
