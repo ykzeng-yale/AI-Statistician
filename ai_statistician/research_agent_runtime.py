@@ -29885,7 +29885,12 @@ def _formalizer_candidate_exact_proof_search_context(
         target_known = _source_theorem_target_known_value(diagnostic)
         if target_known is not True:
             target_known = _source_theorem_target_known_value(provenance)
-        if target_known is not True:
+        generated_formal_target_pending_review = bool(
+            target_known is not True
+            and str(diagnostic.get("source_field", "") or "").strip()
+            == "formal_targets"
+        )
+        if target_known is not True and not generated_formal_target_pending_review:
             continue
 
         target_declaration = str(
@@ -29962,7 +29967,7 @@ def _formalizer_candidate_exact_proof_search_context(
         )
         provenance.update(
             {
-                "source_theorem_target_known": True,
+                "source_theorem_target_known": target_known is True,
                 "target_lean_declaration": target_declaration,
                 "target_ids": list(target_ids),
                 "source_work_order_id": source_work_order_id,
@@ -30015,9 +30020,11 @@ def _formalizer_candidate_exact_proof_search_context(
             semantic_alignment_blockers=string_tuple(
                 provenance.get("semantic_alignment_blockers", [])
             ),
-            source_theorem_target_known=True,
+            source_theorem_target_known=target_known is True,
             source_theorem_target_identity_status=(
                 "SOURCE_THEOREM_TARGET_KNOWN"
+                if target_known is True
+                else "GENERATED_FORMAL_TARGET_PENDING_SEMANTIC_REVIEW"
             ),
             source_theorem_target_provenance=provenance,
             expected_target_lean_declaration=expected_declaration,

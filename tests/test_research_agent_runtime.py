@@ -35025,10 +35025,10 @@ def _generic_failed_exact_formalizer_manifest(
                 "target_ids": ["generic_exact_goal"],
                 "target_theorem_goal_ids": ["generic_exact_goal"],
                 "target_theorem_name": "generic_exact_goal",
-                "source_theorem_target_known": True,
+                "source_theorem_target_known": False,
                 "source_theorem_candidate_evidence_eligible": True,
                 "source_theorem_target_provenance": {
-                    "source_theorem_target_known": True,
+                    "source_theorem_target_known": False,
                     "source_theorem_question_id": "generic_theorem_search",
                     "source_theorem_goal_id": "generic_exact_goal",
                     "target_lean_declaration": "exact_source",
@@ -35075,6 +35075,10 @@ def test_failed_formalizer_exact_candidate_requires_review_before_typed_prover(
         "theorem exact_source (p : Prop) (hp : p) : p"
     )
     assert context["formalizer_candidate_exact_search_eligible"] is True
+    assert context["source_theorem_target_known"] is False
+    assert context["source_theorem_target_identity_status"] == (
+        "GENERATED_FORMAL_TARGET_PENDING_SEMANTIC_REVIEW"
+    )
     assert context["external_proof_search_dispatch_eligible"] is False
     assert context["source_theorem_kernel_evidence_eligible"] is False
     assert context["formalizer_candidate_semantic_review_status"] == (
@@ -35130,6 +35134,10 @@ def test_failed_formalizer_exact_candidate_requires_review_before_typed_prover(
                 "target_theorem_statement_hash_algorithm"
             ],
             "external_proof_search_dispatch_eligible": True,
+            "source_theorem_target_known": True,
+            "source_theorem_target_identity_status": (
+                "CURRENT_THEORY_TARGET_INDEPENDENT_SEMANTIC_REVIEW_ACCEPTED"
+            ),
             "source_theorem_kernel_evidence_eligible": True,
         }
     )
@@ -35145,6 +35153,7 @@ def test_failed_formalizer_exact_candidate_requires_review_before_typed_prover(
         environment_feedback=accepted_feedback,
     )
     assert request["target_lean_declaration"] == "exact_source"
+    assert request["source_theorem_target_known"] is True
     assert request["source_theorem_kernel_evidence_eligible"] is True
     assert request["formal_target_semantic_review"]["review_packet_hash"] == (
         "review-hash"
@@ -35178,6 +35187,21 @@ def test_failed_formalizer_exact_candidate_requires_review_before_typed_prover(
     )
 
 
+def test_unknown_non_formal_target_stays_outside_exact_review_and_prover(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "UnboundSource.lean"
+    manifest = _generic_failed_exact_formalizer_manifest(candidate)
+    manifest["candidate_rows"][0]["source_field"] = "diagnostic_candidates"
+
+    feedback = _formalizer_lean_candidate_repair_feedback(manifest)
+
+    assert feedback is not None
+    context = feedback["proofengineer_repair_context"]
+    assert "formalizer_candidate_exact_search_eligible" not in context
+    assert "target_theorem_statement" not in context
+
+
 def test_formalization_evaluator_routes_exact_target_to_semantic_reviewer(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -35191,7 +35215,7 @@ def test_formalization_evaluator_routes_exact_target_to_semantic_reviewer(
     }
     candidate_row = candidate_manifest["candidate_rows"][0]
     candidate_row["source_theorem_target_provenance"] = {
-        "source_theorem_target_known": True,
+        "source_theorem_target_known": False,
         "source_theorem_question_id": question.id,
         "source_theorem_goal_id": "generic_exact_goal",
         "target_lean_declaration": "exact_source",
@@ -104604,7 +104628,7 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     assert args.serious_theory_model_tier == "opus"
     assert args.serious_theory_max_tokens >= 8000
     assert args.architect_metric_repair_ownership_router is True
-    assert args.formalization_gap_planner_live_route_planner is True
+    assert args.formalization_gap_planner_live_route_planner is False
     assert args.formalization_gap_planner_live_max_handoffs == 1
     assert args.formalization_gap_planner_live_max_route_requests_per_handoff == 1
     assert args.formalization_gap_planner_live_max_provider_retries == 1
@@ -104697,13 +104721,24 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
 
     args.openprover_hlm = True
     args.formalization_gap_planner_live_route_planner = False
-    assert (
-        "capability eval preset full-live requires the integrated live "
-        "FormalizationGapPlanner route-planner feedback path; missing "
-        "--formalization-gap-planner-live-route-planner"
-    ) in _research_agent_runtime_capability_config_errors(args)
+    args.formalization_gap_planner_live_max_handoffs = 0
+    args.formalization_gap_planner_live_max_route_requests_per_handoff = 0
+    args.formalization_gap_planner_live_max_provider_retries = 0
+    args.formalization_gap_planner_live_timeout_seconds = 0.0
+    assert not any(
+        "FormalizationGapPlanner" in error
+        for error in _research_agent_runtime_capability_config_errors(args)
+    )
 
     args.formalization_gap_planner_live_route_planner = True
+    assert (
+        "enabled live FormalizationGapPlanner routing requires "
+        "--formalization-gap-planner-live-max-handoffs > 0"
+    ) in _research_agent_runtime_capability_config_errors(args)
+    args.formalization_gap_planner_live_max_handoffs = 1
+    args.formalization_gap_planner_live_max_route_requests_per_handoff = 1
+    args.formalization_gap_planner_live_max_provider_retries = 1
+    args.formalization_gap_planner_live_timeout_seconds = 240.0
     args.coding_agent_packet_validation_replan_after_attempts = 0
     assert (
         "capability eval preset full-live requires bounded coding-agent "

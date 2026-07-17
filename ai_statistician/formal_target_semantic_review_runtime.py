@@ -840,6 +840,34 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                 )
                 else {}
             )
+            target_provenance = (
+                dict(
+                    repair_context.get("source_theorem_target_provenance", {})
+                    or {}
+                )
+                if isinstance(
+                    repair_context.get("source_theorem_target_provenance", {}),
+                    Mapping,
+                )
+                else {}
+            )
+            target_provenance.update(
+                {
+                    "source_theorem_target_known": True,
+                    "source_theorem_target_identity_status": (
+                        "CURRENT_THEORY_TARGET_INDEPENDENT_SEMANTIC_REVIEW_ACCEPTED"
+                    ),
+                    "formal_target_semantic_review_execution_id": execution_id,
+                    "formal_target_semantic_review_packet_id": review_packet_id,
+                    "formal_target_semantic_review_packet_hash": review_packet_hash,
+                    "formal_target_semantic_review_candidate_source_hash": str(
+                        work_order.get("candidate_source_hash", "") or ""
+                    ),
+                    "formal_target_semantic_review_target_statement_hash": str(
+                        work_order.get("target_theorem_statement_hash", "") or ""
+                    ),
+                }
+            )
             repair_context.update(
                 {
                     "formalizer_candidate_semantic_review_status": (
@@ -863,6 +891,11 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                         or ""
                     ),
                     "external_proof_search_dispatch_eligible": True,
+                    "source_theorem_target_known": True,
+                    "source_theorem_target_identity_status": (
+                        "CURRENT_THEORY_TARGET_INDEPENDENT_SEMANTIC_REVIEW_ACCEPTED"
+                    ),
+                    "source_theorem_target_provenance": target_provenance,
                     "source_theorem_kernel_evidence_eligible": True,
                     "source_theorem_promotion_blockers": [],
                 }

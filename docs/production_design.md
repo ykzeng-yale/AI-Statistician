@@ -118,6 +118,31 @@ task-bound retrieval -> LLM action -> Lean diagnostic loop, with Lean/AXLE/kerne
 as the only proof authority. Candidate populations, MCTS, monolith
 decomposition, extra reviewers, and reserved held-out tasks remain deferred.
 
+The required short formal loop was already present: typed ProofEngineer ->
+ExactSourceTheoremProver -> ProofEngineer handoffs, OpenProver HLM generation,
+formal-source retrieval, compiler/proof-state feedback, exact local Lean reruns,
+and immutable target hashes. The v34 failure was a routing error, not a reason to
+build another prover. A newly generated `formal_targets` declaration was barred
+from independent semantic review until it was already labelled as a known source
+theorem. That caused syntax repair to run before statement-faithfulness review
+and allowed a changed statement to fall into the staged planner. The runtime now
+allows only a non-helper, evidence-eligible, path/hash/declaration/target-bound
+generated formal target into semantic review. It remains unknown and ineligible
+for kernel promotion until the independent reviewer accepts that exact statement;
+only then can the existing OpenProver/Lean loop run, and only a kernel rerun can
+prove it. The `full-live` preset no longer enables or requires the live staged
+gap planner. Explicitly enabled planner routing remains an optional bounded
+diagnostic fallback.
+
+Replay of both v34 artifacts exercised this correction. The first failed target
+and the later compiling but statement-drifted target now both stop at independent
+semantic review. A bounded live Opus replay returned `REVISE` to
+FormalizationEvaluator because the target was a trivial nonnegativity surrogate
+rather than the requested survival theorem. Those task-specific findings were
+generated from the question, theory packet, and exact target at runtime; they are
+stored only as non-proof run evidence and are not code or policy rules. This is
+evidence of correct target routing, not exact theorem closure.
+
 The next aligned architecture work is to promote the LLM agent loop and
 environment iteration into the main runtime:
 

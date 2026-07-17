@@ -164,6 +164,7 @@ def _runtime_fixture(
         "candidate_rows": [
             {
                 "candidate_id": "exact_source",
+                "source_field": "formal_targets",
                 "artifact_path": str(artifact_path),
                 "source_hash": source_hash,
                 "target_lean_declaration": "exact_source",
@@ -175,9 +176,9 @@ def _runtime_fixture(
                 "source_theorem_candidate_evidence_eligible": True,
                 "diagnostic_helper_not_source_theorem": False,
                 "support_candidate_not_source_theorem": False,
-                "source_theorem_target_known": True,
+                "source_theorem_target_known": False,
                 "source_theorem_target_provenance": {
-                    "source_theorem_target_known": True,
+                    "source_theorem_target_known": False,
                     "source_theorem_question_id": question.id,
                     "source_theorem_goal_id": "exact_source",
                     "target_lean_declaration": "exact_source",
@@ -222,7 +223,7 @@ def _runtime_fixture(
         ),
         "target_ids": ["exact_source"],
         "source_theorem_target_provenance": {
-            "source_theorem_target_known": True
+            "source_theorem_target_known": False
         },
         "semantic_alignment_constraints": [
             "preserve the supplied hypothesis and conclusion"
@@ -285,6 +286,13 @@ def test_formal_target_semantic_review_accepts_before_typed_prover_search(
     feedback = result.next_task.inputs["environment_feedback"]
     context = feedback["proofengineer_repair_context"]
     assert context["external_proof_search_dispatch_eligible"] is True
+    assert context["source_theorem_target_known"] is True
+    assert context["source_theorem_target_identity_status"] == (
+        "CURRENT_THEORY_TARGET_INDEPENDENT_SEMANTIC_REVIEW_ACCEPTED"
+    )
+    assert context["source_theorem_target_provenance"][
+        "source_theorem_target_known"
+    ] is True
     assert context["source_theorem_kernel_evidence_eligible"] is True
     assert context["formalizer_candidate_semantic_review_status"] == (
         "INDEPENDENT_SEMANTIC_REVIEW_ACCEPTED_NOT_PROOF_EVIDENCE"

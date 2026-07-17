@@ -14246,7 +14246,6 @@ def _apply_research_agent_runtime_capability_eval_preset(
         args.openprover_hlm = bool(
             str(getattr(args, "openprover_root", "") or "").strip()
         )
-        args.formalization_gap_planner_live_route_planner = True
         if (
             int(
                 getattr(
@@ -14920,43 +14919,41 @@ def _research_agent_runtime_capability_config_errors(
                 "capability eval preset full-live requires --openprover-root "
                 "so ProofEngineer can execute compiler-feedback proof search"
             )
-        if not bool(
+        live_gap_planner_enabled = bool(
             getattr(args, "formalization_gap_planner_live_route_planner", False)
-        ):
-            errors.append(
-                "capability eval preset full-live requires the integrated live "
-                "FormalizationGapPlanner route-planner feedback path; missing "
-                "--formalization-gap-planner-live-route-planner"
-            )
-        route_provider_choice = str(
-            getattr(args, "formalization_gap_planner_live_provider", "same")
-            or "same"
         )
-        route_provider = (
-            main_provider if route_provider_choice == "same" else route_provider_choice
-        )
-        if route_provider not in {"anthropic", "openai"}:
-            errors.append(
-                "capability eval preset full-live requires a live "
-                "FormalizationGapPlanner route-planner provider; "
-                "formalization_gap_planner_live_provider="
-                f"{route_provider_choice} resolves to {route_provider or 'none'}"
+        if live_gap_planner_enabled:
+            route_provider_choice = str(
+                getattr(args, "formalization_gap_planner_live_provider", "same")
+                or "same"
             )
-        if (
-            int(
-                getattr(
-                    args,
-                    "formalization_gap_planner_live_max_handoffs",
-                    0,
+            route_provider = (
+                main_provider
+                if route_provider_choice == "same"
+                else route_provider_choice
+            )
+            if route_provider not in {"anthropic", "openai"}:
+                errors.append(
+                    "enabled live FormalizationGapPlanner routing requires an "
+                    "anthropic or openai provider; "
+                    "formalization_gap_planner_live_provider="
+                    f"{route_provider_choice} resolves to {route_provider or 'none'}"
                 )
-                or 0
-            )
-            <= 0
-        ):
-            errors.append(
-                "capability eval preset full-live requires "
-                "--formalization-gap-planner-live-max-handoffs > 0"
-            )
+            if (
+                int(
+                    getattr(
+                        args,
+                        "formalization_gap_planner_live_max_handoffs",
+                        0,
+                    )
+                    or 0
+                )
+                <= 0
+            ):
+                errors.append(
+                    "enabled live FormalizationGapPlanner routing requires "
+                    "--formalization-gap-planner-live-max-handoffs > 0"
+                )
         if (
             int(
                 getattr(
@@ -15077,7 +15074,7 @@ def _research_agent_runtime_capability_config_errors(
                 "Formalizer proof-state repair turn; set "
                 "--max-formalizer-proof-state-repair-rounds > 0"
             )
-        if (
+        if live_gap_planner_enabled and (
             int(
                 getattr(
                     args,
@@ -15089,11 +15086,11 @@ def _research_agent_runtime_capability_config_errors(
             <= 0
         ):
             errors.append(
-                "capability eval preset full-live requires bounded live "
+                "enabled live FormalizationGapPlanner routing requires bounded "
                 "FormalizationGapPlanner route-planner fanout; set "
                 "--formalization-gap-planner-live-max-route-requests-per-handoff > 0"
             )
-        if (
+        if live_gap_planner_enabled and (
             int(
                 getattr(
                     args,
@@ -15105,11 +15102,12 @@ def _research_agent_runtime_capability_config_errors(
             <= 0
         ):
             errors.append(
-                "capability eval preset full-live requires a bounded typed retry "
+                "enabled live FormalizationGapPlanner routing requires a bounded "
+                "typed retry "
                 "after response-free FormalizationGapPlanner provider failures; "
                 "set --formalization-gap-planner-live-max-provider-retries > 0"
             )
-        if (
+        if live_gap_planner_enabled and (
             float(
                 getattr(
                     args,
@@ -15121,7 +15119,7 @@ def _research_agent_runtime_capability_config_errors(
             <= 0.0
         ):
             errors.append(
-                "capability eval preset full-live requires "
+                "enabled live FormalizationGapPlanner routing requires "
                 "--formalization-gap-planner-live-timeout-seconds > 0"
             )
     if (
