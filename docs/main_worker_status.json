@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-17T04:50:53Z",
+  "updated_at": "2026-07-17T08:36:31Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
-  "current_lane": "keep one canonical empirical loop: TheoryDeveloper -> executable AlgorithmEngineer artifact -> independent algorithm semantic review -> frozen Architect confirmatory protocol -> SimulationEngineer DGP/stress test -> independent simulation review and owner-routed feedback; formal work remains parallel under claim-level policy. Next build a generic estimator ABI and obtain fresh non-reserved two-family live evidence; keep PCA/extremes sealed.",
-  "latest_main_worker_patch": "Align empirical subsystem ownership without adding a control layer. AlgorithmEngineer now owns executable estimator fidelity and returns no empirical metric contracts; Architect freezes only the downstream confirmatory simulation requirements; SimulationEngineer consumes a hash-bound independently reviewed algorithm handoff. First-pass-correct agents pass directly, while an observed execution, safety, or simulation metric failure requires same-lineage feedback closure. Exhausted algorithm execution repair routes exact diagnostics to Architect for theory/interface/environment replanning. The unreachable legacy algorithm metric-gate refresh path was deleted.",
-  "latest_main_worker_live_probe": "Fresh optional-policy v13 used robust_mean_mom and heteroskedastic_regression_hc with no resume, task memory, or reserved held-out task. The v12 baseline blocked 2/2 at generated-code semantic-review input validation because the reviewer was given an execution envelope but the manifest hash identified only its nested metrics. After the shared lineage fix, v13 produced 12 simulation prototypes and 10 real scientific simulation executions. Robust mean completed three serious TheoryDeveloper passes, six independent semantic reviews, four direct code-repair handoffs, and two Architect escalations, but exhausted 24 steps without semantic acceptance. Regression obtained two independent simulation ACCEPT verdicts, passed a reviewer-driven confirmatory repair, entered AlgorithmEngineer, and executed semantically correct OLS/HC3 code. It then blocked honestly because the frozen per-seed HC3 relative-error gate passed only 32/80 rather than 64/80 and the reviewer classified the threshold as a likely infeasible upstream metric contract. No gate was relaxed post-result. Final statuses are MAX_ITERATIONS_REACHED and BLOCKED; formal level is none, kernel subclaims are zero, and this is not optional-loop completion or strict E2E evidence.",
-  "latest_main_worker_design_issue": "Do not add another control layer, task-family formulas, expected answers, Lean grammar, tactic rules, or mandatory intentional failures. The remaining central empirical gap is a generic Python/R estimator ABI that mechanically invokes the exact reviewed AlgorithmEngineer source inside the generated DGP harness; prompt visibility plus hash receipt is not mechanical reuse. After that, run fresh non-reserved two-family live evaluation and repair only shared agent, feedback, or environment blockers.",
+  "current_lane": "keep one canonical empirical loop: TheoryDeveloper -> executable AlgorithmEngineer artifact -> independent algorithm semantic review -> frozen Architect confirmatory protocol -> SimulationEngineer mechanically invokes the hash-bound accepted estimator in DGP/stress tests -> independent simulation review and owner-routed feedback. The generic Python/R estimator ABI is implemented and live-verified for one regression task. Next obtain fresh non-reserved two-family completion by improving shared LLM context, semantic feedback, and provider retry/resume behavior; formal work remains parallel and PCA/extremes stay sealed.",
+  "latest_main_worker_patch": "Preserve the accepted AlgorithmEngineer handoff through both Architect metric-protocol acceptance and subsequent SimulationEngineer repair routing. The patch refreshes the canonical algorithm sandbox manifest id, carries the exact upstream handoff, and keeps the mechanical-invocation requirement active. It adds no task-family formula, expected answer, Lean grammar/tactic rule, agent, reviewer, or control plane.",
+  "latest_main_worker_live_probe": "Fresh optional-policy v14 used robust_mean_mom and heteroskedastic_regression_hc. Robust mean blocked after two theory revisions at independent pre-execution metric review; regression reached accepted simulation but the missing accepted-algorithm route yielded zero mechanical invocations, and a later Critic call failed under repeated Anthropic 529 overload. Fresh v15 proved the corrected route could emit typed estimator-ABI feedback, then exposed stale algorithm-manifest lineage during simulation repair. Fresh v16 preserved that lineage: the generated regression DGP harness invoked the exact hash-bound accepted E1 source 320 times, all invocation/binding/envelope hashes were recorded, and independent simulation review accepted. V16 still ended at MAX_ITERATIONS_REACHED after entering optional Formalizer/ProofEngineer work; it has zero exact theorem closures and does not establish two-family or strict E2E readiness.",
+  "latest_main_worker_design_issue": "Do not respond to the v16 interface success by adding another control layer, task-family formulas, expected answers, Lean grammar/tactic rules, candidate populations, MCTS, extra reviewers, or a monolith refactor. The immediate shared blocker is reliable theory-to-experiment completion across two unrelated fresh development tasks, especially semantic metric design, bounded owner-routed revision, and provider retry/resume. Exact Lean/AXLE/kernel closure remains required for strict E2E, but it is a separate evidence lane and must not be inferred from mechanical estimator reuse.",
   "latest_runtime_role_boundary_alignment": {
     "canonical_empirical_loop": "TheoryDeveloper -> AlgorithmEngineer execution -> independent algorithm semantic review -> Architect confirmatory protocol -> SimulationEngineer execution -> independent simulation semantic review -> owner-routed revision",
     "algorithm_acceptance": "sandbox execution plus independent semantic acceptance; no finite-sample empirical performance gate",
@@ -17,18 +17,46 @@
     "task_specific_rules_added": false,
     "lean_grammar_or_tactic_rules_added": false,
     "second_orchestration_plane_added": false,
-    "mechanical_estimator_invocation_verified": false,
+    "mechanical_estimator_invocation_verified": true,
     "fresh_live_two_family_completion_verified": false,
     "strict_e2e_capability_ready": false,
     "verification": {
-      "research_agent_runtime": "1142 passed in 1759.38 seconds",
-      "affected_supporting_tests": "52 passed in 1.16 seconds",
-      "focused_empirical_loop_tests": "259 passed in 371.96 seconds",
-      "fresh_start_cross_task_e2e_tests": "11 passed in 0.15 seconds",
+      "research_agent_runtime": "1142 passed in 1779.75 seconds",
+      "affected_supporting_tests": "2 focused routing tests and 14 scientific sandbox tests passed",
+      "focused_empirical_loop_tests": "covered by the full research_agent_runtime suite",
+      "fresh_start_cross_task_e2e_tests": "not separately rerun; no benchmark protocol changed",
       "py_compile": "passed",
-      "git_diff_check": "passed before final status update"
+      "git_diff_check": "passed after final status update"
     },
     "boundary": "These are code and contract regression results, not fresh live research completion, theorem closure, held-out generalization, or proof evidence."
+  },
+  "latest_estimator_bound_simulation_probe": {
+    "implementation_lineage": "d500e814 estimator ABI plus the accepted-handoff routing-lineage fix",
+    "formal_verification_policy": "optional",
+    "v14_run": "runs/main_worker_cross_family_research_loop_optional_20260717_v14_estimator_bound",
+    "v15_run": "runs/main_worker_regression_optional_20260717_v15_estimator_bound_route_fix",
+    "v16_run": "runs/main_worker_regression_optional_20260717_v16_estimator_repair_lineage",
+    "v14_question_statuses": [
+      "BLOCKED",
+      "FAILED"
+    ],
+    "v14_mechanical_estimator_invocations_verified": 0,
+    "v15_question_status": "MAX_ITERATIONS_REACHED",
+    "v15_observed_shared_failure": "one accepted estimator was invoked 320 times while another was never invoked; a later repair selected a stale algorithm sandbox manifest id",
+    "v16_question_status": "MAX_ITERATIONS_REACHED",
+    "v16_task_family": "regression",
+    "v16_simulation_semantic_review_accepted": true,
+    "v16_mechanical_estimator_invocations_verified": 1,
+    "v16_estimator_invocation_counts": {
+      "E1": 320
+    },
+    "v16_estimator_source_hash": "c3bd59578a7e767036c5cb94cf5ba50d9f65e6e2904eb0e4727574765f37e24d",
+    "v16_estimator_binding_hash": "2b5ff4525f47276e9697ed60b6c3412000d97c91c2a5a2dcf5f68943f928bc5f",
+    "v16_simulation_execution_envelope_hash": "ce1637529b204a1f4921411004dc4818bfb176d9084112ec53dae7ee36ae83c9",
+    "v16_kernel_verified_subclaims": 0,
+    "fresh_live_two_family_completion_verified": false,
+    "capability_ready_for_full_ai_statistician": false,
+    "boundary": "V16 establishes exact accepted-source reuse inside one generated confirmatory simulation. It does not establish DGP, metric, statistical, theorem, cross-task, held-out, or strict end-to-end correctness."
   },
   "latest_untouched_generalization_probe": {
     "v12_run": "runs/main_worker_cross_family_research_loop_optional_20260716_v12_untouched_generalization",

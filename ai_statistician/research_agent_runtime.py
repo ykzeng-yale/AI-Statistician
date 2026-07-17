@@ -8784,6 +8784,25 @@ def _architect_initial_routing_decision(
                 routed_subsystem="SimulationEvaluator",
                 gap_row=selected.get("gap_row", {}),
             )
+        evidence_contract = packet.get("evidence_contract", {})
+        requires_accepted_algorithm_handoff = bool(
+            record["source"] == "theory_informed_metric_protocol_accepted"
+            and isinstance(evidence_contract, Mapping)
+            and evidence_contract.get(
+                "capability_eval_requires_generated_algorithm_code"
+            )
+            is True
+        )
+        algorithm_sandbox_manifest_id = (
+            _architect_context_algorithm_sandbox_manifest_id(context)
+        )
+        upstream_algorithm_handoff = context.get(
+            "upstream_algorithm_handoff", {}
+        )
+        if requires_accepted_algorithm_handoff:
+            context[
+                "confirmatory_simulation_requires_accepted_algorithm_handoff"
+            ] = True
         inputs: dict[str, Any] = {
             "question": _question_to_payload(question),
             "theory_packet_id": str(
@@ -8795,6 +8814,14 @@ def _architect_initial_routing_decision(
             "n_runs": runtime_config.n_runs,
             "seed": runtime_config.seed,
         }
+        if requires_accepted_algorithm_handoff:
+            inputs["algorithm_sandbox_manifest_id"] = (
+                algorithm_sandbox_manifest_id
+            )
+            if isinstance(upstream_algorithm_handoff, Mapping):
+                inputs["upstream_algorithm_handoff"] = dict(
+                    upstream_algorithm_handoff
+                )
         if isinstance(feedback, Mapping) and feedback:
             context["environment_feedback"] = dict(feedback)
             inputs["environment_feedback"] = dict(feedback)
@@ -62718,6 +62745,7 @@ def _generated_simulation_required_before_formalization_task(
     )
     context["previous_simulation_manifest_id"] = simulation_manifest_id
     context["previous_algorithm_sandbox_manifest_id"] = algorithm_sandbox_manifest_id
+    context["algorithm_sandbox_manifest_id"] = algorithm_sandbox_manifest_id
     context[
         "confirmatory_simulation_requires_accepted_algorithm_handoff"
     ] = True

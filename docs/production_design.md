@@ -99,11 +99,21 @@ The canonical product loop is deliberately small:
    scheduling, and evidence labels. It does not own statistical formulas,
    expected answers, task-family thresholds, Lean grammar, or tactics.
 
-The current handoff supplies exact independently reviewed AlgorithmEngineer
-source and hashes to SimulationEngineer and records that receipt. A generic
-cross-language estimator ABI that mechanically invokes the same source inside
-the generated DGP harness is still open work; prompt visibility and reviewer
-inspection must not be reported as mechanical reuse.
+The Python/R estimator ABI now binds the exact independently reviewed
+AlgorithmEngineer source into the generated DGP harness. Runtime evidence
+records source hashes, binding and execution-envelope hashes, and per-estimator
+invocation counts. The fresh v16 regression probe mechanically invoked the
+hash-bound `E1` estimator 320 times and passed independent simulation review.
+This proves source reuse, not DGP, metric, statistical, theorem, or cross-task
+correctness.
+
+The immediate priority is therefore not another control plane or a broader
+agent hierarchy. It is to make the same small loop complete reliably on fresh,
+unrelated development tasks by improving LLM context, semantic feedback, and
+provider retry/resume behavior. Formal work continues in parallel, and exact
+Lean/AXLE/kernel theorem closure remains mandatory for strict end-to-end
+readiness. Candidate populations, MCTS, monolith decomposition, extra reviewers,
+and reserved held-out tasks remain deferred until this shared loop closes.
 
 The next aligned architecture work is to promote the LLM agent loop and
 environment iteration into the main runtime:

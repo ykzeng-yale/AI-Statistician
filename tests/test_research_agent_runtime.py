@@ -22555,6 +22555,52 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     ]
     assert routing["source"] == "theory_informed_metric_protocol_accepted"
 
+    algorithm_manifest_id = "algorithm_sandbox_manifest:accepted"
+    accepted_handoff = {
+        "handoff_id": "accepted_algorithm_handoff:test",
+        "algorithm_sandbox_manifest_id": algorithm_manifest_id,
+    }
+    simulation_context = _theory_informed_metric_context_fixture()
+    simulation_context["algorithm_sandbox_manifest_id"] = algorithm_manifest_id
+    simulation_context["upstream_algorithm_handoff"] = accepted_handoff
+    simulation_routed = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=AcceptedCoordinator(),  # type: ignore[arg-type]
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            n_runs=17,
+        ),
+    ).run(
+        AgentTask(
+            task_id="architect-metric-protocol:accepted-with-algorithm",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Route accepted estimator source to confirmatory simulation.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": simulation_context,
+            },
+        ),
+        BlackboardState(
+            project_id="metric-protocol-accepted-with-algorithm",
+            artifacts={
+                "theory_derivation:structured": theory_packet,
+                algorithm_manifest_id: {
+                    "artifact_kind": "RuntimeAlgorithmSandboxManifest"
+                },
+            },
+        ),
+    )
+    assert simulation_routed.next_task is not None
+    assert simulation_routed.next_task.owner_subsystem == "SimulationEvaluator"
+    assert simulation_routed.next_task.inputs[
+        "algorithm_sandbox_manifest_id"
+    ] == algorithm_manifest_id
+    assert simulation_routed.next_task.inputs[
+        "upstream_algorithm_handoff"
+    ] == accepted_handoff
+    assert simulation_routed.next_task.inputs["architect_context"][
+        "confirmatory_simulation_requires_accepted_algorithm_handoff"
+    ] is True
+
 
 def test_confirmatory_simulation_task_requires_accepted_algorithm_handoff() -> None:
     question = load_open_research_questions(
@@ -22580,6 +22626,9 @@ def test_confirmatory_simulation_task_requires_accepted_algorithm_handoff() -> N
     )
     assert task.inputs["seed"] == 41
     assert task.inputs["algorithm_sandbox_manifest_id"] == "algorithm:first"
+    assert task.inputs["architect_context"][
+        "algorithm_sandbox_manifest_id"
+    ] == "algorithm:first"
     assert task.inputs["architect_context"][
         "confirmatory_simulation_requires_accepted_algorithm_handoff"
     ] is True
