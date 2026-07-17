@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-17T08:36:31Z",
+  "updated_at": "2026-07-17T11:19:42Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
-  "current_lane": "keep one canonical empirical loop: TheoryDeveloper -> executable AlgorithmEngineer artifact -> independent algorithm semantic review -> frozen Architect confirmatory protocol -> SimulationEngineer mechanically invokes the hash-bound accepted estimator in DGP/stress tests -> independent simulation review and owner-routed feedback. The generic Python/R estimator ABI is implemented and live-verified for one regression task. Next obtain fresh non-reserved two-family completion by improving shared LLM context, semantic feedback, and provider retry/resume behavior; formal work remains parallel and PCA/extremes stay sealed.",
-  "latest_main_worker_patch": "Preserve the accepted AlgorithmEngineer handoff through both Architect metric-protocol acceptance and subsequent SimulationEngineer repair routing. The patch refreshes the canonical algorithm sandbox manifest id, carries the exact upstream handoff, and keeps the mechanical-invocation requirement active. It adds no task-family formula, expected answer, Lean grammar/tactic rule, agent, reviewer, or control plane.",
-  "latest_main_worker_live_probe": "Fresh optional-policy v14 used robust_mean_mom and heteroskedastic_regression_hc. Robust mean blocked after two theory revisions at independent pre-execution metric review; regression reached accepted simulation but the missing accepted-algorithm route yielded zero mechanical invocations, and a later Critic call failed under repeated Anthropic 529 overload. Fresh v15 proved the corrected route could emit typed estimator-ABI feedback, then exposed stale algorithm-manifest lineage during simulation repair. Fresh v16 preserved that lineage: the generated regression DGP harness invoked the exact hash-bound accepted E1 source 320 times, all invocation/binding/envelope hashes were recorded, and independent simulation review accepted. V16 still ended at MAX_ITERATIONS_REACHED after entering optional Formalizer/ProofEngineer work; it has zero exact theorem closures and does not establish two-family or strict E2E readiness.",
-  "latest_main_worker_design_issue": "Do not respond to the v16 interface success by adding another control layer, task-family formulas, expected answers, Lean grammar/tactic rules, candidate populations, MCTS, extra reviewers, or a monolith refactor. The immediate shared blocker is reliable theory-to-experiment completion across two unrelated fresh development tasks, especially semantic metric design, bounded owner-routed revision, and provider retry/resume. Exact Lean/AXLE/kernel closure remains required for strict E2E, but it is a separate evidence lane and must not be inferred from mechanical estimator reuse.",
+  "current_lane": "keep one canonical research loop: TheoryDeveloper -> executable AlgorithmEngineer artifact -> independent algorithm semantic review -> frozen Architect confirmatory protocol -> SimulationEngineer mechanically invokes the hash-bound accepted estimator -> independent simulation review -> owner-routed revision. Fresh v35 completed this loop for two unrelated development families under advisory formal policy. Next make that result repeatable under transport/validation failures and simplify the strict formal path into the shortest honest Lean feedback loop; PCA/extremes stay sealed.",
+  "latest_main_worker_patch": "Preserve substantive upstream reviewer feedback and immutable parent-theory lineage when a TheoryDeveloper response fails JSON or packet validation and is retried. The same serious revision prompt and schema minima now survive the transport-level retry. This adds no task formula, expected answer, Lean grammar/tactic rule, agent, reviewer, gate, or orchestration plane.",
+  "latest_main_worker_live_probe": "Fresh v35 advisory runs on right_censored_survival_km and sequential_anytime_bernoulli ended with 2/2 RESEARCH_CANDIDATE_ACCEPTED_FORMAL_ADVISORY results: five generated algorithm executions and independent accepts, two generated simulation executions and independent accepts, and two mechanically verified estimator invocations. Sequential also completed a reviewer-routed upstream TheoryDeveloper revision with preserved parent and feedback lineage. V35 did not trigger JSON validation retry, so that exact retry path is regression-tested rather than live-verified. The run has five explicit formal gaps, zero kernel-verified subclaims, and zero source-theorem closures, so strict readiness remains false. A partial strict v34 probe showed the current formalization-gap planner consuming 191269 provider tokens including staged followups and still failing schema assembly; the run was stopped rather than spending further budget on that overcomplicated route.",
+  "latest_main_worker_design_issue": "The scientific Python/R executor and canonical empirical loop are no longer the immediate blockers, but one fresh advisory success is not generality or strict E2E proof. The formal path is currently overcomplicated: replace the long staged planner route with a bounded goal-state -> task-bound retrieval -> LLM action -> Lean diagnostic loop, while preserving kernel authority and typed evidence. Also repair generic Architect-control propagation and downstream theory-anchor alignment. Do not add task-family answers, Lean grammar/tactic rules, extra agents, score-driven gates, or held-out patches.",
   "latest_runtime_role_boundary_alignment": {
     "canonical_empirical_loop": "TheoryDeveloper -> AlgorithmEngineer execution -> independent algorithm semantic review -> Architect confirmatory protocol -> SimulationEngineer execution -> independent simulation semantic review -> owner-routed revision",
     "algorithm_acceptance": "sandbox execution plus independent semantic acceptance; no finite-sample empirical performance gate",
@@ -18,17 +18,43 @@
     "lean_grammar_or_tactic_rules_added": false,
     "second_orchestration_plane_added": false,
     "mechanical_estimator_invocation_verified": true,
-    "fresh_live_two_family_completion_verified": false,
+    "fresh_live_two_family_research_loop_completion_verified": true,
+    "fresh_live_two_family_completion_verified": true,
+    "fresh_live_two_family_strict_completion_verified": false,
     "strict_e2e_capability_ready": false,
     "verification": {
-      "research_agent_runtime": "1142 passed in 1779.75 seconds",
-      "affected_supporting_tests": "2 focused routing tests and 14 scientific sandbox tests passed",
-      "focused_empirical_loop_tests": "covered by the full research_agent_runtime suite",
-      "fresh_start_cross_task_e2e_tests": "not separately rerun; no benchmark protocol changed",
+      "research_agent_runtime": "1143 passed in 1805.55 seconds",
+      "affected_supporting_tests": "16 research_architect tests passed; 10 metric-review and ownership tests passed, 2 skipped",
+      "focused_empirical_loop_tests": "4 focused TheoryDeveloper retry and metric-lineage tests passed before the full suite; the 2 exact retry and parent-lineage selectors passed on the final tree with 1141 deselected",
+      "fresh_start_cross_task_e2e_tests": "fresh v35 advisory research loop accepted both development tasks; partial strict v34 was stopped after the over-budget formal planner route; frozen strict completion remains unverified",
       "py_compile": "passed",
       "git_diff_check": "passed after final status update"
     },
-    "boundary": "These are code and contract regression results, not fresh live research completion, theorem closure, held-out generalization, or proof evidence."
+    "boundary": "Fresh v35 verifies advisory research-loop completion only. Regression results and advisory acceptance do not establish theorem closure, held-out generalization, or proof evidence."
+  },
+  "latest_two_family_research_and_formal_cost_probe": {
+    "advisory_run": "runs/main_worker_cross_family_research_loop_20260717_v35_advisory",
+    "advisory_question_statuses": [
+      "ACCEPTED",
+      "ACCEPTED"
+    ],
+    "advisory_evidence_status": "RESEARCH_CANDIDATE_ACCEPTED_FORMAL_ADVISORY",
+    "task_families": [
+      "survival",
+      "sequential"
+    ],
+    "algorithm_executions_and_independent_accepts": 5,
+    "simulation_executions_and_independent_accepts": 2,
+    "mechanical_estimator_invocations_verified": 2,
+    "formal_gaps": 5,
+    "kernel_verified_subclaims": 0,
+    "full_source_theorem_closures": 0,
+    "strict_partial_run": "runs/main_worker_cross_family_development_20260717_v34_theory_retry_lineage",
+    "strict_formal_planner_provider_tokens_including_followups": 191269,
+    "strict_formal_planner_terminal_issue": "formalization_gap_planner_live_route_planner_staged_followup_incomplete",
+    "reserved_held_out_tasks_started": false,
+    "capability_ready_for_full_ai_statistician": false,
+    "boundary": "V35 verifies one fresh two-family advisory research-loop completion. It does not establish repeatability, held-out generalization, kernel proof, exact theorem closure, or strict E2E readiness. V34 is negative control-cost evidence, not a completed strict evaluation."
   },
   "latest_estimator_bound_simulation_probe": {
     "implementation_lineage": "d500e814 estimator ABI plus the accepted-handoff routing-lineage fix",

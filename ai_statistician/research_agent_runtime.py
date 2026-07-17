@@ -301,6 +301,7 @@ from .research_architect import (
     THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
     THEORY_MIN_DERIVATION_STEPS,
     THEORY_MIN_EQUATION_CHAIN_STEPS,
+    theory_developer_source_environment_feedback,
 )
 from .research_lab import FormalSubclaimProver, ProblemFormalizer, ResearchSimulator, TheoryPlanner
 from .research_knowledge import retrieve_problem_knowledge
@@ -11122,8 +11123,8 @@ class TheoryDeveloperRuntimeSubsystem:
         context["runtime_task"] = _runtime_task_prompt_summary(task)
         if "environment_feedback" in task.inputs:
             context["environment_feedback"] = task.inputs["environment_feedback"]
-        metric_protocol_revision_feedback = context.get(
-            "environment_feedback", {}
+        metric_protocol_revision_feedback = (
+            theory_developer_source_environment_feedback(context)
         )
         if not (
             isinstance(metric_protocol_revision_feedback, Mapping)
@@ -11537,6 +11538,18 @@ def _theory_developer_packet_validation_failure_result(
     next_task = None
     if retry_attempt < max_runtime_validation_retries:
         retry_context = dict(context)
+        source_environment_feedback = (
+            theory_developer_source_environment_feedback(context)
+        )
+        if (
+            isinstance(source_environment_feedback, Mapping)
+            and source_environment_feedback
+            and source_environment_feedback.get("artifact_kind")
+            != "RuntimeTheoryDeveloperValidationFeedback"
+        ):
+            retry_context["theory_developer_source_environment_feedback"] = dict(
+                source_environment_feedback
+            )
         retry_mode = (
             "ultra_compact_truncation_retry"
             if truncation_detected and retry_attempt >= 1
@@ -11548,9 +11561,8 @@ def _theory_developer_packet_validation_failure_result(
         required_revision = (
             "Return one complete ultra-compact JSON object satisfying the "
             "TheoryDeveloper output contract. Use exactly the minimum "
-            "validator-satisfying structure: one problem card, one theorem card, "
-            f"{THEORY_MIN_DERIVATION_STEPS} derivation steps, "
-            f"{THEORY_MIN_EQUATION_CHAIN_STEPS} equation-chain rows, one "
+            "prompt-declared validator-satisfying structure: one problem card, "
+            "one theorem card, the required derivation and equation-chain rows, one "
             "assumption-ledger row, and one formalization_handoff. Use short "
             "symbolic strings and preserve the upstream formal/proof feedback "
             "summarized in source_runtime_feedback_summary."

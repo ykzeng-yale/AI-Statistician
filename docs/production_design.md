@@ -99,21 +99,24 @@ The canonical product loop is deliberately small:
    scheduling, and evidence labels. It does not own statistical formulas,
    expected answers, task-family thresholds, Lean grammar, or tactics.
 
-The Python/R estimator ABI now binds the exact independently reviewed
-AlgorithmEngineer source into the generated DGP harness. Runtime evidence
-records source hashes, binding and execution-envelope hashes, and per-estimator
-invocation counts. The fresh v16 regression probe mechanically invoked the
-hash-bound `E1` estimator 320 times and passed independent simulation review.
-This proves source reuse, not DGP, metric, statistical, theorem, or cross-task
-correctness.
+The Python/R estimator ABI binds the exact independently reviewed
+AlgorithmEngineer source into the generated DGP harness. The fresh v35 advisory
+probe completed this research loop for survival and sequential tasks: five
+algorithm executions passed independent review, two generated simulations
+passed independent review, and both simulations mechanically invoked their
+hash-bound accepted estimators. Sequential also completed an independent
+reviewer-routed upstream theory revision with intact parent and feedback
+lineage. This is two-family research-loop evidence, not held-out generalization
+or theorem-proof evidence.
 
-The immediate priority is therefore not another control plane or a broader
-agent hierarchy. It is to make the same small loop complete reliably on fresh,
-unrelated development tasks by improving LLM context, semantic feedback, and
-provider retry/resume behavior. Formal work continues in parallel, and exact
-Lean/AXLE/kernel theorem closure remains mandatory for strict end-to-end
-readiness. Candidate populations, MCTS, monolith decomposition, extra reviewers,
-and reserved held-out tasks remain deferred until this shared loop closes.
+The immediate priority is therefore repeatability of this small research loop
+under provider and validation failures, plus a shorter strict formal loop. In a
+partial v34 strict probe, the staged formalization-gap planner consumed 191269
+provider tokens and still failed to assemble its output schema. That route is
+too complex. Formal work should use a bounded current-goal/local-context ->
+task-bound retrieval -> LLM action -> Lean diagnostic loop, with Lean/AXLE/kernel
+as the only proof authority. Candidate populations, MCTS, monolith
+decomposition, extra reviewers, and reserved held-out tasks remain deferred.
 
 The next aligned architecture work is to promote the LLM agent loop and
 environment iteration into the main runtime:

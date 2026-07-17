@@ -23,6 +23,8 @@ ARCHITECT_SCHEMA_VERSION = 1
 THEORY_DERIVATION_NOT_PROOF_EVIDENCE = "LLM_THEORY_DERIVATION_NOT_PROOF_EVIDENCE"
 THEORY_MIN_DERIVATION_STEPS = 3
 THEORY_MIN_EQUATION_CHAIN_STEPS = 2
+THEORY_SERIOUS_MIN_DERIVATION_STEPS = 5
+THEORY_SERIOUS_MIN_EQUATION_CHAIN_STEPS = 4
 THEORY_PROMPT_MODE_COMPACT = "compact_theory_discovery_packet"
 THEORY_PROMPT_MODE_SERIOUS_CAPABILITY = "serious_capability_theory_workspace"
 THEORY_PROMPT_MODE_SERIOUS_REVISION = "serious_upstream_theory_revision"
@@ -319,6 +321,9 @@ def build_theory_developer_prompt(
     compact_context = _compact_architect_context_for_prompt(architect_context)
     theory_prompt_mode = _theory_developer_prompt_mode(architect_context)
     serious_theory_mode = theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
+    source_environment_feedback = theory_developer_source_environment_feedback(
+        compact_context
+    )
     exact_semantic_instruction = (
         _theory_developer_downstream_exact_semantic_instruction(compact_context)
     )
@@ -334,9 +339,9 @@ def build_theory_developer_prompt(
         }
         output_budget_key = "serious_theory_output_budget"
         output_budget = {
-            "min_derivation_steps": 5,
+            "min_derivation_steps": THEORY_SERIOUS_MIN_DERIVATION_STEPS,
             "max_derivation_steps": 8,
-            "min_equation_chain_steps": 4,
+            "min_equation_chain_steps": THEORY_SERIOUS_MIN_EQUATION_CHAIN_STEPS,
             "max_candidate_procedures": 2,
             "max_theorem_goals": 2,
             "max_lemma_cards": 4,
@@ -403,7 +408,7 @@ def build_theory_developer_prompt(
         payload["downstream_exact_semantic_formalizer_instruction"] = (
             exact_semantic_instruction
         )
-    environment_feedback = compact_context.get("environment_feedback", {})
+    environment_feedback = source_environment_feedback
     if (
         isinstance(environment_feedback, Mapping)
         and environment_feedback.get("artifact_kind")
@@ -469,7 +474,9 @@ def build_theory_developer_prompt(
 def _theory_developer_prompt_mode(
     architect_context: Mapping[str, Any],
 ) -> str:
-    environment_feedback = architect_context.get("environment_feedback", {})
+    environment_feedback = theory_developer_source_environment_feedback(
+        architect_context
+    )
     if (
         isinstance(environment_feedback, Mapping)
         and environment_feedback.get("artifact_kind")
@@ -488,6 +495,22 @@ def _theory_developer_prompt_mode(
     ):
         return THEORY_PROMPT_MODE_SERIOUS_CAPABILITY
     return THEORY_PROMPT_MODE_COMPACT
+
+
+def theory_developer_source_environment_feedback(
+    architect_context: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    """Return substantive feedback preserved across transport-level retries."""
+
+    source_feedback = architect_context.get(
+        "theory_developer_source_environment_feedback", {}
+    )
+    if isinstance(source_feedback, Mapping) and source_feedback:
+        return source_feedback
+    environment_feedback = architect_context.get("environment_feedback", {})
+    if isinstance(environment_feedback, Mapping):
+        return environment_feedback
+    return {}
 
 
 def _theory_developer_serious_mode(
@@ -604,9 +627,12 @@ def _theory_developer_json_repair_context(
                 "and semantic_risks."
             ),
             (
-                "theory_derivation_packet must include at least three "
-                "derivation_steps, two equation_chain rows with lhs/rhs/justification, "
-                "one assumption_ledger row, and formalization_handoff."
+                "theory_derivation_packet must include at least "
+                f"{THEORY_SERIOUS_MIN_DERIVATION_STEPS if serious_theory_mode else THEORY_MIN_DERIVATION_STEPS} "
+                "derivation_steps, "
+                f"{THEORY_SERIOUS_MIN_EQUATION_CHAIN_STEPS if serious_theory_mode else THEORY_MIN_EQUATION_CHAIN_STEPS} "
+                "equation_chain rows with lhs/rhs/justification, one "
+                "assumption_ledger row, and formalization_handoff."
             ),
             (
                 "In serious capability/revision mode, preserve the declared larger "
@@ -670,6 +696,14 @@ def _compact_architect_context_for_prompt(context: Mapping[str, Any]) -> dict[st
     environment_feedback = context.get("environment_feedback")
     if isinstance(environment_feedback, Mapping):
         compact["environment_feedback"] = _compact_environment_feedback_for_prompt(environment_feedback)
+
+    source_environment_feedback = context.get(
+        "theory_developer_source_environment_feedback"
+    )
+    if isinstance(source_environment_feedback, Mapping) and source_environment_feedback:
+        compact["theory_developer_source_environment_feedback"] = (
+            _compact_environment_feedback_for_prompt(source_environment_feedback)
+        )
 
     prior_theory_material = context.get(
         "metric_protocol_prior_theory_material", {}
@@ -921,6 +955,11 @@ def _compact_environment_feedback_for_prompt(feedback: Mapping[str, Any]) -> dic
         "failure_classifications": _compact_learning_memory_value(
             feedback.get("failure_classifications", [])
         ),
+        "validation_errors": _compact_learning_memory_value(
+            feedback.get("validation_errors", [])
+        ),
+        "retry_mode": feedback.get("retry_mode", ""),
+        "truncation_detected": feedback.get("truncation_detected", ""),
         "question_id": feedback.get("question_id", ""),
         "source_task_id": feedback.get("source_task_id", ""),
         "source_owner_subsystem": feedback.get("source_owner_subsystem", ""),
@@ -1640,10 +1679,14 @@ def validate_theory_packet(packet: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
     serious_theory_mode = packet.get("serious_theory_mode") is True
     minimum_derivation_steps = (
-        5 if serious_theory_mode else THEORY_MIN_DERIVATION_STEPS
+        THEORY_SERIOUS_MIN_DERIVATION_STEPS
+        if serious_theory_mode
+        else THEORY_MIN_DERIVATION_STEPS
     )
     minimum_equation_chain_steps = (
-        4 if serious_theory_mode else THEORY_MIN_EQUATION_CHAIN_STEPS
+        THEORY_SERIOUS_MIN_EQUATION_CHAIN_STEPS
+        if serious_theory_mode
+        else THEORY_MIN_EQUATION_CHAIN_STEPS
     )
     for field in (
         "problem_card",
@@ -1770,10 +1813,14 @@ def _normalize_theory_packet(
     )
     body["theory_derivation_contract"] = {
         "min_derivation_steps": (
-            5 if serious_theory_mode else THEORY_MIN_DERIVATION_STEPS
+            THEORY_SERIOUS_MIN_DERIVATION_STEPS
+            if serious_theory_mode
+            else THEORY_MIN_DERIVATION_STEPS
         ),
         "min_equation_chain_steps": (
-            4 if serious_theory_mode else THEORY_MIN_EQUATION_CHAIN_STEPS
+            THEORY_SERIOUS_MIN_EQUATION_CHAIN_STEPS
+            if serious_theory_mode
+            else THEORY_MIN_EQUATION_CHAIN_STEPS
         ),
         "theory_prompt_mode": theory_prompt_mode,
         "n_derivation_steps": _safe_len(derivation.get("derivation_steps", [])),

@@ -1800,6 +1800,162 @@ def test_theory_developer_preserves_metric_protocol_revision_lineage() -> None:
     assert next_gate["execution_authorized"] is False
 
 
+def test_theory_validation_retry_preserves_metric_revision_feedback() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    parent_theory_packet = _structured_theory_packet_fixture(
+        "theory_derivation:metric-retry-parent"
+    )
+    revised_theory_packet = _structured_theory_packet_fixture(
+        "theory_derivation:metric-retry-child"
+    )
+    feedback = {
+        "artifact_kind": "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback",
+        "feedback_id": "metric-protocol-theory-feedback:retry",
+        "question_id": question.id,
+        "source_theory_packet_id": "theory_derivation:metric-retry-parent",
+        "source_theory_packet_hash": runtime_module.stable_hash(
+            parent_theory_packet
+        ),
+        "source_metric_protocol_rejection_manifest_id": (
+            "metric-protocol-rejection:retry"
+        ),
+        "target_consumer_subsystem": "TheoryDeveloper",
+        "upstream_theory_revision_count": 2,
+        "max_upstream_theory_revisions": 2,
+        "execution_authorized": False,
+        "proof_evidence_status": (
+            "METRIC_PROTOCOL_UPSTREAM_THEORY_FEEDBACK_NOT_PROOF_EVIDENCE"
+        ),
+        "recommended_repair_scope": "upstream_theory",
+        "findings": [
+            {
+                "finding_id": "metric-protocol-finding:retry",
+                "severity": "high",
+                "category": "missing finite-sample derivation",
+                "summary": "The current theory does not derive the calibration.",
+                "required_change": "Derive and audit the missing calibration.",
+                "repair_scope": "upstream_theory",
+            }
+        ],
+        "repair_instructions": [
+            "Resolve the finite-sample derivation before metric authoring."
+        ],
+        "required_revision": "Revise the theory packet itself.",
+        "acceptance_gate": "Fresh theory must pass independent metric review.",
+    }
+    architect_context = {
+        "architect_runtime_plan": {
+            "evidence_contract": {
+                "evaluation_mode": "capability_eval",
+                "capability_eval_requires_typed_metric_contracts": True,
+                "empirical_metric_requirements": [],
+                "metric_protocol_execution_authorized": False,
+            }
+        },
+        "architect_metric_protocol_gate": {
+            "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+            "source_theory_packet_id": "theory_derivation:metric-retry-parent",
+            "rejection_manifest_ids": ["metric-protocol-rejection:retry"],
+            "upstream_theory_revision_count": 2,
+            "max_upstream_theory_revisions": 2,
+            "execution_authorized": False,
+        },
+        "environment_feedback": feedback,
+    }
+
+    class TruncatedTheoryDeveloper:
+        def derive(self, *_args: object, **_kwargs: object) -> dict[str, object]:
+            raise PacketValidationError(
+                validation_label="LLM TheoryDeveloper packet",
+                attempts=3,
+                errors=["JSONDecodeError: response ended inside formalization_requests"],
+                history=[
+                    {
+                        "attempt_index": 2,
+                        "provider": "anthropic",
+                        "model": "claude-opus-4-8",
+                        "ok": False,
+                        "errors": [
+                            "JSONDecodeError: response ended inside formalization_requests"
+                        ],
+                        "request_max_tokens": 8000,
+                        "response_metadata": {
+                            "provider_stop_reason": "max_tokens",
+                            "provider_usage": {"output_tokens": 8000},
+                        },
+                    }
+                ],
+            )
+
+    blackboard = BlackboardState(
+        project_id="theory-metric-validation-retry",
+        artifacts={
+            "theory_derivation:metric-retry-parent": parent_theory_packet
+        },
+    )
+    first_result = TheoryDeveloperRuntimeSubsystem(
+        theory_developer=TruncatedTheoryDeveloper(),  # type: ignore[arg-type]
+        n_runs=17,
+        seed=20260717,
+    ).run(
+        AgentTask(
+            task_id="theory-metric-protocol-revision:truncated",
+            owner_subsystem="TheoryDeveloper",
+            objective="Revise upstream theory before metric authoring.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": architect_context,
+                "environment_feedback": feedback,
+            },
+        ),
+        blackboard,
+    )
+
+    assert first_result.status == "REVISE"
+    assert first_result.next_task is not None
+    retry_task = first_result.next_task
+    assert retry_task.inputs["environment_feedback"]["artifact_kind"] == (
+        "RuntimeTheoryDeveloperValidationFeedback"
+    )
+    retry_context = retry_task.inputs["architect_context"]
+    assert retry_context["theory_developer_source_environment_feedback"] == feedback
+    retry_prompt = build_theory_developer_prompt(
+        question,
+        architect_context=retry_context,
+    )
+    assert "serious_upstream_theory_revision" in retry_prompt
+    assert "serious_theory_output_budget" in retry_prompt
+    assert "JSONDecodeError" in retry_prompt
+    assert "missing finite-sample derivation" in retry_prompt
+
+    captured_context: dict[str, Any] = {}
+
+    class RepairedTheoryDeveloper:
+        def derive(self, *_args: object, **kwargs: object) -> dict[str, Any]:
+            captured_context.update(kwargs.get("architect_context", {}))
+            return copy.deepcopy(revised_theory_packet)
+
+    repaired_result = TheoryDeveloperRuntimeSubsystem(
+        theory_developer=RepairedTheoryDeveloper(),  # type: ignore[arg-type]
+        n_runs=17,
+        seed=20260717,
+    ).run(retry_task, blackboard)
+
+    repaired_packet = next(iter(repaired_result.produced_artifacts.values()))
+    assert repaired_packet["parent_theory_packet_id"] == (
+        "theory_derivation:metric-retry-parent"
+    )
+    assert repaired_packet[
+        "metric_protocol_upstream_theory_revision_feedback_id"
+    ] == "metric-protocol-theory-feedback:retry"
+    assert repaired_packet["metric_protocol_upstream_theory_revision_count"] == 2
+    assert captured_context["metric_protocol_prior_theory_material"][
+        "source_theory_packet_id"
+    ] == "theory_derivation:metric-retry-parent"
+    assert repaired_result.next_task is not None
+    assert repaired_result.next_task.owner_subsystem == "AlgorithmEngineer"
+
+
 def test_architect_rehydrates_prior_metric_rejection_for_revised_theory() -> None:
     current_theory_id = "theory_derivation:current-revision"
     prior_theory_id = "theory_derivation:prior-revision"
