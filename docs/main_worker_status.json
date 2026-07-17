@@ -1,13 +1,45 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-17T00:11:07Z",
+  "updated_at": "2026-07-17T01:25:04Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
-  "current_lane": "general optional research-loop completion established on two development families; scientific Python/R execution integrated; serious theory breadth and progressive Lean next; strict exact-theorem certification separate",
-  "latest_main_worker_patch": "Add one typed scientific_wasm execution profile to the existing generated-code contract and AgentRuntime dispatch. AlgorithmEngineer and SimulationEngineer may select Python or R and declare only pinned dependencies; stdlib Python remains the backward-compatible default. Pyodide executes NumPy/SciPy/pandas/scikit-learn/statsmodels and WebR executes real R in a separate secret-free, resource-bounded macOS sandbox. Seatbelt denies network, process forking, and non-runtime process execution, allows host reads only from pinned runtimes and exact code/request artifacts, and allows writes only to exact result/log artifacts. The existing seed/replicate budget, typed metric authority, content-hashed draft/request/result lineage, semantic reviewer, repair feedback, promotion boundary, and proof boundary are unchanged. This adds no agent, orchestration plane, task-family formula, expected answer, Lean grammar, or tactic rule.",
-  "latest_main_worker_live_probe": "Fresh optional-policy v11 covered survival and sequential from a clean start and completed 2/2 as RESEARCH_CANDIDATE_ACCEPTED_WITH_FORMAL_GAPS. Across 42 traces it executed five generated simulations, two generated algorithms, and seven independent exact-artifact semantic reviews. Sequential review found an upstream theory defect, routed one typed TheoryDeveloper revision, reran exploration, then passed a freshly reviewed confirmatory contract. Both tasks subsequently generated Lean candidates and received real local Lean failure feedback; neither compiled or kernel-verified a theorem. The aggregate manifest records 13 formal gaps, zero kernel subclaims, zero exact theorem closures, and formal level none. Its mixed full-capability audit is 88/125 with all_ok=true and readiness=false; the CLI exit status is nonzero because full capability readiness remains false, not because either optional research task failed.",
-  "latest_main_worker_design_issue": "The product target remains one LLM-driven statistical research loop: question-grounded equation and lemma derivation, generated Python/R algorithms, DGP exploration followed by frozen confirmation, independent semantic critique, feedback-driven revision, artifact memory, and Critic disposition. Optional/advisory research completion and progressive formalization remain separate from strict exact-theorem certification. The current patch closes the prior host-execution gap for a pinned scientific Python/base-R package set on macOS without changing the control plane. It does not yet provide a cross-platform isolation provider, arbitrary CRAN/PyPI installation, long-horizon theory workspace, tactic-state proving, arbitrary-paper ingest, or exact theorem closure. V11 remains the latest cross-family research-loop evidence; this component and integrated execution evidence does not raise strict full-system readiness by itself.",
+  "current_lane": "validate the existing optional research loop on non-reserved robust-mean and regression families; keep PCA/extremes sealed; improve shared agent feedback contracts only when fresh cross-family execution proves a common blocker",
+  "latest_main_worker_patch": "Separate the trusted scientific execution envelope from the canonical metrics artifact consumed by independent semantic review. Pyodide/WebR still emit and hash the exact execution envelope, while the host materializes a content-hashed metrics-only JSON artifact and records both paths and hashes. This fixes one executor-to-reviewer lineage mismatch shared by Python and R without adding an agent, protocol, router, task-family rule, expected answer, Lean grammar, or tactic rule.",
+  "latest_main_worker_live_probe": "Fresh optional-policy v13 used robust_mean_mom and heteroskedastic_regression_hc with no resume, task memory, or reserved held-out task. The v12 baseline blocked 2/2 at generated-code semantic-review input validation because the reviewer was given an execution envelope but the manifest hash identified only its nested metrics. After the shared lineage fix, v13 produced 12 simulation prototypes and 10 real scientific simulation executions. Robust mean completed three serious TheoryDeveloper passes, six independent semantic reviews, four direct code-repair handoffs, and two Architect escalations, but exhausted 24 steps without semantic acceptance. Regression obtained two independent simulation ACCEPT verdicts, passed a reviewer-driven confirmatory repair, entered AlgorithmEngineer, and executed semantically correct OLS/HC3 code. It then blocked honestly because the frozen per-seed HC3 relative-error gate passed only 32/80 rather than 64/80 and the reviewer classified the threshold as a likely infeasible upstream metric contract. No gate was relaxed post-result. Final statuses are MAX_ITERATIONS_REACHED and BLOCKED; formal level is none, kernel subclaims are zero, and this is not optional-loop completion or strict E2E evidence.",
+  "latest_main_worker_design_issue": "Do not add another control layer. The executor/reviewer transport defect is closed, and exact feedback lineage was observed across two unrelated families. The current non-Lean capability gaps are scientific-generation stability on robust mean and pre-execution attainability review for frozen empirical gates; both belong in LLM proposer/critic quality and fresh-candidate evaluation, not deterministic HC3/MoM rules. Progressive Lean remains separate under optional policy, and the reserved PCA/extremes panel remains sealed until its strict unlock condition is met.",
+  "latest_untouched_generalization_probe": {
+    "v12_run": "runs/main_worker_cross_family_research_loop_optional_20260716_v12_untouched_generalization",
+    "v13_run": "runs/main_worker_cross_family_research_loop_optional_20260716_v13_scientific_review_lineage",
+    "formal_verification_policy": "optional",
+    "fresh_start": true,
+    "resume_or_task_memory_used": false,
+    "task_families": [
+      "robust_mean",
+      "regression"
+    ],
+    "reserved_held_out_tasks_started": false,
+    "v12_question_statuses": [
+      "BLOCKED",
+      "BLOCKED"
+    ],
+    "v12_terminal_classification": "generated_code_semantic_review_input_invalid",
+    "v13_question_statuses": [
+      "MAX_ITERATIONS_REACHED",
+      "BLOCKED"
+    ],
+    "v13_simulation_prototypes": 12,
+    "v13_live_simulation_executions": 10,
+    "v13_live_algorithm_executions": 1,
+    "v13_independent_review_packets": 10,
+    "v13_independent_review_accepts": 2,
+    "v13_terminal_classification": "evaluation_protocol_revision_required",
+    "v13_kernel_verified_subclaims": 0,
+    "v13_formal_level": "none",
+    "full_regression_tests": "1149 passed in 1898.98 seconds",
+    "capability_ready_for_full_ai_statistician": false,
+    "boundary": "V13 proves cross-family scientific execution and exact reviewer feedback now operate beyond the prior transport blocker. It does not prove robust-mean research completion, regression algorithm acceptance, progressive formalization, held-out generalization, or strict end-to-end readiness."
+  },
   "latest_scientific_code_runtime": {
     "base_commit": "d77bc9d9",
     "execution_profiles": [

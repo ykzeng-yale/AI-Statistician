@@ -102375,6 +102375,9 @@ def _run_generated_scientific_sandbox(
     )
     script_path = execution.code_path if execution is not None else ""
     result_path = execution.result_path if execution is not None else ""
+    execution_envelope_path = (
+        execution.execution_envelope_path if execution is not None else ""
+    )
     request_path = execution.request_path if execution is not None else ""
     returncode = execution.returncode if execution is not None else -1
     stdout_summary = (
@@ -102417,6 +102420,10 @@ def _run_generated_scientific_sandbox(
         "request_path": request_path,
         "runner_path": "",
         "result_path": result_path,
+        "execution_envelope_path": execution_envelope_path,
+        "execution_envelope_hash": (
+            execution.execution_envelope_hash if execution is not None else ""
+        ),
         "script_hash": stable_hash(code),
         "request_hash": execution.request_hash if execution is not None else "",
         "code_excerpt": code[:2000],
@@ -102486,7 +102493,9 @@ def _run_generated_scientific_sandbox(
             "dependencies": list(dependencies),
         },
         output_paths=tuple(
-            path for path in (request_path, result_path) if path
+            path
+            for path in (request_path, execution_envelope_path, result_path)
+            if path
         ),
         input_hash=stable_hash(
             {

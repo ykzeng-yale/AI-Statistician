@@ -107,6 +107,8 @@ class ScientificSandboxExecution:
     result_hash: str
     subprocess_environment_keys: tuple[str, ...]
     resource_limits: dict[str, int]
+    execution_envelope_path: str = ""
+    execution_envelope_hash: str = ""
     boundary: str = SCIENTIFIC_SANDBOX_BOUNDARY
 
     def to_json(self) -> dict[str, Any]:
@@ -668,10 +670,12 @@ def execute_scientific_sandbox(
     code_path = sandbox_dir / f"{safe_id}_{execution_key}_generated_draft.{extension}"
     request_path = sandbox_dir / f"{safe_id}_{execution_key}_scientific_request.json"
     result_path = sandbox_dir / f"{safe_id}_{execution_key}_scientific_result.json"
+    metrics_path = sandbox_dir / f"{safe_id}_{execution_key}_scientific_metrics.json"
     stdout_path = sandbox_dir / f"{safe_id}_{execution_key}_stdout.txt"
     stderr_path = sandbox_dir / f"{safe_id}_{execution_key}_stderr.txt"
     code_path.write_text(code, encoding="utf-8")
     result_path.unlink(missing_ok=True)
+    metrics_path.unlink(missing_ok=True)
     stdout_path.unlink(missing_ok=True)
     stderr_path.unlink(missing_ok=True)
     request = {
@@ -771,6 +775,11 @@ def execute_scientific_sandbox(
         if isinstance(envelope.get("metrics", {}), Mapping)
         else {}
     )
+    if metrics:
+        metrics_path.write_text(
+            json.dumps(metrics, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
     errors: list[str] = []
     if not envelope:
         errors.append("scientific sandbox did not produce an execution envelope")
@@ -801,10 +810,12 @@ def execute_scientific_sandbox(
         result_parse_error=result_parse_error,
         code_path=str(code_path),
         request_path=str(request_path),
-        result_path=str(result_path),
+        result_path=str(metrics_path if metrics else result_path),
         code_hash=code_hash,
         request_hash=request_hash,
         result_hash=stable_hash(metrics) if metrics else "",
         subprocess_environment_keys=tuple(sorted(environment)),
         resource_limits=dict(limits),
+        execution_envelope_path=str(result_path),
+        execution_envelope_hash=stable_hash(envelope) if envelope else "",
     )

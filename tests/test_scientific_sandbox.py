@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,7 @@ from ai_statistician.algorithm_engineer_llm import (
     ALGORITHM_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
     validate_algorithm_engineer_packet,
 )
+from ai_statistician.fingerprint import stable_hash
 from ai_statistician.scientific_sandbox import (
     SCIENTIFIC_SANDBOX_BOUNDARY,
     ScientificSandboxExecution,
@@ -136,6 +138,15 @@ def test_runtime_dispatch_preserves_existing_metric_and_evidence_path(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    code = "run_sandbox <- function(seed, replicates) list(n=replicates)"
+    code_path = tmp_path / "draft.R"
+    code_path.write_text(code, encoding="utf-8")
+    metrics = {"mean": 0.25, "n": 8}
+    result_path = tmp_path / "result.json"
+    result_path.write_text(json.dumps(metrics), encoding="utf-8")
+    envelope_path = tmp_path / "execution-envelope.json"
+    envelope = {"ok": True, "metrics": metrics}
+    envelope_path.write_text(json.dumps(envelope), encoding="utf-8")
     execution = ScientificSandboxExecution(
         status="EXECUTED",
         language="r",
@@ -145,19 +156,21 @@ def test_runtime_dispatch_preserves_existing_metric_and_evidence_path(
         dependencies=("base", "stats"),
         execution_attempted=True,
         returncode=0,
-        metrics={"mean": 0.25, "n": 8},
+        metrics=metrics,
         errors=(),
         stdout_summary="",
         stderr_summary="",
         result_parse_error="",
-        code_path=str(tmp_path / "draft.R"),
+        code_path=str(code_path),
         request_path=str(tmp_path / "request.json"),
-        result_path=str(tmp_path / "result.json"),
+        result_path=str(result_path),
         code_hash="code-hash",
         request_hash="request-hash",
-        result_hash="result-hash",
+        result_hash=stable_hash(metrics),
         subprocess_environment_keys=("HOME", "PATH"),
         resource_limits={"cpu_seconds": 5},
+        execution_envelope_path=str(envelope_path),
+        execution_envelope_hash=stable_hash(envelope),
         boundary=SCIENTIFIC_SANDBOX_BOUNDARY,
     )
     monkeypatch.setattr(
@@ -175,7 +188,7 @@ def test_runtime_dispatch_preserves_existing_metric_and_evidence_path(
             "execution_profile": "scientific_wasm",
             "dependencies": ["base", "stats"],
             "entrypoint": "run_sandbox",
-            "code": "run_sandbox <- function(seed, replicates) list(n=replicates)",
+            "code": code,
         },
         validation_context={},
         n_runs=8,
@@ -187,7 +200,9 @@ def test_runtime_dispatch_preserves_existing_metric_and_evidence_path(
     assert prototype["smoke_passed"] is True
     assert prototype["language"] == "r"
     assert prototype["backend"] == "webr"
-    assert prototype["metrics"] == {"mean": 0.25, "n": 8}
+    assert prototype["metrics"] == metrics
+    assert prototype["execution_envelope_path"] == str(envelope_path)
+    assert prototype["execution_envelope_hash"] == stable_hash(envelope)
     assert prototype["metric_gate_policy_mode"] == "execution_only_no_typed_contract"
     assert tool_call.tool_name == "r.generated_algorithm_sandbox"
     assert isinstance(tool_call, ToolCallRecord)
@@ -200,7 +215,7 @@ def test_runtime_dispatch_preserves_existing_metric_and_evidence_path(
             "execution_profile": "scientific_wasm",
             "dependencies": ["base", "stats"],
             "entrypoint": "run_sandbox",
-            "code": "run_sandbox <- function(seed, replicates) list(n=replicates)",
+            "code": code,
         },
         n_runs=8,
         seed=11,
@@ -209,6 +224,27 @@ def test_runtime_dispatch_preserves_existing_metric_and_evidence_path(
     assert simulation["executor"] == "generated_simulation_sandbox"
     assert simulation["smoke_passed"] is True
     assert simulation_call.tool_name == "r.generated_simulation_sandbox"
+
+    source_row = runtime_module._runtime_generated_code_semantic_review_rows(
+        {"generated_simulation_sandbox_prototypes": [simulation]},
+        source_subsystem="SimulationEvaluator",
+    )[0]
+    material, errors = runtime_module._runtime_generated_code_semantic_review_material(
+        work_order={
+            "source_subsystem": "SimulationEvaluator",
+            "reviewed_artifacts": [
+                {
+                    "artifact_id": source_row["semantic_review_artifact_id"],
+                    "row_hash": stable_hash(source_row),
+                }
+            ],
+        },
+        source_manifest={"generated_simulation_sandbox_prototypes": [simulation]},
+        theory_packet={},
+        proposal_packet={},
+    )
+    assert errors == []
+    assert material["exact_executed_artifacts"][0]["exact_result"] == metrics
 
     rejected, rejected_call = runtime_module._run_generated_code_sandbox(
         sandbox_dir=tmp_path,
@@ -295,6 +331,14 @@ def test_live_scientific_wasm_backends(
     assert result.execution_attempted is True
     assert expected_metric in result.metrics
     assert result.metrics["n"] == 16
+    assert json.loads(Path(result.result_path).read_text(encoding="utf-8")) == (
+        result.metrics
+    )
+    envelope = json.loads(
+        Path(result.execution_envelope_path).read_text(encoding="utf-8")
+    )
+    assert envelope["metrics"] == result.metrics
+    assert result.execution_envelope_hash
     assert "AI_STATISTICIAN_TEST_SECRET" not in result.subprocess_environment_keys
     if language == "r":
         assert result.metrics["secret_present"] is False
