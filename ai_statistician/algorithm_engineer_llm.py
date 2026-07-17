@@ -240,6 +240,13 @@ def build_algorithm_engineer_prompt(
             "entrypoint": "run_sandbox",
             "function_signature": "def run_sandbox(seed: int, replicates: int) -> dict",
             "r_function_signature": "run_sandbox <- function(seed, replicates)",
+            "estimator_entrypoint": "run_estimator",
+            "estimator_function_signature": (
+                "def run_estimator(request: dict) -> dict"
+            ),
+            "r_estimator_function_signature": (
+                "run_estimator <- function(request)"
+            ),
             "default": "leave sandbox_code_drafts empty when a registered template matches",
             "execution_contract": scientific_sandbox_contract(),
             "stdlib_safe_subset": generated_python_sandbox_safe_subset_contract(),
@@ -276,7 +283,12 @@ def build_algorithm_engineer_prompt(
             "smoke diagnostics that let the independent reviewer inspect implementation "
             "semantics. Do not invent a finite-sample performance gate: the downstream "
             "SimulationEngineer owns DGP-based statistical evaluation of this exact "
-            "algorithm artifact. entrypoint exactly \"run_sandbox\" and code defining either Python "
+            "algorithm artifact. Define a domain-general JSON ABI entrypoint "
+            "run_estimator(request) returning a named JSON-finite object, and make "
+            "run_sandbox exercise that same function for smoke diagnostics. The "
+            "request schema is owned by this generated algorithm and the supplied "
+            "theory, not by AgentRuntime. Keep the metadata entrypoint exactly "
+            "\"run_sandbox\" and code defining either Python "
             "def run_sandbox(seed: int, replicates: int) -> dict or R "
             "run_sandbox <- function(seed, replicates). Declare language, "
             "execution_profile, and only dependencies actually imported. Set every "
@@ -318,7 +330,8 @@ def build_algorithm_engineer_prompt(
         "Integrated coding-agent capability feedback is active: consume "
         "runtime_environment_feedback as the current capability gap to close. "
         "Produce one bounded safe algorithm run_sandbox draft for every canonical "
-        "implementation-gap ID, expose it through sandbox_code_drafts, leave "
+        "implementation-gap ID, expose run_estimator(request) in that exact source, "
+        "exercise it from run_sandbox, expose the source through sandbox_code_drafts, leave "
         "metric_contracts empty, and let AgentRuntime execute it for this run. "
         "Do not satisfy this with a registered template, "
         "static replay, or component-gate artifact. "
@@ -364,6 +377,18 @@ def build_algorithm_engineer_prompt(
         )
         else ""
     )
+    estimator_abi_instruction = (
+        "Mechanical estimator-ABI feedback is active: the independently reviewed "
+        "algorithm source could not be invoked by the confirmatory DGP harness. Read "
+        "runtime_environment_feedback.validation_errors, regenerate the exact source "
+        "with callable run_estimator(request) returning a named JSON-finite object, "
+        "and make run_sandbox exercise that same implementation before AgentRuntime "
+        "executes and independently reviews it again. Do not change the estimator_id "
+        "or move estimator semantics into SimulationEngineer. "
+        if str(payload["runtime_environment_feedback"].get("feedback_type", "") or "")
+        == "accepted_algorithm_estimator_abi_feedback"
+        else ""
+    )
     return (
         "Design implementation and sandbox-validation artifacts for the AlgorithmEngineer subsystem. "
         "Return ONLY one compact JSON object matching required_output_contract. Keep "
@@ -377,6 +402,7 @@ def build_algorithm_engineer_prompt(
         + packet_validation_instruction
         + theory_trace_alignment_instruction
         + semantic_review_instruction
+        + estimator_abi_instruction
         + "You may "
         "propose code and tests, but "
         "you must not claim you executed code, wrote files, promoted a production algorithm, or proved "
@@ -1176,6 +1202,7 @@ def _feedback_requires_generated_algorithm_code(feedback: Mapping[str, Any]) -> 
         "generated_algorithm_sandbox_required_not_executed",
         "generated_algorithm_sandbox_repair_required",
         "coding_agent_component_gate_calibration_required",
+        "accepted_algorithm_estimator_abi_failed",
     }:
         return True
     for row in feedback.get("prototypes", []) or []:

@@ -22583,6 +22583,9 @@ def test_confirmatory_simulation_task_requires_accepted_algorithm_handoff() -> N
     assert task.inputs["architect_context"][
         "confirmatory_simulation_requires_accepted_algorithm_handoff"
     ] is True
+    feedback = task.inputs["environment_feedback"]
+    assert "runtime-injected" in feedback["required_repair"]
+    assert "generated_simulation_code_contract" in feedback["required_repair"]
 
 
 def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> None:
@@ -44557,6 +44560,9 @@ def test_simulation_engineer_packet_validation_failure_routes_back_to_llm(
     )
     assert "custom_stress" in feedback["validation_errors"][0]
     assert "metric_contracts" in feedback["required_repair"]
+    assert "Python or R" in feedback["required_repair"]
+    assert "generated_simulation_code_contract" in feedback["required_repair"]
+    assert "language=python" not in feedback["required_repair"]
     assert (
         result.next_task.inputs["architect_context"]["runtime_feedback_loop"][
             "handoff"
@@ -45180,8 +45186,10 @@ def test_algorithm_engineer_capability_eval_revises_template_only_output(
     assert "entrypoint field exactly to run_sandbox" in feedback["required_repair"]
     assert "estimator_id" in feedback["required_repair"]
     assert "registered_template_hint=\"none\"" in feedback["required_repair"]
+    assert "run_estimator(request)" in feedback["required_repair"]
     assert "metric_contracts" in feedback["required_repair"]
-    assert "frozen Architect requirement" in feedback["required_repair"]
+    assert "Keep metric_contracts empty" in feedback["required_repair"]
+    assert "frozen Architect requirement" not in feedback["required_repair"]
     assert "entrypoint field must be exactly run_sandbox" in feedback["target_behavior"]
     assert "draft estimator_id" in feedback["target_behavior"]
 
@@ -91616,6 +91624,8 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "n_live_generated_simulation_sandbox_executed": 1,
         "n_generated_simulation_sandbox_passed": 1,
         "n_live_generated_simulation_sandbox_passed": 1,
+        "n_generated_simulation_mechanical_estimator_invocation_verified": 1,
+        "n_live_generated_simulation_mechanical_estimator_invocation_verified": 1,
         "n_generated_simulation_sandbox_metric_gate_failed": 0,
         "n_live_generated_simulation_sandbox_metric_gate_failed": 0,
         "n_live_generated_simulation_typed_metric_contracts_evaluated": 1,
@@ -91747,6 +91757,9 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     assert rows["generated_algorithm_empirical_metric_gate_absent"]["passed"] is True
     assert rows["generated_algorithm_failure_feedback_closed"]["passed"] is True
     assert rows["generated_simulation_code_executed"]["passed"] is True
+    assert rows[
+        "accepted_algorithm_mechanically_invoked_by_simulation"
+    ]["passed"] is True
     assert rows[
         "generated_simulation_typed_metric_contracts_evaluated"
     ]["passed"] is True

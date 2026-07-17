@@ -110,8 +110,11 @@ def _runtime_fixture(
 ):
     question = _question()
     code = (
+        "def run_estimator(request):\n"
+        "    return {'estimated_error': request['numerator'] / request['denominator']}\n\n"
         "def run_sandbox(seed, replicates):\n"
-        "    return {'estimated_error': (seed % 7) / max(replicates, 1)}\n"
+        "    return run_estimator({'numerator': seed % 7, "
+        "'denominator': max(replicates, 1)})\n"
     )
     metrics = {"estimated_error": 0.03, "sandbox_failed": False}
     script_path = tmp_path / "generated.py"
@@ -134,6 +137,9 @@ def _runtime_fixture(
         "estimator_id": "generated-estimator",
         "prototype_status": "FAILED_METRIC_GATE" if metric_failed else "EXECUTED",
         "executor": "generated_python_sandbox",
+        "executor_profile": "stdlib",
+        "language": "python",
+        "dependencies": [],
         "script_path": str(script_path),
         "result_path": str(result_path),
         "script_hash": stable_hash(code),
@@ -341,6 +347,42 @@ def test_accepted_algorithm_review_hands_exact_source_to_simulation(
     ] == exact["exact_source_hash"]
     assert receipt["handoff_fingerprint"] == stable_hash(handoff)
     assert receipt["mechanical_estimator_invocation_verified"] is False
+    bound_receipt = _runtime_algorithm_handoff_receipt(
+        handoff,
+        simulation_rows=[
+            {
+                "simulation_id": "confirmatory-dgp",
+                "script_hash": "simulation-source-hash",
+                "result_hash": "simulation-result-hash",
+                "execution_envelope_hash": "execution-envelope-hash",
+                "estimator_binding_hash": stable_hash(
+                    {exact["estimator_id"]: exact["exact_source_hash"]}
+                ),
+                "bound_estimator_code_hashes": {
+                    exact["estimator_id"]: exact["exact_source_hash"]
+                },
+                "estimator_invocation_counts": {exact["estimator_id"]: 50},
+                "mechanical_estimator_invocation_verified": True,
+            }
+        ],
+    )
+    assert bound_receipt["mechanical_estimator_invocation_verified"] is True
+    assert bound_receipt["mechanical_invocation_evidence"][0][
+        "estimator_invocation_counts"
+    ] == {exact["estimator_id"]: 50}
+    forged_receipt = _runtime_algorithm_handoff_receipt(
+        handoff,
+        simulation_rows=[
+            {
+                **bound_receipt["mechanical_invocation_evidence"][0],
+                "script_hash": "simulation-source-hash",
+                "result_hash": "simulation-result-hash",
+                "estimator_invocation_counts": {exact["estimator_id"]: 0},
+                "mechanical_estimator_invocation_verified": True,
+            }
+        ],
+    )
+    assert forged_receipt["mechanical_estimator_invocation_verified"] is False
     prompt = build_simulation_engineer_prompt(
         question=_question(),
         theory_packet={"packet_id": "theory:test", "theorem_cards": []},
@@ -353,6 +395,8 @@ def test_accepted_algorithm_review_hands_exact_source_to_simulation(
     assert json.dumps(exact["exact_source_code"])[1:-1] in prompt
     assert exact["exact_source_hash"] in prompt
     assert "Do not silently replace it" in prompt
+    assert "run_sandbox(seed, replicates, estimators)" in prompt
+    assert "runtime-injected" in prompt
 
 
 def test_algorithm_handoff_rejects_tampered_review_materialization(

@@ -88,6 +88,7 @@ from .generated_code_semantic_review_replan import (
 )
 from .scientific_sandbox import (
     SCIENTIFIC_WASM_SANDBOX_PROFILE,
+    ScientificEstimatorBinding,
     execute_scientific_sandbox,
     generated_code_execution_contract_errors,
     normalized_generated_code_language,
@@ -8463,6 +8464,8 @@ def _runtime_validated_algorithm_handoff(
 
 def _runtime_algorithm_handoff_receipt(
     handoff: Mapping[str, Any] | None,
+    *,
+    simulation_rows: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
     if not isinstance(handoff, Mapping) or not handoff:
         return {}
@@ -8478,6 +8481,60 @@ def _runtime_algorithm_handoff_receipt(
         for row in handoff.get("exact_algorithm_artifacts", []) or []
         if isinstance(row, Mapping)
     ]
+    expected_source_hashes = {
+        row["estimator_id"]: row["exact_source_hash"]
+        for row in artifact_refs
+        if row["estimator_id"] and row["exact_source_hash"]
+    }
+    invocation_evidence: list[dict[str, Any]] = []
+    for row in simulation_rows:
+        if not isinstance(row, Mapping):
+            continue
+        raw_hashes = row.get("bound_estimator_code_hashes", {})
+        raw_counts = row.get("estimator_invocation_counts", {})
+        if not isinstance(raw_hashes, Mapping) or not isinstance(raw_counts, Mapping):
+            continue
+        bound_hashes = {str(key): str(value) for key, value in raw_hashes.items()}
+        try:
+            invocation_counts = {
+                str(key): max(0, int(value or 0))
+                for key, value in raw_counts.items()
+            }
+        except (TypeError, ValueError):
+            continue
+        if not (
+            row.get("mechanical_estimator_invocation_verified") is True
+            and bound_hashes == expected_source_hashes
+            and str(row.get("estimator_binding_hash", "") or "")
+            == stable_hash(expected_source_hashes)
+            and all(
+                invocation_counts.get(estimator_id, 0) > 0
+                for estimator_id in expected_source_hashes
+            )
+            and str(row.get("script_hash", "") or "")
+            and str(row.get("result_hash", "") or "")
+            and str(row.get("execution_envelope_hash", "") or "")
+        ):
+            continue
+        invocation_evidence.append(
+            {
+                "simulation_id": str(row.get("simulation_id", "") or ""),
+                "simulation_source_hash": str(row.get("script_hash", "") or ""),
+                "simulation_result_hash": str(row.get("result_hash", "") or ""),
+                "execution_envelope_hash": str(
+                    row.get("execution_envelope_hash", "") or ""
+                ),
+                "estimator_binding_hash": str(
+                    row.get("estimator_binding_hash", "") or ""
+                ),
+                "bound_estimator_code_hashes": bound_hashes,
+                "estimator_invocation_counts": invocation_counts,
+                "mechanical_estimator_invocation_verified": True,
+            }
+        )
+    mechanical_estimator_invocation_verified = bool(
+        expected_source_hashes and invocation_evidence
+    )
     return {
         "artifact_kind": "RuntimeAcceptedAlgorithmHandoffReceipt",
         "algorithm_sandbox_manifest_id": str(
@@ -8499,13 +8556,16 @@ def _runtime_algorithm_handoff_receipt(
         "exact_algorithm_artifact_refs": artifact_refs,
         "handoff_fingerprint": stable_hash(handoff),
         "exact_artifact_supplied_to_simulation_generator": bool(artifact_refs),
-        "mechanical_estimator_invocation_verified": False,
+        "mechanical_estimator_invocation_verified": (
+            mechanical_estimator_invocation_verified
+        ),
+        "mechanical_invocation_evidence": invocation_evidence,
         "proof_evidence_status": "ALGORITHM_HANDOFF_RECEIPT_NOT_PROOF_EVIDENCE",
         "boundary": (
-            "This receipt proves which reviewed implementation source was supplied "
-            "to SimulationEngineer and its independent reviewer. Until a shared "
-            "estimator ABI executes that source directly inside the DGP harness, it "
-            "does not by itself prove mechanical reuse or statistical correctness."
+            "This receipt distinguishes prompt visibility from mechanical reuse. A "
+            "verified invocation means the hash-bound reviewed run_estimator source "
+            "was called by the generated DGP harness. It does not establish DGP, "
+            "metric, statistical, or theorem correctness."
         ),
     }
 
@@ -13885,6 +13945,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                         "SimulationEngineer"
                     ),
                 },
+                upstream_algorithm_handoff=upstream_algorithm_handoff,
                 n_runs=n_runs,
                 seed=seed,
                 timeout_s=30,
@@ -13929,6 +13990,11 @@ class SimulationEvaluatorRuntimeSubsystem:
             for row in generated_simulation_rows
             if row.get("prototype_status") == "FAILED"
             and _generated_sandbox_row_live_generated(row)
+        )
+        n_generated_simulation_estimator_binding_failed = sum(
+            1
+            for row in generated_simulation_rows
+            if row.get("estimator_binding_errors")
         )
         n_generated_simulation_passed = sum(
             1 for row in generated_simulation_rows if row.get("smoke_passed") is True
@@ -14049,7 +14115,10 @@ class SimulationEvaluatorRuntimeSubsystem:
                 confirmatory_empirical_evidence_eligible
             ),
             "upstream_algorithm_handoff_receipt": (
-                _runtime_algorithm_handoff_receipt(upstream_algorithm_handoff)
+                _runtime_algorithm_handoff_receipt(
+                    upstream_algorithm_handoff,
+                    simulation_rows=generated_simulation_rows,
+                )
             ),
             "exploratory_simulation_passed": bool(
                 simulation_passed and exploratory_diagnostic
@@ -14094,6 +14163,9 @@ class SimulationEvaluatorRuntimeSubsystem:
             ),
             "n_live_generated_simulation_sandbox_execution_failed": (
                 n_live_generated_simulation_execution_failed
+            ),
+            "n_generated_simulation_estimator_binding_failed": (
+                n_generated_simulation_estimator_binding_failed
             ),
             "n_generated_simulation_sandbox_passed": (
                 n_generated_simulation_passed
@@ -14279,7 +14351,9 @@ class SimulationEvaluatorRuntimeSubsystem:
         )
         if generated_simulation_revision_required:
             generated_simulation_failure_classification = (
-                "generated_simulation_sandbox_metric_gate_failed"
+                "accepted_algorithm_estimator_abi_failed"
+                if n_generated_simulation_estimator_binding_failed > 0
+                else "generated_simulation_sandbox_metric_gate_failed"
                 if n_generated_simulation_metric_gate_failed > 0
                 else "generated_simulation_typed_metric_contract_missing"
                 if any(
@@ -14307,7 +14381,41 @@ class SimulationEvaluatorRuntimeSubsystem:
                     effective_context
                 )
             )
-            if (
+            if n_generated_simulation_estimator_binding_failed > 0:
+                next_task = _simulation_estimator_abi_repair_task(
+                    question=question,
+                    theory_packet_id=packet_id,
+                    simulation_manifest_id=manifest_id,
+                    implementation_gaps=implementation_gaps,
+                    architect_context=effective_context,
+                    simulation_feedback=feedback,
+                    n_runs=n_runs,
+                    seed=seed,
+                )
+                observations.append(
+                    EnvironmentObservation(
+                        observation_type="accepted_algorithm_estimator_abi_repair",
+                        summary=(
+                            "confirmatory simulation could not mechanically invoke "
+                            "the accepted algorithm source; repair routed to "
+                            "AlgorithmEngineer"
+                        ),
+                        payload={
+                            "simulation_manifest_id": manifest_id,
+                            "failure_classification": (
+                                generated_simulation_failure_classification
+                            ),
+                            "next_owner_subsystem": next_task.owner_subsystem,
+                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                        },
+                    )
+                )
+                simulation_rationale = (
+                    "The exact accepted algorithm source failed the shared estimator "
+                    "ABI; typed runtime feedback is routed to AlgorithmEngineer before "
+                    "a fresh independent review and confirmatory retry."
+                )
+            elif (
                 requires_generated_simulation_code
                 and yield_after_attempts > 0
                 and repair_attempts_used >= yield_after_attempts
@@ -16007,14 +16115,17 @@ def _simulation_engineer_packet_validation_failure_result(
         ),
         "required_repair": (
             "Use the exact validator errors above. Each generated draft must use "
-            "language=python, entrypoint=run_sandbox, and define "
-            "run_sandbox(seed:int, replicates:int)->dict. Keep metric_contracts "
+            "a declared Python or R language/profile, entrypoint=run_sandbox, and "
+            "follow the generated_simulation_code_contract supplied in the current "
+            "SimulationEngineer prompt. Keep metric_contracts "
             "empty and return raw diagnostics; this retry cannot satisfy a "
             "confirmatory gate."
             if exploratory_diagnostic
             else "Use the exact validator errors above. Each generated draft must use "
-            "language=python, entrypoint=run_sandbox, and define "
-            "run_sandbox(seed:int, replicates:int)->dict. Each metric_contracts "
+            "a declared Python or R language/profile, entrypoint=run_sandbox, and "
+            "follow the generated_simulation_code_contract supplied in the current "
+            "SimulationEngineer prompt, including runtime-injected estimator "
+            "callbacks when an accepted algorithm handoff is present. Each metric_contracts "
             "row must contain only a stable contract_id, the exact authoritative "
             "requirement_id, the generated simulation_id as artifact_id, and a "
             "nonempty result metric_path. AgentRuntime joins every immutable gate "
@@ -16214,8 +16325,10 @@ def _algorithm_engineer_packet_validation_failure_result(
             "registered_template_hint to none for every implementation target; each "
             "sandbox_code_drafts entrypoint field must be exactly run_sandbox and "
             "each draft estimator_id must copy the Architect-supplied canonical "
-            "implementation-gap estimator_id exactly; emit at least one typed "
-            "metric_contracts row bound to every canonical estimator_id"
+            "implementation-gap estimator_id exactly; define run_estimator(request) "
+            "and make run_sandbox exercise that same implementation; keep "
+            "metric_contracts empty because confirmatory evaluation belongs to "
+            "SimulationEngineer"
         ),
         "acceptance_gate": (
             "AlgorithmEngineer packet passes local validation; AgentRuntime then "
@@ -16267,12 +16380,11 @@ def _algorithm_engineer_packet_validation_failure_result(
             "mentioned as baselines. Use this exact metadata shape: "
             "implementation_targets[0].registered_template_hint=\"none\" and "
             "sandbox_code_drafts[0]={\"estimator_id\":\"<matching id>\","
-            "\"language\":\"python\",\"entrypoint\":\"run_sandbox\","
-            "\"code\":\"def run_sandbox(seed: int, replicates: int) -> dict: ...\"}. "
-            "Also include metric_contracts bindings containing only a stable "
-            "contract_id, exact authoritative requirement_id, the same estimator_id "
-            "as artifact_id, and a nonempty metric_path. AgentRuntime joins all "
-            "immutable gate fields from the frozen Architect requirement."
+            "\"language\":\"python-or-r\",\"entrypoint\":\"run_sandbox\",...}. "
+            "Follow the generated_algorithm_code_contract: define the generic "
+            "run_estimator(request) JSON-finite ABI and make run_sandbox exercise "
+            "that exact implementation. Keep metric_contracts empty; downstream "
+            "SimulationEngineer owns DGP-based empirical evaluation."
         ),
         "execution_evidence_status": "ALGORITHM_ENGINEER_PACKET_VALIDATION_FAILURE_NOT_EXECUTION_EVIDENCE",
         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
@@ -57841,6 +57953,8 @@ def _generated_sandbox_live_counts_from_rows(
             counts["executed"] += 1
         if row.get("smoke_passed") is True:
             counts["passed"] += 1
+        if row.get("mechanical_estimator_invocation_verified") is True:
+            counts["mechanical_estimator_invocation_verified"] += 1
         if str(row.get("prototype_status", "") or "") == "FAILED_METRIC_GATE":
             counts["metric_gate_failed"] += 1
         if str(row.get("prototype_status", "") or "") == (
@@ -62564,8 +62678,9 @@ def _generated_simulation_required_before_formalization_feedback(
         "required_repair": (
             "Capability-eval contract still requires generated simulation code "
             "before formalization. Route to SimulationEngineer, produce exactly "
-            "one safe simulation_code_drafts run_sandbox(seed:int, "
-            "replicates:int)->dict draft, and let the integrated AgentRuntime "
+            "one safe simulation_code_drafts entry that follows the current "
+            "generated_simulation_code_contract and invokes the runtime-injected "
+            "exact accepted estimator callback. Let the integrated AgentRuntime "
             "sandbox execute and metric-gate it. Registered simulator rows are "
             "baseline diagnostics and do not satisfy this generated-code gate."
         ),
@@ -101420,6 +101535,105 @@ def _simulation_evaluator_repair_budget_yield_to_algorithm_task(
     )
 
 
+def _simulation_estimator_abi_repair_task(
+    *,
+    question: OpenResearchQuestion,
+    theory_packet_id: str,
+    simulation_manifest_id: str,
+    implementation_gaps: Sequence[Mapping[str, Any]],
+    architect_context: Mapping[str, Any],
+    simulation_feedback: Mapping[str, Any],
+    n_runs: int,
+    seed: int,
+) -> AgentTask:
+    gap_rows = [dict(row) for row in implementation_gaps]
+    binding_errors = [
+        str(error)
+        for row in simulation_feedback.get("generated_simulation_prototypes", []) or []
+        if isinstance(row, Mapping)
+        for error in row.get("estimator_binding_errors", []) or []
+        if str(error).strip()
+    ]
+    feedback = {
+        "feedback_type": "accepted_algorithm_estimator_abi_feedback",
+        "failure_classification": "accepted_algorithm_estimator_abi_failed",
+        "simulation_manifest_id": simulation_manifest_id,
+        "implementation_gaps": gap_rows,
+        "validation_errors": list(dict.fromkeys(binding_errors)),
+        "target_component": "algorithm",
+        "target_behavior": (
+            "Regenerate each affected AlgorithmEngineer artifact with the generic "
+            "run_estimator(request) JSON ABI and make run_sandbox exercise that same "
+            "implementation. AgentRuntime must execute it and an independent reviewer "
+            "must accept the exact new source before confirmatory simulation retries."
+        ),
+        "success_metric": (
+            "the hash-bound accepted algorithm source is mechanically invoked at "
+            "least once by the generated confirmatory DGP harness"
+        ),
+        "runtime_requested_evidence_contract": {
+            "capability_eval_requires_generated_algorithm_code": True,
+            "capability_eval_requires_generated_simulation_code": True,
+        },
+        "proof_evidence_status": "ESTIMATOR_ABI_FEEDBACK_NOT_PROOF_EVIDENCE",
+        "boundary": (
+            "This is typed implementation-interface feedback. It neither validates "
+            "the DGP nor establishes statistical or theorem correctness."
+        ),
+    }
+    context = dict(architect_context)
+    context["previous_simulation_manifest_id"] = simulation_manifest_id
+    context["environment_feedback"] = feedback
+    context["runtime_feedback_loop"] = {
+        **(
+            dict(context.get("runtime_feedback_loop", {}))
+            if isinstance(context.get("runtime_feedback_loop", {}), Mapping)
+            else {}
+        ),
+        "source_subsystem": "SimulationEvaluator",
+        "handoff": "accepted_algorithm_estimator_abi_repair",
+        "simulation_manifest_id": simulation_manifest_id,
+    }
+    context = _runtime_context_with_environment_feedback_contract(
+        context,
+        feedback,
+        subsystem="AlgorithmEngineer",
+    )
+    return AgentTask(
+        task_id=(
+            f"algorithm-estimator-abi:{question.id}:"
+            f"{stable_hash([simulation_manifest_id, binding_errors])[:8]}"
+        ),
+        owner_subsystem="AlgorithmEngineer",
+        objective=(
+            "Repair the exact algorithm artifact ABI required for mechanical "
+            "confirmatory DGP invocation."
+        ),
+        inputs={
+            "question": _question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "simulation_manifest_id": simulation_manifest_id,
+            "implementation_gaps": gap_rows,
+            "n_runs": int(n_runs),
+            "seed": int(seed),
+            "architect_context": context,
+            "environment_feedback": feedback,
+        },
+        allowed_tools=("model_backend", "python", "filesystem_sandbox"),
+        expected_artifacts=_architect_expected_artifacts(
+            context,
+            "AlgorithmEngineer",
+            ("algorithm_sandbox_manifest",),
+        ),
+        acceptance_gate=(
+            "a fresh exact algorithm source implements run_estimator(request), "
+            "executes in the sandbox, passes independent semantic review, and is "
+            "rehydrated as a new hash-bound handoff"
+        ),
+        stop_condition="fresh accepted estimator ABI handoff recorded",
+    )
+
+
 def _formalizer_lean_candidate_repair_budget_yield_to_gap_planner_task(
     *,
     question: OpenResearchQuestion,
@@ -101649,8 +101863,9 @@ def _algorithm_sandbox_revision_feedback(
         )[:10],
         "prototypes": compact_prototypes,
         "required_repair": (
-            "produce a sandbox draft that passes the safe subset, defines "
-            "run_sandbox(seed:int, replicates:int)->dict, and returns finite, "
+            "produce a sandbox draft that passes the selected execution contract, "
+            "defines run_estimator(request), makes run_sandbox exercise that same "
+            "implementation, and returns finite, "
             "nondegenerate metrics satisfying the stated acceptance gate; or "
             "explicitly choose a matching registered template/unsupported blocker "
             "instead of repeating the same non-executable or metric-failing draft"
@@ -101864,6 +102079,9 @@ def _generated_simulation_revision_feedback(
                     _str_tuple(row.get("metric_gate_errors", []))
                 )[:5],
                 "safety_errors": safety_errors,
+                "estimator_binding_errors": list(
+                    _str_tuple(row.get("estimator_binding_errors", []))
+                )[:5],
                 "forbidden_generated_code_calls": row_forbidden_calls[:5],
                 "metrics": _compact_generated_sandbox_metrics(
                     row.get("metrics", {})
@@ -101964,8 +102182,9 @@ def _generated_simulation_revision_feedback(
         )[:10],
         "generated_simulation_prototypes": compact_prototypes,
         "required_repair": (
-            "produce a safe simulation_code_drafts entry that defines "
-            "run_sandbox(seed:int, replicates:int)->dict and returns finite, "
+            "produce a safe simulation_code_drafts entry that follows the current "
+            "generated_simulation_code_contract, invokes runtime-injected exact "
+            "estimator callbacks when an accepted handoff is present, and returns finite, "
             "nondegenerate diagnostic metrics that satisfy the stated acceptance "
             "gate, or omit the generated draft with an explicit blocker instead "
             "of repeating the same non-executable or metric-failing code"
@@ -101987,10 +102206,28 @@ def _run_generated_simulation_sandbox(
     proposal_packet: Mapping[str, Any] | None = None,
     metric_contracts: Sequence[Mapping[str, Any]] | None = None,
     validation_context: Mapping[str, Any] | None = None,
+    upstream_algorithm_handoff: Mapping[str, Any] | None = None,
     n_runs: int,
     seed: int,
     timeout_s: int,
 ) -> tuple[dict[str, Any], ToolCallRecord]:
+    estimator_bindings = tuple(
+        ScientificEstimatorBinding(
+            artifact_id=str(row.get("estimator_id", "") or "").strip(),
+            language=str(row.get("language", "") or "").strip(),
+            code=str(row.get("exact_source_code", "") or ""),
+            code_hash=str(row.get("exact_source_hash", "") or "").strip(),
+            dependencies=tuple(
+                str(value)
+                for value in row.get("dependencies", []) or []
+                if str(value).strip()
+            ),
+        )
+        for row in (upstream_algorithm_handoff or {}).get(
+            "exact_algorithm_artifacts", []
+        )
+        if isinstance(row, Mapping)
+    )
     selected_metric_contracts = (
         [dict(row) for row in metric_contracts]
         if metric_contracts is not None
@@ -102016,6 +102253,7 @@ def _run_generated_simulation_sandbox(
             "simulation_id": simulation_id,
             **(dict(validation_context or {})),
         },
+        estimator_bindings=estimator_bindings,
         n_runs=n_runs,
         seed=seed,
         timeout_s=timeout_s,
@@ -102239,6 +102477,7 @@ def _run_generated_code_sandbox(
     seed: int,
     timeout_s: int,
     metric_contracts: Sequence[Mapping[str, Any]] = (),
+    estimator_bindings: Sequence[ScientificEstimatorBinding] = (),
 ) -> tuple[dict[str, Any], ToolCallRecord]:
     """Dispatch one generated draft without creating a second evaluation path."""
 
@@ -102257,7 +102496,12 @@ def _run_generated_code_sandbox(
         )
     )
     contract_errors = generated_code_execution_contract_errors(normalized_draft)
-    if language == "python" and profile == "stdlib" and not contract_errors:
+    if (
+        language == "python"
+        and profile == "stdlib"
+        and not contract_errors
+        and not estimator_bindings
+    ):
         return _run_generated_python_sandbox(
             sandbox_dir=sandbox_dir,
             estimator_id=estimator_id,
@@ -102280,6 +102524,7 @@ def _run_generated_code_sandbox(
         timeout_s=timeout_s,
         metric_contracts=metric_contracts,
         contract_errors=contract_errors,
+        estimator_bindings=estimator_bindings,
     )
 
 
@@ -102295,6 +102540,7 @@ def _run_generated_scientific_sandbox(
     timeout_s: int,
     metric_contracts: Sequence[Mapping[str, Any]],
     contract_errors: Sequence[str] = (),
+    estimator_bindings: Sequence[ScientificEstimatorBinding] = (),
 ) -> tuple[dict[str, Any], ToolCallRecord]:
     code = str(code_draft.get("code", "") or "")
     language = normalized_generated_code_language(code_draft.get("language"))
@@ -102340,10 +102586,14 @@ def _run_generated_scientific_sandbox(
             seed=seed,
             replicates=replicates,
             timeout_s=timeout_s,
+            estimator_bindings=estimator_bindings,
         )
     errors = list(contract_errors)
     if execution is not None:
         errors.extend(execution.errors)
+    estimator_binding_errors = (
+        list(execution.estimator_binding_errors) if execution is not None else []
+    )
     metrics = dict(execution.metrics) if execution is not None else {}
     execution_smoke_passed = bool(
         execution is not None
@@ -102422,12 +102672,36 @@ def _run_generated_scientific_sandbox(
         if typed_metric_contracts
         else {}
     )
+    expected_estimator_code_hashes = {
+        binding.artifact_id: binding.code_hash for binding in estimator_bindings
+    }
+    estimator_invocation_counts = (
+        dict(execution.estimator_invocation_counts)
+        if execution is not None
+        else {}
+    )
+    mechanical_estimator_invocation_verified = bool(
+        estimator_bindings
+        and execution is not None
+        and execution.status == "EXECUTED"
+        and bool(execution.execution_envelope_hash)
+        and execution.estimator_code_hashes == expected_estimator_code_hashes
+        and all(
+            estimator_invocation_counts.get(binding.artifact_id, 0) > 0
+            for binding in estimator_bindings
+        )
+    )
     prototype = {
         "estimator_id": estimator_id,
         "prototype_status": prototype_status,
         "executor": "generated_python_sandbox",
         "executor_family": "generated_algorithm_sandbox",
-        "executor_profile": requested_profile,
+        "executor_profile": (
+            SCIENTIFIC_WASM_SANDBOX_PROFILE
+            if estimator_bindings
+            else requested_profile
+        ),
+        "requested_execution_profile": requested_profile,
         "language": language,
         "dependencies": list(dependencies),
         "backend": (
@@ -102446,6 +102720,16 @@ def _run_generated_scientific_sandbox(
         "execution_envelope_path": execution_envelope_path,
         "execution_envelope_hash": (
             execution.execution_envelope_hash if execution is not None else ""
+        ),
+        "estimator_binding_hash": (
+            execution.estimator_binding_hash if execution is not None else ""
+        ),
+        "bound_estimator_code_hashes": (
+            dict(execution.estimator_code_hashes) if execution is not None else {}
+        ),
+        "estimator_invocation_counts": estimator_invocation_counts,
+        "mechanical_estimator_invocation_verified": (
+            mechanical_estimator_invocation_verified
         ),
         "script_hash": stable_hash(code),
         "request_hash": execution.request_hash if execution is not None else "",
@@ -102476,6 +102760,7 @@ def _run_generated_scientific_sandbox(
         "runtime_errors": (
             errors if prototype_status != "REJECTED_UNSAFE_GENERATED_CODE" else []
         ),
+        "estimator_binding_errors": estimator_binding_errors,
         "metrics": metrics,
         "metric_gate_targets": metric_gate_targets,
         "metric_contracts": typed_metric_contracts,
@@ -102514,6 +102799,7 @@ def _run_generated_scientific_sandbox(
             "language": language,
             "execution_profile": requested_profile,
             "dependencies": list(dependencies),
+            "bound_estimator_code_hashes": expected_estimator_code_hashes,
         },
         output_paths=tuple(
             path
@@ -102527,6 +102813,7 @@ def _run_generated_scientific_sandbox(
                 "seed": seed,
                 "language": language,
                 "dependencies": list(dependencies),
+                "bound_estimator_code_hashes": expected_estimator_code_hashes,
             }
         ),
         output_hash=stable_hash(metrics) if metrics else "",
@@ -102599,6 +102886,9 @@ def _run_generated_python_sandbox(
             "estimator_id": estimator_id,
             "prototype_status": "REJECTED_UNSAFE_GENERATED_CODE",
             "executor": "generated_python_sandbox",
+            "executor_profile": "stdlib",
+            "language": "python",
+            "dependencies": [],
             "spec": dict(spec),
             "script_path": "",
             "result_path": "",
@@ -102733,6 +103023,9 @@ def _run_generated_python_sandbox(
         "estimator_id": estimator_id,
         "prototype_status": prototype_status,
         "executor": "generated_python_sandbox",
+        "executor_profile": "stdlib",
+        "language": "python",
+        "dependencies": [],
         "spec": dict(spec),
         "script_path": str(script_path),
         "runner_path": str(runner_path),

@@ -14,6 +14,7 @@ from ai_statistician.algorithm_engineer_llm import (
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.scientific_sandbox import (
     SCIENTIFIC_SANDBOX_BOUNDARY,
+    ScientificEstimatorBinding,
     ScientificSandboxExecution,
     ScientificSandboxRuntime,
     discover_scientific_sandbox_runtime,
@@ -26,6 +27,7 @@ from ai_statistician.simulation_engineer_llm import (
     SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
     validate_simulation_engineer_packet,
 )
+from ai_statistician.research_schema import OpenResearchQuestion
 
 
 def test_generated_code_contract_keeps_stdlib_default_and_requires_r_wasm() -> None:
@@ -84,6 +86,46 @@ def test_scientific_runtime_unavailable_fails_closed_without_execution(
     assert result.status == "RUNTIME_UNAVAILABLE"
     assert result.execution_attempted is False
     assert result.metrics == {}
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_estimator_binding_rejects_tampered_source_hash_before_execution(
+    tmp_path: Path,
+) -> None:
+    algorithm = (
+        "def run_estimator(request):\n"
+        "    return {'estimate': request['value']}\n"
+    )
+    result = execute_scientific_sandbox(
+        sandbox_dir=tmp_path,
+        artifact_id="tampered-estimator",
+        language="python",
+        code=(
+            "def run_sandbox(seed, replicates, estimators):\n"
+            "    return estimators['candidate']({'value': seed})\n"
+        ),
+        dependencies=[],
+        seed=7,
+        replicates=4,
+        timeout_s=2,
+        runtime=ScientificSandboxRuntime(),
+        estimator_bindings=(
+            ScientificEstimatorBinding(
+                artifact_id="candidate",
+                language="python",
+                code=algorithm,
+                code_hash=stable_hash(algorithm + "# changed"),
+            ),
+        ),
+    )
+
+    assert result.status == "REJECTED_CONTRACT"
+    assert result.execution_attempted is False
+    assert result.invocation_mode == "estimator_bound"
+    assert any("source hash mismatch" in error for error in result.errors)
+    assert any(
+        "source hash mismatch" in error for error in result.estimator_binding_errors
+    )
     assert list(tmp_path.iterdir()) == []
 
 
@@ -268,6 +310,134 @@ def test_runtime_dispatch_preserves_existing_metric_and_evidence_path(
     assert rejected["execution_attempted"] is False
 
 
+def test_runtime_simulation_dispatch_records_mechanical_estimator_reuse(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    algorithm = "def run_estimator(request):\n    return {'estimate': request['x']}\n"
+    simulation = (
+        "def run_sandbox(seed, replicates, estimators):\n"
+        "    return estimators['candidate']({'x': seed})\n"
+    )
+    simulation_path = tmp_path / "simulation.py"
+    simulation_path.write_text(simulation, encoding="utf-8")
+    metrics = {"estimate": 11}
+    result_path = tmp_path / "result.json"
+    result_path.write_text(json.dumps(metrics), encoding="utf-8")
+    execution = ScientificSandboxExecution(
+        status="EXECUTED",
+        language="python",
+        execution_profile="scientific_wasm",
+        backend="pyodide",
+        isolation_provider="test-wasm-isolation",
+        dependencies=(),
+        execution_attempted=True,
+        returncode=0,
+        metrics=metrics,
+        errors=(),
+        stdout_summary="",
+        stderr_summary="",
+        result_parse_error="",
+        code_path=str(simulation_path),
+        request_path=str(tmp_path / "request.json"),
+        result_path=str(result_path),
+        code_hash=stable_hash(simulation),
+        request_hash="request-hash",
+        result_hash=stable_hash(metrics),
+        subprocess_environment_keys=("HOME", "PATH"),
+        resource_limits={"cpu_seconds": 5},
+        execution_envelope_hash="execution-envelope-hash",
+        estimator_code_hashes={"candidate": stable_hash(algorithm)},
+        estimator_invocation_counts={"candidate": 3},
+        estimator_binding_hash=stable_hash(
+            {"candidate": stable_hash(algorithm)}
+        ),
+    )
+    seen: dict[str, object] = {}
+
+    def execute(**kwargs):
+        seen.update(kwargs)
+        return execution
+
+    monkeypatch.setattr(runtime_module, "execute_scientific_sandbox", execute)
+    handoff = {
+        "exact_algorithm_artifacts": [
+            {
+                "estimator_id": "candidate",
+                "language": "python",
+                "dependencies": [],
+                "exact_source_code": algorithm,
+                "exact_source_hash": stable_hash(algorithm),
+            }
+        ]
+    }
+
+    prototype, _ = runtime_module._run_generated_simulation_sandbox(
+        sandbox_dir=tmp_path,
+        simulation_id="confirmatory-dgp",
+        code_draft={
+            "language": "python",
+            "execution_profile": "stdlib",
+            "dependencies": [],
+            "entrypoint": "run_sandbox",
+            "code": simulation,
+        },
+        upstream_algorithm_handoff=handoff,
+        n_runs=8,
+        seed=11,
+        timeout_s=5,
+    )
+
+    bindings = seen["estimator_bindings"]
+    assert isinstance(bindings, tuple)
+    assert bindings[0].code == algorithm
+    assert prototype["executor_profile"] == "scientific_wasm"
+    assert prototype["mechanical_estimator_invocation_verified"] is True
+    assert prototype["bound_estimator_code_hashes"] == {
+        "candidate": stable_hash(algorithm)
+    }
+    receipt = runtime_module._runtime_algorithm_handoff_receipt(
+        handoff,
+        simulation_rows=[prototype],
+    )
+    assert receipt["mechanical_estimator_invocation_verified"] is True
+
+
+def test_estimator_abi_failure_routes_typed_feedback_to_algorithm_engineer() -> None:
+    task = runtime_module._simulation_estimator_abi_repair_task(
+        question=OpenResearchQuestion(
+            id="abi-routing",
+            title="Generic estimator ABI routing",
+            description="Exercise a reviewed estimator inside a generated DGP.",
+            tags=("capability-eval",),
+        ),
+        theory_packet_id="theory:abi",
+        simulation_manifest_id="simulation:abi-failed",
+        implementation_gaps=[{"estimator_id": "candidate"}],
+        architect_context={},
+        simulation_feedback={
+            "generated_simulation_prototypes": [
+                {
+                    "estimator_binding_errors": [
+                        "accepted algorithm did not define callable run_estimator: candidate"
+                    ]
+                }
+            ]
+        },
+        n_runs=20,
+        seed=9,
+    )
+
+    assert task.owner_subsystem == "AlgorithmEngineer"
+    feedback = task.inputs["environment_feedback"]
+    assert feedback["feedback_type"] == "accepted_algorithm_estimator_abi_feedback"
+    assert feedback["failure_classification"] == (
+        "accepted_algorithm_estimator_abi_failed"
+    )
+    assert "run_estimator" in feedback["target_behavior"]
+    assert task.inputs["implementation_gaps"] == [{"estimator_id": "candidate"}]
+
+
 @pytest.mark.parametrize(
     ("language", "dependencies", "code", "expected_metric"),
     [
@@ -369,3 +539,103 @@ def test_live_scientific_runtime_returns_exact_error_feedback(tmp_path: Path) ->
     assert result.execution_attempted is True
     assert any("intentional scientific repair signal" in error for error in result.errors)
     assert "ValueError" in result.stderr_summary
+
+
+@pytest.mark.parametrize(
+    ("language", "dependencies", "algorithm", "simulation"),
+    [
+        (
+            "python",
+            [],
+            "def run_estimator(request):\n"
+            "    values = request['values']\n"
+            "    return {'estimate': sum(values) / len(values)}\n",
+            "def run_sandbox(seed, replicates, estimators):\n"
+            "    fitted = estimators['candidate']({'values': [seed, replicates]})\n"
+            "    return {'estimate': fitted['estimate'], 'n': replicates}\n",
+        ),
+        (
+            "r",
+            ["base", "stats"],
+            "run_estimator <- function(request) "
+            "list(estimate=mean(request$values))\n",
+            "run_sandbox <- function(seed, replicates, estimators) { "
+            "fitted <- estimators[['candidate']](list(values=c(seed, replicates))); "
+            "list(estimate=fitted$estimate, n=replicates) }\n",
+        ),
+    ],
+)
+def test_live_estimator_bound_simulation_invokes_exact_reviewed_source(
+    tmp_path: Path,
+    language: str,
+    dependencies: list[str],
+    algorithm: str,
+    simulation: str,
+) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    available = runtime.python_available if language == "python" else runtime.r_available
+    if not available:
+        pytest.skip("pinned scientific WASM runtime is not installed on this host")
+
+    result = execute_scientific_sandbox(
+        sandbox_dir=tmp_path,
+        artifact_id=f"bound-{language}",
+        language=language,
+        code=simulation,
+        dependencies=dependencies,
+        seed=7,
+        replicates=5,
+        timeout_s=60,
+        estimator_bindings=(
+            ScientificEstimatorBinding(
+                artifact_id="candidate",
+                language=language,
+                code=algorithm,
+                code_hash=stable_hash(algorithm),
+                dependencies=tuple(dependencies),
+            ),
+        ),
+    )
+
+    assert result.status == "EXECUTED"
+    assert result.invocation_mode == "estimator_bound"
+    assert result.metrics == {"estimate": 6, "n": 5}
+    assert result.estimator_code_hashes == {"candidate": stable_hash(algorithm)}
+    assert result.estimator_invocation_counts == {"candidate": 1}
+    assert result.estimator_binding_hash == stable_hash(result.estimator_code_hashes)
+
+
+def test_live_estimator_bound_simulation_fails_when_callback_is_not_used(
+    tmp_path: Path,
+) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    if not runtime.python_available:
+        pytest.skip("pinned Pyodide runtime is not installed on this host")
+    algorithm = "def run_estimator(request):\n    return {'estimate': 1.0}\n"
+
+    result = execute_scientific_sandbox(
+        sandbox_dir=tmp_path,
+        artifact_id="bound-not-used",
+        language="python",
+        code=(
+            "def run_sandbox(seed, replicates, estimators):\n"
+            "    return {'estimate': 1.0, 'n': replicates}\n"
+        ),
+        dependencies=[],
+        seed=7,
+        replicates=5,
+        timeout_s=60,
+        estimator_bindings=(
+            ScientificEstimatorBinding(
+                artifact_id="candidate",
+                language="python",
+                code=algorithm,
+                code_hash=stable_hash(algorithm),
+            ),
+        ),
+    )
+
+    assert result.status == "FAILED"
+    assert result.metrics == {"estimate": 1, "n": 5}
+    assert result.estimator_invocation_counts == {"candidate": 0}
+    assert any("was not invoked" in error for error in result.errors)

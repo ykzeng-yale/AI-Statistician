@@ -3300,6 +3300,8 @@ class RuntimeAuditRow:
     n_live_generated_simulation_sandbox_executed: int
     n_generated_simulation_sandbox_passed: int
     n_live_generated_simulation_sandbox_passed: int
+    n_generated_simulation_mechanical_estimator_invocation_verified: int
+    n_live_generated_simulation_mechanical_estimator_invocation_verified: int
     n_generated_simulation_sandbox_metric_gate_failed: int
     n_live_generated_simulation_sandbox_metric_gate_failed: int
     n_live_generated_simulation_typed_metric_contracts_evaluated: int
@@ -6736,6 +6738,14 @@ def audit_research_agent_runtime(
         ),
         "n_live_generated_simulation_sandbox_passed": sum(
             row.n_live_generated_simulation_sandbox_passed for row in rows
+        ),
+        "n_generated_simulation_mechanical_estimator_invocation_verified": sum(
+            row.n_generated_simulation_mechanical_estimator_invocation_verified
+            for row in rows
+        ),
+        "n_live_generated_simulation_mechanical_estimator_invocation_verified": sum(
+            row.n_live_generated_simulation_mechanical_estimator_invocation_verified
+            for row in rows
         ),
         "n_generated_simulation_sandbox_metric_gate_failed": sum(
             row.n_generated_simulation_sandbox_metric_gate_failed for row in rows
@@ -12880,6 +12890,29 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     n_live_generated_simulation_sandbox_passed = int(
         simulation_live_counts["passed"]
     )
+    n_generated_simulation_mechanical_estimator_invocation_verified = sum(
+        1
+        for row in simulation
+        if isinstance(row.get("upstream_algorithm_handoff_receipt", {}), Mapping)
+        and row.get("upstream_algorithm_handoff_receipt", {}).get(
+            "mechanical_estimator_invocation_verified"
+        )
+        is True
+    )
+    n_live_generated_simulation_mechanical_estimator_invocation_verified = sum(
+        1
+        for row in simulation
+        if isinstance(row.get("upstream_algorithm_handoff_receipt", {}), Mapping)
+        and row.get("upstream_algorithm_handoff_receipt", {}).get(
+            "mechanical_estimator_invocation_verified"
+        )
+        is True
+        and _generated_sandbox_live_counts_from_rows(
+            row.get("generated_simulation_sandbox_prototypes", []),
+            generated_executor="generated_simulation_sandbox",
+        )["mechanical_estimator_invocation_verified"]
+        > 0
+    )
     n_generated_simulation_sandbox_metric_gate_failed = sum(
         int(row.get("n_generated_simulation_sandbox_metric_gate_failed", 0) or 0)
         for row in simulation
@@ -13560,6 +13593,12 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         n_generated_simulation_sandbox_passed=n_generated_simulation_sandbox_passed,
         n_live_generated_simulation_sandbox_passed=(
             n_live_generated_simulation_sandbox_passed
+        ),
+        n_generated_simulation_mechanical_estimator_invocation_verified=(
+            n_generated_simulation_mechanical_estimator_invocation_verified
+        ),
+        n_live_generated_simulation_mechanical_estimator_invocation_verified=(
+            n_live_generated_simulation_mechanical_estimator_invocation_verified
         ),
         n_generated_simulation_sandbox_metric_gate_failed=(
             n_generated_simulation_sandbox_metric_gate_failed
@@ -20624,6 +20663,13 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     integrated_simulation_code_executed = int(
         payload.get("n_live_generated_simulation_sandbox_executed", 0) or 0
     )
+    integrated_mechanical_estimator_invocations = int(
+        payload.get(
+            "n_live_generated_simulation_mechanical_estimator_invocation_verified",
+            0,
+        )
+        or 0
+    )
     integrated_simulation_execution_or_safety_failures = int(
         payload.get("n_live_generated_simulation_execution_failed", 0) or 0
     ) + int(
@@ -25512,6 +25558,32 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 success_metric=(
                     "n_live_generated_simulation_sandbox_executed>0 for an integrated "
                     "runtime SimulationEvaluator artifact"
+                ),
+            ),
+        ),
+        _scorecard_row(
+            "accepted_algorithm_mechanically_invoked_by_simulation",
+            integrated_mechanical_estimator_invocations > 0,
+            (
+                "n_live_generated_simulation_mechanical_estimator_invocation_verified="
+                f"{integrated_mechanical_estimator_invocations} "
+                "n_generated_simulation_mechanical_estimator_invocation_verified="
+                f"{payload.get('n_generated_simulation_mechanical_estimator_invocation_verified')}"
+            ),
+            (
+                "confirmatory simulation did not mechanically invoke the exact "
+                "hash-bound AlgorithmEngineer source accepted by independent review; "
+                "prompt visibility or estimator reimplementation is insufficient"
+            ),
+            **_runtime_resume_scorecard_routing(
+                payload,
+                owner="SimulationEvaluator",
+                target_behavior=(
+                    "Run the generated confirmatory DGP through the runtime-injected "
+                    "run_estimator callback from the exact accepted algorithm handoff."
+                ),
+                success_metric=(
+                    "n_live_generated_simulation_mechanical_estimator_invocation_verified>0"
                 ),
             ),
         ),

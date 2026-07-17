@@ -42,29 +42,95 @@ function rValueToJson(node) {
   return converted;
 }
 
-async function runPython(request, source) {
+async function runPython(request, source, estimatorSources) {
   const moduleUrl = pathToFileURL(request.runtime.pyodide_entry).href;
   const { loadPyodide } = await import(moduleUrl);
   const pyodide = await loadPyodide({ indexURL: `${request.runtime.pyodide_root}/` });
   if (request.dependencies.length > 0) {
     await pyodide.loadPackage(request.dependencies);
   }
-  const wrapped = `${source}\n\nimport json as _ai_stat_json\n` +
-    `_ai_stat_result = run_sandbox(seed=${Number(request.seed)}, replicates=${Number(request.replicates)})\n` +
-    `_ai_stat_json.dumps(_ai_stat_result, allow_nan=False, sort_keys=True)`;
+  const bound = request.invocation_mode === "estimator_bound";
+  const wrapped = bound
+    ? `import json as _ai_stat_json\n` +
+      `_ai_stat_simulation_source = ${JSON.stringify(source)}\n` +
+      `_ai_stat_estimator_sources = _ai_stat_json.loads(${JSON.stringify(JSON.stringify(estimatorSources))})\n` +
+      `_ai_stat_simulation_namespace = {}\n` +
+      `exec(compile(_ai_stat_simulation_source, "<generated_simulation>", "exec"), _ai_stat_simulation_namespace, _ai_stat_simulation_namespace)\n` +
+      `_ai_stat_invocation_counts = {key: 0 for key in _ai_stat_estimator_sources}\n` +
+      `_ai_stat_estimators = {}\n` +
+      `def _ai_stat_bind_estimator(_artifact_id, _source):\n` +
+      `    _namespace = {}\n` +
+      `    exec(compile(_source, "<accepted_algorithm:" + _artifact_id + ">", "exec"), _namespace, _namespace)\n` +
+      `    _implementation = _namespace.get("run_estimator")\n` +
+      `    if not callable(_implementation):\n` +
+      `        raise RuntimeError("accepted algorithm did not define callable run_estimator: " + _artifact_id)\n` +
+      `    def _bound_estimator(request):\n` +
+      `        if not isinstance(request, dict):\n` +
+      `            raise TypeError("run_estimator request must be a dict: " + _artifact_id)\n` +
+      `        response = _implementation(request)\n` +
+      `        if not isinstance(response, dict):\n` +
+      `            raise TypeError("run_estimator response must be a dict: " + _artifact_id)\n` +
+      `        _ai_stat_json.dumps(request, allow_nan=False, sort_keys=True)\n` +
+      `        _ai_stat_json.dumps(response, allow_nan=False, sort_keys=True)\n` +
+      `        _ai_stat_invocation_counts[_artifact_id] += 1\n` +
+      `        return response\n` +
+      `    return _bound_estimator\n` +
+      `for _ai_stat_id, _ai_stat_source in _ai_stat_estimator_sources.items():\n` +
+      `    _ai_stat_estimators[_ai_stat_id] = _ai_stat_bind_estimator(_ai_stat_id, _ai_stat_source)\n` +
+      `_ai_stat_run_sandbox = _ai_stat_simulation_namespace.get("run_sandbox")\n` +
+      `if not callable(_ai_stat_run_sandbox):\n` +
+      `    raise RuntimeError("generated simulation did not define callable run_sandbox")\n` +
+      `_ai_stat_result = _ai_stat_run_sandbox(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, estimators=_ai_stat_estimators)\n` +
+      `_ai_stat_json.dumps({"metrics": _ai_stat_result, "estimator_invocation_counts": _ai_stat_invocation_counts}, allow_nan=False, sort_keys=True)`
+    : `${source}\n\nimport json as _ai_stat_json\n` +
+      `_ai_stat_result = run_sandbox(seed=${Number(request.seed)}, replicates=${Number(request.replicates)})\n` +
+      `_ai_stat_json.dumps({"metrics": _ai_stat_result, "estimator_invocation_counts": {}}, allow_nan=False, sort_keys=True)`;
   const serialized = await pyodide.runPythonAsync(wrapped);
   return JSON.parse(String(serialized));
 }
 
-async function runR(request, source) {
+async function runR(request, source, estimatorSources) {
   const moduleUrl = pathToFileURL(request.runtime.webr_entry).href;
   const { WebR } = await import(moduleUrl);
   const webR = new WebR();
   await webR.init();
   let result;
   try {
-    const wrapped = `${source}\n\n` +
-      `local({ .ai_stat_result <- run_sandbox(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}); .ai_stat_result })`;
+    const bound = request.invocation_mode === "estimator_bound";
+    const estimatorRows = Object.entries(estimatorSources);
+    const estimatorSourceList = estimatorRows
+      .map(([artifactId, estimatorSource]) => `${JSON.stringify(artifactId)}=${JSON.stringify(estimatorSource)}`)
+      .join(",");
+    const wrapped = bound
+      ? `local({\n` +
+        `.ai_stat_simulation_source <- ${JSON.stringify(source)}\n` +
+        `.ai_stat_estimator_sources <- list(${estimatorSourceList})\n` +
+        `.ai_stat_simulation_environment <- new.env(parent=globalenv())\n` +
+        `eval(parse(text=.ai_stat_simulation_source), envir=.ai_stat_simulation_environment)\n` +
+        `.ai_stat_invocation_counts <- setNames(as.list(rep(0L, length(.ai_stat_estimator_sources))), names(.ai_stat_estimator_sources))\n` +
+        `.ai_stat_estimators <- lapply(names(.ai_stat_estimator_sources), function(.artifact_id) {\n` +
+        `  local({\n` +
+        `    .id <- .artifact_id\n` +
+        `    .environment <- new.env(parent=globalenv())\n` +
+        `    eval(parse(text=.ai_stat_estimator_sources[[.id]]), envir=.environment)\n` +
+        `    if (!exists("run_estimator", envir=.environment, mode="function", inherits=FALSE)) stop(paste("accepted algorithm did not define callable run_estimator:", .id))\n` +
+        `    .implementation <- get("run_estimator", envir=.environment, inherits=FALSE)\n` +
+        `    function(request) {\n` +
+        `      if (!is.list(request) || is.null(names(request))) stop(paste("run_estimator request must be a named list:", .id))\n` +
+        `      .response <- .implementation(request)\n` +
+        `      if (!is.list(.response) || is.null(names(.response))) stop(paste("run_estimator response must be a named list:", .id))\n` +
+        `      .ai_stat_invocation_counts[[.id]] <<- .ai_stat_invocation_counts[[.id]] + 1L\n` +
+        `      .response\n` +
+        `    }\n` +
+        `  })\n` +
+        `})\n` +
+        `names(.ai_stat_estimators) <- names(.ai_stat_estimator_sources)\n` +
+        `if (!exists("run_sandbox", envir=.ai_stat_simulation_environment, mode="function", inherits=FALSE)) stop("generated simulation did not define callable run_sandbox")\n` +
+        `.ai_stat_result <- get("run_sandbox", envir=.ai_stat_simulation_environment, inherits=FALSE)(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, estimators=.ai_stat_estimators)\n` +
+        `list(metrics=.ai_stat_result, estimator_invocation_counts=.ai_stat_invocation_counts)\n` +
+        `})`
+      : `${source}\n\n` +
+        `local({ .ai_stat_result <- run_sandbox(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}); list(metrics=.ai_stat_result, estimator_invocation_counts=list()) })`;
     result = await webR.evalR(wrapped);
     return rValueToJson(await result.toJs());
   } finally {
@@ -92,12 +158,20 @@ if (!requestPath || !outputPath) {
 
 const request = JSON.parse(fs.readFileSync(requestPath, "utf8"));
 const source = fs.readFileSync(request.code_path, "utf8");
+const estimatorSources = Object.fromEntries(
+  (Array.isArray(request.estimators) ? request.estimators : []).map((row) => [
+    String(row.artifact_id),
+    fs.readFileSync(row.code_path, "utf8"),
+  ]),
+);
 const startedAt = new Date().toISOString();
 let envelope;
 try {
-  const metrics = request.language === "r"
-    ? await runR(request, source)
-    : await runPython(request, source);
+  const execution = request.language === "r"
+    ? await runR(request, source, estimatorSources)
+    : await runPython(request, source, estimatorSources);
+  const metrics = execution?.metrics;
+  const estimatorInvocationCounts = execution?.estimator_invocation_counts || {};
   if (!metrics || typeof metrics !== "object" || Array.isArray(metrics)) {
     throw new Error("run_sandbox must return a named dictionary/list object");
   }
@@ -111,6 +185,7 @@ try {
     language: request.language,
     backend: request.backend,
     metrics,
+    estimator_invocation_counts: estimatorInvocationCounts,
     started_at: startedAt,
     completed_at: new Date().toISOString(),
   };

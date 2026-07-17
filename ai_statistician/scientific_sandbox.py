@@ -7,7 +7,7 @@ import os
 import shutil
 import subprocess
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -85,6 +85,17 @@ class ScientificSandboxRuntime:
 
 
 @dataclass(frozen=True)
+class ScientificEstimatorBinding:
+    """Exact reviewed estimator source supplied to a generated DGP harness."""
+
+    artifact_id: str
+    language: str
+    code: str
+    code_hash: str
+    dependencies: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class ScientificSandboxExecution:
     status: str
     language: str
@@ -109,6 +120,12 @@ class ScientificSandboxExecution:
     resource_limits: dict[str, int]
     execution_envelope_path: str = ""
     execution_envelope_hash: str = ""
+    invocation_mode: str = "standalone"
+    estimator_code_paths: dict[str, str] = field(default_factory=dict)
+    estimator_code_hashes: dict[str, str] = field(default_factory=dict)
+    estimator_invocation_counts: dict[str, int] = field(default_factory=dict)
+    estimator_binding_hash: str = ""
+    estimator_binding_errors: tuple[str, ...] = ()
     boundary: str = SCIENTIFIC_SANDBOX_BOUNDARY
 
     def to_json(self) -> dict[str, Any]:
@@ -204,6 +221,7 @@ def scientific_python_safety_errors(
     code: str,
     *,
     dependencies: Sequence[str],
+    required_functions: Sequence[str] = ("run_sandbox",),
 ) -> list[str]:
     if not str(code or "").strip():
         return ["empty generated scientific Python draft"]
@@ -249,8 +267,11 @@ def scientific_python_safety_errors(
         node.name for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
     }
     errors: list[str] = []
-    if "run_sandbox" not in function_names:
-        errors.append("generated scientific Python draft must define run_sandbox")
+    for function_name in required_functions:
+        if function_name not in function_names:
+            errors.append(
+                "generated scientific Python draft must define " + function_name
+            )
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
@@ -301,6 +322,13 @@ def scientific_sandbox_contract(
                 "entrypoint": "run_sandbox",
                 "function_contract": (
                     "run_sandbox(seed, replicates) returns a named JSON-finite metric object"
+                ),
+                "estimator_binding_contract": (
+                    "A confirmatory DGP harness defines run_sandbox(seed, replicates, "
+                    "estimators). Each exact reviewed algorithm defines "
+                    "run_estimator(request), where request and response are named "
+                    "JSON-finite objects. AgentRuntime injects a mapping from immutable "
+                    "estimator_id to callable and records invocation counts."
                 ),
                 "runtime_available": runtime.available,
                 "python_available": runtime.python_available,
@@ -538,8 +566,13 @@ def _empty_execution(
     sandbox_dir: Path,
     code_hash: str,
     resource_limits: Mapping[str, int],
+    estimator_bindings: Sequence[ScientificEstimatorBinding] = (),
+    estimator_binding_errors: Sequence[str] = (),
 ) -> ScientificSandboxExecution:
     backend = "webr" if language == "r" else "pyodide"
+    estimator_code_hashes = {
+        binding.artifact_id: binding.code_hash for binding in estimator_bindings
+    }
     return ScientificSandboxExecution(
         status=status,
         language=language,
@@ -564,6 +597,12 @@ def _empty_execution(
             sorted(_scientific_sandbox_environment(sandbox_dir))
         ),
         resource_limits=dict(resource_limits),
+        invocation_mode="estimator_bound" if estimator_bindings else "standalone",
+        estimator_code_hashes=estimator_code_hashes,
+        estimator_binding_hash=(
+            stable_hash(estimator_code_hashes) if estimator_code_hashes else ""
+        ),
+        estimator_binding_errors=tuple(estimator_binding_errors),
     )
 
 
@@ -580,11 +619,25 @@ def execute_scientific_sandbox(
     max_output_bytes: int = 16 * 1024 * 1024,
     max_node_heap_mb: int = 768,
     runtime: ScientificSandboxRuntime | None = None,
+    estimator_bindings: Sequence[ScientificEstimatorBinding] = (),
 ) -> ScientificSandboxExecution:
     language = normalized_generated_code_language(language)
     dependencies = normalized_scientific_dependencies(
         dependencies,
         language=language,
+    )
+    normalized_bindings = tuple(
+        ScientificEstimatorBinding(
+            artifact_id=str(binding.artifact_id or "").strip(),
+            language=normalized_generated_code_language(binding.language),
+            code=str(binding.code or ""),
+            code_hash=str(binding.code_hash or "").strip(),
+            dependencies=normalized_scientific_dependencies(
+                binding.dependencies,
+                language=normalized_generated_code_language(binding.language),
+            ),
+        )
+        for binding in estimator_bindings
     )
     runtime = runtime or discover_scientific_sandbox_runtime()
     limits = _resource_limit_payload(
@@ -606,16 +659,79 @@ def execute_scientific_sandbox(
         contract_errors.extend(
             scientific_python_safety_errors(code, dependencies=dependencies)
         )
+    binding_contract_errors: list[str] = []
+    binding_ids: set[str] = set()
+    for binding in normalized_bindings:
+        if not binding.artifact_id:
+            binding_contract_errors.append("estimator binding artifact_id is required")
+        elif binding.artifact_id in binding_ids:
+            binding_contract_errors.append(
+                "duplicate estimator binding artifact_id: " + binding.artifact_id
+            )
+        binding_ids.add(binding.artifact_id)
+        if binding.language != language:
+            binding_contract_errors.append(
+                "estimator binding language must match simulation language: "
+                + binding.artifact_id
+            )
+        if not binding.code.strip():
+            binding_contract_errors.append(
+                "estimator binding source is empty: " + binding.artifact_id
+            )
+        if binding.code_hash != stable_hash(binding.code):
+            binding_contract_errors.append(
+                "estimator binding source hash mismatch: " + binding.artifact_id
+            )
+        allowed_binding_dependencies = (
+            set(PYTHON_SCIENTIFIC_DEPENDENCIES)
+            if binding.language == "python"
+            else set(R_SCIENTIFIC_DEPENDENCIES)
+            if binding.language == "r"
+            else set()
+        )
+        unsupported_binding_dependencies = sorted(
+            set(binding.dependencies) - allowed_binding_dependencies
+        )
+        if unsupported_binding_dependencies:
+            binding_contract_errors.append(
+                "estimator binding declares unsupported dependencies for "
+                + binding.artifact_id
+                + ": "
+                + ", ".join(unsupported_binding_dependencies)
+            )
+        if binding.language == "python":
+            binding_contract_errors.extend(
+                scientific_python_safety_errors(
+                    binding.code,
+                    dependencies=binding.dependencies,
+                    required_functions=("run_estimator",),
+                )
+            )
+    contract_errors.extend(binding_contract_errors)
+    all_dependencies = tuple(
+        dict.fromkeys(
+            [
+                *dependencies,
+                *(
+                    dependency
+                    for binding in normalized_bindings
+                    for dependency in binding.dependencies
+                ),
+            ]
+        )
+    )
     if contract_errors:
         return _empty_execution(
             status="REJECTED_CONTRACT",
             language=language,
-            dependencies=dependencies,
+            dependencies=all_dependencies,
             runtime=runtime,
             errors=sorted(set(contract_errors)),
             sandbox_dir=sandbox_dir,
             code_hash=code_hash,
             resource_limits=limits,
+            estimator_bindings=normalized_bindings,
+            estimator_binding_errors=sorted(set(binding_contract_errors)),
         )
     language_available = (
         runtime.python_available if language == "python" else runtime.r_available
@@ -624,7 +740,7 @@ def execute_scientific_sandbox(
         return _empty_execution(
             status="RUNTIME_UNAVAILABLE",
             language=language,
-            dependencies=dependencies,
+            dependencies=all_dependencies,
             runtime=runtime,
             errors=(
                 "scientific WASM runtime is unavailable; run npm ci and use "
@@ -633,9 +749,10 @@ def execute_scientific_sandbox(
             sandbox_dir=sandbox_dir,
             code_hash=code_hash,
             resource_limits=limits,
+            estimator_bindings=normalized_bindings,
         )
     cache_errors = (
-        scientific_python_dependency_cache_errors(runtime, dependencies)
+        scientific_python_dependency_cache_errors(runtime, all_dependencies)
         if language == "python"
         else []
     )
@@ -643,12 +760,13 @@ def execute_scientific_sandbox(
         return _empty_execution(
             status="DEPENDENCY_CACHE_UNPREPARED",
             language=language,
-            dependencies=dependencies,
+            dependencies=all_dependencies,
             runtime=runtime,
             errors=cache_errors,
             sandbox_dir=sandbox_dir,
             code_hash=code_hash,
             resource_limits=limits,
+            estimator_bindings=normalized_bindings,
         )
 
     sandbox_dir.mkdir(parents=True, exist_ok=True)
@@ -661,10 +779,14 @@ def execute_scientific_sandbox(
         {
             "artifact_id": artifact_id,
             "language": language,
-            "dependencies": list(dependencies),
+            "dependencies": list(all_dependencies),
             "seed": int(seed),
             "replicates": int(replicates),
             "code_hash": code_hash,
+            "estimator_bindings": {
+                binding.artifact_id: binding.code_hash
+                for binding in normalized_bindings
+            },
         }
     )[:16]
     code_path = sandbox_dir / f"{safe_id}_{execution_key}_generated_draft.{extension}"
@@ -674,6 +796,13 @@ def execute_scientific_sandbox(
     stdout_path = sandbox_dir / f"{safe_id}_{execution_key}_stdout.txt"
     stderr_path = sandbox_dir / f"{safe_id}_{execution_key}_stderr.txt"
     code_path.write_text(code, encoding="utf-8")
+    estimator_code_paths: dict[str, Path] = {}
+    for index, binding in enumerate(normalized_bindings):
+        estimator_path = sandbox_dir / (
+            f"{safe_id}_{execution_key}_estimator_{index}.{extension}"
+        )
+        estimator_path.write_text(binding.code, encoding="utf-8")
+        estimator_code_paths[binding.artifact_id] = estimator_path
     result_path.unlink(missing_ok=True)
     metrics_path.unlink(missing_ok=True)
     stdout_path.unlink(missing_ok=True)
@@ -685,11 +814,24 @@ def execute_scientific_sandbox(
         "language": language,
         "execution_profile": SCIENTIFIC_WASM_SANDBOX_PROFILE,
         "backend": "webr" if language == "r" else "pyodide",
-        "dependencies": list(dependencies),
+        "dependencies": list(all_dependencies),
         "seed": int(seed),
         "replicates": int(replicates),
         "code_path": str(code_path.resolve()),
         "code_hash": code_hash,
+        "invocation_mode": (
+            "estimator_bound" if normalized_bindings else "standalone"
+        ),
+        "estimators": [
+            {
+                "artifact_id": binding.artifact_id,
+                "language": binding.language,
+                "dependencies": list(binding.dependencies),
+                "code_path": str(estimator_code_paths[binding.artifact_id].resolve()),
+                "code_hash": binding.code_hash,
+            }
+            for binding in normalized_bindings
+        ],
         "runtime": {
             "pyodide_entry": runtime.pyodide_entry,
             "pyodide_root": runtime.pyodide_root,
@@ -723,7 +865,11 @@ def execute_scientific_sandbox(
         "-p",
         _macos_sandbox_profile(
             runtime=runtime,
-            readable_paths=(code_path, request_path),
+            readable_paths=(
+                code_path,
+                request_path,
+                *estimator_code_paths.values(),
+            ),
             writable_paths=(result_path, stdout_path, stderr_path),
         ),
         *node_command,
@@ -775,6 +921,15 @@ def execute_scientific_sandbox(
         if isinstance(envelope.get("metrics", {}), Mapping)
         else {}
     )
+    raw_invocation_counts = envelope.get("estimator_invocation_counts", {})
+    estimator_invocation_counts = (
+        {
+            str(key): max(0, int(value or 0))
+            for key, value in raw_invocation_counts.items()
+        }
+        if isinstance(raw_invocation_counts, Mapping)
+        else {}
+    )
     if metrics:
         metrics_path.write_text(
             json.dumps(metrics, indent=2, sort_keys=True) + "\n",
@@ -793,14 +948,32 @@ def execute_scientific_sandbox(
         errors.append(f"scientific sandbox subprocess exited {returncode}")
     if result_parse_error:
         errors.append("scientific sandbox result parse failed: " + result_parse_error)
-    status = "EXECUTED" if returncode == 0 and envelope.get("ok") is True else "FAILED"
+    if normalized_bindings:
+        missing_invocations = [
+            binding.artifact_id
+            for binding in normalized_bindings
+            if estimator_invocation_counts.get(binding.artifact_id, 0) <= 0
+        ]
+        if missing_invocations:
+            errors.append(
+                "bound estimator source was not invoked: "
+                + ", ".join(missing_invocations)
+            )
+    status = (
+        "EXECUTED"
+        if returncode == 0 and envelope.get("ok") is True and not errors
+        else "FAILED"
+    )
+    estimator_code_hashes = {
+        binding.artifact_id: binding.code_hash for binding in normalized_bindings
+    }
     return ScientificSandboxExecution(
         status=status,
         language=language,
         execution_profile=SCIENTIFIC_WASM_SANDBOX_PROFILE,
         backend="webr" if language == "r" else "pyodide",
         isolation_provider=runtime.isolation_provider,
-        dependencies=tuple(dependencies),
+        dependencies=tuple(all_dependencies),
         execution_attempted=True,
         returncode=returncode,
         metrics=metrics,
@@ -818,4 +991,16 @@ def execute_scientific_sandbox(
         resource_limits=dict(limits),
         execution_envelope_path=str(result_path),
         execution_envelope_hash=stable_hash(envelope) if envelope else "",
+        invocation_mode=(
+            "estimator_bound" if normalized_bindings else "standalone"
+        ),
+        estimator_code_paths={
+            artifact_id: str(path)
+            for artifact_id, path in estimator_code_paths.items()
+        },
+        estimator_code_hashes=estimator_code_hashes,
+        estimator_invocation_counts=estimator_invocation_counts,
+        estimator_binding_hash=(
+            stable_hash(estimator_code_hashes) if estimator_code_hashes else ""
+        ),
     )
