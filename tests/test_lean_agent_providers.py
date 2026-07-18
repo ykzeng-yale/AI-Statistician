@@ -343,7 +343,7 @@ def test_generator_backend_candidate_policy_reuses_negotiated_backend() -> None:
     backend = Backend()
     policy = GeneratorBackendCandidatePolicy(
         provider=backend,  # type: ignore[arg-type]
-        model="claude-opus-4-8",
+        model="claude-sonnet-4-6",
         max_tokens=800,
         temperature=0.1,
         proof_generation_prompt=lambda _task, n: f"return {n}",
@@ -371,7 +371,7 @@ def test_generator_backend_candidate_policy_keeps_valid_siblings() -> None:
 
     policy = GeneratorBackendCandidatePolicy(
         provider=Backend(),  # type: ignore[arg-type]
-        model="claude-opus-4-8",
+        model="claude-sonnet-4-6",
         max_tokens=800,
         temperature=0.1,
         proof_generation_prompt=lambda _task, n: f"return {n}",
@@ -496,7 +496,7 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
             root=root,
             out_dir=tmp_path / "runs",
             lean_project=lean_project,
-            model="claude-opus-4-8",
+            model="claude-sonnet-4-6",
             max_rounds=1,
             branches_per_round=1,
         ),

@@ -1,13 +1,25 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-17T14:59:37Z",
+  "updated_at": "2026-07-18T06:59:49Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
-  "current_lane": "keep one canonical loop: TheoryDeveloper -> generated algorithm -> independent code review -> smallest frozen confirmatory protocol -> generated DGP simulation -> independent review, with Formalizer -> exact-target semantic review -> existing OpenProver/Lean feedback in parallel. Fresh v39 completed the non-Lean loop for both development families and directly routed Formalizer revisions without Architect plan-repair detours. Do not add agents, planners, task formulas, Lean grammar/tactic rules, audit-score patches, or held-out fixes; PCA/extremes stay sealed.",
-  "latest_main_worker_patch": "Preserve the small loop under bounded uncertainty and strict formal review. Low-severity advisory metric uncertainty may pass without repeated rewrites; unresolved artifact ownership uses the existing bounded TheoryDeveloper clarification loop while execution remains closed; the Architect receives the mandatory formal-target reviewer in its initial evidence contract. Review-first runs also disable every legacy post-runtime formal fallback, so source-semantic, promotion, and exact-definition work can continue only as typed AgentRuntime tasks. No statistical answer, threshold, task-family branch, Lean grammar/tactic rule, agent, planner, or orchestration plane was added.",
+  "current_lane": "keep one canonical loop: TheoryDeveloper -> theory/estimand/DGP preflight -> generated algorithm -> independent code review -> smallest frozen confirmatory protocol -> generated simulation -> independent review -> Critic, with the strict Formalizer/OpenProver/Lean lane remaining separately required for full capability evaluation. Current work improves shared loop efficiency and observability, not any task answer. Do not add agents, task formulas, Lean grammar/tactic rules, audit-score patches, or held-out fixes; PCA/extremes stay sealed.",
+  "latest_main_worker_patch": "Add a typed research-evaluation endpoint inside the existing AgentRuntime, require a non-vacuous final requirement-set-bound metric result, run theory/estimand/DGP review before generated execution, preserve repair budgets across Architect replans, and expose author/reviewer/router substage timing through the existing progress callback. Live Anthropic routing is hard-capped at Sonnet, with Haiku retained for cheaper helpers; Opus requests fail before provider-client construction. No statistical answer, threshold, task-family branch, Lean grammar/tactic rule, agent, planner, or second orchestration plane was added.",
   "latest_main_worker_live_probe": "Fresh strict v39 ran survival and sequential from a clean start. Both completed TheoryDeveloper, hash-bound generated algorithm execution, independent algorithm review, independently reviewed frozen metric protocol, generated confirmatory simulation, and independent simulation review. The formal-target reviewer then rejected all three bounded Formalizer targets per task because they substituted generic or trivial support lemmas for the exact KM/Greenwood CLT and Bernoulli anytime-valid theorem. Status is BLOCKED 2/2, strict exact-theorem closure is 0/2, kernel-verified subclaims are 0, and proof search correctly stayed disabled. V39 used no Architect plan-repair detours; its post-runtime legacy fallback observation motivated the current fail-closed removal and is not completion evidence.",
   "latest_main_worker_design_issue": "The immediate blocker is exact-target retention, not code execution, simulation, or Lean syntax repair. Under library pressure the Formalizer weakens a source theorem into a support lemma instead of preserving the exact assumptions, quantifiers, asymptotic regime, and conclusion or emitting an explicit FORMAL_GAP. The next shared mechanism must require exact target preservation or honest formal debt before the existing tactic-state/OpenProver path can run. The 92/121 v39 scorecard is a mixed diagnostic and must not drive work toward legacy bridge counters; exact source-theorem closure remains zero and held-out tasks remain sealed.",
+  "live_anthropic_model_policy": {
+    "allowed_tiers": [
+      "haiku",
+      "sonnet"
+    ],
+    "maximum_tier": "sonnet",
+    "serious_theory_tier": "sonnet",
+    "independent_reviewer_tier": "sonnet",
+    "opus_live_requests_allowed": false,
+    "enforcement": "requested and provider-reported models above Sonnet are rejected before a live request can be accepted; requested Opus is rejected before Anthropic client construction",
+    "live_api_calls_in_current_patch": 0
+  },
   "latest_runtime_role_boundary_alignment": {
     "canonical_empirical_loop": "TheoryDeveloper -> AlgorithmEngineer execution -> independent algorithm semantic review -> Architect confirmatory protocol -> SimulationEngineer execution -> independent simulation semantic review -> owner-routed revision",
     "algorithm_acceptance": "sandbox execution plus independent semantic acceptance; no finite-sample empirical performance gate",
@@ -23,8 +35,8 @@
     "fresh_live_two_family_strict_completion_verified": false,
     "strict_e2e_capability_ready": false,
     "verification": {
-      "research_agent_runtime": "1146 passed in 1748.66 seconds on the current bounded-feedback and review-first legacy-fallback patch",
-      "affected_supporting_tests": "20 metric/formal-target reviewer tests passed with 1 skipped; 14 focused runtime routing, full-live preset, and review-first fallback tests passed",
+      "research_agent_runtime": "1146 passed in 1867.71 seconds on the current research-evaluation, preflight, lineage-budget, telemetry, and Sonnet-ceiling patch",
+      "affected_supporting_tests": "279 changed-surface tests passed in 18.33 seconds; 96 model/reviewer/provider tests passed in 5.24 seconds",
       "focused_empirical_loop_tests": "the previously pushed TheoryDeveloper retry and metric-lineage regression remains covered by the complete runtime suite",
       "fresh_start_cross_task_e2e_tests": "fresh strict v39 completed theory/code/confirmatory-simulation for both development tasks, then blocked both at exact-target semantic review; frozen strict completion remains 0/2",
       "py_compile": "passed",
@@ -396,16 +408,17 @@
   },
   "latest_local_regression": {
     "runtime_test_file": "tests/test_research_agent_runtime.py",
-    "result": "1147 passed, 1 skipped in 2007.14s (0:33:27) across the complete runtime file plus the dedicated Architect metric semantic-review file. The six tests changed or directly implicated by the final control-plane simplification then passed 6/6 in 5.23s.",
+    "result": "1146 passed in 1867.71s (0:31:07) across the complete runtime file. An additional 279 changed-surface tests and 96 model/reviewer/provider tests passed.",
     "failed": 0,
-    "validated_at": "2026-07-16T22:07:01Z",
-    "boundary": "Local regression validates runtime contracts and orchestration behavior. Fresh v11 supplies separate LLM, generated-code, simulation, semantic-review, theory-revision, and Lean-diagnostic evidence. Tests and optional research acceptance are not theorem-proof evidence; v11 records zero kernel subclaims and zero exact theorem closures."
+    "validated_at": "2026-07-18T06:59:49Z",
+    "boundary": "Local regression validates runtime contracts and orchestration behavior. This patch made no live API call and provides no new theorem-proof or cross-task generalization evidence; exact source-theorem closure remains zero."
   },
   "latest_four_stage_route_planner_live_probe": {
     "run": "runs/main_worker_s14_v5_fdr_route_feedback_live_replay_20260713_v9_four_stage_split",
     "task_family": "multiple_testing/multiple_testing_fdr_bh",
     "provider": "anthropic",
     "model": "claude-opus-4-8",
+    "model_policy_status": "historical pre-ceiling probe; current runtime rejects this model before Anthropic client construction",
     "configured_stage_count": 4,
     "attempted_stage_count": 2,
     "route_core_contract_ok": true,
@@ -455,7 +468,7 @@
     "fdr_v3_formal_gaps": 4,
     "source_theorem_kernel_verified": false,
     "full_frontier_theorem_proved": false,
-    "remaining_metric_contract_gap": "Typed path/operator/threshold/aggregation authority, runtime replicate binding, and the independent lineage-bound semantic-review loop now exist locally. The remaining evidence gap is a fresh live two-family development-panel run showing both generated algorithm and simulation lanes receive valid independent Opus ACCEPT decisions without weakening the frozen protocol.",
+    "remaining_metric_contract_gap": "Typed path/operator/threshold/aggregation authority, runtime replicate binding, and the independent lineage-bound semantic-review loop now exist locally. The remaining evidence gap is a fresh live two-family development-panel run showing both generated algorithm and simulation lanes receive valid independent Sonnet-review ACCEPT decisions without weakening the frozen protocol.",
     "s14_satisfied": false
   },
   "latest_paper_and_open_source_reuse_audit": {

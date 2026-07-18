@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
+from .agent_runtime import agent_runtime_substage
+
 from .architect_metric_repair_ownership_router_llm import (
     ArchitectMetricRepairOwnershipRouterConfig,
     LLMArchitectMetricRepairOwnershipRouterAgent,
@@ -78,6 +80,33 @@ ARCHITECT_RUNTIME_SUBSYSTEMS = (
     "FormalizationGapPlanner",
     "CriticEvaluator",
 )
+RESEARCH_EVALUATION_MODES = frozenset({"research_eval", "capability_eval"})
+RESEARCH_EVAL_FORBIDDEN_FORMAL_SUBSYSTEMS = frozenset(
+    {
+        "FormalTargetSemanticReviewer",
+        "FormalizationEvaluator",
+        "TheoremReductionClosureProofEngineer",
+        "ExactSourceTheoremProofBodyExecutor",
+        "SourceSemanticProofEngineer",
+        "PseudoFormalBlockVerifier",
+        "SourceTheoremPromotionProofEngineer",
+        "ProofEngineer",
+        "ExactSourceTheoremProver",
+        "FormalizationGapPlanner",
+    }
+)
+
+
+def _research_evaluation_contract_flag(
+    evidence_contract: Mapping[str, Any],
+    requirement: str,
+) -> bool:
+    canonical = f"research_evaluation_requires_{requirement}"
+    legacy = f"capability_eval_requires_{requirement}"
+    value = evidence_contract.get(canonical)
+    if isinstance(value, bool):
+        return value
+    return evidence_contract.get(legacy) is True
 
 LONG_HORIZON_RESEARCH_GUIDANCE: dict[str, Any] = {
     "problem_analysis_before_retrieval": [
@@ -145,12 +174,12 @@ class ArchitectCoordinatorConfig:
     provider_name: str = "anthropic"
     max_repair_attempts: int = 2
     metric_semantic_reviewer_model: str = ""
-    metric_semantic_reviewer_model_tier: str = "opus"
+    metric_semantic_reviewer_model_tier: str = "sonnet"
     metric_semantic_reviewer_max_tokens: int = 7000
     metric_semantic_reviewer_max_revisions: int = 2
     metric_repair_ownership_router_enabled: bool = False
     metric_repair_ownership_router_model: str = ""
-    metric_repair_ownership_router_model_tier: str = "opus"
+    metric_repair_ownership_router_model_tier: str = "sonnet"
     metric_repair_ownership_router_max_tokens: int = 5000
 
 
@@ -260,6 +289,19 @@ class LLMArchitectCoordinatorAgent:
                     )
                     else {}
                 ),
+                fresh_candidate_revision_context=(
+                    architect_context.get(
+                        "architect_metric_protocol_fresh_candidate_revision", {}
+                    )
+                    if isinstance(
+                        architect_context.get(
+                            "architect_metric_protocol_fresh_candidate_revision",
+                            {},
+                        ),
+                        Mapping,
+                    )
+                    else {}
+                ),
             )
         effective_architect_context = (
             _architect_context_with_metric_requirement_authoring(
@@ -313,16 +355,24 @@ class LLMArchitectCoordinatorAgent:
                 runtime_config=runtime_config,
             )
 
-        return generate_validated_json_packet(
-            provider=self.provider,
-            request=request,
-            extract_payload=_extract_json_object,
-            build_packet=build_packet,
-            validate_packet=validate_architect_coordinator_packet,
-            validation_label="LLM ArchitectCoordinator packet",
-            max_repair_attempts=self.config.max_repair_attempts,
-            repair_context_builder=build_repair_context,
-        )
+        with agent_runtime_substage(
+            "architect_plan_generation",
+            metadata={
+                "model_tier": self.config.model_tier,
+                "max_packet_repair_attempts": self.config.max_repair_attempts,
+                "metric_protocol_authored": bool(metric_authoring_packet),
+            },
+        ):
+            return generate_validated_json_packet(
+                provider=self.provider,
+                request=request,
+                extract_payload=_extract_json_object,
+                build_packet=build_packet,
+                validate_packet=validate_architect_coordinator_packet,
+                validation_label="LLM ArchitectCoordinator packet",
+                max_repair_attempts=self.config.max_repair_attempts,
+                repair_context_builder=build_repair_context,
+            )
 
 
 def _architect_metric_authoring_deferred_for_active_replan(
@@ -334,11 +384,42 @@ def _architect_metric_authoring_deferred_for_active_replan(
         "runtime_generated_code_semantic_review_replan", {}
     )
     if isinstance(code_replan, Mapping) and code_replan:
+        resolution = architect_context.get(
+            "runtime_generated_code_semantic_review_replan_resolution", {}
+        )
+        if _generated_code_semantic_review_replan_is_resolved(
+            replan=code_replan,
+            resolution=resolution,
+        ):
+            return False
         return str(code_replan.get("repair_scope", "") or "").strip() != (
             "upstream_metric_contract"
         )
     packet_replan = architect_context.get("runtime_packet_validation_replan", {})
     return bool(isinstance(packet_replan, Mapping) and packet_replan)
+
+
+def _generated_code_semantic_review_replan_is_resolved(
+    *,
+    replan: Mapping[str, Any],
+    resolution: Any,
+) -> bool:
+    if not isinstance(resolution, Mapping):
+        return False
+    rejected_manifest_id = str(replan.get("source_manifest_id", "") or "")
+    return bool(
+        resolution.get("resolution_status")
+        == "SUPERSEDED_BY_FRESH_ACCEPTED_ARTIFACT"
+        and rejected_manifest_id
+        and resolution.get("rejected_source_manifest_id")
+        == rejected_manifest_id
+        and resolution.get("source_subsystem")
+        == replan.get("source_subsystem")
+        and str(resolution.get("accepted_source_manifest_id", "") or "")
+        and resolution.get("accepted_source_manifest_id")
+        != rejected_manifest_id
+        and str(resolution.get("accepted_review_execution_id", "") or "")
+    )
 
 
 def _architect_context_with_metric_requirement_authoring(
@@ -388,6 +469,9 @@ def _architect_context_with_metric_requirement_authoring(
             ),
             "semantic_review_independent_agent": bool(
                 semantic_review.get("independent_agent")
+            ),
+            "semantic_review_independent_invocation": bool(
+                semantic_review.get("independent_invocation")
             ),
             "semantic_review_independent_model": bool(
                 semantic_review.get("independent_model")
@@ -472,6 +556,9 @@ def _architect_metric_requirement_authoring_summary(
         "semantic_review_independent_agent": bool(
             semantic_review.get("independent_agent")
         ),
+        "semantic_review_independent_invocation": bool(
+            semantic_review.get("independent_invocation")
+        ),
         "semantic_review_independent_model": bool(
             semantic_review.get("independent_model")
         ),
@@ -523,7 +610,7 @@ def build_architect_coordinator_prompt(
             runtime_config.get("recommended_research_path", "") or ""
         ),
         "formal_required_for_final": formal_verification_policy == "required",
-        **_architect_runtime_capability_eval_contract(runtime_config),
+        **_architect_runtime_evaluation_contract(runtime_config),
         "policy_semantics": {
             "required": (
                 "full formal proof is an acceptance gate; unresolved formal "
@@ -604,14 +691,21 @@ def build_architect_coordinator_prompt(
         "Return ONLY one compact JSON object matching required_output_contract. The object "
         "must contain exactly the required top-level fields unless a field is needed for "
         "schema repair. Keep non-plan lists to at most 2 short strings or 1 short "
-        "object. subsystem_execution_plan is exempt. In capability_eval, "
+        "object. subsystem_execution_plan is exempt. In research_eval and capability_eval, "
         "empirical_metric_requirements is also exempt and must contain the minimum "
         "rows needed for the confirmatory SimulationEngineer experiment. Include compact "
         "objects for the "
         "workers you select and any mandatory stages whose objective or ordering you "
         "want to specialize. AgentRuntime will append provenance-marked empty shells "
         "for omitted mandatory evidence stages and use its typed defaults; it will not "
-        "invent research content. On resume or plan repair, "
+        "invent research content. When requested_evidence_contract.evaluation_mode is "
+        "research_eval, plan the domain-neutral research lane only: RetrievalMemory, "
+        "TheoryDeveloper, AlgorithmEngineer, SimulationEvaluator, "
+        "GeneratedCodeSemanticReviewer, and CriticEvaluator. Do not schedule formal "
+        "review, FormalizationEvaluator, ProofEngineer, theorem-prover, pseudo-formal, "
+        "or gap-planner stages in that mode. Preserve a mathematical formal_targets "
+        "handoff for later progressive formalization, and disclose that it is unverified. "
+        "On resume or plan repair, "
         "return the complete amended remaining graph rather than only the pending worker. Do not "
         "include paragraphs, Markdown, LaTeX derivations, optional long-form analysis sections, "
         "or code. Choose the earliest feasible next subsystem from next_actions "
@@ -1043,11 +1137,15 @@ ARCHITECT_COORDINATOR_OUTPUT_CONTRACT: dict[str, Any] = {
         "formal_verification_policy": "required|optional|advisory",
         "recommended_research_path": "simulation_first|proof_first|dual_track",
         "formal_required_for_final": "boolean",
-        "evaluation_mode": "debug|capability_eval",
+        "evaluation_mode": "debug|research_eval|capability_eval",
         "capability_eval_requires_generated_algorithm_code": "boolean",
         "capability_eval_requires_generated_simulation_code": "boolean",
         "capability_eval_requires_generated_code_semantic_review": "boolean",
         "capability_eval_requires_typed_metric_contracts": "boolean",
+        "research_evaluation_requires_generated_algorithm_code": "boolean",
+        "research_evaluation_requires_generated_simulation_code": "boolean",
+        "research_evaluation_requires_generated_code_semantic_review": "boolean",
+        "research_evaluation_requires_typed_metric_contracts": "boolean",
         "empirical_metric_protocol_phase": (
             "not_required|theory_prerequisite_pending|"
             "theory_informed_authoring_required|preexecution_review_accepted"
@@ -1260,7 +1358,7 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
                 "formal_required_for_final": {"type": "boolean"},
                 "evaluation_mode": {
                     "type": "string",
-                    "enum": ["debug", "capability_eval"],
+                    "enum": ["debug", "research_eval", "capability_eval"],
                 },
                 "capability_eval_requires_generated_algorithm_code": {
                     "type": "boolean"
@@ -1272,6 +1370,18 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
                     "type": "boolean"
                 },
                 "capability_eval_requires_typed_metric_contracts": {
+                    "type": "boolean"
+                },
+                "research_evaluation_requires_generated_algorithm_code": {
+                    "type": "boolean"
+                },
+                "research_evaluation_requires_generated_simulation_code": {
+                    "type": "boolean"
+                },
+                "research_evaluation_requires_generated_code_semantic_review": {
+                    "type": "boolean"
+                },
+                "research_evaluation_requires_typed_metric_contracts": {
                     "type": "boolean"
                 },
                 "empirical_metric_protocol_phase": {
@@ -1527,13 +1637,18 @@ def _architect_packet_repair_context(
             "Author subsystem_execution_plan rows for the intended research path; runtime-owned mandatory-stage shells are appended after generation.",
             "Do not omit or rewrite runtime_owned_evidence_contract fields.",
             (
-                "In capability_eval, preserve the runtime-owned metric phase. While "
+                "In research_eval or capability_eval, preserve the runtime-owned metric phase. While "
                 "theory_prerequisite_pending, leave empirical_metric_requirements "
                 "empty and route retrieval/theory only. After the structured theory "
                 "handoff and AlgorithmEngineer artifact, author the smallest "
                 "confirmatory simulation requirement set and freeze it only after "
                 "independent review; preserve any accepted frozen requirement set "
                 "unchanged on replans."
+            ),
+            (
+                "In research_eval, remove every strict formal subsystem from the "
+                "execution plan and route accepted empirical artifacts directly to "
+                "CriticEvaluator. Keep formal_targets only as an unverified future handoff."
             ),
             (
                 "In empirical_metric_requirements.target_subsystems, use only the "
@@ -1618,6 +1733,7 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                 errors.append(
                     f"literature_fair_comparison_plan entry missing or empty field: {field}"
                 )
+    evaluation_mode = ""
     evidence_contract = packet.get("evidence_contract", {})
     if isinstance(evidence_contract, Mapping):
         policy = str(
@@ -1643,6 +1759,7 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
         evaluation_mode = str(
             evidence_contract.get("evaluation_mode", "") or ""
         ).strip()
+        research_evaluation = evaluation_mode in RESEARCH_EVALUATION_MODES
         metric_policy = str(
             evidence_contract.get("generated_metric_contract_policy", "") or ""
         ).strip()
@@ -1660,8 +1777,9 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                 "evidence_contract.generated_metric_contract_policy must be "
                 "typed_artifact_bound_required or typed_artifact_bound_preferred"
             )
-        typed_required = evidence_contract.get(
-            "capability_eval_requires_typed_metric_contracts"
+        typed_required = _research_evaluation_contract_flag(
+            evidence_contract,
+            "typed_metric_contracts",
         )
         if typed_required is not None and not isinstance(typed_required, bool):
             errors.append(
@@ -1676,18 +1794,18 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                 "evidence_contract.generated_metric_requirement_authority_policy "
                 "must be architect-authored and coding-agent-bound"
             )
-        if evaluation_mode == "capability_eval" and (
+        if research_evaluation and (
             typed_required is not True
             or metric_policy != "typed_artifact_bound_required"
             or authority_policy
             != GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED
-            or evidence_contract.get(
-                "capability_eval_requires_generated_code_semantic_review"
+            or not _research_evaluation_contract_flag(
+                evidence_contract,
+                "generated_code_semantic_review",
             )
-            is not True
         ):
             errors.append(
-                "capability_eval requires typed artifact-bound contracts backed "
+                "research evaluation requires typed artifact-bound contracts backed "
                 "by Architect-authored metric requirements and independent "
                 "generated-code semantic review"
             )
@@ -1711,23 +1829,23 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
         expected_runtime_replicates = evidence_contract.get(
             "generated_sandbox_runtime_replicates"
         )
-        if evaluation_mode == "capability_eval" and (
+        if research_evaluation and (
             isinstance(expected_runtime_replicates, bool)
             or not isinstance(expected_runtime_replicates, int)
             or expected_runtime_replicates <= 0
         ):
             errors.append(
-                "capability_eval requires a positive runtime-owned "
+                "research evaluation requires a positive runtime-owned "
                 "generated_sandbox_runtime_replicates value"
             )
         if requirements not in (None, [], {}):
-            if evaluation_mode == "capability_eval" and (
+            if research_evaluation and (
                 metric_protocol_phase
                 != METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED
                 or metric_protocol_execution_authorized is not True
             ):
                 errors.append(
-                    "capability_eval metric requirements authorize execution only "
+                    "research-evaluation metric requirements authorize execution only "
                     "after independent pre-execution review acceptance"
                 )
             errors.extend(
@@ -1736,30 +1854,30 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                     required_target_subsystems=(
                         GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
                     )
-                    if evaluation_mode == "capability_eval"
+                    if research_evaluation
                     else (),
                     expected_runtime_replicates=(
                         expected_runtime_replicates
-                        if evaluation_mode == "capability_eval"
+                        if research_evaluation
                         and isinstance(expected_runtime_replicates, int)
                         and not isinstance(expected_runtime_replicates, bool)
                         else None
                     ),
                 )
             )
-            if evaluation_mode == "capability_eval":
+            if research_evaluation:
                 review = evidence_contract.get(
                     "empirical_metric_requirements_preexecution_review", {}
                 )
                 if not isinstance(review, Mapping):
                     errors.append(
-                        "capability-eval metric requirements require a typed "
+                        "research-evaluation metric requirements require a typed "
                         "pre-execution semantic review certificate"
                     )
                 else:
                     if review.get("overall_verdict") != "ACCEPT":
                         errors.append(
-                            "capability-eval metric requirements require an ACCEPT "
+                            "research-evaluation metric requirements require an ACCEPT "
                             "pre-execution semantic review"
                         )
                     for field in (
@@ -1778,13 +1896,12 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                         review.get(field) is not True
                         for field in (
                             "independent_agent",
-                            "independent_model",
-                            "independent_model_tier",
+                            "independent_invocation",
                         )
                     ):
                         errors.append(
                             "metric pre-execution review certificate must record "
-                            "independent agent, model, and model tier"
+                            "an independent agent and separate blinded invocation"
                         )
                     if str(
                         review.get(
@@ -1802,7 +1919,7 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                             "metric pre-execution review certificate is not bound "
                             "to the frozen requirement set"
                         )
-        elif evaluation_mode == "capability_eval":
+        elif research_evaluation:
             if (
                 metric_protocol_phase
                 not in {
@@ -1812,7 +1929,7 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                 or metric_protocol_execution_authorized is not False
             ):
                 errors.append(
-                    "capability_eval may omit empirical_metric_requirements only "
+                    "research evaluation may omit empirical_metric_requirements only "
                     "while the TheoryDeveloper prerequisite or an explicit "
                     "theory-informed authoring turn remains pending and metric "
                     "protocol execution stays unauthorized"
@@ -1850,6 +1967,16 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
             errors.append(
                 "subsystem_execution_plan missing evidence-contract-required "
                 f"subsystem: {subsystem}"
+            )
+    if evaluation_mode == "research_eval":
+        forbidden_formal_subsystems = sorted(
+            planned_subsystems & RESEARCH_EVAL_FORBIDDEN_FORMAL_SUBSYSTEMS
+        )
+        if forbidden_formal_subsystems:
+            errors.append(
+                "research_eval must keep the strict formal lane out of this run; "
+                "remove formal subsystems: "
+                + ", ".join(forbidden_formal_subsystems)
             )
     forbidden = _contains_forbidden_claim(packet)
     if forbidden:
@@ -1906,8 +2033,7 @@ def _architect_runtime_owned_evidence_contract(
         isinstance(metric_authoring, Mapping)
         and metric_authoring.get("semantic_review_status") == "ACCEPT"
         and metric_authoring.get("semantic_review_independent_agent") is True
-        and metric_authoring.get("semantic_review_independent_model") is True
-        and metric_authoring.get("semantic_review_independent_model_tier") is True
+        and metric_authoring.get("semantic_review_independent_invocation") is True
     )
     if isinstance(prior_requirements, list) and prior_requirements:
         contract["empirical_metric_requirements"] = [
@@ -1976,6 +2102,9 @@ def _architect_runtime_owned_evidence_contract(
             "independent_agent": bool(
                 metric_authoring.get("semantic_review_independent_agent")
             ),
+            "independent_invocation": bool(
+                metric_authoring.get("semantic_review_independent_invocation")
+            ),
             "independent_model": bool(
                 metric_authoring.get("semantic_review_independent_model")
             ),
@@ -2003,9 +2132,10 @@ def _architect_runtime_owned_evidence_contract(
     ).strip()
     if requested_path:
         contract["recommended_research_path"] = requested_path
-    contract.update(_architect_runtime_capability_eval_contract(config))
-    capability_eval = bool(
-        contract.get("capability_eval_requires_typed_metric_contracts") is True
+    contract.update(_architect_runtime_evaluation_contract(config))
+    capability_eval = _research_evaluation_contract_flag(
+        contract,
+        "typed_metric_contracts",
     )
     theory_material = theory_informed_metric_protocol_material(context)
     accepted_requirements = bool(contract.get("empirical_metric_requirements"))
@@ -2160,23 +2290,34 @@ def _elaborate_architect_subsystem_execution_plan(
     return plan_rows, provenance
 
 
-def _architect_runtime_capability_eval_contract(
+def _architect_runtime_evaluation_contract(
     runtime_config: Mapping[str, Any],
 ) -> dict[str, Any]:
     evaluation_mode = str(runtime_config.get("evaluation_mode", "debug") or "debug")
+    research_evaluation = evaluation_mode in RESEARCH_EVALUATION_MODES
     capability_eval = evaluation_mode == "capability_eval"
     return {
         "evaluation_mode": evaluation_mode,
-        "capability_eval_requires_generated_algorithm_code": capability_eval,
-        "capability_eval_requires_generated_simulation_code": capability_eval,
-        "capability_eval_requires_generated_code_semantic_review": capability_eval,
+        "research_evaluation_requires_generated_algorithm_code": (
+            research_evaluation
+        ),
+        "research_evaluation_requires_generated_simulation_code": (
+            research_evaluation
+        ),
+        "research_evaluation_requires_generated_code_semantic_review": (
+            research_evaluation
+        ),
+        "research_evaluation_requires_typed_metric_contracts": research_evaluation,
+        "capability_eval_requires_generated_algorithm_code": research_evaluation,
+        "capability_eval_requires_generated_simulation_code": research_evaluation,
+        "capability_eval_requires_generated_code_semantic_review": research_evaluation,
         "capability_eval_requires_formal_target_semantic_review": bool(
             capability_eval
             and runtime_config.get(
                 "formal_target_semantic_review_required", False
             )
         ),
-        "capability_eval_requires_typed_metric_contracts": capability_eval,
+        "capability_eval_requires_typed_metric_contracts": research_evaluation,
         "capability_eval_requires_formalizer_lean_candidate": capability_eval,
         "generated_sandbox_runtime_replicates": (
             generated_sandbox_runtime_replicates(
@@ -2185,12 +2326,12 @@ def _architect_runtime_capability_eval_contract(
         ),
         "generated_metric_contract_policy": (
             "typed_artifact_bound_required"
-            if capability_eval
+            if research_evaluation
             else "typed_artifact_bound_preferred"
         ),
         "generated_metric_requirement_authority_policy": (
             GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED
-            if capability_eval
+            if research_evaluation
             else GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED
         ),
         "capability_eval_requires_exact_source_theorem_prover": (
@@ -2198,10 +2339,14 @@ def _architect_runtime_capability_eval_contract(
             and bool(runtime_config.get("exact_source_theorem_prover_available", False))
         ),
         "theorem_reduction_closure_proofengineer_required": bool(
-            runtime_config.get("theorem_closure_proofengineer_bridge", False)
+            evaluation_mode != "research_eval"
+            and runtime_config.get(
+                "theorem_closure_proofengineer_bridge", False
+            )
         ),
         "exact_source_theorem_proof_body_executor_required": bool(
-            runtime_config.get(
+            evaluation_mode != "research_eval"
+            and runtime_config.get(
                 "source_theorem_formal_environment_proofengineer_bridge",
                 False,
             )
@@ -2211,13 +2356,16 @@ def _architect_runtime_capability_eval_contract(
             )
         ),
         "source_semantic_proofengineer_required": bool(
-            runtime_config.get("source_semantic_proofengineer_bridge", False)
+            evaluation_mode != "research_eval"
+            and runtime_config.get("source_semantic_proofengineer_bridge", False)
         ),
         "pseudo_formal_block_verifier_required": bool(
-            runtime_config.get("pseudo_formal_block_verifier_runtime", False)
+            evaluation_mode != "research_eval"
+            and runtime_config.get("pseudo_formal_block_verifier_runtime", False)
         ),
         "source_theorem_promotion_proofengineer_required": bool(
-            runtime_config.get(
+            evaluation_mode != "research_eval"
+            and runtime_config.get(
                 "source_theorem_promotion_proofengineer_bridge", False
             )
         ),
@@ -2228,30 +2376,43 @@ def _required_architect_plan_subsystems(
     evidence_contract: Mapping[str, Any],
 ) -> tuple[str, ...]:
     required: set[str] = set()
-    if str(evidence_contract.get("evaluation_mode", "") or "") == "capability_eval":
+    evaluation_mode = str(evidence_contract.get("evaluation_mode", "") or "")
+    if evaluation_mode in RESEARCH_EVALUATION_MODES:
         required.update(("RetrievalMemory", "TheoryDeveloper", "CriticEvaluator"))
-        if evidence_contract.get("capability_eval_requires_generated_simulation_code") is True:
+        if _research_evaluation_contract_flag(
+            evidence_contract,
+            "generated_simulation_code",
+        ):
             required.add("SimulationEvaluator")
-        if evidence_contract.get("capability_eval_requires_generated_algorithm_code") is True:
+        if _research_evaluation_contract_flag(
+            evidence_contract,
+            "generated_algorithm_code",
+        ):
             required.add("AlgorithmEngineer")
-        if (
-            evidence_contract.get(
-                "capability_eval_requires_generated_code_semantic_review"
-            )
-            is True
+        if _research_evaluation_contract_flag(
+            evidence_contract,
+            "generated_code_semantic_review",
         ):
             required.add("GeneratedCodeSemanticReviewer")
         if (
-            evidence_contract.get(
+            evaluation_mode == "capability_eval"
+            and evidence_contract.get(
                 "capability_eval_requires_formal_target_semantic_review"
             )
             is True
         ):
             required.add("FormalTargetSemanticReviewer")
-        if evidence_contract.get("capability_eval_requires_formalizer_lean_candidate") is True:
+        if (
+            evaluation_mode == "capability_eval"
+            and evidence_contract.get(
+                "capability_eval_requires_formalizer_lean_candidate"
+            )
+            is True
+        ):
             required.add("FormalizationEvaluator")
         if (
-            evidence_contract.get(
+            evaluation_mode == "capability_eval"
+            and evidence_contract.get(
                 "capability_eval_requires_exact_source_theorem_prover"
             )
             is True

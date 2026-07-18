@@ -5,6 +5,8 @@ import shutil
 from copy import deepcopy
 from pathlib import Path
 
+import pytest
+
 from ai_statistician.cli import main
 from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_LEGACY_CONTEXT_FIELD_ALIASES,
@@ -15451,27 +15453,16 @@ def test_llm_route_planner_rejects_outside_cost_tier_model_for_tier_request() ->
     root.mkdir(parents=True, exist_ok=True)
     input_json = _write_light_input(root)
 
-    payload = export_formalization_gap_planner_llm_route_planner(
-        input_json,
-        out_dir,
-        provider_name="anthropic",
-        model="claude-fable-5",
-        model_tier="sonnet",
-    )
+    with pytest.raises(ValueError, match="capped at sonnet"):
+        export_formalization_gap_planner_llm_route_planner(
+            input_json,
+            out_dir,
+            provider_name="anthropic",
+            model="claude-fable-5",
+            model_tier="sonnet",
+        )
 
-    assert not payload["all_ok"]
-    assert payload["by_request_model_tier"] == {"sonnet": 1}
-    assert payload["n_request_model_tier_mismatches"] == 1
-    mismatch = payload["request_model_tier_mismatches"][0]
-    assert mismatch["model"] == "claude-fable-5"
-    assert mismatch["model_tier"] == "sonnet"
-    assert "outside-tier Claude fable model" in mismatch["error"]
-    packet = payload["request_packets"][0]
-    assert packet["model"] == "claude-fable-5"
-    assert packet["model_tier"] == "sonnet"
-    row = payload["rows"][0]
-    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_REQUEST_CONTRACT"
-    assert any("outside-tier Claude fable model" in error for error in row["errors"])
+    assert not out_dir.exists()
 
 
 def test_llm_route_planner_auto_uses_sonnet_for_incomplete_realization_feedback() -> None:

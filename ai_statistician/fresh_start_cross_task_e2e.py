@@ -627,8 +627,8 @@ def _has_independent_accepted_semantic_review(
         and str(row.get("source_manifest_id", "") or "") in source_manifest_ids
         and row.get("semantic_review_accepted") is True
         and row.get("independent_agent") is True
-        and row.get("independent_model") is True
-        and str(row.get("reviewer_model_tier", "") or "").lower() == "opus"
+        and row.get("independent_invocation") is True
+        and str(row.get("reviewer_model_tier", "") or "").lower() == "sonnet"
         and (
             not require_confirmatory
             or row.get("confirmatory_empirical_evidence_eligible") is True

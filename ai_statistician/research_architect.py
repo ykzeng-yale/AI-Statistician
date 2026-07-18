@@ -93,7 +93,7 @@ class ResearchArchitectConfig:
     model_tier: str = "sonnet"
     max_tokens: int = 4500
     serious_model: str = ""
-    serious_model_tier: str = "opus"
+    serious_model_tier: str = "sonnet"
     serious_max_tokens: int = 8000
     temperature: float = 0.2
     provider_name: str = "anthropic"
@@ -507,7 +507,8 @@ def _theory_developer_prompt_mode(
     )
     if (
         isinstance(evidence_contract, Mapping)
-        and evidence_contract.get("evaluation_mode") == "capability_eval"
+        and evidence_contract.get("evaluation_mode")
+        in {"research_eval", "capability_eval"}
     ):
         return THEORY_PROMPT_MODE_SERIOUS_CAPABILITY
     return THEORY_PROMPT_MODE_COMPACT

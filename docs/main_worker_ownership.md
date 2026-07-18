@@ -1491,9 +1491,9 @@ Architect requirements remain proposals, but their statistical meaning now has
 an independent pre-execution authority gate. The gate is theory-informed: the
 initial Architect plan records `theory_prerequisite_pending`, Retrieval and
 TheoryDeveloper define the procedure and assumptions, and TheoryDeveloper then
-returns a lossless semantic packet to a Sonnet metric author. A separate Opus
-reviewer evaluates six domain-general dimensions before code or results exist.
-On `REVISE`, an independent Opus ownership router receives the source theory,
+returns a lossless semantic packet to a Sonnet metric author. A separate Sonnet
+reviewer invocation evaluates six domain-general dimensions before code or results exist.
+On `REVISE`, an independent Sonnet ownership-router invocation receives the source theory,
 candidate, and substantive findings with the reviewer's scope labels and global
 repair instructions removed. It decides which immutable artifact must change.
 Metric-only findings feed the rejected candidate back to the bounded metric
@@ -1503,11 +1503,11 @@ Contradictory or uncertain ownership fails closed. The revised theory must then
 pass a fresh author/reviewer cycle. Capability-eval and upstream-revision turns use the serious theory
 contract: five to eight linked derivation steps, at least four equation rows,
 and explicit calibration, feasibility, assumption, and estimand audits. They
-use an independent Opus model route with an 8000-token minimum budget, while
-compact discovery remains Sonnet; topology validates the resolved serious
+use a distinct Sonnet serious-workspace route with an 8000-token minimum budget,
+while compact discovery also remains Sonnet; topology validates the resolved
 model and contextual tier before execution. The runtime permits at most two
 upstream revisions and authorizes no execution until `ACCEPT` has distinct
-agent, model, and model-tier provenance plus an exact requirement-set
+agent and invocation provenance plus an exact requirement-set
 fingerprint. Every rejected set remains in typed revision history. Model tier
 and requirement pass cannot promote a theory or Lean claim.
 

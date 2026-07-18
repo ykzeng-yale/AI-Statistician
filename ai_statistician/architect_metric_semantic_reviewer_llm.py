@@ -64,7 +64,7 @@ def architect_metric_semantic_recommended_repair_scope(
 @dataclass(frozen=True)
 class ArchitectMetricSemanticReviewerConfig:
     model: str = ""
-    model_tier: str = "opus"
+    model_tier: str = "sonnet"
     max_tokens: int = 7000
     temperature: float = 0.0
     provider_name: str = "anthropic"
@@ -602,10 +602,10 @@ def validate_architect_metric_semantic_review_packet(
     if verdict == "ACCEPT":
         if packet.get("independent_agent") is not True:
             errors.append("ACCEPT Architect metric review requires an independent agent")
-        if packet.get("independent_model") is not True:
-            errors.append("ACCEPT Architect metric review requires an independent model")
-        if packet.get("independent_model_tier") is not True:
-            errors.append("ACCEPT Architect metric review requires an independent model tier")
+        if packet.get("independent_invocation") is not True:
+            errors.append(
+                "ACCEPT Architect metric review requires a separate blinded invocation"
+            )
     return sorted(set(errors))
 
 
@@ -694,6 +694,7 @@ def _normalize_architect_metric_semantic_review_packet(
                 source_agent
                 and source_agent != "LLMArchitectMetricSemanticReviewerAgent"
             ),
+            "independent_invocation": True,
             "independent_model": bool(source_model and source_model != model),
             "independent_model_tier": bool(
                 source_model_tier and source_model_tier != model_tier

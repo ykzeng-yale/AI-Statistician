@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
@@ -11,6 +12,9 @@ from .agent_runtime import (
 )
 from .fingerprint import stable_hash
 from .generated_metric_contract import generated_metric_requirement_set_id
+from .metric_protocol_stage import (
+    METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED,
+)
 from .architect_metric_semantic_reviewer_llm import (
     ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY,
 )
@@ -21,6 +25,34 @@ from .research_schema import OpenResearchQuestion
 
 
 EVALUATION_PROTOCOL_REVISION_SCHEMA_VERSION = 1
+
+
+def invalidate_metric_protocol_authorization(
+    architect_context: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return context for a new theory/protocol candidate with no stale authority."""
+
+    context = deepcopy(dict(architect_context))
+    plan = context.get("architect_runtime_plan", {})
+    plan = deepcopy(dict(plan)) if isinstance(plan, Mapping) else {}
+    contract = plan.get("evidence_contract", {})
+    contract = deepcopy(dict(contract)) if isinstance(contract, Mapping) else {}
+    for field in (
+        "empirical_metric_requirement_set_id",
+        "empirical_metric_requirements_frozen_from_prior_architect_plan",
+        "empirical_metric_requirements_frozen_from_metric_planner",
+        "empirical_metric_requirements_preexecution_review",
+    ):
+        contract.pop(field, None)
+    contract["empirical_metric_requirements"] = []
+    contract["empirical_metric_protocol_phase"] = (
+        METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED
+    )
+    contract["metric_protocol_execution_authorized"] = False
+    plan["evidence_contract"] = contract
+    context["architect_runtime_plan"] = plan
+    context.pop("architect_metric_requirement_authoring", None)
+    return context
 
 
 def metric_protocol_upstream_theory_revision_feedback_errors(
@@ -423,7 +455,7 @@ def architect_preexecution_metric_protocol_rejection_result(
             ),
         }
         produced_artifacts[feedback_id] = feedback
-        next_context = dict(context)
+        next_context = invalidate_metric_protocol_authorization(context)
         next_context.pop("architect_metric_protocol_theory_material", None)
         next_context["previous_theory_packet_id"] = source_theory_packet_id
         next_context["environment_feedback"] = feedback
@@ -548,6 +580,8 @@ def _architect_post_result_metric_protocol_revision_result(
     task: AgentTask,
     question: OpenResearchQuestion,
     architect_context: Mapping[str, Any],
+    max_fresh_candidate_revisions: int = 0,
+    base_seed: int = 0,
 ) -> AgentStepResult | None:
     replan = architect_context.get(
         "runtime_generated_code_semantic_review_replan", {}
@@ -586,6 +620,48 @@ def _architect_post_result_metric_protocol_revision_result(
         )
         if str(value).strip()
     }
+    structural_findings = _post_result_protocol_structural_findings(replan)
+    prior_cycle = architect_context.get(
+        "runtime_evaluation_protocol_revision_cycle", {}
+    )
+    if not isinstance(prior_cycle, Mapping):
+        prior_cycle = {}
+    try:
+        revisions_used = max(
+            0, int(prior_cycle.get("fresh_candidate_revisions_used", 0) or 0)
+        )
+    except (TypeError, ValueError):
+        revisions_used = 0
+    max_revisions = max(0, int(max_fresh_candidate_revisions or 0))
+    fresh_candidate_auto_routed = bool(
+        requirement_set_id
+        and requirement_rows
+        and structural_findings
+        and revisions_used < max_revisions
+    )
+    next_revision_count = (
+        revisions_used + 1 if fresh_candidate_auto_routed else revisions_used
+    )
+    fresh_candidate_id = ""
+    fresh_candidate_seed: int | None = None
+    if fresh_candidate_auto_routed:
+        fresh_candidate_id = "evaluation_protocol_candidate:" + stable_hash(
+            [
+                question.id,
+                requirement_set_id,
+                replan.get("review_execution_id", ""),
+                next_revision_count,
+            ]
+        )[:20]
+        fresh_candidate_seed = _versioned_fresh_candidate_seed(
+            base_seed=base_seed,
+            question_id=question.id,
+            source_requirement_set_id=requirement_set_id,
+            source_review_execution_id=str(
+                replan.get("review_execution_id", "") or ""
+            ),
+            revision_count=next_revision_count,
+        )
     manifest_id = "evaluation_protocol_revision_required:" + stable_hash(
         [
             question.id,
@@ -646,6 +722,12 @@ def _architect_post_result_metric_protocol_revision_result(
         "current_candidate_artifacts_preserved": True,
         "post_result_protocol_mutation_allowed": False,
         "fresh_candidate_required": True,
+        "fresh_candidate_auto_routed": fresh_candidate_auto_routed,
+        "fresh_candidate_id": fresh_candidate_id,
+        "fresh_candidate_seed": fresh_candidate_seed,
+        "fresh_candidate_revision_count": next_revision_count,
+        "max_fresh_candidate_revisions": max_revisions,
+        "fresh_candidate_feedback_sanitized": True,
         "fresh_candidate_entry_gate": (
             "Author a new versioned metric requirement set before execution, pass "
             "independent ArchitectMetricSemanticReviewer review, and rerun every "
@@ -676,15 +758,72 @@ def _architect_post_result_metric_protocol_revision_result(
             "kernel_verified": False,
         },
     )
+    next_task: AgentTask | None = None
+    status = "BLOCKED"
+    failure_classification = "evaluation_protocol_revision_required"
+    rationale = (
+        "Independent post-execution semantic review identified the frozen "
+        "metric contract as the blocker. The current candidate is stopped with "
+        "EVALUATION_PROTOCOL_REVISION_REQUIRED; its artifacts and requirement "
+        "fingerprint are preserved, and only a fresh independently reviewed "
+        "protocol run may continue."
+    )
+    if fresh_candidate_auto_routed and fresh_candidate_seed is not None:
+        next_context = _fresh_protocol_candidate_architect_context(
+            architect_context=architect_context,
+            revision_manifest=manifest,
+            source_requirement_rows=requirement_rows,
+            structural_findings=structural_findings,
+            fresh_candidate_id=fresh_candidate_id,
+            fresh_candidate_seed=fresh_candidate_seed,
+            revision_count=next_revision_count,
+            max_revisions=max_revisions,
+        )
+        next_task = AgentTask(
+            task_id=(
+                f"architect-fresh-metric-protocol:{question.id}:"
+                f"{stable_hash([manifest_id, fresh_candidate_id])[:8]}"
+            ),
+            owner_subsystem="ArchitectCoordinator",
+            objective=(
+                "Author and independently review a versioned fresh metric "
+                "protocol after preserving the rejected candidate."
+            ),
+            inputs={
+                "question": {
+                    "id": question.id,
+                    "title": question.title,
+                    "description": question.description,
+                    "tags": list(question.tags),
+                },
+                "architect_context": next_context,
+                "environment_feedback": next_context[
+                    "architect_metric_protocol_fresh_candidate_revision"
+                ],
+            },
+            allowed_tools=("model_backend", "blackboard", "evidence_ledger"),
+            expected_artifacts=("architect_coordinator_proposal",),
+            acceptance_gate=(
+                "a different requirement-set fingerprint passes independent "
+                "pre-execution review before fresh-seed execution"
+            ),
+            stop_condition=(
+                "fresh candidate executes under its new frozen protocol or the "
+                "bounded revision budget fails closed"
+            ),
+        )
+        status = "REROUTE"
+        failure_classification = "evaluation_protocol_fresh_candidate_requested"
+        rationale = (
+            "The rejected candidate and requirement fingerprint remain immutable. "
+            "Within the configured budget, ArchitectCoordinator is starting a "
+            "versioned candidate from sanitized structural feedback; its protocol "
+            "must receive independent pre-execution review and all confirmatory "
+            "simulation must rerun under a fresh seed."
+        )
     return AgentStepResult(
-        status="BLOCKED",
-        rationale=(
-            "Independent post-execution semantic review identified the frozen "
-            "metric contract as the blocker. The current candidate is stopped with "
-            "EVALUATION_PROTOCOL_REVISION_REQUIRED; its artifacts and requirement "
-            "fingerprint are preserved, and only a fresh independently reviewed "
-            "protocol run may continue."
-        ),
+        status=status,
+        rationale=rationale,
         produced_artifacts={manifest_id: manifest},
         observations=(
             EnvironmentObservation(
@@ -698,10 +837,180 @@ def _architect_post_result_metric_protocol_revision_result(
                     "disposition": manifest["disposition"],
                     "source_requirement_set_id": requirement_set_id,
                     "fresh_candidate_required": True,
+                    "fresh_candidate_auto_routed": fresh_candidate_auto_routed,
+                    "fresh_candidate_id": fresh_candidate_id,
+                    "fresh_candidate_seed": fresh_candidate_seed,
                     "proof_evidence_status": manifest["proof_evidence_status"],
                 },
             ),
         ),
         evidence_entries=(evidence,),
-        failure_classification="evaluation_protocol_revision_required",
+        next_task=next_task,
+        failure_classification=failure_classification,
     )
+
+
+def _post_result_protocol_structural_findings(
+    replan: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    findings: list[dict[str, Any]] = []
+    for index, row in enumerate(replan.get("findings", []) or []):
+        if not isinstance(row, Mapping):
+            continue
+        required_change = str(row.get("required_change", "") or "").strip()
+        if not required_change:
+            continue
+        findings.append(
+            {
+                "source_finding_index": index,
+                "severity": str(row.get("severity", "") or ""),
+                "category": str(row.get("category", "") or ""),
+                "required_change": required_change,
+            }
+        )
+    return findings
+
+
+def _versioned_fresh_candidate_seed(
+    *,
+    base_seed: int,
+    question_id: str,
+    source_requirement_set_id: str,
+    source_review_execution_id: str,
+    revision_count: int,
+) -> int:
+    modulus = 2_147_483_647
+    seed = int(
+        stable_hash(
+            [
+                int(base_seed),
+                question_id,
+                source_requirement_set_id,
+                source_review_execution_id,
+                int(revision_count),
+            ]
+        )[:12],
+        16,
+    ) % modulus
+    if seed == int(base_seed) % modulus:
+        seed = (seed + 1) % modulus
+    return seed or 1
+
+
+def _fresh_protocol_candidate_architect_context(
+    *,
+    architect_context: Mapping[str, Any],
+    revision_manifest: Mapping[str, Any],
+    source_requirement_rows: list[dict[str, Any]],
+    structural_findings: list[dict[str, Any]],
+    fresh_candidate_id: str,
+    fresh_candidate_seed: int,
+    revision_count: int,
+    max_revisions: int,
+) -> dict[str, Any]:
+    context = invalidate_metric_protocol_authorization(architect_context)
+
+    for field in (
+        "architect_metric_requirement_authoring",
+        "architect_metric_protocol_prior_rejection",
+        "runtime_generated_code_semantic_review_replan",
+        "runtime_metric_gate_replan",
+        "runtime_feedback_loop",
+        "simulation_manifest_id",
+    ):
+        context.pop(field, None)
+    source_manifest_id = str(
+        revision_manifest.get("source_manifest_id", "") or ""
+    )
+    if source_manifest_id:
+        context["previous_simulation_manifest_id"] = source_manifest_id
+
+    theory_material = context.get(
+        "architect_metric_protocol_theory_material", {}
+    )
+    if not isinstance(theory_material, Mapping):
+        theory_material = {}
+
+    revision_context = {
+        "artifact_kind": "RuntimeEvaluationProtocolFreshCandidateContext",
+        "source_revision_manifest_id": str(
+            revision_manifest.get("manifest_id", "") or ""
+        ),
+        "source_revision_manifest_hash": stable_hash(dict(revision_manifest)),
+        "source_requirement_set_id": str(
+            revision_manifest.get("source_requirement_set_id", "") or ""
+        ),
+        "source_requirement_set_fingerprint": str(
+            revision_manifest.get("source_requirement_set_fingerprint", "") or ""
+        ),
+        "source_requirement_rows": deepcopy(source_requirement_rows),
+        "structural_review_findings": deepcopy(structural_findings),
+        "current_source_theory_packet_id": str(
+            theory_material.get("source_theory_packet_id", "") or ""
+        ),
+        "current_source_theory_packet_hash": str(
+            theory_material.get("source_theory_packet_hash", "") or ""
+        ),
+        "fresh_candidate_id": fresh_candidate_id,
+        "fresh_candidate_seed": fresh_candidate_seed,
+        "fresh_candidate_revision_count": revision_count,
+        "max_fresh_candidate_revisions": max_revisions,
+        "prior_candidate_execution_observed": True,
+        "raw_execution_artifacts_included": False,
+        "structural_feedback_may_summarize_prior_observations": True,
+        "post_result_threshold_relaxation_allowed": False,
+        "different_requirement_set_required": True,
+        "all_confirmatory_artifacts_must_rerun": True,
+        "proof_evidence_status": (
+            "EVALUATION_PROTOCOL_FRESH_CANDIDATE_CONTEXT_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": (
+            "This context excludes raw execution artifacts but exposes prior frozen "
+            "requirements and reviewer-authored structural changes, which may "
+            "summarize observed failures. It may start a versioned candidate but "
+            "cannot rehabilitate the failed candidate or authorize post-result "
+            "threshold relaxation."
+        ),
+    }
+    context["architect_metric_protocol_fresh_candidate_revision"] = (
+        revision_context
+    )
+    context["environment_feedback"] = revision_context
+    context["runtime_candidate_id"] = fresh_candidate_id
+    context["runtime_candidate_seed"] = fresh_candidate_seed
+    context["runtime_evaluation_protocol_revision_cycle"] = {
+        "artifact_kind": "RuntimeEvaluationProtocolRevisionCycle",
+        "fresh_candidate_revisions_used": revision_count,
+        "max_fresh_candidate_revisions": max_revisions,
+        "current_candidate_id": fresh_candidate_id,
+        "source_revision_manifest_id": revision_context[
+            "source_revision_manifest_id"
+        ],
+        "proof_evidence_status": (
+            "EVALUATION_PROTOCOL_REVISION_CYCLE_NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+    metric_gate = context.get("architect_metric_protocol_gate", {})
+    metric_gate = dict(metric_gate) if isinstance(metric_gate, Mapping) else {}
+    for field in ("accepted_requirement_set_id", "deferred_next_task"):
+        metric_gate.pop(field, None)
+    metric_gate.update(
+        {
+            "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+            "source_requirement_set_id": revision_context[
+                "source_requirement_set_id"
+            ],
+            "fresh_candidate_id": fresh_candidate_id,
+            "fresh_candidate_revision_count": revision_count,
+            "max_fresh_candidate_revisions": max_revisions,
+            "required_disposition": "FRESH_PREEXECUTION_REVIEW_ACCEPTED",
+            "execution_authorized": False,
+            "consumed": False,
+            "proof_evidence_status": (
+                "ARCHITECT_METRIC_PROTOCOL_GATE_NOT_PROOF_EVIDENCE"
+            ),
+        }
+    )
+    context["architect_metric_protocol_gate"] = metric_gate
+    return context

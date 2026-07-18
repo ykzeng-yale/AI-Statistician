@@ -274,8 +274,9 @@ def _complete_task(
             "source_manifest_id": algorithm_id,
             "semantic_review_accepted": True,
             "independent_agent": True,
+            "independent_invocation": True,
             "independent_model": True,
-            "reviewer_model_tier": "opus",
+            "reviewer_model_tier": "sonnet",
             "confirmatory_empirical_evidence_eligible": True,
         },
         f"generated_code_semantic_review_execution:{question_id}:simulation": {
@@ -290,8 +291,9 @@ def _complete_task(
             "source_manifest_id": simulation_id,
             "semantic_review_accepted": True,
             "independent_agent": True,
+            "independent_invocation": True,
             "independent_model": True,
-            "reviewer_model_tier": "opus",
+            "reviewer_model_tier": "sonnet",
             "confirmatory_empirical_evidence_eligible": True,
         },
         f"formalizer_proposal:{question_id}": {

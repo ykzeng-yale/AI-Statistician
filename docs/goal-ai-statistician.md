@@ -64,15 +64,16 @@ Every central change must therefore satisfy all of the following:
 The domain-neutral generated-code semantic-review loop is now part of the one
 AgentRuntime. It is required by full capability evaluation and is scored only
 when both generated algorithm and generated simulation artifacts receive
-lineage-valid independent Opus acceptance. This closes the specific
+lineage-valid independent Sonnet acceptance from a separate agent invocation.
+This closes the specific
 "runnable-but-vacuous experiment" design gap exposed by the frozen survival and
 sequential development panel; it does not close S14 or establish theorem proof.
 
 The analogous whole-formal-target review loop is now also part of the typed
 AgentRuntime path. A Formalizer-generated exact theorem is bound to its complete
 Lean source, exact statement, question, TheoryDeveloper packet, Formalizer
-proposal, semantic constraints, and immutable hashes. An independent Opus-tier
-reviewer must accept its mathematical faithfulness, plausibility, quantifiers,
+proposal, semantic constraints, and immutable hashes. An independent Sonnet-tier
+agent invocation must accept its mathematical faithfulness, plausibility, quantifiers,
 assumptions, conclusion, and non-vacuity before ProofEngineer or OpenProver can
 search it. Rejection returns typed feedback to Formalizer or TheoryDeveloper;
 acceptance opens proof-search eligibility only and remains non-proof evidence.

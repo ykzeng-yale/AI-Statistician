@@ -93,8 +93,8 @@ def _reviewer(verdict: str) -> LLMFormalTargetSemanticReviewerAgent:
         provider=StaticJSONGeneratorBackend(_review_response(verdict)),
         config=FormalTargetSemanticReviewerConfig(
             provider_name="static",
-            model="static-opus-formal-target-reviewer",
-            model_tier="opus",
+            model="static-sonnet-formal-target-reviewer",
+            model_tier="sonnet",
             max_repair_attempts=0,
         ),
     )
@@ -605,14 +605,14 @@ def test_capability_scorecard_requires_independent_formal_target_review() -> Non
             "n_formal_target_semantic_review_work_orders": 1,
             "n_formal_target_semantic_review_executions": 1,
             "n_formal_target_semantic_review_accepted": 1,
-            "n_formal_target_semantic_review_independent_opus": 1,
+            "n_formal_target_semantic_review_independent_sonnet": 1,
         }
     )
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
 
     assert rows["formal_target_semantic_review_executed"]["passed"] is True
     assert rows["formal_target_semantic_review_accepted"]["passed"] is True
-    assert rows["formal_target_semantic_review_independent_opus"]["passed"] is True
+    assert rows["formal_target_semantic_review_independent_sonnet"]["passed"] is True
 
 
 def test_runtime_audit_recomputes_formal_target_review_lineage(
@@ -642,7 +642,7 @@ def test_runtime_audit_recomputes_formal_target_review_lineage(
     assert audit_row.n_formal_target_semantic_review_work_orders == 1
     assert audit_row.n_formal_target_semantic_review_executions == 1
     assert audit_row.n_formal_target_semantic_review_accepted == 1
-    assert audit_row.n_formal_target_semantic_review_independent_opus == 1
+    assert audit_row.n_formal_target_semantic_review_independent_sonnet == 1
     assert not [
         error
         for error in audit_row.errors

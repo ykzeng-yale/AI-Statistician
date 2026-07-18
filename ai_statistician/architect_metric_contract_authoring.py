@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from .agent_runtime import agent_runtime_substage
 from .architect_metric_repair_ownership_router_llm import (
     ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED,
     LLMArchitectMetricRepairOwnershipRouterAgent,
@@ -104,6 +105,35 @@ def _metric_protocol_combined_repair_scope(
     )
 
 
+def _metric_candidate_repair_available(findings: list[dict[str, Any]]) -> bool:
+    return any(
+        str(row.get("repair_scope", "") or "").strip()
+        == ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_METRIC_CONTRACT
+        for row in findings
+        if isinstance(row, Mapping)
+    )
+
+
+def _fresh_candidate_requirement_set_errors(
+    *,
+    candidate_requirement_set_id: str,
+    fresh_candidate_revision_context: Mapping[str, Any],
+) -> list[str]:
+    source_requirement_set_id = str(
+        fresh_candidate_revision_context.get("source_requirement_set_id", "")
+        or ""
+    )
+    if (
+        source_requirement_set_id
+        and str(candidate_requirement_set_id or "") == source_requirement_set_id
+    ):
+        return [
+            "versioned fresh candidate must not reuse the rejected "
+            "requirement-set fingerprint"
+        ]
+    return []
+
+
 @dataclass(frozen=True)
 class ArchitectMetricContractAuthoringConfig:
     max_tokens: int = 5000
@@ -126,6 +156,7 @@ def author_reviewed_architect_metric_requirements(
     runtime_contract: Mapping[str, Any],
     theory_protocol_material: Mapping[str, Any] | None = None,
     prior_rejection_context: Mapping[str, Any] | None = None,
+    fresh_candidate_revision_context: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     if (
         runtime_contract.get("capability_eval_requires_typed_metric_contracts")
@@ -166,6 +197,41 @@ def author_reviewed_architect_metric_requirements(
         raise ValueError(
             "theory-informed metric authoring requires a structured, pre-execution "
             "TheoryDeveloper semantic handoff"
+        )
+    fresh_revision = (
+        dict(fresh_candidate_revision_context)
+        if isinstance(fresh_candidate_revision_context, Mapping)
+        else {}
+    )
+    if fresh_revision and not (
+        fresh_revision.get("artifact_kind")
+        == "RuntimeEvaluationProtocolFreshCandidateContext"
+        and fresh_revision.get("prior_candidate_execution_observed") is True
+        and fresh_revision.get("raw_execution_artifacts_included") is False
+        and fresh_revision.get("post_result_threshold_relaxation_allowed") is False
+        and fresh_revision.get("different_requirement_set_required") is True
+        and str(fresh_revision.get("fresh_candidate_id", "") or "").strip()
+        and str(
+            fresh_revision.get("source_requirement_set_id", "") or ""
+        ).strip()
+        and isinstance(fresh_revision.get("source_requirement_rows"), list)
+        and fresh_revision.get("source_requirement_rows")
+        and isinstance(
+            fresh_revision.get("structural_review_findings"), list
+        )
+        and fresh_revision.get("structural_review_findings")
+        and str(
+            fresh_revision.get("current_source_theory_packet_id", "") or ""
+        )
+        == str(theory_material.get("source_theory_packet_id", "") or "")
+        and str(
+            fresh_revision.get("current_source_theory_packet_hash", "") or ""
+        )
+        == str(theory_material.get("source_theory_packet_hash", "") or "")
+    ):
+        raise ValueError(
+            "fresh metric candidate authoring requires sanitized, theory-bound "
+            "revision lineage with no raw prior execution artifacts"
         )
 
     runtime_replicates = int(
@@ -285,6 +351,29 @@ def author_reviewed_architect_metric_requirements(
         ],
         "boundary": GENERATED_METRIC_REQUIREMENT_BOUNDARY,
     }
+    if fresh_revision:
+        prompt_payload["fresh_candidate_revision_context"] = fresh_revision
+        prompt_payload["hard_requirements"].extend(
+            [
+                (
+                    "This is a new versioned candidate. The prior requirement set "
+                    "and failed execution remain immutable and ineligible for "
+                    "acceptance."
+                ),
+                (
+                    "Use only structural_review_findings from the revision context; "
+                    "they may summarize prior observations but are not acceptance "
+                    "evidence. Do not request raw prior artifacts or lower a threshold "
+                    "merely to accommodate the failed run."
+                ),
+                (
+                    "Return a requirement set with a different set fingerprint that "
+                    "resolves the structural identifiability or measurement defect. "
+                    "Every confirmatory artifact will be regenerated under the new "
+                    "frozen set and fresh_candidate_seed."
+                ),
+            ]
+        )
     semantic_review_history: list[dict[str, Any]] = []
     prior_authoring_packet: dict[str, Any] = {}
     prior_review_packet: dict[str, Any] = {}
@@ -545,6 +634,15 @@ def author_reviewed_architect_metric_requirements(
                 "empirical_metric_requirement_set_id": (
                     generated_metric_requirement_set_id(requirement_rows)
                 ),
+                "fresh_candidate_id": str(
+                    fresh_revision.get("fresh_candidate_id", "") or ""
+                ),
+                "source_requirement_set_id": str(
+                    fresh_revision.get("source_requirement_set_id", "") or ""
+                ),
+                "source_revision_manifest_id": str(
+                    fresh_revision.get("source_revision_manifest_id", "") or ""
+                ),
                 "proof_evidence_status": (
                     "ARCHITECT_METRIC_REQUIREMENT_AUTHORING_NOT_PROOF_EVIDENCE"
                 ),
@@ -552,39 +650,58 @@ def author_reviewed_architect_metric_requirements(
             }
 
         def validate_packet(packet: Mapping[str, Any]) -> list[str]:
-            return validate_generated_metric_requirements(
+            errors = validate_generated_metric_requirements(
                 packet.get("empirical_metric_requirements", []),
                 required_target_subsystems=(
                     GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
                 ),
                 expected_runtime_replicates=runtime_replicates,
             )
+            errors.extend(
+                _fresh_candidate_requirement_set_errors(
+                    candidate_requirement_set_id=str(
+                        packet.get("empirical_metric_requirement_set_id", "")
+                        or ""
+                    ),
+                    fresh_candidate_revision_context=fresh_revision,
+                )
+            )
+            return errors
 
-        authoring_packet = generate_validated_json_packet(
-            provider=provider,
-            request=request,
-            extract_payload=extract_json_object,
-            build_packet=build_packet,
-            validate_packet=validate_packet,
-            validation_label="LLM Architect metric-requirement packet",
-            max_repair_attempts=config.max_repair_attempts,
-            repair_context_builder=lambda **_kwargs: {
-                "runtime_owned_replicates": runtime_replicates,
-                "target_namespace": (
-                    generated_metric_requirement_target_namespace_contract()
-                ),
-                "requirement_schema": generated_metric_requirement_prompt_schema(),
-                "required_target_rows": prompt_payload["required_target_rows"],
-                "repair_prompt_priority_instructions": prompt_payload[
-                    "hard_requirements"
-                ],
-                "independent_semantic_review_repair": (
-                    candidate_prompt_payload.get(
-                        "independent_semantic_review_repair", {}
-                    )
-                ),
+        with agent_runtime_substage(
+            "architect_metric_requirement_author",
+            metadata={
+                "revision_index": revision_index,
+                "model_tier": config.model_tier,
+                "max_packet_repair_attempts": config.max_repair_attempts,
+                "active_prior_finding_count": len(active_finding_ids),
             },
-        )
+        ):
+            authoring_packet = generate_validated_json_packet(
+                provider=provider,
+                request=request,
+                extract_payload=extract_json_object,
+                build_packet=build_packet,
+                validate_packet=validate_packet,
+                validation_label="LLM Architect metric-requirement packet",
+                max_repair_attempts=config.max_repair_attempts,
+                repair_context_builder=lambda **_kwargs: {
+                    "runtime_owned_replicates": runtime_replicates,
+                    "target_namespace": (
+                        generated_metric_requirement_target_namespace_contract()
+                    ),
+                    "requirement_schema": generated_metric_requirement_prompt_schema(),
+                    "required_target_rows": prompt_payload["required_target_rows"],
+                    "repair_prompt_priority_instructions": prompt_payload[
+                        "hard_requirements"
+                    ],
+                    "independent_semantic_review_repair": (
+                        candidate_prompt_payload.get(
+                            "independent_semantic_review_repair", {}
+                        )
+                    ),
+                },
+            )
         authoring_packet_hash = stable_hash(authoring_packet)
         review_material = {
             "review_stage": "pre_execution_metric_contract_review",
@@ -597,6 +714,7 @@ def author_reviewed_architect_metric_requirements(
                 generated_metric_evaluation_semantics_contract()
             ),
             "theory_developer_protocol_material": theory_material,
+            "fresh_candidate_revision_context": fresh_revision,
             "active_prior_finding_ledger": active_finding_ledger,
             "active_prior_finding_ledger_fingerprint": (
                 active_finding_ledger_fingerprint
@@ -630,12 +748,33 @@ def author_reviewed_architect_metric_requirements(
             "source_agent": str(authoring_packet["source_agent"]),
             "source_model": str(authoring_packet["model"]),
             "source_model_tier": str(authoring_packet["model_tier"]),
+            "fresh_candidate_id": str(
+                fresh_revision.get("fresh_candidate_id", "") or ""
+            ),
+            "source_revision_manifest_id": str(
+                fresh_revision.get("source_revision_manifest_id", "") or ""
+            ),
         }
-        semantic_review_packet = semantic_reviewer.review(
-            question=question,
-            review_material=review_material,
-            trusted_lineage=trusted_review_lineage,
-        )
+        with agent_runtime_substage(
+            "architect_metric_semantic_reviewer",
+            metadata={
+                "revision_index": revision_index,
+                "model_tier": str(
+                    getattr(
+                        getattr(semantic_reviewer, "config", None),
+                        "model_tier",
+                        "",
+                    )
+                    or ""
+                ),
+                "blinded_independent_invocation": True,
+            },
+        ):
+            semantic_review_packet = semantic_reviewer.review(
+                question=question,
+                review_material=review_material,
+                trusted_lineage=trusted_review_lineage,
+            )
         review_packet_hash = stable_hash(semantic_review_packet)
         routed_current_findings = [
             dict(row)
@@ -648,12 +787,27 @@ def author_reviewed_architect_metric_requirements(
             and repair_ownership_router is not None
             and routed_current_findings
         ):
-            repair_ownership_packet = repair_ownership_router.route(
-                question=question,
-                review_material=review_material,
-                semantic_review_packet=semantic_review_packet,
-                trusted_lineage=trusted_review_lineage,
-            )
+            with agent_runtime_substage(
+                "architect_metric_repair_ownership_router",
+                metadata={
+                    "revision_index": revision_index,
+                    "finding_count": len(routed_current_findings),
+                    "model_tier": str(
+                        getattr(
+                            getattr(repair_ownership_router, "config", None),
+                            "model_tier",
+                            "",
+                        )
+                        or ""
+                    ),
+                },
+            ):
+                repair_ownership_packet = repair_ownership_router.route(
+                    question=question,
+                    review_material=review_material,
+                    semantic_review_packet=semantic_review_packet,
+                    trusted_lineage=trusted_review_lineage,
+                )
             routed_current_findings = apply_architect_metric_repair_ownership_routes(
                 findings=semantic_review_packet.get("findings", []),
                 ownership_packet=repair_ownership_packet,
@@ -730,6 +884,9 @@ def author_reviewed_architect_metric_requirements(
                 ),
                 "independent_agent": bool(
                     semantic_review_packet.get("independent_agent")
+                ),
+                "independent_invocation": bool(
+                    semantic_review_packet.get("independent_invocation")
                 ),
                 "independent_model": bool(
                     semantic_review_packet.get("independent_model")
@@ -832,8 +989,10 @@ def author_reviewed_architect_metric_requirements(
                 ARCHITECT_METRIC_SEMANTIC_REVIEW_BOUNDARY
             )
             return authoring_packet
-        if recommended_repair_scope != (
-            ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_METRIC_CONTRACT
+        if recommended_repair_scope == ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED or (
+            recommended_repair_scope
+            != ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_METRIC_CONTRACT
+            and not _metric_candidate_repair_available(routed_findings)
         ):
             raise ArchitectMetricSemanticReviewRejected(
                 question_id=question.id,

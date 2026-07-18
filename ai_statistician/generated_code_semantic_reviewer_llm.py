@@ -54,7 +54,7 @@ GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_REPAIR_SCOPES = frozenset(
 @dataclass(frozen=True)
 class GeneratedCodeSemanticReviewerConfig:
     model: str = ""
-    model_tier: str = "opus"
+    model_tier: str = "sonnet"
     max_tokens: int = 7000
     temperature: float = 0.0
     provider_name: str = "anthropic"

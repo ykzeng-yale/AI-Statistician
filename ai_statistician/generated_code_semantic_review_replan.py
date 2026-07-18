@@ -9,6 +9,132 @@ from .typed_repair_handoff import build_typed_repair_handoff_contract
 
 
 GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM = "GeneratedCodeSemanticReviewer"
+GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY = (
+    "runtime_generated_code_semantic_review_lineage_ledger"
+)
+
+
+def advance_generated_code_semantic_review_lineage_budget(
+    *,
+    architect_context: Mapping[str, Any],
+    work_order: Mapping[str, Any],
+    review_packet: Mapping[str, Any],
+    max_local_revisions: int,
+    prior_local_revisions: int = 0,
+) -> dict[str, Any]:
+    """Advance a finding-bound budget that survives Architect replans."""
+
+    finding_signature = {
+        "failed_dimensions": sorted(
+            (
+                _normalized_text(row.get("dimension")),
+                _normalized_text(row.get("status")),
+            )
+            for row in review_packet.get("dimension_reviews", []) or []
+            if isinstance(row, Mapping)
+            and _normalized_text(row.get("status")) != "pass"
+        ),
+        "findings": sorted(
+            (
+                _normalized_text(row.get("severity")),
+                _normalized_text(row.get("category")),
+            )
+            for row in review_packet.get("findings", []) or []
+            if isinstance(row, Mapping)
+        ),
+        "finding_count": len(review_packet.get("findings", []) or []),
+    }
+    finding_fingerprint = stable_hash(finding_signature)
+    lineage_key = stable_hash(
+        [
+            str(work_order.get("question_id", "") or ""),
+            str(work_order.get("theory_packet_hash", "") or ""),
+            str(work_order.get("source_subsystem", "") or ""),
+            str(review_packet.get("repair_scope", "") or ""),
+            str(review_packet.get("repair_owner", "") or ""),
+            finding_fingerprint,
+        ]
+    )
+    prior_ledger = architect_context.get(
+        GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY,
+        {},
+    )
+    ledger = {
+        str(key): dict(value)
+        for key, value in (
+            prior_ledger.items() if isinstance(prior_ledger, Mapping) else []
+        )
+        if isinstance(value, Mapping)
+    }
+    prior = dict(ledger.pop(lineage_key, {}))
+    migrated_local_revisions = (
+        max(0, int(prior_local_revisions or 0)) if not ledger and not prior else 0
+    )
+    row = {
+        "lineage_key": lineage_key,
+        "question_id": str(work_order.get("question_id", "") or ""),
+        "theory_packet_id": str(work_order.get("theory_packet_id", "") or ""),
+        "theory_packet_hash": str(work_order.get("theory_packet_hash", "") or ""),
+        "source_subsystem": str(work_order.get("source_subsystem", "") or ""),
+        "repair_scope": str(review_packet.get("repair_scope", "") or ""),
+        "repair_owner": str(review_packet.get("repair_owner", "") or ""),
+        "finding_fingerprint": finding_fingerprint,
+        "rejection_count": int(prior.get("rejection_count", 0) or 0) + 1,
+        "local_repair_count": max(
+            int(prior.get("local_repair_count", 0) or 0),
+            migrated_local_revisions,
+        ),
+        "architect_replan_count": int(
+            prior.get("architect_replan_count", 0) or 0
+        ),
+        "max_local_revisions": max(0, int(max_local_revisions or 0)),
+        "last_action": str(prior.get("last_action", "") or ""),
+        "proof_evidence_status": (
+            "GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_BUDGET_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    ledger[lineage_key] = row
+    if len(ledger) > 32:
+        ledger = dict(list(ledger.items())[-32:])
+    return {
+        "lineage_key": lineage_key,
+        "row": row,
+        "ledger": ledger,
+        "local_repair_available": bool(
+            row["repair_scope"] == "source_code"
+            and row["local_repair_count"] < row["max_local_revisions"]
+            and row["architect_replan_count"] == 0
+        ),
+        "architect_replan_available": row["architect_replan_count"] == 0,
+        "lineage_budget_exhausted": row["architect_replan_count"] > 0,
+    }
+
+
+def record_generated_code_semantic_review_lineage_action(
+    budget_state: Mapping[str, Any],
+    *,
+    action: str,
+) -> dict[str, Any]:
+    ledger = {
+        str(key): dict(value)
+        for key, value in (
+            budget_state.get("ledger", {}).items()
+            if isinstance(budget_state.get("ledger", {}), Mapping)
+            else []
+        )
+        if isinstance(value, Mapping)
+    }
+    lineage_key = str(budget_state.get("lineage_key", "") or "")
+    row = dict(ledger.get(lineage_key, budget_state.get("row", {})))
+    if action == "local_repair":
+        row["local_repair_count"] = int(row.get("local_repair_count", 0) or 0) + 1
+    elif action == "architect_replan":
+        row["architect_replan_count"] = int(
+            row.get("architect_replan_count", 0) or 0
+        ) + 1
+    row["last_action"] = str(action)
+    ledger[lineage_key] = row
+    return ledger
 
 
 def build_generated_code_semantic_review_architect_replan_task(
@@ -21,6 +147,7 @@ def build_generated_code_semantic_review_architect_replan_task(
     review_execution_id: str,
     revision_count: int,
     max_revisions: int,
+    lineage_ledger: Mapping[str, Any] | None = None,
 ) -> AgentTask:
     repair_task_payload = _mapping(work_order.get("repair_task"))
     deferred_task_payload = _mapping(work_order.get("deferred_next_task"))
@@ -30,6 +157,12 @@ def build_generated_code_semantic_review_architect_replan_task(
     deferred_context = _mapping(deferred_inputs.get("architect_context"))
     replan_context = {**repair_context, **deferred_context}
     replan_context["environment_feedback"] = dict(escalation_feedback)
+    if isinstance(lineage_ledger, Mapping):
+        replan_context[GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY] = {
+            str(key): dict(value)
+            for key, value in lineage_ledger.items()
+            if isinstance(value, Mapping)
+        }
 
     pending_artifact_ids: dict[str, str] = {}
     for source in (
@@ -158,3 +291,7 @@ def build_generated_code_semantic_review_architect_replan_task(
 
 def _mapping(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
+
+
+def _normalized_text(value: Any) -> str:
+    return " ".join(str(value or "").strip().lower().split())

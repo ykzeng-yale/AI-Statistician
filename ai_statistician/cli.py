@@ -5043,13 +5043,13 @@ def _build_generated_code_semantic_reviewer_agent_from_args(
         ),
         args=args,
         default_model=default_model,
-        model_tier="opus",
+        model_tier="sonnet",
     )
     return LLMGeneratedCodeSemanticReviewerAgent(
         provider=provider,
         config=GeneratedCodeSemanticReviewerConfig(
             model=model,
-            model_tier="opus",
+            model_tier="sonnet",
             max_tokens=getattr(
                 args,
                 "generated_code_semantic_reviewer_max_tokens",
@@ -5100,13 +5100,13 @@ def _build_formal_target_semantic_reviewer_agent_from_args(
         ),
         args=args,
         default_model=default_model,
-        model_tier="opus",
+        model_tier="sonnet",
     )
     return LLMFormalTargetSemanticReviewerAgent(
         provider=provider,
         config=FormalTargetSemanticReviewerConfig(
             model=model,
-            model_tier="opus",
+            model_tier="sonnet",
             max_tokens=getattr(
                 args,
                 "formal_target_semantic_reviewer_max_tokens",
@@ -11664,7 +11664,14 @@ def _research_architect_theory_develop(args: argparse.Namespace) -> int:
 
 def _research_agent_runtime(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
-    _apply_research_agent_runtime_capability_eval_preset(args)
+    try:
+        _apply_research_agent_runtime_research_eval_profile(args)
+        _apply_research_agent_runtime_capability_eval_preset(args)
+    except ValueError as exc:
+        print("\nAI Statistician Agent Runtime evaluation profile rejected")
+        print("=" * 72)
+        print(f"- {exc}")
+        return 2
     _apply_research_agent_runtime_live_lean_defaults(args)
     if getattr(args, "capability_eval", False):
         config_errors = _research_agent_runtime_capability_config_errors(args)
@@ -11810,7 +11817,8 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 getattr(args, "serious_theory_llm_model", "") or ""
             ),
             serious_model_tier=str(
-                getattr(args, "serious_theory_model_tier", "opus") or "opus"
+                getattr(args, "serious_theory_model_tier", "sonnet")
+                or "sonnet"
             ),
             serious_max_tokens=int(
                 getattr(args, "serious_theory_max_tokens", 8000) or 0
@@ -11911,6 +11919,14 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 )
                 or 0
             ),
+            coding_agent_packet_validation_max_lineage_failures=int(
+                getattr(
+                    args,
+                    "coding_agent_packet_validation_max_lineage_failures",
+                    0,
+                )
+                or 0
+            ),
             algorithm_engineer_generated_code_repair_yield_after_attempts=int(
                 getattr(
                     args,
@@ -11940,6 +11956,14 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                     args,
                     "architect_metric_protocol_max_upstream_theory_revisions",
                     2,
+                )
+                or 0
+            ),
+            metric_protocol_max_fresh_candidate_revisions=int(
+                getattr(
+                    args,
+                    "architect_metric_protocol_max_fresh_candidate_revisions",
+                    0,
                 )
                 or 0
             ),
@@ -11975,6 +11999,8 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             evaluation_mode=(
                 "capability_eval"
                 if getattr(args, "capability_eval", False)
+                else "research_eval"
+                if getattr(args, "research_eval", False)
                 else "debug"
             ),
             formalizer_candidate_local_lean=bool(
@@ -12541,6 +12567,17 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
         "runtime manifest written to "
         f"{(Path(args.out) / 'research_agent_runtime_manifest.json').resolve()}"
     )
+    if getattr(args, "research_eval", False):
+        summary = manifest.get("research_evaluation_summary", {})
+        print(
+            "research_evaluation="
+            f"{summary.get('n_questions_research_eval_complete', 0)}/"
+            f"{summary.get('n_questions', 0)} "
+            f"capability={summary.get('all_questions_research_loop_complete', False)} "
+            f"conformant={summary.get('all_questions_mode_conformant', False)} "
+            f"ready={summary.get('all_questions_research_eval_complete', False)}"
+        )
+        return 0 if summary.get("all_questions_research_eval_complete") else 1
     if getattr(args, "capability_eval", False):
         audit = audit_research_agent_runtime(
             Path(args.out),
@@ -14084,6 +14121,81 @@ def _refresh_runtime_coding_agent_capability_manifest(
     manifest["n_runtime_next_action_items"] = len(refreshed_agenda_rows)
 
 
+def _apply_research_agent_runtime_research_eval_profile(
+    args: argparse.Namespace,
+) -> None:
+    """Configure the live research loop without enabling the strict formal lane."""
+
+    if not bool(getattr(args, "research_eval", False)):
+        return
+    capability_preset = str(
+        getattr(args, "capability_eval_preset", "none") or "none"
+    ).strip()
+    if bool(getattr(args, "capability_eval", False)) or capability_preset not in {
+        "",
+        "none",
+    }:
+        raise ValueError(
+            "--research-eval cannot be combined with --capability-eval or "
+            "--capability-eval-preset"
+        )
+    if str(getattr(args, "provider", "") or "") not in {"anthropic", "openai"}:
+        args.provider = _default_live_generator_provider()
+    for field_name in (
+        "architect_coordinator_provider",
+        "simulation_engineer_provider",
+        "algorithm_engineer_provider",
+        "critic_evaluator_provider",
+        "generated_code_semantic_reviewer_provider",
+    ):
+        if str(getattr(args, field_name, "") or "") in {"", "none", "static"}:
+            setattr(args, field_name, "same")
+    args.formalizer_provider = "none"
+    args.formal_target_semantic_reviewer_provider = "none"
+    args.formal_target_semantic_review_required = False
+    args.formal_verification_policy = "advisory"
+    args.recommended_research_path = "simulation_first"
+    args.architect_metric_repair_ownership_router = True
+    args.serious_theory_model_tier = "sonnet"
+    args.architect_metric_protocol_max_fresh_candidate_revisions = max(
+        1,
+        int(
+            getattr(
+                args,
+                "architect_metric_protocol_max_fresh_candidate_revisions",
+                0,
+            )
+            or 0
+        ),
+    )
+    args.coding_agent_packet_validation_replan_after_attempts = max(
+        2,
+        int(
+            getattr(
+                args,
+                "coding_agent_packet_validation_replan_after_attempts",
+                0,
+            )
+            or 0
+        ),
+    )
+    args.coding_agent_packet_validation_max_lineage_failures = max(
+        4,
+        int(
+            getattr(
+                args,
+                "coding_agent_packet_validation_max_lineage_failures",
+                0,
+            )
+            or 0
+        ),
+    )
+    args.serious_theory_max_tokens = max(
+        ResearchArchitectConfig().serious_max_tokens,
+        int(getattr(args, "serious_theory_max_tokens", 0) or 0),
+    )
+
+
 def _apply_research_agent_runtime_capability_eval_preset(
     args: argparse.Namespace,
 ) -> None:
@@ -14221,7 +14333,7 @@ def _apply_research_agent_runtime_capability_eval_preset(
         if not str(
             getattr(args, "serious_theory_model_tier", "") or ""
         ).strip():
-            args.serious_theory_model_tier = "opus"
+            args.serious_theory_model_tier = "sonnet"
         if not hasattr(args, "serious_theory_llm_model"):
             args.serious_theory_llm_model = ""
         if not hasattr(args, "serious_theory_max_tokens"):
@@ -14258,6 +14370,18 @@ def _apply_research_agent_runtime_capability_eval_preset(
             <= 0
         ):
             args.coding_agent_packet_validation_replan_after_attempts = 2
+        if (
+            int(
+                getattr(
+                    args,
+                    "coding_agent_packet_validation_max_lineage_failures",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+        ):
+            args.coding_agent_packet_validation_max_lineage_failures = 4
         if (
             int(
                 getattr(
@@ -14892,11 +15016,11 @@ def _research_agent_runtime_capability_config_errors(
         serious_theory_model_tier = str(
             getattr(args, "serious_theory_model_tier", "") or ""
         ).strip().lower()
-        if serious_theory_model_tier != "opus":
+        if serious_theory_model_tier != "sonnet":
             errors.append(
-                "capability eval preset full-live requires Opus-tier serious "
+                "capability eval preset full-live requires Sonnet-tier serious "
                 "TheoryDeveloper workspaces; set "
-                "--serious-theory-model-tier opus"
+                "--serious-theory-model-tier sonnet"
             )
         serious_theory_max_tokens = int(
             getattr(args, "serious_theory_max_tokens", 0) or 0
@@ -16292,7 +16416,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     source_theorem_exact_semantic_definition_authoring_worker.add_argument(
         "--model-tier",
-        choices=("haiku", "sonnet", "opus"),
+        choices=("haiku", "sonnet"),
         default="sonnet",
         help="Claude cost tier for authoring; default Sonnet because this is proof/formalization work",
     )
@@ -17853,7 +17977,7 @@ def build_parser() -> argparse.ArgumentParser:
     formalization_gap_planner_reuse_smoke.add_argument(
         "--llm-route-planner-model-tier",
         default="auto",
-        choices=["auto", "haiku", "sonnet", "opus"],
+        choices=["auto", "haiku", "sonnet"],
         help=(
             "Claude tier policy for the primary route planner; auto uses Haiku "
             "for small bounded routes and Sonnet for residual/bridge/source-port/new-theory routes"
@@ -17925,7 +18049,7 @@ def build_parser() -> argparse.ArgumentParser:
     formalization_gap_planner_reuse_smoke.add_argument(
         "--feedback-llm-route-planner-model-tier",
         default="auto",
-        choices=["auto", "haiku", "sonnet", "opus"],
+        choices=["auto", "haiku", "sonnet"],
         help=(
             "Claude tier policy for the feedback route planner; auto uses Haiku "
             "for small bounded routes and Sonnet for residual/bridge/source-port/new-theory routes"
@@ -18045,7 +18169,7 @@ def build_parser() -> argparse.ArgumentParser:
     formalization_gap_planner_llm_route_planner.add_argument(
         "--model-tier",
         default="auto",
-        choices=["auto", "haiku", "sonnet", "opus"],
+        choices=["auto", "haiku", "sonnet"],
         help=(
             "Claude tier policy for Anthropic calls; auto uses Haiku for small "
             "bounded routes and Sonnet for residual/bridge/source-port/new-theory routes"
@@ -21595,7 +21719,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_agent_runtime.add_argument(
         "--theory-model-tier",
-        choices=("haiku", "sonnet", "opus"),
+        choices=("haiku", "sonnet"),
         default=ResearchArchitectConfig().model_tier,
         help="Claude tier for compact TheoryDeveloper handoff packets",
     )
@@ -21610,7 +21734,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_agent_runtime.add_argument(
         "--serious-theory-model-tier",
-        choices=("haiku", "sonnet", "opus"),
+        choices=("haiku", "sonnet"),
         default=ResearchArchitectConfig().serious_model_tier,
         help="Claude tier for capability and upstream-revision theory workspaces",
     )
@@ -21667,7 +21791,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help=(
             "independent pre-execution metric-contract reviewer model; "
-            "Anthropic defaults to the configured Claude Opus tier"
+            "Anthropic is capped at the configured Claude Sonnet tier"
         ),
     )
     research_agent_runtime.add_argument(
@@ -21696,7 +21820,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--architect-metric-repair-ownership-router-llm-model",
         default="",
         help=(
-            "repair-ownership router model; Anthropic defaults to Claude Opus"
+            "repair-ownership router model; Anthropic is capped at Claude Sonnet"
         ),
     )
     research_agent_runtime.add_argument(
@@ -21711,6 +21835,16 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "maximum TheoryDeveloper revisions routed from independent "
             "pre-execution metric review before the task fails closed"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--architect-metric-protocol-max-fresh-candidate-revisions",
+        type=int,
+        default=0,
+        help=(
+            "maximum versioned fresh-candidate runs after independent review "
+            "finds a frozen post-execution metric protocol invalid; disabled by "
+            "default and enabled explicitly by the research-eval profile"
         ),
     )
     research_agent_runtime.add_argument(
@@ -21992,7 +22126,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="none",
         help=(
             "independent generator backend for semantic review of exact executed "
-            "generated code; full-live enables same-provider Opus review"
+            "generated code; full-live enables independent same-provider Sonnet review"
         ),
     )
     research_agent_runtime.add_argument(
@@ -22008,7 +22142,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help=(
             "model for independent generated-code semantic review; Anthropic "
-            "defaults to the configured Claude Opus tier"
+            "is capped at the configured Claude Sonnet tier"
         ),
     )
     research_agent_runtime.add_argument(
@@ -22036,7 +22170,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="none",
         help=(
             "independent generator backend for mathematical review of exact Lean "
-            "theorem targets before proof search; full-live enables Opus review"
+            "theorem targets before proof search; full-live enables Sonnet review"
         ),
     )
     research_agent_runtime.add_argument(
@@ -22052,7 +22186,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help=(
             "model for independent whole-target semantic review; Anthropic "
-            "defaults to the configured Claude Opus tier"
+            "is capped at the configured Claude Sonnet tier"
         ),
     )
     research_agent_runtime.add_argument(
@@ -22592,6 +22726,16 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     research_agent_runtime.add_argument(
+        "--coding-agent-packet-validation-max-lineage-failures",
+        type=int,
+        default=0,
+        help=(
+            "hard cap on repeated identical packet-validator failures for one "
+            "theory/candidate lineage across Architect replans; research-eval "
+            "and full-live enable a bounded default, while 0 disables the cap"
+        ),
+    )
+    research_agent_runtime.add_argument(
         "--algorithm-engineer-generated-code-repair-yield-after-attempts",
         type=int,
         default=0,
@@ -22710,7 +22854,18 @@ def build_parser() -> argparse.ArgumentParser:
             "call; defaults to --llm-timeout-seconds"
         ),
     )
-    research_agent_runtime.add_argument(
+    runtime_evaluation_mode = research_agent_runtime.add_mutually_exclusive_group()
+    runtime_evaluation_mode.add_argument(
+        "--research-eval",
+        action="store_true",
+        help=(
+            "run the live autonomous statistical research loop with serious theory, "
+            "generated algorithm and simulation code, frozen metric protocol, "
+            "independent semantic review, and final Critic evaluation. The strict "
+            "Formalizer/Lean lane is reported separately and is not run by this mode"
+        ),
+    )
+    runtime_evaluation_mode.add_argument(
         "--capability-eval",
         action="store_true",
         help=(

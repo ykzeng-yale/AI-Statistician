@@ -105,7 +105,7 @@ class _SequenceBackend:
 def _review(
     *,
     accept: bool,
-    reviewer_model: str = "claude-opus-4-8",
+    reviewer_model: str = "claude-sonnet-4-6",
     payload: dict[str, object] | None = None,
 ):
     backend = _Backend(payload or _review_payload(accept=accept))
@@ -119,7 +119,7 @@ def _review(
         config=ArchitectMetricSemanticReviewerConfig(
             provider_name="anthropic",
             model=reviewer_model,
-            model_tier="opus",
+            model_tier="sonnet",
             max_repair_attempts=0,
         ),
     ).review(
@@ -148,8 +148,9 @@ def test_preexecution_metric_reviewer_accepts_only_with_independent_lineage() ->
     assert packet["pre_execution_review"] is True
     assert packet["execution_results_observed"] is False
     assert packet["independent_agent"] is True
-    assert packet["independent_model"] is True
-    assert packet["independent_model_tier"] is True
+    assert packet["independent_invocation"] is True
+    assert packet["independent_model"] is False
+    assert packet["independent_model_tier"] is False
     assert packet["review_input_fingerprint"] == stable_hash(material)
     assert packet["reviewed_empirical_metric_requirement_set_id"] == "metric-set:1"
     assert packet["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
@@ -157,7 +158,7 @@ def test_preexecution_metric_reviewer_accepts_only_with_independent_lineage() ->
     assert backend.requests[0].metadata["subsystem"] == (
         "ArchitectMetricSemanticReviewer"
     )
-    assert backend.requests[0].metadata["model_tier"] == "opus"
+    assert backend.requests[0].metadata["model_tier"] == "sonnet"
     assert backend.requests[0].metadata["provider_structured_output"] is True
     assert "before any coding agent" in backend.requests[0].user_prompt
     assert "more gates are not more rigorous" in backend.requests[0].user_prompt
@@ -208,8 +209,8 @@ def test_preexecution_metric_reviewer_routes_missing_semantics_upstream() -> Non
         provider=backend,
         config=ArchitectMetricSemanticReviewerConfig(
             provider_name="anthropic",
-            model="claude-opus-4-8",
-            model_tier="opus",
+            model="claude-sonnet-4-6",
+            model_tier="sonnet",
             max_repair_attempts=0,
         ),
     ).review(
@@ -239,11 +240,12 @@ def test_preexecution_metric_reviewer_routes_missing_semantics_upstream() -> Non
     assert validate_architect_metric_semantic_review_packet(packet) == []
 
 
-def test_preexecution_metric_reviewer_fails_closed_when_model_is_not_independent() -> None:
-    with pytest.raises(PacketValidationError) as exc_info:
-        _review(accept=True, reviewer_model="claude-sonnet-4-6")
+def test_preexecution_metric_reviewer_accepts_separate_same_model_invocation() -> None:
+    packet, _, _ = _review(accept=True, reviewer_model="claude-sonnet-4-6")
 
-    assert "requires an independent model" in str(exc_info.value)
+    assert packet["independent_agent"] is True
+    assert packet["independent_invocation"] is True
+    assert packet["independent_model"] is False
 
 
 def test_metric_reviewer_repair_preserves_exact_active_finding_context() -> None:
@@ -280,8 +282,8 @@ def test_metric_reviewer_repair_preserves_exact_active_finding_context() -> None
         provider=backend,
         config=ArchitectMetricSemanticReviewerConfig(
             provider_name="anthropic",
-            model="claude-opus-4-8",
-            model_tier="opus",
+            model="claude-sonnet-4-6",
+            model_tier="sonnet",
             max_repair_attempts=1,
         ),
     ).review(

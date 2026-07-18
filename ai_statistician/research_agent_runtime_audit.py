@@ -26,6 +26,7 @@ from .formalization_gap_planner_runtime_handoff_audit import (
     validate_runtime_handoff_execution_plan,
 )
 from .model_backend import (
+    LIVE_CLAUDE_MODEL_TIERS,
     SUPPORTED_GENERATOR_PROVIDERS as MODEL_SUPPORTED_GENERATOR_PROVIDERS,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS as MODEL_SUPPORTED_LIVE_GENERATOR_PROVIDERS,
     SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS as MODEL_SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS,
@@ -3343,11 +3344,13 @@ class RuntimeAuditRow:
     n_generated_algorithm_semantic_review_accepted: int
     n_generated_simulation_semantic_review_accepted: int
     n_generated_code_semantic_review_independent_opus: int
+    n_generated_code_semantic_review_independent_sonnet: int
     n_formal_target_semantic_review_work_orders: int
     n_formal_target_semantic_review_executions: int
     n_formal_target_semantic_review_accepted: int
     n_formal_target_semantic_review_revision_required: int
     n_formal_target_semantic_review_independent_opus: int
+    n_formal_target_semantic_review_independent_sonnet: int
     n_formalization_manifests: int
     n_critic_manifests: int
     n_kernel_verified_subclaims: int
@@ -6831,6 +6834,9 @@ def audit_research_agent_runtime(
         "n_generated_code_semantic_review_independent_opus": sum(
             row.n_generated_code_semantic_review_independent_opus for row in rows
         ),
+        "n_generated_code_semantic_review_independent_sonnet": sum(
+            row.n_generated_code_semantic_review_independent_sonnet for row in rows
+        ),
         "n_formal_target_semantic_review_work_orders": sum(
             row.n_formal_target_semantic_review_work_orders for row in rows
         ),
@@ -6845,6 +6851,9 @@ def audit_research_agent_runtime(
         ),
         "n_formal_target_semantic_review_independent_opus": sum(
             row.n_formal_target_semantic_review_independent_opus for row in rows
+        ),
+        "n_formal_target_semantic_review_independent_sonnet": sum(
+            row.n_formal_target_semantic_review_independent_sonnet for row in rows
         ),
         "n_generated_code_sandbox_metric_gate_failed": sum(
             row.n_generated_code_sandbox_metric_gate_failed for row in rows
@@ -13090,6 +13099,7 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     n_generated_algorithm_semantic_review_accepted = 0
     n_generated_simulation_semantic_review_accepted = 0
     n_generated_code_semantic_review_independent_opus = 0
+    n_generated_code_semantic_review_independent_sonnet = 0
     for execution in semantic_review_executions:
         execution_error_count_before = len(errors)
         execution_id = str(execution.get("execution_id", "") or "")
@@ -13311,9 +13321,16 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
             and reviewer_agent == "LLMGeneratedCodeSemanticReviewerAgent"
             and str(execution.get("reviewer_model_tier", "") or "") == "opus"
         )
-        if work_order.get("capability_eval") is True and not independent_opus:
+        independent_sonnet = bool(
+            computed_independent_agent
+            and execution.get("independent_invocation") is True
+            and reviewer_agent == "LLMGeneratedCodeSemanticReviewerAgent"
+            and str(execution.get("reviewer_model_tier", "") or "") == "sonnet"
+        )
+        if work_order.get("capability_eval") is True and not independent_sonnet:
             errors.append(
-                "capability-eval semantic review was not independent Opus review: "
+                "research-evaluation semantic review was not an independent "
+                "Sonnet invocation: "
                 + execution_id
             )
         execution_lineage_valid = len(errors) == execution_error_count_before
@@ -13328,6 +13345,8 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
                 n_generated_code_semantic_review_revision_required += 1
             if independent_opus:
                 n_generated_code_semantic_review_independent_opus += 1
+            if independent_sonnet:
+                n_generated_code_semantic_review_independent_sonnet += 1
     formal_target_review_work_orders = _artifacts_with_prefix(
         artifacts,
         "formal_target_semantic_review_work_order:",
@@ -13339,6 +13358,7 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     n_formal_target_semantic_review_accepted = 0
     n_formal_target_semantic_review_revision_required = 0
     n_formal_target_semantic_review_independent_opus = 0
+    n_formal_target_semantic_review_independent_sonnet = 0
     for execution in formal_target_review_executions:
         execution_error_count_before = len(errors)
         execution_id = str(execution.get("execution_id", "") or "")
@@ -13467,10 +13487,17 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
             and source_model != reviewer_model
             and str(execution.get("reviewer_model_tier", "") or "") == "opus"
         )
-        if work_order.get("capability_eval") is True and not independent_opus:
+        independent_sonnet = bool(
+            source_agent
+            and reviewer_agent == "LLMFormalTargetSemanticReviewerAgent"
+            and source_agent != reviewer_agent
+            and execution.get("independent_invocation") is True
+            and str(execution.get("reviewer_model_tier", "") or "") == "sonnet"
+        )
+        if work_order.get("capability_eval") is True and not independent_sonnet:
             errors.append(
-                "capability-eval formal-target review was not independent Opus "
-                "review: "
+                "capability-eval formal-target review was not an independent "
+                "Sonnet invocation: "
                 + execution_id
             )
         if len(errors) == execution_error_count_before:
@@ -13480,6 +13507,8 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
                 n_formal_target_semantic_review_revision_required += 1
             if independent_opus:
                 n_formal_target_semantic_review_independent_opus += 1
+            if independent_sonnet:
+                n_formal_target_semantic_review_independent_sonnet += 1
     n_critic_reroutes = sum(
         1
         for row in critic
@@ -13709,6 +13738,9 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         n_generated_code_semantic_review_independent_opus=(
             n_generated_code_semantic_review_independent_opus
         ),
+        n_generated_code_semantic_review_independent_sonnet=(
+            n_generated_code_semantic_review_independent_sonnet
+        ),
         n_formal_target_semantic_review_work_orders=len(
             formal_target_review_work_orders
         ),
@@ -13723,6 +13755,9 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         ),
         n_formal_target_semantic_review_independent_opus=(
             n_formal_target_semantic_review_independent_opus
+        ),
+        n_formal_target_semantic_review_independent_sonnet=(
+            n_formal_target_semantic_review_independent_sonnet
         ),
         n_formalization_manifests=len(formalization),
         n_critic_manifests=len(critic),
@@ -13998,7 +14033,7 @@ def _audit_topology(manifest: Mapping[str, Any]) -> list[str]:
         )
     resolved_models = policy.get("resolved_claude_models_by_tier", {})
     if isinstance(resolved_models, Mapping):
-        missing_tiers = sorted({"haiku", "sonnet", "opus"} - set(resolved_models))
+        missing_tiers = sorted(set(LIVE_CLAUDE_MODEL_TIERS) - set(resolved_models))
         if missing_tiers:
             errors.append(
                 "resolved Claude model tier map missing: "
@@ -20744,6 +20779,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     semantic_review_independent_opus = int(
         payload.get("n_generated_code_semantic_review_independent_opus", 0) or 0
     )
+    semantic_review_independent_sonnet = int(
+        payload.get("n_generated_code_semantic_review_independent_sonnet", 0)
+        or 0
+    )
     formal_target_review_work_orders = int(
         payload.get("n_formal_target_semantic_review_work_orders", 0) or 0
     )
@@ -20755,6 +20794,10 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
     formal_target_review_independent_opus = int(
         payload.get("n_formal_target_semantic_review_independent_opus", 0) or 0
+    )
+    formal_target_review_independent_sonnet = int(
+        payload.get("n_formal_target_semantic_review_independent_sonnet", 0)
+        or 0
     )
     attached_repair_eval_algorithm_sequences = int(
         payload.get(
@@ -25755,29 +25798,30 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
-            "generated_code_semantic_review_independent_opus",
+            "generated_code_semantic_review_independent_sonnet",
             (
                 semantic_review_accepted > 0
-                and semantic_review_independent_opus >= semantic_review_accepted
+                and semantic_review_independent_sonnet
+                >= semantic_review_accepted
             ),
             (
                 "semantic_review_accepted="
-                f"{semantic_review_accepted} independent_opus="
-                f"{semantic_review_independent_opus}"
+                f"{semantic_review_accepted} independent_sonnet="
+                f"{semantic_review_independent_sonnet}"
             ),
             (
                 "accepted generated-code semantics were not reviewed by a "
-                "separate Opus-tier agent/model from the Sonnet coding agent"
+                "separate agent in a blinded Sonnet invocation"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
                 owner="GeneratedCodeSemanticReviewer",
                 target_behavior=(
-                    "Run the independent Opus semantic reviewer on every exact "
+                    "Run an independent blinded Sonnet semantic-review invocation on every exact "
                     "generated algorithm and simulation accepted downstream."
                 ),
                 success_metric=(
-                    "n_generated_code_semantic_review_independent_opus covers "
+                    "n_generated_code_semantic_review_independent_sonnet covers "
                     "all accepted semantic reviews"
                 ),
             ),
@@ -25836,30 +25880,30 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
-            "formal_target_semantic_review_independent_opus",
+            "formal_target_semantic_review_independent_sonnet",
             (
                 formal_target_review_accepted > 0
-                and formal_target_review_independent_opus
+                and formal_target_review_independent_sonnet
                 >= formal_target_review_accepted
             ),
             (
                 "formal_target_review_accepted="
-                f"{formal_target_review_accepted} independent_opus="
-                f"{formal_target_review_independent_opus}"
+                f"{formal_target_review_accepted} independent_sonnet="
+                f"{formal_target_review_independent_sonnet}"
             ),
             (
                 "accepted exact theorem semantics were not reviewed by a "
-                "separate Opus-tier agent/model from the Sonnet formalizer"
+                "separate agent in a blinded Sonnet invocation"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
                 owner="FormalTargetSemanticReviewer",
                 target_behavior=(
-                    "Run the independent Opus whole-target reviewer on every exact "
+                    "Run an independent blinded Sonnet whole-target review on every exact "
                     "theorem statement admitted to typed prover search."
                 ),
                 success_metric=(
-                    "n_formal_target_semantic_review_independent_opus covers all "
+                    "n_formal_target_semantic_review_independent_sonnet covers all "
                     "accepted formal-target reviews"
                 ),
             ),

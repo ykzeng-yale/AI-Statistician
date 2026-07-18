@@ -8,6 +8,7 @@ from ai_statistician.agent_runtime import (
     EnvironmentObservation,
     EvidenceLedgerEntry,
     ToolCallRecord,
+    agent_runtime_substage,
 )
 
 
@@ -98,6 +99,51 @@ class FlakySubsystem:
                 ),
             ),
         )
+
+
+def test_agent_runtime_exposes_compound_substage_progress_without_new_scheduler() -> None:
+    class CompoundSubsystem:
+        name = "CompoundSubsystem"
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            with agent_runtime_substage(
+                "independent_semantic_review",
+                metadata={"model_tier": "sonnet", "attempt": 1},
+            ):
+                pass
+            return AgentStepResult(status="ACCEPTED", rationale="compound work complete")
+
+    progress_rows: list[dict[str, object]] = []
+    result = AgentRuntime(
+        subsystems={"CompoundSubsystem": CompoundSubsystem()},
+        blackboard=BlackboardState(project_id="substage-progress-test"),
+    ).run(
+        AgentTask(
+            task_id="compound:q1",
+            owner_subsystem="CompoundSubsystem",
+            objective="run a visible compound stage",
+        ),
+        progress_callback=progress_rows.append,
+    )
+
+    assert result.status == "ACCEPTED"
+    substage_rows = [
+        row for row in progress_rows if row["substage"] == "independent_semantic_review"
+    ]
+    assert [row["event_type"] for row in substage_rows] == [
+        "substage_start",
+        "substage_finish",
+    ]
+    assert substage_rows[1]["status"] == "COMPLETED"
+    assert float(substage_rows[1]["elapsed_seconds"]) >= 0.0
+    assert substage_rows[1]["metadata"] == {
+        "model_tier": "sonnet",
+        "attempt": 1,
+    }
 
 
 def test_agent_runtime_dispatches_subsystems_and_records_observations() -> None:

@@ -286,7 +286,6 @@ def _llm_model_tiers(*, provider: str, env: Mapping[str, str]) -> dict[str, str]
         "default": default_generator_model(provider, env=env),
         "haiku": default_generator_model(provider, env=env, model_tier="haiku"),
         "sonnet": default_generator_model(provider, env=env, model_tier="sonnet"),
-        "opus": default_generator_model(provider, env=env, model_tier="opus"),
     }
 
 

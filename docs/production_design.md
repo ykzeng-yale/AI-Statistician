@@ -15,32 +15,32 @@ SimulatorDesigner, PaperTheoryExtractor, RAG/SearchMemory, and Critic/Evaluator
 subsystems are built. It should not be mistaken for the final autonomous
 statistical research environment.
 
-The live LLM default is Anthropic Claude API, with a cost-aware tier split:
-Sonnet for Architect, TheoryDeveloper, SimulationEngineer, AlgorithmEngineer,
-Formalizer, and substantive formalization route planning; Opus for independent
-semantic review of exact executed generated code; and Haiku for lower-cost
-intake, bounded triage, and the broad end-of-loop Critic packet. Runtime topology
+The live LLM default is Anthropic Claude API, with a hard Sonnet ceiling:
+Sonnet serves Architect, TheoryDeveloper, independent semantic-review agents,
+SimulationEngineer, AlgorithmEngineer, Formalizer, and substantive formalization
+route planning; Haiku serves lower-cost intake, bounded triage, and the broad
+end-of-loop Critic packet. Runtime topology
 validation records provider/model provenance and
 rejects recognized Anthropic family mismatches, so a Haiku-designated helper does
-not silently run on Sonnet or Opus unless the topology policy is intentionally
-changed. The topology manifest also records the request-time resolved Claude
-model map for Haiku/Sonnet/Opus and fails the same tier-policy/collapse audit
+not silently run on Sonnet. The topology manifest also records the request-time
+resolved Claude model map for Haiku/Sonnet and fails the same tier-policy/collapse audit
 used by `ai_statistician doctor`, even when only a subset of LLM agents is
 enabled. LLM worker configs carry a `model_tier` and may leave `model` empty;
 the concrete provider model is resolved when a request is built, so
 tier-specific environment overrides apply to direct worker construction as well
 as CLI-created agents. As of the 2026-06-17 Anthropic Models overview and Model
-IDs/versioning source check, the pinned default Claude API IDs are Haiku
-`claude-haiku-4-5-20251001`, Sonnet `claude-sonnet-4-6`, and Opus
-`claude-opus-4-8`. The policy also records official API aliases by tier, but
+IDs/versioning source check, the pinned live Claude API IDs are Haiku
+`claude-haiku-4-5-20251001` and Sonnet `claude-sonnet-4-6`. The source catalog
+also records higher-tier IDs for historical audit, but they are not live routes;
+any request above Sonnet fails before an Anthropic client is constructed. The
+policy also records official API aliases by tier, but
 runtime calls use those pinned API IDs; in particular, Haiku stays on
 `claude-haiku-4-5-20251001` rather than the shorter `claude-haiku-4-5` alias.
 Claude 4.6+ dateless IDs are treated as pinned snapshots, not evergreen aliases.
-Claude Fable/Mythos family IDs are tracked as outside the
-Opus/Sonnet/Haiku cost-aware tier contract, so they are not selected
-automatically for AI Statistician helper tiers. Use `AI_STATISTICIAN_CLAUDE_HAIKU_MODEL`,
-`AI_STATISTICIAN_CLAUDE_SONNET_MODEL`, and
-`AI_STATISTICIAN_CLAUDE_OPUS_MODEL` for tier-specific overrides. Leave
+Claude Fable/Mythos family IDs are tracked outside the live Haiku/Sonnet policy,
+so they are not selected automatically for AI Statistician helper tiers. Use
+`AI_STATISTICIAN_CLAUDE_HAIKU_MODEL` and
+`AI_STATISTICIAN_CLAUDE_SONNET_MODEL` for live tier-specific overrides. Leave
 `AI_STATISTICIAN_LLM_MODEL` unset in normal Anthropic runs; the global override
 is treated as a Sonnet-tier compatibility default and must not collapse
 cost-aware Haiku/Sonnet routing. If `AI_STATISTICIAN_LLM_PROVIDER` is set to an
@@ -137,8 +137,9 @@ formal debt, but any verifier or repair side effect must run through an
 Architect-visible typed AgentRuntime worker. The `full-live` preset no longer
 enables or requires the live staged gap planner.
 
-Fresh v39 exercised this correction end to end. Six bounded Opus reviews across
-the two tasks returned `REVISE` because every generated target weakened or
+Under the superseded pre-ceiling policy, fresh v39 exercised this correction end
+to end with six bounded Opus reviews across the two tasks. Those historical calls
+returned `REVISE` because every generated target weakened or
 dropped central assumptions, quantifiers, asymptotic/probabilistic regimes, or
 conclusion clauses. Those findings were generated from each question, theory
 packet, and exact target at runtime; they are stored only as non-proof run
@@ -158,7 +159,7 @@ AgentRuntime / Blackboard
   -> AlgorithmEngineer
   -> GeneratedCodeSemanticReviewer over exact estimator source + smoke execution
   -> ArchitectMetricContractPlanner (Sonnet, confirmatory experiment proposal)
-  -> ArchitectMetricSemanticReviewer (independent Opus pre-confirmation gate)
+  -> ArchitectMetricSemanticReviewer (independent Sonnet invocation)
   -> SimulationEngineer consumes the reviewed estimator handoff
   -> GeneratedCodeSemanticReviewer over exact experiment source + execution lineage
   -> PaperTheoryExtractor and RAG/SearchMemory subsystems
@@ -173,7 +174,7 @@ After a Sonnet coding agent emits an algorithm or simulation and the runtime
 executes it, the runtime records an immutable work order binding the full source
 hash, result hash, actual seed and replicate arguments, TheoryDeveloper packet,
 coding-agent proposal, and Architect-frozen empirical requirements. A separate
-Opus agent reviews question alignment, assumption alignment, frozen-protocol
+Sonnet reviewer agent independently reviews question alignment, assumption alignment, frozen-protocol
 alignment, execution-argument alignment, experiment non-vacuity/identifiability,
 and metric semantics. `REVISE` findings return to the originating coding agent
 and require fresh code plus a fresh sandbox run. `ACCEPT` resumes the deferred
@@ -208,10 +209,10 @@ an independently reviewed implementation, but before any confirmatory simulation
 result exists. The runtime records an explicit
 `theory_prerequisite_pending -> theory_informed_authoring_required ->
 preexecution_review_accepted` phase transition and does not authorize
-confirmatory simulation in either pending phase. A separate Opus reviewer checks
+confirmatory simulation in either pending phase. A separate Sonnet agent invocation checks
 question/estimand alignment, identifiability, mathematical and numeric
 consistency, finite-sample attainability, exact evaluator semantics, and
-cross-requirement consistency. For a rejected candidate, a second Opus agent
+cross-requirement consistency. For a rejected candidate, a second Sonnet agent
 independently decides which immutable artifact must change. It sees the source
 theory, metric candidate, and substantive findings, but not the reviewer's
 scope label or global repair instruction. A metric-only decision returns to the
@@ -261,13 +262,13 @@ They are packet-completeness bounds, not a definition of research quality or a
 claim that five to eight steps are mathematically sufficient. Independent
 review remains the authority, and a later artifact-backed theory workspace may
 expand beyond this handoff packet when the derivation requires it.
-The compact packet remains a Sonnet route for non-capability discovery turns.
-Serious capability and upstream-revision turns have an independent Opus model
-field and at least an 8000-token output budget. Runtime topology resolves and
-checks the actual model ID and contextual tier before any agent runs, so an
-explicit Sonnet model cannot masquerade as an Opus serious workspace. Stronger
-model provenance remains proposal metadata, never empirical, statistical, or
-proof evidence.
+Both compact discovery and serious capability/upstream-revision turns use Sonnet,
+with the serious workspace receiving a separate configuration and at least an
+8000-token output budget. Runtime topology resolves and checks the actual model
+ID and contextual tier before any agent runs. Workspace depth comes from context,
+tools, budget, and feedback lineage rather than a prohibited higher tier. Model
+provenance remains proposal metadata, never empirical, statistical, or proof
+evidence.
 
 Serious theory also needs tools, not just a larger response budget. Numeric
 claims that determine a DGP, finite-sample gate, power target, or stopping rule

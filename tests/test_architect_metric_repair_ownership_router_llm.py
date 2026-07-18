@@ -116,7 +116,7 @@ def _route(
         provider=backend,
         config=ArchitectMetricRepairOwnershipRouterConfig(
             provider_name="anthropic",
-            model="claude-opus-4-8",
+            model="claude-sonnet-4-6",
             max_repair_attempts=max_repair_attempts,
         ),
     ).route(
@@ -166,7 +166,7 @@ def test_repair_router_overrides_free_scope_with_artifact_bound_ownership() -> N
     assert backend.requests[0].metadata["subsystem"] == (
         "ArchitectMetricRepairOwnershipRouter"
     )
-    assert backend.requests[0].metadata["model_tier"] == "opus"
+    assert backend.requests[0].metadata["model_tier"] == "sonnet"
     assert "Do not repeat the reviewer's repair_scope" in (
         backend.requests[0].user_prompt
     )
@@ -177,6 +177,8 @@ def test_repair_router_overrides_free_scope_with_artifact_bound_ownership() -> N
     assert "Keep every change inside the metric contract" not in (
         backend.requests[0].user_prompt
     )
+    assert '"reviewed_finding_count":2' in backend.requests[0].user_prompt
+    assert '"required_finding_indices":[0,1]' in backend.requests[0].user_prompt
 
 
 def test_repair_router_retries_a_resolved_but_contradictory_decision() -> None:
@@ -202,6 +204,28 @@ def test_repair_router_retries_a_resolved_but_contradictory_decision() -> None:
         "claims resolved ownership but its targets and repair flag contradict"
         in backend.requests[1].user_prompt
     )
+
+
+def test_repair_router_exhaustion_returns_typed_unresolved_packet() -> None:
+    incomplete = _routing_payload()
+    incomplete["decisions"] = incomplete["decisions"][:1]
+    backend = _Backend(incomplete)
+
+    packet = _route(backend, max_repair_attempts=1)
+
+    assert len(backend.requests) == 2
+    assert packet["ok"] is False
+    assert packet["fallback_reason"] == (
+        "bounded_router_packet_validation_exhausted"
+    )
+    assert packet["recommended_repair_scope"] == "unresolved"
+    assert [row["finding_index"] for row in packet["decisions"]] == [0, 1]
+    assert all(
+        row["ownership_certainty"] == "unresolved"
+        and row["required_artifact_changes"] == []
+        for row in packet["decisions"]
+    )
+    assert validate_architect_metric_repair_ownership_packet(packet) == []
 
 
 def test_repair_router_unresolved_decision_fails_closed() -> None:

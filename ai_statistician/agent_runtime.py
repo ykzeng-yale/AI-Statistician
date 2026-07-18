@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
+from contextvars import ContextVar
 from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Callable, Literal, Mapping, Protocol
+from time import perf_counter
+from typing import Any, Callable, Iterator, Literal, Mapping, Protocol
 
 
 RuntimeStatus = Literal[
@@ -14,6 +17,12 @@ RuntimeStatus = Literal[
     "FAILED",
     "MAX_ITERATIONS_REACHED",
 ]
+
+
+_ACTIVE_PROGRESS_CONTEXT: ContextVar[dict[str, Any] | None] = ContextVar(
+    "ai_statistician_active_progress_context",
+    default=None,
+)
 
 
 class ModelBackend(Protocol):
@@ -257,6 +266,18 @@ class AgentRuntime:
 
             retry_observations: list[EnvironmentObservation] = []
             for attempt in range(max_retries + 1):
+                progress_token = _ACTIVE_PROGRESS_CONTEXT.set(
+                    {
+                        "progress_callback": progress_callback,
+                        "iteration": iteration,
+                        "task": task,
+                        "subsystem": getattr(
+                            subsystem,
+                            "name",
+                            task.owner_subsystem,
+                        ),
+                    }
+                )
                 try:
                     result = subsystem.run(task, self.blackboard)
                     if retry_observations:
@@ -339,6 +360,8 @@ class AgentRuntime:
                         failure_classification=failure_classification,
                     )
                     break
+                finally:
+                    _ACTIVE_PROGRESS_CONTEXT.reset(progress_token)
 
             subsystem_name = getattr(subsystem, "name", task.owner_subsystem)
             if self.handoff_policy is not None:
@@ -421,6 +444,66 @@ class AgentRuntime:
         )
 
 
+@contextmanager
+def agent_runtime_substage(
+    substage: str,
+    *,
+    metadata: Mapping[str, Any] | None = None,
+) -> Iterator[None]:
+    """Expose work inside a subsystem through its existing progress callback."""
+
+    context = _ACTIVE_PROGRESS_CONTEXT.get()
+    if not context:
+        yield
+        return
+    callback = context.get("progress_callback")
+    task = context.get("task")
+    if not callable(callback) or not isinstance(task, AgentTask):
+        yield
+        return
+    iteration = int(context.get("iteration", 0) or 0)
+    subsystem = str(context.get("subsystem", "") or task.owner_subsystem)
+    details = dict(metadata or {})
+    started = perf_counter()
+    _emit_progress(
+        callback,
+        event_type="substage_start",
+        iteration=iteration,
+        task=task,
+        subsystem=subsystem,
+        substage=substage,
+        metadata=details,
+    )
+    try:
+        yield
+    except Exception as exc:
+        _emit_progress(
+            callback,
+            event_type="substage_finish",
+            iteration=iteration,
+            task=task,
+            subsystem=subsystem,
+            status="FAILED",
+            rationale=f"{exc.__class__.__name__}: {exc}",
+            substage=substage,
+            elapsed_seconds=perf_counter() - started,
+            metadata={**details, "exception_type": exc.__class__.__name__},
+        )
+        raise
+    else:
+        _emit_progress(
+            callback,
+            event_type="substage_finish",
+            iteration=iteration,
+            task=task,
+            subsystem=subsystem,
+            status="COMPLETED",
+            substage=substage,
+            elapsed_seconds=perf_counter() - started,
+            metadata=details,
+        )
+
+
 def _snapshot_agent_step_result(result: AgentStepResult) -> AgentStepResult:
     """Break mutable aliases before artifacts and handoffs cross runtime ownership."""
 
@@ -452,6 +535,9 @@ def _emit_progress(
     failure_classification: str = "",
     retry_attempt: int = 0,
     max_retries: int = 0,
+    substage: str = "",
+    elapsed_seconds: float = 0.0,
+    metadata: Mapping[str, Any] | None = None,
 ) -> None:
     if progress_callback is None:
         return
@@ -472,6 +558,9 @@ def _emit_progress(
             "failure_classification": failure_classification,
             "retry_attempt": retry_attempt,
             "max_retries": max_retries,
+            "substage": substage,
+            "elapsed_seconds": max(0.0, float(elapsed_seconds or 0.0)),
+            "metadata": dict(metadata or {}),
         }
     )
 

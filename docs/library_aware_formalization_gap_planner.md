@@ -211,9 +211,9 @@ simulation planning, algorithm-planning packets, and boundary critique. The same
 request/response contracts still run against explicit `openai` live generation
 or `static` replay. Runtime topology validation records the intended model tier
 for each LLM subsystem and rejects recognized Anthropic family drift, for example
-a Haiku-designated helper configured with a Sonnet or Opus model. The packaged
-topology manifest also records the resolved Claude Haiku/Sonnet/Opus model map
-and rejects reported tier-policy collapse, so cost-aware routing is auditable
+a Haiku-designated helper configured with a Sonnet model. The packaged topology
+manifest records the resolved live Claude Haiku/Sonnet model map and the wider
+source catalog separately, and rejects reported tier-policy collapse, so routing is auditable
 even when only a subset of agents or planner prompts is staged. The packaged
 `ai_statistician_llm_model_policy` contract also records that empty worker
 `model` fields resolve from provider and `model_tier` when each request is
@@ -222,9 +222,9 @@ well as CLI-created agents. It records both canonical runtime API IDs and
 official Claude API aliases by tier; runtime calls stay pinned to the API IDs,
 so Haiku uses `claude-haiku-4-5-20251001` rather than relying on the shorter
 `claude-haiku-4-5` alias. LLM route-planner rows also reject provider-returned
-Anthropic model drift, so a
-Haiku-selected request cannot be accepted if the backend reports a Sonnet or
-Opus response model. Live generator backends surface both `requested_model` and
+Anthropic model drift, so a Haiku-selected request cannot be accepted if the
+backend reports a Sonnet response model; any response above Sonnet is rejected
+by the global live-model ceiling. Live generator backends surface both `requested_model` and
 `provider_reported_model`, and downstream row validation uses the reported model
 when the provider response object exposes one. They also compact provider
 diagnostics such as stop reason, incomplete-response details, and token usage

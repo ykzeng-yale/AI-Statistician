@@ -83,8 +83,11 @@ from .generated_code_semantic_reviewer_llm import (
     validate_generated_code_semantic_review_packet,
 )
 from .generated_code_semantic_review_replan import (
+    GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY,
     GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
+    advance_generated_code_semantic_review_lineage_budget,
     build_generated_code_semantic_review_architect_replan_task,
+    record_generated_code_semantic_review_lineage_action,
 )
 from .scientific_sandbox import (
     SCIENTIFIC_WASM_SANDBOX_PROFILE,
@@ -98,14 +101,17 @@ from .scientific_sandbox import (
 from .evaluation_protocol_revision import (
     _architect_post_result_metric_protocol_revision_result,
     architect_preexecution_metric_protocol_rejection_result,
+    invalidate_metric_protocol_authorization,
     metric_protocol_upstream_theory_revision_blocked_result,
     metric_protocol_upstream_theory_revision_feedback_errors,
 )
 from .metric_protocol_stage import (
     METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED,
+    METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED,
     METRIC_PROTOCOL_PHASE_THEORY_PREREQUISITE_PENDING,
     build_theory_informed_metric_protocol_material,
 )
+from .research_evaluation import build_research_evaluation_summary
 from .formal_target_semantic_reviewer_llm import (
     FORMAL_TARGET_SEMANTIC_REVIEW_BOUNDARY,
     LLMFormalTargetSemanticReviewerAgent,
@@ -7336,10 +7342,12 @@ class ResearchAgentRuntimeConfig:
     max_critic_repair_rounds: int = 1
     max_formalizer_proof_state_repair_rounds: int = 1
     coding_agent_packet_validation_replan_after_attempts: int = 0
+    coding_agent_packet_validation_max_lineage_failures: int = 0
     algorithm_engineer_generated_code_repair_yield_after_attempts: int = 0
     simulation_evaluator_generated_code_repair_yield_after_attempts: int = 0
     generated_code_semantic_review_max_revisions: int = 1
     metric_protocol_max_upstream_theory_revisions: int = 2
+    metric_protocol_max_fresh_candidate_revisions: int = 0
     formal_target_semantic_review_required: bool = False
     formal_target_semantic_review_max_revisions: int = 2
     formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts: int = 0
@@ -7441,6 +7449,27 @@ class ResearchAgentRuntimeConfig:
     )
 
 
+RUNTIME_RESEARCH_EVALUATION_MODES = frozenset(
+    {"research_eval", "capability_eval"}
+)
+
+
+def _is_runtime_research_evaluation_mode(evaluation_mode: Any) -> bool:
+    return str(evaluation_mode or "").strip() in RUNTIME_RESEARCH_EVALUATION_MODES
+
+
+def _runtime_research_evaluation_contract_flag(
+    evidence_contract: Mapping[str, Any],
+    requirement: str,
+) -> bool:
+    canonical = f"research_evaluation_requires_{requirement}"
+    legacy = f"capability_eval_requires_{requirement}"
+    value = evidence_contract.get(canonical)
+    if isinstance(value, bool):
+        return value
+    return evidence_contract.get(legacy) is True
+
+
 def _normalized_formal_verification_policy(policy: str) -> str:
     value = str(policy or "optional").strip().lower()
     if value not in FORMAL_VERIFICATION_POLICIES:
@@ -7520,15 +7549,26 @@ def _runtime_requested_evidence_contract(
         recommended_research_path,
         formal_verification_policy=policy,
     )
+    research_evaluation = _is_runtime_research_evaluation_mode(evaluation_mode)
     capability_eval = str(evaluation_mode or "") == "capability_eval"
     contract = {
         "formal_verification_policy": policy,
         "recommended_research_path": path,
         "formal_required_for_final": policy == "required",
         "evaluation_mode": str(evaluation_mode or "debug"),
-        "capability_eval_requires_generated_algorithm_code": capability_eval,
-        "capability_eval_requires_generated_simulation_code": capability_eval,
-        "capability_eval_requires_generated_code_semantic_review": capability_eval,
+        "research_evaluation_requires_generated_algorithm_code": (
+            research_evaluation
+        ),
+        "research_evaluation_requires_generated_simulation_code": (
+            research_evaluation
+        ),
+        "research_evaluation_requires_generated_code_semantic_review": (
+            research_evaluation
+        ),
+        "research_evaluation_requires_typed_metric_contracts": research_evaluation,
+        "capability_eval_requires_generated_algorithm_code": research_evaluation,
+        "capability_eval_requires_generated_simulation_code": research_evaluation,
+        "capability_eval_requires_generated_code_semantic_review": research_evaluation,
         "capability_eval_requires_formal_target_semantic_review": bool(
             capability_eval and formal_target_semantic_review_required
         ),
@@ -7560,7 +7600,7 @@ def _runtime_requested_evidence_contract(
         0,
         int(algorithm_engineer_generated_code_repair_yield_after_attempts or 0),
     )
-    if capability_eval and yield_after_attempts > 0:
+    if research_evaluation and yield_after_attempts > 0:
         contract[
             "capability_eval_algorithm_engineer_generated_code_repair_yield_after_attempts"
         ] = yield_after_attempts
@@ -7568,7 +7608,7 @@ def _runtime_requested_evidence_contract(
         0,
         int(simulation_evaluator_generated_code_repair_yield_after_attempts or 0),
     )
-    if capability_eval and simulation_yield_after_attempts > 0:
+    if research_evaluation and simulation_yield_after_attempts > 0:
         contract[
             "capability_eval_simulation_evaluator_generated_code_repair_yield_after_attempts"
         ] = simulation_yield_after_attempts
@@ -7618,14 +7658,28 @@ def _runtime_architect_context_with_requested_evidence_contract(
     existing_contract = payload.get("runtime_requested_evidence_contract", {})
     if isinstance(existing_contract, Mapping):
         requested_contract = {**requested_contract, **dict(existing_contract)}
-    if str(evaluation_mode or "") == "capability_eval":
-        for field in (
-            "capability_eval_requires_generated_algorithm_code",
-            "capability_eval_requires_generated_simulation_code",
-            "capability_eval_requires_generated_code_semantic_review",
-            "capability_eval_requires_formalizer_lean_candidate",
+    if _is_runtime_research_evaluation_mode(evaluation_mode):
+        for requirement in (
+            "generated_algorithm_code",
+            "generated_simulation_code",
+            "generated_code_semantic_review",
+            "typed_metric_contracts",
         ):
-            requested_contract[field] = True
+            requested_contract[
+                f"research_evaluation_requires_{requirement}"
+            ] = True
+            requested_contract[f"capability_eval_requires_{requirement}"] = True
+    if str(evaluation_mode or "") == "capability_eval":
+        requested_contract[
+            "capability_eval_requires_formalizer_lean_candidate"
+        ] = True
+    elif str(evaluation_mode or "") == "research_eval":
+        requested_contract[
+            "capability_eval_requires_formalizer_lean_candidate"
+        ] = False
+        requested_contract[
+            "capability_eval_requires_formal_target_semantic_review"
+        ] = False
     yield_after_attempts = max(
         0,
         int(algorithm_engineer_generated_code_repair_yield_after_attempts or 0),
@@ -7654,6 +7708,7 @@ def _runtime_architect_context_with_requested_evidence_contract(
             "capability_eval_formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts"
         ] = formalizer_yield_after_attempts
     payload["runtime_requested_evidence_contract"] = requested_contract
+    payload["runtime_evaluation_mode"] = str(evaluation_mode or "debug")
     return payload
 
 
@@ -8099,6 +8154,10 @@ class ArchitectCoordinatorRuntimeSubsystem:
                 task=task,
                 question=question,
                 architect_context=context,
+                max_fresh_candidate_revisions=(
+                    self.runtime_config.metric_protocol_max_fresh_candidate_revisions
+                ),
+                base_seed=self.runtime_config.seed,
             )
         )
         if protocol_revision_result is not None:
@@ -8277,8 +8336,7 @@ def _architect_context_with_rehydrated_metric_protocol_theory_material(
         and accepted_authoring.get("empirical_metric_requirements")
         and accepted_authoring.get("semantic_review_status") == "ACCEPT"
         and accepted_authoring.get("semantic_review_independent_agent") is True
-        and accepted_authoring.get("semantic_review_independent_model") is True
-        and accepted_authoring.get("semantic_review_independent_model_tier") is True
+        and accepted_authoring.get("semantic_review_independent_invocation") is True
     )
     metric_protocol_already_authorized = bool(
         (
@@ -8396,6 +8454,89 @@ def _runtime_accepted_algorithm_handoff_from_review(
     }
     payload["handoff_id"] = "accepted_algorithm_handoff:" + stable_hash(payload)[:20]
     return payload
+
+
+def _runtime_retire_resolved_generated_code_semantic_review_replan(
+    *,
+    architect_context: Mapping[str, Any],
+    accepted_review: Mapping[str, Any],
+) -> dict[str, Any]:
+    context = dict(architect_context)
+    replan = context.get("runtime_generated_code_semantic_review_replan", {})
+    if not isinstance(replan, Mapping) or not replan:
+        return context
+
+    rejected_subsystem = str(replan.get("source_subsystem", "") or "")
+    rejected_manifest_id = str(replan.get("source_manifest_id", "") or "")
+    accepted_subsystem = str(
+        accepted_review.get("source_subsystem", "") or ""
+    )
+    accepted_manifest_id = str(
+        accepted_review.get("source_manifest_id", "") or ""
+    )
+    if not (
+        accepted_review.get("overall_verdict") == "ACCEPT"
+        and rejected_subsystem
+        and accepted_subsystem == rejected_subsystem
+        and rejected_manifest_id
+        and accepted_manifest_id
+        and accepted_manifest_id != rejected_manifest_id
+    ):
+        return context
+
+    resolution = {
+        "artifact_kind": (
+            "RuntimeGeneratedCodeSemanticReviewReplanResolution"
+        ),
+        "source_subsystem": accepted_subsystem,
+        "rejected_source_manifest_id": rejected_manifest_id,
+        "rejected_review_execution_id": str(
+            replan.get("review_execution_id", "") or ""
+        ),
+        "accepted_source_manifest_id": accepted_manifest_id,
+        "accepted_source_manifest_hash": str(
+            accepted_review.get("source_manifest_hash", "") or ""
+        ),
+        "accepted_review_packet_id": str(
+            accepted_review.get("review_packet_id", "") or ""
+        ),
+        "accepted_review_execution_id": str(
+            accepted_review.get("execution_id", "") or ""
+        ),
+        "resolution_status": "SUPERSEDED_BY_FRESH_ACCEPTED_ARTIFACT",
+        "proof_evidence_status": (
+            "GENERATED_CODE_SEMANTIC_REVIEW_REPLAN_RESOLUTION_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    resolution["resolution_id"] = (
+        "generated_code_semantic_review_replan_resolution:"
+        + stable_hash(resolution)[:20]
+    )
+    context["runtime_generated_code_semantic_review_replan_resolution"] = (
+        resolution
+    )
+    context.pop("runtime_generated_code_semantic_review_replan", None)
+
+    stale_execution_id = str(replan.get("review_execution_id", "") or "")
+    environment_feedback = context.get("environment_feedback", {})
+    if isinstance(environment_feedback, Mapping) and (
+        str(
+            environment_feedback.get("semantic_review_execution_id", "")
+            or ""
+        )
+        == stale_execution_id
+        or str(environment_feedback.get("source_manifest_id", "") or "")
+        == rejected_manifest_id
+    ):
+        context.pop("environment_feedback", None)
+    feedback_loop = context.get("runtime_feedback_loop", {})
+    if (
+        isinstance(feedback_loop, Mapping)
+        and str(feedback_loop.get("semantic_review_execution_id", "") or "")
+        == stale_execution_id
+    ):
+        context.pop("runtime_feedback_loop", None)
+    return context
 
 
 def _runtime_validated_algorithm_handoff(
@@ -8647,6 +8788,20 @@ def _architect_metric_protocol_prior_rejection_context(
     return {}
 
 
+def _architect_candidate_seed(
+    *,
+    architect_context: Mapping[str, Any],
+    default_seed: int,
+) -> int:
+    try:
+        candidate_seed = int(
+            architect_context.get("runtime_candidate_seed", default_seed)
+        )
+    except (TypeError, ValueError):
+        candidate_seed = int(default_seed)
+    return candidate_seed if candidate_seed >= 0 else int(default_seed)
+
+
 def _architect_initial_routing_decision(
     *,
     question: OpenResearchQuestion,
@@ -8813,7 +8968,10 @@ def _architect_initial_routing_decision(
             ),
             "architect_context": context,
             "n_runs": runtime_config.n_runs,
-            "seed": runtime_config.seed,
+            "seed": _architect_candidate_seed(
+                architect_context=context,
+                default_seed=runtime_config.seed,
+            ),
         }
         if requires_accepted_algorithm_handoff:
             inputs["algorithm_sandbox_manifest_id"] = (
@@ -8889,7 +9047,10 @@ def _architect_initial_routing_decision(
             "implementation_gaps": implementation_gaps,
             "architect_context": context,
             "n_runs": runtime_config.n_runs,
-            "seed": runtime_config.seed,
+            "seed": _architect_candidate_seed(
+                architect_context=context,
+                default_seed=runtime_config.seed,
+            ),
         }
         if isinstance(feedback, Mapping) and feedback:
             context["environment_feedback"] = dict(feedback)
@@ -11103,6 +11264,33 @@ class RetrievalMemoryRuntimeSubsystem:
         )
 
 
+def _runtime_metric_protocol_authoring_required(
+    *,
+    evidence_contract: Mapping[str, Any],
+    architect_context: Mapping[str, Any],
+) -> bool:
+    if not _runtime_research_evaluation_contract_flag(
+        evidence_contract,
+        "typed_metric_contracts",
+    ):
+        return False
+    metric_gate = architect_context.get("architect_metric_protocol_gate", {})
+    explicit_gate_block = bool(
+        isinstance(metric_gate, Mapping)
+        and metric_gate.get("artifact_kind")
+        == "RuntimeArchitectMetricProtocolGate"
+        and metric_gate.get("execution_authorized") is False
+    )
+    accepted_protocol = bool(
+        evidence_contract.get("empirical_metric_requirements")
+        and evidence_contract.get("empirical_metric_protocol_phase")
+        == METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED
+        and evidence_contract.get("metric_protocol_execution_authorized") is True
+        and not explicit_gate_block
+    )
+    return not accepted_protocol
+
+
 class TheoryDeveloperRuntimeSubsystem:
     name = "TheoryDeveloper"
 
@@ -11273,15 +11461,9 @@ class TheoryDeveloperRuntimeSubsystem:
         )
         if implementation_gaps:
             context["implementation_gaps"] = implementation_gaps
-        requires_metric_protocol_gate = bool(
-            evidence_contract.get(
-                "capability_eval_requires_typed_metric_contracts"
-            )
-            is True
-            and evidence_contract.get("empirical_metric_requirements")
-            in (None, [], {})
-            and evidence_contract.get("metric_protocol_execution_authorized")
-            is not True
+        requires_metric_protocol_gate = _runtime_metric_protocol_authoring_required(
+            evidence_contract=evidence_contract,
+            architect_context=context,
         )
         if requires_metric_protocol_gate:
             prior_metric_gate = context.get(
@@ -11310,38 +11492,6 @@ class TheoryDeveloperRuntimeSubsystem:
                     theory_packet_id=packet_id,
                 )
             )
-            algorithm_task = AgentTask(
-                task_id=f"algorithm:{question.id}:{stable_hash(packet_id)[:8]}",
-                owner_subsystem="AlgorithmEngineer",
-                objective=(
-                    "Implement the TheoryDeveloper estimator as an executable "
-                    "artifact before any DGP-based statistical evaluation."
-                ),
-                inputs={
-                    "question": _question_to_payload(question),
-                    "theory_packet_id": packet_id,
-                    "simulation_manifest_id": "",
-                    "implementation_gaps": implementation_gaps,
-                    "architect_context": context,
-                    "n_runs": self.n_runs,
-                    "seed": self.seed,
-                },
-                allowed_tools=("model_backend", "python", "filesystem_sandbox"),
-                expected_artifacts=_architect_expected_artifacts(
-                    context,
-                    "AlgorithmEngineer",
-                    ("algorithm_sandbox_manifest",),
-                ),
-                acceptance_gate=_architect_acceptance_gate(
-                    context,
-                    "AlgorithmEngineer",
-                    "the generated estimator executes and receives independent semantic review",
-                ),
-                stop_condition=(
-                    "accepted estimator artifact routes to DGP-based simulation or "
-                    "typed repair feedback returns to its owner"
-                ),
-            )
             context["architect_metric_protocol_gate"] = {
                 "artifact_kind": "RuntimeArchitectMetricProtocolGate",
                 "source_theory_packet_id": packet_id,
@@ -11353,16 +11503,15 @@ class TheoryDeveloperRuntimeSubsystem:
                 "rejection_manifest_ids": rejection_manifest_ids,
                 "upstream_theory_revision_count": upstream_theory_revision_count,
                 "max_upstream_theory_revisions": max_upstream_theory_revisions,
-                "deferred_next_task": asdict(simulation_task),
                 "required_disposition": "PREEXECUTION_REVIEW_ACCEPTED",
                 "execution_authorized": False,
                 "proof_evidence_status": (
                     "ARCHITECT_METRIC_PROTOCOL_GATE_NOT_PROOF_EVIDENCE"
                 ),
                 "boundary": (
-                    "Theory is available. AlgorithmEngineer may implement and smoke-test "
-                    "the estimator, but confirmatory simulation remains blocked until "
-                    "the empirical protocol passes independent pre-execution review. "
+                    "Theory is available, but AlgorithmEngineer and confirmatory "
+                    "simulation remain blocked until the estimand, DGP, identifiability, "
+                    "and empirical protocol pass independent pre-execution review. "
                     "No generated result can relax that protocol."
                 ),
             }
@@ -11395,19 +11544,15 @@ class TheoryDeveloperRuntimeSubsystem:
                     "typed pre-execution rejection preserves the full review lineage"
                 ),
             )
-            algorithm_inputs = dict(algorithm_task.inputs)
-            algorithm_inputs["architect_context"] = context
-            algorithm_inputs["deferred_metric_protocol_task"] = asdict(
-                metric_protocol_task
-            )
-            next_task = replace(algorithm_task, inputs=algorithm_inputs)
+            next_task = metric_protocol_task
         else:
             next_task = simulation_task
         return AgentStepResult(
             status="REROUTE",
             rationale=(
                 "LLM TheoryDeveloper produced a proposal; runtime is routing it to "
-                "AlgorithmEngineer before independent confirmatory-protocol review and simulation."
+                "independent estimand/DGP/identifiability and metric-protocol review "
+                "before any AlgorithmEngineer or confirmatory simulation execution."
                 if requires_metric_protocol_gate
                 else "LLM TheoryDeveloper produced a proposal; runtime is routing it to executable simulation feedback."
             ),
@@ -12430,16 +12575,15 @@ def _runtime_generated_code_semantic_review_dispatch(
     )
     if not isinstance(runtime_contract, Mapping):
         runtime_contract = {}
-    capability_eval = bool(
-        (
-            isinstance(evidence_contract, Mapping)
-            and str(evidence_contract.get("evaluation_mode", "") or "")
-            == "capability_eval"
+    research_evaluation = any(
+        _is_runtime_research_evaluation_mode(value)
+        for value in (
+            evidence_contract.get("evaluation_mode", "")
+            if isinstance(evidence_contract, Mapping)
+            else "",
+            runtime_contract.get("evaluation_mode", ""),
+            architect_context.get("runtime_evaluation_mode", ""),
         )
-        or str(runtime_contract.get("evaluation_mode", "") or "")
-        == "capability_eval"
-        or str(architect_context.get("runtime_evaluation_mode", "") or "")
-        == "capability_eval"
     )
     source_responsibility_contract = (
         _runtime_generated_code_semantic_review_source_responsibility_contract(
@@ -12508,7 +12652,7 @@ def _runtime_generated_code_semantic_review_dispatch(
         "source_responsibility_contract_fingerprint": stable_hash(
             source_responsibility_contract
         ),
-        "capability_eval": capability_eval,
+        "capability_eval": research_evaluation,
         "review_revision_count": review_revision_count,
         "max_revisions": max(0, int(max_revisions or 0)),
         "empirical_evaluation_phase": empirical_evaluation_phase,
@@ -12978,17 +13122,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             runtime_review_errors.append(
                 "capability-eval reviewer agent must differ from source generator agent"
             )
-        if capability_eval and reviewer_tier != "opus":
+        if capability_eval and reviewer_tier != "sonnet":
             runtime_review_errors.append(
-                "capability-eval semantic reviewer must use the Opus tier"
-            )
-        if capability_eval and source_model and reviewer_model == source_model:
-            runtime_review_errors.append(
-                "capability-eval reviewer model must differ from source generator model"
-            )
-        if capability_eval and source_tier and reviewer_tier == source_tier:
-            runtime_review_errors.append(
-                "capability-eval reviewer tier must differ from source generator tier"
+                "research-evaluation semantic reviewer must use the Sonnet tier"
             )
         if runtime_review_errors:
             return AgentStepResult(
@@ -13067,6 +13203,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 and reviewer_agent
                 and reviewer_agent != source_agent
             ),
+            "independent_invocation": True,
             "independent_model": bool(
                 source_model
                 and reviewer_model
@@ -13143,6 +13280,36 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             self.max_revisions,
             int(work_order.get("max_revisions", 0) or 0),
         )
+        lineage_budget_state: dict[str, Any] = {}
+        if verdict == "REVISE":
+            task_context = task.inputs.get("architect_context", {})
+            lineage_budget_state = (
+                advance_generated_code_semantic_review_lineage_budget(
+                    architect_context=(
+                        task_context if isinstance(task_context, Mapping) else {}
+                    ),
+                    work_order=work_order,
+                    review_packet=review_packet,
+                    max_local_revisions=max_revisions,
+                    prior_local_revisions=revision_count,
+                )
+            )
+            lineage_budget_summary = {
+                **dict(lineage_budget_state.get("row", {})),
+                "local_repair_available": bool(
+                    lineage_budget_state.get("local_repair_available")
+                ),
+                "architect_replan_available": bool(
+                    lineage_budget_state.get("architect_replan_available")
+                ),
+                "lineage_budget_exhausted": bool(
+                    lineage_budget_state.get("lineage_budget_exhausted")
+                ),
+            }
+            execution_manifest["semantic_review_lineage_budget"] = (
+                lineage_budget_summary
+            )
+            feedback["semantic_review_lineage_budget"] = lineage_budget_summary
         if verdict == "ACCEPT":
             deferred_task = _agent_task_from_runtime_payload(deferred_task_payload)
             next_inputs = dict(deferred_task.inputs)
@@ -13178,33 +13345,41 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 or []
                 if isinstance(row, Mapping)
             ]
-            accepted_reviews.append(
-                {
-                    "execution_id": execution_id,
-                    "review_packet_id": review_packet_id,
-                    "review_packet_hash": review_packet_hash,
-                    "source_subsystem": source_subsystem,
-                    "source_manifest_id": str(
-                        work_order.get("source_manifest_id", "") or ""
-                    ),
-                    "overall_verdict": "ACCEPT",
-                    "empirical_evaluation_phase": empirical_evaluation_phase,
-                    "confirmatory_empirical_evidence_eligible": (
-                        confirmatory_empirical_evidence_eligible
-                    ),
-                    "source_responsibility_contract_fingerprint": str(
-                        work_order.get(
-                            "source_responsibility_contract_fingerprint",
-                            "",
-                        )
-                        or ""
-                    ),
-                }
-            )
+            accepted_review = {
+                "execution_id": execution_id,
+                "review_packet_id": review_packet_id,
+                "review_packet_hash": review_packet_hash,
+                "source_subsystem": source_subsystem,
+                "source_manifest_id": str(
+                    work_order.get("source_manifest_id", "") or ""
+                ),
+                "source_manifest_hash": str(
+                    work_order.get("source_manifest_hash", "") or ""
+                ),
+                "overall_verdict": "ACCEPT",
+                "empirical_evaluation_phase": empirical_evaluation_phase,
+                "confirmatory_empirical_evidence_eligible": (
+                    confirmatory_empirical_evidence_eligible
+                ),
+                "source_responsibility_contract_fingerprint": str(
+                    work_order.get(
+                        "source_responsibility_contract_fingerprint",
+                        "",
+                    )
+                    or ""
+                ),
+            }
+            accepted_reviews.append(accepted_review)
             next_inputs["accepted_generated_code_semantic_reviews"] = accepted_reviews
             next_context = dict(next_inputs.get("architect_context", {}) or {})
             next_context["accepted_generated_code_semantic_reviews"] = (
                 accepted_reviews
+            )
+            next_context = (
+                _runtime_retire_resolved_generated_code_semantic_review_replan(
+                    architect_context=next_context,
+                    accepted_review=accepted_review,
+                )
             )
             if algorithm_handoff:
                 next_inputs["upstream_algorithm_handoff"] = algorithm_handoff
@@ -13226,7 +13401,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             failure_classification = ""
         elif (
             repair_scope == "source_code"
-            and revision_count < max_revisions
+            and lineage_budget_state.get("local_repair_available") is True
         ):
             repair_task = _agent_task_from_runtime_payload(repair_task_payload)
             next_inputs = dict(repair_task.inputs)
@@ -13243,6 +13418,16 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             next_context["environment_feedback"] = next_inputs[
                 "environment_feedback"
             ]
+            lineage_ledger = record_generated_code_semantic_review_lineage_action(
+                lineage_budget_state,
+                action="local_repair",
+            )
+            next_context[
+                GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY
+            ] = lineage_ledger
+            execution_manifest["semantic_review_lineage_budget"][
+                "selected_action"
+            ] = "local_repair"
             next_context["runtime_feedback_loop"] = {
                 **(
                     dict(next_context.get("runtime_feedback_loop", {}) or {})
@@ -13325,31 +13510,65 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     "source_artifact_remains_unaccepted": True,
                 },
             }
-            next_task = (
-                build_generated_code_semantic_review_architect_replan_task(
-                    question=question,
-                    review_task_id=task.task_id,
-                    work_order=work_order,
-                    escalation_feedback=escalation_feedback,
-                    review_packet_id=review_packet_id,
-                    review_execution_id=execution_id,
-                    revision_count=revision_count,
-                    max_revisions=max_revisions,
+            if lineage_budget_state.get("lineage_budget_exhausted") is True:
+                lineage_ledger = (
+                    record_generated_code_semantic_review_lineage_action(
+                        lineage_budget_state,
+                        action="blocked",
+                    )
                 )
-            )
-            status = "REROUTE"
-            rationale = (
-                "Independent semantic review found an upstream protocol or theory "
-                "blocker; exact findings and failed execution lineage are routed "
-                "to ArchitectCoordinator without post-result gate changes."
-                if repair_scope
-                in GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_REPAIR_SCOPES
-                else "Generated code still failed independent semantic review "
-                "after the bounded local revision budget; exact review and "
-                "execution lineage are routed to ArchitectCoordinator while the "
-                "source artifact remains unaccepted."
-            )
-            failure_classification = escalation_classification
+                execution_manifest["semantic_review_lineage_budget"][
+                    "selected_action"
+                ] = "blocked"
+                execution_manifest[
+                    GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY
+                ] = lineage_ledger
+                next_task = None
+                status = "BLOCKED"
+                rationale = (
+                    "The same theory-bound semantic finding returned after its "
+                    "bounded local repair and Architect replan allowance. The "
+                    "runtime stopped the lineage instead of resetting the budget."
+                )
+                failure_classification = (
+                    "generated_code_semantic_review_lineage_budget_exhausted"
+                )
+            else:
+                lineage_ledger = (
+                    record_generated_code_semantic_review_lineage_action(
+                        lineage_budget_state,
+                        action="architect_replan",
+                    )
+                )
+                execution_manifest["semantic_review_lineage_budget"][
+                    "selected_action"
+                ] = "architect_replan"
+                next_task = (
+                    build_generated_code_semantic_review_architect_replan_task(
+                        question=question,
+                        review_task_id=task.task_id,
+                        work_order=work_order,
+                        escalation_feedback=escalation_feedback,
+                        review_packet_id=review_packet_id,
+                        review_execution_id=execution_id,
+                        revision_count=revision_count,
+                        max_revisions=max_revisions,
+                        lineage_ledger=lineage_ledger,
+                    )
+                )
+                status = "REROUTE"
+                rationale = (
+                    "Independent semantic review found an upstream protocol or theory "
+                    "blocker; exact findings and failed execution lineage are routed "
+                    "to ArchitectCoordinator without post-result gate changes."
+                    if repair_scope
+                    in GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_REPAIR_SCOPES
+                    else "Generated code still failed independent semantic review "
+                    "after the bounded local revision budget; exact review and "
+                    "execution lineage are routed to ArchitectCoordinator while the "
+                    "source artifact remains unaccepted."
+                )
+                failure_classification = escalation_classification
 
         evidence = EvidenceLedgerEntry(
             evidence_id="evidence:" + stable_hash([task.task_id, execution_id])[:20],
@@ -13381,6 +13600,12 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 "reviewer_model": reviewer_model,
                 "reviewer_model_tier": reviewer_tier,
                 "n_findings": len(review_packet.get("findings", []) or []),
+                "semantic_review_lineage_key": str(
+                    lineage_budget_state.get("lineage_key", "") or ""
+                ),
+                "semantic_review_lineage_budget_exhausted": bool(
+                    lineage_budget_state.get("lineage_budget_exhausted")
+                ),
                 "kernel_verified": False,
             },
         )
@@ -13438,6 +13663,138 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
 
 
 
+def _runtime_simulation_metric_protocol_guard(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    theory_packet_id: str,
+    theory_packet: Mapping[str, Any],
+    architect_context: Mapping[str, Any],
+    exploratory_diagnostic: bool,
+) -> AgentStepResult | None:
+    evidence_contract = _architect_runtime_plan(architect_context).get(
+        "evidence_contract", {}
+    )
+    if not isinstance(evidence_contract, Mapping):
+        evidence_contract = {}
+    if exploratory_diagnostic or not _runtime_metric_protocol_authoring_required(
+        evidence_contract=evidence_contract,
+        architect_context=architect_context,
+    ):
+        return None
+
+    context = invalidate_metric_protocol_authorization(architect_context)
+    context["theory_packet_id"] = theory_packet_id
+    context["architect_metric_protocol_theory_material"] = (
+        build_theory_informed_metric_protocol_material(
+            theory_packet=theory_packet,
+            theory_packet_id=theory_packet_id,
+        )
+    )
+    prior_gate = context.get("architect_metric_protocol_gate", {})
+    prior_gate = dict(prior_gate) if isinstance(prior_gate, Mapping) else {}
+    context["architect_metric_protocol_gate"] = {
+        **prior_gate,
+        "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+        "source_theory_packet_id": theory_packet_id,
+        "required_disposition": "PREEXECUTION_REVIEW_ACCEPTED",
+        "execution_authorized": False,
+        "consumed": False,
+        "proof_evidence_status": (
+            "ARCHITECT_METRIC_PROTOCOL_GATE_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    block_id = "metric_protocol_execution_blocked:" + stable_hash(
+        [task.task_id, theory_packet_id, evidence_contract]
+    )[:20]
+    manifest = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeMetricProtocolExecutionBlocked",
+        "manifest_id": block_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question_id": question.id,
+        "source_task_id": task.task_id,
+        "source_theory_packet_id": theory_packet_id,
+        "source_requirement_set_id": str(
+            evidence_contract.get("empirical_metric_requirement_set_id", "")
+            or ""
+        ),
+        "execution_attempted": False,
+        "execution_authorized": False,
+        "required_next_owner": "ArchitectCoordinator",
+        "proof_evidence_status": "METRIC_PROTOCOL_GUARD_NOT_PROOF_EVIDENCE",
+        "boundary": (
+            "This guard blocks SimulationEngineer generation and all simulation "
+            "execution until the current theory-bound metric protocol passes "
+            "independent pre-execution review. It is not empirical or proof evidence."
+        ),
+    }
+    next_task = AgentTask(
+        task_id=(
+            f"architect-metric-protocol-guard:{question.id}:"
+            f"{stable_hash(block_id)[:8]}"
+        ),
+        owner_subsystem="ArchitectCoordinator",
+        objective=(
+            "Author and independently review the current theory-bound empirical "
+            "protocol before SimulationEvaluator may run."
+        ),
+        inputs={
+            "question": _question_to_payload(question),
+            "architect_context": context,
+        },
+        allowed_tools=("model_backend", "blackboard", "evidence_ledger"),
+        expected_artifacts=(
+            "architect_coordinator_proposal",
+            "architect_metric_requirement_authoring",
+            "architect_metric_semantic_review",
+        ),
+        acceptance_gate=(
+            "the current theory-bound requirement set receives an independent "
+            "pre-execution ACCEPT certificate"
+        ),
+        stop_condition=(
+            "reviewed protocol is accepted or a typed owner-specific blocker is recorded"
+        ),
+    )
+    evidence = EvidenceLedgerEntry(
+        evidence_id="evidence:" + stable_hash([task.task_id, block_id])[:20],
+        task_id=task.task_id,
+        artifact_id=block_id,
+        evidence_type="metric_protocol_execution_guard",
+        status="EXECUTION_BLOCKED_PREEXECUTION_REVIEW_REQUIRED",
+        boundary=str(manifest["boundary"]),
+        payload={
+            "source_theory_packet_id": theory_packet_id,
+            "execution_attempted": False,
+            "execution_authorized": False,
+            "kernel_verified": False,
+        },
+    )
+    return AgentStepResult(
+        status="REROUTE",
+        rationale=(
+            "SimulationEvaluator refused to call the simulation agent because the "
+            "current theory-bound metric protocol is not independently authorized."
+        ),
+        produced_artifacts={block_id: manifest},
+        observations=(
+            EnvironmentObservation(
+                observation_type="metric_protocol_execution_blocked",
+                summary="simulation generation and execution blocked before API call",
+                payload={
+                    "manifest_id": block_id,
+                    "theory_packet_id": theory_packet_id,
+                    "execution_attempted": False,
+                },
+            ),
+        ),
+        evidence_entries=(evidence,),
+        next_task=next_task,
+        failure_classification="metric_protocol_preexecution_authorization_required",
+    )
+
+
 class SimulationEvaluatorRuntimeSubsystem:
     name = "SimulationEvaluator"
 
@@ -13447,6 +13804,7 @@ class SimulationEvaluatorRuntimeSubsystem:
         proposal_agent: LLMSimulationEngineerAgent | None = None,
         sandbox_root: Path = Path("runs") / "generated_simulation_sandbox",
         packet_validation_replan_after_attempts: int = 0,
+        packet_validation_max_lineage_failures: int = 0,
         semantic_reviewer_available: bool = False,
         semantic_review_max_revisions: int = 1,
     ) -> None:
@@ -13455,6 +13813,10 @@ class SimulationEvaluatorRuntimeSubsystem:
         self.packet_validation_replan_after_attempts = max(
             0,
             int(packet_validation_replan_after_attempts or 0),
+        )
+        self.packet_validation_max_lineage_failures = max(
+            0,
+            int(packet_validation_max_lineage_failures or 0),
         )
         self.semantic_reviewer_available = bool(semantic_reviewer_available)
         self.semantic_review_max_revisions = max(
@@ -13498,6 +13860,16 @@ class SimulationEvaluatorRuntimeSubsystem:
         )
         if trace_repair_result is not None:
             return trace_repair_result
+        metric_protocol_guard = _runtime_simulation_metric_protocol_guard(
+            task=task,
+            question=question,
+            theory_packet_id=packet_id,
+            theory_packet=packet if isinstance(packet, Mapping) else {},
+            architect_context=context,
+            exploratory_diagnostic=exploratory_diagnostic,
+        )
+        if metric_protocol_guard is not None:
+            return metric_protocol_guard
         algorithm_sandbox_manifest_id = str(
             task.inputs.get("algorithm_sandbox_manifest_id", "")
             or context.get("algorithm_sandbox_manifest_id", "")
@@ -13694,6 +14066,9 @@ class SimulationEvaluatorRuntimeSubsystem:
                     seed=seed,
                     replan_after_attempts=(
                         self.packet_validation_replan_after_attempts
+                    ),
+                    max_lineage_failures=(
+                        self.packet_validation_max_lineage_failures
                     ),
                 )
             proposal_id = str(proposal_packet["packet_id"])
@@ -14857,7 +15232,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                     stop_condition="algorithm sandbox feedback recorded",
                 )
             else:
-                next_task = _formalization_task(
+                next_task = _post_empirical_evidence_task(
                     question=question,
                     packet_id=packet_id,
                     simulation_manifest_id=manifest_id,
@@ -14972,6 +15347,7 @@ class AlgorithmEngineerRuntimeSubsystem:
         proposal_agent: LLMAlgorithmEngineerAgent | None = None,
         timeout_s: int = 60,
         packet_validation_replan_after_attempts: int = 0,
+        packet_validation_max_lineage_failures: int = 0,
         semantic_reviewer_available: bool = False,
         semantic_review_max_revisions: int = 1,
     ) -> None:
@@ -14983,6 +15359,10 @@ class AlgorithmEngineerRuntimeSubsystem:
         self.packet_validation_replan_after_attempts = max(
             0,
             int(packet_validation_replan_after_attempts or 0),
+        )
+        self.packet_validation_max_lineage_failures = max(
+            0,
+            int(packet_validation_max_lineage_failures or 0),
         )
         self.semantic_reviewer_available = bool(semantic_reviewer_available)
         self.semantic_review_max_revisions = max(
@@ -15092,6 +15472,9 @@ class AlgorithmEngineerRuntimeSubsystem:
                     exc=exc,
                     replan_after_attempts=(
                         self.packet_validation_replan_after_attempts
+                    ),
+                    max_lineage_failures=(
+                        self.packet_validation_max_lineage_failures
                     ),
                 )
             proposal_id = str(proposal_packet["packet_id"])
@@ -15637,7 +16020,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                 seed=int(task.inputs.get("seed", self.seed) or self.seed),
             )
         else:
-            next_task = _formalization_task(
+            next_task = _post_empirical_evidence_task(
                 question=question,
                 packet_id=packet_id,
                 simulation_manifest_id=simulation_manifest_id,
@@ -15781,6 +16164,7 @@ def _coding_agent_packet_validation_state(
     validation_label: str,
     validation_errors: Sequence[str],
     replan_after_attempts: int,
+    max_lineage_failures: int = 0,
 ) -> dict[str, Any]:
     previous = (
         task.inputs.get("environment_feedback", {})
@@ -15793,6 +16177,60 @@ def _coding_agent_packet_validation_state(
     error_fingerprint = stable_hash(
         [validation_label, sorted({str(error) for error in validation_errors})]
     )
+    architect_context = (
+        task.inputs.get("architect_context", {})
+        if isinstance(task.inputs.get("architect_context", {}), Mapping)
+        else {}
+    )
+    revision_cycle = architect_context.get(
+        "runtime_evaluation_protocol_revision_cycle", {}
+    )
+    if not isinstance(revision_cycle, Mapping):
+        revision_cycle = {}
+    lineage_key = stable_hash(
+        {
+            "source_subsystem": task.owner_subsystem,
+            "theory_packet_id": str(
+                task.inputs.get("theory_packet_id", "")
+                or architect_context.get("theory_packet_id", "")
+                or architect_context.get("previous_theory_packet_id", "")
+                or ""
+            ),
+            "validation_label": validation_label,
+            "validation_error_fingerprint": error_fingerprint,
+            "fresh_candidate_id": str(
+                revision_cycle.get("fresh_candidate_id", "") or ""
+            ),
+        }
+    )
+    prior_ledger = architect_context.get(
+        "runtime_packet_validation_attempt_ledger", {}
+    )
+    prior_ledger = (
+        dict(prior_ledger) if isinstance(prior_ledger, Mapping) else {}
+    )
+    prior_lineage_row = prior_ledger.get(lineage_key, {})
+    if not isinstance(prior_lineage_row, Mapping):
+        prior_lineage_row = {}
+    lineage_round = int(prior_lineage_row.get("attempt_count", 0) or 0) + 1
+    max_failures = max(0, int(max_lineage_failures or 0))
+    lineage_row = {
+        "lineage_key": lineage_key,
+        "source_subsystem": task.owner_subsystem,
+        "theory_packet_id": str(
+            task.inputs.get("theory_packet_id", "")
+            or architect_context.get("theory_packet_id", "")
+            or architect_context.get("previous_theory_packet_id", "")
+            or ""
+        ),
+        "validation_label": validation_label,
+        "validation_error_fingerprint": error_fingerprint,
+        "attempt_count": lineage_round,
+        "max_lineage_failures": max_failures,
+    }
+    attempt_ledger = {**prior_ledger, lineage_key: lineage_row}
+    if len(attempt_ledger) > 32:
+        attempt_ledger = dict(list(attempt_ledger.items())[-32:])
     previous_family = str(
         previous.get("packet_validation_family_fingerprint", "") or ""
     )
@@ -15803,6 +16241,9 @@ def _coding_agent_packet_validation_state(
         previous_round + 1 if previous_family == family_fingerprint else 1
     )
     threshold = max(0, int(replan_after_attempts or 0))
+    lineage_budget_exhausted = bool(
+        max_failures > 0 and lineage_round >= max_failures
+    )
     return {
         "packet_validation_family_fingerprint": family_fingerprint,
         "validation_error_fingerprint": error_fingerprint,
@@ -15814,8 +16255,17 @@ def _coding_agent_packet_validation_state(
             else 1
         ),
         "packet_validation_replan_after_attempts": threshold,
+        "packet_validation_lineage_key": lineage_key,
+        "lineage_packet_validation_round": lineage_round,
+        "packet_validation_max_lineage_failures": max_failures,
+        "packet_validation_lineage_budget_exhausted": (
+            lineage_budget_exhausted
+        ),
+        "packet_validation_attempt_ledger": attempt_ledger,
         "packet_validation_replan_required": bool(
-            threshold > 0 and consecutive_round >= threshold
+            not lineage_budget_exhausted
+            and threshold > 0
+            and lineage_round >= threshold
         ),
     }
 
@@ -16113,6 +16563,7 @@ def _simulation_engineer_packet_validation_failure_result(
     n_runs: int,
     seed: int,
     replan_after_attempts: int = 0,
+    max_lineage_failures: int = 0,
 ) -> AgentStepResult:
     empirical_evaluation_phase = str(
         task.inputs.get("empirical_evaluation_phase", "")
@@ -16129,13 +16580,19 @@ def _simulation_engineer_packet_validation_failure_result(
         validation_label=exc.validation_label,
         validation_errors=validation_errors,
         replan_after_attempts=replan_after_attempts,
+        max_lineage_failures=max_lineage_failures,
+    )
+    failure_classification = (
+        "simulation_engineer_packet_validation_lineage_budget_exhausted"
+        if validation_state["packet_validation_lineage_budget_exhausted"]
+        else "simulation_engineer_packet_validation_failed"
     )
     failure_id = "simulation_engineer_validation_failure:" + stable_hash(
         [task.task_id, theory_packet_id, validation_errors, exc.history]
     )[:20]
     repair_feedback = {
         "feedback_type": "simulation_engineer_packet_validation_feedback",
-        "failure_classification": "simulation_engineer_packet_validation_failed",
+        "failure_classification": failure_classification,
         "validation_label": exc.validation_label,
         "validation_errors": validation_errors,
         "last_attempt_summary": exc.history[-1] if exc.history else {},
@@ -16187,7 +16644,7 @@ def _simulation_engineer_packet_validation_failure_result(
         "theory_packet_id": theory_packet_id,
         "empirical_evaluation_phase": empirical_evaluation_phase,
         "validation_label": exc.validation_label,
-        "failure_classification": "simulation_engineer_packet_validation_failed",
+        "failure_classification": failure_classification,
         "validation_errors": validation_errors,
         "llm_json_repair_history": exc.history,
         **validation_state,
@@ -16199,6 +16656,9 @@ def _simulation_engineer_packet_validation_failure_result(
         "boundary": SIMULATION_ENGINEER_BOUNDARY,
     }
     revision_context = dict(context)
+    revision_context["runtime_packet_validation_attempt_ledger"] = dict(
+        validation_state["packet_validation_attempt_ledger"]
+    )
     revision_context["environment_feedback"] = repair_feedback
     revision_context["runtime_feedback_loop"] = {
         **(
@@ -16252,7 +16712,9 @@ def _simulation_engineer_packet_validation_failure_result(
             "recorded"
         ),
     )
-    next_task = (
+    next_task = None if validation_state[
+        "packet_validation_lineage_budget_exhausted"
+    ] else (
         _coding_agent_packet_validation_architect_task(
             task=task,
             question=question,
@@ -16270,9 +16732,7 @@ def _simulation_engineer_packet_validation_failure_result(
         status="VALIDATION_FAILED_RECORDED_NOT_EXECUTION_EVIDENCE",
         boundary=SIMULATION_ENGINEER_BOUNDARY,
         payload={
-            "failure_classification": (
-                "simulation_engineer_packet_validation_failed"
-            ),
+            "failure_classification": failure_classification,
             "validation_errors": validation_errors,
             "attempts": exc.attempts,
             **validation_state,
@@ -16284,12 +16744,18 @@ def _simulation_engineer_packet_validation_failure_result(
     )
     return AgentStepResult(
         status=(
-            "REROUTE"
+            "BLOCKED"
+            if validation_state["packet_validation_lineage_budget_exhausted"]
+            else "REROUTE"
             if validation_state["packet_validation_replan_required"]
             else "REVISE"
         ),
         rationale=(
-            "LLM SimulationEngineer packet repeatedly failed local validation; "
+            "SimulationEngineer exhausted the persistent lineage-bound packet "
+            "validation budget; runtime recorded a typed blocker and stopped "
+            "before another model call or execution."
+            if validation_state["packet_validation_lineage_budget_exhausted"]
+            else "LLM SimulationEngineer packet repeatedly failed local validation; "
             "exact validator feedback was routed to ArchitectCoordinator for "
             "cross-subsystem replanning before execution."
             if validation_state["packet_validation_replan_required"]
@@ -16314,7 +16780,7 @@ def _simulation_engineer_packet_validation_failure_result(
         ),
         evidence_entries=(evidence,),
         next_task=next_task,
-        failure_classification="simulation_engineer_packet_validation_failed",
+        failure_classification=failure_classification,
     )
 
 
@@ -16328,6 +16794,7 @@ def _algorithm_engineer_packet_validation_failure_result(
     context: Mapping[str, Any],
     exc: PacketValidationError,
     replan_after_attempts: int = 0,
+    max_lineage_failures: int = 0,
 ) -> AgentStepResult:
     validation_errors = [str(error) for error in exc.errors if str(error)]
     validation_state = _coding_agent_packet_validation_state(
@@ -16336,6 +16803,12 @@ def _algorithm_engineer_packet_validation_failure_result(
         validation_label=exc.validation_label,
         validation_errors=validation_errors,
         replan_after_attempts=replan_after_attempts,
+        max_lineage_failures=max_lineage_failures,
+    )
+    failure_classification = (
+        "algorithm_engineer_packet_validation_lineage_budget_exhausted"
+        if validation_state["packet_validation_lineage_budget_exhausted"]
+        else "algorithm_engineer_packet_validation_failed"
     )
     failure_id = (
         "algorithm_engineer_validation_failure:"
@@ -16351,7 +16824,7 @@ def _algorithm_engineer_packet_validation_failure_result(
         "input_summary": {
             "trigger": "ALGORITHM_ENGINEER_PACKET_VALIDATION_FAILED",
             "failed_subsystem": "AlgorithmEngineer",
-            "failure_classification": "algorithm_engineer_packet_validation_failed",
+            "failure_classification": failure_classification,
             "validation_label": exc.validation_label,
             "validation_errors": validation_errors,
             "attempts": exc.attempts,
@@ -16388,7 +16861,7 @@ def _algorithm_engineer_packet_validation_failure_result(
         "simulation_manifest_id": simulation_manifest_id,
         "implementation_gaps": [dict(row) for row in implementation_gaps],
         "validation_label": exc.validation_label,
-        "failure_classification": "algorithm_engineer_packet_validation_failed",
+        "failure_classification": failure_classification,
         "validation_errors": validation_errors,
         "llm_json_repair_history": exc.history,
         **validation_state,
@@ -16404,7 +16877,7 @@ def _algorithm_engineer_packet_validation_failure_result(
     }
     repair_feedback = {
         "feedback_type": "algorithm_engineer_packet_validation_feedback",
-        "failure_classification": "algorithm_engineer_packet_validation_failed",
+        "failure_classification": failure_classification,
         "validation_label": exc.validation_label,
         "validation_errors": validation_errors,
         "last_attempt_summary": exc.history[-1] if exc.history else {},
@@ -16429,6 +16902,9 @@ def _algorithm_engineer_packet_validation_failure_result(
         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
     }
     revision_context = dict(context)
+    revision_context["runtime_packet_validation_attempt_ledger"] = dict(
+        validation_state["packet_validation_attempt_ledger"]
+    )
     revision_context["environment_feedback"] = repair_feedback
     revision_context["runtime_feedback_loop"] = {
         **(
@@ -16470,7 +16946,9 @@ def _algorithm_engineer_packet_validation_failure_result(
         ),
         stop_condition="repaired algorithm packet or explicit implementation blocker recorded",
     )
-    next_task = (
+    next_task = None if validation_state[
+        "packet_validation_lineage_budget_exhausted"
+    ] else (
         _coding_agent_packet_validation_architect_task(
             task=task,
             question=question,
@@ -16488,7 +16966,7 @@ def _algorithm_engineer_packet_validation_failure_result(
         status="VALIDATION_FAILED_RECORDED_NOT_EXECUTION_EVIDENCE",
         boundary=ALGORITHM_ENGINEER_BOUNDARY,
         payload={
-            "failure_classification": "algorithm_engineer_packet_validation_failed",
+            "failure_classification": failure_classification,
             "validation_errors": validation_errors,
             "attempts": exc.attempts,
             **validation_state,
@@ -16500,12 +16978,18 @@ def _algorithm_engineer_packet_validation_failure_result(
     )
     return AgentStepResult(
         status=(
-            "REROUTE"
+            "BLOCKED"
+            if validation_state["packet_validation_lineage_budget_exhausted"]
+            else "REROUTE"
             if validation_state["packet_validation_replan_required"]
             else "REVISE"
         ),
         rationale=(
-            "LLM AlgorithmEngineer packet repeatedly failed local validation; "
+            "AlgorithmEngineer exhausted the persistent lineage-bound packet "
+            "validation budget; runtime recorded a typed blocker and stopped "
+            "before another model call or execution."
+            if validation_state["packet_validation_lineage_budget_exhausted"]
+            else "LLM AlgorithmEngineer packet repeatedly failed local validation; "
             "exact validator feedback was routed to ArchitectCoordinator for "
             "cross-subsystem replanning before execution."
             if validation_state["packet_validation_replan_required"]
@@ -16519,7 +17003,7 @@ def _algorithm_engineer_packet_validation_failure_result(
                 summary="; ".join(validation_errors)[:500],
                 payload={
                     "failure_id": failure_id,
-                    "failure_classification": "algorithm_engineer_packet_validation_failed",
+                    "failure_classification": failure_classification,
                     "validation_errors": validation_errors,
                     **validation_state,
                     "execution_evidence_status": (
@@ -16531,7 +17015,7 @@ def _algorithm_engineer_packet_validation_failure_result(
         ),
         evidence_entries=(evidence,),
         next_task=next_task,
-        failure_classification="algorithm_engineer_packet_validation_failed",
+        failure_classification=failure_classification,
     )
 
 
@@ -37127,11 +37611,11 @@ def run_research_agent_runtime(
     initial_blackboard_artifacts: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     if (
-        str(config.evaluation_mode or "").strip() == "capability_eval"
+        _is_runtime_research_evaluation_mode(config.evaluation_mode)
         and generated_code_semantic_reviewer is None
     ):
         raise ValueError(
-            "capability_eval requires an independent "
+            "research evaluation requires an independent "
             "GeneratedCodeSemanticReviewer"
         )
     if (
@@ -37358,6 +37842,9 @@ def run_research_agent_runtime(
                 packet_validation_replan_after_attempts=(
                     config.coding_agent_packet_validation_replan_after_attempts
                 ),
+                packet_validation_max_lineage_failures=(
+                    config.coding_agent_packet_validation_max_lineage_failures
+                ),
                 semantic_reviewer_available=(
                     generated_code_semantic_reviewer is not None
                 ),
@@ -37372,6 +37859,9 @@ def run_research_agent_runtime(
                 proposal_agent=algorithm_engineer,
                 packet_validation_replan_after_attempts=(
                     config.coding_agent_packet_validation_replan_after_attempts
+                ),
+                packet_validation_max_lineage_failures=(
+                    config.coding_agent_packet_validation_max_lineage_failures
                 ),
                 semantic_reviewer_available=(
                     generated_code_semantic_reviewer is not None
@@ -37862,7 +38352,12 @@ def run_research_agent_runtime(
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "runtime_stage": (
-            "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
+            "architect_retrieval_theory_algorithm_simulation_review_critic_environment_loop"
+            if config.evaluation_mode == "research_eval"
+            and architect_coordinator is not None
+            else "retrieval_theory_algorithm_simulation_review_critic_environment_loop"
+            if config.evaluation_mode == "research_eval"
+            else "architect_retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
             if architect_coordinator is not None
             else "retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
         ),
@@ -37963,6 +38458,11 @@ def run_research_agent_runtime(
         "n_runtime_tool_calls": len(tool_call_rows),
         "status_counts": dict(sorted(status_counts.items())),
         "runtime_completion_summary": completion_summary,
+        "research_evaluation_summary": build_research_evaluation_summary(
+            results,
+            evaluation_mode=config.evaluation_mode,
+            schema_version=RUNTIME_SCHEMA_VERSION,
+        ),
         "runtime_failure_summary": failure_summary,
         "runtime_terminal_kind": failure_summary["terminal_kind"],
         "terminal_subsystem": failure_summary["terminal_subsystem"],
@@ -38735,6 +39235,62 @@ def run_research_agent_runtime(
             "per_question_results": [str(row["artifact_path"]) for row in results],
         },
     }
+    if config.evaluation_mode == "research_eval":
+        agenda_rows = _runtime_agenda_rows(results)
+        learning_rows = _runtime_learning_rows(results)
+        agenda_path = out_dir / "runtime_next_action_agenda.jsonl"
+        learning_path = out_dir / "runtime_learning_rows.jsonl"
+        _write_runtime_next_action_agenda_jsonl(agenda_path, agenda_rows)
+        _write_jsonl(learning_path, learning_rows)
+        manifest["artifacts"]["runtime_next_action_agenda_jsonl"] = str(
+            agenda_path
+        )
+        manifest["artifacts"]["runtime_learning_rows_jsonl"] = str(
+            learning_path
+        )
+        manifest["n_runtime_next_action_items"] = len(agenda_rows)
+        manifest["n_runtime_learning_rows"] = len(learning_rows)
+        manifest["post_runtime_formal_workflow_executed"] = False
+        manifest["post_runtime_formal_workflow_skip_reason"] = (
+            "research_eval_typed_endpoint"
+        )
+        manifest["research_eval_typed_endpoint_reached"] = True
+        pending_next_task = manifest.get("incomplete_pending_next_task")
+        if isinstance(pending_next_task, Mapping) and pending_next_task:
+            pending_next_task_path = out_dir / "runtime_pending_next_task.json"
+            pending_next_task_payload = {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "artifact_kind": "RuntimePendingNextTask",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "question_id": failure_summary["terminal_question_id"],
+                "pending_next_task_id": failure_summary["pending_next_task_id"],
+                "pending_next_task": dict(pending_next_task),
+                "runtime_task_handoffs_jsonl": str(task_handoffs_path),
+                "source_manifest_path": str(manifest_path),
+                "proof_evidence_status": (
+                    "PENDING_RUNTIME_TASK_NOT_PROOF_EVIDENCE"
+                ),
+                "boundary": (
+                    "A pending research-evaluation task preserves orchestration "
+                    "state for continuation. It is not empirical or proof evidence."
+                ),
+            }
+            pending_next_task_path.write_text(
+                json.dumps(
+                    pending_next_task_payload,
+                    indent=2,
+                    default=str,
+                ),
+                encoding="utf-8",
+            )
+            manifest["artifacts"]["runtime_pending_next_task_json"] = str(
+                pending_next_task_path
+            )
+        manifest_path.write_text(
+            json.dumps(manifest, indent=2, default=str),
+            encoding="utf-8",
+        )
+        return manifest
     agenda_rows = _runtime_agenda_rows(results)
     learning_rows = _runtime_learning_rows(results)
     theorem_reduction_closure_work_order_rows = (
@@ -101259,6 +101815,98 @@ def _formal_source_hit_to_json(hit: FormalSourceHit) -> dict[str, Any]:
     if isinstance(provenance, Mapping) and provenance:
         row["provenance"] = dict(provenance)
     return row
+
+
+def _runtime_evaluation_mode_from_context(
+    architect_context: Mapping[str, Any] | None,
+) -> str:
+    context = architect_context if isinstance(architect_context, Mapping) else {}
+    plan = context.get("architect_runtime_plan", {})
+    plan_contract = (
+        plan.get("evidence_contract", {}) if isinstance(plan, Mapping) else {}
+    )
+    requested_contract = context.get("runtime_requested_evidence_contract", {})
+    for value in (
+        plan_contract.get("evaluation_mode", "")
+        if isinstance(plan_contract, Mapping)
+        else "",
+        requested_contract.get("evaluation_mode", "")
+        if isinstance(requested_contract, Mapping)
+        else "",
+        context.get("runtime_evaluation_mode", ""),
+    ):
+        normalized = str(value or "").strip()
+        if normalized:
+            return normalized
+    return "debug"
+
+
+def _research_evaluation_critic_task(
+    *,
+    question: OpenResearchQuestion,
+    packet_id: str,
+    simulation_manifest_id: str,
+    algorithm_sandbox_manifest_id: str,
+    architect_context: Mapping[str, Any] | None = None,
+) -> AgentTask:
+    context = dict(architect_context or {})
+    return AgentTask(
+        task_id=(
+            f"critic-research-eval:{question.id}:"
+            f"{stable_hash([packet_id, simulation_manifest_id, algorithm_sandbox_manifest_id])[:8]}"
+        ),
+        owner_subsystem="CriticEvaluator",
+        objective=(
+            "Evaluate the serious theory, generated algorithm, frozen empirical "
+            "protocol, generated simulation, and independent semantic reviews. "
+            "Report formalization status separately without requiring the strict "
+            "formal lane in this research evaluation."
+        ),
+        inputs={
+            "question": _question_to_payload(question),
+            "theory_packet_id": packet_id,
+            "simulation_manifest_id": simulation_manifest_id,
+            "algorithm_sandbox_manifest_id": algorithm_sandbox_manifest_id,
+            "architect_context": context,
+        },
+        allowed_tools=("model_backend", "blackboard", "evidence_ledger"),
+        expected_artifacts=_architect_expected_artifacts(
+            context,
+            "CriticEvaluator",
+            ("critic_evaluator_manifest", "runtime_learning_rows"),
+        ),
+        acceptance_gate=_architect_acceptance_gate(
+            context,
+            "CriticEvaluator",
+            "all required research artifacts are lineage-bound, independently reviewed, and accepted without promoting them to proof evidence",
+        ),
+        stop_condition="critic records the research-evaluation decision and open formal debt",
+    )
+
+
+def _post_empirical_evidence_task(
+    *,
+    question: OpenResearchQuestion,
+    packet_id: str,
+    simulation_manifest_id: str,
+    algorithm_sandbox_manifest_id: str = "",
+    architect_context: Mapping[str, Any] | None = None,
+) -> AgentTask:
+    if _runtime_evaluation_mode_from_context(architect_context) == "research_eval":
+        return _research_evaluation_critic_task(
+            question=question,
+            packet_id=packet_id,
+            simulation_manifest_id=simulation_manifest_id,
+            algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
+            architect_context=architect_context,
+        )
+    return _formalization_task(
+        question=question,
+        packet_id=packet_id,
+        simulation_manifest_id=simulation_manifest_id,
+        algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
+        architect_context=architect_context,
+    )
 
 
 def _formalization_task(

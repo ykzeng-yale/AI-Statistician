@@ -429,6 +429,7 @@ def _with_accepted_metric_protocol(
     architect_context: dict[str, object],
     *,
     required_runtime_replicates: int,
+    threshold: float = 0.9,
 ) -> dict[str, object]:
     context = json.loads(json.dumps(architect_context))
     response = _architect_sample_response(
@@ -436,6 +437,7 @@ def _with_accepted_metric_protocol(
     )
     contract = response["evidence_contract"]
     requirements = contract["empirical_metric_requirements"]
+    requirements[0]["threshold"] = threshold
     requirement_set_id = runtime_module.generated_metric_requirement_set_id(
         requirements
     )
@@ -450,13 +452,46 @@ def _with_accepted_metric_protocol(
         ),
         "semantic_review_packet_hash": "test-review-hash",
         "semantic_review_model": "independent-test-reviewer",
-        "semantic_review_model_tier": "opus",
+        "semantic_review_model_tier": "sonnet",
         "semantic_review_independent_agent": True,
+        "semantic_review_independent_invocation": True,
         "semantic_review_independent_model": True,
-        "semantic_review_independent_model_tier": True,
+        "semantic_review_independent_model_tier": False,
         "proof_evidence_status": (
             "ARCHITECT_METRIC_REQUIREMENT_AUTHORING_NOT_PROOF_EVIDENCE"
         ),
+    }
+    runtime_plan = context.get("architect_runtime_plan", {})
+    runtime_plan = dict(runtime_plan) if isinstance(runtime_plan, dict) else {}
+    contract = dict(contract)
+    contract["empirical_metric_requirements"] = requirements
+    contract["empirical_metric_requirement_set_id"] = requirement_set_id
+    contract["empirical_metric_protocol_phase"] = (
+        runtime_module.METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED
+    )
+    contract["metric_protocol_execution_authorized"] = True
+    contract["empirical_metric_requirements_preexecution_review"] = {
+        "artifact_kind": "ArchitectMetricPreExecutionReviewCertificate",
+        "overall_verdict": "ACCEPT",
+        "review_packet_id": "architect_metric_semantic_review:test-accepted",
+        "review_packet_hash": "test-review-hash",
+        "reviewed_empirical_metric_requirement_set_id": requirement_set_id,
+        "reviewer_model": "independent-test-reviewer",
+        "reviewer_model_tier": "sonnet",
+        "independent_agent": True,
+        "independent_invocation": True,
+        "pre_execution_review": True,
+        "execution_results_observed": False,
+    }
+    runtime_plan["evidence_contract"] = contract
+    context["architect_runtime_plan"] = runtime_plan
+    context["architect_metric_protocol_gate"] = {
+        "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+        "source_theory_packet_id": str(context.get("theory_packet_id", "") or ""),
+        "required_disposition": "PREEXECUTION_REVIEW_ACCEPTED",
+        "execution_authorized": True,
+        "consumed": True,
+        "accepted_requirement_set_id": requirement_set_id,
     }
     return context
 
@@ -1362,7 +1397,7 @@ def test_theory_developer_validation_failure_routes_compact_retry() -> None:
     assert result.observations[0].payload["truncation_detected"] is True
 
 
-def test_theory_developer_routes_algorithm_before_confirmatory_protocol() -> None:
+def test_theory_developer_routes_protocol_preflight_before_generated_code() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[0]
     theory_packet = _structured_theory_packet_fixture(
         "theory_derivation:metric-gate"
@@ -1410,11 +1445,8 @@ def test_theory_developer_routes_algorithm_before_confirmatory_protocol() -> Non
 
     assert result.status == "REROUTE"
     assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "AlgorithmEngineer"
-    assert result.next_task.task_id.startswith("algorithm:")
-    deferred_protocol = result.next_task.inputs["deferred_metric_protocol_task"]
-    assert deferred_protocol["owner_subsystem"] == "ArchitectCoordinator"
-    assert deferred_protocol["task_id"].startswith("architect-metric-protocol:")
+    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert result.next_task.task_id.startswith("architect-metric-protocol:")
     context = result.next_task.inputs["architect_context"]
     material = context["architect_metric_protocol_theory_material"]
     assert material["source_theory_packet_id"] == (
@@ -1432,9 +1464,7 @@ def test_theory_developer_routes_algorithm_before_confirmatory_protocol() -> Non
     ]
     gate = context["architect_metric_protocol_gate"]
     assert gate["execution_authorized"] is False
-    assert gate["deferred_next_task"]["owner_subsystem"] == (
-        "SimulationEvaluator"
-    )
+    assert "deferred_next_task" not in gate
     assert context["implementation_gaps"]
     assert "simulation" not in {
         artifact.get("artifact_kind", "").lower()
@@ -1877,7 +1907,7 @@ def test_theory_validation_retry_preserves_metric_revision_feedback() -> None:
                     {
                         "attempt_index": 2,
                         "provider": "anthropic",
-                        "model": "claude-opus-4-8",
+                        "model": "claude-sonnet-4-6",
                         "ok": False,
                         "errors": [
                             "JSONDecodeError: response ended inside formalization_requests"
@@ -1957,7 +1987,8 @@ def test_theory_validation_retry_preserves_metric_revision_feedback() -> None:
         "source_theory_packet_id"
     ] == "theory_derivation:metric-retry-parent"
     assert repaired_result.next_task is not None
-    assert repaired_result.next_task.owner_subsystem == "AlgorithmEngineer"
+    assert repaired_result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert "metric protocol" in repaired_result.next_task.objective.lower()
 
 
 def test_architect_rehydrates_prior_metric_rejection_for_revised_theory() -> None:
@@ -2224,7 +2255,7 @@ def test_metric_semantic_reviewer_cannot_accept_without_prior_finding_closure() 
             provider=MissingClosureBackend(),  # type: ignore[arg-type]
             config=ArchitectMetricSemanticReviewerConfig(
                 provider_name="anthropic",
-                model_tier="opus",
+                model_tier="sonnet",
                 max_repair_attempts=0,
             ),
         ).review(
@@ -22027,11 +22058,12 @@ def test_architect_metric_replan_preserves_first_accepted_requirement_set() -> N
                     "architect_metric_semantic_review:accepted"
                 ),
                 "semantic_review_packet_hash": "review-hash",
-                "semantic_review_model": "claude-opus-4-8",
-                "semantic_review_model_tier": "opus",
+                "semantic_review_model": "claude-sonnet-4-6",
+                "semantic_review_model_tier": "sonnet",
                 "semantic_review_independent_agent": True,
-                "semantic_review_independent_model": True,
-                "semantic_review_independent_model_tier": True,
+                "semantic_review_independent_invocation": True,
+                "semantic_review_independent_model": False,
+                "semantic_review_independent_model_tier": False,
             }
         },
     )
@@ -22048,11 +22080,12 @@ def test_architect_metric_replan_preserves_first_accepted_requirement_set() -> N
         "reviewed_empirical_metric_requirement_set_id": (
             initial_requirement_set_id
         ),
-        "reviewer_model": "claude-opus-4-8",
-        "reviewer_model_tier": "opus",
+        "reviewer_model": "claude-sonnet-4-6",
+        "reviewer_model_tier": "sonnet",
         "independent_agent": True,
-        "independent_model": True,
-        "independent_model_tier": True,
+        "independent_invocation": True,
+        "independent_model": False,
+        "independent_model_tier": False,
         "pre_execution_review": True,
         "execution_results_observed": False,
         "proof_evidence_status": (
@@ -22595,8 +22628,9 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert review_request.metadata["subsystem"] == (
         "ArchitectMetricSemanticReviewer"
     )
-    assert review_request.metadata["model_tier"] == "opus"
-    assert review_request.model != metric_request.model
+    assert review_request.metadata["model_tier"] == "sonnet"
+    assert review_request.model == metric_request.model
+    assert review_request.metadata["subsystem"] != metric_request.metadata["subsystem"]
     metric_prompt = json.loads(metric_request.user_prompt)
     theory_material = metric_prompt["theory_developer_protocol_material"]
     assert theory_material["source_theory_packet_id"] == (
@@ -22650,8 +22684,11 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         "semantic_review_status"
     ] == "ACCEPT"
     assert packet["metric_requirement_authoring"][
-        "semantic_review_independent_model"
+        "semantic_review_independent_invocation"
     ] is True
+    assert packet["metric_requirement_authoring"][
+        "semantic_review_independent_model"
+    ] is False
     review_certificate = packet["evidence_contract"][
         "empirical_metric_requirements_preexecution_review"
     ]
@@ -44859,16 +44896,20 @@ def test_simulation_engineer_packet_validation_failure_routes_back_to_llm(
             "theory_packet_id": theory_packet_id,
             "n_runs": 12,
             "seed": 20260623,
-            "architect_context": {
-                "runtime_evaluation_mode": "capability_eval",
-                "runtime_requested_evidence_contract": {
-                    "capability_eval_requires_generated_simulation_code": True,
-                    "capability_eval_requires_typed_metric_contracts": True,
-                    "generated_metric_contract_policy": (
-                        "typed_artifact_bound_required"
-                    ),
+            "architect_context": _with_accepted_metric_protocol(
+                {
+                    "runtime_evaluation_mode": "capability_eval",
+                    "theory_packet_id": theory_packet_id,
+                    "runtime_requested_evidence_contract": {
+                        "capability_eval_requires_generated_simulation_code": True,
+                        "capability_eval_requires_typed_metric_contracts": True,
+                        "generated_metric_contract_policy": (
+                            "typed_artifact_bound_required"
+                        ),
+                    },
                 },
-            },
+                required_runtime_replicates=12,
+            ),
         },
         expected_artifacts=("simulation_manifest",),
     )
@@ -46573,6 +46614,18 @@ def test_algorithm_success_routes_to_required_generated_simulation_before_formal
                 "seed": 20260630,
                 "architect_context": {
                     "runtime_evaluation_mode": "capability_eval",
+                    "architect_runtime_plan": {
+                        "evidence_contract": {
+                            "capability_eval_requires_typed_metric_contracts": True,
+                            "empirical_metric_requirements": [
+                                {"requirement_id": "custom_stress"}
+                            ],
+                            "empirical_metric_protocol_phase": (
+                                "preexecution_review_accepted"
+                            ),
+                            "metric_protocol_execution_authorized": True,
+                        }
+                    },
                     "runtime_requested_evidence_contract": {
                         "capability_eval_requires_generated_algorithm_code": True,
                         "capability_eval_requires_generated_simulation_code": True,
@@ -47671,28 +47724,21 @@ def test_agent_runtime_repairs_generated_simulation_metric_gate_failure(
             "theory_packet_id": theory_packet_id,
             "n_runs": 12,
             "seed": 20260623,
-            "architect_context": {
-                "runtime_evaluation_mode": "capability_eval",
-                "architect_evidence_contract": {
-                    "evaluation_mode": "capability_eval",
-                    "generated_metric_requirement_authority_policy": (
-                        "architect_authored_coding_agent_bound_required"
-                    ),
-                    "empirical_metric_requirements": [
-                        _typed_metric_requirement_fixture(
-                            "SimulationEngineer",
-                            threshold=0.8,
-                        )
-                    ],
+            "architect_context": _with_accepted_metric_protocol(
+                {
+                    "theory_packet_id": theory_packet_id,
+                    "runtime_evaluation_mode": "capability_eval",
+                    "runtime_requested_evidence_contract": {
+                        "capability_eval_requires_generated_simulation_code": True,
+                        "capability_eval_requires_typed_metric_contracts": True,
+                        "generated_metric_requirement_authority_policy": (
+                            "architect_authored_coding_agent_bound_required"
+                        ),
+                    },
                 },
-                "runtime_requested_evidence_contract": {
-                    "capability_eval_requires_generated_simulation_code": True,
-                    "capability_eval_requires_typed_metric_contracts": True,
-                    "generated_metric_requirement_authority_policy": (
-                        "architect_authored_coding_agent_bound_required"
-                    ),
-                },
-            },
+                required_runtime_replicates=12,
+                threshold=0.8,
+            ),
         },
         expected_artifacts=("simulation_manifest",),
     )
@@ -47921,26 +47967,21 @@ def test_agent_runtime_routes_exhausted_simulation_metric_gate_to_architect(
             "theory_packet_id": theory_packet_id,
             "n_runs": 12,
             "seed": 20260623,
-            "architect_context": {
-                "runtime_evaluation_mode": "capability_eval",
-                "architect_evidence_contract": {
-                    "evaluation_mode": "capability_eval",
-                    "generated_metric_requirement_authority_policy": (
-                        "architect_authored_coding_agent_bound_required"
-                    ),
-                    "empirical_metric_requirements": [
-                        _typed_metric_requirement_fixture("SimulationEngineer")
-                    ],
+            "architect_context": _with_accepted_metric_protocol(
+                {
+                    "theory_packet_id": theory_packet_id,
+                    "runtime_evaluation_mode": "capability_eval",
+                    "runtime_requested_evidence_contract": {
+                        "capability_eval_requires_generated_simulation_code": True,
+                        "capability_eval_requires_typed_metric_contracts": True,
+                        "generated_metric_requirement_authority_policy": (
+                            "architect_authored_coding_agent_bound_required"
+                        ),
+                        "capability_eval_simulation_evaluator_generated_code_repair_yield_after_attempts": 1,
+                    },
                 },
-                "runtime_requested_evidence_contract": {
-                    "capability_eval_requires_generated_simulation_code": True,
-                    "capability_eval_requires_typed_metric_contracts": True,
-                    "generated_metric_requirement_authority_policy": (
-                        "architect_authored_coding_agent_bound_required"
-                    ),
-                    "capability_eval_simulation_evaluator_generated_code_repair_yield_after_attempts": 1,
-                },
-            },
+                required_runtime_replicates=12,
+            ),
         },
         expected_artifacts=("simulation_manifest",),
     )
@@ -48112,27 +48153,22 @@ def test_exhausted_simulation_metric_gate_replan_preserves_algorithm_route(
             "theory_packet_id": theory_packet_id,
             "n_runs": 12,
             "seed": 20260623,
-            "architect_context": {
-                "runtime_evaluation_mode": "capability_eval",
-                "architect_evidence_contract": {
-                    "evaluation_mode": "capability_eval",
-                    "generated_metric_requirement_authority_policy": (
-                        "architect_authored_coding_agent_bound_required"
-                    ),
-                    "empirical_metric_requirements": [
-                        _typed_metric_requirement_fixture("SimulationEngineer")
-                    ],
+            "architect_context": _with_accepted_metric_protocol(
+                {
+                    "theory_packet_id": theory_packet_id,
+                    "runtime_evaluation_mode": "capability_eval",
+                    "runtime_requested_evidence_contract": {
+                        "capability_eval_requires_generated_simulation_code": True,
+                        "capability_eval_requires_generated_algorithm_code": True,
+                        "capability_eval_requires_typed_metric_contracts": True,
+                        "generated_metric_contract_policy": (
+                            "typed_artifact_bound_required"
+                        ),
+                        "capability_eval_simulation_evaluator_generated_code_repair_yield_after_attempts": 1,
+                    },
                 },
-                "runtime_requested_evidence_contract": {
-                    "capability_eval_requires_generated_simulation_code": True,
-                    "capability_eval_requires_generated_algorithm_code": True,
-                    "capability_eval_requires_typed_metric_contracts": True,
-                    "generated_metric_contract_policy": (
-                        "typed_artifact_bound_required"
-                    ),
-                    "capability_eval_simulation_evaluator_generated_code_repair_yield_after_attempts": 1,
-                },
-            },
+                required_runtime_replicates=12,
+            ),
         },
         expected_artifacts=("simulation_manifest",),
     )
@@ -63840,8 +63876,8 @@ def test_review_first_runtime_disables_legacy_post_runtime_formal_fallbacks(
             provider=StaticArchitectLLMProvider({}),
             config=FormalTargetSemanticReviewerConfig(
                 provider_name="static",
-                model="static-opus-formal-target-reviewer",
-                model_tier="opus",
+                model="static-sonnet-formal-target-reviewer",
+                model_tier="sonnet",
             ),
         ),
         config=ResearchAgentRuntimeConfig(
@@ -86265,8 +86301,8 @@ def _static_generated_code_semantic_reviewer() -> (
         ),
         config=GeneratedCodeSemanticReviewerConfig(
             provider_name="static",
-            model="static-opus-reviewer-model",
-            model_tier="opus",
+            model="static-sonnet-reviewer-model",
+            model_tier="sonnet",
         ),
     )
 
@@ -87164,7 +87200,6 @@ def test_research_agent_runtime_records_theory_to_simulation_loop_in_legacy_base
     assert topology["policy"]["resolved_claude_models_by_tier"] == {
         "haiku": "claude-haiku-4-5-20251001",
         "sonnet": "claude-sonnet-4-6",
-        "opus": "claude-opus-4-8",
     }
     assert topology["policy"]["resolved_claude_model_tier_policy_status"] == "OK"
     assert topology["policy"]["resolved_claude_model_tier_policy_violations"] == []
@@ -102935,13 +102970,13 @@ def test_runtime_topology_resolves_empty_config_model_from_tier(
     assert row["model_tier"] == "sonnet"
     assert row["expected_model_tier"] == "sonnet"
     assert row["configured_serious_model"] == ""
-    assert row["serious_model"] == "claude-opus-4-8"
-    assert row["serious_model_tier"] == "opus"
-    assert row["expected_serious_model_tier"] == "opus"
+    assert row["serious_model"] == "claude-sonnet-topology-test"
+    assert row["serious_model_tier"] == "sonnet"
+    assert row["expected_serious_model_tier"] == "sonnet"
     assert row["serious_max_tokens"] == 8000
 
 
-def test_runtime_topology_rejects_contextual_serious_theory_tier_downgrade() -> None:
+def test_runtime_topology_accepts_contextual_serious_theory_at_sonnet_ceiling() -> None:
     developer = LLMTheoryDeveloperAgent(
         provider=StaticArchitectLLMProvider(_runtime_sample_response()),
         config=ResearchArchitectConfig(
@@ -102958,11 +102993,8 @@ def test_runtime_topology_rejects_contextual_serious_theory_tier_downgrade() -> 
     violations = runtime_module._llm_topology_policy_violations([row])
 
     assert row["serious_model"] == "claude-sonnet-4-6"
-    assert row["expected_serious_model_tier"] == "opus"
-    assert any(
-        "serious workspace expected model_tier opus" in violation
-        for violation in violations
-    )
+    assert row["expected_serious_model_tier"] == "sonnet"
+    assert violations == []
 
 
 def test_runtime_topology_records_metric_repair_ownership_router() -> None:
@@ -102981,9 +103013,9 @@ def test_runtime_topology_records_metric_repair_ownership_router() -> None:
     )
 
     assert row["enabled"] is True
-    assert row["model"] == "claude-opus-4-8"
-    assert row["model_tier"] == "opus"
-    assert row["expected_model_tier"] == "opus"
+    assert row["model"] == "claude-sonnet-4-6"
+    assert row["model_tier"] == "sonnet"
+    assert row["expected_model_tier"] == "sonnet"
     assert runtime_module._llm_topology_policy_violations([row]) == []
 
 
@@ -104469,7 +104501,7 @@ def _capability_eval_preset_args(preset: str) -> argparse.Namespace:
         capability_eval_preset=preset,
         theory_model_tier="sonnet",
         serious_theory_llm_model="",
-        serious_theory_model_tier="opus",
+        serious_theory_model_tier="sonnet",
         serious_theory_max_tokens=8000,
         architect_metric_repair_ownership_router=False,
         architect_metric_repair_ownership_router_llm_model="",
@@ -104827,7 +104859,7 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     assert args.min_task_families == 2
     assert args.formal_verification_policy == "required"
     assert args.theory_model_tier == "sonnet"
-    assert args.serious_theory_model_tier == "opus"
+    assert args.serious_theory_model_tier == "sonnet"
     assert args.serious_theory_max_tokens >= 8000
     assert args.architect_metric_repair_ownership_router is True
     assert args.formalization_gap_planner_live_route_planner is False
@@ -104885,12 +104917,12 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     ) in _research_agent_runtime_capability_config_errors(args)
     args.architect_metric_repair_ownership_router = True
 
-    args.serious_theory_model_tier = "sonnet"
-    assert (
-        "capability eval preset full-live requires Opus-tier serious "
-        "TheoryDeveloper workspaces; set --serious-theory-model-tier opus"
-    ) in _research_agent_runtime_capability_config_errors(args)
     args.serious_theory_model_tier = "opus"
+    assert (
+        "capability eval preset full-live requires Sonnet-tier serious "
+        "TheoryDeveloper workspaces; set --serious-theory-model-tier sonnet"
+    ) in _research_agent_runtime_capability_config_errors(args)
+    args.serious_theory_model_tier = "sonnet"
 
     args.serious_theory_max_tokens = 7999
     assert any(

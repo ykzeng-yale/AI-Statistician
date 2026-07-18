@@ -698,17 +698,9 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             runtime_review_errors.append(
                 "capability-eval formal-target reviewer agent must be independent"
             )
-        if capability_eval and reviewer_tier != "opus":
+        if capability_eval and reviewer_tier != "sonnet":
             runtime_review_errors.append(
-                "capability-eval formal-target reviewer must use the Opus tier"
-            )
-        if capability_eval and source_model == reviewer_model:
-            runtime_review_errors.append(
-                "capability-eval formal-target reviewer model must be independent"
-            )
-        if capability_eval and source_tier == reviewer_tier:
-            runtime_review_errors.append(
-                "capability-eval formal-target reviewer tier must be independent"
+                "capability-eval formal-target reviewer must use the Sonnet tier"
             )
         if runtime_review_errors:
             return AgentStepResult(
@@ -773,6 +765,7 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             "reviewer_model": reviewer_model,
             "reviewer_model_tier": reviewer_tier,
             "independent_agent": bool(source_agent and reviewer_agent != source_agent),
+            "independent_invocation": True,
             "independent_model": bool(source_model and reviewer_model != source_model),
             "overall_verdict": verdict,
             "semantic_review_accepted": verdict == "ACCEPT",

@@ -43,7 +43,7 @@ FORMAL_TARGET_SEMANTIC_REVIEW_REPAIR_OWNERS = (
 @dataclass(frozen=True)
 class FormalTargetSemanticReviewerConfig:
     model: str = ""
-    model_tier: str = "opus"
+    model_tier: str = "sonnet"
     max_tokens: int = 8000
     temperature: float = 0.0
     provider_name: str = "anthropic"

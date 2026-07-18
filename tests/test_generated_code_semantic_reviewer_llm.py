@@ -13,6 +13,11 @@ from ai_statistician.generated_code_semantic_reviewer_llm import (
     build_generated_code_semantic_review_prompt,
     validate_generated_code_semantic_review_packet,
 )
+from ai_statistician.generated_code_semantic_review_replan import (
+    GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY,
+    advance_generated_code_semantic_review_lineage_budget,
+    record_generated_code_semantic_review_lineage_action,
+)
 from ai_statistician.model_backend import StaticJSONGeneratorBackend
 from ai_statistician.research_agent_runtime import (
     ArchitectCoordinatorRuntimeSubsystem,
@@ -83,7 +88,7 @@ def _review_response(
 def _reviewer(
     *,
     accept: bool,
-    model: str = "static-opus-reviewer",
+    model: str = "static-sonnet-reviewer",
     repair_scope: str = "source_code",
 ):
     return LLMGeneratedCodeSemanticReviewerAgent(
@@ -93,10 +98,85 @@ def _reviewer(
         config=GeneratedCodeSemanticReviewerConfig(
             provider_name="static",
             model=model,
-            model_tier="opus",
+            model_tier="sonnet",
             max_repair_attempts=0,
         ),
     )
+
+
+def test_semantic_review_lineage_budget_survives_architect_replans() -> None:
+    work_order = {
+        "question_id": "generic-question",
+        "theory_packet_id": "theory:one",
+        "theory_packet_hash": "theory-hash-one",
+        "source_subsystem": "AlgorithmEngineer",
+    }
+    review_packet = _review_response(accept=False)
+
+    first = advance_generated_code_semantic_review_lineage_budget(
+        architect_context={},
+        work_order=work_order,
+        review_packet=review_packet,
+        max_local_revisions=1,
+    )
+    assert first["local_repair_available"] is True
+    assert first["architect_replan_available"] is True
+    first_ledger = record_generated_code_semantic_review_lineage_action(
+        first,
+        action="local_repair",
+    )
+
+    second = advance_generated_code_semantic_review_lineage_budget(
+        architect_context={
+            GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY: first_ledger
+        },
+        work_order=work_order,
+        review_packet=review_packet,
+        max_local_revisions=1,
+    )
+    assert second["local_repair_available"] is False
+    assert second["architect_replan_available"] is True
+    second_ledger = record_generated_code_semantic_review_lineage_action(
+        second,
+        action="architect_replan",
+    )
+
+    third = advance_generated_code_semantic_review_lineage_budget(
+        architect_context={
+            GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY: second_ledger
+        },
+        work_order=work_order,
+        review_packet=review_packet,
+        max_local_revisions=1,
+    )
+    assert third["local_repair_available"] is False
+    assert third["architect_replan_available"] is False
+    assert third["lineage_budget_exhausted"] is True
+    assert third["row"]["rejection_count"] == 3
+
+    fresh_theory = advance_generated_code_semantic_review_lineage_budget(
+        architect_context={
+            GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY: second_ledger
+        },
+        work_order={**work_order, "theory_packet_hash": "theory-hash-two"},
+        review_packet=review_packet,
+        max_local_revisions=1,
+    )
+    assert fresh_theory["lineage_key"] != third["lineage_key"]
+    assert fresh_theory["local_repair_available"] is True
+
+    different_finding_packet = json.loads(json.dumps(review_packet))
+    different_finding_packet["findings"][0]["category"] = "data_generation"
+    fresh_finding = advance_generated_code_semantic_review_lineage_budget(
+        architect_context={
+            GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY: second_ledger
+        },
+        work_order=work_order,
+        review_packet=different_finding_packet,
+        max_local_revisions=1,
+    )
+    assert fresh_finding["lineage_key"] != third["lineage_key"]
+    assert fresh_finding["local_repair_available"] is True
 
 
 def _runtime_fixture(
@@ -104,7 +184,7 @@ def _runtime_fixture(
     *,
     accept: bool,
     capability_eval: bool = False,
-    reviewer_model: str = "static-opus-reviewer",
+    reviewer_model: str = "static-sonnet-reviewer",
     metric_failed: bool = False,
     repair_scope: str = "source_code",
 ):
@@ -280,7 +360,8 @@ def test_generated_code_semantic_reviewer_accepts_and_resumes_deferred_task(
         == "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
     ]
     assert executions[0]["semantic_review_accepted"] is True
-    assert executions[0]["reviewer_model_tier"] == "opus"
+    assert executions[0]["reviewer_model_tier"] == "sonnet"
+    assert executions[0]["independent_invocation"] is True
     work_order = next(
         row
         for row in blackboard.artifacts.values()
@@ -621,7 +702,9 @@ def test_post_result_metric_protocol_revision_stops_current_candidate(
     coordinator = CoordinatorMustNotRun()
     guard = ArchitectCoordinatorRuntimeSubsystem(
         coordinator=coordinator,
-        runtime_config=ResearchAgentRuntimeConfig(),
+        runtime_config=ResearchAgentRuntimeConfig(
+            metric_protocol_max_fresh_candidate_revisions=0
+        ),
     )
 
     result = guard.run(review_result.next_task, blackboard)
@@ -650,6 +733,99 @@ def test_post_result_metric_protocol_revision_stops_current_candidate(
     assert result.evidence_entries[0].status == (
         "CURRENT_CANDIDATE_BLOCKED_FRESH_PROTOCOL_RUN_REQUIRED"
     )
+
+
+def test_post_result_metric_protocol_revision_starts_versioned_fresh_candidate(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        accept=False,
+        repair_scope="upstream_metric_contract",
+    )
+    review_result = subsystem.run(task, blackboard)
+    assert review_result.next_task is not None
+    context = review_result.next_task.inputs["architect_context"]
+    context["theory_packet_id"] = "theory:test"
+    context["architect_metric_protocol_theory_material"] = {
+        "artifact_kind": "RuntimeTheoryInformedMetricProtocolMaterial",
+        "source_theory_packet_id": "theory:test",
+        "source_theory_packet_hash": "theory-hash",
+        "theory_semantic_material": {"packet_id": "theory:test"},
+        "execution_results_available": False,
+    }
+    context["architect_metric_protocol_gate"] = {
+        "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+        "accepted_requirement_set_id": "metric-requirements:test",
+        "execution_authorized": True,
+        "consumed": True,
+    }
+
+    class CoordinatorMustNotRun:
+        metric_semantic_reviewer = None
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def propose(self, **_kwargs):
+            self.calls += 1
+            raise AssertionError("fresh-candidate guard must route before proposal")
+
+    coordinator = CoordinatorMustNotRun()
+    guard = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=coordinator,
+        runtime_config=ResearchAgentRuntimeConfig(
+            seed=41,
+            metric_protocol_max_fresh_candidate_revisions=1,
+        ),
+    )
+
+    result = guard.run(review_result.next_task, blackboard)
+
+    assert result.status == "REROUTE"
+    assert result.failure_classification == (
+        "evaluation_protocol_fresh_candidate_requested"
+    )
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert coordinator.calls == 0
+    manifest = next(iter(result.produced_artifacts.values()))
+    assert manifest["fresh_candidate_auto_routed"] is True
+    assert manifest["fresh_candidate_seed"] != 41
+    assert manifest["source_requirement_set_id"]
+
+    fresh_context = result.next_task.inputs["architect_context"]
+    fresh_revision = fresh_context[
+        "architect_metric_protocol_fresh_candidate_revision"
+    ]
+    assert fresh_revision["raw_execution_artifacts_included"] is False
+    assert fresh_revision[
+        "structural_feedback_may_summarize_prior_observations"
+    ] is True
+    assert fresh_revision["post_result_threshold_relaxation_allowed"] is False
+    assert fresh_revision["source_requirement_rows"]
+    assert fresh_revision["source_requirement_set_id"] == manifest[
+        "source_requirement_set_id"
+    ]
+    assert fresh_revision["structural_review_findings"] == [
+        {
+            "source_finding_index": 0,
+            "severity": "high",
+            "category": "metric_semantics",
+            "required_change": "Compute the frozen protocol quantity directly.",
+        }
+    ]
+    assert "summary" not in fresh_revision["structural_review_findings"][0]
+    assert "evidence_refs" not in fresh_revision[
+        "structural_review_findings"
+    ][0]
+    assert fresh_context["runtime_candidate_seed"] == manifest[
+        "fresh_candidate_seed"
+    ]
+    assert fresh_context["architect_runtime_plan"]["evidence_contract"][
+        "empirical_metric_requirements"
+    ] == []
+    assert "runtime_generated_code_semantic_review_replan" not in fresh_context
 
 
 def test_upstream_theory_scope_remains_an_architect_replan_not_protocol_stop(
@@ -824,7 +1000,7 @@ def test_generated_code_semantic_reviewer_rejects_tampered_source_before_model_c
     assert not result.produced_artifacts
 
 
-def test_capability_eval_requires_reviewer_model_independent_of_source(
+def test_capability_eval_accepts_separate_same_model_reviewer_invocation(
     tmp_path: Path,
 ) -> None:
     subsystem, task, blackboard, _ = _runtime_fixture(
@@ -836,10 +1012,16 @@ def test_capability_eval_requires_reviewer_model_independent_of_source(
 
     result = subsystem.run(task, blackboard)
 
-    assert result.status == "BLOCKED"
-    assert result.failure_classification == (
-        "generated_code_semantic_review_verdict_invalid"
+    assert result.status == "REROUTE"
+    execution = next(
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
     )
+    assert execution["independent_agent"] is True
+    assert execution["independent_invocation"] is True
+    assert execution["independent_model"] is False
 
 
 def test_capability_eval_rejects_missing_source_provenance_before_model(
@@ -919,7 +1101,7 @@ def test_capability_scorecard_requires_both_independent_semantic_review_lanes() 
             "n_generated_code_semantic_review_accepted": 2,
             "n_generated_algorithm_semantic_review_accepted": 1,
             "n_generated_simulation_semantic_review_accepted": 1,
-            "n_generated_code_semantic_review_independent_opus": 2,
+            "n_generated_code_semantic_review_independent_sonnet": 2,
             "n_live_generated_code_sandbox_executed": 1,
             "n_live_generated_simulation_sandbox_executed": 1,
         }
@@ -929,7 +1111,7 @@ def test_capability_scorecard_requires_both_independent_semantic_review_lanes() 
     assert rows["generated_code_semantic_review_executed"]["passed"] is True
     assert rows["generated_algorithm_semantic_review_accepted"]["passed"] is True
     assert rows["generated_simulation_semantic_review_accepted"]["passed"] is True
-    assert rows["generated_code_semantic_review_independent_opus"]["passed"] is True
+    assert rows["generated_code_semantic_review_independent_sonnet"]["passed"] is True
 
 
 def test_runtime_audit_recomputes_semantic_review_lineage(tmp_path: Path) -> None:
@@ -958,7 +1140,7 @@ def test_runtime_audit_recomputes_semantic_review_lineage(tmp_path: Path) -> Non
     assert audit_row.n_generated_code_semantic_review_executions == 1
     assert audit_row.n_generated_code_semantic_review_accepted == 1
     assert audit_row.n_generated_algorithm_semantic_review_accepted == 1
-    assert audit_row.n_generated_code_semantic_review_independent_opus == 1
+    assert audit_row.n_generated_code_semantic_review_independent_sonnet == 1
     assert not [
         error for error in audit_row.errors if "semantic review" in error
     ]
@@ -985,7 +1167,7 @@ def test_runtime_audit_recomputes_semantic_review_lineage(tmp_path: Path) -> Non
     )
     assert tampered_row.n_generated_code_semantic_review_accepted == 0
     assert tampered_row.n_generated_algorithm_semantic_review_accepted == 0
-    assert tampered_row.n_generated_code_semantic_review_independent_opus == 0
+    assert tampered_row.n_generated_code_semantic_review_independent_sonnet == 0
 
     invalid_packet_payload = json.loads(json.dumps(original_payload))
     invalid_artifacts = invalid_packet_payload["blackboard"]["artifacts"]

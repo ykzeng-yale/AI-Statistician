@@ -505,7 +505,7 @@ MINIMAL_DELTA_COST_POLICY_ID = (
 LLM_ROUTE_PLANNER_MODEL_TIER_POLICY_ID = (
     "formalization_gap_planner_llm_route_planner_model_tier_policy:1"
 )
-LLM_ROUTE_PLANNER_MODEL_TIERS = ("auto", "haiku", "sonnet", "opus")
+LLM_ROUTE_PLANNER_MODEL_TIERS = ("auto", "haiku", "sonnet")
 LLM_ROUTE_PLANNER_LEGACY_RESPONSE_FIELD_ALIASES = {
     "lean_realization_dag_nodes": LEGACY_FORMAL_REALIZATION_FIELD_ALIASES[
         "lean_realization_dag_nodes"
@@ -736,7 +736,7 @@ LLM_ROUTE_PLANNER_MODEL_TIER_POLICY: dict[str, object] = {
         "Use sonnet when the seed route itself carries uncertainty flags, semantic alignment risks, source-search-pending markers, or substantive formal-gap boundaries.",
         "Use sonnet when any primitive needs a bridge, source port, new definition, new theory, or has unknown/missing/unresolved coverage or alignment status.",
         "Use sonnet for routes with more than four primitives, many source refs, or long theorem statements.",
-        "Use opus only when explicitly requested by the operator; auto mode never selects opus.",
+        "Never exceed Sonnet; live Anthropic calls are restricted to Haiku or Sonnet.",
     ],
     "proof_boundary": PROOF_EVIDENCE_STATUS,
 }
@@ -3843,7 +3843,7 @@ def llm_route_planner_request_json_schema() -> dict[str, object]:
             "display_name": {"type": "string", "minLength": 1},
             "provider_name": {"type": "string", "minLength": 1},
             "model": {"type": "string"},
-            "model_tier": {"type": "string", "enum": ["haiku", "sonnet", "opus"]},
+            "model_tier": {"type": "string", "enum": ["haiku", "sonnet"]},
             "model_selection_rationale": {"type": "string", "minLength": 1},
             "model_tier_decision_evidence": {"type": "object"},
             "llm_generation_policy": {"type": "object"},
@@ -4105,15 +4105,15 @@ def llm_route_planner_model_tier_decision_ledger_json_schema() -> dict[str, obje
             "target_prover_family": {"type": "string"},
             "operator_requested_model_tier": {
                 "type": "string",
-                "enum": ["auto", "haiku", "sonnet", "opus", ""],
+                "enum": ["auto", "haiku", "sonnet", ""],
             },
             "selected_model_tier": {
                 "type": "string",
-                "enum": ["haiku", "sonnet", "opus", ""],
+                "enum": ["haiku", "sonnet", ""],
             },
             "effective_model_tier": {
                 "type": "string",
-                "enum": ["haiku", "sonnet", "opus", ""],
+                "enum": ["haiku", "sonnet", ""],
             },
             "request_model": {"type": "string"},
             "effective_model": {"type": "string"},
@@ -4937,7 +4937,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "display_name": {"type": "string", "minLength": 1},
             "provider_name": {"type": "string", "minLength": 1},
             "model": {"type": "string"},
-            "model_tier": {"type": "string", "enum": ["haiku", "sonnet", "opus"]},
+            "model_tier": {"type": "string", "enum": ["haiku", "sonnet"]},
             "model_selection_rationale": {"type": "string", "minLength": 1},
             "model_tier_decision_evidence": {"type": "object"},
             "target_prover_family": {"type": "string", "minLength": 1},
@@ -13698,7 +13698,7 @@ def _llm_route_planner_model_tier_decision(
         source_theorem_feedback_counts=source_theorem_feedback_counts,
         interactive_precondition_counts=interactive_precondition_counts,
     )
-    if requested in {"haiku", "sonnet", "opus"}:
+    if requested in {"haiku", "sonnet"}:
         evidence = dict(base_evidence)
         evidence.update(
             {
@@ -17872,8 +17872,8 @@ def _model_tier_decision_evidence_errors(
     expected_effective = str(effective_model_tier or "").strip().lower()
     if requested not in LLM_ROUTE_PLANNER_MODEL_TIERS:
         errors.append(f"{prefix}.requested_model_tier must be a planner tier")
-    if selected not in {"haiku", "sonnet", "opus"}:
-        errors.append(f"{prefix}.selected_model_tier must be haiku, sonnet, or opus")
+    if selected not in {"haiku", "sonnet"}:
+        errors.append(f"{prefix}.selected_model_tier must be haiku or sonnet")
     if selected and expected_selected and selected != expected_selected:
         if not (
             allow_repair_escalation
@@ -17884,8 +17884,8 @@ def _model_tier_decision_evidence_errors(
             errors.append(f"{prefix}.selected_model_tier must match selected tier")
     if effective and expected_effective and effective != expected_effective:
         errors.append(f"{prefix}.effective_model_tier must match effective tier")
-    if effective and effective not in {"haiku", "sonnet", "opus"}:
-        errors.append(f"{prefix}.effective_model_tier must be haiku, sonnet, or opus")
+    if effective and effective not in {"haiku", "sonnet"}:
+        errors.append(f"{prefix}.effective_model_tier must be haiku or sonnet")
 
     decision_basis = str(evidence.get("decision_basis", "")).strip()
     if decision_basis not in {

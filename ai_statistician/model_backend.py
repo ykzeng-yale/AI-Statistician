@@ -35,6 +35,8 @@ DEFAULT_ANTHROPIC_GENERATOR_MODEL = DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
 DEFAULT_STATIC_GENERATOR_MODEL = "static"
 DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS = 120.0
 PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY = "provider_structured_output"
+MAX_LIVE_ANTHROPIC_MODEL_TIER = "sonnet"
+ALLOWED_LIVE_ANTHROPIC_MODEL_TIERS = frozenset({"haiku", "sonnet"})
 DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER = {
     "haiku": DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
     "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
@@ -55,21 +57,22 @@ AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY = {
     "SimulationEngineer": "sonnet",
     "SimulatorEngineer": "sonnet",
     "AlgorithmEngineer": "sonnet",
-    "ArchitectMetricSemanticReviewer": "opus",
-    "ArchitectMetricRepairOwnershipRouter": "opus",
-    "GeneratedCodeSemanticReviewer": "opus",
-    "FormalTargetSemanticReviewer": "opus",
+    "ArchitectMetricSemanticReviewer": "sonnet",
+    "ArchitectMetricRepairOwnershipRouter": "sonnet",
+    "GeneratedCodeSemanticReviewer": "sonnet",
+    "FormalTargetSemanticReviewer": "sonnet",
     "CriticEvaluator": "haiku",
     "bounded_route_triage": "haiku",
 }
 AI_STATISTICIAN_LLM_CONTEXTUAL_MODEL_TIER_POLICY = {
-    "TheoryDeveloper:serious": "opus",
+    "TheoryDeveloper:serious": "sonnet",
 }
 CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS = {
     "fable": DEFAULT_CLAUDE_FABLE_GENERATOR_MODEL,
     "mythos_limited_availability": DEFAULT_CLAUDE_MYTHOS_GENERATOR_MODEL,
 }
 CLAUDE_MODEL_TIERS = tuple(DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER)
+LIVE_CLAUDE_MODEL_TIERS = ("haiku", "sonnet")
 ANTHROPIC_CLAUDE_TIER_ENV_VARS = {
     "haiku": (
         "AI_STATISTICIAN_CLAUDE_HAIKU_MODEL",
@@ -78,10 +81,6 @@ ANTHROPIC_CLAUDE_TIER_ENV_VARS = {
     "sonnet": (
         "AI_STATISTICIAN_CLAUDE_SONNET_MODEL",
         "AI_STATISTICIAN_ANTHROPIC_SONNET_MODEL",
-    ),
-    "opus": (
-        "AI_STATISTICIAN_CLAUDE_OPUS_MODEL",
-        "AI_STATISTICIAN_ANTHROPIC_OPUS_MODEL",
     ),
 }
 ANTHROPIC_MODEL_SOURCE_CHECKED_DATE = "2026-06-17"
@@ -158,14 +157,19 @@ ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY = {
     "model_ids_and_versioning_url": ANTHROPIC_MODEL_IDS_AND_VERSIONING_URL,
     "default_provider": DEFAULT_LIVE_GENERATOR_PROVIDER,
     "default_model_tier": "sonnet",
+    "max_live_anthropic_model_tier": MAX_LIVE_ANTHROPIC_MODEL_TIER,
+    "allowed_live_anthropic_model_tiers": sorted(
+        ALLOWED_LIVE_ANTHROPIC_MODEL_TIERS
+    ),
     "models_by_tier": DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER,
     "api_aliases_by_tier": DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER,
     "subsystem_model_tier_policy": AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
     "contextual_model_tier_policy": AI_STATISTICIAN_LLM_CONTEXTUAL_MODEL_TIER_POLICY,
     "runtime_model_id_policy": (
-        "AI Statistician resolves runtime calls to the Claude API IDs in "
-        "models_by_tier. API aliases are recorded for operator reference only "
-        "and are not used to collapse pinned runtime model IDs."
+        "AI Statistician resolves live runtime calls only for the Haiku and "
+        "Sonnet tiers. The broader models_by_tier catalog and API aliases are "
+        "recorded for source and historical audit only; they cannot authorize "
+        "an Opus API request."
     ),
     "models_outside_opus_sonnet_haiku_cost_tiers": (
         CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS
@@ -173,15 +177,15 @@ ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY = {
     "outside_tier_model_policy": (
         "Claude Fable/Mythos family IDs are tracked as outside the "
         "Haiku/Sonnet/Opus cost-aware tier contract. They are not automatic "
-        "runtime tiers for AI Statistician; using them under a Haiku, Sonnet, "
-        "or Opus tier request is treated as a routing mismatch."
+        "runtime tiers for AI Statistician; live use of any tier outside "
+        "Haiku/Sonnet is rejected before provider-client construction."
     ),
     "tier_specific_model_env_vars": ANTHROPIC_CLAUDE_TIER_ENV_VARS,
     "global_model_override_policy": (
         "AI_STATISTICIAN_LLM_MODEL, AI_STATISTICIAN_ANTHROPIC_MODEL, and "
         "AI_STATISTICIAN_THEORY_MODEL are treated as Sonnet-tier defaults only. "
-        "They must not collapse Haiku/Sonnet/Opus cost-aware routing; use "
-        "tier-specific Claude env vars to override helper tiers."
+        "They must not collapse live Haiku/Sonnet cost-aware routing; use the "
+        "live tier-specific Claude env vars to override helper tiers."
     ),
     "model_id_versioning": ANTHROPIC_MODEL_ID_VERSIONING_POLICY,
     "cost_split": {
@@ -198,12 +202,6 @@ ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY = {
             "theory_intake",
             "CriticEvaluator",
             "bounded_route_triage",
-        ],
-        "opus": [
-            "TheoryDeveloper serious capability/revision workspace",
-            "ArchitectMetricSemanticReviewer",
-            "GeneratedCodeSemanticReviewer",
-            "FormalTargetSemanticReviewer",
         ],
     },
 }
@@ -287,11 +285,18 @@ def default_generator_model(
     planning and Haiku for cheaper structured helper tasks.
     """
 
-    requested = str(requested_model or "").strip()
-    if requested:
-        return requested
     env = env or os.environ
     provider = (provider_name or default_generator_provider(env)).strip().lower()
+    requested = str(requested_model or "").strip()
+    if requested:
+        if provider == "anthropic":
+            violation = live_anthropic_model_ceiling_violation(
+                requested,
+                requested_model_tier=model_tier,
+            )
+            if violation:
+                raise ValueError(violation)
+        return requested
     global_model = (
         (env.get("AI_STATISTICIAN_LLM_MODEL") or "").strip()
         if _global_model_override_applies(env, provider)
@@ -304,10 +309,14 @@ def default_generator_model(
     )
     if provider == "anthropic":
         tier = (model_tier or "sonnet").strip().lower()
+        if tier not in ALLOWED_LIVE_ANTHROPIC_MODEL_TIERS:
+            raise ValueError(
+                f"live Anthropic requests are capped at "
+                f"{MAX_LIVE_ANTHROPIC_MODEL_TIER}; requested model_tier="
+                f"{tier or 'unknown'}"
+            )
         if tier == "haiku":
             tier_default = DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL
-        elif tier == "opus":
-            tier_default = DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL
         else:
             tier = "sonnet"
             tier_default = DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
@@ -318,7 +327,7 @@ def default_generator_model(
             or tier_default
         )
         if tier == "sonnet":
-            return (
+            model = (
                 env.get(tier_env_keys[0])
                 or env.get(tier_env_keys[1])
                 or env.get("AI_STATISTICIAN_ANTHROPIC_MODEL")
@@ -326,7 +335,15 @@ def default_generator_model(
                 or global_model
                 or tier_default
             ).strip()
-        return str(tier_model or "").strip()
+        else:
+            model = str(tier_model or "").strip()
+        violation = live_anthropic_model_ceiling_violation(
+            model,
+            requested_model_tier=tier,
+        )
+        if violation:
+            raise ValueError(violation)
+        return model
     if provider == "openai":
         return (
             env.get("AI_STATISTICIAN_OPENAI_MODEL")
@@ -356,8 +373,9 @@ def resolve_generator_model(
     """Resolve a generator model at call time from provider and tier policy.
 
     LLM worker configs may leave ``requested_model`` empty so environment
-    overrides and the Claude Haiku/Sonnet/Opus split are evaluated when a
-    request is actually built, not when a module is imported.
+    overrides and the live Claude Haiku/Sonnet split are evaluated when a
+    request is actually built, not when a module is imported. Opus remains in
+    the source catalog for historical audit only and is rejected for live use.
     """
 
     return default_generator_model(
@@ -396,6 +414,28 @@ def claude_outside_cost_tier_family_for_model(model: str) -> str:
     return ""
 
 
+def live_anthropic_model_ceiling_violation(
+    model: str,
+    *,
+    requested_model_tier: str = "",
+) -> str:
+    """Reject live Claude requests above the project Sonnet ceiling."""
+
+    requested_tier = str(requested_model_tier or "").strip().lower()
+    actual_tier = claude_model_tier_for_model(model)
+    if requested_tier and requested_tier not in ALLOWED_LIVE_ANTHROPIC_MODEL_TIERS:
+        return (
+            f"live Anthropic requests are capped at {MAX_LIVE_ANTHROPIC_MODEL_TIER}; "
+            f"requested model_tier={requested_tier or 'unknown'}"
+        )
+    if actual_tier not in ALLOWED_LIVE_ANTHROPIC_MODEL_TIERS:
+        return (
+            f"live Anthropic requests are capped at {MAX_LIVE_ANTHROPIC_MODEL_TIER}; "
+            f"model={model or 'unknown'} resolves to tier={actual_tier or 'unknown'}"
+        )
+    return ""
+
+
 def claude_model_tier_mismatch(
     model: str,
     expected_model_tier: str,
@@ -427,7 +467,7 @@ def claude_model_tier_policy_violations(
     violations: list[str] = []
     resolved_by_tier = {
         tier: str(models_by_tier.get(tier, "") or "").strip()
-        for tier in CLAUDE_MODEL_TIERS
+        for tier in LIVE_CLAUDE_MODEL_TIERS
     }
     for tier, model in resolved_by_tier.items():
         mismatch = claude_model_tier_mismatch(
@@ -457,7 +497,8 @@ def claude_model_freshness_warnings(
     """Warn when a Claude tier resolves to a non-current same-tier model ID."""
 
     warnings: list[str] = []
-    for tier, current_model in DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER.items():
+    for tier in LIVE_CLAUDE_MODEL_TIERS:
+        current_model = DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER[tier]
         model = str(models_by_tier.get(tier, "") or "").strip()
         if not model or model == current_model:
             continue
@@ -482,17 +523,18 @@ def resolved_claude_models_by_tier(
             model_tier=tier,
             env=env,
         )
-        for tier in CLAUDE_MODEL_TIERS
+        for tier in LIVE_CLAUDE_MODEL_TIERS
     }
 
 
 def claude_tier_routing_contract(
     env: Mapping[str, str] | None = None,
 ) -> dict[str, object]:
-    """Machine-readable contract for Claude Haiku/Sonnet/Opus routing.
+    """Machine-readable contract for live Claude Haiku/Sonnet routing.
 
-    This is configuration metadata only; it does not create a provider client
-    or make a live API request.
+    The wider model catalog remains available as source evidence, but active
+    resolution is capped at Sonnet. This metadata function does not create a
+    provider client or make a live API request.
     """
 
     env = env or os.environ
@@ -539,6 +581,9 @@ def claude_tier_routing_contract(
             CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS
         ),
         "resolved_claude_models_by_tier": models_by_tier,
+        "allowed_live_anthropic_model_tiers": tuple(
+            LIVE_CLAUDE_MODEL_TIERS
+        ),
         "resolved_claude_model_tier_policy_status": (
             "OK" if not tier_violations else "POLICY_VIOLATION"
         ),
@@ -735,6 +780,14 @@ class AnthropicGeneratorBackend:
     def generate(self, request: GeneratorRequest) -> GeneratorResponse:
         if not self.api_key:
             raise ValueError("ANTHROPIC_API_KEY is not set")
+        ceiling_violation = live_anthropic_model_ceiling_violation(
+            request.model,
+            requested_model_tier=str(
+                request.metadata.get("model_tier", "") or ""
+            ),
+        )
+        if ceiling_violation:
+            raise ValueError(ceiling_violation)
         try:
             import anthropic
         except Exception as exc:  # pragma: no cover - import depends on local env
@@ -824,6 +877,17 @@ class AnthropicGeneratorBackend:
         )
         text = _anthropic_text(response)
         response_model = _response_model(response, fallback=request.model)
+        response_ceiling_violation = live_anthropic_model_ceiling_violation(
+            response_model,
+            requested_model_tier=str(
+                request.metadata.get("model_tier", "") or ""
+            ),
+        )
+        if response_ceiling_violation:
+            raise ValueError(
+                "Anthropic returned a model outside the configured live ceiling: "
+                + response_ceiling_violation
+            )
         return GeneratorResponse(
             text=text,
             provider=self.provider_name,

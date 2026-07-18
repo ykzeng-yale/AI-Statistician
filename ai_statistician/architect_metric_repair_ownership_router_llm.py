@@ -10,7 +10,11 @@ from .architect_metric_semantic_reviewer_llm import (
     ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY,
 )
 from .fingerprint import stable_hash
-from .llm_json_repair import extract_json_object, generate_validated_json_packet
+from .llm_json_repair import (
+    PacketValidationError,
+    extract_json_object,
+    generate_validated_json_packet,
+)
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
 
@@ -37,7 +41,7 @@ ARCHITECT_METRIC_REPAIR_OWNERSHIP_BOUNDARY = (
 @dataclass(frozen=True)
 class ArchitectMetricRepairOwnershipRouterConfig:
     model: str = ""
-    model_tier: str = "opus"
+    model_tier: str = "sonnet"
     max_tokens: int = 5000
     temperature: float = 0.0
     provider_name: str = "anthropic"
@@ -128,15 +132,27 @@ class LLMArchitectMetricRepairOwnershipRouterAgent:
                 raw_response=raw_text,
             )
 
-        return generate_validated_json_packet(
-            provider=self.provider,
-            request=request,
-            extract_payload=extract_json_object,
-            build_packet=build_packet,
-            validate_packet=validate_architect_metric_repair_ownership_packet,
-            validation_label="Architect metric repair ownership packet",
-            max_repair_attempts=self.config.max_repair_attempts,
-        )
+        try:
+            return generate_validated_json_packet(
+                provider=self.provider,
+                request=request,
+                extract_payload=extract_json_object,
+                build_packet=build_packet,
+                validate_packet=validate_architect_metric_repair_ownership_packet,
+                validation_label="Architect metric repair ownership packet",
+                max_repair_attempts=self.config.max_repair_attempts,
+            )
+        except PacketValidationError as exc:
+            return _unresolved_architect_metric_repair_ownership_packet(
+                question=question,
+                routing_material=routing_material,
+                semantic_review_packet=semantic_review_packet,
+                trusted_lineage=trusted_lineage,
+                model=request_model,
+                model_tier=self.config.model_tier,
+                provider_name=self.config.provider_name,
+                validation_failure=exc,
+            )
 
 
 def build_architect_metric_repair_ownership_prompt(
@@ -144,6 +160,8 @@ def build_architect_metric_repair_ownership_prompt(
     question: OpenResearchQuestion,
     routing_material: Mapping[str, Any],
 ) -> str:
+    findings = routing_material.get("semantic_review_findings", [])
+    finding_count = len(findings) if isinstance(findings, list) else 0
     payload = {
         "question": {
             "id": question.id,
@@ -152,6 +170,8 @@ def build_architect_metric_repair_ownership_prompt(
             "tags": list(question.tags),
         },
         "routing_material": dict(routing_material),
+        "reviewed_finding_count": finding_count,
+        "required_finding_indices": list(range(finding_count)),
         "artifact_roles": {
             ARCHITECT_METRIC_REPAIR_TARGET_SOURCE_THEORY: (
                 "the immutable TheoryDeveloper packet whose estimand, procedure, "
@@ -186,8 +206,9 @@ def build_architect_metric_repair_ownership_prompt(
         "otherwise it must be false and source_theory_packet must be among the targets. "
         "Set ownership_certainty=unresolved when the supplied artifacts do not let "
         "you decide; do not guess. Do not derive replacement formulas, thresholds, "
-        "task-family rules, code, results, or proof. Use each zero-based finding_index "
-        "exactly once.\n\n"
+        "task-family rules, code, results, or proof. Return exactly one decision "
+        "for every index in required_finding_indices, use no other index, and do "
+        "not omit or duplicate an index.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
     )
 
@@ -526,6 +547,81 @@ def _normalize_architect_metric_repair_ownership_packet(
         "boundary": ARCHITECT_METRIC_REPAIR_OWNERSHIP_BOUNDARY,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "raw_response_fingerprint": stable_hash(raw_response),
+    }
+    body["packet_id"] = "metric_repair_ownership:" + stable_hash(body)[:20]
+    return body
+
+
+def _unresolved_architect_metric_repair_ownership_packet(
+    *,
+    question: OpenResearchQuestion,
+    routing_material: Mapping[str, Any],
+    semantic_review_packet: Mapping[str, Any],
+    trusted_lineage: Mapping[str, Any],
+    model: str,
+    model_tier: str,
+    provider_name: str,
+    validation_failure: PacketValidationError,
+) -> dict[str, Any]:
+    findings = [
+        row
+        for row in semantic_review_packet.get("findings", []) or []
+        if isinstance(row, Mapping)
+    ]
+    decisions = [
+        {
+            "finding_index": finding_index,
+            "required_artifact_changes": [],
+            "metric_author_can_repair_without_revising_source_theory": False,
+            "ownership_certainty": "unresolved",
+            "rationale": (
+                "The ownership router exhausted bounded structured-output repair; "
+                "artifact ownership remains unresolved and must be replanned before "
+                "execution."
+            ),
+            "derived_repair_scope": ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED,
+        }
+        for finding_index, _finding in enumerate(findings)
+    ]
+    body = {
+        "schema_version": ARCHITECT_METRIC_REPAIR_OWNERSHIP_SCHEMA_VERSION,
+        "artifact_kind": "ArchitectMetricRepairOwnershipPacket",
+        "question_id": question.id,
+        "authoring_packet_id": str(
+            trusted_lineage.get("authoring_packet_id", "") or ""
+        ),
+        "authoring_packet_hash": str(
+            trusted_lineage.get("authoring_packet_hash", "") or ""
+        ),
+        "semantic_review_packet_id": str(
+            semantic_review_packet.get("packet_id", "") or ""
+        ),
+        "semantic_review_packet_hash": stable_hash(dict(semantic_review_packet)),
+        "source_theory_packet_id": str(
+            trusted_lineage.get("source_theory_packet_id", "") or ""
+        ),
+        "source_theory_packet_hash": str(
+            trusted_lineage.get("source_theory_packet_hash", "") or ""
+        ),
+        "reviewed_finding_count": len(findings),
+        "decisions": decisions,
+        "recommended_repair_scope": ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED,
+        "routing_input_fingerprint": stable_hash(routing_material),
+        "source_agent": "LLMArchitectMetricRepairOwnershipRouterAgent",
+        "provider": provider_name,
+        "model": model,
+        "model_tier": model_tier,
+        "execution_results_observed": False,
+        "proof_evidence_status": (
+            ARCHITECT_METRIC_REPAIR_OWNERSHIP_NOT_PROOF_EVIDENCE
+        ),
+        "boundary": ARCHITECT_METRIC_REPAIR_OWNERSHIP_BOUNDARY,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "ok": False,
+        "validation_errors": list(validation_failure.errors),
+        "llm_json_repair_attempts": max(0, validation_failure.attempts - 1),
+        "llm_json_repair_history": list(validation_failure.history),
+        "fallback_reason": "bounded_router_packet_validation_exhausted",
     }
     body["packet_id"] = "metric_repair_ownership:" + stable_hash(body)[:20]
     return body

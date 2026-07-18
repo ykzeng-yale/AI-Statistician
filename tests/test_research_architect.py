@@ -297,8 +297,8 @@ def test_capability_theory_mode_requires_deeper_equation_trace(
     from ai_statistician.llm_json_repair import PacketValidationError
 
     monkeypatch.setenv(
-        "AI_STATISTICIAN_CLAUDE_OPUS_MODEL",
-        "claude-opus-serious-theory-test",
+        "AI_STATISTICIAN_CLAUDE_SONNET_MODEL",
+        "claude-sonnet-serious-theory-test",
     )
     provider = SequentialGeneratorBackend([_sample_response()])
     developer = LLMTheoryDeveloperAgent(
@@ -327,9 +327,9 @@ def test_capability_theory_mode_requires_deeper_equation_trace(
     assert "at least 4 equation rows" in str(exc_info.value)
     assert len(provider.requests) == 1
     request = provider.requests[0]
-    assert request.model == "claude-opus-serious-theory-test"
+    assert request.model == "claude-sonnet-serious-theory-test"
     assert request.max_tokens == 8000
-    assert request.metadata["model_tier"] == "opus"
+    assert request.metadata["model_tier"] == "sonnet"
     assert request.metadata["base_model_tier"] == "sonnet"
     assert request.metadata["serious_theory_mode"] is True
     assert request.metadata["theory_prompt_mode"] == (
@@ -675,7 +675,7 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
     assert runtime_args.llm_model == ""
     assert runtime_args.theory_model_tier == "sonnet"
     assert runtime_args.serious_theory_llm_model == ""
-    assert runtime_args.serious_theory_model_tier == "opus"
+    assert runtime_args.serious_theory_model_tier == "sonnet"
     assert runtime_args.serious_theory_max_tokens == 8000
     assert runtime_args.architect_metric_repair_ownership_router is False
     assert runtime_args.architect_metric_repair_ownership_router_llm_model == ""
@@ -689,7 +689,7 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
         runtime_args.provider,
         runtime_args.serious_theory_llm_model,
         model_tier=runtime_args.serious_theory_model_tier,
-    ) == "claude-opus-4-8"
+    ) == "claude-sonnet-4-6"
     assert loop_args.llm_theory_provider == "anthropic"
     assert loop_args.llm_theory_model == ""
     assert default_generator_model(
@@ -716,8 +716,8 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
         default_model=runtime_default_model,
     )
     assert semantic_reviewer is not None
-    assert semantic_reviewer.config.model == "claude-opus-4-8"
-    assert semantic_reviewer.config.model_tier == "opus"
+    assert semantic_reviewer.config.model == "claude-sonnet-4-6"
+    assert semantic_reviewer.config.model_tier == "sonnet"
     runtime_args.formal_target_semantic_reviewer_provider = "same"
     formal_target_reviewer = (
         _build_formal_target_semantic_reviewer_agent_from_args(
@@ -726,8 +726,8 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
         )
     )
     assert formal_target_reviewer is not None
-    assert formal_target_reviewer.config.model == "claude-opus-4-8"
-    assert formal_target_reviewer.config.model_tier == "opus"
+    assert formal_target_reviewer.config.model == "claude-sonnet-4-6"
+    assert formal_target_reviewer.config.model_tier == "sonnet"
 
 
 def test_live_llm_backend_rejects_codex_provider_for_main_cli() -> None:

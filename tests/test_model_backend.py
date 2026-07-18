@@ -46,7 +46,7 @@ def _request() -> GeneratorRequest:
     return GeneratorRequest(
         system_prompt="Return JSON.",
         user_prompt="Produce a theory packet.",
-        model="test-model",
+        model="claude-sonnet-4-6",
         max_tokens=128,
         temperature=0.0,
         schema={"type": "object", "properties": {"ok": {"type": "boolean"}}},
@@ -57,7 +57,7 @@ def test_static_json_generator_backend_returns_text_without_tools() -> None:
     response = StaticJSONGeneratorBackend({"ok": True}).generate(_request())
 
     assert response.provider == "static"
-    assert response.model == "test-model"
+    assert response.model == "claude-sonnet-4-6"
     assert '"ok": true' in response.text
     assert response.metadata["generator_only"] is True
     assert response.metadata["tools_available"] is False
@@ -95,7 +95,7 @@ def test_anthropic_generator_backend_calls_messages_api_without_tools(
     assert captured["timeout"] == 120.0
     assert captured["max_retries"] == 0
     kwargs = captured["kwargs"]
-    assert kwargs["model"] == "test-model"
+    assert kwargs["model"] == "claude-sonnet-4-6"
     assert kwargs["max_tokens"] == 128
     assert kwargs["temperature"] == 0.0
     assert kwargs["system"] == "Return JSON."
@@ -123,6 +123,35 @@ def test_anthropic_generator_backend_calls_messages_api_without_tools(
         "input_tokens": 11,
         "output_tokens": 5,
     }
+
+
+def test_anthropic_generator_backend_rejects_opus_before_client_creation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client_created = False
+
+    class FakeAnthropicClient:
+        def __init__(self, **kwargs) -> None:
+            nonlocal client_created
+            client_created = True
+
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        SimpleNamespace(Anthropic=FakeAnthropicClient),
+    )
+    request = GeneratorRequest(
+        **{
+            **_request().__dict__,
+            "model": "claude-opus-4-8",
+            "metadata": {"model_tier": "opus"},
+        }
+    )
+
+    with pytest.raises(ValueError, match="capped at sonnet"):
+        AnthropicGeneratorBackend(api_key="test-anthropic-key").generate(request)
+
+    assert client_created is False
 
 
 def test_anthropic_generator_backend_applies_opted_in_structured_output(
@@ -232,7 +261,7 @@ def test_anthropic_generator_backend_negotiates_rejected_optional_parameter(
                 raise BadRequestError("`temperature` is deprecated for this model.")
             return SimpleNamespace(
                 content=[SimpleNamespace(text='{"ok": true}')],
-                model="claude-opus-4-8",
+                model="claude-sonnet-4-6",
             )
 
     class FakeAnthropicClient:
@@ -247,8 +276,8 @@ def test_anthropic_generator_backend_negotiates_rejected_optional_parameter(
     request = GeneratorRequest(
         **{
             **_request().__dict__,
-            "model": "claude-opus-4-8",
-            "metadata": {"model_tier": "opus"},
+            "model": "claude-sonnet-4-6",
+            "metadata": {"model_tier": "sonnet"},
         }
     )
 
@@ -386,7 +415,7 @@ def test_openai_generator_backend_surfaces_provider_reported_model(
     )
 
     assert response.model == "openai-provider-reported"
-    assert response.metadata["requested_model"] == "test-model"
+    assert response.metadata["requested_model"] == "claude-sonnet-4-6"
     assert (
         response.metadata["provider_reported_model"]
         == "openai-provider-reported"
@@ -571,7 +600,15 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
     assert default_generator_model("anthropic") == "claude-sonnet-4-6"
     assert default_generator_model("anthropic", model_tier="haiku") == "claude-haiku-4-5-20251001"
     assert default_generator_model("anthropic", model_tier="sonnet") == "claude-sonnet-4-6"
-    assert default_generator_model("anthropic", model_tier="opus") == "claude-opus-4-8"
+    with pytest.raises(ValueError, match="capped at sonnet"):
+        default_generator_model("anthropic", model_tier="opus")
+    assert set(ANTHROPIC_CLAUDE_TIER_ENV_VARS) == {"haiku", "sonnet"}
+    assert ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY[
+        "allowed_live_anthropic_model_tiers"
+    ] == ["haiku", "sonnet"]
+    assert ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY[
+        "max_live_anthropic_model_tier"
+    ] == "sonnet"
     assert ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY["models_by_tier"] == {
         "haiku": "claude-haiku-4-5-20251001",
         "sonnet": "claude-sonnet-4-6",
@@ -596,13 +633,13 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
     assert (
         ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY["contextual_model_tier_policy"]
         == AI_STATISTICIAN_LLM_CONTEXTUAL_MODEL_TIER_POLICY
-        == {"TheoryDeveloper:serious": "opus"}
+        == {"TheoryDeveloper:serious": "sonnet"}
     )
     assert llm_subsystem_expected_model_tier("TheoryDeveloper") == "sonnet"
     assert llm_subsystem_expected_model_tier("FormalizerProofEngineer") == "sonnet"
     assert llm_subsystem_expected_model_tier(
         "ArchitectMetricRepairOwnershipRouter"
-    ) == "opus"
+    ) == "sonnet"
     assert llm_subsystem_expected_model_tier("SimulationEngineer") == "sonnet"
     assert llm_subsystem_expected_model_tier("AlgorithmEngineer") == "sonnet"
     assert llm_subsystem_expected_model_tier("CriticEvaluator") == "haiku"
@@ -672,11 +709,12 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
     )
 
     monkeypatch.setenv("AI_STATISTICIAN_LLM_PROVIDER", "anthropic")
-    monkeypatch.setenv("AI_STATISTICIAN_ANTHROPIC_MODEL", "claude-test")
+    monkeypatch.setenv("AI_STATISTICIAN_ANTHROPIC_MODEL", "claude-sonnet-test")
     assert default_generator_provider() == "anthropic"
-    assert default_generator_model("anthropic") == "claude-test"
+    assert default_generator_model("anthropic") == "claude-sonnet-test"
     assert default_generator_model("anthropic", model_tier="haiku") == "claude-haiku-4-5-20251001"
-    assert default_generator_model("anthropic", model_tier="opus") == "claude-opus-4-8"
+    with pytest.raises(ValueError, match="capped at sonnet"):
+        default_generator_model("anthropic", model_tier="opus")
 
     monkeypatch.delenv("AI_STATISTICIAN_ANTHROPIC_MODEL", raising=False)
     monkeypatch.setenv("AI_STATISTICIAN_CLAUDE_HAIKU_MODEL", "claude-haiku-test")
@@ -684,7 +722,8 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
     monkeypatch.setenv("AI_STATISTICIAN_CLAUDE_OPUS_MODEL", "claude-opus-test")
     assert default_generator_model("anthropic", model_tier="haiku") == "claude-haiku-test"
     assert default_generator_model("anthropic", model_tier="sonnet") == "claude-sonnet-test"
-    assert default_generator_model("anthropic", model_tier="opus") == "claude-opus-test"
+    with pytest.raises(ValueError, match="capped at sonnet"):
+        default_generator_model("anthropic", model_tier="opus")
 
 
 def test_global_model_env_does_not_collapse_anthropic_cost_aware_tiers(
@@ -694,13 +733,11 @@ def test_global_model_env_does_not_collapse_anthropic_cost_aware_tiers(
     models = {
         "haiku": default_generator_model("anthropic", model_tier="haiku"),
         "sonnet": default_generator_model("anthropic", model_tier="sonnet"),
-        "opus": default_generator_model("anthropic", model_tier="opus"),
     }
 
     assert models == {
         "haiku": "claude-haiku-4-5-20251001",
         "sonnet": "claude-sonnet-4-6",
-        "opus": "claude-opus-4-8",
     }
     assert claude_model_tier_policy_violations(models) == []
     assert claude_model_freshness_warnings(models) == []
@@ -714,7 +751,6 @@ def test_claude_tier_routing_contract_reports_subsystem_policy_and_warnings(
     assert resolved_claude_models_by_tier(clean_env) == {
         "haiku": "claude-haiku-4-5-20251001",
         "sonnet": "claude-sonnet-4-6",
-        "opus": "claude-opus-4-8",
     }
     clean_contract = claude_tier_routing_contract(clean_env)
     assert clean_contract["contract_name"] == "anthropic_claude_tier_routing_contract"
@@ -722,8 +758,11 @@ def test_claude_tier_routing_contract_reports_subsystem_policy_and_warnings(
     assert clean_contract["resolved_claude_models_by_tier"] == {
         "haiku": "claude-haiku-4-5-20251001",
         "sonnet": "claude-sonnet-4-6",
-        "opus": "claude-opus-4-8",
     }
+    assert clean_contract["allowed_live_anthropic_model_tiers"] == (
+        "haiku",
+        "sonnet",
+    )
     assert clean_contract["resolved_claude_model_tier_policy_status"] == "OK"
     assert clean_contract["environment_override_status"] == "OK"
     assert clean_contract["subsystem_model_tier_policy"] == (
@@ -748,18 +787,15 @@ def test_claude_model_tier_policy_violations_detect_configured_model_collapse() 
     models = {
         "haiku": "claude-sonnet-4-6",
         "sonnet": "claude-sonnet-4-6",
-        "opus": "claude-sonnet-4-6",
     }
     violations = claude_model_tier_policy_violations(models)
     assert any("Claude haiku tier expected Claude haiku tier" in item for item in violations)
-    assert any("Claude opus tier expected Claude opus tier" in item for item in violations)
     assert any("collapsed to one resolved model" in item for item in violations)
 
     outside_tier_violations = claude_model_tier_policy_violations(
         {
             "haiku": "claude-fable-5",
             "sonnet": "claude-sonnet-4-6",
-            "opus": "claude-opus-4-8",
         }
     )
     assert any("outside-tier Claude fable model" in item for item in outside_tier_violations)
@@ -770,11 +806,10 @@ def test_claude_model_freshness_warnings_detect_stale_same_tier_ids() -> None:
         {
             "haiku": "claude-haiku-4-5",
             "sonnet": "claude-sonnet-4-5",
-            "opus": "claude-opus-4-7",
         }
     )
 
-    assert len(warnings) == 3
+    assert len(warnings) == 2
     assert any(
         "Claude haiku tier resolves to claude-haiku-4-5" in item
         and "claude-haiku-4-5-20251001" in item
@@ -783,11 +818,6 @@ def test_claude_model_freshness_warnings_detect_stale_same_tier_ids() -> None:
     assert any(
         "Claude sonnet tier resolves to claude-sonnet-4-5" in item
         and "claude-sonnet-4-6" in item
-        for item in warnings
-    )
-    assert any(
-        "Claude opus tier resolves to claude-opus-4-7" in item
-        and "claude-opus-4-8" in item
         for item in warnings
     )
 
