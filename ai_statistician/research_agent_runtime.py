@@ -8632,9 +8632,32 @@ def _runtime_algorithm_handoff_receipt(
         if row["estimator_id"] and row["exact_source_hash"]
     }
     invocation_evidence: list[dict[str, Any]] = []
+    mechanically_invoked_estimator_ids: set[str] = set()
     for row in simulation_rows:
         if not isinstance(row, Mapping):
             continue
+        raw_selected_ids = row.get("required_estimator_ids")
+        if raw_selected_ids is None:
+            selected_ids = tuple(expected_source_hashes)
+        elif isinstance(raw_selected_ids, (list, tuple)):
+            selected_ids = tuple(
+                dict.fromkeys(
+                    str(value or "").strip()
+                    for value in raw_selected_ids
+                    if str(value or "").strip()
+                )
+            )
+        else:
+            continue
+        if not selected_ids or any(
+            estimator_id not in expected_source_hashes
+            for estimator_id in selected_ids
+        ):
+            continue
+        selected_source_hashes = {
+            estimator_id: expected_source_hashes[estimator_id]
+            for estimator_id in selected_ids
+        }
         raw_hashes = row.get("bound_estimator_code_hashes", {})
         raw_counts = row.get("estimator_invocation_counts", {})
         if not isinstance(raw_hashes, Mapping) or not isinstance(raw_counts, Mapping):
@@ -8649,21 +8672,23 @@ def _runtime_algorithm_handoff_receipt(
             continue
         if not (
             row.get("mechanical_estimator_invocation_verified") is True
-            and bound_hashes == expected_source_hashes
+            and bound_hashes == selected_source_hashes
             and str(row.get("estimator_binding_hash", "") or "")
-            == stable_hash(expected_source_hashes)
+            == stable_hash(selected_source_hashes)
             and all(
                 invocation_counts.get(estimator_id, 0) > 0
-                for estimator_id in expected_source_hashes
+                for estimator_id in selected_source_hashes
             )
             and str(row.get("script_hash", "") or "")
             and str(row.get("result_hash", "") or "")
             and str(row.get("execution_envelope_hash", "") or "")
         ):
             continue
+        mechanically_invoked_estimator_ids.update(selected_ids)
         invocation_evidence.append(
             {
                 "simulation_id": str(row.get("simulation_id", "") or ""),
+                "required_estimator_ids": list(selected_ids),
                 "simulation_source_hash": str(row.get("script_hash", "") or ""),
                 "simulation_result_hash": str(row.get("result_hash", "") or ""),
                 "execution_envelope_hash": str(
@@ -8679,6 +8704,10 @@ def _runtime_algorithm_handoff_receipt(
         )
     mechanical_estimator_invocation_verified = bool(
         expected_source_hashes and invocation_evidence
+    )
+    all_handoff_estimators_invoked = bool(
+        expected_source_hashes
+        and set(expected_source_hashes).issubset(mechanically_invoked_estimator_ids)
     )
     return {
         "artifact_kind": "RuntimeAcceptedAlgorithmHandoffReceipt",
@@ -8704,6 +8733,10 @@ def _runtime_algorithm_handoff_receipt(
         "mechanical_estimator_invocation_verified": (
             mechanical_estimator_invocation_verified
         ),
+        "mechanically_invoked_estimator_ids": sorted(
+            mechanically_invoked_estimator_ids
+        ),
+        "all_handoff_estimators_invoked": all_handoff_estimators_invoked,
         "mechanical_invocation_evidence": invocation_evidence,
         "proof_evidence_status": "ALGORITHM_HANDOFF_RECEIPT_NOT_PROOF_EVIDENCE",
         "boundary": (
@@ -14413,6 +14446,11 @@ class SimulationEvaluatorRuntimeSubsystem:
             for row in generated_simulation_rows
             if row.get("estimator_binding_errors")
         )
+        n_generated_simulation_estimator_runtime_failed = sum(
+            1
+            for row in generated_simulation_rows
+            if row.get("estimator_runtime_errors")
+        )
         n_generated_simulation_passed = sum(
             1 for row in generated_simulation_rows if row.get("smoke_passed") is True
         )
@@ -14583,6 +14621,9 @@ class SimulationEvaluatorRuntimeSubsystem:
             ),
             "n_generated_simulation_estimator_binding_failed": (
                 n_generated_simulation_estimator_binding_failed
+            ),
+            "n_generated_simulation_estimator_runtime_failed": (
+                n_generated_simulation_estimator_runtime_failed
             ),
             "n_generated_simulation_sandbox_passed": (
                 n_generated_simulation_passed
@@ -14770,6 +14811,8 @@ class SimulationEvaluatorRuntimeSubsystem:
             generated_simulation_failure_classification = (
                 "accepted_algorithm_estimator_abi_failed"
                 if n_generated_simulation_estimator_binding_failed > 0
+                else "accepted_algorithm_estimator_runtime_failed"
+                if n_generated_simulation_estimator_runtime_failed > 0
                 else "generated_simulation_sandbox_metric_gate_failed"
                 if n_generated_simulation_metric_gate_failed > 0
                 else "generated_simulation_typed_metric_contract_missing"
@@ -14798,7 +14841,14 @@ class SimulationEvaluatorRuntimeSubsystem:
                     effective_context
                 )
             )
-            if n_generated_simulation_estimator_binding_failed > 0:
+            repair_budget_exhausted = bool(
+                yield_after_attempts > 0
+                and repair_attempts_used >= yield_after_attempts
+            )
+            if (
+                n_generated_simulation_estimator_binding_failed > 0
+                and not repair_budget_exhausted
+            ):
                 next_task = _simulation_estimator_abi_repair_task(
                     question=question,
                     theory_packet_id=packet_id,
@@ -14808,6 +14858,8 @@ class SimulationEvaluatorRuntimeSubsystem:
                     simulation_feedback=feedback,
                     n_runs=n_runs,
                     seed=seed,
+                    repair_attempts_used=repair_attempts_used,
+                    yield_after_attempts=yield_after_attempts,
                 )
                 observations.append(
                     EnvironmentObservation(
@@ -14833,9 +14885,48 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "a fresh independent review and confirmatory retry."
                 )
             elif (
-                requires_generated_simulation_code
-                and yield_after_attempts > 0
-                and repair_attempts_used >= yield_after_attempts
+                n_generated_simulation_estimator_runtime_failed > 0
+                and not repair_budget_exhausted
+            ):
+                next_task = _simulation_estimator_runtime_repair_task(
+                    question=question,
+                    theory_packet_id=packet_id,
+                    simulation_manifest_id=manifest_id,
+                    implementation_gaps=implementation_gaps,
+                    architect_context=effective_context,
+                    simulation_feedback=feedback,
+                    n_runs=n_runs,
+                    seed=seed,
+                    repair_attempts_used=repair_attempts_used,
+                    yield_after_attempts=yield_after_attempts,
+                )
+                observations.append(
+                    EnvironmentObservation(
+                        observation_type=(
+                            "accepted_algorithm_estimator_runtime_repair"
+                        ),
+                        summary=(
+                            "a selected accepted estimator failed under the "
+                            "confirmatory DGP request; repair routed to "
+                            "AlgorithmEngineer"
+                        ),
+                        payload={
+                            "simulation_manifest_id": manifest_id,
+                            "failure_classification": (
+                                generated_simulation_failure_classification
+                            ),
+                            "next_owner_subsystem": next_task.owner_subsystem,
+                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                        },
+                    )
+                )
+                simulation_rationale = (
+                    "The selected hash-bound algorithm source failed on the runtime "
+                    "DGP request; typed implementation feedback is routed directly "
+                    "to AlgorithmEngineer before a fresh review and retry."
+                )
+            elif (
+                repair_budget_exhausted
             ):
                 algorithm_sandbox_manifest_id = str(
                     task.inputs.get("algorithm_sandbox_manifest_id", "") or ""
@@ -24948,6 +25039,16 @@ def _formalizer_packet_validation_failure_result(
     validation_repair_directives = formalizer_validation_repair_directives(
         validation_errors
     )
+    validation_repair_rule_ids = {
+        str(row.get("rule_id", "") or "")
+        for row in validation_repair_policy.get("rules", []) or []
+        if isinstance(row, Mapping)
+    }
+    internal_json_repair_attempts = max(0, int(exc.attempts or 0) - 1)
+    typed_role_internal_repair_exhausted = bool(
+        internal_json_repair_attempts > 0
+        and "formal_target_role_routing" in validation_repair_rule_ids
+    )
     prior_environment_feedback = (
         environment_feedback
         if isinstance(environment_feedback, Mapping)
@@ -24983,6 +25084,8 @@ def _formalizer_packet_validation_failure_result(
     packet_repair_retry_depth = (
         prior_packet_repair_retry_depth + 1
         if packet_repair_lineage_active
+        else 1
+        if typed_role_internal_repair_exhausted
         else 0
     )
     missing_anchors = _formalizer_missing_semantic_anchor_references(validation_errors)
@@ -25524,6 +25627,10 @@ def _formalizer_packet_validation_failure_result(
                 FORMALIZER_PACKET_MAX_SAME_LINEAGE_REPAIR_RETRIES
             ),
             "validation_error_fingerprint": stable_hash(validation_errors),
+            "internal_json_repair_attempts": internal_json_repair_attempts,
+            "internal_json_repair_counted_as_lineage_retry": (
+                typed_role_internal_repair_exhausted
+            ),
             "required_next_subsystem": "FormalizationGapPlanner",
             "proof_evidence_status": (
                 "FORMALIZER_PACKET_VALIDATION_ESCALATION_NOT_PROOF_EVIDENCE"
@@ -25590,6 +25697,10 @@ def _formalizer_packet_validation_failure_result(
                 )
             ),
             "attempts": exc.attempts,
+            "internal_json_repair_attempts": internal_json_repair_attempts,
+            "internal_json_repair_counted_as_lineage_retry": (
+                typed_role_internal_repair_exhausted
+            ),
             "formalizer_packet_repair_retry_depth": packet_repair_retry_depth,
             "formalizer_packet_repair_root_failure_id": (
                 formalizer_packet_repair_root_failure_id
@@ -25676,6 +25787,10 @@ def _formalizer_packet_validation_failure_result(
             missing_source_binding_contract_metadata
         ),
         "llm_json_repair_history": exc.history,
+        "internal_json_repair_attempts": internal_json_repair_attempts,
+        "internal_json_repair_counted_as_lineage_retry": (
+            typed_role_internal_repair_exhausted
+        ),
         "formalizer_packet_repair_retry_depth": packet_repair_retry_depth,
         "formalizer_packet_repair_root_failure_id": (
             formalizer_packet_repair_root_failure_id
@@ -25721,6 +25836,10 @@ def _formalizer_packet_validation_failure_result(
             missing_source_binding_contract_metadata
         ),
         "attempts": exc.attempts,
+        "internal_json_repair_attempts": internal_json_repair_attempts,
+        "internal_json_repair_counted_as_lineage_retry": (
+            typed_role_internal_repair_exhausted
+        ),
         "formalizer_packet_repair_retry_depth": packet_repair_retry_depth,
         "formalizer_packet_repair_root_failure_id": (
             formalizer_packet_repair_root_failure_id
@@ -102380,6 +102499,8 @@ def _simulation_estimator_abi_repair_task(
     simulation_feedback: Mapping[str, Any],
     n_runs: int,
     seed: int,
+    repair_attempts_used: int = 0,
+    yield_after_attempts: int = 0,
 ) -> AgentTask:
     gap_rows = [dict(row) for row in implementation_gaps]
     binding_errors = [
@@ -102428,6 +102549,13 @@ def _simulation_estimator_abi_repair_task(
         "source_subsystem": "SimulationEvaluator",
         "handoff": "accepted_algorithm_estimator_abi_repair",
         "simulation_manifest_id": simulation_manifest_id,
+        "simulation_evaluator_generated_code_repair_attempts_used": (
+            max(0, int(repair_attempts_used or 0)) + 1
+        ),
+        "simulation_evaluator_generated_code_repair_yield_after_attempts": max(
+            0,
+            int(yield_after_attempts or 0),
+        ),
     }
     context = _runtime_context_with_environment_feedback_contract(
         context,
@@ -102466,6 +102594,137 @@ def _simulation_estimator_abi_repair_task(
             "rehydrated as a new hash-bound handoff"
         ),
         stop_condition="fresh accepted estimator ABI handoff recorded",
+    )
+
+
+def _simulation_estimator_runtime_repair_task(
+    *,
+    question: OpenResearchQuestion,
+    theory_packet_id: str,
+    simulation_manifest_id: str,
+    implementation_gaps: Sequence[Mapping[str, Any]],
+    architect_context: Mapping[str, Any],
+    simulation_feedback: Mapping[str, Any],
+    n_runs: int,
+    seed: int,
+    repair_attempts_used: int = 0,
+    yield_after_attempts: int = 0,
+) -> AgentTask:
+    gap_rows = [dict(row) for row in implementation_gaps]
+    failure_ids = list(
+        dict.fromkeys(
+            str(estimator_id or "").strip()
+            for row in simulation_feedback.get(
+                "generated_simulation_prototypes", []
+            )
+            or []
+            if isinstance(row, Mapping)
+            for estimator_id in row.get("estimator_runtime_failure_ids", []) or []
+            if str(estimator_id or "").strip()
+        )
+    )
+    runtime_errors = list(
+        dict.fromkeys(
+            str(error)
+            for row in simulation_feedback.get(
+                "generated_simulation_prototypes", []
+            )
+            or []
+            if isinstance(row, Mapping)
+            for error in row.get("estimator_runtime_errors", []) or []
+            if str(error).strip()
+        )
+    )
+    feedback = {
+        "feedback_type": "accepted_algorithm_estimator_runtime_feedback",
+        "failure_classification": "accepted_algorithm_estimator_runtime_failed",
+        "simulation_manifest_id": simulation_manifest_id,
+        "implementation_gaps": gap_rows,
+        "failed_estimator_ids": failure_ids,
+        "runtime_errors": runtime_errors,
+        "target_component": "algorithm",
+        "target_behavior": (
+            "Regenerate only the affected AlgorithmEngineer implementation so "
+            "run_estimator(request) executes on the supplied runtime DGP request "
+            "and returns a named, finite JSON-compatible response. AgentRuntime "
+            "must execute the fresh exact source and an independent reviewer must "
+            "accept it before confirmatory simulation retries."
+        ),
+        "success_metric": (
+            "each selected hash-bound estimator executes on the confirmatory DGP "
+            "request and returns a finite JSON-compatible response"
+        ),
+        "runtime_requested_evidence_contract": {
+            "capability_eval_requires_generated_algorithm_code": True,
+            "capability_eval_requires_generated_simulation_code": True,
+        },
+        "proof_evidence_status": (
+            "ESTIMATOR_RUNTIME_FEEDBACK_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": (
+            "This is typed runtime feedback about an accepted implementation. It "
+            "does not validate the DGP, empirical metric, statistical claim, or "
+            "theorem."
+        ),
+    }
+    context = dict(architect_context)
+    context["previous_simulation_manifest_id"] = simulation_manifest_id
+    context["environment_feedback"] = feedback
+    context["runtime_feedback_loop"] = {
+        **(
+            dict(context.get("runtime_feedback_loop", {}))
+            if isinstance(context.get("runtime_feedback_loop", {}), Mapping)
+            else {}
+        ),
+        "source_subsystem": "SimulationEvaluator",
+        "handoff": "accepted_algorithm_estimator_runtime_repair",
+        "simulation_manifest_id": simulation_manifest_id,
+        "failed_estimator_ids": failure_ids,
+        "simulation_evaluator_generated_code_repair_attempts_used": (
+            max(0, int(repair_attempts_used or 0)) + 1
+        ),
+        "simulation_evaluator_generated_code_repair_yield_after_attempts": max(
+            0,
+            int(yield_after_attempts or 0),
+        ),
+    }
+    context = _runtime_context_with_environment_feedback_contract(
+        context,
+        feedback,
+        subsystem="AlgorithmEngineer",
+    )
+    return AgentTask(
+        task_id=(
+            f"algorithm-estimator-runtime:{question.id}:"
+            f"{stable_hash([simulation_manifest_id, failure_ids, runtime_errors])[:8]}"
+        ),
+        owner_subsystem="AlgorithmEngineer",
+        objective=(
+            "Repair the accepted algorithm implementation that failed under "
+            "hash-bound confirmatory DGP execution."
+        ),
+        inputs={
+            "question": _question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "simulation_manifest_id": simulation_manifest_id,
+            "implementation_gaps": gap_rows,
+            "n_runs": int(n_runs),
+            "seed": int(seed),
+            "architect_context": context,
+            "environment_feedback": feedback,
+        },
+        allowed_tools=("model_backend", "python", "filesystem_sandbox"),
+        expected_artifacts=_architect_expected_artifacts(
+            context,
+            "AlgorithmEngineer",
+            ("algorithm_sandbox_manifest",),
+        ),
+        acceptance_gate=(
+            "fresh exact algorithm source executes with finite JSON-compatible "
+            "output, passes independent semantic review, and is rehydrated as a "
+            "new hash-bound handoff"
+        ),
+        stop_condition="fresh accepted estimator runtime handoff recorded",
     )
 
 
@@ -102917,6 +103176,15 @@ def _generated_simulation_revision_feedback(
                 "estimator_binding_errors": list(
                     _str_tuple(row.get("estimator_binding_errors", []))
                 )[:5],
+                "required_estimator_ids": list(
+                    _str_tuple(row.get("required_estimator_ids", []))
+                ),
+                "estimator_runtime_failure_ids": list(
+                    _str_tuple(row.get("estimator_runtime_failure_ids", []))
+                ),
+                "estimator_runtime_errors": list(
+                    _str_tuple(row.get("estimator_runtime_errors", []))
+                )[:5],
                 "forbidden_generated_code_calls": row_forbidden_calls[:5],
                 "metrics": _compact_generated_sandbox_metrics(
                     row.get("metrics", {})
@@ -103009,6 +103277,9 @@ def _generated_simulation_revision_feedback(
         "n_generated_simulation_sandbox_metric_gate_failed": int(
             manifest.get("n_generated_simulation_sandbox_metric_gate_failed", 0) or 0
         ),
+        "n_generated_simulation_estimator_runtime_failed": int(
+            manifest.get("n_generated_simulation_estimator_runtime_failed", 0) or 0
+        ),
         "n_unsafe_generated_simulation_code_rejected": int(
             manifest.get("n_unsafe_generated_simulation_code_rejected", 0) or 0
         ),
@@ -103046,7 +103317,7 @@ def _run_generated_simulation_sandbox(
     seed: int,
     timeout_s: int,
 ) -> tuple[dict[str, Any], ToolCallRecord]:
-    estimator_bindings = tuple(
+    all_estimator_bindings = tuple(
         ScientificEstimatorBinding(
             artifact_id=str(row.get("estimator_id", "") or "").strip(),
             language=str(row.get("language", "") or "").strip(),
@@ -103063,6 +103334,51 @@ def _run_generated_simulation_sandbox(
         )
         if isinstance(row, Mapping)
     )
+    available_estimator_bindings = {
+        binding.artifact_id: binding
+        for binding in all_estimator_bindings
+        if binding.artifact_id
+    }
+    selection_contract_errors: list[str] = []
+    if "required_estimator_ids" not in code_draft:
+        required_estimator_ids = tuple(available_estimator_bindings)
+        estimator_bindings = all_estimator_bindings
+    else:
+        raw_required_estimator_ids = code_draft.get("required_estimator_ids")
+        if not isinstance(raw_required_estimator_ids, list):
+            selection_contract_errors.append(
+                "generated simulation required_estimator_ids must be an array"
+            )
+            required_estimator_ids = ()
+        else:
+            required_estimator_ids = tuple(
+                dict.fromkeys(
+                    str(value or "").strip()
+                    for value in raw_required_estimator_ids
+                    if str(value or "").strip()
+                )
+            )
+        unknown_estimator_ids = sorted(
+            set(required_estimator_ids) - set(available_estimator_bindings)
+        )
+        if unknown_estimator_ids:
+            selection_contract_errors.append(
+                "generated simulation selected unknown accepted estimator ids: "
+                + ", ".join(unknown_estimator_ids)
+            )
+        if available_estimator_bindings and not required_estimator_ids:
+            selection_contract_errors.append(
+                "generated simulation must select at least one accepted estimator"
+            )
+        if not available_estimator_bindings and required_estimator_ids:
+            selection_contract_errors.append(
+                "generated simulation cannot select an estimator without an accepted handoff"
+            )
+        estimator_bindings = tuple(
+            available_estimator_bindings[estimator_id]
+            for estimator_id in required_estimator_ids
+            if estimator_id in available_estimator_bindings
+        )
     selected_metric_contracts = (
         [dict(row) for row in metric_contracts]
         if metric_contracts is not None
@@ -103089,6 +103405,7 @@ def _run_generated_simulation_sandbox(
             **(dict(validation_context or {})),
         },
         estimator_bindings=estimator_bindings,
+        additional_contract_errors=selection_contract_errors,
         n_runs=n_runs,
         seed=seed,
         timeout_s=timeout_s,
@@ -103101,6 +103418,10 @@ def _run_generated_simulation_sandbox(
     )
     prototype = dict(prototype)
     prototype["simulation_id"] = simulation_id
+    prototype["required_estimator_ids"] = list(required_estimator_ids)
+    prototype["available_upstream_estimator_ids"] = list(
+        available_estimator_bindings
+    )
     prototype["executor"] = "generated_simulation_sandbox"
     prototype["simulation_evidence_status"] = (
         "GENERATED_SIMULATION_SANDBOX_EXECUTION_NOT_PROOF_EVIDENCE"
@@ -103125,6 +103446,7 @@ def _run_generated_simulation_sandbox(
         inputs={
             **dict(tool_call.inputs),
             "simulation_id": simulation_id,
+            "required_estimator_ids": list(required_estimator_ids),
         },
         output_paths=tuple(tool_call.output_paths),
         input_hash=tool_call.input_hash,
@@ -103313,6 +103635,7 @@ def _run_generated_code_sandbox(
     timeout_s: int,
     metric_contracts: Sequence[Mapping[str, Any]] = (),
     estimator_bindings: Sequence[ScientificEstimatorBinding] = (),
+    additional_contract_errors: Sequence[str] = (),
 ) -> tuple[dict[str, Any], ToolCallRecord]:
     """Dispatch one generated draft without creating a second evaluation path."""
 
@@ -103330,7 +103653,14 @@ def _run_generated_code_sandbox(
             language=language,
         )
     )
-    contract_errors = generated_code_execution_contract_errors(normalized_draft)
+    contract_errors = sorted(
+        set(
+            [
+                *generated_code_execution_contract_errors(normalized_draft),
+                *(str(error) for error in additional_contract_errors if str(error)),
+            ]
+        )
+    )
     if (
         language == "python"
         and profile == "stdlib"
@@ -103428,6 +103758,12 @@ def _run_generated_scientific_sandbox(
         errors.extend(execution.errors)
     estimator_binding_errors = (
         list(execution.estimator_binding_errors) if execution is not None else []
+    )
+    estimator_runtime_failure_ids = (
+        list(execution.estimator_runtime_failure_ids) if execution is not None else []
+    )
+    estimator_runtime_errors = (
+        list(execution.estimator_runtime_errors) if execution is not None else []
     )
     metrics = dict(execution.metrics) if execution is not None else {}
     execution_smoke_passed = bool(
@@ -103596,6 +103932,8 @@ def _run_generated_scientific_sandbox(
             errors if prototype_status != "REJECTED_UNSAFE_GENERATED_CODE" else []
         ),
         "estimator_binding_errors": estimator_binding_errors,
+        "estimator_runtime_failure_ids": estimator_runtime_failure_ids,
+        "estimator_runtime_errors": estimator_runtime_errors,
         "metrics": metrics,
         "metric_gate_targets": metric_gate_targets,
         "metric_contracts": typed_metric_contracts,

@@ -50,6 +50,145 @@ def test_formalizer_output_contract_bridge_examples_are_domain_neutral() -> None
     assert "policy_adapter_object_name" in contract_source
 
 
+def test_formalizer_generic_repair_keeps_failed_targets_and_role_contract() -> None:
+    invalid_packet = {
+        "formal_targets": [
+            {
+                "id": "source_gap",
+                "formal_target_role": "SOURCE_THEOREM_FORMAL_GAP",
+                "lean_statement_sketch": "theorem accidental_candidate : True := by trivial",
+                "candidate_lean_declaration": "accidental_candidate",
+                "expected_status": "FORMAL_GAP",
+                "source_theorem_target_provenance": {},
+            }
+        ],
+        "gap_taxonomy": [],
+        "next_actions": [],
+    }
+    context = _formalizer_repair_context(
+        errors=[
+            "formal target source_gap with formal_target_role="
+            "SOURCE_THEOREM_FORMAL_GAP must keep Lean source empty"
+        ],
+        theorem_goals=[
+            {
+                "id": "goal:source",
+                "target_lean_declaration": "source_theorem_target",
+            }
+        ],
+        invalid_packet=invalid_packet,
+    )
+
+    assert context["context_reason"] == "typed_packet_contract_repair"
+    assert context["rejected_packet_fingerprint"] == formalizer_module.stable_hash(
+        invalid_packet
+    )
+    assert context["rejected_packet_excerpt"]["formal_targets"] == (
+        invalid_packet["formal_targets"]
+    )
+    assert context["source_target_binding_options"][0][
+        "target_lean_declaration"
+    ] == "source_theorem_target"
+    role_contract = context["formal_target_role_contract"]
+    assert role_contract["SOURCE_THEOREM_CANDIDATE"]["expected_status"] == (
+        "NEEDS_KERNEL_CHECK"
+    )
+    assert role_contract["SOURCE_THEOREM_FORMAL_GAP"]["expected_status"] == (
+        "FORMAL_GAP"
+    )
+    assert role_contract["SOURCE_THEOREM_FORMAL_GAP"][
+        "lean_statement_sketch"
+    ] == "empty"
+
+
+def test_formalizer_generic_repair_exposes_theory_card_source_bindings() -> None:
+    context = _formalizer_repair_context(
+        errors=[
+            "formal target FT1 with formal_target_role=SOURCE_THEOREM_CANDIDATE "
+            "must bind source_theorem_target_provenance.target_lean_declaration",
+            "formal target FT2 with formal_target_role=SOURCE_THEOREM_FORMAL_GAP "
+            "must preserve a target_lean_declaration or source_theorem_goal_id",
+        ],
+        theory_packet={
+            "theorem_cards": [
+                {
+                    "id": "THM1",
+                    "name": "Human-readable theorem title",
+                    "informal_statement": "The exact source theorem statement.",
+                    "conclusion": "exact conclusion",
+                }
+            ],
+            "theory_derivation_packet": {
+                "theorem_cards": [
+                    {
+                        "id": "THM1",
+                        "name": "Human-readable theorem title",
+                        "informal_statement": (
+                            "The exact source theorem statement."
+                        ),
+                        "conclusion": "exact conclusion",
+                    }
+                ]
+            },
+            "formalization_requests": [
+                {
+                    "id": "FR1",
+                    "target": "THM1",
+                    "lean_stub": "theorem exact_target : True",
+                    "lean4_sketch": "theorem exact_target : True := by trivial",
+                    "open_obligations": ["kernel check required"],
+                }
+            ],
+        },
+        theorem_goals=[],
+        invalid_packet={
+            "formal_targets": [
+                {
+                    "id": "FT1",
+                    "formal_target_role": "SOURCE_THEOREM_CANDIDATE",
+                    "candidate_lean_declaration": "exact_target",
+                    "lean_statement_sketch": "theorem exact_target : True := by trivial",
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                    "source_theorem_target_provenance": {},
+                },
+                {
+                    "id": "FT2",
+                    "formal_target_role": "SOURCE_THEOREM_FORMAL_GAP",
+                    "lean_statement_sketch": "",
+                    "candidate_lean_declaration": "",
+                    "expected_status": "FORMAL_GAP",
+                    "source_theorem_target_provenance": {},
+                },
+            ]
+        },
+    )
+
+    assert context["source_target_identity_available"] is True
+    assert context["source_target_binding_options"] == [
+        {
+            "source_kind": "theorem_card",
+            "source_path": "theory_packet.theorem_cards[0]",
+            "source_theorem_goal_id": "THM1",
+            "target_lean_declaration": "",
+            "semantic_statement": "The exact source theorem statement.",
+        }
+    ]
+    assert context["formalization_request_context"] == [
+        {
+            "id": "FR1",
+            "target": "THM1",
+            "lean_stub": "theorem exact_target : True",
+            "lean4_sketch": "theorem exact_target : True := by trivial",
+            "open_obligations": ["kernel check required"],
+        }
+    ]
+    instructions = " ".join(context["repair_prompt_priority_instructions"])
+    assert "the exact target" in instructions
+    assert "candidate_lean_declaration" in instructions
+    assert "source_theorem_goal_id" in instructions
+    assert "fail closed" in instructions
+
+
 def _write_static_formalizer_response(path: Path) -> None:
     response = {
         "formal_targets": [

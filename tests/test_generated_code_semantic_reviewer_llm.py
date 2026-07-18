@@ -167,7 +167,25 @@ def test_semantic_review_lineage_budget_survives_architect_replans() -> None:
 
     different_finding_packet = json.loads(json.dumps(review_packet))
     different_finding_packet["findings"][0]["category"] = "data_generation"
-    fresh_finding = advance_generated_code_semantic_review_lineage_budget(
+    changed_finding_after_local_repair = (
+        advance_generated_code_semantic_review_lineage_budget(
+            architect_context={
+                GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY: first_ledger
+            },
+            work_order=work_order,
+            review_packet=different_finding_packet,
+            max_local_revisions=1,
+        )
+    )
+    assert changed_finding_after_local_repair["lineage_key"] != third["lineage_key"]
+    assert (
+        changed_finding_after_local_repair["source_lineage_key"]
+        == third["source_lineage_key"]
+    )
+    assert changed_finding_after_local_repair["local_repair_available"] is False
+    assert changed_finding_after_local_repair["architect_replan_available"] is True
+
+    changed_finding_after_replan = advance_generated_code_semantic_review_lineage_budget(
         architect_context={
             GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY: second_ledger
         },
@@ -175,8 +193,10 @@ def test_semantic_review_lineage_budget_survives_architect_replans() -> None:
         review_packet=different_finding_packet,
         max_local_revisions=1,
     )
-    assert fresh_finding["lineage_key"] != third["lineage_key"]
-    assert fresh_finding["local_repair_available"] is True
+    assert changed_finding_after_replan["lineage_key"] != third["lineage_key"]
+    assert changed_finding_after_replan["local_repair_available"] is False
+    assert changed_finding_after_replan["architect_replan_available"] is False
+    assert changed_finding_after_replan["lineage_budget_exhausted"] is True
 
 
 def _runtime_fixture(
@@ -577,6 +597,69 @@ def test_generated_code_semantic_reviewer_routes_rejection_to_fresh_generation(
         "semantic_review_packet_id"
     ]
     assert handoff["proof_evidence_status"] == "NOT_PROOF_EVIDENCE"
+
+
+def test_changed_finding_cannot_reset_source_lineage_repair_budget(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accept=False)
+    first = subsystem.run(task, blackboard)
+    assert first.next_task is not None
+    first_context = first.next_task.inputs["architect_context"]
+
+    work_order = blackboard.artifacts[str(task.inputs["work_order_id"])]
+    for task_field in ("repair_task", "deferred_next_task"):
+        task_payload = dict(work_order[task_field])
+        task_inputs = dict(task_payload["inputs"])
+        task_inputs["architect_context"] = first_context
+        task_payload["inputs"] = task_inputs
+        work_order[task_field] = task_payload
+    work_order["review_revision_count"] = 0
+
+    changed_response = _review_response(accept=False)
+    changed_response["findings"][0]["category"] = "data_generation"
+    changed_reviewer = GeneratedCodeSemanticReviewerRuntimeSubsystem(
+        reviewer=LLMGeneratedCodeSemanticReviewerAgent(
+            provider=StaticJSONGeneratorBackend(changed_response),
+            config=GeneratedCodeSemanticReviewerConfig(
+                provider_name="static",
+                model="changed-finding-sonnet-reviewer",
+                model_tier="sonnet",
+                max_repair_attempts=0,
+            ),
+        ),
+        max_revisions=1,
+    )
+    second = changed_reviewer.run(
+        AgentTask(
+            task_id="semantic-review:changed-finding",
+            owner_subsystem=task.owner_subsystem,
+            objective=task.objective,
+            inputs={
+                **task.inputs,
+                "architect_context": first_context,
+                "work_order_hash": stable_hash(work_order),
+            },
+        ),
+        blackboard,
+    )
+
+    assert second.status == "REROUTE"
+    assert second.next_task is not None
+    assert second.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert second.failure_classification == (
+        "generated_code_semantic_review_revision_budget_escalated_to_architect"
+    )
+    execution = next(
+        row
+        for row in second.produced_artifacts.values()
+        if row.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
+    )
+    budget = execution["semantic_review_lineage_budget"]
+    assert budget["source_local_repair_count"] == 1
+    assert budget["source_architect_replan_count"] == 0
+    assert budget["selected_action"] == "architect_replan"
 
 
 def test_semantic_review_budget_exhaustion_resumes_deferred_architect_replan(

@@ -532,8 +532,11 @@ _OPERATOR_DOTENV_FILENAMES = (
 )
 FULL_LIVE_MIN_AGENT_RUNTIME_ITERATIONS = 24
 MINIMAL_LIVE_FORMALIZER_LEAN_REPAIR_YIELD_AFTER_ATTEMPTS = 3
-FULL_LIVE_MIN_GAP_PLANNER_PROVIDER_TIMEOUT_SECONDS = (
+SERIOUS_THEORY_MIN_LLM_TIMEOUT_SECONDS = (
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS * 2.0
+)
+FULL_LIVE_MIN_GAP_PLANNER_PROVIDER_TIMEOUT_SECONDS = (
+    SERIOUS_THEORY_MIN_LLM_TIMEOUT_SECONDS
 )
 
 
@@ -14194,6 +14197,17 @@ def _apply_research_agent_runtime_research_eval_profile(
         ResearchArchitectConfig().serious_max_tokens,
         int(getattr(args, "serious_theory_max_tokens", 0) or 0),
     )
+    args.llm_timeout_seconds = max(
+        SERIOUS_THEORY_MIN_LLM_TIMEOUT_SECONDS,
+        float(
+            getattr(
+                args,
+                "llm_timeout_seconds",
+                DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+            )
+            or DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS
+        ),
+    )
 
 
 def _apply_research_agent_runtime_capability_eval_preset(
@@ -14330,6 +14344,17 @@ def _apply_research_agent_runtime_capability_eval_preset(
         )
     if preset == "full-live":
         args.architect_metric_repair_ownership_router = True
+        args.llm_timeout_seconds = max(
+            SERIOUS_THEORY_MIN_LLM_TIMEOUT_SECONDS,
+            float(
+                getattr(
+                    args,
+                    "llm_timeout_seconds",
+                    DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+                )
+                or DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS
+            ),
+        )
         if not str(
             getattr(args, "serious_theory_model_tier", "") or ""
         ).strip():
@@ -21760,8 +21785,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
         help=(
             "wall-clock timeout for each live LLM generator request; timeout "
-            "exceptions are not retried by default so one subsystem cannot stall "
-            "the full AgentRuntime"
+            "retries remain bounded by --max-subsystem-retries for provider API "
+            "timeouts, while local tool and generic timeout exceptions fail fast"
         ),
     )
     research_agent_runtime.add_argument(
@@ -22675,7 +22700,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=1,
         help=(
             "runtime-level retries for transient provider/subsystem exceptions "
-            "such as API connection errors; retry observations are recorded in traces"
+            "such as API connection errors and provider API timeouts; local tool "
+            "timeouts are not retried, and retry observations are recorded in traces"
         ),
     )
     research_agent_runtime.add_argument(

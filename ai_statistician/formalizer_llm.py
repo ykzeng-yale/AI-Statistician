@@ -250,6 +250,8 @@ class LLMFormalizerProofEngineerAgent:
                 errors=kwargs.get("errors", []),
                 question=question,
                 theory_packet=theory_packet,
+                theorem_goals=theorem_goals,
+                invalid_packet=kwargs.get("invalid_packet"),
                 environment_feedback=environment_feedback or {},
                 proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary
                 or {},
@@ -262,6 +264,8 @@ def _formalizer_repair_context(
     errors: Sequence[Any],
     question: OpenResearchQuestion | None = None,
     theory_packet: Mapping[str, Any] | None = None,
+    theorem_goals: Sequence[Mapping[str, Any]] | None = None,
+    invalid_packet: Mapping[str, Any] | None = None,
     environment_feedback: Mapping[str, Any] | None = None,
     proof_bank_runtime_memory_summary: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -292,6 +296,12 @@ def _formalizer_repair_context(
             "provenance must keep target_lean_declaration",
         )
     )
+    typed_packet_repair_context = _formalizer_typed_packet_repair_context(
+        errors=error_rows,
+        theory_packet=theory_packet or {},
+        theorem_goals=theorem_goals or (),
+        invalid_packet=invalid_packet,
+    )
     if whole_proof_repair_error:
         diagnostics = [
             row
@@ -303,6 +313,7 @@ def _formalizer_repair_context(
         ]
         diagnostic = diagnostics[0] if diagnostics else {}
         return {
+            **typed_packet_repair_context,
             "repair_mode": "exact_source_theorem_whole_proof_repair",
             "target_lean_declaration": str(
                 diagnostic.get("target_theorem_name", "") or ""
@@ -322,7 +333,7 @@ def _formalizer_repair_context(
             ],
         }
     if not pseudo_formal_required and not pseudo_formal_error:
-        return {}
+        return typed_packet_repair_context
 
     validation_issue_summary = pseudo_formal_validation_issue_summary(error_rows)
     issue_specific_repair_actions = (
@@ -364,6 +375,7 @@ def _formalizer_repair_context(
         PSEUDO_FORMAL_TARGET_LANE_LEAN_RAG,
     ]
     return {
+        **typed_packet_repair_context,
         "context_kind": "formalizer_validation_repair_context",
         "context_reason": "pseudo_formal_packet_repair",
         "pseudo_formal_activation_required": pseudo_formal_required,
@@ -535,6 +547,230 @@ def _formalizer_repair_context(
                 "do not return only generic diagnostic rows when a target lane is required",
             ],
         },
+    }
+
+
+def _formalizer_typed_packet_repair_context(
+    *,
+    errors: Sequence[str],
+    theory_packet: Mapping[str, Any],
+    theorem_goals: Sequence[Mapping[str, Any]],
+    invalid_packet: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    rejected_packet = dict(invalid_packet) if isinstance(invalid_packet, Mapping) else {}
+    rejected_targets = [
+        deepcopy(dict(row))
+        for row in rejected_packet.get("formal_targets", []) or []
+        if isinstance(row, Mapping)
+    ][:3]
+    source_target_binding_options: list[dict[str, Any]] = []
+    seen_binding_options: set[str] = set()
+
+    def add_source_identity(
+        raw_goal: Mapping[str, Any],
+        *,
+        source_kind: str,
+        source_path: str,
+    ) -> None:
+        source_theorem_goal_id = next(
+            (
+                str(raw_goal.get(key, "") or "").strip()
+                for key in ("goal_id", "theorem_id", "target_id", "id")
+                if str(raw_goal.get(key, "") or "").strip()
+            ),
+            "",
+        )
+        declaration_keys = (
+            ("target_lean_declaration", "lean_declaration", "name")
+            if source_kind == "theorem_goal"
+            else ("target_lean_declaration", "lean_declaration")
+        )
+        target_lean_declaration = next(
+            (
+                str(raw_goal.get(key, "") or "").strip()
+                for key in declaration_keys
+                if str(raw_goal.get(key, "") or "").strip()
+            ),
+            "",
+        )
+        if source_theorem_goal_id or target_lean_declaration:
+            binding_option = {
+                "source_kind": source_kind,
+                "source_path": source_path,
+                "source_theorem_goal_id": source_theorem_goal_id,
+                "target_lean_declaration": target_lean_declaration,
+                "semantic_statement": next(
+                    (
+                        deepcopy(raw_goal[key])
+                        for key in (
+                            "statement",
+                            "informal_statement",
+                            "claim",
+                            "conclusion",
+                        )
+                        if raw_goal.get(key) not in (None, "", [], {})
+                    ),
+                    "",
+                ),
+            }
+            binding_fingerprint = stable_hash(
+                {
+                    key: value
+                    for key, value in binding_option.items()
+                    if key != "source_path"
+                }
+            )
+            if binding_fingerprint not in seen_binding_options:
+                seen_binding_options.add(binding_fingerprint)
+                source_target_binding_options.append(binding_option)
+
+    for index, raw_goal in enumerate(
+        theorem_goals[:FORMALIZER_MAX_THEOREM_GOALS]
+    ):
+        if not isinstance(raw_goal, Mapping):
+            continue
+        add_source_identity(
+            raw_goal,
+            source_kind="theorem_goal",
+            source_path=f"theorem_goals[{index}]",
+        )
+
+    derivation_packet = theory_packet.get("theory_derivation_packet", {})
+    if not isinstance(derivation_packet, Mapping):
+        derivation_packet = {}
+    theorem_card_sources = (
+        ("theory_packet.theorem_cards", theory_packet.get("theorem_cards", [])),
+        (
+            "theory_packet.theory_derivation_packet.theorem_cards",
+            derivation_packet.get("theorem_cards", []),
+        ),
+    )
+    for source_path, raw_cards in theorem_card_sources:
+        if not isinstance(raw_cards, (list, tuple)):
+            continue
+        for index, raw_card in enumerate(raw_cards[:FORMALIZER_MAX_THEOREM_GOALS]):
+            if not isinstance(raw_card, Mapping):
+                continue
+            add_source_identity(
+                raw_card,
+                source_kind="theorem_card",
+                source_path=f"{source_path}[{index}]",
+            )
+
+    formalization_request_context: list[dict[str, Any]] = []
+    for raw_request in theory_packet.get("formalization_requests", []) or []:
+        if not isinstance(raw_request, Mapping):
+            continue
+        request_row = {
+            key: deepcopy(raw_request[key])
+            for key in (
+                "id",
+                "target",
+                "target_theorem_card",
+                "claim",
+                "statement",
+                "lean_stub",
+                "lean4_sketch",
+                "open_obligations",
+            )
+            if raw_request.get(key) not in (None, "", [], {})
+        }
+        if request_row:
+            formalization_request_context.append(request_row)
+        if len(formalization_request_context) >= FORMALIZER_MAX_THEOREM_GOALS:
+            break
+    return {
+        "context_kind": "formalizer_validation_repair_context",
+        "context_reason": "typed_packet_contract_repair",
+        "detected_validation_errors": [str(error) for error in errors[:8]],
+        "rejected_packet_fingerprint": (
+            stable_hash(rejected_packet) if rejected_packet else ""
+        ),
+        "rejected_packet_excerpt": {
+            "formal_targets": rejected_targets,
+            "theory_trace_alignment": deepcopy(
+                rejected_packet.get("theory_trace_alignment", {})
+            ),
+            "gap_taxonomy": [
+                deepcopy(dict(row))
+                for row in rejected_packet.get("gap_taxonomy", []) or []
+                if isinstance(row, Mapping)
+            ][:3],
+            "next_actions": [
+                deepcopy(dict(row))
+                for row in rejected_packet.get("next_actions", []) or []
+                if isinstance(row, Mapping)
+            ][:3],
+        },
+        "source_target_binding_options": source_target_binding_options,
+        "source_target_identity_available": bool(source_target_binding_options),
+        "formalization_request_context": formalization_request_context,
+        "formal_target_role_contract": {
+            FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE: {
+                "expected_status": "NEEDS_KERNEL_CHECK",
+                "lean_statement_sketch": "nonempty whole-target candidate",
+                "candidate_lean_declaration": "required exact emitted declaration",
+                "source_identity": (
+                    "AgentRuntime mechanically binds candidate_lean_declaration as "
+                    "the candidate target declaration; bind a matching source theorem "
+                    "goal id when one is available"
+                ),
+            },
+            FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP: {
+                "expected_status": "FORMAL_GAP",
+                "lean_statement_sketch": "empty",
+                "candidate_lean_declaration": "empty",
+                "source_identity": (
+                    "target_lean_declaration or source_theorem_goal_id required"
+                ),
+            },
+            FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT: {
+                "expected_status": "NEEDS_KERNEL_CHECK or FORMAL_GAP",
+                "lean_statement_sketch": (
+                    "nonempty exactly when expected_status=NEEDS_KERNEL_CHECK"
+                ),
+                "candidate_lean_declaration": (
+                    "required exactly when a Lean candidate is emitted"
+                ),
+                "source_identity": "must not claim source-theorem identity",
+            },
+        },
+        "repair_prompt_priority_instructions": [
+            (
+                "Use rejected_packet_excerpt as the exact normalized failed packet; "
+                "preserve unaffected content and repair every detected validation error."
+            ),
+            (
+                "Choose exactly one formal_target_role contract per row and make its "
+                "status, Lean source, candidate declaration, and source identity "
+                "coherent; never combine fields from different roles."
+            ),
+            (
+                "When a source-theorem gap lacks identity, copy a semantically exact "
+                "goal id or declaration from source_target_binding_options. Theorem "
+                "card ids are valid source_theorem_goal_id values when that card is "
+                "the exact target. Do not invent a binding merely to pass validation."
+            ),
+            (
+                "Retain SOURCE_THEOREM_CANDIDATE "
+                "only when its whole-target Lean candidate is complete, placeholder-"
+                "free, and has an exact emitted candidate_lean_declaration; AgentRuntime "
+                "mechanically binds that duplicate candidate declaration into source "
+                "provenance. Otherwise fail closed to SOURCE_THEOREM_FORMAL_GAP, clear "
+                "both Lean fields, and bind the semantically matching theorem-card/goal "
+                "id."
+            ),
+            (
+                "If source_target_identity_available=false, do not retain a "
+                "SOURCE_THEOREM_CANDIDATE or SOURCE_THEOREM_FORMAL_GAP claim: relabel "
+                "genuine support as HELPER_OR_SUPPORT or remove the row and record "
+                "the missing source identity as a typed gap."
+            ),
+            (
+                "Keep the repaired packet compact and leave optional arrays empty when "
+                "unused; do not expand the packet while fixing a local contract error."
+            ),
+        ],
     }
 
 
@@ -1033,14 +1269,14 @@ def build_formalizer_prompt(
                     "drift if repaired, emit that source theorem as FORMAL_GAP and "
                     "route helper/premise Lean candidates separately. A separate helper "
                     "formal_targets entry must set formal_target_role=HELPER_OR_SUPPORT "
-                    "and "
-                    "source_theorem_target_provenance.source_theorem_target_known=false "
                     "so local Lean/LSP can inspect a real artifact without promoting it "
                     "to source-theorem proof evidence. Use "
                     "formal_target_role=SOURCE_THEOREM_CANDIDATE only for a candidate "
                     "intended to preserve the whole task-bound theorem, and "
                     "formal_target_role=SOURCE_THEOREM_FORMAL_GAP for its empty-Lean "
-                    "fail-closed gap row. Roles are routing metadata, not proof claims."
+                    "fail-closed gap row. formal_target_role is the single generated "
+                    "routing authority; AgentRuntime derives legacy target-known metadata "
+                    "from it. Roles are routing metadata, not proof claims."
                 ),
                 "not_proof_evidence": (
                     "the Lean candidate remains a proposal until AgentRuntime runs "
@@ -1257,7 +1493,7 @@ FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
             "id": "string",
             "formal_target_role": (
                 "SOURCE_THEOREM_CANDIDATE|SOURCE_THEOREM_FORMAL_GAP|"
-                "HELPER_OR_SUPPORT; routing metadata only, not proof evidence"
+                "HELPER_OR_SUPPORT; single generated routing authority, not proof evidence"
             ),
             "informal_source": "string",
             "lean_statement_sketch": "string",
@@ -1269,12 +1505,6 @@ FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
             "lean_imports": ["Mathlib"],
             "semantic_alignment_constraints": ["string"],
             "source_theorem_target_provenance": {
-                "source_theorem_target_known": (
-                    "true when runtime already binds the source-theorem identity; "
-                    "false for helper/support rows or a generated source-theorem "
-                    "candidate still awaiting independent target review; "
-                    "formal_target_role disambiguates those cases"
-                ),
                 "target_lean_declaration": "source theorem Lean declaration, not adapter declaration",
                 "source_theorem_goal_id": "registered theorem goal id",
             },
@@ -1591,6 +1821,57 @@ def _formal_target_role(row: Mapping[str, Any]) -> str:
     return str(row.get("formal_target_role", "") or "").strip().upper()
 
 
+def _bind_formal_target_role_provenance(packet: dict[str, Any]) -> None:
+    bindings: list[dict[str, Any]] = []
+    for row in packet.get("formal_targets", []) or []:
+        if not isinstance(row, dict):
+            continue
+        role = _formal_target_role(row)
+        if role not in FORMAL_TARGET_ROLES:
+            continue
+        raw_provenance = row.get("source_theorem_target_provenance", {})
+        provenance = (
+            dict(raw_provenance) if isinstance(raw_provenance, Mapping) else {}
+        )
+        previous = _source_theorem_target_known(provenance)
+        target_declaration_binding_source = str(
+            provenance.get("target_lean_declaration_binding_source", "") or ""
+        ).strip()
+        if role == FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP:
+            canonical = True
+        elif role == FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT:
+            canonical = False
+        else:
+            canonical = previous if previous is not None else False
+            candidate_declaration = str(
+                row.get("candidate_lean_declaration", "") or ""
+            ).strip()
+            target_declaration = str(
+                provenance.get("target_lean_declaration", "") or ""
+            ).strip()
+            if candidate_declaration and not target_declaration:
+                provenance["target_lean_declaration"] = candidate_declaration
+                target_declaration_binding_source = "candidate_lean_declaration"
+                provenance["target_lean_declaration_binding_source"] = (
+                    target_declaration_binding_source
+                )
+        provenance["source_theorem_target_known"] = canonical
+        row["source_theorem_target_provenance"] = provenance
+        binding = {
+            "target_id": str(row.get("id", "") or ""),
+            "formal_target_role": role,
+            "previous_source_theorem_target_known": previous,
+            "source_theorem_target_known": canonical,
+        }
+        if target_declaration_binding_source:
+            binding["target_lean_declaration_binding_source"] = (
+                target_declaration_binding_source
+            )
+        bindings.append(binding)
+    if bindings:
+        packet["formal_target_role_provenance_bindings"] = bindings
+
+
 def _formal_target_role_contract_errors(
     row: Mapping[str, Any],
     *,
@@ -1672,6 +1953,15 @@ def _formal_target_role_contract_errors(
                 f"formal target {target_id} with "
                 "formal_target_role=SOURCE_THEOREM_FORMAL_GAP must bind a known "
                 "source theorem using source_theorem_target_known=true"
+            )
+        if not any(
+            str(provenance_mapping.get(key, "") or "").strip()
+            for key in ("target_lean_declaration", "source_theorem_goal_id")
+        ):
+            errors.append(
+                f"formal target {target_id} with "
+                "formal_target_role=SOURCE_THEOREM_FORMAL_GAP must preserve a "
+                "target_lean_declaration or source_theorem_goal_id"
             )
     else:
         if expected_status not in {"NEEDS_KERNEL_CHECK", "FORMAL_GAP"}:
@@ -3690,6 +3980,17 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
             and not pending_source_to_bridge_premise_names
         ):
             return role_errors
+        unbound_gap_synthesis = packet.get(
+            "source_theorem_formal_gap_synthesis_skipped", {}
+        )
+        if (
+            _feedback_has_source_theorem_target_drift(environment_feedback)
+            and isinstance(unbound_gap_synthesis, Mapping)
+            and unbound_gap_synthesis.get("reason")
+            == "source_theorem_gap_requires_explicit_agent_target"
+            and not pending_source_to_bridge_premise_names
+        ):
+            return role_errors
         return [
             *role_errors,
             "capability_eval requires at least one Claude/OpenAI-generated "
@@ -4413,6 +4714,7 @@ def _normalize_formalizer_packet(
         proof_bank_runtime_memory_summary or {},
     )
     _normalize_pseudo_formal_proof_packets(body)
+    _bind_formal_target_role_provenance(body)
     _fail_closed_placeholder_lean_candidates(
         body,
         environment_feedback or {},
@@ -5140,38 +5442,26 @@ def _fail_closed_placeholder_lean_candidates(
     if not converted_targets and not dropped_source_to_bridge:
         return
 
+    _bind_formal_target_role_provenance(packet)
+
     formal_targets = [
         row
         for row in packet.get("formal_targets", []) or []
         if isinstance(row, Mapping)
     ]
+    source_theorem_target_drift = _feedback_has_source_theorem_target_drift(
+        environment_feedback
+    )
     if (
-        _feedback_has_source_theorem_target_drift(environment_feedback)
+        source_theorem_target_drift
         and not _has_explicit_source_theorem_formal_gap_target(formal_targets)
     ):
-        formal_targets.append(
-            {
-                "id": "source_theorem_formal_gap_after_placeholder_repair",
-                "formal_target_role": (
-                    FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP
-                ),
-                "informal_source": (
-                    "source theorem remains unproved after placeholder Lean "
-                    "sketches were removed"
-                ),
-                "lean_statement_sketch": "",
-                "expected_status": "FORMAL_GAP",
-                "source_theorem_target_provenance": {
-                    "source_theorem_target_known": True,
-                    "target_lean_declaration": "",
-                    "source_theorem_goal_id": "",
-                },
-                "proof_evidence_status": (
-                    "FORMAL_GAP_PLACEHOLDER_LEAN_SKETCH_REMOVED_NOT_PROOF_EVIDENCE"
-                ),
-            }
-        )
-        packet["formal_targets"] = formal_targets
+        packet["source_theorem_formal_gap_synthesis_skipped"] = {
+            "reason": "source_theorem_gap_requires_explicit_agent_target",
+            "proof_evidence_status": (
+                "SOURCE_THEOREM_GAP_NOT_SYNTHESIZED_NOT_PROOF_EVIDENCE"
+            ),
+        }
 
     gap_rows = packet.get("gap_taxonomy", [])
     if not isinstance(gap_rows, list):

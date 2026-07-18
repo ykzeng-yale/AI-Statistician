@@ -126,6 +126,8 @@ class ScientificSandboxExecution:
     estimator_invocation_counts: dict[str, int] = field(default_factory=dict)
     estimator_binding_hash: str = ""
     estimator_binding_errors: tuple[str, ...] = ()
+    estimator_runtime_failure_ids: tuple[str, ...] = ()
+    estimator_runtime_errors: tuple[str, ...] = ()
     boundary: str = SCIENTIFIC_SANDBOX_BOUNDARY
 
     def to_json(self) -> dict[str, Any]:
@@ -936,14 +938,24 @@ def execute_scientific_sandbox(
             encoding="utf-8",
         )
     errors: list[str] = []
+    estimator_runtime_failure_ids: tuple[str, ...] = ()
+    estimator_runtime_errors: tuple[str, ...] = ()
     if not envelope:
         errors.append("scientific sandbox did not produce an execution envelope")
     elif envelope.get("ok") is not True:
-        errors.append(
+        envelope_error = (
             str(envelope.get("error_type", "ScientificSandboxError") or "")
             + ": "
             + str(envelope.get("error_message", "execution failed") or "")
         )
+        errors.append(envelope_error)
+        if str(envelope.get("error_origin", "") or "") == "accepted_estimator":
+            failure_id = str(
+                envelope.get("error_artifact_id", "") or ""
+            ).strip()
+            if failure_id:
+                estimator_runtime_failure_ids = (failure_id,)
+                estimator_runtime_errors = (envelope_error,)
     if returncode != 0 and not errors:
         errors.append(f"scientific sandbox subprocess exited {returncode}")
     if result_parse_error:
@@ -1003,4 +1015,6 @@ def execute_scientific_sandbox(
         estimator_binding_hash=(
             stable_hash(estimator_code_hashes) if estimator_code_hashes else ""
         ),
+        estimator_runtime_failure_ids=estimator_runtime_failure_ids,
+        estimator_runtime_errors=estimator_runtime_errors,
     )

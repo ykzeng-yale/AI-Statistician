@@ -67,11 +67,14 @@ async function runPython(request, source, estimatorSources) {
       `    def _bound_estimator(request):\n` +
       `        if not isinstance(request, dict):\n` +
       `            raise TypeError("run_estimator request must be a dict: " + _artifact_id)\n` +
-      `        response = _implementation(request)\n` +
-      `        if not isinstance(response, dict):\n` +
-      `            raise TypeError("run_estimator response must be a dict: " + _artifact_id)\n` +
       `        _ai_stat_json.dumps(request, allow_nan=False, sort_keys=True)\n` +
-      `        _ai_stat_json.dumps(response, allow_nan=False, sort_keys=True)\n` +
+      `        try:\n` +
+      `            response = _implementation(request)\n` +
+      `            if not isinstance(response, dict):\n` +
+      `                raise TypeError("run_estimator response must be a dict")\n` +
+      `            _ai_stat_json.dumps(response, allow_nan=False, sort_keys=True)\n` +
+      `        except Exception as exc:\n` +
+      `            raise RuntimeError("ACCEPTED_ESTIMATOR_RUNTIME_ERROR: " + _artifact_id + ": " + type(exc).__name__ + ": " + str(exc)) from exc\n` +
       `        _ai_stat_invocation_counts[_artifact_id] += 1\n` +
       `        return response\n` +
       `    return _bound_estimator\n` +
@@ -108,6 +111,13 @@ async function runR(request, source, estimatorSources) {
         `.ai_stat_simulation_environment <- new.env(parent=globalenv())\n` +
         `eval(parse(text=.ai_stat_simulation_source), envir=.ai_stat_simulation_environment)\n` +
         `.ai_stat_invocation_counts <- setNames(as.list(rep(0L, length(.ai_stat_estimator_sources))), names(.ai_stat_estimator_sources))\n` +
+        `.ai_stat_json_finite <- function(value) {\n` +
+        `  if (is.null(value)) return(TRUE)\n` +
+        `  if (is.list(value)) return(all(vapply(value, .ai_stat_json_finite, logical(1))))\n` +
+        `  if (is.numeric(value)) return(length(value) > 0L && all(is.finite(value)))\n` +
+        `  if (is.character(value) || is.logical(value)) return(length(value) > 0L && !anyNA(value))\n` +
+        `  FALSE\n` +
+        `}\n` +
         `.ai_stat_estimators <- lapply(names(.ai_stat_estimator_sources), function(.artifact_id) {\n` +
         `  local({\n` +
         `    .id <- .artifact_id\n` +
@@ -117,8 +127,15 @@ async function runR(request, source, estimatorSources) {
         `    .implementation <- get("run_estimator", envir=.environment, inherits=FALSE)\n` +
         `    function(request) {\n` +
         `      if (!is.list(request) || is.null(names(request))) stop(paste("run_estimator request must be a named list:", .id))\n` +
-        `      .response <- .implementation(request)\n` +
-        `      if (!is.list(.response) || is.null(names(.response))) stop(paste("run_estimator response must be a named list:", .id))\n` +
+        `      if (!.ai_stat_json_finite(request)) stop(paste("run_estimator request must contain finite JSON-compatible values:", .id))\n` +
+        `      .response <- tryCatch({\n` +
+        `        .candidate <- .implementation(request)\n` +
+        `        if (!is.list(.candidate) || is.null(names(.candidate))) stop("run_estimator response must be a named list")\n` +
+        `        if (!.ai_stat_json_finite(.candidate)) stop("run_estimator response must contain finite JSON-compatible values")\n` +
+        `        .candidate\n` +
+        `      }, error=function(.error) {\n` +
+        `        stop(paste0("ACCEPTED_ESTIMATOR_RUNTIME_ERROR: ", .id, ": ", class(.error)[[1]], ": ", conditionMessage(.error)), call.=FALSE)\n` +
+        `      })\n` +
         `      .ai_stat_invocation_counts[[.id]] <<- .ai_stat_invocation_counts[[.id]] + 1L\n` +
         `      .response\n` +
         `    }\n` +
@@ -190,6 +207,11 @@ try {
     completed_at: new Date().toISOString(),
   };
 } catch (error) {
+  const errorMessage = String(error?.message || error);
+  const estimatorRuntimePrefix = "ACCEPTED_ESTIMATOR_RUNTIME_ERROR: ";
+  const failedEstimatorId = Object.keys(estimatorSources).find((artifactId) =>
+    errorMessage.includes(`${estimatorRuntimePrefix}${artifactId}: `),
+  );
   envelope = {
     schema_version: 1,
     artifact_kind: "ScientificSandboxExecutionEnvelope",
@@ -198,8 +220,10 @@ try {
     backend: request.backend,
     metrics: {},
     error_type: error?.constructor?.name || "Error",
-    error_message: String(error?.message || error),
+    error_message: errorMessage,
     error_stack: String(error?.stack || "").slice(0, 8000),
+    error_origin: failedEstimatorId ? "accepted_estimator" : "generated_simulation",
+    error_artifact_id: failedEstimatorId || "",
     started_at: startedAt,
     completed_at: new Date().toISOString(),
   };

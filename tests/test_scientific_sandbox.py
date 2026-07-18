@@ -25,6 +25,7 @@ from ai_statistician.scientific_sandbox import (
 )
 from ai_statistician.simulation_engineer_llm import (
     SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
+    _validate_simulation_estimator_selection,
     validate_simulation_engineer_packet,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
@@ -158,7 +159,11 @@ def test_algorithm_and_simulation_packets_accept_declared_r_drafts() -> None:
     simulation_packet = {
         "simulation_targets": [{"procedure_id": "r-simulation"}],
         "simulation_code_drafts": [
-            {"simulation_id": "r-simulation", **r_draft}
+            {
+                "simulation_id": "r-simulation",
+                "required_estimator_ids": [],
+                **r_draft,
+            }
         ],
         "runtime_execution_plan": {
             "registered_simulator": "ResearchSimulator.run"
@@ -174,6 +179,42 @@ def test_algorithm_and_simulation_packets_accept_declared_r_drafts() -> None:
 
     assert validate_algorithm_engineer_packet(algorithm_packet) == []
     assert validate_simulation_engineer_packet(simulation_packet) == []
+
+
+def test_simulation_estimator_selection_requires_a_known_handoff_subset() -> None:
+    packet = {
+        "simulation_code_drafts": [
+            {
+                "simulation_id": "confirmatory-dgp",
+                "required_estimator_ids": ["candidate-a"],
+            }
+        ]
+    }
+
+    assert _validate_simulation_estimator_selection(
+        packet,
+        upstream_estimator_ids=("candidate-a", "candidate-b"),
+    ) == []
+
+    packet["simulation_code_drafts"][0]["required_estimator_ids"] = []
+    assert any(
+        "must select at least one" in error
+        for error in _validate_simulation_estimator_selection(
+            packet,
+            upstream_estimator_ids=("candidate-a", "candidate-b"),
+        )
+    )
+
+    packet["simulation_code_drafts"][0]["required_estimator_ids"] = [
+        "unknown-candidate"
+    ]
+    assert any(
+        "selected unknown upstream estimator ids" in error
+        for error in _validate_simulation_estimator_selection(
+            packet,
+            upstream_estimator_ids=("candidate-a", "candidate-b"),
+        )
+    )
 
 
 def test_runtime_dispatch_preserves_existing_metric_and_evidence_path(
@@ -360,6 +401,9 @@ def test_runtime_simulation_dispatch_records_mechanical_estimator_reuse(
         return execution
 
     monkeypatch.setattr(runtime_module, "execute_scientific_sandbox", execute)
+    unused_algorithm = (
+        "def run_estimator(request):\n    return {'estimate': request['x'] + 1}\n"
+    )
     handoff = {
         "exact_algorithm_artifacts": [
             {
@@ -368,7 +412,14 @@ def test_runtime_simulation_dispatch_records_mechanical_estimator_reuse(
                 "dependencies": [],
                 "exact_source_code": algorithm,
                 "exact_source_hash": stable_hash(algorithm),
-            }
+            },
+            {
+                "estimator_id": "unused-candidate",
+                "language": "python",
+                "dependencies": [],
+                "exact_source_code": unused_algorithm,
+                "exact_source_hash": stable_hash(unused_algorithm),
+            },
         ]
     }
 
@@ -376,6 +427,7 @@ def test_runtime_simulation_dispatch_records_mechanical_estimator_reuse(
         sandbox_dir=tmp_path,
         simulation_id="confirmatory-dgp",
         code_draft={
+            "required_estimator_ids": ["candidate"],
             "language": "python",
             "execution_profile": "stdlib",
             "dependencies": [],
@@ -390,6 +442,8 @@ def test_runtime_simulation_dispatch_records_mechanical_estimator_reuse(
 
     bindings = seen["estimator_bindings"]
     assert isinstance(bindings, tuple)
+    assert len(bindings) == 1
+    assert bindings[0].artifact_id == "candidate"
     assert bindings[0].code == algorithm
     assert prototype["executor_profile"] == "scientific_wasm"
     assert prototype["mechanical_estimator_invocation_verified"] is True
@@ -401,6 +455,8 @@ def test_runtime_simulation_dispatch_records_mechanical_estimator_reuse(
         simulation_rows=[prototype],
     )
     assert receipt["mechanical_estimator_invocation_verified"] is True
+    assert receipt["mechanically_invoked_estimator_ids"] == ["candidate"]
+    assert receipt["all_handoff_estimators_invoked"] is False
 
 
 def test_estimator_abi_failure_routes_typed_feedback_to_algorithm_engineer() -> None:
@@ -426,6 +482,8 @@ def test_estimator_abi_failure_routes_typed_feedback_to_algorithm_engineer() -> 
         },
         n_runs=20,
         seed=9,
+        repair_attempts_used=0,
+        yield_after_attempts=1,
     )
 
     assert task.owner_subsystem == "AlgorithmEngineer"
@@ -436,6 +494,55 @@ def test_estimator_abi_failure_routes_typed_feedback_to_algorithm_engineer() -> 
     )
     assert "run_estimator" in feedback["target_behavior"]
     assert task.inputs["implementation_gaps"] == [{"estimator_id": "candidate"}]
+    assert task.inputs["architect_context"]["runtime_feedback_loop"][
+        "simulation_evaluator_generated_code_repair_attempts_used"
+    ] == 1
+    assert task.inputs["architect_context"]["runtime_feedback_loop"][
+        "simulation_evaluator_generated_code_repair_yield_after_attempts"
+    ] == 1
+
+
+def test_estimator_runtime_failure_routes_typed_feedback_to_algorithm_engineer() -> None:
+    task = runtime_module._simulation_estimator_runtime_repair_task(
+        question=OpenResearchQuestion(
+            id="runtime-routing",
+            title="Generic estimator runtime routing",
+            description="Exercise a reviewed estimator inside a generated DGP.",
+            tags=("capability-eval",),
+        ),
+        theory_packet_id="theory:runtime",
+        simulation_manifest_id="simulation:runtime-failed",
+        implementation_gaps=[{"estimator_id": "candidate"}],
+        architect_context={},
+        simulation_feedback={
+            "generated_simulation_prototypes": [
+                {
+                    "estimator_runtime_failure_ids": ["candidate"],
+                    "estimator_runtime_errors": [
+                        "RuntimeError: run_estimator response was non-finite"
+                    ],
+                }
+            ]
+        },
+        n_runs=20,
+        seed=9,
+        repair_attempts_used=0,
+        yield_after_attempts=1,
+    )
+
+    assert task.owner_subsystem == "AlgorithmEngineer"
+    feedback = task.inputs["environment_feedback"]
+    assert feedback["failure_classification"] == (
+        "accepted_algorithm_estimator_runtime_failed"
+    )
+    assert feedback["failed_estimator_ids"] == ["candidate"]
+    assert "finite JSON-compatible response" in feedback["target_behavior"]
+    assert task.inputs["architect_context"]["runtime_feedback_loop"][
+        "simulation_evaluator_generated_code_repair_attempts_used"
+    ] == 1
+    assert task.inputs["architect_context"]["runtime_feedback_loop"][
+        "simulation_evaluator_generated_code_repair_yield_after_attempts"
+    ] == 1
 
 
 @pytest.mark.parametrize(
@@ -639,3 +746,42 @@ def test_live_estimator_bound_simulation_fails_when_callback_is_not_used(
     assert result.metrics == {"estimate": 1, "n": 5}
     assert result.estimator_invocation_counts == {"candidate": 0}
     assert any("was not invoked" in error for error in result.errors)
+
+
+def test_live_estimator_failure_is_tagged_as_algorithm_runtime_feedback(
+    tmp_path: Path,
+) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    if not runtime.python_available:
+        pytest.skip("pinned Pyodide runtime is not installed on this host")
+    algorithm = (
+        "def run_estimator(request):\n"
+        "    return {'estimate': float('inf')}\n"
+    )
+
+    result = execute_scientific_sandbox(
+        sandbox_dir=tmp_path,
+        artifact_id="bound-nonfinite-response",
+        language="python",
+        code=(
+            "def run_sandbox(seed, replicates, estimators):\n"
+            "    return estimators['candidate']({'seed': seed})\n"
+        ),
+        dependencies=[],
+        seed=7,
+        replicates=5,
+        timeout_s=60,
+        estimator_bindings=(
+            ScientificEstimatorBinding(
+                artifact_id="candidate",
+                language="python",
+                code=algorithm,
+                code_hash=stable_hash(algorithm),
+            ),
+        ),
+    )
+
+    assert result.status == "FAILED"
+    assert result.estimator_runtime_failure_ids == ("candidate",)
+    assert len(result.estimator_runtime_errors) == 1
+    assert "ACCEPTED_ESTIMATOR_RUNTIME_ERROR" in result.estimator_runtime_errors[0]

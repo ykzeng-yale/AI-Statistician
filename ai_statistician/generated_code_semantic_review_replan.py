@@ -22,7 +22,7 @@ def advance_generated_code_semantic_review_lineage_budget(
     max_local_revisions: int,
     prior_local_revisions: int = 0,
 ) -> dict[str, Any]:
-    """Advance a finding-bound budget that survives Architect replans."""
+    """Advance finding diagnostics under a theory/source lineage budget."""
 
     finding_signature = {
         "failed_dimensions": sorted(
@@ -45,11 +45,15 @@ def advance_generated_code_semantic_review_lineage_budget(
         "finding_count": len(review_packet.get("findings", []) or []),
     }
     finding_fingerprint = stable_hash(finding_signature)
+    source_lineage_identity = (
+        str(work_order.get("question_id", "") or ""),
+        str(work_order.get("theory_packet_hash", "") or ""),
+        str(work_order.get("source_subsystem", "") or ""),
+    )
+    source_lineage_key = stable_hash(source_lineage_identity)
     lineage_key = stable_hash(
         [
-            str(work_order.get("question_id", "") or ""),
-            str(work_order.get("theory_packet_hash", "") or ""),
-            str(work_order.get("source_subsystem", "") or ""),
+            *source_lineage_identity,
             str(review_packet.get("repair_scope", "") or ""),
             str(review_packet.get("repair_owner", "") or ""),
             finding_fingerprint,
@@ -72,6 +76,7 @@ def advance_generated_code_semantic_review_lineage_budget(
     )
     row = {
         "lineage_key": lineage_key,
+        "source_lineage_key": source_lineage_key,
         "question_id": str(work_order.get("question_id", "") or ""),
         "theory_packet_id": str(work_order.get("theory_packet_id", "") or ""),
         "theory_packet_hash": str(work_order.get("theory_packet_hash", "") or ""),
@@ -94,19 +99,39 @@ def advance_generated_code_semantic_review_lineage_budget(
         ),
     }
     ledger[lineage_key] = row
+    source_lineage_rows = [
+        candidate
+        for candidate in ledger.values()
+        if _source_lineage_identity(candidate) == source_lineage_identity
+    ]
+    source_local_repair_count = sum(
+        max(0, int(candidate.get("local_repair_count", 0) or 0))
+        for candidate in source_lineage_rows
+    )
+    source_architect_replan_count = sum(
+        max(0, int(candidate.get("architect_replan_count", 0) or 0))
+        for candidate in source_lineage_rows
+    )
+    row["source_local_repair_count"] = source_local_repair_count
+    row["source_architect_replan_count"] = source_architect_replan_count
+    row["source_rejection_count"] = sum(
+        max(0, int(candidate.get("rejection_count", 0) or 0))
+        for candidate in source_lineage_rows
+    )
     if len(ledger) > 32:
         ledger = dict(list(ledger.items())[-32:])
     return {
         "lineage_key": lineage_key,
+        "source_lineage_key": source_lineage_key,
         "row": row,
         "ledger": ledger,
         "local_repair_available": bool(
             row["repair_scope"] == "source_code"
-            and row["local_repair_count"] < row["max_local_revisions"]
-            and row["architect_replan_count"] == 0
+            and source_local_repair_count < row["max_local_revisions"]
+            and source_architect_replan_count == 0
         ),
-        "architect_replan_available": row["architect_replan_count"] == 0,
-        "lineage_budget_exhausted": row["architect_replan_count"] > 0,
+        "architect_replan_available": source_architect_replan_count == 0,
+        "lineage_budget_exhausted": source_architect_replan_count > 0,
     }
 
 
@@ -135,6 +160,14 @@ def record_generated_code_semantic_review_lineage_action(
     row["last_action"] = str(action)
     ledger[lineage_key] = row
     return ledger
+
+
+def _source_lineage_identity(row: Mapping[str, Any]) -> tuple[str, str, str]:
+    return (
+        str(row.get("question_id", "") or ""),
+        str(row.get("theory_packet_hash", "") or ""),
+        str(row.get("source_subsystem", "") or ""),
+    )
 
 
 def build_generated_code_semantic_review_architect_replan_task(

@@ -115,6 +115,7 @@ def generate_validated_json_packet(
                 repair_context_builder(
                     original_user_prompt=original_user_prompt,
                     bad_response=raw_text,
+                    invalid_packet=(dict(packet) if packet is not None else None),
                     errors=last_errors,
                     validation_label=validation_label,
                     truncation_detected=_response_indicates_truncation(

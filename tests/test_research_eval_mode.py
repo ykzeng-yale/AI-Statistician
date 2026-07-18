@@ -285,6 +285,7 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
         architect_metric_repair_ownership_router=False,
         serious_theory_model_tier="sonnet",
         serious_theory_max_tokens=1000,
+        llm_timeout_seconds=120.0,
     )
 
     _apply_research_agent_runtime_research_eval_profile(args)
@@ -298,6 +299,7 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
     assert args.architect_metric_repair_ownership_router is True
     assert args.serious_theory_model_tier == "sonnet"
     assert args.serious_theory_max_tokens >= 8000
+    assert args.llm_timeout_seconds == 240.0
     assert args.architect_metric_protocol_max_fresh_candidate_revisions == 1
     assert args.coding_agent_packet_validation_max_lineage_failures == 4
 

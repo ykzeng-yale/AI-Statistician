@@ -275,7 +275,16 @@ def test_metric_reviewer_repair_preserves_exact_active_finding_context() -> None
         "review_stage": "pre_execution_metric_contract_review",
         "execution_results_available": False,
         "active_prior_finding_ledger": active_ledger,
-        "empirical_metric_requirements": [{"requirement_id": "generic_gate"}],
+        "theory_developer_protocol_material": {"padding": "x" * 12000},
+        "empirical_metric_requirements": [
+            {
+                "requirement_id": "generic_gate",
+                "aggregation": "mean",
+                "operator": "between",
+                "lower": -0.1,
+                "upper": 0.1,
+            }
+        ],
     }
 
     packet = LLMArchitectMetricSemanticReviewerAgent(
@@ -315,6 +324,21 @@ def test_metric_reviewer_repair_preserves_exact_active_finding_context() -> None
     assert len(backend.requests) == 2
     assert all(finding_id in backend.requests[1].user_prompt for finding_id in expected_ids)
     assert "active_prior_finding_ledger" in backend.requests[1].user_prompt
+    repair_payload = json.loads(
+        backend.requests[1].user_prompt.split("\n\n", 1)[1]
+    )
+    assert repair_payload["original_request"]["truncated"] is True
+    repair_context = repair_payload["subsystem_repair_context"]
+    assert repair_context["current_candidate"][
+        "empirical_metric_requirements"
+    ] == material["empirical_metric_requirements"]
+    assert repair_context["current_candidate"][
+        "empirical_metric_requirements_fingerprint"
+    ] == stable_hash(material["empirical_metric_requirements"])
+    assert repair_context["review_input_fingerprint"] == stable_hash(material)
+    assert repair_context["rejected_review_packet"]["overall_verdict"] == (
+        "ACCEPT"
+    )
     assert packet["expected_prior_finding_ids"] == expected_ids
     assert [row["finding_id"] for row in packet["prior_finding_reviews"]] == (
         expected_ids

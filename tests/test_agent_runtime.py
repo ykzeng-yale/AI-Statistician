@@ -382,6 +382,67 @@ def test_agent_runtime_retries_transient_subsystem_exception() -> None:
     assert result.traces[0].observations[1].observation_type == "llm_packet"
 
 
+def test_agent_runtime_retries_provider_api_timeout_once() -> None:
+    class APITimeoutError(Exception):
+        pass
+
+    APITimeoutError.__module__ = "anthropic"
+
+    class SlowProviderSubsystem:
+        name = "TheoryDeveloper"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            self.calls += 1
+            if self.calls == 1:
+                raise APITimeoutError("request timed out")
+            return AgentStepResult(
+                status="ACCEPTED",
+                rationale="provider retry returned a theory packet",
+                produced_artifacts={"theory_packet:q1": {"ok": True}},
+            )
+
+    subsystem = SlowProviderSubsystem()
+    progress_rows: list[dict[str, object]] = []
+    result = AgentRuntime(
+        subsystems={"TheoryDeveloper": subsystem},
+        blackboard=BlackboardState(project_id="provider-timeout-test"),
+    ).run(
+        AgentTask(
+            task_id="theory:q1",
+            owner_subsystem="TheoryDeveloper",
+            objective="retry one provider API timeout",
+        ),
+        max_transient_subsystem_retries=1,
+        progress_callback=progress_rows.append,
+    )
+
+    assert result.status == "ACCEPTED"
+    assert subsystem.calls == 2
+    assert result.traces[0].observations[0].observation_type == (
+        "subsystem_exception_retry"
+    )
+    assert result.traces[0].observations[0].payload["exception_type"] == (
+        "APITimeoutError"
+    )
+    retry_row = next(
+        row for row in progress_rows if row["event_type"] == "subsystem_retry"
+    )
+    finish_row = next(
+        row for row in progress_rows if row["event_type"] == "subsystem_finish"
+    )
+    assert retry_row["retry_attempt"] == 1
+    assert retry_row["max_retries"] == 1
+    assert finish_row["retry_attempt"] == 1
+    assert finish_row["max_retries"] == 1
+
+
 def test_agent_runtime_blocks_missing_subsystem() -> None:
     result = AgentRuntime(
         subsystems={},

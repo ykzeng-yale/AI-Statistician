@@ -389,6 +389,18 @@ def build_algorithm_engineer_prompt(
         == "accepted_algorithm_estimator_abi_feedback"
         else ""
     )
+    estimator_runtime_instruction = (
+        "Accepted-estimator runtime feedback is active: read "
+        "runtime_environment_feedback.failed_estimator_ids and runtime_errors, "
+        "repair only the affected exact AlgorithmEngineer source so its declared "
+        "run_estimator(request) contract accepts the finite confirmatory DGP request "
+        "and returns a named finite JSON-compatible object, and preserve estimator_id. "
+        "Do not weaken a metric gate or move estimator logic into SimulationEngineer. "
+        "AgentRuntime will execute and independently review the fresh source again. "
+        if str(payload["runtime_environment_feedback"].get("feedback_type", "") or "")
+        == "accepted_algorithm_estimator_runtime_feedback"
+        else ""
+    )
     return (
         "Design implementation and sandbox-validation artifacts for the AlgorithmEngineer subsystem. "
         "Return ONLY one compact JSON object matching required_output_contract. Keep "
@@ -403,6 +415,7 @@ def build_algorithm_engineer_prompt(
         + theory_trace_alignment_instruction
         + semantic_review_instruction
         + estimator_abi_instruction
+        + estimator_runtime_instruction
         + "You may "
         "propose code and tests, but "
         "you must not claim you executed code, wrote files, promoted a production algorithm, or proved "
@@ -607,6 +620,16 @@ def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict
         "validation_errors": _compact_string_list(
             feedback.get("validation_errors", []),
             limit=12,
+            char_limit=420,
+        ),
+        "failed_estimator_ids": _compact_string_list(
+            feedback.get("failed_estimator_ids", []),
+            limit=8,
+            char_limit=160,
+        ),
+        "runtime_errors": _compact_string_list(
+            feedback.get("runtime_errors", []),
+            limit=8,
             char_limit=420,
         ),
         "validation_error_fingerprint": _truncate_text(

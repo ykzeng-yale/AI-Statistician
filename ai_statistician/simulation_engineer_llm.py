@@ -100,6 +100,9 @@ class LLMSimulationEngineerAgent:
                 "upstream_algorithm_handoff", {}
             )
         )
+        upstream_estimator_ids = _upstream_algorithm_estimator_ids(
+            upstream_algorithm_handoff
+        )
         requires_generated_code = _feedback_requires_generated_simulation_code(
             feedback
         )
@@ -146,6 +149,7 @@ class LLMSimulationEngineerAgent:
             authoritative_metric_requirements=authoritative_metric_requirements,
             requires_generated_code=requires_generated_code,
             requires_typed_metric_contracts=requires_typed_metric_contracts,
+            upstream_estimator_ids=upstream_estimator_ids,
         )
         provider_name = str(
             getattr(self.provider, "provider_name", self.config.provider_name)
@@ -201,6 +205,12 @@ class LLMSimulationEngineerAgent:
 
         def validate_packet(packet: Mapping[str, Any]) -> list[str]:
             errors = validate_simulation_engineer_packet(packet)
+            errors.extend(
+                _validate_simulation_estimator_selection(
+                    packet,
+                    upstream_estimator_ids=upstream_estimator_ids,
+                )
+            )
             if requires_generated_code:
                 errors.extend(
                     _validate_capability_eval_generated_simulation_packet(
@@ -499,10 +509,14 @@ def build_simulation_engineer_prompt(
         "A hash-bound, independently reviewed upstream algorithm artifact is "
         "supplied. Build the confirmatory DGP and experiment around that exact "
         "candidate implementation. Use the required run_sandbox(seed, replicates, "
-        "estimators) signature. The estimators argument is a mapping from each exact "
+        "estimators) signature. In each simulation_code_drafts row, set "
+        "required_estimator_ids to the nonempty subset of upstream estimators that "
+        "the stated simulation target and metric contracts actually evaluate. The "
+        "estimators argument is a mapping from each selected exact "
         "estimator_id in upstream_algorithm_handoff to its runtime-injected "
-        "run_estimator(request) callable. Set the simulation language to the common "
-        "upstream algorithm language, call each mapped estimator with a named "
+        "run_estimator(request) callable; unrelated upstream candidates are not "
+        "injected into that draft. Set the simulation language to the common "
+        "upstream algorithm language, call every selected estimator with a named "
         "JSON-finite request derived from generated DGP data, and consume its named "
         "JSON-finite response when computing diagnostics. Do not silently replace it. "
         "Do not define, copy, wrap, "
@@ -1061,6 +1075,19 @@ def _compact_upstream_algorithm_handoff(value: Any) -> dict[str, Any]:
     }
 
 
+def _upstream_algorithm_estimator_ids(
+    handoff: Mapping[str, Any],
+) -> tuple[str, ...]:
+    return tuple(
+        dict.fromkeys(
+            str(row.get("estimator_id", "") or "").strip()
+            for row in handoff.get("exact_algorithm_artifacts", []) or []
+            if isinstance(row, Mapping)
+            and str(row.get("estimator_id", "") or "").strip()
+        )
+    )
+
+
 def _compact_string_or_list(value: Any) -> str | list[str]:
     if isinstance(value, list):
         return _compact_string_list(value, limit=2)
@@ -1112,6 +1139,9 @@ SIMULATION_ENGINEER_OUTPUT_CONTRACT: dict[str, Any] = {
     "simulation_code_drafts": [
         {
             "simulation_id": "string",
+            "required_estimator_ids": [
+                "exact upstream estimator_id required by this simulation"
+            ],
             "language": "python",
             "execution_profile": "stdlib or scientific_wasm",
             "dependencies": [],
@@ -1144,6 +1174,7 @@ def _simulation_engineer_response_schema(
     authoritative_metric_requirements: list[Mapping[str, Any]],
     requires_generated_code: bool,
     requires_typed_metric_contracts: bool = True,
+    upstream_estimator_ids: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     """Build a compact provider-native envelope for generated simulation code."""
 
@@ -1220,6 +1251,7 @@ def _simulation_engineer_response_schema(
                     "additionalProperties": False,
                     "required": [
                         "simulation_id",
+                        "required_estimator_ids",
                         "language",
                         "execution_profile",
                         "dependencies",
@@ -1228,6 +1260,25 @@ def _simulation_engineer_response_schema(
                     ],
                     "properties": {
                         "simulation_id": {"type": "string", "minLength": 1},
+                        "required_estimator_ids": {
+                            "type": "array",
+                            "uniqueItems": True,
+                            **(
+                                {
+                                    "minItems": 1,
+                                    "maxItems": len(upstream_estimator_ids),
+                                    "items": {
+                                        "type": "string",
+                                        "enum": list(upstream_estimator_ids),
+                                    },
+                                }
+                                if upstream_estimator_ids
+                                else {
+                                    "maxItems": 0,
+                                    "items": {"type": "string"},
+                                }
+                            ),
+                        },
                         "language": {"type": "string", "enum": ["python", "r"]},
                         "execution_profile": {
                             "type": "string",
@@ -1404,6 +1455,42 @@ def validate_simulation_engineer_packet(packet: Mapping[str, Any]) -> list[str]:
     else:
         errors.append("runtime_execution_plan must be an object")
     return sorted(set(errors))
+
+
+def _validate_simulation_estimator_selection(
+    packet: Mapping[str, Any],
+    *,
+    upstream_estimator_ids: tuple[str, ...],
+) -> list[str]:
+    available = set(upstream_estimator_ids)
+    errors: list[str] = []
+    for row in packet.get("simulation_code_drafts", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        simulation_id = str(row.get("simulation_id", "") or "<unnamed>")
+        raw_selected = row.get("required_estimator_ids", [])
+        selected = (
+            [str(value).strip() for value in raw_selected if str(value).strip()]
+            if isinstance(raw_selected, list)
+            else []
+        )
+        if available and not selected:
+            errors.append(
+                f"simulation_code_drafts {simulation_id} must select at least one "
+                "required_estimator_ids value from the accepted algorithm handoff"
+            )
+        unknown = sorted(set(selected) - available)
+        if unknown:
+            errors.append(
+                f"simulation_code_drafts {simulation_id} selected unknown upstream "
+                "estimator ids: " + ", ".join(unknown)
+            )
+        if not available and selected:
+            errors.append(
+                f"simulation_code_drafts {simulation_id} cannot select estimators "
+                "without an accepted algorithm handoff"
+            )
+    return errors
 
 
 def _feedback_requires_generated_simulation_code(feedback: Mapping[str, Any]) -> bool:
@@ -1658,6 +1745,16 @@ def _normalize_simulation_code_draft_metadata(body: dict[str, Any]) -> None:
                 language=language,
             )
         )
+        raw_required_estimator_ids = normalized.get(
+            "required_estimator_ids", []
+        )
+        normalized["required_estimator_ids"] = list(
+            dict.fromkeys(
+                str(value).strip()
+                for value in raw_required_estimator_ids
+                if str(value).strip()
+            )
+        ) if isinstance(raw_required_estimator_ids, list) else []
         entrypoint = str(normalized.get("entrypoint", "") or "").strip()
         if _is_run_sandbox_signature_entrypoint(entrypoint):
             normalized["entrypoint"] = "run_sandbox"

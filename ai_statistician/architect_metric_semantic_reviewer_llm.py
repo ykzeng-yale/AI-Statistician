@@ -95,12 +95,52 @@ def _active_prior_finding_ids(
 
 def _architect_metric_semantic_review_repair_context(
     review_material: Mapping[str, Any],
+    *,
+    invalid_packet: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     active_ledger = _active_prior_finding_ledger(review_material)
     active_ids = _active_prior_finding_ids(review_material)
+    candidate_requirements = [
+        dict(row)
+        for row in review_material.get("empirical_metric_requirements", []) or []
+        if isinstance(row, Mapping)
+    ]
+    rejected_review = (
+        {
+            key: deepcopy(value)
+            for key, value in invalid_packet.items()
+            if key
+            in {
+                "prior_finding_reviews",
+                "dimension_reviews",
+                "findings",
+                "overall_verdict",
+                "repair_instructions",
+            }
+        }
+        if isinstance(invalid_packet, Mapping)
+        else {}
+    )
     return {
         "expected_prior_finding_ids": active_ids,
         "active_prior_finding_ledger": active_ledger,
+        "review_input_fingerprint": stable_hash(review_material),
+        "current_candidate": {
+            "empirical_metric_requirements": candidate_requirements,
+            "empirical_metric_requirements_fingerprint": stable_hash(
+                candidate_requirements
+            ),
+            "runtime_owned_replicates": review_material.get(
+                "runtime_owned_replicates"
+            ),
+            "pre_execution_invariants": list(
+                review_material.get("pre_execution_invariants", []) or []
+            ),
+            "execution_results_available": review_material.get(
+                "execution_results_available"
+            ),
+        },
+        "rejected_review_packet": rejected_review,
         "repair_prompt_priority_instructions": [
             (
                 "Set prior_finding_reviews=[] when expected_prior_finding_ids is "
@@ -109,6 +149,16 @@ def _architect_metric_semantic_review_repair_context(
             (
                 "Use UNRESOLVED when the current candidate or current theory does "
                 "not explicitly close an active prior finding."
+            ),
+            (
+                "Use subsystem_repair_context.current_candidate as the exact current "
+                "candidate even when original_request.truncated=true; cite its fields "
+                "when resolving or retaining prior findings."
+            ),
+            (
+                "Preserve valid judgments from rejected_review_packet while repairing "
+                "only the local validation failures; do not reconstruct the candidate "
+                "from the truncated original request."
             ),
         ],
     }
@@ -186,7 +236,10 @@ class LLMArchitectMetricSemanticReviewerAgent:
             validation_label="Architect metric semantic review packet",
             max_repair_attempts=self.config.max_repair_attempts,
             repair_context_builder=lambda **_kwargs: (
-                _architect_metric_semantic_review_repair_context(review_material)
+                _architect_metric_semantic_review_repair_context(
+                    review_material,
+                    invalid_packet=_kwargs.get("invalid_packet"),
+                )
             ),
         )
 

@@ -111,6 +111,7 @@ from ai_statistician.formalizer_llm import (
     FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP,
     FormalizerConfig,
     LLMFormalizerProofEngineerAgent,
+    _formal_target_role_contract_errors,
     _normalize_formalizer_packet,
     _validate_capability_eval_formalizer_lean_candidate_packet,
     _validate_exact_source_theorem_whole_proof_repair_packet,
@@ -26367,6 +26368,144 @@ def test_formalizer_capability_eval_validator_requires_lean_candidate() -> None:
     assert errors == []
 
 
+def test_formalizer_normalization_binds_legacy_target_known_from_typed_role() -> None:
+    packet = _normalize_formalizer_packet(
+        {
+            "formal_targets": [
+                {
+                    "id": "exact-source-gap",
+                    "formal_target_role": (
+                        FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP
+                    ),
+                    "informal_source": "the exact source theorem remains open",
+                    "lean_statement_sketch": "",
+                    "expected_status": "FORMAL_GAP",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": False,
+                        "target_lean_declaration": "exact_source_target",
+                    },
+                },
+                {
+                    "id": "diagnostic-helper",
+                    "formal_target_role": FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT,
+                    "candidate_lean_declaration": "diagnostic_helper",
+                    "informal_source": "diagnostic helper only",
+                    "lean_statement_sketch": (
+                        "theorem diagnostic_helper (p : Prop) (hp : p) : p := by\n"
+                        "  exact hp\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": True,
+                        "target_lean_declaration": "exact_source_target",
+                    },
+                },
+            ]
+        },
+        question=OpenResearchQuestion(
+            id="typed-formal-routing",
+            title="Typed formal target routing",
+            description="Preserve target identity while routing helper diagnostics.",
+            tags=("capability-eval",),
+        ),
+        model="claude-sonnet-4-6",
+        model_tier="sonnet",
+        provider_name="anthropic",
+        backend_provider_name="anthropic",
+        raw_response="{}",
+        theory_packet={},
+        proof_bank_runtime_memory_summary={},
+        environment_feedback={},
+    )
+
+    gap, helper = packet["formal_targets"]
+    assert gap["source_theorem_target_provenance"][
+        "source_theorem_target_known"
+    ] is True
+    assert helper["source_theorem_target_provenance"][
+        "source_theorem_target_known"
+    ] is False
+    assert packet["formal_target_role_provenance_bindings"] == [
+        {
+            "target_id": "exact-source-gap",
+            "formal_target_role": (
+                FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP
+            ),
+            "previous_source_theorem_target_known": False,
+            "source_theorem_target_known": True,
+        },
+        {
+            "target_id": "diagnostic-helper",
+            "formal_target_role": FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT,
+            "previous_source_theorem_target_known": True,
+            "source_theorem_target_known": False,
+        },
+    ]
+    assert (
+        _validate_capability_eval_formalizer_lean_candidate_packet(packet) == []
+    )
+
+
+def test_formalizer_normalization_mechanically_binds_candidate_declaration() -> None:
+    packet = _normalize_formalizer_packet(
+        {
+            "formal_targets": [
+                {
+                    "id": "source-candidate",
+                    "formal_target_role": (
+                        FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE
+                    ),
+                    "candidate_lean_declaration": "emitted_source_candidate",
+                    "informal_source": "whole source theorem candidate",
+                    "lean_statement_sketch": (
+                        "theorem emitted_source_candidate (p : Prop) (hp : p) : "
+                        "p := by\n  exact hp\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": False,
+                        "source_theorem_goal_id": "THM1",
+                    },
+                }
+            ]
+        },
+        question=OpenResearchQuestion(
+            id="typed-source-candidate-binding",
+            title="Typed source candidate binding",
+            description="Bind duplicate declaration identity mechanically.",
+            tags=("capability-eval",),
+        ),
+        model="claude-sonnet-4-6",
+        model_tier="sonnet",
+        provider_name="anthropic",
+        backend_provider_name="anthropic",
+        raw_response="{}",
+        theory_packet={},
+        proof_bank_runtime_memory_summary={},
+        environment_feedback={},
+    )
+
+    target = packet["formal_targets"][0]
+    assert target["source_theorem_target_provenance"][
+        "target_lean_declaration"
+    ] == "emitted_source_candidate"
+    assert target["source_theorem_target_provenance"][
+        "target_lean_declaration_binding_source"
+    ] == "candidate_lean_declaration"
+    assert packet["formal_target_role_provenance_bindings"] == [
+        {
+            "target_id": "source-candidate",
+            "formal_target_role": FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE,
+            "previous_source_theorem_target_known": False,
+            "source_theorem_target_known": False,
+            "target_lean_declaration_binding_source": (
+                "candidate_lean_declaration"
+            ),
+        }
+    ]
+    assert _formal_target_role_contract_errors(target, require_role=True) == []
+
+
 def test_formalizer_whole_proof_repair_validator_preserves_exact_signature() -> None:
     summary = {
         "recommended_formalizer_target_mode": (
@@ -32858,6 +32997,46 @@ def test_repeated_packet_validation_escalates_out_of_identical_formalizer_loop()
         row["learning_task"] for row in artifact["learning_rows"]
     }
     assert "formalizer_packet_validation_feedback" in learning_tasks
+
+
+def test_internal_typed_role_repair_skips_duplicate_runtime_retry() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    result = runtime_module._formalizer_packet_validation_failure_result(
+        task=AgentTask(
+            task_id="formalize:typed-role-repair-exhausted",
+            owner_subsystem="FormalizationEvaluator",
+            objective="repair a typed Formalizer packet",
+            inputs={},
+        ),
+        question=question,
+        theory_packet_id="theory_packet:test",
+        simulation_manifest_id="simulation_manifest:test",
+        algorithm_sandbox_manifest_id="algorithm_sandbox_manifest:test",
+        proof_bank_runtime_memory_summary={},
+        exc=PacketValidationError(
+            validation_label="LLM Formalizer/ProofEngineer packet",
+            attempts=2,
+            errors=[
+                "formal target FT1 with formal_target_role="
+                "SOURCE_THEOREM_CANDIDATE must bind "
+                "source_theorem_target_provenance.target_lean_declaration"
+            ],
+            history=[
+                {"attempt_index": 0, "ok": False},
+                {"attempt_index": 1, "ok": False},
+            ],
+        ),
+    )
+
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "FormalizationGapPlanner"
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["internal_json_repair_attempts"] == 1
+    assert feedback["internal_json_repair_counted_as_lineage_retry"] is True
+    assert feedback["formalizer_packet_repair_retry_depth"] == 1
+    assert feedback["packet_validation_escalation"][
+        "required_next_subsystem"
+    ] == "FormalizationGapPlanner"
 
 
 def test_no_import_real_helper_is_diagnosed_by_local_lean(
@@ -44096,6 +44275,43 @@ def test_algorithm_engineer_prompt_includes_sandbox_repair_feedback() -> None:
     assert "rng = random.Random(seed + rep)" in prompt
     assert "avoid global/nonlocal" in prompt
     assert "do not repeat the same unsafe" in prompt
+
+
+def test_algorithm_engineer_prompt_consumes_estimator_runtime_feedback() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    prompt = build_algorithm_engineer_prompt(
+        question=question,
+        theory_packet={
+            "packet_id": "theory:runtime-feedback",
+            "estimator_specs": [{"id": "custom", "name": "custom estimator"}],
+            "theorem_cards": [],
+            "simulation_ademp_spec": {},
+        },
+        simulation_manifest={
+            "manifest_id": "simulation:runtime-feedback",
+            "simulation_passed": False,
+            "registered_procedures": [],
+            "simulations": [],
+            "implementation_gaps": [],
+        },
+        implementation_gaps=[
+            {
+                "estimator_id": "custom",
+                "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+            }
+        ],
+        environment_feedback={
+            "feedback_type": "accepted_algorithm_estimator_runtime_feedback",
+            "failed_estimator_ids": ["custom"],
+            "runtime_errors": ["ValueError: response was non-finite"],
+        },
+    )
+
+    assert "Accepted-estimator runtime feedback is active" in prompt
+    assert '"failed_estimator_ids":["custom"]' in prompt
+    assert "ValueError: response was non-finite" in prompt
+    assert "Do not weaken a metric gate" in prompt
+    assert "independently review the fresh source again" in prompt
 
 
 def test_algorithm_engineer_prompt_does_not_own_simulation_metric_gate() -> None:
@@ -75583,9 +75799,12 @@ def test_formalizer_normalizer_fail_closes_repeated_placeholder_lean_sketch() ->
     assert packet["formal_targets"][0]["proof_evidence_status"] == (
         "FORMAL_GAP_PLACEHOLDER_LEAN_SKETCH_REMOVED_NOT_PROOF_EVIDENCE"
     )
-    assert any(
+    assert not any(
         row["id"] == "source_theorem_formal_gap_after_placeholder_repair"
         for row in packet["formal_targets"]
+    )
+    assert packet["source_theorem_formal_gap_synthesis_skipped"]["reason"] == (
+        "source_theorem_gap_requires_explicit_agent_target"
     )
     assert any(
         row.get("kind") == "proof_hole_placeholder_removed"
@@ -104635,6 +104854,7 @@ def _capability_eval_preset_args(preset: str) -> argparse.Namespace:
         serious_theory_llm_model="",
         serious_theory_model_tier="sonnet",
         serious_theory_max_tokens=8000,
+        llm_timeout_seconds=120.0,
         architect_metric_repair_ownership_router=False,
         architect_metric_repair_ownership_router_llm_model="",
         architect_metric_repair_ownership_router_max_tokens=5000,
@@ -104993,6 +105213,7 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     assert args.theory_model_tier == "sonnet"
     assert args.serious_theory_model_tier == "sonnet"
     assert args.serious_theory_max_tokens >= 8000
+    assert args.llm_timeout_seconds == 240.0
     assert args.architect_metric_repair_ownership_router is True
     assert args.formalization_gap_planner_live_route_planner is False
     assert args.formalization_gap_planner_live_max_handoffs == 1
@@ -105185,6 +105406,7 @@ def test_capability_eval_full_live_gives_gap_planner_long_call_timeout() -> None
 
     _apply_research_agent_runtime_capability_eval_preset(args)
 
+    assert args.llm_timeout_seconds == 240.0
     assert args.formalization_gap_planner_live_timeout_seconds == 240.0
 
 

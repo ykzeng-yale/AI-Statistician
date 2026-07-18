@@ -168,6 +168,7 @@ def test_generate_validated_json_packet_includes_subsystem_repair_context() -> N
         repair_context_builder=lambda **kwargs: {
             "context_kind": "subsystem_repair_context",
             "errors_seen": kwargs["errors"],
+            "invalid_packet_seen": kwargs["invalid_packet"],
             "required_field": "semantic_anchor",
             "repair_prompt_priority_instructions": [
                 "Copy subsystem seed into candidate field."
@@ -180,6 +181,7 @@ def test_generate_validated_json_packet_includes_subsystem_repair_context() -> N
     assert repair_payload["subsystem_repair_context"] == {
         "context_kind": "subsystem_repair_context",
         "errors_seen": ["missing subsystem-specific field"],
+        "invalid_packet_seen": {"ok": False},
         "required_field": "semantic_anchor",
         "repair_prompt_priority_instructions": [
             "Copy subsystem seed into candidate field."

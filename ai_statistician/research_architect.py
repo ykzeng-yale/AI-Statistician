@@ -612,6 +612,7 @@ def _theory_developer_json_repair_context(
     *,
     original_user_prompt: str,
     bad_response: str,
+    invalid_packet: Mapping[str, Any] | None = None,
     errors: list[str],
     validation_label: str,
     truncation_detected: bool,
@@ -620,7 +621,7 @@ def _theory_developer_json_repair_context(
         f'"mode":"{mode}"' in original_user_prompt
         for mode in THEORY_SERIOUS_PROMPT_MODES
     )
-    del bad_response, validation_label
+    del bad_response, invalid_packet, validation_label
     return {
         "subsystem": "TheoryDeveloper",
         "truncation_detected": bool(truncation_detected),

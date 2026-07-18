@@ -236,6 +236,7 @@ class AgentRuntime:
                 iteration=iteration,
                 task=task,
                 subsystem=task.owner_subsystem if subsystem is None else getattr(subsystem, "name", task.owner_subsystem),
+                max_retries=max_retries,
             )
             if subsystem is None:
                 trace = RuntimeIterationTrace(
@@ -358,6 +359,8 @@ class AgentRuntime:
                         status=result.status,
                         rationale=result.rationale,
                         failure_classification=failure_classification,
+                        retry_attempt=len(retry_observations),
+                        max_retries=max_retries,
                     )
                     break
                 finally:
@@ -423,6 +426,8 @@ class AgentRuntime:
                 handoff_id=trace.handoff_id,
                 next_task_id=trace.next_task_id,
                 failure_classification=trace.failure_classification,
+                retry_attempt=len(retry_observations),
+                max_retries=max_retries,
             )
 
             if result.status == "ACCEPTED":
@@ -600,6 +605,10 @@ def _is_transient_subsystem_exception(exc: Exception) -> bool:
     module = type(exc).__module__.lower()
     text = str(exc).lower()
     haystack = f"{module}.{name} {text}"
+    if name == "apitimeouterror" and (
+        module.startswith("anthropic") or module.startswith("openai")
+    ):
+        return True
     if "timeout" in haystack or "timed out" in haystack:
         return False
     retry_markers = (
