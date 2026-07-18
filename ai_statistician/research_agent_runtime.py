@@ -211,6 +211,9 @@ from .formalization_gap_planner_route_revision_overlay import (
 from .formalizer_llm import (
     FORMALIZER_BOUNDARY,
     FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE,
+    FORMAL_TARGET_ROLES,
+    FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT,
+    FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE,
     LLMFormalizerProofEngineerAgent,
     _feedback_requires_pseudo_formalization,
     _required_pseudo_formal_target_lanes,
@@ -27118,10 +27121,24 @@ def _materialize_formalizer_lean_candidate_artifacts(
                 target_context.get("target_theorem_name", "") or ""
             )
         candidate_kind = str(candidate.get("candidate_kind", "") or "")
+        formal_target_role, formal_target_role_source = (
+            _formalizer_candidate_formal_target_role(candidate_target_source)
+        )
+        formal_target_role_unbound_not_source_theorem = bool(
+            candidate_kind == "formal_target_lean_statement_sketch"
+            and formal_target_role
+            not in {
+                FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE,
+                FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT,
+            }
+        )
         support_candidate_not_source_theorem = (
             _formalizer_candidate_support_not_source_theorem(candidate_kind)
         )
-        diagnostic_helper_not_source_theorem = source_theorem_target_known is False
+        diagnostic_helper_not_source_theorem = bool(
+            formal_target_role == FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT
+            or formal_target_role_unbound_not_source_theorem
+        )
         target_identity_not_source_theorem = bool(
             repair_target_identity.get(
                 "target_identity_mismatch_not_source_theorem",
@@ -27141,7 +27158,9 @@ def _materialize_formalizer_lean_candidate_artifacts(
             and int(target_location.get("target_lean_line", 0) or 0) > 0
         )
         source_theorem_candidate_evidence_eligible = (
-            not diagnostic_helper_not_source_theorem
+            formal_target_role == FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE
+            and source_theorem_target_known is not None
+            and not diagnostic_helper_not_source_theorem
             and not support_candidate_not_source_theorem
             and not target_identity_not_source_theorem
             and (
@@ -27167,6 +27186,11 @@ def _materialize_formalizer_lean_candidate_artifacts(
                 "schema_version": RUNTIME_SCHEMA_VERSION,
                 "candidate_id": candidate_id,
                 "candidate_kind": candidate_kind,
+                "formal_target_role": formal_target_role,
+                "formal_target_role_source": formal_target_role_source,
+                "formal_target_role_unbound_not_source_theorem": (
+                    formal_target_role_unbound_not_source_theorem
+                ),
                 "source_packet_id": str(proposal_packet.get("packet_id", "") or ""),
                 "source_field": str(candidate.get("source_field", "") or ""),
                 "source_hash": source_hash,
@@ -27459,10 +27483,10 @@ def _materialize_formalizer_lean_candidate_artifacts(
         "boundary": (
             "Formalizer Lean candidate materialization creates concrete files for "
             "ProofEngineer consumption. It is only kernel proof evidence for the "
-            "exact candidate artifact. Rows with source_theorem_target_known=false "
-            "are diagnostic/helper evidence only; source-to-bridge premise "
-            "derivation candidates are support evidence only. Neither category "
-            "proves the source theorem."
+            "exact candidate artifact. HELPER_OR_SUPPORT or role-unbound rows are "
+            "diagnostic/support evidence only; source-to-bridge premise derivation "
+            "candidates are support evidence only. No candidate proves the source "
+            "theorem before semantic review and the source-theorem proof gate."
         ),
     }
     manifest_payload = _normalize_formalizer_lean_candidate_materialization_artifact(
@@ -27642,6 +27666,43 @@ def _formalizer_candidate_support_not_source_theorem(candidate_kind: str) -> boo
     }
 
 
+def _formalizer_candidate_formal_target_role(
+    candidate: Mapping[str, Any],
+) -> tuple[str, str]:
+    """Resolve routing metadata without inferring theorem semantics from Lean text."""
+
+    candidate_kind = str(candidate.get("candidate_kind", "") or "")
+    if _formalizer_candidate_support_not_source_theorem(candidate_kind):
+        return FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT, "SOURCE_CHANNEL"
+
+    metadata = (
+        candidate.get("candidate_metadata", {})
+        if isinstance(candidate.get("candidate_metadata", {}), Mapping)
+        else {}
+    )
+    for source in (candidate, metadata):
+        raw_role = str(source.get("formal_target_role", "") or "").strip()
+        if not raw_role:
+            continue
+        role = raw_role.upper()
+        if role in FORMAL_TARGET_ROLES:
+            return role, "EXPLICIT"
+        return "", "INVALID"
+
+    target_known = _source_theorem_target_known_value(candidate)
+    if target_known is None:
+        for source in (candidate, metadata):
+            provenance = source.get("source_theorem_target_provenance", {})
+            target_known = _source_theorem_target_known_value(provenance)
+            if target_known is not None:
+                break
+    if target_known is True:
+        return FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE, "LEGACY_PROVENANCE"
+    if target_known is False:
+        return FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT, "LEGACY_PROVENANCE"
+    return "", "UNBOUND"
+
+
 def _normalize_formalizer_lean_candidate_materialization_artifact(
     artifact: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -27690,9 +27751,23 @@ def _normalize_formalizer_lean_candidate_materialization_artifact(
             source_theorem_target_known = _source_theorem_target_known_value(
                 candidate_metadata.get("source_theorem_target_provenance", {})
             )
+        formal_target_role, formal_target_role_source = (
+            _formalizer_candidate_formal_target_role(candidate)
+        )
+        formal_target_role_unbound_not_source_theorem = bool(
+            candidate_kind == "formal_target_lean_statement_sketch"
+            and formal_target_role
+            not in {
+                FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE,
+                FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT,
+            }
+        )
         diagnostic_helper_not_source_theorem = _bool_like(
             candidate.get("diagnostic_helper_not_source_theorem", False)
-        ) or source_theorem_target_known is False
+        ) or bool(
+            formal_target_role == FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT
+            or formal_target_role_unbound_not_source_theorem
+        )
         repair_target_identity_required = bool(
             _bool_like(candidate.get("repair_target_identity_required", False))
             or manifest_repair_target_identity_required
@@ -27736,7 +27811,9 @@ def _normalize_formalizer_lean_candidate_materialization_artifact(
             candidate.get("candidate_identity_lean_verified", False)
         )
         source_theorem_candidate_evidence_eligible = (
-            not diagnostic_helper_not_source_theorem
+            formal_target_role == FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE
+            and source_theorem_target_known is not None
+            and not diagnostic_helper_not_source_theorem
             and not support_candidate_not_source_theorem
             and not target_identity_not_source_theorem
             and (
@@ -27751,6 +27828,11 @@ def _normalize_formalizer_lean_candidate_materialization_artifact(
         candidate["local_lean_attempted"] = local_lean_attempted
         candidate["local_lean_compiled"] = local_lean_compiled
         candidate["source_theorem_target_known"] = source_theorem_target_known
+        candidate["formal_target_role"] = formal_target_role
+        candidate["formal_target_role_source"] = formal_target_role_source
+        candidate["formal_target_role_unbound_not_source_theorem"] = (
+            formal_target_role_unbound_not_source_theorem
+        )
         candidate["diagnostic_helper_not_source_theorem"] = (
             diagnostic_helper_not_source_theorem
         )
@@ -27833,6 +27915,13 @@ def _normalize_formalizer_lean_candidate_materialization_artifact(
             row.get("target_identity_unbound_not_source_theorem", False)
         )
     ]
+    formal_target_role_unbound_rows = [
+        row
+        for row in rows
+        if _bool_like(
+            row.get("formal_target_role_unbound_not_source_theorem", False)
+        )
+    ]
     live_proof_state_request_rows = [
         row
         for row in rows
@@ -27870,6 +27959,9 @@ def _normalize_formalizer_lean_candidate_materialization_artifact(
     )
     normalized["n_local_lean_compiled_source_theorem_candidates"] = len(
         compiled_source_candidate_rows
+    )
+    normalized["n_formal_target_role_unbound"] = len(
+        formal_target_role_unbound_rows
     )
     normalized["n_local_lean_compiled_target_identity_drift_candidates"] = len(
         compiled_target_identity_drift_rows
@@ -28363,6 +28455,7 @@ def _formalizer_lean_candidate_target_context(
             "source_theorem_question_id",
             "semantic_alignment_constraints",
             "source_theorem_target_known",
+            "formal_target_role",
         ):
             if key in source and source.get(key) not in ("", [], {}, None):
                 target_row.setdefault(key, source.get(key))
@@ -28397,11 +28490,16 @@ def _formalizer_lean_candidate_target_context(
             or (theorem_goal_ids[0] if theorem_goal_ids else "")
             or ""
         )
+    formal_target_role, formal_target_role_source = (
+        _formalizer_candidate_formal_target_role(candidate)
+    )
     return {
         "target_ids": target_ids,
         "target_theorem_goal_ids": list(theorem_goal_ids),
         "target_theorem_name": target_theorem_name,
         "source_theorem_target_provenance": source_target_provenance,
+        "formal_target_role": formal_target_role,
+        "formal_target_role_source": formal_target_role_source,
     }
 
 
@@ -28449,13 +28547,25 @@ def _formalizer_lean_candidate_materialization_learning_rows(
             target_identity_mismatch_not_source_theorem
             or target_identity_unbound_not_source_theorem
         )
+        formal_target_role, formal_target_role_source = (
+            _formalizer_candidate_formal_target_role(candidate)
+        )
+        formal_target_role_unbound_not_source_theorem = _bool_like(
+            candidate.get(
+                "formal_target_role_unbound_not_source_theorem",
+                False,
+            )
+        )
         source_theorem_candidate_evidence_eligible = bool(
             _bool_like(
                 candidate.get(
                     "source_theorem_candidate_evidence_eligible",
-                    True,
+                    False,
                 )
             )
+            and formal_target_role
+            == FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE
+            and not formal_target_role_unbound_not_source_theorem
             and not diagnostic_helper_not_source_theorem
             and not support_candidate_not_source_theorem
             and not target_identity_not_source_theorem
@@ -28519,6 +28629,11 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                 "task_id": str(manifest.get("task_id", "") or ""),
                 "candidate_id": candidate_id,
                 "candidate_kind": candidate_kind,
+                "formal_target_role": formal_target_role,
+                "formal_target_role_source": formal_target_role_source,
+                "formal_target_role_unbound_not_source_theorem": (
+                    formal_target_role_unbound_not_source_theorem
+                ),
                 "source_field": str(candidate.get("source_field", "") or ""),
                 "source_hash": str(candidate.get("source_hash", "") or ""),
                 "target_ids": list(target_context.get("target_ids", []) or []),
@@ -29587,6 +29702,18 @@ def _formalizer_lean_candidate_repair_feedback(
                 "candidate_id": str(row.get("candidate_id", "") or ""),
                 "candidate_kind": str(row.get("candidate_kind", "") or ""),
                 "source_field": str(row.get("source_field", "") or ""),
+                "formal_target_role": str(
+                    row.get("formal_target_role", "") or ""
+                ),
+                "formal_target_role_source": str(
+                    row.get("formal_target_role_source", "") or ""
+                ),
+                "formal_target_role_unbound_not_source_theorem": _bool_like(
+                    row.get(
+                        "formal_target_role_unbound_not_source_theorem",
+                        False,
+                    )
+                ),
                 "artifact_path": str(row.get("artifact_path", "") or ""),
                 "target_lean_file": str(row.get("target_lean_file", "") or ""),
                 "target_lean_line": int(row.get("target_lean_line", 0) or 0),
@@ -30358,6 +30485,23 @@ def _formalizer_candidate_exact_proof_search_context(
         ):
             continue
 
+        formal_target_role, formal_target_role_source = (
+            _formalizer_candidate_formal_target_role(diagnostic)
+        )
+        if (
+            formal_target_role
+            != FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE
+            or str(diagnostic.get("source_field", "") or "").strip()
+            != "formal_targets"
+            or _bool_like(
+                diagnostic.get(
+                    "formal_target_role_unbound_not_source_theorem",
+                    False,
+                )
+            )
+        ):
+            continue
+
         provenance = (
             dict(diagnostic.get("source_theorem_target_provenance", {}) or {})
             if isinstance(
@@ -30367,14 +30511,9 @@ def _formalizer_candidate_exact_proof_search_context(
             else {}
         )
         target_known = _source_theorem_target_known_value(diagnostic)
-        if target_known is not True:
+        if target_known is None:
             target_known = _source_theorem_target_known_value(provenance)
-        generated_formal_target_pending_review = bool(
-            target_known is not True
-            and str(diagnostic.get("source_field", "") or "").strip()
-            == "formal_targets"
-        )
-        if target_known is not True and not generated_formal_target_pending_review:
+        if target_known is None:
             continue
 
         target_declaration = str(
@@ -30452,6 +30591,7 @@ def _formalizer_candidate_exact_proof_search_context(
         provenance.update(
             {
                 "source_theorem_target_known": target_known is True,
+                "formal_target_role": formal_target_role,
                 "target_lean_declaration": target_declaration,
                 "target_ids": list(target_ids),
                 "source_work_order_id": source_work_order_id,
@@ -30531,6 +30671,8 @@ def _formalizer_candidate_exact_proof_search_context(
             continue
         return {
             **context,
+            "formal_target_role": formal_target_role,
+            "formal_target_role_source": formal_target_role_source,
             "formalizer_candidate_exact_search_eligible": True,
             "external_proof_search_dispatch_eligible": False,
             "external_proof_search_dispatch_blockers": [
@@ -31991,7 +32133,6 @@ def _formalizer_lean_candidate_sources(
             continue
         if _formalizer_formal_target_should_skip_lean_candidate_materialization(
             row,
-            source,
         ):
             continue
         candidate_id = (
@@ -32014,6 +32155,9 @@ def _formalizer_lean_candidate_sources(
             if candidate_lean_declaration
             else ""
         )
+        formal_target_role = str(
+            row.get("formal_target_role", "") or ""
+        ).strip().upper()
         if (
             not candidate_lean_declaration
             and _source_theorem_target_known_value(provenance) is True
@@ -32031,6 +32175,7 @@ def _formalizer_lean_candidate_sources(
                 "candidate_id": candidate_id,
                 "candidate_kind": "formal_target_lean_statement_sketch",
                 "source_field": "formal_targets",
+                "formal_target_role": formal_target_role,
                 "lean_source": source,
                 "candidate_lean_declaration": candidate_lean_declaration,
                 "candidate_lean_declaration_source": (
@@ -32038,6 +32183,7 @@ def _formalizer_lean_candidate_sources(
                 ),
                 "candidate_metadata": {
                     "expected_status": expected_status,
+                    "formal_target_role": formal_target_role,
                     "candidate_lean_declaration": candidate_lean_declaration,
                     "informal_source": str(row.get("informal_source", "") or ""),
                     "semantic_alignment_constraints": list(
@@ -32057,43 +32203,11 @@ def _formalizer_lean_candidate_sources(
 
 def _formalizer_formal_target_should_skip_lean_candidate_materialization(
     row: Mapping[str, Any],
-    source: str,
 ) -> bool:
     route = str(row.get("runtime_materialization_route", "") or "").strip()
     if route == "source_theorem_proof_body_adapter_bridge":
         return True
-    skip_requested = bool(
-        row.get("skip_formalizer_lean_candidate_materialization", False)
-    )
-    provenance = (
-        row.get("source_theorem_target_provenance", {})
-        if isinstance(row.get("source_theorem_target_provenance", {}), Mapping)
-        else {}
-    )
-    source_theorem_target_known = _source_theorem_target_known_value(provenance)
-    if (
-        not bool(row.get("diagnostic_helper_not_source_theorem", False))
-        and not skip_requested
-        and source_theorem_target_known is not False
-        and not bool(
-            provenance.get("diagnostic_helper_from_source_theorem_shape_drift", False)
-        )
-    ):
-        return False
-    text_parts = [
-        str(row.get(field, "") or "")
-        for field in (
-            "id",
-            "informal_source",
-            "target_lean_declaration",
-        )
-    ]
-    constraints = row.get("semantic_alignment_constraints", [])
-    if isinstance(constraints, list | tuple | set):
-        text_parts.extend(str(value or "") for value in constraints)
-    text_parts.append(source)
-    text = " ".join(text_parts).lower()
-    return "source_to_bridge_adapter" in text or "source-to-bridge adapter" in text
+    return bool(row.get("skip_formalizer_lean_candidate_materialization", False))
 
 
 def _run_formalizer_lean_candidate_local_check(

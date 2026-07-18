@@ -172,6 +172,30 @@ FORMALIZER_VALIDATION_REPAIR_RULES: tuple[
         ),
     ),
     FormalizerValidationRepairRule(
+        rule_id="formal_target_role_routing",
+        violation_family="formal_target_routing_contract",
+        trigger_markers=("formal_target_role",),
+        prompt_directive=(
+            "Give every formal_targets row one explicit routing role. Use "
+            "SOURCE_THEOREM_CANDIDATE only for a nonempty whole-target Lean "
+            "candidate with candidate_lean_declaration and source provenance; use "
+            "SOURCE_THEOREM_FORMAL_GAP for the same source theorem with empty Lean "
+            "source and expected_status=FORMAL_GAP; use HELPER_OR_SUPPORT for a "
+            "smaller executable candidate and set source_theorem_target_known=false. "
+            "These roles route artifacts and do not certify semantic faithfulness or "
+            "proof."
+        ),
+        allowed_resolution=(
+            "Separate the source-theorem candidate or gap from helper/support Lean, "
+            "then let independent semantic review and Lean verification evaluate the "
+            "routed artifacts."
+        ),
+        forbidden_resolution=(
+            "Do not leave a formal target role unspecified, label a helper as the "
+            "source theorem, or attach executable Lean to a source-theorem gap row."
+        ),
+    ),
+    FormalizerValidationRepairRule(
         rule_id="executable_candidate_expected_status",
         violation_family="kernel_queue_contract",
         trigger_markers=("must set expected_status=needs_kernel_check",),

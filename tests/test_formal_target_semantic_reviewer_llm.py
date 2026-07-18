@@ -19,7 +19,10 @@ from ai_statistician.formal_target_semantic_reviewer_llm import (
     build_formal_target_semantic_review_prompt,
     validate_formal_target_semantic_review_packet,
 )
-from ai_statistician.formalizer_llm import build_formalizer_prompt
+from ai_statistician.formalizer_llm import (
+    FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE,
+    build_formalizer_prompt,
+)
 from ai_statistician.model_backend import StaticJSONGeneratorBackend
 from ai_statistician.research_agent_runtime import (
     FormalTargetSemanticReviewerRuntimeSubsystem,
@@ -150,6 +153,9 @@ def _runtime_fixture(
         "formal_targets": [
             {
                 "id": "exact_source",
+                "formal_target_role": (
+                    FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE
+                ),
                 "lean_statement_sketch": source,
                 "semantic_alignment_constraints": [
                     "preserve the supplied hypothesis and conclusion"
@@ -165,6 +171,9 @@ def _runtime_fixture(
             {
                 "candidate_id": "exact_source",
                 "source_field": "formal_targets",
+                "formal_target_role": (
+                    FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE
+                ),
                 "artifact_path": str(artifact_path),
                 "source_hash": source_hash,
                 "target_lean_declaration": "exact_source",

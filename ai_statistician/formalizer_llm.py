@@ -69,6 +69,16 @@ FORMALIZER_MAX_THEORY_ROWS = 3
 FORMALIZER_MAX_THEOREM_GOALS = 4
 FORMALIZER_MAX_PROOF_BANK_ROWS = 12
 FORMALIZER_MAX_TEXT_CHARS = 200
+FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE = "SOURCE_THEOREM_CANDIDATE"
+FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP = "SOURCE_THEOREM_FORMAL_GAP"
+FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT = "HELPER_OR_SUPPORT"
+FORMAL_TARGET_ROLES = frozenset(
+    {
+        FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE,
+        FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP,
+        FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT,
+    }
+)
 
 
 def _is_compaction_path_key(key: Any) -> bool:
@@ -1022,10 +1032,15 @@ def build_formalizer_prompt(
                     "When runtime target-shape feedback says a source theorem would "
                     "drift if repaired, emit that source theorem as FORMAL_GAP and "
                     "route helper/premise Lean candidates separately. A separate helper "
-                    "formal_targets entry must set "
+                    "formal_targets entry must set formal_target_role=HELPER_OR_SUPPORT "
+                    "and "
                     "source_theorem_target_provenance.source_theorem_target_known=false "
                     "so local Lean/LSP can inspect a real artifact without promoting it "
-                    "to source-theorem proof evidence."
+                    "to source-theorem proof evidence. Use "
+                    "formal_target_role=SOURCE_THEOREM_CANDIDATE only for a candidate "
+                    "intended to preserve the whole task-bound theorem, and "
+                    "formal_target_role=SOURCE_THEOREM_FORMAL_GAP for its empty-Lean "
+                    "fail-closed gap row. Roles are routing metadata, not proof claims."
                 ),
                 "not_proof_evidence": (
                     "the Lean candidate remains a proposal until AgentRuntime runs "
@@ -1079,7 +1094,8 @@ def build_formalizer_prompt(
             "Capability-eval mode is active, but source-to-bridge metadata "
             "authoring takes priority: do not emit another helper-only Lean "
             "formal_targets entry just to satisfy the Lean-candidate gate. Keep "
-            "the source theorem as expected_status=FORMAL_GAP, and either emit a "
+            "the source theorem as expected_status=FORMAL_GAP with "
+            "formal_target_role=SOURCE_THEOREM_FORMAL_GAP, and either emit a "
             "structured source_to_bridge_premise_derivation_candidate_requests "
             "object with the exact source-binding metadata, including "
             "premise_candidate_declaration_name, or record the missing metadata "
@@ -1095,6 +1111,7 @@ def build_formalizer_prompt(
             "source_to_bridge_premise_derivation_candidates object with copied "
             "source-binding metadata and semantic anchors. Otherwise emit the "
             "source theorem as expected_status=FORMAL_GAP with an empty Lean sketch "
+            "and formal_target_role=SOURCE_THEOREM_FORMAL_GAP, "
             "and record the missing premise/API in gap_taxonomy/next_actions; the "
             "runtime validator accepts this fail-closed target-drift repair. "
         )
@@ -1106,8 +1123,12 @@ def build_formalizer_prompt(
             "to the exact declaration emitted by that sketch. Prefer the exact "
             "task-bound source "
             "theorem only when its objects, assumptions, quantifiers, and conclusion "
-            "can be represented faithfully. Otherwise keep that source theorem as "
-            "FORMAL_GAP and emit a clearly provenance-marked support or "
+            "can be represented faithfully; mark that row "
+            "formal_target_role=SOURCE_THEOREM_CANDIDATE. Otherwise keep that source "
+            "theorem as FORMAL_GAP with "
+            "formal_target_role=SOURCE_THEOREM_FORMAL_GAP and emit a clearly "
+            "provenance-marked support row with "
+            "formal_target_role=HELPER_OR_SUPPORT or a "
             "source_to_bridge candidate that advances a named dependency. Do not "
             "satisfy the packet using only "
             "proof_bank_obligation_requests, gap taxonomy, or queue work orders. "
@@ -1234,6 +1255,10 @@ FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
     "formal_targets": [
         {
             "id": "string",
+            "formal_target_role": (
+                "SOURCE_THEOREM_CANDIDATE|SOURCE_THEOREM_FORMAL_GAP|"
+                "HELPER_OR_SUPPORT; routing metadata only, not proof evidence"
+            ),
             "informal_source": "string",
             "lean_statement_sketch": "string",
             "candidate_lean_declaration": (
@@ -1244,7 +1269,12 @@ FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
             "lean_imports": ["Mathlib"],
             "semantic_alignment_constraints": ["string"],
             "source_theorem_target_provenance": {
-                "source_theorem_target_known": "true only for the source theorem target; false for helper/support Lean candidates",
+                "source_theorem_target_known": (
+                    "true when runtime already binds the source-theorem identity; "
+                    "false for helper/support rows or a generated source-theorem "
+                    "candidate still awaiting independent target review; "
+                    "formal_target_role disambiguates those cases"
+                ),
                 "target_lean_declaration": "source theorem Lean declaration, not adapter declaration",
                 "source_theorem_goal_id": "registered theorem goal id",
             },
@@ -1392,6 +1422,7 @@ def _formalizer_output_contract_for_prompt(
         contract["formal_targets"] = [
             {
                 "id": target_identity,
+                "formal_target_role": FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE,
                 "informal_source": (
                     "exact source theorem candidate, not a helper/support lemma"
                 ),
@@ -1556,6 +1587,125 @@ def _formalizer_json_schema(
     return schema
 
 
+def _formal_target_role(row: Mapping[str, Any]) -> str:
+    return str(row.get("formal_target_role", "") or "").strip().upper()
+
+
+def _formal_target_role_contract_errors(
+    row: Mapping[str, Any],
+    *,
+    require_role: bool,
+) -> list[str]:
+    target_id = str(row.get("id", "") or "<unnamed>")
+    role = _formal_target_role(row)
+    if not role:
+        return (
+            [
+                f"formal target {target_id} must provide formal_target_role as one "
+                "of SOURCE_THEOREM_CANDIDATE, SOURCE_THEOREM_FORMAL_GAP, or "
+                "HELPER_OR_SUPPORT"
+            ]
+            if require_role
+            else []
+        )
+    if role not in FORMAL_TARGET_ROLES:
+        return [
+            f"formal target {target_id} has unsupported formal_target_role: {role}"
+        ]
+
+    errors: list[str] = []
+    expected_status = str(row.get("expected_status", "") or "")
+    lean_source = str(row.get("lean_statement_sketch", "") or "").strip()
+    candidate_declaration = str(
+        row.get("candidate_lean_declaration", "") or ""
+    ).strip()
+    provenance = row.get("source_theorem_target_provenance", {})
+    provenance_mapping = provenance if isinstance(provenance, Mapping) else {}
+    target_known = _source_theorem_target_known(provenance_mapping)
+
+    if role == FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE:
+        if expected_status != "NEEDS_KERNEL_CHECK":
+            errors.append(
+                f"formal target {target_id} with "
+                "formal_target_role=SOURCE_THEOREM_CANDIDATE must set "
+                "expected_status=NEEDS_KERNEL_CHECK"
+            )
+        if not lean_source:
+            errors.append(
+                f"formal target {target_id} with "
+                "formal_target_role=SOURCE_THEOREM_CANDIDATE must provide a "
+                "nonempty Lean candidate"
+            )
+        if not candidate_declaration:
+            errors.append(
+                f"formal target {target_id} with "
+                "formal_target_role=SOURCE_THEOREM_CANDIDATE must provide "
+                "candidate_lean_declaration"
+            )
+        if target_known is None:
+            errors.append(
+                f"formal target {target_id} with "
+                "formal_target_role=SOURCE_THEOREM_CANDIDATE must provide an "
+                "explicit boolean source_theorem_target_known provenance value"
+            )
+        if not str(provenance_mapping.get("target_lean_declaration", "") or "").strip():
+            errors.append(
+                f"formal target {target_id} with "
+                "formal_target_role=SOURCE_THEOREM_CANDIDATE must bind "
+                "source_theorem_target_provenance.target_lean_declaration"
+            )
+    elif role == FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP:
+        if expected_status != "FORMAL_GAP":
+            errors.append(
+                f"formal target {target_id} with "
+                "formal_target_role=SOURCE_THEOREM_FORMAL_GAP must set "
+                "expected_status=FORMAL_GAP"
+            )
+        if lean_source or candidate_declaration:
+            errors.append(
+                f"formal target {target_id} with "
+                "formal_target_role=SOURCE_THEOREM_FORMAL_GAP must keep Lean source "
+                "and candidate_lean_declaration empty"
+            )
+        if target_known is not True:
+            errors.append(
+                f"formal target {target_id} with "
+                "formal_target_role=SOURCE_THEOREM_FORMAL_GAP must bind a known "
+                "source theorem using source_theorem_target_known=true"
+            )
+    else:
+        if expected_status not in {"NEEDS_KERNEL_CHECK", "FORMAL_GAP"}:
+            errors.append(
+                f"formal target {target_id} with "
+                "formal_target_role=HELPER_OR_SUPPORT must set expected_status to "
+                "NEEDS_KERNEL_CHECK for executable support or FORMAL_GAP for an "
+                "empty fail-closed support blocker"
+            )
+        if expected_status == "NEEDS_KERNEL_CHECK" and (
+            not lean_source or not candidate_declaration
+        ):
+            errors.append(
+                f"formal target {target_id} with "
+                "formal_target_role=HELPER_OR_SUPPORT must provide a nonempty Lean "
+                "candidate and candidate_lean_declaration"
+            )
+        if expected_status == "FORMAL_GAP" and (
+            lean_source or candidate_declaration
+        ):
+            errors.append(
+                f"formal target {target_id} with "
+                "formal_target_role=HELPER_OR_SUPPORT and expected_status=FORMAL_GAP "
+                "must keep Lean source and candidate_lean_declaration empty"
+            )
+        if target_known is not False:
+            errors.append(
+                f"formal target {target_id} with "
+                "formal_target_role=HELPER_OR_SUPPORT must set "
+                "source_theorem_target_known=false"
+            )
+    return errors
+
+
 def validate_formalizer_packet(packet: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
     for field in (
@@ -1583,6 +1733,9 @@ def validate_formalizer_packet(packet: Mapping[str, Any]) -> list[str]:
             errors.append("formal target missing id")
         if str(row.get("expected_status", "OPEN")) not in {"OPEN", "FORMAL_GAP", "NEEDS_KERNEL_CHECK"}:
             errors.append(f"unsupported formal target expected_status: {row.get('expected_status')}")
+        errors.extend(
+            _formal_target_role_contract_errors(row, require_role=False)
+        )
         forbidden = _contains_forbidden_proof_claim(row)
         if forbidden:
             errors.append(f"formal target contains forbidden proof claim: {forbidden}")
@@ -3488,6 +3641,11 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
         for row in packet.get("formal_targets", []) or []
         if isinstance(row, Mapping)
     ]
+    role_errors = [
+        error
+        for row in formal_targets
+        for error in _formal_target_role_contract_errors(row, require_role=True)
+    ]
     candidate_targets = [
         row
         for row in formal_targets
@@ -3517,7 +3675,7 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
                 proof_bank_runtime_memory_summary or {}
             ),
         ):
-            return []
+            return role_errors
         if (
             pending_source_to_bridge_premise_names
             and _packet_has_source_to_bridge_semantic_anchor_blocker(
@@ -3525,19 +3683,20 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
                 pending_source_to_bridge_premise_names,
             )
         ):
-            return []
+            return role_errors
         if (
             _feedback_has_source_theorem_target_drift(environment_feedback)
             and _has_explicit_source_theorem_formal_gap_target(formal_targets)
             and not pending_source_to_bridge_premise_names
         ):
-            return []
+            return role_errors
         return [
+            *role_errors,
             "capability_eval requires at least one Claude/OpenAI-generated "
             "Lean statement sketch in formal_targets or "
             "source_to_bridge_premise_derivation_candidates"
         ]
-    errors: list[str] = []
+    errors: list[str] = list(role_errors)
     for row in candidate_targets:
         target_id = str(row.get("id", "") or "<unnamed>")
         source = str(row.get("lean_statement_sketch", "") or "")
@@ -4905,9 +5064,23 @@ def _fail_closed_placeholder_lean_candidates(
         placeholder_error = _lean_statement_placeholder_syntax_error(lean_source)
         if not placeholder_error:
             continue
+        previous_role = _formal_target_role(row)
+        provenance = row.get("source_theorem_target_provenance", {})
+        target_known = _source_theorem_target_known(provenance)
+        normalized_role = previous_role
+        if (
+            previous_role == FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE
+            or previous_role == FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP
+            or target_known is True
+        ):
+            normalized_role = FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP
+        elif previous_role == FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT or target_known is False:
+            normalized_role = FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT
         converted_targets.append(
             {
                 "id": str(row.get("id", "") or ""),
+                "previous_formal_target_role": previous_role,
+                "new_formal_target_role": normalized_role,
                 "previous_expected_status": str(
                     row.get("expected_status", "") or ""
                 ),
@@ -4920,6 +5093,9 @@ def _fail_closed_placeholder_lean_candidates(
         )
         row["expected_status"] = "FORMAL_GAP"
         row["lean_statement_sketch"] = ""
+        row["candidate_lean_declaration"] = ""
+        if normalized_role:
+            row["formal_target_role"] = normalized_role
         row["proof_evidence_status"] = (
             "FORMAL_GAP_PLACEHOLDER_LEAN_SKETCH_REMOVED_NOT_PROOF_EVIDENCE"
         )
@@ -4976,6 +5152,9 @@ def _fail_closed_placeholder_lean_candidates(
         formal_targets.append(
             {
                 "id": "source_theorem_formal_gap_after_placeholder_repair",
+                "formal_target_role": (
+                    FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP
+                ),
                 "informal_source": (
                     "source theorem remains unproved after placeholder Lean "
                     "sketches were removed"

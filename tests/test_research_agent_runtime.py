@@ -106,6 +106,9 @@ from ai_statistician.generated_code_semantic_reviewer_llm import (
     build_generated_code_semantic_review_prompt,
 )
 from ai_statistician.formalizer_llm import (
+    FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT,
+    FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE,
+    FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP,
     FormalizerConfig,
     LLMFormalizerProofEngineerAgent,
     _normalize_formalizer_packet,
@@ -26331,17 +26334,19 @@ def test_formalizer_capability_eval_validator_requires_lean_candidate() -> None:
         }
     )
 
-    assert errors == [
-        "capability_eval requires at least one Claude/OpenAI-generated "
-        "Lean statement sketch in formal_targets or "
-        "source_to_bridge_premise_derivation_candidates"
-    ]
+    assert any("must provide formal_target_role" in error for error in errors)
+    assert any(
+        "capability_eval requires at least one Claude/OpenAI-generated"
+        in error
+        for error in errors
+    )
 
     errors = _validate_capability_eval_formalizer_lean_candidate_packet(
         {
             "formal_targets": [
                 {
                     "id": "helper",
+                    "formal_target_role": FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT,
                     "candidate_lean_declaration": (
                         "ai_statistician_formalizer_repair_candidate"
                     ),
@@ -26351,6 +26356,9 @@ def test_formalizer_capability_eval_validator_requires_lean_candidate() -> None:
                         "  rfl\n"
                     ),
                     "expected_status": "NEEDS_KERNEL_CHECK",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": False,
+                    },
                 }
             ],
         }
@@ -26796,6 +26804,9 @@ def test_formalizer_normalizes_materialization_and_bridge_source_aliases() -> No
             "formal_targets": [
                     {
                         "id": "split_conformal_finite_sample_coverage",
+                        "formal_target_role": (
+                            FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE
+                        ),
                         "candidate_lean_declaration": (
                             "split_conformal_finite_sample_coverage"
                         ),
@@ -26975,12 +26986,48 @@ def test_formalizer_repair_policy_covers_source_theorem_materialization_gate() -
     assert "not proof evidence" in directive_text
 
 
+def test_formalizer_capability_eval_requires_explicit_target_roles() -> None:
+    errors = _validate_capability_eval_formalizer_lean_candidate_packet(
+        {
+            "formal_targets": [
+                {
+                    "id": "generic_support_candidate",
+                    "candidate_lean_declaration": "generic_support_candidate",
+                    "lean_statement_sketch": (
+                        "theorem generic_support_candidate "
+                        "(p : Prop) (hp : p) : p := by\n"
+                        "  exact hp\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                },
+                {
+                    "id": "generic_source_gap",
+                    "candidate_lean_declaration": "",
+                    "lean_statement_sketch": "",
+                    "expected_status": "FORMAL_GAP",
+                },
+            ]
+        }
+    )
+    policy = formalizer_validation_repair_policy(errors)
+
+    assert len(
+        [error for error in errors if "must provide formal_target_role" in error]
+    ) == 2
+    assert "formal_target_role_routing" in {
+        row["rule_id"] for row in policy["rules"]
+    }
+
+
 def test_formalizer_capability_eval_validator_allows_target_drift_formal_gap() -> None:
     errors = _validate_capability_eval_formalizer_lean_candidate_packet(
         {
             "formal_targets": [
                 {
                     "id": "split_conformal_coverage",
+                    "formal_target_role": (
+                        FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP
+                    ),
                     "informal_source": (
                         "source theorem remains a probability coverage source theorem"
                     ),
@@ -27017,6 +27064,9 @@ def test_formalizer_capability_eval_validator_allows_non_source_helper_with_gap(
             "formal_targets": [
                 {
                     "id": "split_conformal_finite_sample_coverage",
+                    "formal_target_role": (
+                        FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP
+                    ),
                     "informal_source": (
                         "source theorem remains a probability coverage source theorem"
                     ),
@@ -27031,6 +27081,7 @@ def test_formalizer_capability_eval_validator_allows_non_source_helper_with_gap(
                 },
                     {
                         "id": "ai_statistician_formalizer_helper_smoke",
+                        "formal_target_role": FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT,
                         "candidate_lean_declaration": (
                             "ai_statistician_formalizer_helper_smoke"
                         ),
@@ -27316,6 +27367,9 @@ def test_formalizer_capability_eval_validator_accepts_source_to_bridge_candidate
             "formal_targets": [
                 {
                     "id": "split_conformal_coverage",
+                    "formal_target_role": (
+                        FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP
+                    ),
                     "informal_source": "source theorem has a remaining adapter gap",
                     "lean_statement_sketch": "",
                     "expected_status": "FORMAL_GAP",
@@ -27352,6 +27406,9 @@ def test_formalizer_capability_eval_validator_accepts_pending_premise_candidate(
             "formal_targets": [
                 {
                     "id": "split_conformal_coverage",
+                    "formal_target_role": (
+                        FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP
+                    ),
                     "informal_source": "source theorem has a remaining adapter gap",
                     "lean_statement_sketch": "",
                     "expected_status": "FORMAL_GAP",
@@ -27397,6 +27454,9 @@ def test_formalizer_capability_eval_validator_does_not_guess_target_semantics() 
             "formal_targets": [
                 {
                     "id": "split_conformal_rank_coverage_arith",
+                    "formal_target_role": (
+                        FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE
+                    ),
                     "candidate_lean_declaration": (
                         "split_conformal_rank_coverage_arith"
                     ),
@@ -27443,12 +27503,15 @@ def test_formalizer_capability_eval_validator_defers_domain_alignment_to_reviewe
                 "tags": ["conformal", "coverage"],
             },
             "formal_targets": [
-                    {
-                        "id": "split_conformal_finite_sample_coverage",
-                        "candidate_lean_declaration": (
-                            "split_conformal_finite_sample_coverage"
-                        ),
-                        "informal_source": "source theorem for marginal coverage",
+                {
+                    "id": "split_conformal_finite_sample_coverage",
+                    "formal_target_role": (
+                        FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE
+                    ),
+                    "candidate_lean_declaration": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                    "informal_source": "source theorem for marginal coverage",
                     "lean_statement_sketch": (
                         "theorem split_conformal_finite_sample_coverage "
                         "(n : Nat) : (n : Int) = n := by\n"
@@ -29547,6 +29610,7 @@ def test_formalizer_runtime_exports_pf_bv_manifest_under_strict_lean_contract(
     formalizer_response["formal_targets"] = [
         {
             "id": "target:aipw_asymptotic_normality",
+            "formal_target_role": FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP,
             "informal_source": "AIPW source theorem remains a formal gap.",
             "lean_statement_sketch": "",
             "semantic_alignment_constraints": [
@@ -30762,17 +30826,26 @@ def test_formalizer_candidate_materialization_runs_local_lean_when_enabled(
         proposal_packet={
             "packet_id": "formalizer_proposal:local_lean_candidate",
             "formal_targets": [
-                    {
-                        "id": "id_candidate_local_lean",
-                        "candidate_lean_declaration": (
-                            "ai_statistician_identity_candidate_local_lean"
-                        ),
-                        "lean_statement_sketch": (
+                {
+                    "id": "id_candidate_local_lean",
+                    "formal_target_role": (
+                        FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE
+                    ),
+                    "candidate_lean_declaration": (
+                        "ai_statistician_identity_candidate_local_lean"
+                    ),
+                    "lean_statement_sketch": (
                         "theorem ai_statistician_identity_candidate_local_lean "
                         "(p : Prop) (hp : p) : p := by\n"
                         "  exact hp\n"
                     ),
                     "expected_status": "NEEDS_KERNEL_CHECK",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": True,
+                        "target_lean_declaration": (
+                            "ai_statistician_identity_candidate_local_lean"
+                        ),
+                    },
                 }
             ],
         },
@@ -32272,6 +32345,9 @@ def test_capability_eval_requires_candidate_after_repeated_syntax_formal_gap() -
             "formal_targets": [
                 {
                     "id": "source_theorem_gap_after_repeated_syntax",
+                    "formal_target_role": (
+                        FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP
+                    ),
                     "informal_source": (
                         "source theorem remains blocked by repeated parser failure"
                     ),
@@ -32327,6 +32403,7 @@ def test_capability_eval_allows_lean_to_check_repeated_syntax_candidate() -> Non
             "formal_targets": [
                 {
                     "id": "diagnostic_helper_retry",
+                    "formal_target_role": FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT,
                     "candidate_lean_declaration": "diagnostic_helper_retry",
                     "informal_source": "diagnostic helper after repeated parser failure",
                     "lean_statement_sketch": (
@@ -32362,6 +32439,7 @@ def test_capability_eval_allows_revised_formal_target_after_syntax_failure() -> 
             "formal_targets": [
                 {
                     "id": "diagnostic_helper_retry",
+                    "formal_target_role": FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT,
                     "candidate_lean_declaration": "diagnostic_helper_retry",
                     "informal_source": "diagnostic helper after repeated parser failure",
                     "lean_statement_sketch": (
@@ -32398,6 +32476,9 @@ def test_formalizer_validator_accepts_revised_candidate_after_syntax_failure() -
                 "formal_targets": [
                         {
                             "id": "aipw_helper_retry",
+                            "formal_target_role": (
+                                FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT
+                            ),
                             "candidate_lean_declaration": "aipw_helper_retry",
                             "informal_source": (
                                 "helper retry after repeated parser failure"
@@ -35156,6 +35237,7 @@ def _generic_failed_exact_formalizer_manifest(
                 "candidate_id": "generic_exact_source",
                 "candidate_kind": "formal_target_lean_statement_sketch",
                 "source_field": "formal_targets",
+                "formal_target_role": FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE,
                 "source_hash": runtime_module.stable_hash(source),
                 "lean_source_excerpt": source,
                 "artifact_path": str(candidate),
@@ -35342,6 +35424,68 @@ def test_unknown_non_formal_target_stays_outside_exact_review_and_prover(
     assert "target_theorem_statement" not in context
 
 
+def test_unbound_formal_target_stays_outside_exact_review_and_prover(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "UnboundFormalTarget.lean"
+    manifest = _generic_failed_exact_formalizer_manifest(candidate)
+    row = manifest["candidate_rows"][0]
+    row.pop("formal_target_role")
+    row["source_theorem_target_known"] = None
+    row["source_theorem_target_provenance"] = {}
+    manifest = (
+        runtime_module._normalize_formalizer_lean_candidate_materialization_artifact(
+            manifest
+        )
+    )
+    row = manifest["candidate_rows"][0]
+
+    feedback = _formalizer_lean_candidate_repair_feedback(manifest)
+
+    assert row["formal_target_role"] == ""
+    assert row["formal_target_role_source"] == "UNBOUND"
+    assert row["formal_target_role_unbound_not_source_theorem"] is True
+    assert row["source_theorem_candidate_evidence_eligible"] is False
+    assert manifest["n_formal_target_role_unbound"] == 1
+    assert feedback is not None
+    context = feedback["proofengineer_repair_context"]
+    assert "formalizer_candidate_exact_search_eligible" not in context
+    assert "target_theorem_statement" not in context
+
+
+def test_helper_role_in_formal_targets_stays_outside_exact_review_and_prover(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "SupportCandidate.lean"
+    manifest = _generic_failed_exact_formalizer_manifest(candidate)
+    row = manifest["candidate_rows"][0]
+    row["formal_target_role"] = FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT
+    row["source_theorem_target_known"] = False
+    row["source_theorem_target_provenance"][
+        "source_theorem_target_known"
+    ] = False
+    row["diagnostic_helper_not_source_theorem"] = True
+    row["source_theorem_candidate_evidence_eligible"] = False
+    manifest = (
+        runtime_module._normalize_formalizer_lean_candidate_materialization_artifact(
+            manifest
+        )
+    )
+
+    feedback = _formalizer_lean_candidate_repair_feedback(manifest)
+
+    assert manifest["candidate_rows"][0]["formal_target_role"] == (
+        FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT
+    )
+    assert manifest["candidate_rows"][0][
+        "source_theorem_candidate_evidence_eligible"
+    ] is False
+    assert feedback is not None
+    context = feedback["proofengineer_repair_context"]
+    assert "formalizer_candidate_exact_search_eligible" not in context
+    assert "target_theorem_statement" not in context
+
+
 def test_formalization_evaluator_routes_exact_target_to_semantic_reviewer(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -35384,6 +35528,9 @@ def test_formalization_evaluator_routes_exact_target_to_semantic_reviewer(
                     "formal_targets": [
                         {
                             "id": "generic_exact_source",
+                            "formal_target_role": (
+                                FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE
+                            ),
                             "informal_source": (
                                 "Hash-bound exact theorem target for reviewer routing."
                             ),
@@ -41237,6 +41384,9 @@ def test_formalization_revises_formalizer_after_local_lean_candidate_failure(
                 "formal_targets": [
                     {
                         "id": "bad_local_lean_candidate",
+                        "formal_target_role": (
+                            FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE
+                        ),
                         "candidate_lean_declaration": "bad_local_lean_candidate",
                         "informal_source": "deliberately unknown Lean identifier",
                         "lean_statement_sketch": (
@@ -41245,6 +41395,10 @@ def test_formalization_revises_formalizer_after_local_lean_candidate_failure(
                             "  trivial\n"
                         ),
                         "expected_status": "NEEDS_KERNEL_CHECK",
+                        "source_theorem_target_provenance": {
+                            "source_theorem_target_known": True,
+                            "target_lean_declaration": "bad_local_lean_candidate",
+                        },
                     }
                 ],
                 "lemma_dependency_plan": [],
@@ -74000,6 +74154,9 @@ def test_formalizer_validator_rejects_phantom_source_to_bridge_next_action() -> 
         "formal_targets": [
             {
                 "id": "split_conformal_finite_sample_coverage_source_theorem",
+                "formal_target_role": (
+                    FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP
+                ),
                 "informal_source": "source theorem remains a formal gap",
                 "lean_statement_sketch": "",
                 "expected_status": "FORMAL_GAP",
@@ -74894,6 +75051,7 @@ def test_formalizer_normalizer_marks_executable_lean_as_kernel_check_work() -> N
         "formal_targets": [
             {
                 "id": "split_conformal_finite_sample_coverage_source_theorem",
+                "formal_target_role": FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT,
                 "candidate_lean_declaration": "normalized_status_formal_target",
                 "informal_source": "candidate Lean source should be checked",
                 "lean_statement_sketch": (
@@ -75020,7 +75178,7 @@ def test_formalizer_normalizer_marks_executable_lean_as_kernel_check_work() -> N
     )
 
 
-def test_formalizer_normalizer_preserves_candidate_for_semantic_reviewer(
+def test_formalizer_normalizer_preserves_labeled_helper_for_diagnostics(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -75028,6 +75186,7 @@ def test_formalizer_normalizer_preserves_candidate_for_semantic_reviewer(
         "formal_targets": [
             {
                 "id": "split_conformal_finite_sample_coverage_source_to_bridge_adapter",
+                "formal_target_role": FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT,
                 "candidate_lean_declaration": (
                     "split_conformal_finite_sample_coverage_source_to_bridge_adapter"
                 ),
@@ -75042,7 +75201,7 @@ def test_formalizer_normalizer_preserves_candidate_for_semantic_reviewer(
                 ),
                 "expected_status": "NEEDS_KERNEL_CHECK",
                 "source_theorem_target_provenance": {
-                    "source_theorem_target_known": True,
+                    "source_theorem_target_known": False,
                     "target_lean_declaration": (
                         "split_conformal_finite_sample_coverage"
                     ),
@@ -75127,7 +75286,7 @@ def test_formalizer_normalizer_preserves_candidate_for_semantic_reviewer(
     assert helper_target["expected_status"] == "NEEDS_KERNEL_CHECK"
     assert helper_target["source_theorem_target_provenance"][
         "source_theorem_target_known"
-    ] is True
+    ] is False
     assert "diagnostic_helper_not_source_theorem" not in helper_target
     assert "runtime_materialization_route" not in helper_target
     assert "rerouted_source_theorem_shape_drift_targets" not in packet
@@ -75147,47 +75306,12 @@ def test_formalizer_normalizer_preserves_candidate_for_semantic_reviewer(
     assert materialization["n_candidate_sources"] == 1
     assert materialization["n_candidate_artifacts_written"] == 1
     assert materialization["n_precheck_rejected"] == 0
-    direct_adapter_materialization = _materialize_formalizer_lean_candidate_artifacts(
-        root=tmp_path / "direct_adapter_formalizer_lean_candidates",
-        question=question,
-        task=AgentTask(
-            task_id="formalize:test:direct-adapter-route",
-            owner_subsystem="ProofEngineer",
-            objective="route direct adapter helper to adapter bridge",
-        ),
-        proposal_packet={
-            "packet_id": "formalizer_proposal:direct_adapter_route",
-            "formal_targets": [
-                {
-                    "id": (
-                        "split_conformal_finite_sample_coverage_"
-                        "source_to_bridge_adapter_NEEDS_KERNEL_CHECK"
-                    ),
-                    "lean_statement_sketch": (
-                        "theorem split_conformal_finite_sample_coverage_"
-                        "source_to_bridge_adapter "
-                        "(source_hypotheses bridge_premises : Prop) "
-                        "(hsource : source_hypotheses) "
-                        "(hbridge : source_hypotheses -> bridge_premises) : "
-                        "bridge_premises := by\n"
-                        "  exact hbridge hsource\n"
-                    ),
-                    "expected_status": "NEEDS_KERNEL_CHECK",
-                    "source_theorem_target_provenance": {
-                        "source_theorem_target_known": "false",
-                        "target_lean_declaration": (
-                            "split_conformal_finite_sample_coverage"
-                        ),
-                    },
-                }
-            ],
-        },
-        local_lean=True,
-        lean_project=None,
-        lean_timeout=10,
+    materialized_helper = materialization["candidate_rows"][0]
+    assert materialized_helper["formal_target_role"] == (
+        FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT
     )
-    assert direct_adapter_materialization["n_candidate_sources"] == 0
-    assert direct_adapter_materialization["n_precheck_rejected"] == 0
+    assert materialized_helper["diagnostic_helper_not_source_theorem"] is True
+    assert materialized_helper["source_theorem_candidate_evidence_eligible"] is False
     assert validate_formalizer_packet(packet) == []
     assert (
         _validate_capability_eval_formalizer_lean_candidate_packet(
@@ -75205,6 +75329,9 @@ def test_formalizer_normalizer_drops_semantically_unanchored_source_to_bridge_ca
         "formal_targets": [
             {
                 "id": "split_conformal_finite_sample_coverage_source_theorem",
+                "formal_target_role": (
+                    FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP
+                ),
                 "informal_source": "source theorem remains blocked",
                 "lean_statement_sketch": "",
                 "expected_status": "FORMAL_GAP",
@@ -75353,6 +75480,7 @@ def test_formalizer_normalizer_fail_closes_repeated_placeholder_lean_sketch() ->
         "formal_targets": [
             {
                 "id": "exchangeable_rank_uniform_helper",
+                "formal_target_role": FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT,
                 "informal_source": "rank helper attempted after source theorem gap",
                 "lean_statement_sketch": (
                     "theorem exchangeable_rank_uniform_helper "
@@ -75472,6 +75600,9 @@ def test_formalizer_normalizer_fail_closes_repeated_syntax_formal_gap_sorry() ->
         "formal_targets": [
             {
                 "id": "split_conformal_finite_sample_coverage_source_theorem",
+                "formal_target_role": (
+                    FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE
+                ),
                 "informal_source": "source theorem remains a formal gap",
                 "lean_statement_sketch": (
                     "theorem split_conformal_finite_sample_coverage "
@@ -75491,6 +75622,7 @@ def test_formalizer_normalizer_fail_closes_repeated_syntax_formal_gap_sorry() ->
             },
             {
                 "id": "split_conformal_syntax_feedback_probe",
+                "formal_target_role": FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT,
                 "candidate_lean_declaration": (
                     "split_conformal_syntax_feedback_probe"
                 ),
