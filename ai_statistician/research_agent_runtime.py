@@ -8838,6 +8838,48 @@ def _architect_candidate_seed(
     return candidate_seed if candidate_seed >= 0 else int(default_seed)
 
 
+def _architect_selected_worker_environment_feedback(
+    *,
+    selected: Mapping[str, Any],
+    architect_context: Mapping[str, Any],
+) -> dict[str, Any]:
+    explicit_feedback = selected.get("environment_feedback", {})
+    if isinstance(explicit_feedback, Mapping) and explicit_feedback:
+        return dict(explicit_feedback)
+
+    replan = architect_context.get(
+        "runtime_generated_code_semantic_review_replan",
+        {},
+    )
+    feedback = architect_context.get("environment_feedback", {})
+    feedback_packet_id = (
+        str(feedback.get("semantic_review_packet_id", "") or "")
+        if isinstance(feedback, Mapping)
+        else ""
+    )
+    feedback_execution_id = (
+        str(feedback.get("semantic_review_execution_id", "") or "")
+        if isinstance(feedback, Mapping)
+        else ""
+    )
+    if not (
+        isinstance(replan, Mapping)
+        and replan
+        and isinstance(feedback, Mapping)
+        and feedback
+        and str(feedback.get("feedback_type", "") or "")
+        == "generated_code_semantic_review_feedback"
+        and feedback_packet_id
+        and feedback_packet_id
+        == str(replan.get("review_packet_id", "") or "")
+        and feedback_execution_id
+        and feedback_execution_id
+        == str(replan.get("review_execution_id", "") or "")
+    ):
+        return {}
+    return dict(feedback)
+
+
 def _architect_initial_routing_decision(
     *,
     question: OpenResearchQuestion,
@@ -8854,6 +8896,12 @@ def _architect_initial_routing_decision(
         question_id=question.id,
     )
     context = dict(architect_context)
+    routed_environment_feedback = (
+        _architect_selected_worker_environment_feedback(
+            selected=selected,
+            architect_context=architect_context,
+        )
+    )
     record = {
         "artifact_kind": "ArchitectInitialRoutingDecision",
         "selected_subsystem": selected["selected_subsystem"],
@@ -8869,6 +8917,18 @@ def _architect_initial_routing_decision(
         ),
         "proof_evidence_status": "ARCHITECT_INITIAL_ROUTING_NOT_PROOF_EVIDENCE",
     }
+    if routed_environment_feedback:
+        record["environment_feedback_forwarded"] = True
+        record["environment_feedback_type"] = str(
+            routed_environment_feedback.get("feedback_type", "") or ""
+        )
+        record["environment_feedback_execution_id"] = str(
+            routed_environment_feedback.get(
+                "semantic_review_execution_id",
+                "",
+            )
+            or ""
+        )
     if selected.get("gap_row"):
         gap_row = (
             selected["gap_row"]
@@ -8920,7 +8980,7 @@ def _architect_initial_routing_decision(
             )
             context["architect_metric_protocol_gate"] = consumed_gate
     if selected["selected_subsystem"] == "TheoryDeveloper":
-        feedback = selected.get("environment_feedback")
+        feedback = routed_environment_feedback
         if not feedback and selected.get("gap_row"):
             feedback = _architect_capability_gap_execution_feedback(
                 requested_subsystem=str(selected.get("requested_subsystem", "")),
@@ -8969,7 +9029,7 @@ def _architect_initial_routing_decision(
             ),
         }
     if selected["selected_subsystem"] == "SimulationEvaluator":
-        feedback = selected.get("environment_feedback")
+        feedback = routed_environment_feedback
         if not feedback and selected.get("gap_row"):
             feedback = _architect_capability_gap_execution_feedback(
                 requested_subsystem=str(selected.get("requested_subsystem", "")),
@@ -9054,13 +9114,18 @@ def _architect_initial_routing_decision(
             ),
             "record": record,
             "rationale": (
-                "ArchitectCoordinator recorded a top-level execution plan and is "
-                "routing directly to SimulationEvaluator because the selected "
+                "ArchitectCoordinator preserved the identity-bound semantic-review "
+                "feedback and returned the rejected source to SimulationEvaluator "
+                "for the one authorized fresh revision."
+                if record["source"]
+                == "generated_code_semantic_review_source_repair"
+                else "ArchitectCoordinator recorded a top-level execution plan and "
+                "is routing directly to SimulationEvaluator because the selected "
                 "capability obligation is simulation-executable."
             ),
         }
     if selected["selected_subsystem"] == "AlgorithmEngineer":
-        feedback = selected.get("environment_feedback")
+        feedback = routed_environment_feedback
         if not feedback and selected.get("gap_row"):
             feedback = _architect_capability_gap_execution_feedback(
                 requested_subsystem=str(selected.get("requested_subsystem", "")),
@@ -9120,14 +9185,19 @@ def _architect_initial_routing_decision(
             ),
             "record": record,
             "rationale": (
-                "ArchitectCoordinator recorded a top-level execution plan and is "
-                "routing directly to AlgorithmEngineer because the selected "
+                "ArchitectCoordinator preserved the identity-bound semantic-review "
+                "feedback and returned the rejected source to AlgorithmEngineer "
+                "for the one authorized fresh revision."
+                if record["source"]
+                == "generated_code_semantic_review_source_repair"
+                else "ArchitectCoordinator recorded a top-level execution plan and "
+                "is routing directly to AlgorithmEngineer because the selected "
                 "capability obligation has theory, simulation, and implementation-gap "
                 "handoff artifacts available."
             ),
         }
     if selected["selected_subsystem"] == "FormalizationEvaluator":
-        feedback = selected.get("environment_feedback")
+        feedback = routed_environment_feedback
         if not feedback and selected.get("gap_row"):
             feedback = _architect_capability_gap_execution_feedback(
                 requested_subsystem=str(selected.get("requested_subsystem", "")),
@@ -9200,7 +9270,7 @@ def _architect_initial_routing_decision(
             ),
         }
     if selected["selected_subsystem"] == "FormalizationGapPlanner":
-        feedback = selected.get("environment_feedback")
+        feedback = routed_environment_feedback
         if not feedback:
             feedback = _architect_formalization_gap_planner_execution_feedback(
                 requested_subsystem=str(selected.get("requested_subsystem", "")),
@@ -9294,7 +9364,7 @@ def _architect_initial_routing_decision(
             ),
         }
     if selected["selected_subsystem"] == "ProofEngineer":
-        feedback = selected.get("environment_feedback")
+        feedback = routed_environment_feedback
         if not feedback:
             feedback = _architect_proofengineer_execution_feedback(
                 requested_subsystem=str(selected.get("requested_subsystem", "")),
@@ -9419,6 +9489,41 @@ def _architect_select_initial_subsystem(
     )
     requested_for_metric_gate = _architect_packet_requested_subsystem(packet)
     gap_selection = _architect_capability_gap_requested_subsystem(architect_context)
+    semantic_replan = architect_context.get(
+        "runtime_generated_code_semantic_review_replan",
+        {},
+    )
+    semantic_feedback = _architect_selected_worker_environment_feedback(
+        selected={},
+        architect_context=architect_context,
+    )
+    if (
+        isinstance(semantic_replan, Mapping)
+        and semantic_replan.get("repair_scope") == "source_code"
+        and semantic_feedback
+    ):
+        requested_source_owner = _canonical_architect_subsystem(
+            semantic_replan.get("source_subsystem")
+        )
+        if requested_source_owner in {
+            "AlgorithmEngineer",
+            "SimulationEvaluator",
+        }:
+            selected_source_owner = _architect_feasible_initial_subsystem(
+                requested_source_owner,
+                architect_context=architect_context,
+                blackboard=blackboard,
+                question_id=question_id,
+            )
+            return {
+                "requested_subsystem": requested_source_owner,
+                "selected_subsystem": selected_source_owner,
+                "source": "generated_code_semantic_review_source_repair",
+                "requires_prerequisite_theory": (
+                    requested_source_owner != selected_source_owner
+                ),
+                "environment_feedback": semantic_feedback,
+            }
     if (
         metric_protocol_phase
         == METRIC_PROTOCOL_PHASE_THEORY_PREREQUISITE_PENDING

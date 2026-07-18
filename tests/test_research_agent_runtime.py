@@ -22407,10 +22407,10 @@ def test_live_architect_does_not_let_metric_authoring_intercept_source_repair() 
             payload = _architect_sample_response(required_runtime_replicates=17)
             payload["next_actions"] = [
                 {
-                    "owner_agent": "SimulationEvaluator",
-                    "action": "regenerate the rejected exploratory source",
+                    "owner_agent": "RetrievalMemory",
+                    "action": "restart retrieval before repairing source code",
                     "acceptance_gate": (
-                        "fresh code is executed and independently reviewed"
+                        "new retrieval context is recorded"
                     ),
                 }
             ]
@@ -22425,10 +22425,15 @@ def test_live_architect_does_not_let_metric_authoring_intercept_source_repair() 
             )
 
     context = _theory_informed_metric_context_fixture()
-    context["runtime_generated_code_semantic_review_replan"] = {
-        "artifact_kind": "RuntimeGeneratedCodeSemanticReviewReplanContext",
-        "source_subsystem": "SimulationEvaluator",
+    semantic_feedback = {
+        "feedback_type": "generated_code_semantic_review_feedback",
+        "semantic_review_packet_id": "generated_code_semantic_review:source",
+        "semantic_review_execution_id": (
+            "generated_code_semantic_review_execution:source"
+        ),
+        "source_subsystem": "AlgorithmEngineer",
         "repair_scope": "source_code",
+        "repair_owner_agent": "AlgorithmEngineer",
         "findings": [
             {
                 "severity": "critical",
@@ -22436,6 +22441,24 @@ def test_live_architect_does_not_let_metric_authoring_intercept_source_repair() 
                 "required_change": "Generate a fresh corrected implementation.",
             }
         ],
+    }
+    context["implementation_gaps"] = [
+        {
+            "estimator_id": "EST1",
+            "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+            "reason": "The rejected generated source requires a fresh revision.",
+        }
+    ]
+    context["environment_feedback"] = semantic_feedback
+    context["runtime_generated_code_semantic_review_replan"] = {
+        "artifact_kind": "RuntimeGeneratedCodeSemanticReviewReplanContext",
+        "source_subsystem": "AlgorithmEngineer",
+        "review_packet_id": semantic_feedback["semantic_review_packet_id"],
+        "review_execution_id": semantic_feedback[
+            "semantic_review_execution_id"
+        ],
+        "repair_scope": "source_code",
+        "findings": semantic_feedback["findings"],
     }
     backend = SourceRepairArchitectBackend()
     packet = LLMArchitectCoordinatorAgent(
@@ -22501,10 +22524,48 @@ def test_live_architect_does_not_let_metric_authoring_intercept_source_repair() 
         BlackboardState(project_id="source-repair-before-metric-authoring"),
     )
     assert routed.next_task is not None
-    assert routed.next_task.owner_subsystem == "SimulationEvaluator"
+    assert routed.next_task.owner_subsystem == "AlgorithmEngineer"
     assert routed.next_task.inputs["architect_context"][
         "architect_initial_routing"
-    ]["source"] == "architect_packet"
+    ]["source"] == "generated_code_semantic_review_source_repair"
+    assert routed.next_task.inputs["environment_feedback"] == semantic_feedback
+    routing_record = routed.next_task.inputs["architect_context"][
+        "architect_initial_routing"
+    ]
+    assert routing_record["environment_feedback_forwarded"] is True
+    assert routing_record["environment_feedback_type"] == (
+        "generated_code_semantic_review_feedback"
+    )
+    assert routing_record["environment_feedback_execution_id"] == (
+        semantic_feedback["semantic_review_execution_id"]
+    )
+
+
+def test_architect_does_not_forward_mismatched_semantic_replan_feedback() -> None:
+    feedback = {
+        "feedback_type": "generated_code_semantic_review_feedback",
+        "semantic_review_packet_id": "generated_code_semantic_review:stale",
+        "semantic_review_execution_id": (
+            "generated_code_semantic_review_execution:stale"
+        ),
+    }
+
+    routed_feedback = (
+        runtime_module._architect_selected_worker_environment_feedback(
+            selected={},
+            architect_context={
+                "environment_feedback": feedback,
+                "runtime_generated_code_semantic_review_replan": {
+                    "review_packet_id": "generated_code_semantic_review:current",
+                    "review_execution_id": (
+                        "generated_code_semantic_review_execution:current"
+                    ),
+                },
+            },
+        )
+    )
+
+    assert routed_feedback == {}
 
 
 def test_live_architect_preauthors_metric_contract_with_structured_substage() -> None:
