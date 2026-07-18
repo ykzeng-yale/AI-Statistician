@@ -437,8 +437,8 @@ from .coding_agent_generated_code_repair_eval import (
     run_coding_agent_generated_code_repair_eval,
 )
 from .model_backend import (
-    CLAUDE_MODEL_TIERS,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+    LIVE_CLAUDE_MODEL_TIERS,
     SUPPORTED_GENERATOR_PROVIDERS,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
     OpenAIResponsesGeneratorBackend,
@@ -19746,7 +19746,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     pseudo_formal_block_verifier_llm_responses.add_argument(
         "--model-tier",
-        choices=list(CLAUDE_MODEL_TIERS),
+        choices=list(LIVE_CLAUDE_MODEL_TIERS),
         default="sonnet",
         help="Claude cost tier used when provider/model resolution needs a default",
     )
@@ -19849,7 +19849,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     pseudo_formal_block_verifier_component_gate.add_argument(
         "--model-tier",
-        choices=list(CLAUDE_MODEL_TIERS),
+        choices=list(LIVE_CLAUDE_MODEL_TIERS),
         default="sonnet",
         help="Claude cost tier used when provider/model resolution needs a default",
     )
@@ -21960,7 +21960,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_agent_runtime.add_argument(
         "--pseudo-formal-block-verifier-runtime-model-tier",
-        choices=list(CLAUDE_MODEL_TIERS),
+        choices=list(LIVE_CLAUDE_MODEL_TIERS),
         default="sonnet",
     )
     research_agent_runtime.add_argument(
@@ -22532,7 +22532,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_agent_runtime.add_argument(
         "--source-theorem-exact-semantic-definition-authoring-worker-model-tier",
-        choices=CLAUDE_MODEL_TIERS,
+        choices=LIVE_CLAUDE_MODEL_TIERS,
         default="sonnet",
         help=(
             "Claude cost tier for live exact semantic-definition authoring; "
@@ -22793,7 +22793,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_agent_runtime.add_argument(
         "--formalization-gap-planner-live-model-tier",
-        choices=("auto",) + CLAUDE_MODEL_TIERS,
+        choices=("auto",) + LIVE_CLAUDE_MODEL_TIERS,
         default="auto",
         help=(
             "Claude cost tier policy for integrated live gap-planner route "
@@ -23190,7 +23190,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_agent_runtime.add_argument(
         "--pseudo-formal-block-verifier-eval-model-tier",
-        choices=list(CLAUDE_MODEL_TIERS),
+        choices=list(LIVE_CLAUDE_MODEL_TIERS),
         default="sonnet",
         help="Claude cost tier used by the attached PF/BV component gate",
     )

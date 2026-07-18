@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import shutil
@@ -728,6 +729,33 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
     assert formal_target_reviewer is not None
     assert formal_target_reviewer.config.model == "claude-sonnet-4-6"
     assert formal_target_reviewer.config.model_tier == "sonnet"
+
+
+def test_cli_never_offers_opus_as_a_live_model_tier() -> None:
+    pending = [("root", build_parser())]
+    seen: set[int] = set()
+    offenders: list[str] = []
+
+    while pending:
+        command_path, parser = pending.pop()
+        if id(parser) in seen:
+            continue
+        seen.add(id(parser))
+        for action in parser._actions:
+            if isinstance(action, argparse._SubParsersAction):
+                pending.extend(
+                    (f"{command_path}/{name}", subparser)
+                    for name, subparser in action.choices.items()
+                )
+                continue
+            choices = getattr(action, "choices", None)
+            if choices and "opus" in {str(value).lower() for value in choices}:
+                offenders.append(f"{command_path}:{action.dest}:choices")
+            default = getattr(action, "default", None)
+            if isinstance(default, str) and default.lower() == "opus":
+                offenders.append(f"{command_path}:{action.dest}:default")
+
+    assert offenders == []
 
 
 def test_live_llm_backend_rejects_codex_provider_for_main_cli() -> None:
