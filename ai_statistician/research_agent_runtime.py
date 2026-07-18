@@ -8169,6 +8169,17 @@ class ArchitectCoordinatorRuntimeSubsystem:
             architect_context=context,
             blackboard=blackboard,
         )
+        typed_source_repair_dispatch = (
+            _architect_identity_bound_source_repair_dispatch_result(
+                task=task,
+                question=question,
+                architect_context=context,
+                runtime_config=self.runtime_config,
+                blackboard=blackboard,
+            )
+        )
+        if typed_source_repair_dispatch is not None:
+            return typed_source_repair_dispatch
         runtime_config_payload = asdict(self.runtime_config)
         runtime_config_payload["exact_source_theorem_prover_available"] = (
             self.exact_source_theorem_prover_available
@@ -8295,6 +8306,176 @@ class ArchitectCoordinatorRuntimeSubsystem:
             evidence_entries=(evidence,),
             next_task=next_task,
         )
+
+
+def _architect_identity_bound_source_repair_dispatch_result(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+    runtime_config: ResearchAgentRuntimeConfig,
+    blackboard: BlackboardState,
+) -> AgentStepResult | None:
+    """Dispatch a reviewer-bound source repair without a redundant LLM replan."""
+
+    replan = architect_context.get(
+        "runtime_generated_code_semantic_review_replan",
+        {},
+    )
+    if not isinstance(replan, Mapping) or replan.get("repair_scope") != "source_code":
+        return None
+    source_subsystem = _canonical_architect_subsystem(
+        replan.get("source_subsystem")
+    )
+    if source_subsystem not in {"AlgorithmEngineer", "SimulationEvaluator"}:
+        return None
+    feedback = _architect_selected_worker_environment_feedback(
+        selected={},
+        architect_context=architect_context,
+    )
+    if not feedback:
+        return None
+    source_manifest_id = str(replan.get("source_manifest_id", "") or "")
+    if not (
+        source_manifest_id
+        and str(feedback.get("source_manifest_id", "") or "")
+        == source_manifest_id
+        and _canonical_architect_subsystem(
+            feedback.get("source_subsystem")
+        )
+        == source_subsystem
+        and str(replan.get("review_packet_id", "") or "")
+        and str(replan.get("review_execution_id", "") or "")
+    ):
+        return None
+    prior_plan = architect_context.get("architect_runtime_plan", {})
+    if not isinstance(prior_plan, Mapping) or not prior_plan.get(
+        "subsystem_execution_plan"
+    ):
+        return None
+
+    dispatch_seed = {
+        "question_id": question.id,
+        "source_review_task_id": str(
+            replan.get("source_review_task_id", "") or ""
+        ),
+        "source_subsystem": source_subsystem,
+        "source_manifest_id": source_manifest_id,
+        "review_packet_id": str(replan.get("review_packet_id", "") or ""),
+        "review_execution_id": str(
+            replan.get("review_execution_id", "") or ""
+        ),
+        "feedback_fingerprint": stable_hash(feedback),
+    }
+    dispatch_id = (
+        "architect_typed_repair_dispatch:" + stable_hash(dispatch_seed)[:20]
+    )
+    routing_packet = {
+        "packet_id": dispatch_id,
+        "subsystem_execution_plan": list(
+            prior_plan.get("subsystem_execution_plan", []) or []
+        ),
+        "evidence_contract": dict(
+            prior_plan.get("evidence_contract", {}) or {}
+        ),
+    }
+    selection = _architect_select_initial_subsystem(
+        packet=routing_packet,
+        architect_context=architect_context,
+        blackboard=blackboard,
+        question_id=question.id,
+    )
+    if not (
+        selection.get("source") == "generated_code_semantic_review_source_repair"
+        and selection.get("requested_subsystem") == source_subsystem
+        and selection.get("selected_subsystem") == source_subsystem
+    ):
+        return None
+
+    dispatch_artifact = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeArchitectTypedRepairDispatch",
+        "dispatch_id": dispatch_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        **dispatch_seed,
+        "repair_scope": "source_code",
+        "llm_planner_invoked": False,
+        "dispatch_authority": (
+            "identity-bound independent semantic-review lineage"
+        ),
+        "proof_evidence_status": (
+            "ARCHITECT_TYPED_REPAIR_DISPATCH_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": (
+            "This deterministic dispatch preserves an already adjudicated repair "
+            "owner, immutable feedback lineage, and the existing Architect plan. "
+            "The coding agent must still generate fresh source and pass execution "
+            "and independent review; this dispatch is not research or proof evidence."
+        ),
+    }
+    dispatch_context = dict(architect_context)
+    dispatch_context["architect_typed_source_repair_dispatch"] = dict(
+        dispatch_artifact
+    )
+    routing_decision = _architect_initial_routing_decision(
+        question=question,
+        packet=routing_packet,
+        architect_context=dispatch_context,
+        packet_id=dispatch_id,
+        runtime_config=runtime_config,
+        blackboard=blackboard,
+    )
+    next_task = routing_decision["task"]
+    dispatch_artifact["routing_record"] = dict(routing_decision["record"])
+    dispatch_artifact["next_task_id"] = next_task.task_id
+    dispatch_artifact["next_owner_subsystem"] = next_task.owner_subsystem
+    evidence = EvidenceLedgerEntry(
+        evidence_id="evidence:" + stable_hash([task.task_id, dispatch_id])[:20],
+        task_id=task.task_id,
+        artifact_id=dispatch_id,
+        evidence_type="architect_typed_source_repair_dispatch",
+        status="TYPED_SOURCE_REPAIR_DISPATCH_RECORDED_NOT_RESEARCH_EVIDENCE",
+        boundary=str(dispatch_artifact["boundary"]),
+        payload={
+            "source_subsystem": source_subsystem,
+            "source_manifest_id": source_manifest_id,
+            "review_packet_id": dispatch_seed["review_packet_id"],
+            "review_execution_id": dispatch_seed["review_execution_id"],
+            "next_task_id": next_task.task_id,
+            "llm_planner_invoked": False,
+            "proof_evidence_status": dispatch_artifact[
+                "proof_evidence_status"
+            ],
+        },
+    )
+    return AgentStepResult(
+        status="REROUTE",
+        rationale=(
+            "ArchitectCoordinator consumed an identity-bound source-code repair "
+            "decision and dispatched the exact reviewer feedback to the rejected "
+            f"source owner {source_subsystem} without another planning-model call."
+        ),
+        produced_artifacts={dispatch_id: dispatch_artifact},
+        observations=(
+            EnvironmentObservation(
+                observation_type="architect_typed_source_repair_dispatch",
+                summary=(
+                    f"typed source repair dispatched to {source_subsystem}"
+                ),
+                payload={
+                    "dispatch_id": dispatch_id,
+                    "next_task_id": next_task.task_id,
+                    "next_owner_subsystem": next_task.owner_subsystem,
+                    "llm_planner_invoked": False,
+                    "proof_evidence_status": dispatch_artifact[
+                        "proof_evidence_status"
+                    ],
+                },
+            ),
+        ),
+        evidence_entries=(evidence,),
+        next_task=next_task,
+    )
 
 
 def _architect_context_with_rehydrated_metric_protocol_theory_material(
@@ -25144,16 +25325,8 @@ def _formalizer_packet_validation_failure_result(
     validation_repair_directives = formalizer_validation_repair_directives(
         validation_errors
     )
-    validation_repair_rule_ids = {
-        str(row.get("rule_id", "") or "")
-        for row in validation_repair_policy.get("rules", []) or []
-        if isinstance(row, Mapping)
-    }
     internal_json_repair_attempts = max(0, int(exc.attempts or 0) - 1)
-    typed_role_internal_repair_exhausted = bool(
-        internal_json_repair_attempts > 0
-        and "formal_target_role_routing" in validation_repair_rule_ids
-    )
+    internal_json_repair_counted_as_lineage_retry = False
     prior_environment_feedback = (
         environment_feedback
         if isinstance(environment_feedback, Mapping)
@@ -25184,13 +25357,10 @@ def _formalizer_packet_validation_failure_result(
             )
             or ""
         ).strip()
-        or str(task.task_id).startswith("formalize-repair:")
     )
     packet_repair_retry_depth = (
         prior_packet_repair_retry_depth + 1
         if packet_repair_lineage_active
-        else 1
-        if typed_role_internal_repair_exhausted
         else 0
     )
     missing_anchors = _formalizer_missing_semantic_anchor_references(validation_errors)
@@ -25734,9 +25904,11 @@ def _formalizer_packet_validation_failure_result(
             "validation_error_fingerprint": stable_hash(validation_errors),
             "internal_json_repair_attempts": internal_json_repair_attempts,
             "internal_json_repair_counted_as_lineage_retry": (
-                typed_role_internal_repair_exhausted
+                internal_json_repair_counted_as_lineage_retry
             ),
-            "required_next_subsystem": "FormalizationGapPlanner",
+            "required_next_subsystem": "",
+            "terminal_disposition": "BLOCKED_NO_VALID_FORMALIZER_PACKET",
+            "formalization_gap_planner_bridge_available": False,
             "proof_evidence_status": (
                 "FORMALIZER_PACKET_VALIDATION_ESCALATION_NOT_PROOF_EVIDENCE"
             ),
@@ -25804,7 +25976,7 @@ def _formalizer_packet_validation_failure_result(
             "attempts": exc.attempts,
             "internal_json_repair_attempts": internal_json_repair_attempts,
             "internal_json_repair_counted_as_lineage_retry": (
-                typed_role_internal_repair_exhausted
+                internal_json_repair_counted_as_lineage_retry
             ),
             "formalizer_packet_repair_retry_depth": packet_repair_retry_depth,
             "formalizer_packet_repair_root_failure_id": (
@@ -25894,7 +26066,7 @@ def _formalizer_packet_validation_failure_result(
         "llm_json_repair_history": exc.history,
         "internal_json_repair_attempts": internal_json_repair_attempts,
         "internal_json_repair_counted_as_lineage_retry": (
-            typed_role_internal_repair_exhausted
+            internal_json_repair_counted_as_lineage_retry
         ),
         "formalizer_packet_repair_retry_depth": packet_repair_retry_depth,
         "formalizer_packet_repair_root_failure_id": (
@@ -25943,7 +26115,7 @@ def _formalizer_packet_validation_failure_result(
         "attempts": exc.attempts,
         "internal_json_repair_attempts": internal_json_repair_attempts,
         "internal_json_repair_counted_as_lineage_retry": (
-            typed_role_internal_repair_exhausted
+            internal_json_repair_counted_as_lineage_retry
         ),
         "formalizer_packet_repair_retry_depth": packet_repair_retry_depth,
         "formalizer_packet_repair_root_failure_id": (
@@ -26007,24 +26179,8 @@ def _formalizer_packet_validation_failure_result(
     next_inputs["environment_feedback"] = repair_feedback
     next_inputs.setdefault("question", _question_to_payload(question))
     if packet_validation_escalation_active:
-        next_task_objective = (
-            "Consume the latest validated FormalizationGapPlanner response for "
-            "this exact theorem lineage, or execute a bounded planner handoff if "
-            "none exists; do not issue another identical whole-packet retry."
-        )
-        next_task_acceptance_gate = (
-            "a validated planner action queue is compiled into typed runtime work, "
-            "or an explicit planner/infrastructure blocker is recorded without "
-            "claiming proof evidence"
-        )
-        planner_architect_context = (
-            dict(next_inputs.get("architect_context", {}) or {})
-            if isinstance(next_inputs.get("architect_context", {}), Mapping)
-            else {}
-        )
-        planner_architect_context["environment_feedback"] = repair_feedback
-        next_inputs["architect_context"] = planner_architect_context
-        next_inputs["consume_existing_live_route_planner"] = True
+        next_task_objective = ""
+        next_task_acceptance_gate = ""
     elif source_theorem_promotion_generation_repair:
         next_task_objective = (
             "Repair the lineage-bound source-theorem promotion response, preserve "
@@ -26082,12 +26238,9 @@ def _formalizer_packet_validation_failure_result(
             "repaired Formalizer packet passes local validation; any Lean candidate "
             "still requires local Lean/AXLE kernel verification"
         )
-    next_task = AgentTask(
+    next_task = None if packet_validation_escalation_active else AgentTask(
         task_id=(
-            f"gap-planner-packet-validation:{question.id}:"
-            f"{stable_hash([failure_id, packet_validation_escalation])[:8]}"
-            if packet_validation_escalation_active
-            else f"proofengineer-source-promotion:{question.id}:"
+            f"proofengineer-source-promotion:{question.id}:"
             f"{stable_hash([failure_id, repair_feedback])[:8]}"
             if source_theorem_promotion_generation_repair
             else f"proofengineer-whole-proof:{question.id}:"
@@ -26097,9 +26250,7 @@ def _formalizer_packet_validation_failure_result(
             f"{stable_hash([failure_id, repair_feedback])[:8]}"
         ),
         owner_subsystem=(
-            "FormalizationGapPlanner"
-            if packet_validation_escalation_active
-            else "ProofEngineer"
+            "ProofEngineer"
             if (
                 source_theorem_promotion_generation_repair
                 or whole_proof_agent_repair
@@ -26109,14 +26260,6 @@ def _formalizer_packet_validation_failure_result(
         objective=next_task_objective,
         inputs=next_inputs,
         allowed_tools=(
-            (
-                "formalization_gap_planner",
-                "formal_source_retriever",
-                "lean_lsp_mcp",
-                "evidence_ledger",
-            )
-            if packet_validation_escalation_active
-            else
             tuple(
                 dict.fromkeys(
                     (
@@ -26141,9 +26284,6 @@ def _formalizer_packet_validation_failure_result(
             "promotion response rematerialized for the exact compiler or an explicit "
             "typed blocker recorded"
             if source_theorem_promotion_generation_repair
-            else
-            "validated planner queue consumed or typed planner blocker recorded"
-            if packet_validation_escalation_active
             else
             "exact whole-proof candidate rerun or typed dependency blocker recorded"
             if whole_proof_agent_repair
@@ -26173,11 +26313,12 @@ def _formalizer_packet_validation_failure_result(
         },
     )
     return AgentStepResult(
-        status="REVISE",
+        status="BLOCKED" if packet_validation_escalation_active else "REVISE",
         rationale=(
             "LLM Formalizer packet failed the same lineage-bound validation "
-            "contract after its bounded repair; runtime escalated to the typed "
-            "FormalizationGapPlanner path instead of issuing another identical retry."
+            "contract after its one outer retry. No valid Formalizer packet exists "
+            "from which to build a FormalizationGapPlanner bridge, so runtime "
+            "recorded a typed terminal blocker without claiming proof evidence."
             if packet_validation_escalation_active
             else
             "LLM ProofEngineer promotion response failed its request-bound target "
@@ -26219,7 +26360,11 @@ def _formalizer_packet_validation_failure_result(
         ),
         evidence_entries=(evidence,),
         next_task=next_task,
-        failure_classification="formalizer_packet_validation_failed",
+        failure_classification=(
+            "formalizer_packet_validation_lineage_exhausted"
+            if packet_validation_escalation_active
+            else "formalizer_packet_validation_failed"
+        ),
     )
 
 

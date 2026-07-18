@@ -193,6 +193,107 @@ def test_generate_validated_json_packet_includes_subsystem_repair_context() -> N
     )
 
 
+def test_semantic_patch_repair_preserves_unaffected_large_payload() -> None:
+    large_candidate = "candidate:" + ("x" * 9000)
+
+    class PatchBackend:
+        provider_name = "test"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                response = {
+                    "formal_targets": [
+                        {
+                            "id": "FT1",
+                            "provenance": {"source_goal_id": ""},
+                        }
+                    ],
+                    "large_candidate": large_candidate,
+                }
+            else:
+                repair_payload = json.loads(
+                    request.user_prompt.split("\n\n", 1)[1]
+                )
+                response = {
+                    "base_payload_fingerprint": repair_payload[
+                        "base_payload_fingerprint"
+                    ],
+                    "updates": [
+                        {
+                            "path": [
+                                "formal_targets",
+                                0,
+                                "provenance",
+                                "source_goal_id",
+                            ],
+                            "replacement_json": json.dumps("THM1"),
+                        }
+                    ],
+                }
+            return GeneratorResponse(
+                text=json.dumps(response),
+                provider=self.provider_name,
+                model=request.model,
+            )
+
+    backend = PatchBackend()
+    packet = generate_validated_json_packet(
+        provider=backend,
+        request=GeneratorRequest(
+            system_prompt="Return JSON.",
+            user_prompt="Produce a large typed packet.",
+            model="test-model",
+            max_tokens=6000,
+            schema={"type": "object"},
+        ),
+        extract_payload=lambda text: extract_json_object(
+            text,
+            label="large typed packet",
+        ),
+        build_packet=lambda payload, response, raw_text: dict(payload),
+        validate_packet=lambda candidate: (
+            []
+            if candidate["formal_targets"][0]["provenance"][
+                "source_goal_id"
+            ]
+            else ["formal target FT1 must preserve source_goal_id"]
+        ),
+        validation_label="large typed packet",
+        max_repair_attempts=1,
+        semantic_patch_repair=True,
+    )
+
+    assert len(backend.requests) == 2
+    assert backend.requests[1].metadata["json_repair_mode"] == (
+        "typed_semantic_patch"
+    )
+    assert backend.requests[1].max_tokens == 3000
+    assert backend.requests[1].schema is not None
+    assert set(backend.requests[1].schema["required"]) == {
+        "base_payload_fingerprint",
+        "updates",
+    }
+    assert large_candidate not in backend.requests[1].user_prompt
+    assert packet["large_candidate"] == large_candidate
+    assert packet["formal_targets"][0]["provenance"]["source_goal_id"] == (
+        "THM1"
+    )
+    assert packet["llm_json_repair_history"][0]["repair_mode"] == (
+        "full_packet_generation"
+    )
+    patch_history = packet["llm_json_repair_history"][1]
+    assert patch_history["repair_mode"] == "typed_semantic_patch"
+    assert patch_history["patched_paths"] == [
+        ["formal_targets", 0, "provenance", "source_goal_id"]
+    ]
+    assert patch_history["base_payload_fingerprint"]
+    assert patch_history["patched_payload_fingerprint"]
+
+
 def test_generate_validated_json_packet_escalates_truncated_repair_budget() -> None:
     class TruncatingThenValidBackend:
         provider_name = "test"

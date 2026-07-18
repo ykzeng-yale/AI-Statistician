@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 from dataclasses import replace
 from typing import Any, Callable, Mapping
@@ -11,6 +12,44 @@ PacketBuilder = Callable[[Mapping[str, Any], GeneratorResponse, str], dict[str, 
 PacketValidator = Callable[[Mapping[str, Any]], list[str]]
 PayloadExtractor = Callable[[str], dict[str, Any]]
 RepairContextBuilder = Callable[..., Mapping[str, Any] | None]
+
+
+_TYPED_SEMANTIC_PATCH_MAX_UPDATES = 8
+_TYPED_SEMANTIC_PATCH_MAX_PATH_DEPTH = 8
+_TYPED_SEMANTIC_PATCH_MAX_TOKENS = 3000
+_TYPED_SEMANTIC_PATCH_SCHEMA: dict[str, Any] = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["base_payload_fingerprint", "updates"],
+    "properties": {
+        "base_payload_fingerprint": {"type": "string"},
+        "updates": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": _TYPED_SEMANTIC_PATCH_MAX_UPDATES,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["path", "replacement_json"],
+                "properties": {
+                    "path": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": _TYPED_SEMANTIC_PATCH_MAX_PATH_DEPTH,
+                        "items": {
+                            "anyOf": [
+                                {"type": "string"},
+                                {"type": "integer", "minimum": 0},
+                            ]
+                        },
+                    },
+                    "replacement_json": {"type": "string"},
+                },
+            },
+        },
+    },
+}
 
 
 class PacketValidationError(ValueError):
@@ -45,6 +84,7 @@ def generate_validated_json_packet(
     validation_label: str,
     max_repair_attempts: int = 1,
     repair_context_builder: RepairContextBuilder | None = None,
+    semantic_patch_repair: bool = False,
 ) -> dict[str, Any]:
     """Generate, locally validate, and retry a structured LLM packet.
 
@@ -58,8 +98,13 @@ def generate_validated_json_packet(
     user_prompt = original_user_prompt
     history: list[dict[str, Any]] = []
     last_errors: list[str] = []
+    semantic_patch_base_payload: dict[str, Any] | None = None
+    semantic_patch_base_fingerprint = ""
     attempts = max(0, max_repair_attempts) + 1
     for attempt_index in range(attempts):
+        typed_semantic_patch_mode = bool(
+            semantic_patch_repair and semantic_patch_base_payload is not None
+        )
         truncation_repair_mode = any(
             _history_row_indicates_truncation(row) for row in history
         )
@@ -67,11 +112,21 @@ def generate_validated_json_packet(
             request.max_tokens,
             truncation_repair_mode=truncation_repair_mode,
         )
+        if typed_semantic_patch_mode:
+            request_max_tokens = min(
+                request_max_tokens,
+                _TYPED_SEMANTIC_PATCH_MAX_TOKENS,
+            )
         response = provider.generate(
             replace(
                 request,
                 user_prompt=user_prompt,
                 max_tokens=request_max_tokens,
+                schema=(
+                    _TYPED_SEMANTIC_PATCH_SCHEMA
+                    if typed_semantic_patch_mode
+                    else request.schema
+                ),
                 metadata={
                     **dict(request.metadata),
                     "json_repair_attempt": attempt_index,
@@ -79,31 +134,93 @@ def generate_validated_json_packet(
                     "json_repair_previous_attempt_truncated": truncation_repair_mode,
                     "json_repair_truncation_repair_mode": truncation_repair_mode,
                     "json_repair_request_max_tokens": request_max_tokens,
+                    "json_repair_mode": (
+                        "typed_semantic_patch"
+                        if typed_semantic_patch_mode
+                        else "full_packet_generation"
+                        if attempt_index == 0
+                        else "full_packet_regeneration"
+                    ),
                 },
             )
         )
         raw_text = response.text
+        payload: dict[str, Any] | None = None
         packet: dict[str, Any] | None = None
+        patched_paths: list[list[str | int]] = []
+        patched_payload_fingerprint = ""
         try:
-            payload = extract_payload(raw_text)
-            packet = build_packet(payload, response, raw_text)
+            effective_raw_text = raw_text
+            if typed_semantic_patch_mode:
+                patch_envelope = extract_json_object(
+                    raw_text,
+                    label=f"{validation_label} typed semantic patch",
+                )
+                payload, patched_paths = _apply_typed_semantic_patch(
+                    base_payload=semantic_patch_base_payload or {},
+                    expected_base_fingerprint=semantic_patch_base_fingerprint,
+                    patch_envelope=patch_envelope,
+                )
+                patched_payload_fingerprint = _stable_payload_fingerprint(payload)
+                effective_raw_text = json.dumps(
+                    payload,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    default=str,
+                    ensure_ascii=False,
+                )
+            else:
+                payload = extract_payload(raw_text)
+            packet = build_packet(payload, response, effective_raw_text)
             errors = validate_packet(packet)
         except Exception as exc:
-            errors = [_format_generation_error(exc, raw_text)]
+            generation_error = _format_generation_error(exc, raw_text)
+            errors = (
+                list(
+                    dict.fromkeys(
+                        [
+                            *(
+                                history[-1].get("errors", [])
+                                if history
+                                and isinstance(history[-1].get("errors", []), list)
+                                else []
+                            ),
+                            "typed semantic patch repair failed: "
+                            + generation_error,
+                        ]
+                    )
+                )
+                if typed_semantic_patch_mode
+                else [generation_error]
+            )
         last_errors = [str(error) for error in errors]
-        history.append(
-            {
-                "attempt_index": attempt_index,
-                "provider": response.provider,
-                "model": response.model,
-                "ok": not last_errors,
-                "errors": last_errors,
-                "raw_response_fingerprint": _stable_text_fingerprint(raw_text),
-                "response_text_chars": len(raw_text),
-                "request_max_tokens": request_max_tokens,
-                "response_metadata": _compact_response_metadata(response.metadata),
-            }
-        )
+        history_row = {
+            "attempt_index": attempt_index,
+            "provider": response.provider,
+            "model": response.model,
+            "ok": not last_errors,
+            "errors": last_errors,
+            "repair_mode": (
+                "typed_semantic_patch"
+                if typed_semantic_patch_mode
+                else "full_packet_generation"
+                if attempt_index == 0
+                else "full_packet_regeneration"
+            ),
+            "raw_response_fingerprint": _stable_text_fingerprint(raw_text),
+            "response_text_chars": len(raw_text),
+            "request_max_tokens": request_max_tokens,
+            "response_metadata": _compact_response_metadata(response.metadata),
+        }
+        if typed_semantic_patch_mode:
+            history_row.update(
+                {
+                    "base_payload_fingerprint": semantic_patch_base_fingerprint,
+                    "patched_paths": patched_paths,
+                    "patched_payload_fingerprint": patched_payload_fingerprint,
+                }
+            )
+        history.append(history_row)
         if packet is not None and not last_errors:
             packet["validation_errors"] = []
             packet["ok"] = True
@@ -127,24 +244,276 @@ def generate_validated_json_packet(
                 if repair_context_builder is not None
                 else None
             )
-            user_prompt = _repair_prompt(
-                original_user_prompt=original_user_prompt,
-                bad_response=raw_text,
-                errors=last_errors,
-                validation_label=validation_label,
-                truncation_detected=_response_indicates_truncation(
+            truncation_detected = (
+                _response_indicates_truncation(
                     response,
                     request_max_tokens=request_max_tokens,
                 )
-                or truncation_repair_mode,
-                repair_context=repair_context,
+                or truncation_repair_mode
             )
+            if semantic_patch_repair and payload is not None and not truncation_detected:
+                semantic_patch_base_payload = deepcopy(payload)
+                semantic_patch_base_fingerprint = _stable_payload_fingerprint(
+                    semantic_patch_base_payload
+                )
+                user_prompt = _typed_semantic_patch_prompt(
+                    original_user_prompt=original_user_prompt,
+                    errors=last_errors,
+                    validation_label=validation_label,
+                    base_payload=semantic_patch_base_payload,
+                    base_payload_fingerprint=semantic_patch_base_fingerprint,
+                    repair_context=repair_context,
+                )
+            else:
+                semantic_patch_base_payload = None
+                semantic_patch_base_fingerprint = ""
+                user_prompt = _repair_prompt(
+                    original_user_prompt=original_user_prompt,
+                    bad_response=raw_text,
+                    errors=last_errors,
+                    validation_label=validation_label,
+                    truncation_detected=truncation_detected,
+                    repair_context=repair_context,
+                )
     raise PacketValidationError(
         validation_label=validation_label,
         attempts=attempts,
         errors=last_errors,
         history=history,
     )
+
+
+def _typed_semantic_patch_prompt(
+    *,
+    original_user_prompt: str,
+    errors: list[str],
+    validation_label: str,
+    base_payload: Mapping[str, Any],
+    base_payload_fingerprint: str,
+    repair_context: Mapping[str, Any] | None = None,
+) -> str:
+    payload: dict[str, Any] = {
+        "validation_label": validation_label,
+        "local_validation_errors": errors,
+        "base_payload_fingerprint": base_payload_fingerprint,
+        "base_payload_excerpt": _compact_patch_base_payload(base_payload),
+        "patch_contract": {
+            "base_payload_fingerprint": (
+                "copy the supplied fingerprint exactly"
+            ),
+            "updates": [
+                {
+                    "path": ["top_level_field", 0, "nested_field"],
+                    "replacement_json": (
+                        "JSON-encoded replacement value, supplied as a string"
+                    ),
+                }
+            ],
+            "maximum_updates": _TYPED_SEMANTIC_PATCH_MAX_UPDATES,
+            "maximum_path_depth": _TYPED_SEMANTIC_PATCH_MAX_PATH_DEPTH,
+        },
+        "repair_instructions": [
+            "Return only the typed patch envelope, not the full packet.",
+            "Copy base_payload_fingerprint exactly.",
+            "Update only paths needed to resolve every local_validation_error.",
+            "Preserve every unmentioned field byte-for-structure in the base payload.",
+            "Use integer path components only for array indices.",
+            "replacement_json must itself decode as one valid JSON value.",
+            "Do not remove evidence boundaries or claim unexecuted verification.",
+        ],
+        "original_request": _compact_original_request(
+            original_user_prompt,
+            head_chars=600,
+            tail_chars=1200,
+        ),
+    }
+    payload["repair_instructions"].extend(
+        _subsystem_priority_repair_instructions(repair_context)
+    )
+    if repair_context:
+        payload["subsystem_repair_context"] = repair_context
+    return (
+        "Your previous JSON packet parsed, but failed local semantic validation. "
+        "Return ONLY a compact typed patch envelope.\n\n"
+        + json.dumps(payload, indent=2, default=str, ensure_ascii=False)
+    )
+
+
+def _apply_typed_semantic_patch(
+    *,
+    base_payload: Mapping[str, Any],
+    expected_base_fingerprint: str,
+    patch_envelope: Mapping[str, Any],
+) -> tuple[dict[str, Any], list[list[str | int]]]:
+    supplied_fingerprint = str(
+        patch_envelope.get("base_payload_fingerprint", "") or ""
+    )
+    if not expected_base_fingerprint or supplied_fingerprint != expected_base_fingerprint:
+        raise ValueError(
+            "typed semantic patch base_payload_fingerprint does not match the "
+            "lineage-bound base payload"
+        )
+    raw_updates = patch_envelope.get("updates", [])
+    if not isinstance(raw_updates, list) or not raw_updates:
+        raise ValueError("typed semantic patch must contain at least one update")
+    if len(raw_updates) > _TYPED_SEMANTIC_PATCH_MAX_UPDATES:
+        raise ValueError(
+            "typed semantic patch exceeds the bounded update count "
+            f"{_TYPED_SEMANTIC_PATCH_MAX_UPDATES}"
+        )
+
+    patched = deepcopy(dict(base_payload))
+    applied_paths: list[list[str | int]] = []
+    for update_index, raw_update in enumerate(raw_updates):
+        if not isinstance(raw_update, Mapping):
+            raise ValueError(
+                f"typed semantic patch update {update_index} must be an object"
+            )
+        raw_path = raw_update.get("path", [])
+        if not isinstance(raw_path, list) or not raw_path:
+            raise ValueError(
+                f"typed semantic patch update {update_index} must contain a path"
+            )
+        if len(raw_path) > _TYPED_SEMANTIC_PATCH_MAX_PATH_DEPTH:
+            raise ValueError(
+                f"typed semantic patch update {update_index} exceeds maximum path depth"
+            )
+        path: list[str | int] = []
+        for component in raw_path:
+            if isinstance(component, bool) or not isinstance(component, (str, int)):
+                raise ValueError(
+                    f"typed semantic patch update {update_index} has an invalid path component"
+                )
+            if isinstance(component, int) and component < 0:
+                raise ValueError(
+                    f"typed semantic patch update {update_index} has a negative array index"
+                )
+            if isinstance(component, str) and not component:
+                raise ValueError(
+                    f"typed semantic patch update {update_index} has an empty object key"
+                )
+            path.append(component)
+        replacement_json = raw_update.get("replacement_json")
+        if not isinstance(replacement_json, str):
+            raise ValueError(
+                f"typed semantic patch update {update_index} replacement_json must be a string"
+            )
+        try:
+            replacement = json.loads(replacement_json)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"typed semantic patch update {update_index} replacement_json is invalid: {exc}"
+            ) from exc
+        _replace_typed_patch_path(patched, path=path, replacement=replacement)
+        applied_paths.append(path)
+    return patched, applied_paths
+
+
+def _replace_typed_patch_path(
+    payload: dict[str, Any],
+    *,
+    path: list[str | int],
+    replacement: Any,
+) -> None:
+    parent: Any = payload
+    for depth, component in enumerate(path[:-1]):
+        if isinstance(parent, dict):
+            if not isinstance(component, str) or component not in parent:
+                raise ValueError(
+                    "typed semantic patch path does not resolve at component "
+                    f"{depth}: {component!r}"
+                )
+            parent = parent[component]
+        elif isinstance(parent, list):
+            if (
+                not isinstance(component, int)
+                or isinstance(component, bool)
+                or component >= len(parent)
+            ):
+                raise ValueError(
+                    "typed semantic patch array path does not resolve at component "
+                    f"{depth}: {component!r}"
+                )
+            parent = parent[component]
+        else:
+            raise ValueError(
+                "typed semantic patch path traverses a scalar at component "
+                f"{depth}: {component!r}"
+            )
+
+    final_component = path[-1]
+    if isinstance(parent, dict):
+        if not isinstance(final_component, str):
+            raise ValueError("typed semantic patch object replacement requires a string key")
+        parent[final_component] = replacement
+        return
+    if isinstance(parent, list):
+        if (
+            not isinstance(final_component, int)
+            or isinstance(final_component, bool)
+            or final_component >= len(parent)
+        ):
+            raise ValueError(
+                "typed semantic patch array replacement requires an existing index"
+            )
+        parent[final_component] = replacement
+        return
+    raise ValueError("typed semantic patch replacement parent is a scalar")
+
+
+def _stable_payload_fingerprint(payload: Mapping[str, Any]) -> str:
+    import hashlib
+
+    canonical = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+        ensure_ascii=False,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _compact_patch_base_payload(payload: Mapping[str, Any]) -> Any:
+    serialized = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+        ensure_ascii=False,
+    )
+    if len(serialized) <= 6000:
+        return deepcopy(dict(payload))
+
+    outline: dict[str, Any] = {}
+    for key, value in payload.items():
+        if isinstance(value, list):
+            outline[str(key)] = {
+                "item_count": len(value),
+                "first_items": deepcopy(value[:2]),
+            }
+        elif isinstance(value, Mapping):
+            encoded = json.dumps(
+                value,
+                sort_keys=True,
+                separators=(",", ":"),
+                default=str,
+                ensure_ascii=False,
+            )
+            outline[str(key)] = (
+                deepcopy(dict(value))
+                if len(encoded) <= 1200
+                else {"object_keys": [str(child) for child in value.keys()]}
+            )
+        elif isinstance(value, str) and len(value) > 400:
+            outline[str(key)] = value[:397] + "..."
+        else:
+            outline[str(key)] = deepcopy(value)
+    return {
+        "truncated": True,
+        "full_payload_chars": len(serialized),
+        "top_level_outline": outline,
+    }
 
 
 def _failure_history_suffix(history: list[dict[str, Any]]) -> str:

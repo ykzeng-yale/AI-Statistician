@@ -350,6 +350,31 @@ def test_required_pf_is_enforced_by_provider_schema_before_local_validation() ->
     assert "minItems" not in optional_schema["properties"][
         "pseudo_formal_proof_packets"
     ]
+    formal_target_schema = optional_schema["properties"]["formal_targets"][
+        "items"
+    ]
+    assert {
+        "id",
+        "formal_target_role",
+        "lean_statement_sketch",
+        "candidate_lean_declaration",
+        "source_theorem_target_provenance",
+        "expected_status",
+    }.issubset(formal_target_schema["required"])
+    assert set(
+        formal_target_schema["properties"]["formal_target_role"]["enum"]
+    ) == set(formalizer_module.FORMAL_TARGET_ROLES)
+    provenance_schema = formal_target_schema["properties"][
+        "source_theorem_target_provenance"
+    ]
+    assert provenance_schema["required"] == [
+        "target_lean_declaration",
+        "source_theorem_goal_id",
+        "source_theorem_target_known",
+    ]
+    assert provenance_schema["properties"]["source_theorem_target_known"] == {
+        "type": "boolean"
+    }
 
 
 def test_formalizer_required_pf_prompt_includes_source_bound_packet_seed() -> None:

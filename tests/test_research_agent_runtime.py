@@ -22432,6 +22432,7 @@ def test_live_architect_does_not_let_metric_authoring_intercept_source_repair() 
             "generated_code_semantic_review_execution:source"
         ),
         "source_subsystem": "AlgorithmEngineer",
+        "source_manifest_id": "algorithm_sandbox_manifest:rejected-source",
         "repair_scope": "source_code",
         "repair_owner_agent": "AlgorithmEngineer",
         "findings": [
@@ -22453,6 +22454,8 @@ def test_live_architect_does_not_let_metric_authoring_intercept_source_repair() 
     context["runtime_generated_code_semantic_review_replan"] = {
         "artifact_kind": "RuntimeGeneratedCodeSemanticReviewReplanContext",
         "source_subsystem": "AlgorithmEngineer",
+        "source_manifest_id": semantic_feedback["source_manifest_id"],
+        "source_review_task_id": "semantic-review:source",
         "review_packet_id": semantic_feedback["semantic_review_packet_id"],
         "review_execution_id": semantic_feedback[
             "semantic_review_execution_id"
@@ -22499,10 +22502,17 @@ def test_live_architect_does_not_let_metric_authoring_intercept_source_repair() 
             }
         }
     ) is False
+    context["architect_runtime_plan"] = {
+        "subsystem_execution_plan": packet["subsystem_execution_plan"],
+        "evidence_contract": packet["evidence_contract"],
+        "boundary": packet["evidence_boundary"],
+    }
 
     class SourceRepairCoordinator:
         def propose(self, **_kwargs):
-            return packet
+            raise AssertionError(
+                "identity-bound source repair must not invoke the planning model"
+            )
 
     routed = ArchitectCoordinatorRuntimeSubsystem(
         coordinator=SourceRepairCoordinator(),  # type: ignore[arg-type]
@@ -22539,6 +22549,18 @@ def test_live_architect_does_not_let_metric_authoring_intercept_source_repair() 
     assert routing_record["environment_feedback_execution_id"] == (
         semantic_feedback["semantic_review_execution_id"]
     )
+    dispatch = next(iter(routed.produced_artifacts.values()))
+    assert dispatch["artifact_kind"] == "RuntimeArchitectTypedRepairDispatch"
+    assert dispatch["llm_planner_invoked"] is False
+    assert dispatch["source_manifest_id"] == semantic_feedback[
+        "source_manifest_id"
+    ]
+    assert dispatch["review_packet_id"] == semantic_feedback[
+        "semantic_review_packet_id"
+    ]
+    assert dispatch["review_execution_id"] == semantic_feedback[
+        "semantic_review_execution_id"
+    ]
 
 
 def test_architect_does_not_forward_mismatched_semantic_replan_feedback() -> None:
@@ -32952,7 +32974,7 @@ def test_formalizer_validation_failure_routes_repeated_syntax_fail_closed_contra
     assert result.next_task.acceptance_gate == feedback["acceptance_gate"]
 
 
-def test_repeated_packet_validation_escalates_out_of_identical_formalizer_loop() -> None:
+def test_repeated_packet_validation_blocks_without_impossible_gap_planner_bridge() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     exc = PacketValidationError(
         validation_label="LLM Formalizer/ProofEngineer packet",
@@ -32985,6 +33007,10 @@ def test_repeated_packet_validation_escalates_out_of_identical_formalizer_loop()
                 "failure_classification": "formalizer_packet_validation_failed",
                 "formalizer_lean_repair_retry_depth": 1,
                 "repeated_formalizer_lean_candidate_failure": True,
+                "formalizer_packet_repair_retry_depth": 0,
+                "formalizer_packet_repair_root_failure_id": (
+                    "formalizer_validation_failure:root"
+                ),
                 "local_lean_repair_contract": {
                     "contract_kind": "formalizer_local_lean_repair",
                     "diagnostic_classes": ["lean_parser_or_syntax_error"],
@@ -33027,40 +33053,33 @@ def test_repeated_packet_validation_escalates_out_of_identical_formalizer_loop()
         exc=exc,
     )
 
-    assert result.status == "REVISE"
-    assert result.failure_classification == "formalizer_packet_validation_failed"
-    assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "FormalizationGapPlanner"
-    assert result.next_task.task_id.startswith("gap-planner-packet-validation:")
-    assert result.next_task.inputs["consume_existing_live_route_planner"] is True
-    assert "do not issue another identical whole-packet retry" in (
-        result.next_task.objective
+    assert result.status == "BLOCKED"
+    assert result.failure_classification == (
+        "formalizer_packet_validation_lineage_exhausted"
     )
-    feedback = result.next_task.inputs["environment_feedback"]
-    assert feedback["failure_classification"] == "formalizer_packet_validation_failed"
-    assert feedback["formalizer_packet_repair_retry_depth"] == 1
-    assert feedback["formalizer_packet_repair_root_failure_id"].startswith(
+    assert result.next_task is None
+    artifact = next(iter(result.produced_artifacts.values()))
+    assert artifact["formalizer_packet_repair_retry_depth"] == 1
+    assert artifact["formalizer_packet_repair_root_failure_id"].startswith(
         "formalizer_validation_failure:"
     )
-    assert feedback["packet_validation_escalation"]["escalation_kind"] == (
+    escalation = artifact["packet_validation_escalation"]
+    assert escalation["escalation_kind"] == (
         "formalizer_repeated_packet_validation_loop"
     )
-    assert feedback["packet_validation_escalation"][
-        "required_next_subsystem"
-    ] == "FormalizationGapPlanner"
-    assert "Python-side syntax or tactic whitelist" in feedback["target_behavior"]
-    artifact = next(iter(result.produced_artifacts.values()))
-    assert artifact["packet_validation_escalation"] == feedback[
-        "packet_validation_escalation"
-    ]
-    assert artifact["formalizer_packet_repair_retry_depth"] == 1
+    assert escalation["required_next_subsystem"] == ""
+    assert escalation["terminal_disposition"] == (
+        "BLOCKED_NO_VALID_FORMALIZER_PACKET"
+    )
+    assert escalation["formalization_gap_planner_bridge_available"] is False
+    assert artifact["internal_json_repair_counted_as_lineage_retry"] is False
     learning_tasks = {
         row["learning_task"] for row in artifact["learning_rows"]
     }
     assert "formalizer_packet_validation_feedback" in learning_tasks
 
 
-def test_internal_typed_role_repair_skips_duplicate_runtime_retry() -> None:
+def test_internal_typed_role_repair_preserves_outer_runtime_retry() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     result = runtime_module._formalizer_packet_validation_failure_result(
         task=AgentTask(
@@ -33090,14 +33109,14 @@ def test_internal_typed_role_repair_skips_duplicate_runtime_retry() -> None:
     )
 
     assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "FormalizationGapPlanner"
+    assert result.status == "REVISE"
+    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
+    assert result.next_task.task_id.startswith("formalize-repair:")
     feedback = result.next_task.inputs["environment_feedback"]
     assert feedback["internal_json_repair_attempts"] == 1
-    assert feedback["internal_json_repair_counted_as_lineage_retry"] is True
-    assert feedback["formalizer_packet_repair_retry_depth"] == 1
-    assert feedback["packet_validation_escalation"][
-        "required_next_subsystem"
-    ] == "FormalizationGapPlanner"
+    assert feedback["internal_json_repair_counted_as_lineage_retry"] is False
+    assert feedback["formalizer_packet_repair_retry_depth"] == 0
+    assert feedback["packet_validation_escalation"] == {}
 
 
 def test_no_import_real_helper_is_diagnosed_by_local_lean(

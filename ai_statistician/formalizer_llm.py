@@ -256,6 +256,7 @@ class LLMFormalizerProofEngineerAgent:
                 proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary
                 or {},
             ),
+            semantic_patch_repair=True,
         )
 
 
@@ -1507,6 +1508,9 @@ FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
             "source_theorem_target_provenance": {
                 "target_lean_declaration": "source theorem Lean declaration, not adapter declaration",
                 "source_theorem_goal_id": "registered theorem goal id",
+                "source_theorem_target_known": (
+                    "boolean routing provenance; true only for the exact source theorem"
+                ),
             },
             "expected_status": "NEEDS_KERNEL_CHECK|FORMAL_GAP",
         }
@@ -1765,6 +1769,59 @@ def _formalizer_output_contract_for_prompt(
     return contract
 
 
+FORMAL_TARGET_PROVIDER_JSON_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": True,
+    "required": [
+        "id",
+        "formal_target_role",
+        "informal_source",
+        "lean_statement_sketch",
+        "candidate_lean_declaration",
+        "lean_imports",
+        "semantic_alignment_constraints",
+        "source_theorem_target_provenance",
+        "expected_status",
+    ],
+    "properties": {
+        "id": {"type": "string"},
+        "formal_target_role": {
+            "type": "string",
+            "enum": sorted(FORMAL_TARGET_ROLES),
+        },
+        "informal_source": {"type": "string"},
+        "lean_statement_sketch": {"type": "string"},
+        "candidate_lean_declaration": {"type": "string"},
+        "lean_imports": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "semantic_alignment_constraints": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "source_theorem_target_provenance": {
+            "type": "object",
+            "additionalProperties": True,
+            "required": [
+                "target_lean_declaration",
+                "source_theorem_goal_id",
+                "source_theorem_target_known",
+            ],
+            "properties": {
+                "target_lean_declaration": {"type": "string"},
+                "source_theorem_goal_id": {"type": "string"},
+                "source_theorem_target_known": {"type": "boolean"},
+            },
+        },
+        "expected_status": {
+            "type": "string",
+            "enum": ["NEEDS_KERNEL_CHECK", "FORMAL_GAP"],
+        },
+    },
+}
+
+
 FORMALIZER_JSON_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
@@ -1779,7 +1836,11 @@ FORMALIZER_JSON_SCHEMA: dict[str, Any] = {
         "next_actions",
     ],
     "properties": {
-        "formal_targets": {"type": "array", "minItems": 1},
+        "formal_targets": {
+            "type": "array",
+            "minItems": 1,
+            "items": FORMAL_TARGET_PROVIDER_JSON_SCHEMA,
+        },
         "lemma_dependency_plan": {"type": "array", "minItems": 1},
         "retrieval_queries": {"type": "array", "minItems": 1},
         "proof_search_plan": {"type": "object"},
