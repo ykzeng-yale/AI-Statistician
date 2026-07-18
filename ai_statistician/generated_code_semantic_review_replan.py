@@ -71,6 +71,7 @@ def advance_generated_code_semantic_review_lineage_budget(
         if isinstance(value, Mapping)
     }
     prior = dict(ledger.pop(lineage_key, {}))
+    finding_seen_in_source_lineage = bool(prior)
     migrated_local_revisions = (
         max(0, int(prior_local_revisions or 0)) if not ledger and not prior else 0
     )
@@ -92,6 +93,9 @@ def advance_generated_code_semantic_review_lineage_budget(
         "architect_replan_count": int(
             prior.get("architect_replan_count", 0) or 0
         ),
+        "post_replan_local_repair_count": int(
+            prior.get("post_replan_local_repair_count", 0) or 0
+        ),
         "max_local_revisions": max(0, int(max_local_revisions or 0)),
         "last_action": str(prior.get("last_action", "") or ""),
         "proof_evidence_status": (
@@ -112,11 +116,33 @@ def advance_generated_code_semantic_review_lineage_budget(
         max(0, int(candidate.get("architect_replan_count", 0) or 0))
         for candidate in source_lineage_rows
     )
+    source_post_replan_local_repair_count = sum(
+        max(
+            0,
+            int(candidate.get("post_replan_local_repair_count", 0) or 0),
+        )
+        for candidate in source_lineage_rows
+    )
     row["source_local_repair_count"] = source_local_repair_count
     row["source_architect_replan_count"] = source_architect_replan_count
+    row["source_post_replan_local_repair_count"] = (
+        source_post_replan_local_repair_count
+    )
     row["source_rejection_count"] = sum(
         max(0, int(candidate.get("rejection_count", 0) or 0))
         for candidate in source_lineage_rows
+    )
+    post_replan_local_repair_available = bool(
+        row["repair_scope"] == "source_code"
+        and row["max_local_revisions"] > 0
+        and source_architect_replan_count == 1
+        and source_post_replan_local_repair_count == 0
+        and source_local_repair_count < row["max_local_revisions"] + 1
+        and not finding_seen_in_source_lineage
+    )
+    row["finding_seen_in_source_lineage"] = finding_seen_in_source_lineage
+    row["post_replan_local_repair_available"] = (
+        post_replan_local_repair_available
     )
     if len(ledger) > 32:
         ledger = dict(list(ledger.items())[-32:])
@@ -126,12 +152,18 @@ def advance_generated_code_semantic_review_lineage_budget(
         "row": row,
         "ledger": ledger,
         "local_repair_available": bool(
-            row["repair_scope"] == "source_code"
-            and source_local_repair_count < row["max_local_revisions"]
-            and source_architect_replan_count == 0
+            (
+                row["repair_scope"] == "source_code"
+                and source_local_repair_count < row["max_local_revisions"]
+                and source_architect_replan_count == 0
+            )
+            or post_replan_local_repair_available
         ),
         "architect_replan_available": source_architect_replan_count == 0,
-        "lineage_budget_exhausted": source_architect_replan_count > 0,
+        "lineage_budget_exhausted": bool(
+            source_architect_replan_count > 0
+            and not post_replan_local_repair_available
+        ),
     }
 
 
@@ -153,6 +185,10 @@ def record_generated_code_semantic_review_lineage_action(
     row = dict(ledger.get(lineage_key, budget_state.get("row", {})))
     if action == "local_repair":
         row["local_repair_count"] = int(row.get("local_repair_count", 0) or 0) + 1
+        if row.get("post_replan_local_repair_available") is True:
+            row["post_replan_local_repair_count"] = int(
+                row.get("post_replan_local_repair_count", 0) or 0
+            ) + 1
     elif action == "architect_replan":
         row["architect_replan_count"] = int(
             row.get("architect_replan_count", 0) or 0

@@ -194,9 +194,85 @@ def test_semantic_review_lineage_budget_survives_architect_replans() -> None:
         max_local_revisions=1,
     )
     assert changed_finding_after_replan["lineage_key"] != third["lineage_key"]
-    assert changed_finding_after_replan["local_repair_available"] is False
+    assert changed_finding_after_replan["local_repair_available"] is True
+    assert changed_finding_after_replan["row"][
+        "post_replan_local_repair_available"
+    ] is True
     assert changed_finding_after_replan["architect_replan_available"] is False
-    assert changed_finding_after_replan["lineage_budget_exhausted"] is True
+    assert changed_finding_after_replan["lineage_budget_exhausted"] is False
+
+    final_local_ledger = record_generated_code_semantic_review_lineage_action(
+        changed_finding_after_replan,
+        action="local_repair",
+    )
+    after_final_local_repair = advance_generated_code_semantic_review_lineage_budget(
+        architect_context={
+            GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY: final_local_ledger
+        },
+        work_order=work_order,
+        review_packet=different_finding_packet,
+        max_local_revisions=1,
+    )
+    assert after_final_local_repair["local_repair_available"] is False
+    assert after_final_local_repair["architect_replan_available"] is False
+    assert after_final_local_repair["lineage_budget_exhausted"] is True
+
+
+def test_semantic_review_allows_only_one_post_replan_local_repair() -> None:
+    work_order = {
+        "question_id": "generic-question",
+        "theory_packet_id": "theory:one",
+        "theory_packet_hash": "theory-hash-one",
+        "source_subsystem": "AlgorithmEngineer",
+    }
+    upstream_packet = _review_response(
+        accept=False,
+        repair_scope="upstream_metric_contract",
+    )
+    initial = advance_generated_code_semantic_review_lineage_budget(
+        architect_context={},
+        work_order=work_order,
+        review_packet=upstream_packet,
+        max_local_revisions=1,
+    )
+    assert initial["local_repair_available"] is False
+    replanned_ledger = record_generated_code_semantic_review_lineage_action(
+        initial,
+        action="architect_replan",
+    )
+
+    source_packet = _review_response(accept=False, repair_scope="source_code")
+    source_packet["findings"][0]["category"] = "first_source_defect"
+    first_post_replan = advance_generated_code_semantic_review_lineage_budget(
+        architect_context={
+            GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY: replanned_ledger
+        },
+        work_order=work_order,
+        review_packet=source_packet,
+        max_local_revisions=1,
+    )
+    assert first_post_replan["local_repair_available"] is True
+    final_local_ledger = record_generated_code_semantic_review_lineage_action(
+        first_post_replan,
+        action="local_repair",
+    )
+
+    second_source_packet = json.loads(json.dumps(source_packet))
+    second_source_packet["findings"][0]["category"] = "second_source_defect"
+    second_post_replan = advance_generated_code_semantic_review_lineage_budget(
+        architect_context={
+            GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY: final_local_ledger
+        },
+        work_order=work_order,
+        review_packet=second_source_packet,
+        max_local_revisions=1,
+    )
+    assert second_post_replan["local_repair_available"] is False
+    assert second_post_replan["architect_replan_available"] is False
+    assert second_post_replan["lineage_budget_exhausted"] is True
+    assert second_post_replan["row"][
+        "source_post_replan_local_repair_count"
+    ] == 1
 
 
 def _runtime_fixture(
@@ -411,6 +487,18 @@ def test_generated_code_semantic_reviewer_accepts_and_resumes_deferred_task(
     assert materialization["review_material"][
         "source_responsibility_contract"
     ] == responsibility
+    review_material = materialization["review_material"]
+    assert review_material["architect_frozen_evidence_contract"][
+        "empirical_metric_requirements"
+    ] == []
+    projection = review_material["review_scope_projection"]
+    assert projection["assigned_requirement_ids"] == []
+    assert projection["sibling_only_requirement_refs"] == (
+        responsibility["sibling_only_requirement_refs"]
+    )
+    assert projection[
+        "canonical_architect_evidence_contract_fingerprint"
+    ] == stable_hash(work_order["architect_evidence_contract"])
 
 
 def test_accepted_algorithm_review_hands_exact_source_to_simulation(
@@ -562,6 +650,8 @@ def test_semantic_reviewer_prompt_keeps_sibling_metrics_out_of_artifact_gate() -
 
     assert "requirements assigned to its author subsystem" in prompt
     assert "omitting a requirement assigned only to a sibling artifact" in prompt
+    assert "least-authority view" in prompt
+    assert "cannot make a required dimension FAIL" in prompt
     assert "reject any current-source proposal claim" in prompt
     assert "repair_scope=upstream_metric_contract" in prompt
     assert "repair_scope=upstream_theory" in prompt

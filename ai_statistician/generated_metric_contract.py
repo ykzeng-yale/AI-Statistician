@@ -7,6 +7,7 @@ from .fingerprint import stable_hash
 
 
 GENERATED_METRIC_CONTRACT_SCHEMA_VERSION = 1
+GENERATED_METRIC_EVALUATOR_CERTIFICATE_SCHEMA_VERSION = 1
 GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES = 80
 GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE = (
     "GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE"
@@ -49,6 +50,11 @@ GENERATED_METRIC_REQUIREMENT_BOUNDARY = (
     "artifact IDs and result paths but may not invent or weaken required gates. "
     "The requirements and their evaluations are empirical controls, not theorem "
     "proof evidence."
+)
+GENERATED_METRIC_EVALUATOR_CERTIFICATE_BOUNDARY = (
+    "A generated metric evaluator certificate records the exact deterministic "
+    "comparison and aggregation dispatch used by the runtime. It is executable "
+    "contract evidence, not statistical acceptance or theorem proof evidence."
 )
 GENERATED_METRIC_AUTHORITY_COPY_FIELDS: tuple[str, ...] = (
     "requirement_id",
@@ -150,6 +156,102 @@ def generated_metric_evaluation_semantics_contract() -> dict[str, Any]:
             "minimum_pass_count": 76,
         },
         "boundary": GENERATED_METRIC_CONTRACT_BOUNDARY,
+    }
+
+
+def generated_metric_evaluator_certificate(
+    requirements: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Certify the runtime's exact evaluator dispatch for typed requirements."""
+
+    requirement_rows = [dict(row) for row in requirements]
+    certificates: list[dict[str, Any]] = []
+    for index, requirement in enumerate(requirement_rows):
+        requirement_id = str(
+            requirement.get("requirement_id", "") or ""
+        ).strip()
+        aggregation = str(requirement.get("aggregation", "") or "").strip()
+        if aggregation in {"identity", "mean", "min", "max"}:
+            dispatch_class = "scalar"
+            evaluation_order = "aggregate_raw_values_then_compare_once"
+            comparison_input = "one_scalar_aggregate"
+            aggregation_input = "resolved_raw_values"
+        elif aggregation in {
+            "all",
+            "any",
+            "at_least_count",
+            "at_least_fraction",
+        }:
+            dispatch_class = "elementwise"
+            evaluation_order = "compare_each_raw_value_then_aggregate_booleans"
+            comparison_input = "each_resolved_raw_value"
+            aggregation_input = "per_value_comparison_results"
+        else:
+            dispatch_class = "invalid"
+            evaluation_order = "invalid"
+            comparison_input = "invalid"
+            aggregation_input = "invalid"
+        evaluator_shape_errors = _metric_comparison_shape_errors(
+            requirement,
+            prefix=f"empirical_metric_requirements[{index}]",
+        )
+        certificate_body = {
+            "requirement_id": requirement_id,
+            "requirement_fingerprint": stable_hash(requirement),
+            "evaluator_shape_valid": not evaluator_shape_errors,
+            "evaluator_shape_errors": evaluator_shape_errors,
+            "dispatch_field": "aggregation",
+            "dispatch_value": aggregation,
+            "dispatch_class": dispatch_class,
+            "evaluation_order": evaluation_order,
+            "comparison_stage": {
+                "input": comparison_input,
+                "operator": str(requirement.get("operator", "") or ""),
+                "threshold": requirement.get("threshold"),
+                "lower": requirement.get("lower"),
+                "upper": requirement.get("upper"),
+                "tolerance": requirement.get("tolerance"),
+            },
+            "aggregation_stage": {
+                "input": aggregation_input,
+                "operation": aggregation,
+                "minimum_pass_count": requirement.get("minimum_pass_count"),
+                "minimum_pass_fraction": requirement.get(
+                    "minimum_pass_fraction"
+                ),
+            },
+        }
+        certificates.append(
+            {
+                "certificate_id": "generated_metric_evaluator_certificate:"
+                + stable_hash(certificate_body)[:20],
+                **certificate_body,
+            }
+        )
+    requirement_schema_errors = validate_generated_metric_requirements(
+        requirement_rows
+    )
+    certificate_set_body = {
+        "requirement_set_id": generated_metric_requirement_set_id(
+            requirement_rows
+        ),
+        "requirement_set_fingerprint": stable_hash(requirement_rows),
+        "requirement_schema_errors": requirement_schema_errors,
+        "dispatch_implementation": (
+            "generated_metric_contract._evaluate_generated_metric_contract"
+        ),
+        "alternative_runtime_interpretations_allowed": False,
+        "certificates": certificates,
+    }
+    return {
+        "schema_version": GENERATED_METRIC_EVALUATOR_CERTIFICATE_SCHEMA_VERSION,
+        "artifact_kind": "GeneratedMetricEvaluatorCertificateSet",
+        "certificate_set_id": "generated_metric_evaluator_certificate_set:"
+        + stable_hash(certificate_set_body)[:20],
+        **certificate_set_body,
+        "all_rows_schema_valid": not requirement_schema_errors,
+        "proof_evidence_status": GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE,
+        "boundary": GENERATED_METRIC_EVALUATOR_CERTIFICATE_BOUNDARY,
     }
 
 

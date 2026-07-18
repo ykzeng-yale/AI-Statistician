@@ -2215,6 +2215,38 @@ def test_metric_protocol_finding_ledger_closes_prior_defects_explicitly() -> Non
         "RESOLVED_BY_CURRENT_THEORY",
     }
 
+    retraction_source = update_metric_protocol_finding_ledger(
+        question_id="generic_question",
+        prior_ledger=[],
+        prior_finding_reviews=[],
+        current_findings=[second_finding],
+        current_verdict="REVISE",
+        review_packet_id="metric-review:retract-source",
+        revision_index=0,
+    )
+    retracted = update_metric_protocol_finding_ledger(
+        question_id="generic_question",
+        prior_ledger=retraction_source,
+        prior_finding_reviews=[
+            {
+                "finding_id": retraction_source[0]["finding_id"],
+                "status": "RETRACTED_RUNTIME_CONTRACT_CONFLICT",
+                "rationale": "The finding contradicted the runtime evaluator order.",
+                "evidence_refs": [
+                    "metric_evaluation_semantics.elementwise_aggregations.evaluation_order"
+                ],
+            }
+        ],
+        current_findings=[],
+        current_verdict="ACCEPT",
+        review_packet_id="metric-review:retracted",
+        revision_index=1,
+    )
+    assert active_metric_protocol_finding_ledger(retracted) == []
+    assert retracted[0]["status"] == (
+        "RETRACTED_RUNTIME_CONTRACT_CONFLICT"
+    )
+
 
 def test_metric_semantic_reviewer_cannot_accept_without_prior_finding_closure() -> None:
     from ai_statistician.architect_metric_semantic_reviewer_llm import (
@@ -23001,6 +23033,7 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
                                 if self.review_calls == 1
                                 else "RESOLVED"
                             ),
+                            "runtime_contract_evidence_id": "",
                             "rationale": (
                                 "The current theory and candidate now close this "
                                 "specific prior defect."

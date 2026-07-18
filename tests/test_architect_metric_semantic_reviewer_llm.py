@@ -5,17 +5,46 @@ import json
 import pytest
 
 from ai_statistician.architect_metric_semantic_reviewer_llm import (
+    ARCHITECT_METRIC_RUNTIME_CONTRACT_RETRACTION_EVIDENCE_IDS,
     ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS,
     ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA,
     ArchitectMetricSemanticReviewerConfig,
     LLMArchitectMetricSemanticReviewerAgent,
+    architect_metric_review_material_with_runtime_evaluator_certificate,
     architect_metric_semantic_review_json_schema,
     validate_architect_metric_semantic_review_packet,
 )
 from ai_statistician.fingerprint import stable_hash
+from ai_statistician.generated_metric_contract import (
+    generated_metric_evaluation_semantics_contract,
+    generated_metric_requirement_set_id,
+)
 from ai_statistician.llm_json_repair import PacketValidationError
 from ai_statistician.model_backend import GeneratorResponse
 from ai_statistician.research_schema import OpenResearchQuestion
+
+
+def _generic_requirement(**overrides: object) -> dict[str, object]:
+    row: dict[str, object] = {
+        "requirement_id": "generic_gate",
+        "target_subsystems": ["SimulationEngineer"],
+        "metric_semantics": "one raw finite generic diagnostic",
+        "measurement_protocol": "return one raw generic diagnostic value",
+        "required_runtime_replicates": 5,
+        "operator": "<=",
+        "threshold": 0.1,
+        "lower": None,
+        "upper": None,
+        "tolerance": 0.0,
+        "aggregation": "identity",
+        "minimum_pass_count": None,
+        "minimum_pass_fraction": None,
+        "required": True,
+        "source_anchors": ["theory:generic-gate"],
+        "boundary": "pre-execution empirical control, not proof evidence",
+    }
+    row.update(overrides)
+    return row
 
 
 def _review_payload(*, accept: bool) -> dict[str, object]:
@@ -107,13 +136,20 @@ def _review(
     accept: bool,
     reviewer_model: str = "claude-sonnet-4-6",
     payload: dict[str, object] | None = None,
+    material: dict[str, object] | None = None,
 ):
     backend = _Backend(payload or _review_payload(accept=accept))
-    material = {
+    material = material or {
         "review_stage": "pre_execution_metric_contract_review",
         "execution_results_available": False,
-        "empirical_metric_requirements": [{"requirement_id": "generic_gate"}],
+        "empirical_metric_requirements": [_generic_requirement()],
     }
+    material = architect_metric_review_material_with_runtime_evaluator_certificate(
+        material
+    )
+    requirement_set_id = generated_metric_requirement_set_id(
+        material["empirical_metric_requirements"]
+    )
     packet = LLMArchitectMetricSemanticReviewerAgent(
         provider=backend,
         config=ArchitectMetricSemanticReviewerConfig(
@@ -132,7 +168,7 @@ def _review(
         trusted_lineage={
             "authoring_packet_id": "metric-authoring:1",
             "authoring_packet_hash": stable_hash({"candidate": 1}),
-            "empirical_metric_requirement_set_id": "metric-set:1",
+            "empirical_metric_requirement_set_id": requirement_set_id,
             "source_agent": "ArchitectMetricContractPlanner",
             "source_model": "claude-sonnet-4-6",
             "source_model_tier": "sonnet",
@@ -152,7 +188,11 @@ def test_preexecution_metric_reviewer_accepts_only_with_independent_lineage() ->
     assert packet["independent_model"] is False
     assert packet["independent_model_tier"] is False
     assert packet["review_input_fingerprint"] == stable_hash(material)
-    assert packet["reviewed_empirical_metric_requirement_set_id"] == "metric-set:1"
+    assert packet["reviewed_empirical_metric_requirement_set_id"] == (
+        generated_metric_requirement_set_id(
+            material["empirical_metric_requirements"]
+        )
+    )
     assert packet["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
     assert validate_architect_metric_semantic_review_packet(packet) == []
     assert backend.requests[0].metadata["subsystem"] == (
@@ -162,6 +202,10 @@ def test_preexecution_metric_reviewer_accepts_only_with_independent_lineage() ->
     assert backend.requests[0].metadata["provider_structured_output"] is True
     assert "before any coding agent" in backend.requests[0].user_prompt
     assert "more gates are not more rigorous" in backend.requests[0].user_prompt
+    assert "runtime_evaluator_certificate" in backend.requests[0].user_prompt
+    assert packet["runtime_evaluator_certificate_set_id"].startswith(
+        "generated_metric_evaluator_certificate_set:"
+    )
 
 
 def test_preexecution_metric_reviewer_returns_typed_revision_feedback() -> None:
@@ -173,6 +217,19 @@ def test_preexecution_metric_reviewer_returns_typed_revision_feedback() -> None:
     assert packet["findings"][0]["repair_scope"] == "metric_contract"
     assert packet["recommended_repair_scope"] == "metric_contract"
     assert validate_architect_metric_semantic_review_packet(packet) == []
+
+
+def test_metric_reviewer_binds_certificate_to_authoring_requirement_set() -> None:
+    packet, _, _ = _review(accept=True)
+    packet["reviewed_empirical_metric_requirement_set_id"] = (
+        "generated_metric_requirement_set:wrong"
+    )
+
+    assert (
+        "runtime evaluator certificate requirement-set identity must match "
+        "the reviewed authoring lineage"
+        in validate_architect_metric_semantic_review_packet(packet)
+    )
 
 
 def test_preexecution_metric_reviewer_accepts_low_severity_advisory_uncertainty() -> None:
@@ -222,14 +279,14 @@ def test_preexecution_metric_reviewer_routes_missing_semantics_upstream() -> Non
         review_material={
             "review_stage": "pre_execution_metric_contract_review",
             "execution_results_available": False,
-            "empirical_metric_requirements": [
-                {"requirement_id": "generic_gate"}
-            ],
+            "empirical_metric_requirements": [_generic_requirement()],
         },
         trusted_lineage={
             "authoring_packet_id": "metric-authoring:theory-gap",
             "authoring_packet_hash": stable_hash({"candidate": "theory-gap"}),
-            "empirical_metric_requirement_set_id": "metric-set:theory-gap",
+            "empirical_metric_requirement_set_id": (
+                generated_metric_requirement_set_id([_generic_requirement()])
+            ),
             "source_agent": "ArchitectMetricContractPlanner",
             "source_model": "claude-sonnet-4-6",
             "source_model_tier": "sonnet",
@@ -265,6 +322,7 @@ def test_metric_reviewer_repair_preserves_exact_active_finding_context() -> None
         {
             "finding_id": row["finding_id"],
             "status": "RESOLVED",
+            "runtime_contract_evidence_id": "",
             "rationale": "The current candidate explicitly implements the repair.",
             "evidence_refs": ["requirement:generic_gate"],
         }
@@ -277,15 +335,18 @@ def test_metric_reviewer_repair_preserves_exact_active_finding_context() -> None
         "active_prior_finding_ledger": active_ledger,
         "theory_developer_protocol_material": {"padding": "x" * 12000},
         "empirical_metric_requirements": [
-            {
-                "requirement_id": "generic_gate",
-                "aggregation": "mean",
-                "operator": "between",
-                "lower": -0.1,
-                "upper": 0.1,
-            }
+            _generic_requirement(
+                aggregation="mean",
+                operator="between",
+                threshold=None,
+                lower=-0.1,
+                upper=0.1,
+            )
         ],
     }
+    material = architect_metric_review_material_with_runtime_evaluator_certificate(
+        material
+    )
 
     packet = LLMArchitectMetricSemanticReviewerAgent(
         provider=backend,
@@ -305,7 +366,11 @@ def test_metric_reviewer_repair_preserves_exact_active_finding_context() -> None
         trusted_lineage={
             "authoring_packet_id": "metric-authoring:repair",
             "authoring_packet_hash": stable_hash({"candidate": "repair"}),
-            "empirical_metric_requirement_set_id": "metric-set:repair",
+            "empirical_metric_requirement_set_id": (
+                generated_metric_requirement_set_id(
+                    material["empirical_metric_requirements"]
+                )
+            ),
             "source_agent": "ArchitectMetricContractPlanner",
             "source_model": "claude-sonnet-4-6",
             "source_model_tier": "sonnet",
@@ -354,6 +419,7 @@ def test_metric_reviewer_reports_exact_prior_finding_identity_mismatch() -> None
         {
             "finding_id": finding_id,
             "status": "RESOLVED",
+            "runtime_contract_evidence_id": "",
             "rationale": "The current candidate explicitly closes this finding.",
             "evidence_refs": ["requirement:generic_gate"],
         }
@@ -371,6 +437,68 @@ def test_metric_reviewer_reports_exact_prior_finding_identity_mismatch() -> None
     assert 'received=["finding:a", "finding:a", "finding:c"]' in identity_error
 
 
+def test_metric_reviewer_can_retract_only_runtime_contract_conflicts() -> None:
+    finding_id = "metric-finding:invalid-evaluator-order"
+    evidence_id = (
+        "metric_evaluation_semantics.elementwise_aggregations.evaluation_order"
+    )
+    payload = _review_payload(accept=True)
+    payload["prior_finding_reviews"] = [
+        {
+            "finding_id": finding_id,
+            "status": "RETRACTED_RUNTIME_CONTRACT_CONFLICT",
+            "runtime_contract_evidence_id": evidence_id,
+            "rationale": (
+                "The prior finding reversed the authoritative elementwise "
+                "comparison and quorum order."
+            ),
+            "evidence_refs": [evidence_id],
+        }
+    ]
+    material = {
+        "review_stage": "pre_execution_metric_contract_review",
+        "execution_results_available": False,
+        "active_prior_finding_ledger": [
+            {
+                "finding_id": finding_id,
+                "finding": {
+                    "summary": "The elementwise comparison order is reversed."
+                },
+            }
+        ],
+        "empirical_metric_requirements": [_generic_requirement()],
+        "metric_evaluation_semantics": (
+            generated_metric_evaluation_semantics_contract()
+        ),
+        "runtime_contract_authority": {
+            "allowed_retraction_evidence_ids": list(
+                ARCHITECT_METRIC_RUNTIME_CONTRACT_RETRACTION_EVIDENCE_IDS
+            )
+        },
+    }
+
+    packet, _, _ = _review(
+        accept=True,
+        payload=payload,
+        material=material,
+    )
+
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["prior_finding_reviews"][0]["status"] == (
+        "RETRACTED_RUNTIME_CONTRACT_CONFLICT"
+    )
+    assert validate_architect_metric_semantic_review_packet(packet) == []
+
+    packet["prior_finding_reviews"][0]["runtime_contract_evidence_id"] = (
+        "requirement:generic_gate"
+    )
+    assert (
+        "runtime-contract finding retraction must select an exact allowed "
+        "runtime_contract_evidence_id"
+        in validate_architect_metric_semantic_review_packet(packet)
+    )
+
+
 def test_metric_review_schema_transforms_for_anthropic_structured_output() -> None:
     anthropic = pytest.importorskip("anthropic")
 
@@ -379,7 +507,12 @@ def test_metric_review_schema_transforms_for_anthropic_structured_output() -> No
             "active_prior_finding_ledger": [
                 {"finding_id": "finding:one", "finding": {"summary": "one"}},
                 {"finding_id": "finding:two", "finding": {"summary": "two"}},
-            ]
+            ],
+            "runtime_contract_authority": {
+                "allowed_retraction_evidence_ids": [
+                    "generated_metric_evaluator_certificate:test"
+                ]
+            },
         }
     )
     transformed = anthropic.transform_schema(dynamic_schema)
@@ -392,6 +525,9 @@ def test_metric_review_schema_transforms_for_anthropic_structured_output() -> No
     assert transformed_prior_schema["items"]["properties"]["finding_id"][
         "enum"
     ] == ["finding:one", "finding:two"]
+    assert transformed_prior_schema["items"]["properties"][
+        "runtime_contract_evidence_id"
+    ]["enum"] == ["", "generated_metric_evaluator_certificate:test"]
     assert "minItems: 2" in transformed_prior_schema["description"]
     assert ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA["properties"][
         "prior_finding_reviews"

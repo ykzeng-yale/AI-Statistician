@@ -7,8 +7,10 @@ from datetime import datetime, timezone
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
+from .generated_metric_contract import generated_metric_evaluator_certificate
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .metric_protocol_finding_ledger import (
+    METRIC_PROTOCOL_FINDING_RETRACTED_RUNTIME_CONTRACT_CONFLICT,
     METRIC_PROTOCOL_FINDING_UNRESOLVED,
     METRIC_PROTOCOL_PRIOR_FINDING_REVIEW_STATUSES,
     normalize_metric_protocol_findings,
@@ -17,7 +19,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 
 
-ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 2
+ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 5
 ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -33,7 +35,7 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS = (
     "measurement_identifiability_and_non_vacuity",
     "mathematical_and_numeric_internal_consistency",
     "finite_sample_attainability_and_calibration",
-    "typed_evaluator_semantics_equivalence",
+    "measurement_protocol_to_certified_pass_set_alignment",
     "cross_requirement_coverage_and_consistency",
 )
 ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_METRIC_CONTRACT = "metric_contract"
@@ -42,6 +44,70 @@ ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPES = (
     ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_METRIC_CONTRACT,
     ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY,
 )
+ARCHITECT_METRIC_RUNTIME_CONTRACT_RETRACTION_EVIDENCE_IDS = (
+    "requirement_schema.required",
+    "requirement_schema.properties.operator.enum",
+    "metric_evaluation_semantics.scalar_aggregations.evaluation_order",
+    "metric_evaluation_semantics.elementwise_aggregations.evaluation_order",
+    "metric_evaluation_semantics.quorum_rule",
+    "metric_evaluation_semantics.boolean_predicate_rule",
+)
+
+
+def architect_metric_review_material_with_runtime_evaluator_certificate(
+    review_material: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Bind review input to the one evaluator implementation the runtime executes."""
+
+    body = deepcopy(dict(review_material))
+    requirements = [
+        dict(row)
+        for row in body.get("empirical_metric_requirements", []) or []
+        if isinstance(row, Mapping)
+    ]
+    certificate = generated_metric_evaluator_certificate(requirements)
+    certificate_ids = [
+        str(row.get("certificate_id", "") or "").strip()
+        for row in certificate.get("certificates", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("certificate_id", "") or "").strip()
+    ]
+    authority = dict(body.get("runtime_contract_authority", {}) or {})
+    authority.update(
+        {
+            "schema_version": 2,
+            "runtime_owned": True,
+            "evaluator_certificate_set_id": certificate[
+                "certificate_set_id"
+            ],
+            "alternative_runtime_interpretations_allowed": False,
+        }
+    )
+    available_static_evidence_ids = [
+        evidence_id
+        for evidence_id in ARCHITECT_METRIC_RUNTIME_CONTRACT_RETRACTION_EVIDENCE_IDS
+        if (
+            evidence_id.startswith("requirement_schema.")
+            and isinstance(body.get("requirement_schema"), Mapping)
+            and bool(body.get("requirement_schema"))
+        )
+        or (
+            evidence_id.startswith("metric_evaluation_semantics.")
+            and isinstance(body.get("metric_evaluation_semantics"), Mapping)
+            and bool(body.get("metric_evaluation_semantics"))
+        )
+    ]
+    authority["allowed_retraction_evidence_ids"] = list(
+        dict.fromkeys(
+            [
+                *available_static_evidence_ids,
+                *certificate_ids,
+            ]
+        )
+    )
+    body["runtime_contract_authority"] = authority
+    body["runtime_evaluator_certificate"] = certificate
+    return body
 
 
 def architect_metric_semantic_recommended_repair_scope(
@@ -140,6 +206,18 @@ def _architect_metric_semantic_review_repair_context(
                 "execution_results_available"
             ),
         },
+        "metric_evaluation_semantics": deepcopy(
+            review_material.get("metric_evaluation_semantics", {})
+        ),
+        "requirement_schema": deepcopy(
+            review_material.get("requirement_schema", {})
+        ),
+        "runtime_contract_authority": deepcopy(
+            review_material.get("runtime_contract_authority", {})
+        ),
+        "runtime_evaluator_certificate": deepcopy(
+            review_material.get("runtime_evaluator_certificate", {})
+        ),
         "rejected_review_packet": rejected_review,
         "repair_prompt_priority_instructions": [
             (
@@ -149,6 +227,12 @@ def _architect_metric_semantic_review_repair_context(
             (
                 "Use UNRESOLVED when the current candidate or current theory does "
                 "not explicitly close an active prior finding."
+            ),
+            (
+                "Use RETRACTED_RUNTIME_CONTRACT_CONFLICT only when the prior "
+                "finding itself contradicts a runtime-owned schema or evaluator "
+                "rule; set runtime_contract_evidence_id to one exact allowed "
+                "retraction evidence ID. Use an empty string for every other status."
             ),
             (
                 "Use subsystem_repair_context.current_candidate as the exact current "
@@ -185,6 +269,11 @@ class LLMArchitectMetricSemanticReviewerAgent:
         review_material: Mapping[str, Any],
         trusted_lineage: Mapping[str, Any],
     ) -> dict[str, Any]:
+        review_material = (
+            architect_metric_review_material_with_runtime_evaluator_certificate(
+                review_material
+            )
+        )
         request_model = resolve_generator_model(
             provider_name=self.config.provider_name,
             requested_model=self.config.model,
@@ -267,8 +356,11 @@ def build_architect_metric_semantic_review_prompt(
         "the required output contract. Derive and check the mathematical meaning of "
         "every proposed metric, numeric constant, comparison, aggregation, quorum, "
         "runtime replicate count, estimand, and data-generating regime from the "
-        "supplied question and protocol. Translate the prose through the exact typed "
-        "evaluator order and verify that both descriptions define the same pass set. "
+        "supplied question and protocol. Translate the prose through each exact "
+        "runtime_evaluator_certificate and verify that both descriptions define the "
+        "same pass set. The certificate records the actual executable dispatch; do "
+        "not speculate about hypothetical evaluator implementations or reinterpret "
+        "an elementwise certificate as scalar dispatch. "
         "Reject gates that are vacuous, not identifiable by the stated experiment, "
         "contradict one another, compare noise-dominated or undefined quantities, "
         "confuse an expectation with an all-replicates event, or are not plausibly "
@@ -281,7 +373,22 @@ def build_architect_metric_semantic_review_prompt(
         "return exactly one prior_finding_reviews row for every listed finding_id. "
         "Mark it RESOLVED only when the current candidate itself closes the issue, "
         "RESOLVED_BY_CURRENT_THEORY only when the current source theory now closes "
-        "it, and UNRESOLVED otherwise. Cite current candidate or theory fields; do "
+        "it, and UNRESOLVED otherwise. A reviewer finding is not infallible: use "
+        "RETRACTED_RUNTIME_CONTRACT_CONFLICT only when the prior finding's requested "
+        "change or evaluator claim conflicts with the supplied runtime-owned "
+        "requirement_schema, metric_evaluation_semantics, or the per-requirement "
+        "runtime_evaluator_certificate. Such a retraction must set "
+        "runtime_contract_evidence_id to an exact ID from "
+        "runtime_contract_authority.allowed_retraction_evidence_ids and cite the same "
+        "ID in evidence_refs; every non-retraction row must use an empty string. "
+        "it cannot be used to waive a statistical, theory, identifiability, or "
+        "calibration defect. The runtime-owned schema and certified evaluation order "
+        "are facts outside reviewer authority: operator remains a required comparison "
+        "for elementwise aggregations, which compare each raw value before applying "
+        "a quorum. The reviewer owns the protocol prose-to-certified-pass-set "
+        "comparison and the statistical validity of that pass set, not Python "
+        "dispatch selection. "
+        "Cite current candidate or theory fields; do "
         "not infer resolution merely because a prior finding is absent from the new "
         "candidate. Recheck the complete contract after those row-level decisions "
         "so a repair does not introduce a different inconsistency. Assign every "
@@ -319,7 +426,13 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_OUTPUT_CONTRACT: dict[str, Any] = {
     "prior_finding_reviews": [
         {
             "finding_id": "an exact finding_id from active_prior_finding_ledger",
-            "status": "RESOLVED|RESOLVED_BY_CURRENT_THEORY|UNRESOLVED",
+            "status": (
+                "RESOLVED|RESOLVED_BY_CURRENT_THEORY|UNRESOLVED|"
+                "RETRACTED_RUNTIME_CONTRACT_CONFLICT"
+            ),
+            "runtime_contract_evidence_id": (
+                "one exact allowed runtime evidence ID for retraction; empty otherwise"
+            ),
             "rationale": "current-artifact evidence for this disposition",
             "evidence_refs": ["current theory/candidate field reference"],
         }
@@ -405,13 +518,20 @@ _FINDING_SCHEMA: dict[str, Any] = {
 _PRIOR_FINDING_REVIEW_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["finding_id", "status", "rationale", "evidence_refs"],
+    "required": [
+        "finding_id",
+        "status",
+        "runtime_contract_evidence_id",
+        "rationale",
+        "evidence_refs",
+    ],
     "properties": {
         "finding_id": {"type": "string", "minLength": 1},
         "status": {
             "type": "string",
             "enum": list(METRIC_PROTOCOL_PRIOR_FINDING_REVIEW_STATUSES),
         },
+        "runtime_contract_evidence_id": {"type": "string"},
         "rationale": {"type": "string", "minLength": 1},
         "evidence_refs": {
             "type": "array",
@@ -471,6 +591,25 @@ def architect_metric_semantic_review_json_schema(
         prior_reviews_schema["items"]["properties"]["finding_id"]["enum"] = (
             active_ids
         )
+    runtime_contract_authority = review_material.get(
+        "runtime_contract_authority",
+        {},
+    )
+    allowed_runtime_evidence_ids = [
+        str(value).strip()
+        for value in (
+            runtime_contract_authority.get(
+                "allowed_retraction_evidence_ids",
+                [],
+            )
+            if isinstance(runtime_contract_authority, Mapping)
+            else []
+        )
+        if str(value).strip()
+    ]
+    prior_reviews_schema["items"]["properties"][
+        "runtime_contract_evidence_id"
+    ]["enum"] = ["", *allowed_runtime_evidence_ids]
     return schema
 
 
@@ -486,6 +625,11 @@ def validate_architect_metric_semantic_review_packet(
         errors.append("Architect metric review must be marked pre_execution_review=true")
     if packet.get("execution_results_observed") is not False:
         errors.append("Architect metric review cannot observe execution results")
+    if packet.get("runtime_evaluator_certificate_all_rows_schema_valid") is not True:
+        errors.append(
+            "Architect metric review requires a schema-valid deterministic "
+            "runtime evaluator certificate"
+        )
 
     expected_prior_finding_ids = [
         str(value).strip()
@@ -498,12 +642,24 @@ def validate_architect_metric_semantic_review_packet(
         prior_finding_reviews = []
     reviewed_prior_finding_ids: list[str] = []
     unresolved_prior_findings = 0
+    allowed_retraction_evidence_ids = {
+        str(value).strip()
+        for value in packet.get(
+            "runtime_contract_retraction_evidence_ids",
+            [],
+        )
+        or []
+        if str(value).strip()
+    }
     for row in prior_finding_reviews:
         if not isinstance(row, Mapping):
             errors.append("prior_finding_reviews entries must be objects")
             continue
         finding_id = str(row.get("finding_id", "") or "").strip()
         status = str(row.get("status", "") or "").strip().upper()
+        runtime_contract_evidence_id = str(
+            row.get("runtime_contract_evidence_id", "") or ""
+        ).strip()
         reviewed_prior_finding_ids.append(finding_id)
         if status not in METRIC_PROTOCOL_PRIOR_FINDING_REVIEW_STATUSES:
             errors.append(f"invalid prior finding status for {finding_id}")
@@ -517,6 +673,26 @@ def validate_architect_metric_semantic_review_packet(
         ):
             errors.append(
                 f"prior finding review {finding_id} missing evidence_refs"
+            )
+        if status == METRIC_PROTOCOL_FINDING_RETRACTED_RUNTIME_CONTRACT_CONFLICT:
+            if runtime_contract_evidence_id not in allowed_retraction_evidence_ids:
+                errors.append(
+                    "runtime-contract finding retraction must select an exact "
+                    "allowed runtime_contract_evidence_id"
+                )
+            if runtime_contract_evidence_id not in {
+                str(value).strip()
+                for value in evidence_refs
+                if str(value).strip()
+            }:
+                errors.append(
+                    "runtime-contract finding retraction must cite its selected "
+                    "runtime_contract_evidence_id in evidence_refs"
+                )
+        elif runtime_contract_evidence_id:
+            errors.append(
+                "non-retraction prior finding review must leave "
+                "runtime_contract_evidence_id empty"
             )
     if sorted(reviewed_prior_finding_ids) != sorted(expected_prior_finding_ids):
         errors.append(
@@ -649,9 +825,22 @@ def validate_architect_metric_semantic_review_packet(
         "source_model",
         "source_model_tier",
         "review_input_fingerprint",
+        "runtime_evaluator_certificate_set_id",
+        "runtime_evaluator_certificate_requirement_set_id",
+        "runtime_evaluator_certificate_requirement_set_fingerprint",
     ):
         if not str(packet.get(field, "") or "").strip():
             errors.append(f"Architect metric review missing trusted lineage field: {field}")
+    if str(
+        packet.get("runtime_evaluator_certificate_requirement_set_id", "")
+        or ""
+    ) != str(
+        packet.get("reviewed_empirical_metric_requirement_set_id", "") or ""
+    ):
+        errors.append(
+            "runtime evaluator certificate requirement-set identity must match "
+            "the reviewed authoring lineage"
+        )
     if verdict == "ACCEPT":
         if packet.get("independent_agent") is not True:
             errors.append("ACCEPT Architect metric review requires an independent agent")
@@ -720,6 +909,68 @@ def _normalize_architect_metric_semantic_review_packet(
     )
     body["expected_prior_finding_ids"] = _active_prior_finding_ids(
         review_material
+    )
+    runtime_contract_authority = review_material.get(
+        "runtime_contract_authority",
+        {},
+    )
+    body["runtime_contract_retraction_evidence_ids"] = [
+        str(value).strip()
+        for value in (
+            runtime_contract_authority.get(
+                "allowed_retraction_evidence_ids",
+                [],
+            )
+            if isinstance(runtime_contract_authority, Mapping)
+            else []
+        )
+        if str(value).strip()
+    ]
+    runtime_evaluator_certificate = review_material.get(
+        "runtime_evaluator_certificate",
+        {},
+    )
+    certificate_rows = (
+        runtime_evaluator_certificate.get("certificates", [])
+        if isinstance(runtime_evaluator_certificate, Mapping)
+        else []
+    )
+    body["runtime_evaluator_certificate_set_id"] = str(
+        (
+            runtime_evaluator_certificate.get("certificate_set_id", "")
+            if isinstance(runtime_evaluator_certificate, Mapping)
+            else ""
+        )
+        or ""
+    ).strip()
+    body["runtime_evaluator_certificate_requirement_set_id"] = str(
+        (
+            runtime_evaluator_certificate.get("requirement_set_id", "")
+            if isinstance(runtime_evaluator_certificate, Mapping)
+            else ""
+        )
+        or ""
+    ).strip()
+    body["runtime_evaluator_certificate_requirement_set_fingerprint"] = str(
+        (
+            runtime_evaluator_certificate.get(
+                "requirement_set_fingerprint",
+                "",
+            )
+            if isinstance(runtime_evaluator_certificate, Mapping)
+            else ""
+        )
+        or ""
+    ).strip()
+    body["runtime_evaluator_certificate_ids"] = [
+        str(row.get("certificate_id", "") or "").strip()
+        for row in certificate_rows
+        if isinstance(row, Mapping)
+        and str(row.get("certificate_id", "") or "").strip()
+    ]
+    body["runtime_evaluator_certificate_all_rows_schema_valid"] = bool(
+        isinstance(runtime_evaluator_certificate, Mapping)
+        and runtime_evaluator_certificate.get("all_rows_schema_valid") is True
     )
     body["unresolved_prior_findings"] = unresolved_prior_findings
     body.update(

@@ -11,9 +11,11 @@ from .architect_metric_repair_ownership_router_llm import (
     apply_architect_metric_repair_ownership_routes,
 )
 from .architect_metric_semantic_reviewer_llm import (
+    ARCHITECT_METRIC_RUNTIME_CONTRACT_RETRACTION_EVIDENCE_IDS,
     ARCHITECT_METRIC_SEMANTIC_REVIEW_BOUNDARY,
     ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_METRIC_CONTRACT,
     LLMArchitectMetricSemanticReviewerAgent,
+    architect_metric_review_material_with_runtime_evaluator_certificate,
     architect_metric_semantic_recommended_repair_scope,
 )
 from .fingerprint import stable_hash
@@ -713,6 +715,23 @@ def author_reviewed_architect_metric_requirements(
             "metric_evaluation_semantics": (
                 generated_metric_evaluation_semantics_contract()
             ),
+            "requirement_schema": generated_metric_requirement_json_schema(),
+            "runtime_contract_authority": {
+                "schema_version": 1,
+                "runtime_owned": True,
+                "allowed_retraction_status": (
+                    "RETRACTED_RUNTIME_CONTRACT_CONFLICT"
+                ),
+                "allowed_retraction_evidence_ids": list(
+                    ARCHITECT_METRIC_RUNTIME_CONTRACT_RETRACTION_EVIDENCE_IDS
+                ),
+                "retraction_boundary": (
+                    "This status only corrects a reviewer finding that conflicts "
+                    "with the supplied runtime schema or evaluator order. It cannot "
+                    "waive a statistical, theory, identifiability, feasibility, or "
+                    "calibration defect."
+                ),
+            },
             "theory_developer_protocol_material": theory_material,
             "fresh_candidate_revision_context": fresh_revision,
             "active_prior_finding_ledger": active_finding_ledger,
@@ -733,6 +752,11 @@ def author_reviewed_architect_metric_requirements(
                 "Every empirical-evaluation target subsystem must remain covered by at least one required row.",
             ],
         }
+        review_material = (
+            architect_metric_review_material_with_runtime_evaluator_certificate(
+                review_material
+            )
+        )
         trusted_review_lineage = {
             "authoring_packet_id": str(authoring_packet["packet_id"]),
             "authoring_packet_hash": authoring_packet_hash,

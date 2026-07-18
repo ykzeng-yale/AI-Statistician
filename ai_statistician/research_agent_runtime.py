@@ -12796,6 +12796,44 @@ def _runtime_generated_code_semantic_review_source_responsibility_contract(
     }
 
 
+def _runtime_generated_code_semantic_review_scope_projection(
+    *,
+    value: Any,
+    assigned_requirements: Sequence[Mapping[str, Any]],
+) -> Any:
+    """Project duplicated metric context to the current source owner's rows."""
+
+    if isinstance(value, Mapping):
+        return {
+            str(key): (
+                [dict(row) for row in assigned_requirements]
+                if str(key) == "empirical_metric_requirements"
+                else _runtime_generated_code_semantic_review_scope_projection(
+                    value=item,
+                    assigned_requirements=assigned_requirements,
+                )
+            )
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [
+            _runtime_generated_code_semantic_review_scope_projection(
+                value=item,
+                assigned_requirements=assigned_requirements,
+            )
+            for item in value
+        ]
+    if isinstance(value, tuple):
+        return [
+            _runtime_generated_code_semantic_review_scope_projection(
+                value=item,
+                assigned_requirements=assigned_requirements,
+            )
+            for item in value
+        ]
+    return deepcopy(value)
+
+
 def _runtime_generated_code_semantic_review_rows(
     manifest: Mapping[str, Any],
     *,
@@ -13148,6 +13186,72 @@ def _runtime_generated_code_semantic_review_material(
                 },
             }
         )
+    architect_evidence_contract = dict(
+        work_order.get("architect_evidence_contract", {}) or {}
+    )
+    source_responsibility_contract = dict(
+        work_order.get("source_responsibility_contract", {}) or {}
+    )
+    assigned_requirements = [
+        dict(row)
+        for row in source_responsibility_contract.get(
+            "assigned_empirical_metric_requirements",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    review_scope_projection = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "canonical_architect_evidence_contract_fingerprint": stable_hash(
+            architect_evidence_contract
+        ),
+        "canonical_empirical_metric_requirement_set_id": str(
+            architect_evidence_contract.get(
+                "empirical_metric_requirement_set_id",
+                "",
+            )
+            or generated_metric_requirement_set_id(
+                [
+                    dict(row)
+                    for row in architect_evidence_contract.get(
+                        "empirical_metric_requirements",
+                        [],
+                    )
+                    or []
+                    if isinstance(row, Mapping)
+                ]
+            )
+        ),
+        "assigned_requirement_ids": list(
+            source_responsibility_contract.get("assigned_requirement_ids", [])
+            or []
+        ),
+        "sibling_only_requirement_refs": [
+            dict(row)
+            for row in source_responsibility_contract.get(
+                "sibling_only_requirement_refs",
+                [],
+            )
+            or []
+            if isinstance(row, Mapping)
+        ],
+        "projection_rule": (
+            "The reviewer receives full rows only for requirements assigned to "
+            "the current generated-code author. Sibling requirements remain as "
+            "identity/owner references for handoff awareness and cannot fail this "
+            "artifact's review. The canonical frozen contract remains immutable "
+            "and is evaluated when its owning artifact executes."
+        ),
+        "proof_evidence_status": (
+            "GENERATED_CODE_REVIEW_SCOPE_PROJECTION_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    source_manifest_summary = {
+        key: value
+        for key, value in source_manifest.items()
+        if key not in {"generated_simulation_sandbox_prototypes", "prototypes"}
+    }
     material = {
         "source_subsystem": source_subsystem,
         "empirical_evaluation_phase": str(
@@ -13159,20 +13263,27 @@ def _runtime_generated_code_semantic_review_material(
         "source_manifest_id": str(
             work_order.get("source_manifest_id", "") or ""
         ),
-        "source_manifest_summary": {
-            key: value
-            for key, value in source_manifest.items()
-            if key
-            not in {"generated_simulation_sandbox_prototypes", "prototypes"}
-        },
+        "source_manifest_summary": (
+            _runtime_generated_code_semantic_review_scope_projection(
+                value=source_manifest_summary,
+                assigned_requirements=assigned_requirements,
+            )
+        ),
         "theory_packet": dict(theory_packet),
-        "coding_agent_proposal_packet": dict(proposal_packet),
-        "architect_frozen_evidence_contract": dict(
-            work_order.get("architect_evidence_contract", {}) or {}
+        "coding_agent_proposal_packet": (
+            _runtime_generated_code_semantic_review_scope_projection(
+                value=dict(proposal_packet),
+                assigned_requirements=assigned_requirements,
+            )
         ),
-        "source_responsibility_contract": dict(
-            work_order.get("source_responsibility_contract", {}) or {}
+        "architect_frozen_evidence_contract": (
+            _runtime_generated_code_semantic_review_scope_projection(
+                value=architect_evidence_contract,
+                assigned_requirements=assigned_requirements,
+            )
         ),
+        "source_responsibility_contract": source_responsibility_contract,
+        "review_scope_projection": review_scope_projection,
         "exact_executed_artifacts": exact_artifacts,
         "evidence_boundary": GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
     }
@@ -13848,9 +13959,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 next_task = None
                 status = "BLOCKED"
                 rationale = (
-                    "The same theory-bound semantic finding returned after its "
-                    "bounded local repair and Architect replan allowance. The "
-                    "runtime stopped the lineage instead of resetting the budget."
+                    "The theory-bound generated-code review exhausted its global "
+                    "local-repair and Architect-replan budget. The runtime stopped "
+                    "the source lineage instead of resetting a local counter."
                 )
                 failure_classification = (
                     "generated_code_semantic_review_lineage_budget_exhausted"

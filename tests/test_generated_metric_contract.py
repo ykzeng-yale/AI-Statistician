@@ -15,6 +15,7 @@ from ai_statistician.generated_metric_contract import (
     generated_metric_contract_set_id,
     generated_metric_contracts_for_artifact,
     generated_metric_evaluation_semantics_contract,
+    generated_metric_evaluator_certificate,
     generated_metric_requirement_json_schema,
     generated_metric_requirement_prompt_schema,
     generated_metric_requirement_set_id,
@@ -140,6 +141,61 @@ def test_metric_evaluation_semantics_separates_comparison_from_quorum() -> None:
     assert "separate from threshold" in schema["minimum_pass_count"][
         "description"
     ]
+
+
+def test_metric_evaluator_certificate_records_actual_dispatch_order() -> None:
+    elementwise = _requirement(
+        operator="==",
+        threshold=1,
+        aggregation="at_least_count",
+        minimum_pass_count=60,
+    )
+    scalar = _requirement(
+        requirement_id="architect:mean-control",
+        aggregation="mean",
+        minimum_pass_count=None,
+    )
+
+    certificate_set = generated_metric_evaluator_certificate(
+        [elementwise, scalar]
+    )
+    by_requirement = {
+        row["requirement_id"]: row
+        for row in certificate_set["certificates"]
+    }
+
+    elementwise_certificate = by_requirement[
+        "architect:criterion-control"
+    ]
+    assert elementwise_certificate["evaluator_shape_valid"] is True
+    assert elementwise_certificate["evaluator_shape_errors"] == []
+    assert elementwise_certificate["dispatch_class"] == "elementwise"
+    assert elementwise_certificate["evaluation_order"] == (
+        "compare_each_raw_value_then_aggregate_booleans"
+    )
+    assert elementwise_certificate["comparison_stage"] == {
+        "input": "each_resolved_raw_value",
+        "operator": "==",
+        "threshold": 1,
+        "lower": None,
+        "upper": None,
+        "tolerance": 0.0,
+    }
+    assert elementwise_certificate["aggregation_stage"]["operation"] == (
+        "at_least_count"
+    )
+    assert elementwise_certificate["aggregation_stage"][
+        "minimum_pass_count"
+    ] == 60
+    assert by_requirement["architect:mean-control"]["evaluation_order"] == (
+        "aggregate_raw_values_then_compare_once"
+    )
+    assert certificate_set["alternative_runtime_interpretations_allowed"] is False
+    assert certificate_set["all_rows_schema_valid"] is True
+    assert certificate_set["requirement_schema_errors"] == []
+    assert certificate_set["proof_evidence_status"] == (
+        GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE
+    )
 
 
 def test_metric_requirement_validator_does_not_silently_alias_runtime_owner() -> None:
