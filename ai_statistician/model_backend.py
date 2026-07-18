@@ -679,6 +679,27 @@ class StaticJSONGeneratorBackend:
 
 
 _ANTHROPIC_NEGOTIABLE_OPTIONAL_PARAMETERS = frozenset({"temperature"})
+_ANTHROPIC_JSON_ONLY_PROMPT_SUFFIX = (
+    "Return exactly one valid JSON object. Do not wrap it in Markdown. "
+    "Do not include commentary outside JSON."
+)
+
+
+def _anthropic_json_only_user_prompt(user_prompt: str) -> str:
+    suffix = _ANTHROPIC_JSON_ONLY_PROMPT_SUFFIX
+    if suffix in user_prompt:
+        return user_prompt
+    return f"{user_prompt}\n\n{suffix}"
+
+
+def _anthropic_structured_output_grammar_too_large(exc: Exception) -> bool:
+    """Recognize Anthropic's deterministic strict-schema size rejection."""
+
+    error_text = str(exc).lower()
+    return (
+        "compiled grammar is too large" in error_text
+        and "simplify your tool schemas" in error_text
+    )
 
 
 def _prune_unreferenced_json_schema_defs(
@@ -732,13 +753,34 @@ def _anthropic_create_with_capability_fallback(
     *,
     request_kwargs: dict[str, Any],
     omitted_unsupported_parameters: list[str],
+    structured_output_fallback: dict[str, Any] | None = None,
+    json_only_user_prompt: str = "",
 ) -> Any:
-    """Retry once per rejected optional parameter using provider feedback."""
+    """Retry rejected optional capabilities without changing the model."""
 
     while True:
         try:
             return messages_api.create(**request_kwargs)
         except Exception as exc:
+            if (
+                "output_config" in request_kwargs
+                and structured_output_fallback is not None
+                and _anthropic_structured_output_grammar_too_large(exc)
+            ):
+                request_kwargs.pop("output_config", None)
+                request_kwargs["messages"] = [
+                    {
+                        "role": "user",
+                        "content": json_only_user_prompt,
+                    }
+                ]
+                structured_output_fallback["count"] = int(
+                    structured_output_fallback.get("count", 0) or 0
+                ) + 1
+                structured_output_fallback["reason"] = (
+                    "anthropic_compiled_grammar_too_large"
+                )
+                continue
             parameter = _anthropic_rejected_optional_parameter(exc)
             if not parameter or parameter not in request_kwargs:
                 raise
@@ -776,6 +818,9 @@ class AnthropicGeneratorBackend:
         self.timeout_s = timeout_s
         self._capability_lock = threading.Lock()
         self._unsupported_optional_parameters_by_model: dict[str, set[str]] = {}
+        self._oversized_structured_output_schemas_by_model: dict[
+            str, set[str]
+        ] = {}
 
     def generate(self, request: GeneratorRequest) -> GeneratorResponse:
         if not self.api_key:
@@ -820,14 +865,37 @@ class AnthropicGeneratorBackend:
                     "failed to transform GeneratorRequest.schema for Anthropic "
                     f"structured output: {type(exc).__name__}: {exc}"
                 ) from exc
-        json_mode_hint = request.schema is not None and not structured_output_requested
+        structured_output_schema_fingerprint = (
+            stable_hash(structured_output_schema)
+            if structured_output_schema
+            else ""
+        )
+        with self._capability_lock:
+            cached_oversized_structured_output_schema = bool(
+                structured_output_schema_fingerprint
+                and structured_output_schema_fingerprint
+                in self._oversized_structured_output_schemas_by_model.get(
+                    request.model,
+                    set(),
+                )
+            )
+        structured_output_applied = bool(
+            structured_output_requested
+            and not cached_oversized_structured_output_schema
+        )
+        json_mode_hint = bool(
+            request.schema is not None
+            and (
+                not structured_output_requested
+                or cached_oversized_structured_output_schema
+            )
+        )
         user_prompt = request.user_prompt
         if json_mode_hint:
-            user_prompt = (
-                request.user_prompt
-                + "\n\nReturn exactly one valid JSON object. Do not wrap it in Markdown. "
-                "Do not include commentary outside JSON."
-            )
+            user_prompt = _anthropic_json_only_user_prompt(request.user_prompt)
+        json_only_user_prompt = _anthropic_json_only_user_prompt(
+            request.user_prompt
+        )
         messages = [{"role": "user", "content": user_prompt}]
         request_kwargs: dict[str, Any] = {
             "model": request.model,
@@ -836,7 +904,7 @@ class AnthropicGeneratorBackend:
             "system": request.system_prompt,
             "messages": messages,
         }
-        if structured_output_requested:
+        if structured_output_applied:
             request_kwargs["output_config"] = {
                 "format": {
                     "type": "json_schema",
@@ -853,6 +921,10 @@ class AnthropicGeneratorBackend:
         for parameter in cached_unsupported_parameters:
             request_kwargs.pop(parameter, None)
         omitted_unsupported_parameters = sorted(cached_unsupported_parameters)
+        structured_output_fallback: dict[str, Any] = {
+            "count": 0,
+            "reason": "",
+        }
         response, retry_count = _call_with_generator_retries(
             lambda: _call_with_wall_clock_timeout(
                 lambda: _anthropic_create_with_capability_fallback(
@@ -861,6 +933,8 @@ class AnthropicGeneratorBackend:
                     omitted_unsupported_parameters=(
                         omitted_unsupported_parameters
                     ),
+                    structured_output_fallback=structured_output_fallback,
+                    json_only_user_prompt=json_only_user_prompt,
                 ),
                 timeout_s=timeout_s,
                 provider_name=self.provider_name,
@@ -872,6 +946,14 @@ class AnthropicGeneratorBackend:
                 request.model,
                 set(),
             ).update(omitted_unsupported_parameters)
+            if (
+                int(structured_output_fallback.get("count", 0) or 0) > 0
+                and structured_output_schema_fingerprint
+            ):
+                self._oversized_structured_output_schemas_by_model.setdefault(
+                    request.model,
+                    set(),
+                ).add(structured_output_schema_fingerprint)
         capability_fallback_count = len(
             set(omitted_unsupported_parameters) - cached_unsupported_parameters
         )
@@ -897,7 +979,11 @@ class AnthropicGeneratorBackend:
                 "generator_only": True,
                 "tools_available": False,
                 "schema_supplied": request.schema is not None,
-                "json_prompt_hint_used": json_mode_hint,
+                "json_prompt_hint_used": bool(
+                    json_mode_hint
+                    or int(structured_output_fallback.get("count", 0) or 0)
+                    > 0
+                ),
                 "provider_structured_output_requested": (
                     structured_output_requested
                 ),
@@ -906,9 +992,16 @@ class AnthropicGeneratorBackend:
                     and "output_config" in request_kwargs
                 ),
                 "provider_structured_output_schema_fingerprint": (
-                    stable_hash(structured_output_schema)
-                    if structured_output_schema
-                    else ""
+                    structured_output_schema_fingerprint
+                ),
+                "provider_structured_output_fallback_count": int(
+                    structured_output_fallback.get("count", 0) or 0
+                ),
+                "provider_structured_output_fallback_reason": str(
+                    structured_output_fallback.get("reason", "") or ""
+                ),
+                "provider_structured_output_cached_fallback": (
+                    cached_oversized_structured_output_schema
                 ),
                 "timeout_seconds": timeout_s,
                 "retry_count": retry_count,

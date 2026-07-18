@@ -224,6 +224,118 @@ def test_anthropic_generator_backend_applies_opted_in_structured_output(
     ]
 
 
+def test_anthropic_generator_backend_falls_back_from_oversized_strict_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+
+    class BadRequestError(Exception):
+        pass
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            calls.append(dict(kwargs))
+            if "output_config" in kwargs:
+                raise BadRequestError(
+                    "The compiled grammar is too large, which would cause "
+                    "performance issues. Simplify your tool schemas or reduce "
+                    "the number of strict tools."
+                )
+            return SimpleNamespace(
+                content=[SimpleNamespace(text='{"ok": true}')],
+                model="claude-sonnet-4-6",
+            )
+
+    class FakeAnthropicClient:
+        def __init__(self, *, api_key: str, timeout: float, max_retries: int) -> None:
+            self.messages = FakeMessages()
+
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        SimpleNamespace(
+            Anthropic=FakeAnthropicClient,
+            transform_schema=lambda schema: schema,
+        ),
+    )
+    request = GeneratorRequest(
+        **{
+            **_request().__dict__,
+            "metadata": {
+                "provider_structured_output": True,
+                "model_tier": "sonnet",
+            },
+        }
+    )
+    backend = AnthropicGeneratorBackend(api_key="test-anthropic-key")
+
+    response = backend.generate(request)
+
+    assert len(calls) == 2
+    assert calls[0]["model"] == calls[1]["model"] == "claude-sonnet-4-6"
+    assert "output_config" in calls[0]
+    assert "output_config" not in calls[1]
+    assert "Return exactly one valid JSON object" in calls[1]["messages"][0][
+        "content"
+    ]
+    assert response.metadata["provider_structured_output_requested"] is True
+    assert response.metadata["provider_structured_output_applied"] is False
+    assert response.metadata["provider_structured_output_fallback_count"] == 1
+    assert response.metadata["provider_structured_output_fallback_reason"] == (
+        "anthropic_compiled_grammar_too_large"
+    )
+    assert response.metadata["provider_structured_output_cached_fallback"] is False
+    assert response.metadata["json_prompt_hint_used"] is True
+    assert response.metadata["provider_reported_model_tier"] == "sonnet"
+
+    cached_response = backend.generate(request)
+
+    assert len(calls) == 3
+    assert "output_config" not in calls[2]
+    assert cached_response.metadata["provider_structured_output_applied"] is False
+    assert cached_response.metadata["provider_structured_output_fallback_count"] == 0
+    assert cached_response.metadata["provider_structured_output_cached_fallback"] is True
+    assert cached_response.metadata["json_prompt_hint_used"] is True
+
+
+def test_anthropic_generator_backend_does_not_mask_other_structured_output_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = {"count": 0}
+
+    class BadRequestError(Exception):
+        pass
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            calls["count"] += 1
+            raise BadRequestError("invalid schema keyword")
+
+    class FakeAnthropicClient:
+        def __init__(self, *, api_key: str, timeout: float, max_retries: int) -> None:
+            self.messages = FakeMessages()
+
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        SimpleNamespace(
+            Anthropic=FakeAnthropicClient,
+            transform_schema=lambda schema: schema,
+        ),
+    )
+    request = GeneratorRequest(
+        **{
+            **_request().__dict__,
+            "metadata": {"provider_structured_output": True},
+        }
+    )
+
+    with pytest.raises(BadRequestError, match="invalid schema keyword"):
+        AnthropicGeneratorBackend(api_key="test-anthropic-key").generate(request)
+
+    assert calls["count"] == 1
+
+
 def test_structured_output_schema_prunes_only_unreachable_local_definitions() -> None:
     schema = {
         "type": "object",
