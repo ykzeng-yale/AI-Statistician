@@ -14344,6 +14344,7 @@ def _apply_research_agent_runtime_capability_eval_preset(
         )
     if preset == "full-live":
         args.architect_metric_repair_ownership_router = True
+        args.formalization_gap_planner_live_route_planner = True
         args.llm_timeout_seconds = max(
             SERIOUS_THEORY_MIN_LLM_TIMEOUT_SECONDS,
             float(
@@ -15071,7 +15072,13 @@ def _research_agent_runtime_capability_config_errors(
         live_gap_planner_enabled = bool(
             getattr(args, "formalization_gap_planner_live_route_planner", False)
         )
-        if live_gap_planner_enabled:
+        if not live_gap_planner_enabled:
+            errors.append(
+                "capability eval preset full-live requires the integrated live "
+                "FormalizationGapPlanner route planner; missing "
+                "--formalization-gap-planner-live-route-planner"
+            )
+        else:
             route_provider_choice = str(
                 getattr(args, "formalization_gap_planner_live_provider", "same")
                 or "same"

@@ -194,6 +194,7 @@ from ai_statistician.research_agent_runtime import (
     _runtime_learning_memory_kernel_verified_source_theorem_semantic_primitives,
     _runtime_learning_memory_proof_obligation_ids,
     _runtime_completion_summary,
+    _runtime_pending_next_task_rows,
     _runtime_coding_agent_capability_learning_rows,
     _runtime_coding_agent_capability_table,
     _runtime_algorithm_sandbox_feedback_from_learning_memory,
@@ -1475,6 +1476,100 @@ def test_theory_developer_routes_protocol_preflight_before_generated_code() -> N
         for artifact in result.produced_artifacts.values()
         if isinstance(artifact, dict)
     }
+
+
+def test_theory_revision_rebuilds_descendants_through_exploratory_simulation() -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    parent_packet_id = "theory_derivation:dependency-parent"
+    revised_packet = _structured_theory_packet_fixture(
+        "theory_derivation:dependency-child"
+    )
+    revised_packet["estimator_specs"] = [
+        {
+            "id": "revised_estimator",
+            "name": "Revised estimator",
+            "algorithm_sketch": "Implement the revised theory-defined estimator.",
+        }
+    ]
+
+    class StaticTheoryDeveloper:
+        def derive(self, *_args, **_kwargs):
+            return copy.deepcopy(revised_packet)
+
+    result = TheoryDeveloperRuntimeSubsystem(
+        theory_developer=StaticTheoryDeveloper(),  # type: ignore[arg-type]
+        n_runs=17,
+        seed=20260718,
+    ).run(
+        AgentTask(
+            task_id="theory-critic-revise:dependency-rebuild",
+            owner_subsystem="TheoryDeveloper",
+            objective="Revise theory from formal feedback.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": {
+                    "previous_theory_packet_id": parent_packet_id,
+                    "previous_simulation_manifest_id": (
+                        "simulation_manifest:dependency-parent"
+                    ),
+                    "previous_algorithm_sandbox_manifest_id": (
+                        "algorithm_sandbox_manifest:dependency-parent"
+                    ),
+                    "confirmatory_simulation_requires_accepted_algorithm_handoff": (
+                        True
+                    ),
+                    "architect_runtime_plan": {
+                        "evidence_contract": {
+                            "capability_eval_requires_generated_algorithm_code": (
+                                True
+                            ),
+                            "capability_eval_requires_generated_simulation_code": (
+                                True
+                            ),
+                        }
+                    },
+                },
+            },
+        ),
+        BlackboardState(
+            project_id="theory-dependency-rebuild",
+            artifacts={
+                parent_packet_id: _structured_theory_packet_fixture(
+                    parent_packet_id
+                )
+            },
+        ),
+    )
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "SimulationEvaluator"
+    assert result.next_task.inputs["empirical_evaluation_phase"] == (
+        EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+    )
+    rebuild = result.next_task.inputs["architect_context"][
+        "runtime_dependency_rebuild"
+    ]
+    assert rebuild["parent_theory_packet_id"] == parent_packet_id
+    assert rebuild["revised_theory_packet_id"] == (
+        "theory_derivation:dependency-child"
+    )
+    assert rebuild["invalidated_descendant_roles"] == [
+        "simulation_manifest",
+        "algorithm_sandbox_manifest",
+        "formalization_manifest",
+    ]
+    stored_packet = result.produced_artifacts[
+        "theory_derivation:dependency-child"
+    ]
+    assert stored_packet["parent_theory_packet_id"] == parent_packet_id
+    assert stored_packet["runtime_dependency_rebuild"] == rebuild
+    assert result.observations[0].payload[
+        "theory_revision_dependency_rebuild_required"
+    ] is True
+    assert "non-confirmatory simulation handoff" in result.rationale
 
 
 def test_exploratory_simulation_executes_but_cannot_satisfy_confirmatory_gate(
@@ -27995,6 +28090,110 @@ def test_runtime_failure_summary_does_not_label_budget_pending_as_failure() -> N
     )
 
 
+def test_runtime_pending_next_task_rows_preserve_every_question() -> None:
+    results: list[dict[str, Any]] = [
+        {
+            "status": "FAILED",
+            "final_task_id": "algorithm:q0",
+            "traces": [
+                {
+                    "task_id": "algorithm:q0",
+                    "task": {
+                        "task_id": "algorithm:q0",
+                        "inputs": {
+                            "question": {"id": "q0", "title": "Failed"}
+                        },
+                    },
+                    "subsystem": "AlgorithmEngineer",
+                    "status": "FAILED",
+                    "failure_classification": "subsystem_exception",
+                    "next_task_id": "",
+                }
+            ],
+        }
+    ]
+    for question_id, owner in (
+        ("q1", "FormalTargetSemanticReviewer"),
+        ("q2", "FormalizationEvaluator"),
+    ):
+        pending_task_id = f"continue:{question_id}"
+        results.append(
+            {
+                "status": "MAX_ITERATIONS_REACHED",
+                "final_task_id": pending_task_id,
+                "traces": [
+                    {
+                        "task_id": f"last:{question_id}",
+                        "task": {
+                            "task_id": f"last:{question_id}",
+                            "inputs": {
+                                "question": {
+                                    "id": question_id,
+                                    "title": f"Question {question_id}",
+                                }
+                            },
+                        },
+                        "subsystem": "FormalizationEvaluator",
+                        "status": "REVISE",
+                        "failure_classification": "bounded_continuation",
+                        "next_task_id": pending_task_id,
+                        "next_task": {
+                            "task_id": pending_task_id,
+                            "owner_subsystem": owner,
+                            "objective": "continue bounded work",
+                            "inputs": {
+                                "question": {
+                                    "id": question_id,
+                                    "title": f"Question {question_id}",
+                                }
+                            },
+                        },
+                    }
+                ],
+            }
+        )
+
+    completion = _runtime_completion_summary(results)
+    pending_rows = _runtime_pending_next_task_rows(completion)
+    failure_summary = _runtime_failure_summary(completion)
+
+    assert [row["question_id"] for row in pending_rows] == ["q1", "q2"]
+    assert [row["pending_next_task_id"] for row in pending_rows] == [
+        "continue:q1",
+        "continue:q2",
+    ]
+    assert pending_rows[0]["pending_next_task"]["owner_subsystem"] == (
+        "FormalTargetSemanticReviewer"
+    )
+    assert pending_rows[1]["pending_next_task"]["owner_subsystem"] == (
+        "FormalizationEvaluator"
+    )
+    assert all(
+        row["proof_evidence_status"]
+        == "PENDING_RUNTIME_TASK_NOT_PROOF_EVIDENCE"
+        for row in pending_rows
+    )
+    assert failure_summary["terminal_question_id"] == "q0"
+    assert failure_summary["pending_question_id"] == "q1"
+    assert failure_summary["n_pending_next_tasks"] == 2
+    assert failure_summary["pending_next_task_id"] == "continue:q1"
+    scoped_rows = runtime_module._runtime_rows_scoped_to_question(
+        [
+            {"question_id": "q1", "learning_task": "q1_only"},
+            {
+                "learning_task": "q2_only",
+                "input_summary": {"question_id": "q2"},
+            },
+            {"learning_task": "shared_policy"},
+        ],
+        "q1",
+    )
+    assert [row["learning_task"] for row in scoped_rows] == [
+        "q1_only",
+        "shared_policy",
+    ]
+
+
 def test_critic_evidence_contract_blocks_required_formal_verification_with_gaps() -> None:
     decision = _critic_evidence_contract_decision(
         critic_control={
@@ -29269,44 +29468,44 @@ def test_formalizer_provider_timeout_routes_resumable_pf_bv_retry() -> None:
             "placeholder_symbol": "rank_uniformity_block",
         },
     }
-    result = FormalizationEvaluatorRuntimeSubsystem(
+    subsystem = FormalizationEvaluatorRuntimeSubsystem(
         proposal_agent=TimeoutFormalizer(),
         proof_verifier=MockProofVerifier(),
-    ).run(
-        AgentTask(
-            task_id="formalize:provider_timeout",
-            owner_subsystem="FormalizationEvaluator",
-            objective="exercise provider timeout routing",
-            inputs={
-                "question": runtime_module._question_to_payload(question),
-                "theory_packet_id": packet_id,
-                "simulation_manifest_id": simulation_id,
-                "algorithm_sandbox_manifest_id": algorithm_id,
-                "architect_context": {
-                    "runtime_learning_memory": {
-                        "artifact_kind": "RuntimeLearningMemoryContext",
-                        "rows": [structural_row],
-                    }
-                },
-            },
-        ),
-        BlackboardState(
-            project_id="formalizer-provider-timeout",
-            artifacts={
-                packet_id: _structured_theory_packet_fixture(packet_id),
-                simulation_id: {
-                    "artifact_kind": "RuntimeSimulationManifest",
-                    "manifest_id": simulation_id,
-                    "simulation_passed": True,
-                },
-                algorithm_id: {
-                    "artifact_kind": "RuntimeAlgorithmSandboxManifest",
-                    "manifest_id": algorithm_id,
-                    "n_executed": 1,
-                },
-            },
-        ),
     )
+    task = AgentTask(
+        task_id="formalize:provider_timeout",
+        owner_subsystem="FormalizationEvaluator",
+        objective="exercise provider timeout routing",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": packet_id,
+            "simulation_manifest_id": simulation_id,
+            "algorithm_sandbox_manifest_id": algorithm_id,
+            "architect_context": {
+                "runtime_learning_memory": {
+                    "artifact_kind": "RuntimeLearningMemoryContext",
+                    "rows": [structural_row],
+                }
+            },
+        },
+    )
+    blackboard = BlackboardState(
+        project_id="formalizer-provider-timeout",
+        artifacts={
+            packet_id: _structured_theory_packet_fixture(packet_id),
+            simulation_id: {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": simulation_id,
+                "simulation_passed": True,
+            },
+            algorithm_id: {
+                "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+                "manifest_id": algorithm_id,
+                "n_executed": 1,
+            },
+        },
+    )
+    result = subsystem.run(task, blackboard)
 
     assert result.status == "REVISE"
     assert result.failure_classification == "provider_timeout_error"
@@ -29322,6 +29521,9 @@ def test_formalizer_provider_timeout_routes_resumable_pf_bv_retry() -> None:
         is True
     )
     retry_contract = artifact["formalizer_provider_retry_contract"]
+    assert retry_contract["provider_failure_attempt"] == 1
+    assert retry_contract["max_provider_retries"] == 1
+    assert retry_contract["retry_allowed"] is True
     assert retry_contract["required_output_key"] == "pseudo_formal_proof_packets"
     assert (
         "rollout_count must be an integer >= 1"
@@ -29337,6 +29539,23 @@ def test_formalizer_provider_timeout_routes_resumable_pf_bv_retry() -> None:
     assert feedback["pseudo_formalization_required"] is True
     assert result.evidence_entries[0].status == (
         "FORMALIZER_PROVIDER_FAILURE_RECORDED_NOT_PROOF_EVIDENCE"
+    )
+
+    exhausted_result = subsystem.run(result.next_task, blackboard)
+
+    assert exhausted_result.status == "BLOCKED"
+    assert exhausted_result.next_task is None
+    assert exhausted_result.failure_classification == (
+        "formalizer_provider_retry_exhausted"
+    )
+    exhausted_artifact = next(iter(exhausted_result.produced_artifacts.values()))
+    assert exhausted_artifact["provider_failure_attempt"] == 2
+    assert exhausted_artifact["provider_retry_attempt"] == 1
+    assert exhausted_artifact["max_provider_retries"] == 1
+    assert exhausted_artifact["retry_allowed"] is False
+    assert exhausted_artifact["retry_exhausted"] is True
+    assert exhausted_artifact["learning_rows"][0]["runtime_queue_status"] == (
+        "FORMALIZER_PROVIDER_RETRY_EXHAUSTED"
     )
 
 
@@ -105328,7 +105547,7 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     assert args.serious_theory_max_tokens >= 8000
     assert args.llm_timeout_seconds == 240.0
     assert args.architect_metric_repair_ownership_router is True
-    assert args.formalization_gap_planner_live_route_planner is False
+    assert args.formalization_gap_planner_live_route_planner is True
     assert args.formalization_gap_planner_live_max_handoffs == 1
     assert args.formalization_gap_planner_live_max_route_requests_per_handoff == 1
     assert args.formalization_gap_planner_live_max_provider_retries == 1
@@ -105425,10 +105644,11 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     args.formalization_gap_planner_live_max_route_requests_per_handoff = 0
     args.formalization_gap_planner_live_max_provider_retries = 0
     args.formalization_gap_planner_live_timeout_seconds = 0.0
-    assert not any(
-        "FormalizationGapPlanner" in error
-        for error in _research_agent_runtime_capability_config_errors(args)
-    )
+    assert (
+        "capability eval preset full-live requires the integrated live "
+        "FormalizationGapPlanner route planner; missing "
+        "--formalization-gap-planner-live-route-planner"
+    ) in _research_agent_runtime_capability_config_errors(args)
 
     args.formalization_gap_planner_live_route_planner = True
     assert (

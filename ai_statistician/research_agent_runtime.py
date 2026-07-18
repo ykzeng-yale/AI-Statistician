@@ -11721,6 +11721,17 @@ class TheoryDeveloperRuntimeSubsystem:
             packet["base_packet_id"] = str(packet["packet_id"])
             packet["packet_id"] = packet_id
             packet["runtime_revision_artifact"] = True
+        prior_theory_packet_id = str(
+            context.get("previous_theory_packet_id", "") or ""
+        ).strip()
+        theory_revision = bool(
+            prior_theory_packet_id and prior_theory_packet_id != packet_id
+        )
+        if theory_revision:
+            packet = dict(packet)
+            packet.setdefault("parent_theory_packet_id", prior_theory_packet_id)
+            packet["runtime_revision_artifact"] = True
+        context["theory_packet_id"] = packet_id
         theory_derivation_contract = dict(
             packet.get("theory_derivation_contract", {}) or {}
         )
@@ -11776,6 +11787,53 @@ class TheoryDeveloperRuntimeSubsystem:
             )
             is True
         )
+        dependency_rebuild_required = bool(
+            theory_revision and requires_generated_algorithm
+        )
+        if dependency_rebuild_required:
+            dependency_rebuild = {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "artifact_kind": "RuntimeTheoryRevisionDependencyRebuild",
+                "source_task_id": task.task_id,
+                "parent_theory_packet_id": prior_theory_packet_id,
+                "revised_theory_packet_id": packet_id,
+                "invalidated_descendant_roles": [
+                    "simulation_manifest",
+                    "algorithm_sandbox_manifest",
+                    "formalization_manifest",
+                ],
+                "next_dependency": "exploratory_simulation_manifest",
+                "empirical_evaluation_phase": (
+                    EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+                ),
+                "proof_evidence_status": (
+                    "THEORY_REVISION_DEPENDENCY_REBUILD_NOT_PROOF_EVIDENCE"
+                ),
+                "boundary": (
+                    "A revised theory packet invalidates hash-bound downstream "
+                    "artifacts. Exploratory regeneration is orchestration work, "
+                    "not confirmatory empirical or theorem proof evidence."
+                ),
+            }
+            packet["runtime_dependency_rebuild"] = dependency_rebuild
+            context["runtime_dependency_rebuild"] = dependency_rebuild
+            context["empirical_evaluation_phase"] = (
+                EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+            )
+            simulation_inputs = dict(simulation_task.inputs)
+            simulation_inputs["architect_context"] = context
+            simulation_inputs["empirical_evaluation_phase"] = (
+                EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+            )
+            simulation_task = replace(
+                simulation_task,
+                objective=(
+                    "Regenerate a non-confirmatory, theory-bound simulation "
+                    "handoff before rebuilding algorithm and confirmatory "
+                    "simulation descendants."
+                ),
+                inputs=simulation_inputs,
+            )
         implementation_gaps = _implementation_gaps(
             packet,
             [],
@@ -11876,7 +11934,14 @@ class TheoryDeveloperRuntimeSubsystem:
                 "independent estimand/DGP/identifiability and metric-protocol review "
                 "before any AlgorithmEngineer or confirmatory simulation execution."
                 if requires_metric_protocol_gate
-                else "LLM TheoryDeveloper produced a proposal; runtime is routing it to executable simulation feedback."
+                else (
+                    "LLM TheoryDeveloper revised the theory packet; runtime is "
+                    "rebuilding hash-bound empirical descendants through a "
+                    "non-confirmatory simulation handoff."
+                    if dependency_rebuild_required
+                    else "LLM TheoryDeveloper produced a proposal; runtime is "
+                    "routing it to executable simulation feedback."
+                )
             ),
             produced_artifacts={packet_id: packet},
             observations=(
@@ -11898,6 +11963,9 @@ class TheoryDeveloperRuntimeSubsystem:
                         ),
                         "has_formalization_handoff": theory_derivation_contract.get(
                             "has_formalization_handoff", False
+                        ),
+                        "theory_revision_dependency_rebuild_required": (
+                            dependency_rebuild_required
                         ),
                         "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
                     },
@@ -21583,6 +21651,9 @@ class FormalizationEvaluatorRuntimeSubsystem:
                         ),
                         environment_feedback=environment_feedback,
                         exc=exc,
+                        max_provider_retries=(
+                            self.runtime_config.max_subsystem_retries
+                        ),
                     )
                 )
             proposal_source = "llm_formalizer_proof_engineer_proposal"
@@ -25230,8 +25301,16 @@ def _formalizer_provider_failure_result(
     proof_bank_runtime_memory_summary: Mapping[str, Any],
     environment_feedback: Mapping[str, Any],
     exc: Exception,
+    max_provider_retries: int = 1,
 ) -> AgentStepResult:
     failure_classification = _formalizer_provider_failure_classification(exc)
+    provider_retry_attempt = max(
+        0,
+        _int_like(task.inputs.get("formalizer_provider_retry_attempt", 0)),
+    )
+    max_provider_retries = max(0, int(max_provider_retries or 0))
+    retry_allowed = provider_retry_attempt < max_provider_retries
+    provider_failure_attempt = provider_retry_attempt + 1
     pseudo_formalization_required = _feedback_requires_pseudo_formalization(
         environment_feedback,
         proof_bank_runtime_memory_summary,
@@ -25256,6 +25335,7 @@ def _formalizer_provider_failure_result(
             task.task_id,
             theory_packet_id,
             failure_classification,
+            provider_failure_attempt,
             type(exc).__name__,
             str(exc)[:500],
         ]
@@ -25264,10 +25344,16 @@ def _formalizer_provider_failure_result(
     retry_contract = {
         "contract_kind": "formalizer_provider_failure_retry",
         "failure_classification": failure_classification,
+        "provider_failure_attempt": provider_failure_attempt,
+        "provider_retry_attempt": provider_retry_attempt,
+        "max_provider_retries": max_provider_retries,
+        "retry_allowed": retry_allowed,
+        "retry_exhausted": not retry_allowed,
         "retry_scope": (
-            "retry the Formalizer/ProofEngineer packet generation with compact "
-            "PF/BV output, a bounded token budget, or an approved fallback "
-            "provider; no proof evidence was produced"
+            "retry the same Formalizer/ProofEngineer model with compact PF/BV "
+            "output and a bounded token budget; provider transport fallback must "
+            "not raise the configured Claude model tier, and no proof evidence "
+            "was produced"
         ),
         "required_output_key": (
             "pseudo_formal_proof_packets" if pseudo_formalization_required else ""
@@ -25295,6 +25381,10 @@ def _formalizer_provider_failure_result(
         "failure_classification": failure_classification,
         "provider_failure_summary": failure_summary,
         "formalizer_provider_failure": True,
+        "formalizer_provider_failure_attempt": provider_failure_attempt,
+        "formalizer_provider_retry_attempt": provider_retry_attempt,
+        "formalizer_provider_retry_allowed": retry_allowed,
+        "formalizer_provider_retry_exhausted": not retry_allowed,
         "formalizer_provider_retry_contract": retry_contract,
         "pseudo_formalization_required": pseudo_formalization_required,
         "source_theorem_exact_semantic_definition_structural_reformulation_required": (
@@ -25319,10 +25409,18 @@ def _formalizer_provider_failure_result(
         "theory_packet_id": theory_packet_id,
         "failure_id": failure_id,
         "failure_classification": failure_classification,
-        "runtime_queue_status": "PENDING_FORMALIZER_PROVIDER_RETRY",
+        "runtime_queue_status": (
+            "PENDING_FORMALIZER_PROVIDER_RETRY"
+            if retry_allowed
+            else "FORMALIZER_PROVIDER_RETRY_EXHAUSTED"
+        ),
         "input_summary": {
             "trigger": "FORMALIZER_PROVIDER_FAILURE",
             "failure_classification": failure_classification,
+            "provider_failure_attempt": provider_failure_attempt,
+            "provider_retry_attempt": provider_retry_attempt,
+            "max_provider_retries": max_provider_retries,
+            "retry_allowed": retry_allowed,
             "pseudo_formalization_required": pseudo_formalization_required,
             "source_theorem_exact_semantic_definition_structural_reformulation_required": (
                 structural_reformulation_required
@@ -25345,6 +25443,11 @@ def _formalizer_provider_failure_result(
         "simulation_manifest_id": simulation_manifest_id,
         "algorithm_sandbox_manifest_id": algorithm_sandbox_manifest_id,
         "failure_classification": failure_classification,
+        "provider_failure_attempt": provider_failure_attempt,
+        "provider_retry_attempt": provider_retry_attempt,
+        "max_provider_retries": max_provider_retries,
+        "retry_allowed": retry_allowed,
+        "retry_exhausted": not retry_allowed,
         "exception_type": type(exc).__name__,
         "exception_module": type(exc).__module__,
         "exception_summary": failure_summary,
@@ -25358,33 +25461,43 @@ def _formalizer_provider_failure_result(
         "proof_evidence_status": "FORMALIZER_PROVIDER_FAILURE_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
     }
-    next_inputs = dict(task.inputs)
-    next_inputs["environment_feedback"] = provider_feedback
-    next_task = AgentTask(
-        task_id=f"formalize-provider-retry:{question.id}:{stable_hash(failure_id)[:8]}",
-        owner_subsystem="FormalizationEvaluator",
-        objective=(
-            "Retry Formalizer/ProofEngineer generation after a live provider "
-            "failure while preserving PF/BV structural-reformulation context."
-        ),
-        inputs=next_inputs,
-        allowed_tools=tuple(
-            dict.fromkeys(
-                (
-                    *task.allowed_tools,
-                    "model_backend",
-                    "proof_bank_memory",
-                    "formal_source_retrieval",
+    next_task: AgentTask | None = None
+    if retry_allowed:
+        next_inputs = dict(task.inputs)
+        next_inputs["environment_feedback"] = provider_feedback
+        next_inputs["formalizer_provider_retry_attempt"] = (
+            provider_retry_attempt + 1
+        )
+        next_task = AgentTask(
+            task_id=(
+                f"formalize-provider-retry:{question.id}:"
+                f"{stable_hash(failure_id)[:8]}"
+            ),
+            owner_subsystem="FormalizationEvaluator",
+            objective=(
+                "Retry Formalizer/ProofEngineer generation after a live provider "
+                "failure while preserving PF/BV structural-reformulation context."
+            ),
+            inputs=next_inputs,
+            allowed_tools=tuple(
+                dict.fromkeys(
+                    (
+                        *task.allowed_tools,
+                        "model_backend",
+                        "proof_bank_memory",
+                        "formal_source_retrieval",
+                    )
                 )
-            )
-        ),
-        expected_artifacts=task.expected_artifacts,
-        acceptance_gate=(
-            "provider call returns a validated Formalizer packet or records a "
-            "bounded non-proof provider failure retry artifact"
-        ),
-        stop_condition="validated Formalizer packet or provider retry artifact recorded",
-    )
+            ),
+            expected_artifacts=task.expected_artifacts,
+            acceptance_gate=(
+                "provider call returns a validated Formalizer packet or records "
+                "the final bounded non-proof provider failure artifact"
+            ),
+            stop_condition=(
+                "validated Formalizer packet or bounded provider failure recorded"
+            ),
+        )
     evidence = EvidenceLedgerEntry(
         evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
         task_id=task.task_id,
@@ -25399,11 +25512,17 @@ def _formalizer_provider_failure_result(
         },
     )
     return AgentStepResult(
-        status="REVISE",
+        status="REVISE" if retry_allowed else "BLOCKED",
         rationale=(
             "Formalizer/ProofEngineer live provider generation failed before a "
-            "validated packet was recorded; routing a bounded retry task with "
+            "validated packet was recorded; routing one bounded retry task with "
             "preserved runtime memory context."
+            if retry_allowed
+            else (
+                "Formalizer/ProofEngineer live provider generation exhausted its "
+                "bounded retry budget; stopping without proof evidence instead "
+                "of consuming further AgentRuntime iterations."
+            )
         ),
         produced_artifacts={failure_id: artifact},
         observations=(
@@ -25415,7 +25534,11 @@ def _formalizer_provider_failure_result(
         ),
         evidence_entries=(evidence,),
         next_task=next_task,
-        failure_classification=failure_classification,
+        failure_classification=(
+            failure_classification
+            if retry_allowed
+            else "formalizer_provider_retry_exhausted"
+        ),
     )
 
 
@@ -38918,6 +39041,9 @@ def run_research_agent_runtime(
         status_counts[status] = status_counts.get(status, 0) + 1
     completion_summary = _runtime_completion_summary(results)
     failure_summary = _runtime_failure_summary(completion_summary)
+    pending_next_task_rows = _runtime_pending_next_task_rows(
+        completion_summary
+    )
     evidence_summary = _runtime_evidence_summary(results)
     architect_initial_routing_summary = _runtime_architect_initial_routing_summary(
         results
@@ -39064,6 +39190,16 @@ def run_research_agent_runtime(
         "terminal_classification": failure_summary["terminal_classification"],
         "incomplete_pending_next_task_id": failure_summary["pending_next_task_id"],
         "incomplete_pending_next_task": failure_summary["pending_next_task"],
+        "n_incomplete_pending_next_tasks": len(pending_next_task_rows),
+        "incomplete_pending_next_tasks": pending_next_task_rows,
+        "incomplete_pending_next_task_by_question": {
+            str(row.get("question_id", "") or ""): dict(
+                row.get("pending_next_task", {})
+            )
+            for row in pending_next_task_rows
+            if str(row.get("question_id", "") or "").strip()
+            and isinstance(row.get("pending_next_task", {}), Mapping)
+        },
         "failed_subsystem": failure_summary["failed_subsystem"],
         "failed_task_id": failure_summary["failed_task_id"],
         "failure_classification": failure_summary["failure_classification"],
@@ -39849,29 +39985,40 @@ def run_research_agent_runtime(
             "research_eval_typed_endpoint"
         )
         manifest["research_eval_typed_endpoint_reached"] = True
-        pending_next_task = manifest.get("incomplete_pending_next_task")
-        if isinstance(pending_next_task, Mapping) and pending_next_task:
-            pending_next_task_path = out_dir / "runtime_pending_next_task.json"
-            pending_next_task_payload = {
-                "schema_version": RUNTIME_SCHEMA_VERSION,
-                "artifact_kind": "RuntimePendingNextTask",
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "question_id": failure_summary["terminal_question_id"],
-                "pending_next_task_id": failure_summary["pending_next_task_id"],
-                "pending_next_task": dict(pending_next_task),
-                "runtime_task_handoffs_jsonl": str(task_handoffs_path),
-                "source_manifest_path": str(manifest_path),
-                "proof_evidence_status": (
-                    "PENDING_RUNTIME_TASK_NOT_PROOF_EVIDENCE"
-                ),
-                "boundary": (
-                    "A pending research-evaluation task preserves orchestration "
-                    "state for continuation. It is not empirical or proof evidence."
-                ),
+        if pending_next_task_rows:
+            exported_pending_rows = [
+                {
+                    **dict(row),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "runtime_task_handoffs_jsonl": str(task_handoffs_path),
+                    "source_manifest_path": str(manifest_path),
+                }
+                for row in pending_next_task_rows
+            ]
+            pending_next_tasks_path = (
+                out_dir / "runtime_pending_next_tasks.jsonl"
+            )
+            _write_jsonl(pending_next_tasks_path, exported_pending_rows)
+            manifest["n_incomplete_pending_next_tasks"] = len(
+                exported_pending_rows
+            )
+            manifest["incomplete_pending_next_tasks"] = exported_pending_rows
+            manifest["incomplete_pending_next_task_by_question"] = {
+                str(row.get("question_id", "") or ""): dict(
+                    row.get("pending_next_task", {})
+                )
+                for row in exported_pending_rows
+                if str(row.get("question_id", "") or "").strip()
+                and isinstance(row.get("pending_next_task", {}), Mapping)
             }
+            manifest["artifacts"]["runtime_pending_next_tasks_jsonl"] = str(
+                pending_next_tasks_path
+            )
+            legacy_pending_row = exported_pending_rows[0]
+            pending_next_task_path = out_dir / "runtime_pending_next_task.json"
             pending_next_task_path.write_text(
                 json.dumps(
-                    pending_next_task_payload,
+                    legacy_pending_row,
                     indent=2,
                     default=str,
                 ),
@@ -56107,91 +56254,137 @@ def run_research_agent_runtime(
             source="run_research_agent_runtime_manifest_refresh",
         )
     )
-    pending_memory_context = _runtime_learning_memory_context_from_rows(
-        learning_rows,
-        max_rows=_runtime_learning_memory_context_row_limit(
-            runtime_architect_context,
-            architect_context,
-        ),
-        source_paths=[learning_path],
+    pending_memory_row_limit = _runtime_learning_memory_context_row_limit(
+        runtime_architect_context,
+        architect_context,
     )
-    pending_next_task = manifest.get("incomplete_pending_next_task")
-    if isinstance(pending_next_task, Mapping) and pending_next_task:
+    enriched_pending_rows: list[dict[str, Any]] = []
+    for pending_row in pending_next_task_rows:
+        pending_next_task = pending_row.get("pending_next_task", {})
+        if not isinstance(pending_next_task, Mapping) or not pending_next_task:
+            continue
+        pending_next_task_id = str(
+            pending_row.get("pending_next_task_id", "") or ""
+        )
+        pending_question_id = str(
+            pending_row.get("question_id", "") or ""
+        )
+        question_learning_rows = _runtime_rows_scoped_to_question(
+            learning_rows,
+            pending_question_id,
+        )
+        pending_memory_context = _runtime_learning_memory_context_from_rows(
+            question_learning_rows,
+            max_rows=pending_memory_row_limit,
+            source_paths=[learning_path],
+        )
+        question_exact_semantic_work_order_rows = (
+            _runtime_rows_scoped_to_question(
+                source_theorem_exact_semantic_definition_work_order_rows,
+                pending_question_id,
+            )
+        )
+        pending_exact_semantic_definition_feedback = (
+            _runtime_exact_semantic_definition_work_order_feedback_from_work_orders(
+                question_exact_semantic_work_order_rows,
+                source="runtime_exact_semantic_definition_work_order_queue",
+            )
+        )
         (
             pending_source_handoff_id,
             pending_source_handoff,
         ) = _runtime_pending_task_source_handoff(
             results=results,
             handoff_rows=handoff_rows,
-            pending_next_task_id=str(
-                failure_summary.get("pending_next_task_id", "") or ""
-            ),
+            pending_next_task_id=pending_next_task_id,
         )
-        pending_exact_semantic_definition_feedback = (
-            _runtime_exact_semantic_definition_work_order_feedback_from_work_orders(
-                source_theorem_exact_semantic_definition_work_order_rows,
-                source="runtime_exact_semantic_definition_work_order_queue",
-            )
-        )
-        pending_next_task = _runtime_pending_task_with_runtime_learning_memory(
+        enriched_pending_task = _runtime_pending_task_with_runtime_learning_memory(
             pending_next_task,
             pending_memory_context,
             exact_semantic_work_order_feedback=(
                 pending_exact_semantic_definition_feedback
             ),
         )
-        pending_next_task = _runtime_pending_task_with_source_handoff(
-            pending_next_task,
+        enriched_pending_task = _runtime_pending_task_with_source_handoff(
+            enriched_pending_task,
             source_handoff=pending_source_handoff,
             source_manifest_path=str(manifest_path),
             source_handoff_export_path=str(task_handoffs_path),
         )
-        manifest["incomplete_pending_next_task"] = pending_next_task
-        manifest["incomplete_pending_next_task_source_handoff_id"] = (
-            pending_source_handoff_id
+        enriched_pending_rows.append(
+            {
+                **dict(pending_row),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "pending_next_task": enriched_pending_task,
+                "source_handoff_id": pending_source_handoff_id,
+                "source_handoff": dict(pending_source_handoff),
+                "runtime_task_handoffs_jsonl": str(task_handoffs_path),
+                "source_manifest_path": str(manifest_path),
+            }
         )
-        manifest["incomplete_pending_next_task_source_handoff"] = dict(
-            pending_source_handoff
-        )
-        failure_summary["pending_next_task"] = pending_next_task
-        failure_summary["pending_next_task_source_handoff_id"] = (
-            pending_source_handoff_id
-        )
-        manifest["runtime_failure_summary"] = failure_summary
         completion_rows = manifest.get("runtime_completion_summary", {}).get(
             "rows",
             [],
         )
         if isinstance(completion_rows, list):
-            for row in completion_rows:
-                if not isinstance(row, dict):
+            for completion_row in completion_rows:
+                if not isinstance(completion_row, dict):
                     continue
-                if str(row.get("pending_next_task_id", "") or "") == str(
-                    failure_summary.get("pending_next_task_id", "") or ""
+                if (
+                    str(completion_row.get("question_id", "") or "")
+                    == str(pending_row.get("question_id", "") or "")
+                    and str(
+                        completion_row.get("pending_next_task_id", "") or ""
+                    )
+                    == pending_next_task_id
                 ):
-                    row["pending_next_task"] = pending_next_task
-        pending_next_task_path = out_dir / "runtime_pending_next_task.json"
-        pending_next_task_payload = {
-            "schema_version": RUNTIME_SCHEMA_VERSION,
-            "artifact_kind": "RuntimePendingNextTask",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "question_id": failure_summary["terminal_question_id"],
-            "pending_next_task_id": failure_summary["pending_next_task_id"],
-            "pending_next_task": dict(pending_next_task),
-            "source_handoff_id": pending_source_handoff_id,
-            "source_handoff": dict(pending_source_handoff),
-            "runtime_task_handoffs_jsonl": str(task_handoffs_path),
-            "source_manifest_path": str(manifest_path),
-            "proof_evidence_status": "PENDING_RUNTIME_TASK_NOT_PROOF_EVIDENCE",
-            "boundary": (
-                "A pending runtime task preserves orchestration state for a later "
-                "AgentRuntime continuation. It is not theorem proof, simulation "
-                "evidence, or proof-engineer verification evidence."
-            ),
+                    completion_row["pending_next_task"] = enriched_pending_task
+    if enriched_pending_rows:
+        manifest["n_incomplete_pending_next_tasks"] = len(
+            enriched_pending_rows
+        )
+        manifest["incomplete_pending_next_tasks"] = enriched_pending_rows
+        manifest["incomplete_pending_next_task_by_question"] = {
+            str(row.get("question_id", "") or ""): dict(
+                row.get("pending_next_task", {})
+            )
+            for row in enriched_pending_rows
+            if str(row.get("question_id", "") or "").strip()
+            and isinstance(row.get("pending_next_task", {}), Mapping)
         }
+        legacy_pending_row = enriched_pending_rows[0]
+        legacy_pending_task = dict(
+            legacy_pending_row.get("pending_next_task", {})
+        )
+        legacy_pending_task_id = str(
+            legacy_pending_row.get("pending_next_task_id", "") or ""
+        )
+        manifest["incomplete_pending_next_task_id"] = legacy_pending_task_id
+        manifest["incomplete_pending_next_task"] = legacy_pending_task
+        manifest["incomplete_pending_next_task_source_handoff_id"] = str(
+            legacy_pending_row.get("source_handoff_id", "") or ""
+        )
+        manifest["incomplete_pending_next_task_source_handoff"] = dict(
+            legacy_pending_row.get("source_handoff", {})
+        )
+        failure_summary["pending_question_id"] = str(
+            legacy_pending_row.get("question_id", "") or ""
+        )
+        failure_summary["pending_next_task_id"] = legacy_pending_task_id
+        failure_summary["pending_next_task"] = legacy_pending_task
+        failure_summary["pending_next_task_source_handoff_id"] = str(
+            legacy_pending_row.get("source_handoff_id", "") or ""
+        )
+        manifest["runtime_failure_summary"] = failure_summary
+        pending_next_tasks_path = out_dir / "runtime_pending_next_tasks.jsonl"
+        _write_jsonl(pending_next_tasks_path, enriched_pending_rows)
+        pending_next_task_path = out_dir / "runtime_pending_next_task.json"
         pending_next_task_path.write_text(
-            json.dumps(pending_next_task_payload, indent=2, default=str),
+            json.dumps(legacy_pending_row, indent=2, default=str),
             encoding="utf-8",
+        )
+        manifest["artifacts"]["runtime_pending_next_tasks_jsonl"] = str(
+            pending_next_tasks_path
         )
         manifest["artifacts"]["runtime_pending_next_task_json"] = str(
             pending_next_task_path
@@ -89335,6 +89528,36 @@ def _runtime_source_theorem_promotion_work_order_rows(
     return rows
 
 
+def _runtime_rows_scoped_to_question(
+    rows: Sequence[Mapping[str, Any]],
+    question_id: str,
+) -> list[dict[str, Any]]:
+    """Exclude rows explicitly bound to another evaluation question."""
+
+    question_id = str(question_id or "").strip()
+    scoped_rows: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        row_question_ids = set(
+            _runtime_learning_row_string_values(
+                row,
+                input_summary,
+                "question_id",
+                "question_ids",
+            )
+        )
+        if question_id and row_question_ids and question_id not in row_question_ids:
+            continue
+        scoped_rows.append(dict(row))
+    return scoped_rows
+
+
 def _runtime_learning_memory_context_from_rows(
     learning_rows: list[dict[str, Any]],
     *,
@@ -98932,8 +99155,17 @@ def _runtime_failure_summary(completion_summary: Mapping[str, Any]) -> dict[str,
             "budget_exhausted_without_pending_next_task",
         }
     ]
+    pending_rows = [
+        row
+        for row in rows
+        if isinstance(row, Mapping)
+        and str(row.get("pending_next_task_id", "") or "").strip()
+        and isinstance(row.get("pending_next_task", {}), Mapping)
+        and bool(row.get("pending_next_task", {}))
+    ]
     first_failure = failure_rows[0] if failure_rows else {}
     first_policy_block = policy_block_rows[0] if policy_block_rows else {}
+    first_pending = pending_rows[0] if pending_rows else {}
     first_terminal = (
         first_failure
         or first_policy_block
@@ -98948,6 +99180,7 @@ def _runtime_failure_summary(completion_summary: Mapping[str, Any]) -> dict[str,
         "has_failure": bool(failure_rows),
         "has_policy_block": bool(policy_block_rows),
         "has_incomplete_pending_work": bool(incomplete_rows),
+        "n_pending_next_tasks": len(pending_rows),
         "terminal_question_id": str(first_terminal.get("question_id", "") or ""),
         "terminal_subsystem": str(first_terminal.get("last_completed_subsystem", "") or ""),
         "terminal_task_id": str(
@@ -98984,10 +99217,13 @@ def _runtime_failure_summary(completion_summary: Mapping[str, Any]) -> dict[str,
         "policy_block_classification": str(
             first_policy_block.get("last_failure_classification", "") or ""
         ),
-        "pending_next_task_id": str(first_terminal.get("pending_next_task_id", "") or ""),
+        "pending_question_id": str(first_pending.get("question_id", "") or ""),
+        "pending_next_task_id": str(
+            first_pending.get("pending_next_task_id", "") or ""
+        ),
         "pending_next_task": (
-            dict(first_terminal.get("pending_next_task", {}))
-            if isinstance(first_terminal.get("pending_next_task"), Mapping)
+            dict(first_pending.get("pending_next_task", {}))
+            if isinstance(first_pending.get("pending_next_task"), Mapping)
             else {}
         ),
         "boundary": (
@@ -98999,6 +99235,68 @@ def _runtime_failure_summary(completion_summary: Mapping[str, Any]) -> dict[str,
             "partial runtime progress to theorem proof evidence."
         ),
     }
+
+
+def _runtime_pending_next_task_rows(
+    completion_summary: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Return every question-bound continuation without promoting its evidence."""
+
+    completion_rows = completion_summary.get("rows", [])
+    if not isinstance(completion_rows, list):
+        return []
+    rows: list[dict[str, Any]] = []
+    for completion_row in completion_rows:
+        if not isinstance(completion_row, Mapping):
+            continue
+        pending_next_task_id = str(
+            completion_row.get("pending_next_task_id", "") or ""
+        ).strip()
+        pending_next_task = completion_row.get("pending_next_task", {})
+        if not pending_next_task_id or not isinstance(
+            pending_next_task,
+            Mapping,
+        ) or not pending_next_task:
+            continue
+        rows.append(
+            {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "artifact_kind": "RuntimePendingNextTask",
+                "question_id": str(
+                    completion_row.get("question_id", "") or ""
+                ),
+                "question_title": str(
+                    completion_row.get("question_title", "") or ""
+                ),
+                "pending_next_task_id": pending_next_task_id,
+                "pending_next_task": dict(pending_next_task),
+                "terminal_kind": str(
+                    completion_row.get("terminal_kind", "") or ""
+                ),
+                "terminal_status": str(
+                    completion_row.get("status", "") or ""
+                ),
+                "last_completed_subsystem": str(
+                    completion_row.get("last_completed_subsystem", "") or ""
+                ),
+                "last_failure_classification": str(
+                    completion_row.get(
+                        "last_failure_classification",
+                        "",
+                    )
+                    or ""
+                ),
+                "proof_evidence_status": (
+                    "PENDING_RUNTIME_TASK_NOT_PROOF_EVIDENCE"
+                ),
+                "boundary": (
+                    "A pending runtime task preserves question-bound orchestration "
+                    "state for continuation. It is not empirical, simulation, or "
+                    "theorem proof evidence."
+                ),
+            }
+        )
+    return rows
 
 
 def _generated_sandbox_repair_sequence_counts(

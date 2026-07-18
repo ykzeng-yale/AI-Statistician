@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import json
+from pathlib import Path
 
 import pytest
 
@@ -264,6 +266,90 @@ def test_research_eval_returns_before_formal_postprocessing(tmp_path) -> None:
     assert "runtime_theorem_reduction_closure_work_orders_jsonl" not in (
         manifest["artifacts"]
     )
+
+
+def test_research_eval_exports_pending_continuations_for_every_question(
+    tmp_path,
+) -> None:
+    theory_developer = LLMTheoryDeveloperAgent(
+        provider=StaticJSONGeneratorBackend({}),
+        config=ResearchArchitectConfig(
+            provider_name="static",
+            model="static",
+            model_tier="sonnet",
+            serious_model="static",
+            serious_model_tier="sonnet",
+        ),
+    )
+    semantic_reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=StaticJSONGeneratorBackend({}),
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="static",
+            model="static",
+            model_tier="sonnet",
+        ),
+    )
+    questions = [
+        OpenResearchQuestion("pending_q1", "Pending one", "", ()),
+        OpenResearchQuestion("pending_q2", "Pending two", "", ()),
+    ]
+    initial_tasks = {
+        question.id: AgentTask(
+            task_id=f"simulation:{question.id}",
+            owner_subsystem="SimulationEvaluator",
+            objective="Exercise question-bound continuation export.",
+            inputs={
+                "question": {
+                    "id": question.id,
+                    "title": question.title,
+                    "description": question.description,
+                    "tags": list(question.tags),
+                },
+                "theory_packet_id": "",
+                "architect_context": {},
+            },
+        )
+        for question in questions
+    }
+
+    manifest = run_research_agent_runtime(
+        questions,
+        tmp_path,
+        theory_developer=theory_developer,
+        generated_code_semantic_reviewer=semantic_reviewer,
+        initial_task_overrides=initial_tasks,
+        config=ResearchAgentRuntimeConfig(
+            evaluation_mode="research_eval",
+            max_iterations=1,
+        ),
+    )
+
+    assert manifest["n_incomplete_pending_next_tasks"] == 2
+    assert set(manifest["incomplete_pending_next_task_by_question"]) == {
+        "pending_q1",
+        "pending_q2",
+    }
+    pending_rows = [
+        json.loads(line)
+        for line in Path(
+            manifest["artifacts"]["runtime_pending_next_tasks_jsonl"]
+        ).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert [row["question_id"] for row in pending_rows] == [
+        "pending_q1",
+        "pending_q2",
+    ]
+    assert all(
+        row["pending_next_task"]["owner_subsystem"] == "TheoryDeveloper"
+        for row in pending_rows
+    )
+    legacy_pending = json.loads(
+        Path(
+            manifest["artifacts"]["runtime_pending_next_task_json"]
+        ).read_text(encoding="utf-8")
+    )
+    assert legacy_pending == pending_rows[0]
 
 
 def test_research_eval_profile_enables_live_research_agents_only() -> None:
