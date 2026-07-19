@@ -19,7 +19,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 
 
-ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 5
+ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 6
 ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -229,6 +229,15 @@ def _architect_metric_semantic_review_repair_context(
                 "not explicitly close an active prior finding."
             ),
             (
+                "For a current finding that restates an unresolved prior defect, set "
+                "prior_finding_id to that exact active ID and leave "
+                "new_finding_rationale empty."
+            ),
+            (
+                "For a genuinely new current finding, leave prior_finding_id empty "
+                "and explain its distinct identity in new_finding_rationale."
+            ),
+            (
                 "Use RETRACTED_RUNTIME_CONTRACT_CONFLICT only when the prior "
                 "finding itself contradicts a runtime-owned schema or evaluator "
                 "rule; set runtime_contract_evidence_id to one exact allowed "
@@ -369,7 +378,15 @@ def build_architect_metric_semantic_review_prompt(
         "covered by the portfolio; more gates are not more rigorous, and redundant "
         "or fragile rows should be deleted. Do not invent task-family rules, "
         "hardcoded formulas, replacement thresholds, source code, or observed "
-        "results. When review_material.active_prior_finding_ledger is nonempty, "
+        "results. This pre-execution review cannot require pilot or confirmatory "
+        "results that do not yet exist. When a gate is identifiable, numerically "
+        "coherent, and plausibly grounded by the supplied theory, treat remaining "
+        "finite-sample uncertainty as low-severity advisory uncertainty rather than "
+        "rejecting it solely because no preliminary simulation has run. Reject a "
+        "numeric gate only when the supplied pre-execution material shows it is "
+        "undefined, contradictory, unidentifiable, or implausible. Never propose "
+        "retuning a frozen gate from its own confirmatory result. "
+        "When review_material.active_prior_finding_ledger is nonempty, "
         "return exactly one prior_finding_reviews row for every listed finding_id. "
         "Mark it RESOLVED only when the current candidate itself closes the issue, "
         "RESOLVED_BY_CURRENT_THEORY only when the current source theory now closes "
@@ -390,7 +407,12 @@ def build_architect_metric_semantic_review_prompt(
         "dispatch selection. "
         "Cite current candidate or theory fields; do "
         "not infer resolution merely because a prior finding is absent from the new "
-        "candidate. Recheck the complete contract after those row-level decisions "
+        "candidate. For each current finding, set prior_finding_id to the exact active "
+        "finding ID when it is the same unresolved defect expressed with new wording; "
+        "do not create a new identity for a persistent issue. Leave prior_finding_id "
+        "empty only for a genuinely new defect and explain why it is distinct in "
+        "new_finding_rationale. Recheck the complete contract after those row-level "
+        "decisions "
         "so a repair does not introduce a different inconsistency. Assign every "
         "finding repair_scope=metric_contract only when the "
         "candidate protocol can be corrected without changing or supplementing the "
@@ -447,6 +469,12 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_OUTPUT_CONTRACT: dict[str, Any] = {
     ],
     "findings": [
         {
+            "prior_finding_id": (
+                "exact active prior finding ID for the same defect, or empty"
+            ),
+            "new_finding_rationale": (
+                "why this is genuinely new when prior_finding_id is empty"
+            ),
             "severity": "low|medium|high|critical",
             "category": "short domain-neutral category",
             "summary": "specific protocol defect",
@@ -487,6 +515,8 @@ _FINDING_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
     "required": [
+        "prior_finding_id",
+        "new_finding_rationale",
         "severity",
         "category",
         "summary",
@@ -495,6 +525,8 @@ _FINDING_SCHEMA: dict[str, Any] = {
         "evidence_refs",
     ],
     "properties": {
+        "prior_finding_id": {"type": "string"},
+        "new_finding_rationale": {"type": "string"},
         "severity": {
             "type": "string",
             "enum": ["low", "medium", "high", "critical"],
@@ -591,6 +623,9 @@ def architect_metric_semantic_review_json_schema(
         prior_reviews_schema["items"]["properties"]["finding_id"]["enum"] = (
             active_ids
         )
+    schema["properties"]["findings"]["items"]["properties"][
+        "prior_finding_id"
+    ]["enum"] = ["", *active_ids]
     runtime_contract_authority = review_material.get(
         "runtime_contract_authority",
         {},
@@ -641,6 +676,7 @@ def validate_architect_metric_semantic_review_packet(
         errors.append("prior_finding_reviews must be an array")
         prior_finding_reviews = []
     reviewed_prior_finding_ids: list[str] = []
+    prior_review_status_by_id: dict[str, str] = {}
     unresolved_prior_findings = 0
     allowed_retraction_evidence_ids = {
         str(value).strip()
@@ -661,6 +697,7 @@ def validate_architect_metric_semantic_review_packet(
             row.get("runtime_contract_evidence_id", "") or ""
         ).strip()
         reviewed_prior_finding_ids.append(finding_id)
+        prior_review_status_by_id[finding_id] = status
         if status not in METRIC_PROTOCOL_PRIOR_FINDING_REVIEW_STATUSES:
             errors.append(f"invalid prior finding status for {finding_id}")
         if status == METRIC_PROTOCOL_FINDING_UNRESOLVED:
@@ -740,6 +777,7 @@ def validate_architect_metric_semantic_review_packet(
         findings = []
     high_findings = 0
     non_low_findings = 0
+    linked_prior_finding_ids: list[str] = []
     for row in findings:
         if not isinstance(row, Mapping):
             errors.append("findings entries must be objects")
@@ -762,6 +800,37 @@ def validate_architect_metric_semantic_review_packet(
             str(value or "").strip() for value in evidence_refs
         ):
             errors.append("Architect metric review finding missing evidence_refs")
+        prior_finding_id = str(
+            row.get("prior_finding_id", "") or ""
+        ).strip()
+        new_finding_rationale = str(
+            row.get("new_finding_rationale", "") or ""
+        ).strip()
+        if prior_finding_id:
+            linked_prior_finding_ids.append(prior_finding_id)
+            if prior_finding_id not in expected_prior_finding_ids:
+                errors.append(
+                    "current finding prior_finding_id must name an active prior finding"
+                )
+            if (
+                prior_review_status_by_id.get(prior_finding_id)
+                != METRIC_PROTOCOL_FINDING_UNRESOLVED
+            ):
+                errors.append(
+                    "current finding may link only to a prior finding marked UNRESOLVED"
+                )
+            if new_finding_rationale:
+                errors.append(
+                    "a linked current finding must leave new_finding_rationale empty"
+                )
+        elif expected_prior_finding_ids and not new_finding_rationale:
+            errors.append(
+                "a genuinely new current finding requires new_finding_rationale"
+            )
+    if len(linked_prior_finding_ids) != len(set(linked_prior_finding_ids)):
+        errors.append(
+            "each active prior finding may be linked by at most one current finding"
+        )
 
     complete_dimensions = len(statuses) == len(
         ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS
@@ -868,10 +937,28 @@ def _normalize_architect_metric_semantic_review_packet(
         trusted_lineage.get("source_model_tier", "") or ""
     ).strip()
     body = dict(payload)
+    active_prior_finding_ledger = _active_prior_finding_ledger(review_material)
+    active_prior_finding_ids = {
+        str(row.get("finding_id", "") or "").strip()
+        for row in active_prior_finding_ledger
+        if str(row.get("finding_id", "") or "").strip()
+    }
+    raw_findings = [
+        dict(row)
+        for row in body.get("findings", []) or []
+        if isinstance(row, Mapping)
+    ]
+    for finding in raw_findings:
+        finding.pop("finding_id", None)
+        prior_finding_id = str(
+            finding.get("prior_finding_id", "") or ""
+        ).strip()
+        if prior_finding_id in active_prior_finding_ids:
+            finding["finding_id"] = prior_finding_id
     findings = normalize_metric_protocol_findings(
         question_id=question.id,
-        findings=body.get("findings", []),
-        preserve_existing_ids=False,
+        findings=raw_findings,
+        preserve_existing_ids=True,
     )
     body["findings"] = findings
     prior_finding_reviews = [
@@ -880,7 +967,6 @@ def _normalize_architect_metric_semantic_review_packet(
         if isinstance(row, Mapping)
     ]
     body["prior_finding_reviews"] = prior_finding_reviews
-    active_prior_finding_ledger = _active_prior_finding_ledger(review_material)
     active_prior_findings_by_id = {
         str(row.get("finding_id", "") or "").strip(): dict(
             row.get("finding", {})

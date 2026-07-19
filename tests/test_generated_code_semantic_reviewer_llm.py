@@ -11,6 +11,7 @@ from ai_statistician.generated_code_semantic_reviewer_llm import (
     GeneratedCodeSemanticReviewerConfig,
     LLMGeneratedCodeSemanticReviewerAgent,
     build_generated_code_semantic_review_prompt,
+    generated_code_semantic_review_repair_scope,
     validate_generated_code_semantic_review_packet,
 )
 from ai_statistician.generated_code_semantic_review_replan import (
@@ -78,7 +79,25 @@ def _review_response(
             }
         ]
         instructions = ["Regenerate code that computes the frozen protocol quantity."]
+    source_assessment = (
+        "ALIGNED"
+        if accept or repair_scope != "source_code"
+        else "SOURCE_REPAIR_REQUIRED"
+    )
+    metric_contract_assessment = (
+        "INVALID_OR_INFEASIBLE"
+        if not accept and repair_scope == "upstream_metric_contract"
+        else "VALID_AND_FEASIBLE"
+    )
+    theory_assessment = (
+        "THEORY_REVISION_REQUIRED"
+        if not accept and repair_scope == "upstream_theory"
+        else "SUFFICIENT_FOR_IMPLEMENTATION_REPAIR"
+    )
     return {
+        "reviewed_source_assessment": source_assessment,
+        "frozen_metric_contract_assessment": metric_contract_assessment,
+        "source_theory_assessment": theory_assessment,
         "dimension_reviews": rows,
         "findings": findings,
         "overall_verdict": "ACCEPT" if accept else "REVISE",
@@ -663,10 +682,19 @@ def test_semantic_reviewer_prompt_keeps_sibling_metrics_out_of_artifact_gate() -
     assert "least-authority view" in prompt
     assert "cannot make a required dimension FAIL" in prompt
     assert "reject any current-source proposal claim" in prompt
-    assert "repair_scope=upstream_metric_contract" in prompt
-    assert "repair_scope=upstream_theory" in prompt
-    assert "legacy ambiguous upstream_contract_or_theory" in prompt
+    assert "frozen_metric_contract_assessment=VALID_AND_FEASIBLE" in prompt
+    assert "source_theory_assessment=THEORY_REVISION_REQUIRED" in prompt
+    assert "AgentRuntime derives the repair scope and owner" in prompt
     assert "do not authorize post-result threshold relaxation" in prompt
+
+
+def test_semantic_review_routes_valid_protocol_implementation_mismatch_to_source() -> None:
+    assert generated_code_semantic_review_repair_scope(
+        verdict="REVISE",
+        source_assessment="SOURCE_REPAIR_REQUIRED",
+        metric_contract_assessment="VALID_AND_FEASIBLE",
+        theory_assessment="SUFFICIENT_FOR_IMPLEMENTATION_REPAIR",
+    ) == "source_code"
 
 
 def test_generated_code_semantic_reviewer_routes_rejection_to_fresh_generation(

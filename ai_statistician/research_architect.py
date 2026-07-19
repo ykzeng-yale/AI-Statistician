@@ -439,6 +439,12 @@ def build_theory_developer_prompt(
                 )
             ),
             "ownership_clarification_required": ownership_clarification_required,
+            "critic_finding_policy": (
+                "critic_findings must describe only risks that remain unresolved in "
+                "the revised packet. When a routed issue is closed by an explicit "
+                "assumption, derivation, or procedure change, update its disposition "
+                "and do not restate the repaired condition as a still-missing premise."
+            ),
             "lineage_fields": {
                 "source_theory_packet_id": environment_feedback.get(
                     "source_theory_packet_id", ""

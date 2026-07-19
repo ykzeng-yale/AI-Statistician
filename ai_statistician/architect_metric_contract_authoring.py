@@ -748,6 +748,7 @@ def author_reviewed_architect_metric_requirements(
             "pre_execution_invariants": [
                 "No confirmatory simulation output, empirical metric result, or acceptance decision exists yet.",
                 "A reviewed AlgorithmEngineer source artifact may exist, but its smoke diagnostics cannot tune statistical thresholds.",
+                "The reviewer cannot require unavailable pilot results as a prerequisite; theory-grounded finite-sample uncertainty may remain advisory when the frozen experiment is designed to measure it.",
                 "Review the candidate contract without proposing a post-result relaxation.",
                 "Every empirical-evaluation target subsystem must remain covered by at least one required row.",
             ],

@@ -234,6 +234,7 @@ from .model_backend import (
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
     AnthropicGeneratorBackend,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+    LIVE_EVALUATION_CLAUDE_MODEL,
     LIVE_EVALUATION_CLAUDE_MODEL_TIER,
     OpenAIResponsesGeneratorBackend,
     SUPPORTED_GENERATOR_PROVIDERS,
@@ -7459,6 +7460,35 @@ RUNTIME_RESEARCH_EVALUATION_MODES = frozenset(
 
 def _is_runtime_research_evaluation_mode(evaluation_mode: Any) -> bool:
     return str(evaluation_mode or "").strip() in RUNTIME_RESEARCH_EVALUATION_MODES
+
+
+def _normalized_runtime_evaluation_model_config(
+    config: ResearchAgentRuntimeConfig,
+) -> ResearchAgentRuntimeConfig:
+    if not _is_runtime_research_evaluation_mode(config.evaluation_mode):
+        return config
+    configured_tier = str(
+        config.evaluation_claude_model_tier or ""
+    ).strip().lower()
+    configured_model = str(config.evaluation_claude_model or "").strip()
+    errors: list[str] = []
+    if configured_tier and configured_tier != LIVE_EVALUATION_CLAUDE_MODEL_TIER:
+        errors.append(
+            "research evaluation requires evaluation_claude_model_tier="
+            f"{LIVE_EVALUATION_CLAUDE_MODEL_TIER}; configured {configured_tier}"
+        )
+    if configured_model and configured_model != LIVE_EVALUATION_CLAUDE_MODEL:
+        errors.append(
+            "research evaluation requires evaluation_claude_model="
+            f"{LIVE_EVALUATION_CLAUDE_MODEL}; configured {configured_model}"
+        )
+    if errors:
+        raise ValueError("; ".join(errors))
+    return replace(
+        config,
+        evaluation_claude_model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        evaluation_claude_model=LIVE_EVALUATION_CLAUDE_MODEL,
+    )
 
 
 def _runtime_research_evaluation_contract_flag(
@@ -38337,6 +38367,7 @@ def run_research_agent_runtime(
     initial_task_overrides: Mapping[str, AgentTask] | None = None,
     initial_blackboard_artifacts: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    config = _normalized_runtime_evaluation_model_config(config)
     if (
         _is_runtime_research_evaluation_mode(config.evaluation_mode)
         and generated_code_semantic_reviewer is None
@@ -56507,6 +56538,12 @@ def _runtime_llm_topology(
     evaluation_claude_model = str(evaluation_claude_model or "").strip()
     if evaluation_claude_model_tier:
         for row in agents:
+            providers = {
+                str(row.get("provider_name", "") or "").strip().lower(),
+                str(row.get("backend_provider_name", "") or "").strip().lower(),
+            }
+            if "anthropic" not in providers:
+                continue
             row["production_expected_model_tier"] = str(
                 row.get("expected_model_tier", "") or ""
             )
@@ -56545,6 +56582,19 @@ def _runtime_llm_topology(
                 str(row.get("provider_name", "") or "").strip().lower(),
                 str(row.get("backend_provider_name", "") or "").strip().lower(),
             }
+            backend_provider = str(
+                row.get("backend_provider_name", "") or ""
+            ).strip().lower()
+            if (
+                backend_provider in SUPPORTED_LIVE_GENERATOR_PROVIDERS
+                and backend_provider != "anthropic"
+            ):
+                violations.append(
+                    f"{row.get('subsystem')} research evaluation requires the "
+                    "Anthropic Haiku backend but resolved "
+                    f"{backend_provider}"
+                )
+                continue
             if "anthropic" not in providers:
                 continue
             if str(row.get("model", "") or "") != evaluation_claude_model:

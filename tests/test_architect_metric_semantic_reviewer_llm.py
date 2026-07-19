@@ -69,6 +69,8 @@ def _review_payload(*, accept: bool) -> dict[str, object]:
             if accept
             else [
                 {
+                    "prior_finding_id": "",
+                    "new_finding_rationale": "",
                     "severity": "high",
                     "category": "finite_sample_calibration",
                     "summary": "The gate lacks a finite-sample justification.",
@@ -203,6 +205,12 @@ def test_preexecution_metric_reviewer_accepts_only_with_independent_lineage() ->
     assert "before any coding agent" in backend.requests[0].user_prompt
     assert "more gates are not more rigorous" in backend.requests[0].user_prompt
     assert "runtime_evaluator_certificate" in backend.requests[0].user_prompt
+    assert "cannot require pilot or confirmatory results" in (
+        backend.requests[0].user_prompt
+    )
+    assert "finite-sample uncertainty as low-severity advisory" in (
+        backend.requests[0].user_prompt
+    )
     assert packet["runtime_evaluator_certificate_set_id"].startswith(
         "generated_metric_evaluator_certificate_set:"
     )
@@ -240,6 +248,8 @@ def test_preexecution_metric_reviewer_accepts_low_severity_advisory_uncertainty(
     )
     payload["findings"] = [
         {
+            "prior_finding_id": "",
+            "new_finding_rationale": "",
             "severity": "low",
             "category": "redundant_gate",
             "summary": "One row duplicates a stronger gate.",
@@ -437,6 +447,59 @@ def test_metric_reviewer_reports_exact_prior_finding_identity_mismatch() -> None
     assert 'received=["finding:a", "finding:a", "finding:c"]' in identity_error
 
 
+def test_metric_reviewer_reuses_prior_identity_for_persistent_finding() -> None:
+    finding_id = "metric-finding:persistent-calibration"
+    payload = _review_payload(accept=False)
+    payload["prior_finding_reviews"] = [
+        {
+            "finding_id": finding_id,
+            "status": "UNRESOLVED",
+            "runtime_contract_evidence_id": "",
+            "rationale": "The current candidate still leaves the same issue open.",
+            "evidence_refs": ["requirement:generic_gate"],
+        }
+    ]
+    payload["findings"][0]["prior_finding_id"] = finding_id
+    material = {
+        "review_stage": "pre_execution_metric_contract_review",
+        "execution_results_available": False,
+        "active_prior_finding_ledger": [
+            {
+                "finding_id": finding_id,
+                "status": "UNRESOLVED",
+                "finding": {
+                    "category": "finite_sample_calibration",
+                    "summary": "The same finite-sample issue remains open.",
+                    "repair_scope": "metric_contract",
+                },
+            }
+        ],
+        "empirical_metric_requirements": [_generic_requirement()],
+    }
+
+    packet, _, _ = _review(
+        accept=False,
+        payload=payload,
+        material=material,
+    )
+
+    assert packet["findings"][0]["finding_id"] == finding_id
+    assert packet["findings"][0]["prior_finding_id"] == finding_id
+    assert validate_architect_metric_semantic_review_packet(packet) == []
+
+
+def test_metric_reviewer_does_not_trust_unlinked_model_finding_id() -> None:
+    payload = _review_payload(accept=False)
+    payload["findings"][0]["finding_id"] = "model-forged-finding-id"
+
+    packet, _, _ = _review(accept=False, payload=payload)
+
+    assert packet["findings"][0]["finding_id"] != "model-forged-finding-id"
+    assert packet["findings"][0]["finding_id"].startswith(
+        "metric_protocol_finding:"
+    )
+
+
 def test_metric_reviewer_can_retract_only_runtime_contract_conflicts() -> None:
     finding_id = "metric-finding:invalid-evaluator-order"
     evidence_id = (
@@ -528,6 +591,9 @@ def test_metric_review_schema_transforms_for_anthropic_structured_output() -> No
     assert transformed_prior_schema["items"]["properties"][
         "runtime_contract_evidence_id"
     ]["enum"] == ["", "generated_metric_evaluator_certificate:test"]
+    assert transformed["properties"]["findings"]["items"]["properties"][
+        "prior_finding_id"
+    ]["enum"] == ["", "finding:one", "finding:two"]
     assert "minItems: 2" in transformed_prior_schema["description"]
     assert ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA["properties"][
         "prior_finding_reviews"

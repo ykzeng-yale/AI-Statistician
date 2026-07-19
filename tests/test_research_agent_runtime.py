@@ -329,6 +329,8 @@ from ai_statistician.research_agent_runtime_audit import (
 from ai_statistician.model_backend import (
     AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
     GeneratorResponse,
+    LIVE_EVALUATION_CLAUDE_MODEL,
+    LIVE_EVALUATION_CLAUDE_MODEL_TIER,
 )
 from ai_statistician.research_system_audit import _research_agent_runtime_audit_overlay
 from ai_statistician.task_family import cross_task_generalization_family_pair
@@ -87045,6 +87047,11 @@ def _static_generated_code_semantic_reviewer() -> (
     return LLMGeneratedCodeSemanticReviewerAgent(
         provider=StaticArchitectLLMProvider(
             {
+                "reviewed_source_assessment": "ALIGNED",
+                "frozen_metric_contract_assessment": "VALID_AND_FEASIBLE",
+                "source_theory_assessment": (
+                    "SUFFICIENT_FOR_IMPLEMENTATION_REPAIR"
+                ),
                 "dimension_reviews": [
                     {
                         "dimension": dimension,
@@ -87062,9 +87069,9 @@ def _static_generated_code_semantic_reviewer() -> (
             }
         ),
         config=GeneratedCodeSemanticReviewerConfig(
-            provider_name="static",
-            model="static-sonnet-reviewer-model",
-            model_tier="sonnet",
+            provider_name="anthropic",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         ),
     )
 
@@ -103799,6 +103806,62 @@ def test_runtime_topology_applies_haiku_only_evaluation_policy() -> None:
     assert theory_row["production_expected_serious_model_tier"] == "sonnet"
 
 
+def test_runtime_evaluation_model_config_rejects_non_current_haiku() -> None:
+    normalized = runtime_module._normalized_runtime_evaluation_model_config(
+        ResearchAgentRuntimeConfig(evaluation_mode="capability_eval")
+    )
+
+    assert normalized.evaluation_claude_model_tier == (
+        LIVE_EVALUATION_CLAUDE_MODEL_TIER
+    )
+    assert normalized.evaluation_claude_model == LIVE_EVALUATION_CLAUDE_MODEL
+    with pytest.raises(
+        ValueError,
+        match="requires evaluation_claude_model_tier=haiku",
+    ):
+        runtime_module._normalized_runtime_evaluation_model_config(
+            ResearchAgentRuntimeConfig(
+                evaluation_mode="research_eval",
+                evaluation_claude_model_tier="sonnet",
+            )
+        )
+    with pytest.raises(ValueError, match=LIVE_EVALUATION_CLAUDE_MODEL):
+        runtime_module._normalized_runtime_evaluation_model_config(
+            ResearchAgentRuntimeConfig(
+                evaluation_mode="capability_eval",
+                evaluation_claude_model="claude-haiku-3-5-20241022",
+            )
+        )
+
+
+def test_runtime_evaluation_topology_rejects_non_anthropic_live_backend() -> None:
+    developer = LLMTheoryDeveloperAgent(
+        provider=runtime_module.OpenAIResponsesGeneratorBackend(api_key="test"),
+        config=ResearchArchitectConfig(
+            provider_name="openai",
+            model="test-openai-model",
+        ),
+    )
+
+    topology = runtime_module._runtime_llm_topology(
+        architect_coordinator=None,
+        theory_developer=developer,
+        simulation_engineer=None,
+        algorithm_engineer=None,
+        formalizer=None,
+        critic_evaluator=None,
+        proof_state_provider=None,
+        evaluation_claude_model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        evaluation_claude_model=LIVE_EVALUATION_CLAUDE_MODEL,
+    )
+
+    assert topology["policy_status"] == "POLICY_VIOLATION"
+    assert any(
+        "research evaluation requires the Anthropic Haiku backend" in violation
+        for violation in topology["policy_violations"]
+    )
+
+
 def test_runtime_evaluation_model_policy_rejects_model_drift() -> None:
     args = _capability_eval_preset_args("full-live")
     args.provider = "anthropic"
@@ -104166,6 +104229,12 @@ def test_research_agent_runtime_records_capability_eval_mode_in_manifest() -> No
     )
 
     assert manifest["runtime_evaluation_mode"] == "capability_eval"
+    assert manifest["runtime_evaluation_claude_model_tier"] == (
+        LIVE_EVALUATION_CLAUDE_MODEL_TIER
+    )
+    assert manifest["runtime_evaluation_claude_model"] == (
+        LIVE_EVALUATION_CLAUDE_MODEL
+    )
     assert manifest["config"]["llm_timeout_seconds"] == 17.0
     audit = audit_research_agent_runtime(out_dir, out_dir / "audit")
     scorecard_rows = {
