@@ -26,6 +26,7 @@ from .formalization_gap_planner_runtime_handoff_audit import (
     validate_runtime_handoff_execution_plan,
 )
 from .model_backend import (
+    LIVE_EVALUATION_CLAUDE_MODEL_TIER,
     LIVE_CLAUDE_MODEL_TIERS,
     SUPPORTED_GENERATOR_PROVIDERS as MODEL_SUPPORTED_GENERATOR_PROVIDERS,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS as MODEL_SUPPORTED_LIVE_GENERATOR_PROVIDERS,
@@ -3345,12 +3346,14 @@ class RuntimeAuditRow:
     n_generated_simulation_semantic_review_accepted: int
     n_generated_code_semantic_review_independent_opus: int
     n_generated_code_semantic_review_independent_sonnet: int
+    n_generated_code_semantic_review_independent_evaluation_model: int
     n_formal_target_semantic_review_work_orders: int
     n_formal_target_semantic_review_executions: int
     n_formal_target_semantic_review_accepted: int
     n_formal_target_semantic_review_revision_required: int
     n_formal_target_semantic_review_independent_opus: int
     n_formal_target_semantic_review_independent_sonnet: int
+    n_formal_target_semantic_review_independent_evaluation_model: int
     n_formalization_manifests: int
     n_critic_manifests: int
     n_kernel_verified_subclaims: int
@@ -6837,6 +6840,10 @@ def audit_research_agent_runtime(
         "n_generated_code_semantic_review_independent_sonnet": sum(
             row.n_generated_code_semantic_review_independent_sonnet for row in rows
         ),
+        "n_generated_code_semantic_review_independent_evaluation_model": sum(
+            row.n_generated_code_semantic_review_independent_evaluation_model
+            for row in rows
+        ),
         "n_formal_target_semantic_review_work_orders": sum(
             row.n_formal_target_semantic_review_work_orders for row in rows
         ),
@@ -6854,6 +6861,10 @@ def audit_research_agent_runtime(
         ),
         "n_formal_target_semantic_review_independent_sonnet": sum(
             row.n_formal_target_semantic_review_independent_sonnet for row in rows
+        ),
+        "n_formal_target_semantic_review_independent_evaluation_model": sum(
+            row.n_formal_target_semantic_review_independent_evaluation_model
+            for row in rows
         ),
         "n_generated_code_sandbox_metric_gate_failed": sum(
             row.n_generated_code_sandbox_metric_gate_failed for row in rows
@@ -13100,6 +13111,7 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     n_generated_simulation_semantic_review_accepted = 0
     n_generated_code_semantic_review_independent_opus = 0
     n_generated_code_semantic_review_independent_sonnet = 0
+    n_generated_code_semantic_review_independent_evaluation_model = 0
     for execution in semantic_review_executions:
         execution_error_count_before = len(errors)
         execution_id = str(execution.get("execution_id", "") or "")
@@ -13327,10 +13339,20 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
             and reviewer_agent == "LLMGeneratedCodeSemanticReviewerAgent"
             and str(execution.get("reviewer_model_tier", "") or "") == "sonnet"
         )
-        if work_order.get("capability_eval") is True and not independent_sonnet:
+        independent_evaluation_model = bool(
+            computed_independent_agent
+            and execution.get("independent_invocation") is True
+            and reviewer_agent == "LLMGeneratedCodeSemanticReviewerAgent"
+            and str(execution.get("reviewer_model_tier", "") or "")
+            == LIVE_EVALUATION_CLAUDE_MODEL_TIER
+        )
+        if (
+            work_order.get("capability_eval") is True
+            and not independent_evaluation_model
+        ):
             errors.append(
                 "research-evaluation semantic review was not an independent "
-                "Sonnet invocation: "
+                f"{LIVE_EVALUATION_CLAUDE_MODEL_TIER} invocation: "
                 + execution_id
             )
         execution_lineage_valid = len(errors) == execution_error_count_before
@@ -13347,6 +13369,8 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
                 n_generated_code_semantic_review_independent_opus += 1
             if independent_sonnet:
                 n_generated_code_semantic_review_independent_sonnet += 1
+            if independent_evaluation_model:
+                n_generated_code_semantic_review_independent_evaluation_model += 1
     formal_target_review_work_orders = _artifacts_with_prefix(
         artifacts,
         "formal_target_semantic_review_work_order:",
@@ -13359,6 +13383,7 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     n_formal_target_semantic_review_revision_required = 0
     n_formal_target_semantic_review_independent_opus = 0
     n_formal_target_semantic_review_independent_sonnet = 0
+    n_formal_target_semantic_review_independent_evaluation_model = 0
     for execution in formal_target_review_executions:
         execution_error_count_before = len(errors)
         execution_id = str(execution.get("execution_id", "") or "")
@@ -13494,10 +13519,21 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
             and execution.get("independent_invocation") is True
             and str(execution.get("reviewer_model_tier", "") or "") == "sonnet"
         )
-        if work_order.get("capability_eval") is True and not independent_sonnet:
+        independent_evaluation_model = bool(
+            source_agent
+            and reviewer_agent == "LLMFormalTargetSemanticReviewerAgent"
+            and source_agent != reviewer_agent
+            and execution.get("independent_invocation") is True
+            and str(execution.get("reviewer_model_tier", "") or "")
+            == LIVE_EVALUATION_CLAUDE_MODEL_TIER
+        )
+        if (
+            work_order.get("capability_eval") is True
+            and not independent_evaluation_model
+        ):
             errors.append(
                 "capability-eval formal-target review was not an independent "
-                "Sonnet invocation: "
+                f"{LIVE_EVALUATION_CLAUDE_MODEL_TIER} invocation: "
                 + execution_id
             )
         if len(errors) == execution_error_count_before:
@@ -13509,6 +13545,8 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
                 n_formal_target_semantic_review_independent_opus += 1
             if independent_sonnet:
                 n_formal_target_semantic_review_independent_sonnet += 1
+            if independent_evaluation_model:
+                n_formal_target_semantic_review_independent_evaluation_model += 1
     n_critic_reroutes = sum(
         1
         for row in critic
@@ -13741,6 +13779,9 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         n_generated_code_semantic_review_independent_sonnet=(
             n_generated_code_semantic_review_independent_sonnet
         ),
+        n_generated_code_semantic_review_independent_evaluation_model=(
+            n_generated_code_semantic_review_independent_evaluation_model
+        ),
         n_formal_target_semantic_review_work_orders=len(
             formal_target_review_work_orders
         ),
@@ -13758,6 +13799,9 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         ),
         n_formal_target_semantic_review_independent_sonnet=(
             n_formal_target_semantic_review_independent_sonnet
+        ),
+        n_formal_target_semantic_review_independent_evaluation_model=(
+            n_formal_target_semantic_review_independent_evaluation_model
         ),
         n_formalization_manifests=len(formalization),
         n_critic_manifests=len(critic),
@@ -20776,11 +20820,11 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     simulation_semantic_review_accepted = int(
         payload.get("n_generated_simulation_semantic_review_accepted", 0) or 0
     )
-    semantic_review_independent_opus = int(
-        payload.get("n_generated_code_semantic_review_independent_opus", 0) or 0
-    )
-    semantic_review_independent_sonnet = int(
-        payload.get("n_generated_code_semantic_review_independent_sonnet", 0)
+    semantic_review_independent_evaluation_model = int(
+        payload.get(
+            "n_generated_code_semantic_review_independent_evaluation_model",
+            0,
+        )
         or 0
     )
     formal_target_review_work_orders = int(
@@ -20792,11 +20836,11 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
     formal_target_review_accepted = int(
         payload.get("n_formal_target_semantic_review_accepted", 0) or 0
     )
-    formal_target_review_independent_opus = int(
-        payload.get("n_formal_target_semantic_review_independent_opus", 0) or 0
-    )
-    formal_target_review_independent_sonnet = int(
-        payload.get("n_formal_target_semantic_review_independent_sonnet", 0)
+    formal_target_review_independent_evaluation_model = int(
+        payload.get(
+            "n_formal_target_semantic_review_independent_evaluation_model",
+            0,
+        )
         or 0
     )
     attached_repair_eval_algorithm_sequences = int(
@@ -25798,31 +25842,35 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
-            "generated_code_semantic_review_independent_sonnet",
+            "generated_code_semantic_review_independent_evaluation_model",
             (
                 semantic_review_accepted > 0
-                and semantic_review_independent_sonnet
+                and semantic_review_independent_evaluation_model
                 >= semantic_review_accepted
             ),
             (
                 "semantic_review_accepted="
-                f"{semantic_review_accepted} independent_sonnet="
-                f"{semantic_review_independent_sonnet}"
+                f"{semantic_review_accepted} independent_evaluation_model="
+                f"{semantic_review_independent_evaluation_model} "
+                f"required_tier={LIVE_EVALUATION_CLAUDE_MODEL_TIER}"
             ),
             (
                 "accepted generated-code semantics were not reviewed by a "
-                "separate agent in a blinded Sonnet invocation"
+                "separate agent in a blinded invocation using the configured "
+                "evaluation model tier"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
                 owner="GeneratedCodeSemanticReviewer",
                 target_behavior=(
-                    "Run an independent blinded Sonnet semantic-review invocation on every exact "
-                    "generated algorithm and simulation accepted downstream."
+                    "Run an independent blinded semantic-review invocation with "
+                    f"the configured {LIVE_EVALUATION_CLAUDE_MODEL_TIER} evaluation "
+                    "tier on every exact generated algorithm and simulation accepted "
+                    "downstream."
                 ),
                 success_metric=(
-                    "n_generated_code_semantic_review_independent_sonnet covers "
-                    "all accepted semantic reviews"
+                    "n_generated_code_semantic_review_independent_evaluation_model "
+                    "covers all accepted semantic reviews"
                 ),
             ),
         ),
@@ -25880,31 +25928,35 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
             ),
         ),
         _scorecard_row(
-            "formal_target_semantic_review_independent_sonnet",
+            "formal_target_semantic_review_independent_evaluation_model",
             (
                 formal_target_review_accepted > 0
-                and formal_target_review_independent_sonnet
+                and formal_target_review_independent_evaluation_model
                 >= formal_target_review_accepted
             ),
             (
                 "formal_target_review_accepted="
-                f"{formal_target_review_accepted} independent_sonnet="
-                f"{formal_target_review_independent_sonnet}"
+                f"{formal_target_review_accepted} independent_evaluation_model="
+                f"{formal_target_review_independent_evaluation_model} "
+                f"required_tier={LIVE_EVALUATION_CLAUDE_MODEL_TIER}"
             ),
             (
                 "accepted exact theorem semantics were not reviewed by a "
-                "separate agent in a blinded Sonnet invocation"
+                "separate agent in a blinded invocation using the configured "
+                "evaluation model tier"
             ),
             **_runtime_resume_scorecard_routing(
                 payload,
                 owner="FormalTargetSemanticReviewer",
                 target_behavior=(
-                    "Run an independent blinded Sonnet whole-target review on every exact "
-                    "theorem statement admitted to typed prover search."
+                    "Run an independent blinded whole-target review with the "
+                    f"configured {LIVE_EVALUATION_CLAUDE_MODEL_TIER} evaluation "
+                    "tier on every exact theorem statement admitted to typed prover "
+                    "search."
                 ),
                 success_metric=(
-                    "n_formal_target_semantic_review_independent_sonnet covers all "
-                    "accepted formal-target reviews"
+                    "n_formal_target_semantic_review_independent_evaluation_model "
+                    "covers all accepted formal-target reviews"
                 ),
             ),
         ),

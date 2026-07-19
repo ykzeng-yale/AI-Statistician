@@ -26,7 +26,10 @@ from ai_statistician.generated_code_semantic_reviewer_llm import (
     GeneratedCodeSemanticReviewerConfig,
     LLMGeneratedCodeSemanticReviewerAgent,
 )
-from ai_statistician.model_backend import StaticJSONGeneratorBackend
+from ai_statistician.model_backend import (
+    LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+    StaticJSONGeneratorBackend,
+)
 from ai_statistician.research_agent_runtime import (
     ResearchAgentRuntimeConfig,
     _architect_candidate_seed,
@@ -632,7 +635,7 @@ def test_research_evaluation_summary_requires_every_research_artifact() -> None:
         "independent_agent": True,
         "independent_invocation": True,
         "independent_model": True,
-        "reviewer_model_tier": "sonnet",
+        "reviewer_model_tier": LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         "confirmatory_empirical_evidence_eligible": True,
     }
     artifacts["algorithm_review"] = {

@@ -26,6 +26,7 @@ from .formal_target_semantic_reviewer_llm import (
     validate_formal_target_semantic_review_packet,
 )
 from .llm_json_repair import PacketValidationError
+from .model_backend import LIVE_EVALUATION_CLAUDE_MODEL_TIER
 from .research_schema import OpenResearchQuestion
 from .typed_repair_handoff import build_typed_repair_handoff_contract
 
@@ -698,16 +699,20 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             runtime_review_errors.append(
                 "capability-eval formal-target reviewer agent must be independent"
             )
-        if capability_eval and reviewer_tier != "sonnet":
+        if (
+            capability_eval
+            and reviewer_tier != LIVE_EVALUATION_CLAUDE_MODEL_TIER
+        ):
             runtime_review_errors.append(
-                "capability-eval formal-target reviewer must use the Sonnet tier"
+                "capability-eval formal-target reviewer must use the configured "
+                f"evaluation tier {LIVE_EVALUATION_CLAUDE_MODEL_TIER}"
             )
         if runtime_review_errors:
             return AgentStepResult(
                 status="BLOCKED",
                 rationale=(
-                    "FormalTargetSemanticReviewer rejected a non-independent or "
-                    "lineage-inconsistent verdict."
+                    "FormalTargetSemanticReviewer rejected an independence, "
+                    "evaluation-model, or lineage-inconsistent verdict."
                 ),
                 produced_artifacts={materialization_id: materialization},
                 observations=(

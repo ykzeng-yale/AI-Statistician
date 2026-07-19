@@ -234,6 +234,7 @@ from .model_backend import (
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
     AnthropicGeneratorBackend,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+    LIVE_EVALUATION_CLAUDE_MODEL_TIER,
     OpenAIResponsesGeneratorBackend,
     SUPPORTED_GENERATOR_PROVIDERS,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
@@ -13622,16 +13623,20 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             runtime_review_errors.append(
                 "capability-eval reviewer agent must differ from source generator agent"
             )
-        if capability_eval and reviewer_tier != "sonnet":
+        if (
+            capability_eval
+            and reviewer_tier != LIVE_EVALUATION_CLAUDE_MODEL_TIER
+        ):
             runtime_review_errors.append(
-                "research-evaluation semantic reviewer must use the Sonnet tier"
+                "research-evaluation semantic reviewer must use the configured "
+                f"evaluation tier {LIVE_EVALUATION_CLAUDE_MODEL_TIER}"
             )
         if runtime_review_errors:
             return AgentStepResult(
                 status="BLOCKED",
                 rationale=(
-                    "GeneratedCodeSemanticReviewer rejected a non-independent or "
-                    "lineage-inconsistent semantic verdict."
+                    "GeneratedCodeSemanticReviewer rejected an independence, "
+                    "evaluation-model, or lineage-inconsistent semantic verdict."
                 ),
                 produced_artifacts={materialization_id: materialization},
                 observations=(

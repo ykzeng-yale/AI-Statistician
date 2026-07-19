@@ -8,6 +8,7 @@ from ai_statistician.fingerprint import stable_hash
 from ai_statistician.fresh_start_cross_task_e2e import (
     audit_fresh_start_cross_task_e2e,
 )
+from ai_statistician.model_backend import LIVE_EVALUATION_CLAUDE_MODEL_TIER
 from ai_statistician.research_agent_runtime import (
     _generated_sandbox_feedback_id,
     _generated_sandbox_prototype_artifact_id,
@@ -276,7 +277,7 @@ def _complete_task(
             "independent_agent": True,
             "independent_invocation": True,
             "independent_model": True,
-            "reviewer_model_tier": "sonnet",
+            "reviewer_model_tier": LIVE_EVALUATION_CLAUDE_MODEL_TIER,
             "confirmatory_empirical_evidence_eligible": True,
         },
         f"generated_code_semantic_review_execution:{question_id}:simulation": {
@@ -293,7 +294,7 @@ def _complete_task(
             "independent_agent": True,
             "independent_invocation": True,
             "independent_model": True,
-            "reviewer_model_tier": "sonnet",
+            "reviewer_model_tier": LIVE_EVALUATION_CLAUDE_MODEL_TIER,
             "confirmatory_empirical_evidence_eligible": True,
         },
         f"formalizer_proposal:{question_id}": {

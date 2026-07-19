@@ -22,6 +22,7 @@ from ai_statistician.formalizer_pseudo_formal_packet_eval import (
     write_formalizer_pseudo_formal_packet_eval_failure_manifest,
 )
 from ai_statistician.llm_json_repair import PacketValidationError
+from ai_statistician.model_backend import LIVE_EVALUATION_CLAUDE_MODEL_TIER
 from ai_statistician.pseudo_formalization import (
     PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
     PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
@@ -844,6 +845,7 @@ def test_formalizer_pseudo_formal_packet_eval_static_fixture_routes_rows(
     assert manifest["result_status"] == "OK"
     assert manifest["live_generator"] is False
     assert manifest["static_or_fixture_only"] is True
+    assert manifest["model_tier"] == LIVE_EVALUATION_CLAUDE_MODEL_TIER
     assert manifest["capability_evidence_ok"] is False
     assert manifest["fixture_plumbing_ok"] is True
     assert manifest["capability_evidence_requirements"]["live_generator"] is False

@@ -4,7 +4,10 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from .fingerprint import stable_hash
-from .model_backend import is_live_generator_backend
+from .model_backend import (
+    LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+    is_live_generator_backend,
+)
 from .research_agent_runtime import _generated_sandbox_repair_sequence_counts
 from .task_family import is_explicit_task_family, task_family_value
 
@@ -628,7 +631,8 @@ def _has_independent_accepted_semantic_review(
         and row.get("semantic_review_accepted") is True
         and row.get("independent_agent") is True
         and row.get("independent_invocation") is True
-        and str(row.get("reviewer_model_tier", "") or "").lower() == "sonnet"
+        and str(row.get("reviewer_model_tier", "") or "").lower()
+        == LIVE_EVALUATION_CLAUDE_MODEL_TIER
         and (
             not require_confirmatory
             or row.get("confirmatory_empirical_evidence_eligible") is True

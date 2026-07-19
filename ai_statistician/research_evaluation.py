@@ -11,6 +11,7 @@ from .fingerprint import stable_hash
 from .metric_protocol_stage import (
     METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED,
 )
+from .model_backend import LIVE_EVALUATION_CLAUDE_MODEL_TIER
 from .research_lab import build_research_provenance, run_research_benchmark
 from .research_schema import OpenResearchQuestion
 from .research_trace_audit import audit_research_traces
@@ -229,7 +230,7 @@ def _semantic_review_accepted(
         and row.get("independent_agent") is True
         and row.get("independent_invocation") is True
         and str(row.get("reviewer_model_tier", "") or "").lower()
-        == "sonnet"
+        == LIVE_EVALUATION_CLAUDE_MODEL_TIER
         and row.get("confirmatory_empirical_evidence_eligible") is True
         for row in artifacts.values()
     )

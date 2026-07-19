@@ -23,7 +23,10 @@ from ai_statistician.formalizer_llm import (
     FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE,
     build_formalizer_prompt,
 )
-from ai_statistician.model_backend import StaticJSONGeneratorBackend
+from ai_statistician.model_backend import (
+    LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+    StaticJSONGeneratorBackend,
+)
 from ai_statistician.research_agent_runtime import (
     FormalTargetSemanticReviewerRuntimeSubsystem,
     _formalizer_compiled_exact_candidate_semantic_review_feedback,
@@ -91,13 +94,17 @@ def _review_response(verdict: str) -> dict[str, object]:
     }
 
 
-def _reviewer(verdict: str) -> LLMFormalTargetSemanticReviewerAgent:
+def _reviewer(
+    verdict: str,
+    *,
+    model_tier: str = LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+) -> LLMFormalTargetSemanticReviewerAgent:
     return LLMFormalTargetSemanticReviewerAgent(
         provider=StaticJSONGeneratorBackend(_review_response(verdict)),
         config=FormalTargetSemanticReviewerConfig(
             provider_name="static",
-            model="static-sonnet-formal-target-reviewer",
-            model_tier="sonnet",
+            model=f"static-{model_tier}-formal-target-reviewer",
+            model_tier=model_tier,
             max_repair_attempts=0,
         ),
     )
@@ -108,6 +115,7 @@ def _runtime_fixture(
     verdict: str,
     *,
     target_hash_algorithm: str = EXACT_TARGET_STATEMENT_HASH_ALGORITHM,
+    reviewer_model_tier: str = LIVE_EVALUATION_CLAUDE_MODEL_TIER,
 ):
     question = _question()
     source = (
@@ -148,8 +156,8 @@ def _runtime_fixture(
         "artifact_kind": "FormalizerProofEngineerProposalPacket",
         "packet_id": "formalizer:generic-formal-target-review",
         "source_agent": "LLMFormalizerProofEngineerAgent",
-        "model": "source-sonnet-model",
-        "model_tier": "sonnet",
+        "model": "source-haiku-model",
+        "model_tier": LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         "formal_targets": [
             {
                 "id": "exact_source",
@@ -276,7 +284,7 @@ def _runtime_fixture(
         }
     )
     subsystem = FormalTargetSemanticReviewerRuntimeSubsystem(
-        reviewer=_reviewer(verdict),
+        reviewer=_reviewer(verdict, model_tier=reviewer_model_tier),
         max_revisions=2,
     )
     return subsystem, dispatch["next_task"], blackboard, artifact_path
@@ -324,6 +332,25 @@ def test_formal_target_semantic_review_accepts_before_typed_prover_search(
         context["target_theorem_statement_hash"]
     )
     assert all(row.payload["kernel_verified"] is False for row in result.evidence_entries)
+
+
+def test_formal_target_capability_eval_rejects_non_evaluation_reviewer_tier(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        "ACCEPT",
+        reviewer_model_tier="sonnet",
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "BLOCKED"
+    assert result.failure_classification == (
+        "formal_target_semantic_review_verdict_invalid"
+    )
+    assert result.observations
+    assert LIVE_EVALUATION_CLAUDE_MODEL_TIER in result.observations[0].summary
 
 
 def test_formal_target_semantic_review_rejects_target_and_disables_prover(
@@ -630,14 +657,16 @@ def test_capability_scorecard_requires_independent_formal_target_review() -> Non
             "n_formal_target_semantic_review_work_orders": 1,
             "n_formal_target_semantic_review_executions": 1,
             "n_formal_target_semantic_review_accepted": 1,
-            "n_formal_target_semantic_review_independent_sonnet": 1,
+            "n_formal_target_semantic_review_independent_evaluation_model": 1,
         }
     )
     rows = {row["requirement_id"]: row for row in scorecard["rows"]}
 
     assert rows["formal_target_semantic_review_executed"]["passed"] is True
     assert rows["formal_target_semantic_review_accepted"]["passed"] is True
-    assert rows["formal_target_semantic_review_independent_sonnet"]["passed"] is True
+    assert rows[
+        "formal_target_semantic_review_independent_evaluation_model"
+    ]["passed"] is True
 
 
 def test_runtime_audit_recomputes_formal_target_review_lineage(
@@ -667,7 +696,10 @@ def test_runtime_audit_recomputes_formal_target_review_lineage(
     assert audit_row.n_formal_target_semantic_review_work_orders == 1
     assert audit_row.n_formal_target_semantic_review_executions == 1
     assert audit_row.n_formal_target_semantic_review_accepted == 1
-    assert audit_row.n_formal_target_semantic_review_independent_sonnet == 1
+    assert (
+        audit_row.n_formal_target_semantic_review_independent_evaluation_model
+        == 1
+    )
     assert not [
         error
         for error in audit_row.errors

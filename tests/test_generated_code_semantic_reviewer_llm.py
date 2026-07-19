@@ -18,7 +18,10 @@ from ai_statistician.generated_code_semantic_review_replan import (
     advance_generated_code_semantic_review_lineage_budget,
     record_generated_code_semantic_review_lineage_action,
 )
-from ai_statistician.model_backend import StaticJSONGeneratorBackend
+from ai_statistician.model_backend import (
+    LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+    StaticJSONGeneratorBackend,
+)
 from ai_statistician.research_agent_runtime import (
     ArchitectCoordinatorRuntimeSubsystem,
     GeneratedCodeSemanticReviewerRuntimeSubsystem,
@@ -89,6 +92,7 @@ def _reviewer(
     *,
     accept: bool,
     model: str = "static-sonnet-reviewer",
+    model_tier: str = "sonnet",
     repair_scope: str = "source_code",
 ):
     return LLMGeneratedCodeSemanticReviewerAgent(
@@ -98,7 +102,7 @@ def _reviewer(
         config=GeneratedCodeSemanticReviewerConfig(
             provider_name="static",
             model=model,
-            model_tier="sonnet",
+            model_tier=model_tier,
             max_repair_attempts=0,
         ),
     )
@@ -280,7 +284,8 @@ def _runtime_fixture(
     *,
     accept: bool,
     capability_eval: bool = False,
-    reviewer_model: str = "static-sonnet-reviewer",
+    reviewer_model: str = "",
+    reviewer_model_tier: str = "",
     metric_failed: bool = False,
     repair_scope: str = "source_code",
 ):
@@ -302,12 +307,16 @@ def _runtime_fixture(
         "packet_id": "theory:test",
         "derivation_steps": [{"claim": "The metric estimates the target error."}],
     }
+    source_model_tier = (
+        LIVE_EVALUATION_CLAUDE_MODEL_TIER if capability_eval else "sonnet"
+    )
+    source_model = f"source-{source_model_tier}"
     proposal_packet = {
         "artifact_kind": "AlgorithmEngineerProposalPacket",
         "packet_id": "algorithm-proposal:test",
         "source_agent": "LLMAlgorithmEngineerAgent",
-        "model": "source-sonnet",
-        "model_tier": "sonnet",
+        "model": source_model,
+        "model_tier": source_model_tier,
     }
     row = {
         "estimator_id": "generated-estimator",
@@ -429,7 +438,8 @@ def _runtime_fixture(
     subsystem = GeneratedCodeSemanticReviewerRuntimeSubsystem(
         reviewer=_reviewer(
             accept=accept,
-            model=reviewer_model,
+            model=reviewer_model or f"static-{source_model_tier}-reviewer",
+            model_tier=reviewer_model_tier or source_model_tier,
             repair_scope=repair_scope,
         ),
         max_revisions=1,
@@ -1180,7 +1190,7 @@ def test_capability_eval_accepts_separate_same_model_reviewer_invocation(
         tmp_path,
         accept=True,
         capability_eval=True,
-        reviewer_model="source-sonnet",
+        reviewer_model="source-haiku",
     )
 
     result = subsystem.run(task, blackboard)
@@ -1195,6 +1205,27 @@ def test_capability_eval_accepts_separate_same_model_reviewer_invocation(
     assert execution["independent_agent"] is True
     assert execution["independent_invocation"] is True
     assert execution["independent_model"] is False
+    assert execution["reviewer_model_tier"] == LIVE_EVALUATION_CLAUDE_MODEL_TIER
+
+
+def test_capability_eval_rejects_non_evaluation_reviewer_tier(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        accept=True,
+        capability_eval=True,
+        reviewer_model_tier="sonnet",
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "BLOCKED"
+    assert result.failure_classification == (
+        "generated_code_semantic_review_verdict_invalid"
+    )
+    assert result.observations
+    assert LIVE_EVALUATION_CLAUDE_MODEL_TIER in result.observations[0].summary
 
 
 def test_capability_eval_rejects_missing_source_provenance_before_model(
@@ -1274,7 +1305,7 @@ def test_capability_scorecard_requires_both_independent_semantic_review_lanes() 
             "n_generated_code_semantic_review_accepted": 2,
             "n_generated_algorithm_semantic_review_accepted": 1,
             "n_generated_simulation_semantic_review_accepted": 1,
-            "n_generated_code_semantic_review_independent_sonnet": 2,
+            "n_generated_code_semantic_review_independent_evaluation_model": 2,
             "n_live_generated_code_sandbox_executed": 1,
             "n_live_generated_simulation_sandbox_executed": 1,
         }
@@ -1284,7 +1315,9 @@ def test_capability_scorecard_requires_both_independent_semantic_review_lanes() 
     assert rows["generated_code_semantic_review_executed"]["passed"] is True
     assert rows["generated_algorithm_semantic_review_accepted"]["passed"] is True
     assert rows["generated_simulation_semantic_review_accepted"]["passed"] is True
-    assert rows["generated_code_semantic_review_independent_sonnet"]["passed"] is True
+    assert rows[
+        "generated_code_semantic_review_independent_evaluation_model"
+    ]["passed"] is True
 
 
 def test_runtime_audit_recomputes_semantic_review_lineage(tmp_path: Path) -> None:
@@ -1313,7 +1346,10 @@ def test_runtime_audit_recomputes_semantic_review_lineage(tmp_path: Path) -> Non
     assert audit_row.n_generated_code_semantic_review_executions == 1
     assert audit_row.n_generated_code_semantic_review_accepted == 1
     assert audit_row.n_generated_algorithm_semantic_review_accepted == 1
-    assert audit_row.n_generated_code_semantic_review_independent_sonnet == 1
+    assert (
+        audit_row.n_generated_code_semantic_review_independent_evaluation_model
+        == 1
+    )
     assert not [
         error for error in audit_row.errors if "semantic review" in error
     ]
@@ -1340,7 +1376,10 @@ def test_runtime_audit_recomputes_semantic_review_lineage(tmp_path: Path) -> Non
     )
     assert tampered_row.n_generated_code_semantic_review_accepted == 0
     assert tampered_row.n_generated_algorithm_semantic_review_accepted == 0
-    assert tampered_row.n_generated_code_semantic_review_independent_sonnet == 0
+    assert (
+        tampered_row.n_generated_code_semantic_review_independent_evaluation_model
+        == 0
+    )
 
     invalid_packet_payload = json.loads(json.dumps(original_payload))
     invalid_artifacts = invalid_packet_payload["blackboard"]["artifacts"]

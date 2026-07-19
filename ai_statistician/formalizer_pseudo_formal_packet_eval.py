@@ -516,7 +516,7 @@ def _formalizer_pseudo_formal_packet_eval_manifest(
         "provider_name": provider_name,
         "backend_provider_name": backend_provider_name,
         "model": model,
-        "model_tier": "sonnet",
+        "model_tier": LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         "live_generator": live_generator,
         "static_or_fixture_only": not live_generator,
         "component_eval": "Formalizer/ProofEngineer PF/BV packet emission",
