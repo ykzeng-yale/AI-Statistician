@@ -85,3 +85,78 @@ def theory_informed_metric_protocol_material(
     ):
         return {}
     return deepcopy(dict(material))
+
+
+def metric_protocol_authority_matches_theory(
+    *,
+    source_theory_packet_id: Any,
+    source_theory_packet_hash: Any,
+    theory_material: Mapping[str, Any] | None,
+) -> bool:
+    """Require an execution authority to name the exact current theory bytes."""
+
+    material = theory_material or {}
+    current_packet_id = str(
+        material.get("source_theory_packet_id", "") or ""
+    ).strip()
+    current_packet_hash = str(
+        material.get("source_theory_packet_hash", "") or ""
+    ).strip()
+    return bool(
+        current_packet_id
+        and current_packet_hash
+        and str(source_theory_packet_id or "").strip() == current_packet_id
+        and str(source_theory_packet_hash or "").strip() == current_packet_hash
+    )
+
+
+def reviewed_metric_protocol_authority_matches_theory(
+    *,
+    evidence_contract: Mapping[str, Any] | None,
+    metric_authoring: Mapping[str, Any] | None,
+    theory_material: Mapping[str, Any] | None,
+) -> bool:
+    """Check whether either reviewed authority is bound to the current theory."""
+
+    contract = evidence_contract or {}
+    review = contract.get(
+        "empirical_metric_requirements_preexecution_review", {}
+    )
+    review = review if isinstance(review, Mapping) else {}
+    contract_authorized = bool(
+        contract.get("empirical_metric_requirements")
+        and contract.get("empirical_metric_protocol_phase")
+        == METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED
+        and contract.get("metric_protocol_execution_authorized") is True
+        and review.get("overall_verdict") == "ACCEPT"
+        and str(
+            review.get("reviewed_empirical_metric_requirement_set_id", "") or ""
+        )
+        == str(contract.get("empirical_metric_requirement_set_id", "") or "")
+        and str(contract.get("empirical_metric_requirement_set_id", "") or "")
+        and metric_protocol_authority_matches_theory(
+            source_theory_packet_id=review.get("source_theory_packet_id", ""),
+            source_theory_packet_hash=review.get(
+                "source_theory_packet_hash", ""
+            ),
+            theory_material=theory_material,
+        )
+    )
+    authoring = metric_authoring or {}
+    authoring_authorized = bool(
+        authoring.get("empirical_metric_requirements")
+        and authoring.get("semantic_review_status") == "ACCEPT"
+        and authoring.get("semantic_review_independent_agent") is True
+        and authoring.get("semantic_review_independent_invocation") is True
+        and str(authoring.get("empirical_metric_requirement_set_id", "") or "")
+        and metric_protocol_authority_matches_theory(
+            source_theory_packet_id=authoring.get(
+                "source_theory_packet_id", ""
+            ),
+            source_theory_packet_hash=authoring.get(
+                "source_theory_packet_hash", ""
+            ),
+            theory_material=theory_material,
+        )
+    )
+    return contract_authorized or authoring_authorized

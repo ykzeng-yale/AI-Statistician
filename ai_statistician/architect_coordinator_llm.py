@@ -41,6 +41,7 @@ from .metric_protocol_stage import (
     METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED,
     METRIC_PROTOCOL_PHASE_THEORY_PREREQUISITE_PENDING,
     METRIC_PROTOCOL_PHASES,
+    metric_protocol_authority_matches_theory,
     theory_informed_metric_protocol_material,
 )
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
@@ -438,6 +439,12 @@ def _architect_context_with_metric_requirement_authoring(
                 metric_authoring_packet.get("artifact_kind", "") or ""
             ),
             "packet_id": str(metric_authoring_packet.get("packet_id", "") or ""),
+            "source_theory_packet_id": str(
+                metric_authoring_packet.get("source_theory_packet_id", "") or ""
+            ),
+            "source_theory_packet_hash": str(
+                metric_authoring_packet.get("source_theory_packet_hash", "") or ""
+            ),
             "empirical_metric_requirements": [
                 dict(row)
                 for row in metric_authoring_packet.get(
@@ -525,6 +532,12 @@ def _architect_metric_requirement_authoring_summary(
     return {
         "artifact_kind": str(packet.get("artifact_kind", "") or ""),
         "packet_id": str(packet.get("packet_id", "") or ""),
+        "source_theory_packet_id": str(
+            packet.get("source_theory_packet_id", "") or ""
+        ),
+        "source_theory_packet_hash": str(
+            packet.get("source_theory_packet_hash", "") or ""
+        ),
         "provider_name": str(packet.get("provider_name", "") or ""),
         "model": str(packet.get("model", "") or ""),
         "model_tier": str(packet.get("model_tier", "") or ""),
@@ -1884,6 +1897,8 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                         "review_packet_id",
                         "review_packet_hash",
                         "reviewed_empirical_metric_requirement_set_id",
+                        "source_theory_packet_id",
+                        "source_theory_packet_hash",
                         "reviewer_model",
                         "reviewer_model_tier",
                     ):
@@ -2014,6 +2029,32 @@ def _architect_runtime_owned_evidence_contract(
     )
     if not isinstance(prior_contract, Mapping):
         prior_contract = {}
+    theory_material = theory_informed_metric_protocol_material(context)
+    evaluation_contract = _architect_runtime_evaluation_contract(config)
+    strict_metric_protocol = _research_evaluation_contract_flag(
+        evaluation_contract,
+        "typed_metric_contracts",
+    )
+    prior_review = prior_contract.get(
+        "empirical_metric_requirements_preexecution_review", {}
+    )
+    if not isinstance(prior_review, Mapping):
+        prior_review = {}
+    prior_requirements_match_current_theory = bool(
+        (not theory_material and not strict_metric_protocol)
+        or (
+            theory_material
+            and metric_protocol_authority_matches_theory(
+                source_theory_packet_id=prior_review.get(
+                    "source_theory_packet_id", ""
+                ),
+                source_theory_packet_hash=prior_review.get(
+                    "source_theory_packet_hash", ""
+                ),
+                theory_material=theory_material,
+            )
+        )
+    )
     for field in ("formal_targets", "simulation_targets"):
         prior_value = prior_contract.get(field)
         if prior_value not in (None, "", [], {}):
@@ -2034,8 +2075,27 @@ def _architect_runtime_owned_evidence_contract(
         and metric_authoring.get("semantic_review_status") == "ACCEPT"
         and metric_authoring.get("semantic_review_independent_agent") is True
         and metric_authoring.get("semantic_review_independent_invocation") is True
+        and (
+            (not theory_material and not strict_metric_protocol)
+            or (
+                theory_material
+                and metric_protocol_authority_matches_theory(
+                    source_theory_packet_id=metric_authoring.get(
+                        "source_theory_packet_id", ""
+                    ),
+                    source_theory_packet_hash=metric_authoring.get(
+                        "source_theory_packet_hash", ""
+                    ),
+                    theory_material=theory_material,
+                )
+            )
+        )
     )
-    if isinstance(prior_requirements, list) and prior_requirements:
+    if (
+        isinstance(prior_requirements, list)
+        and prior_requirements
+        and prior_requirements_match_current_theory
+    ):
         contract["empirical_metric_requirements"] = [
             dict(row) if isinstance(row, Mapping) else row
             for row in prior_requirements
@@ -2052,9 +2112,6 @@ def _architect_runtime_owned_evidence_contract(
         contract[
             "empirical_metric_requirements_frozen_from_prior_architect_plan"
         ] = True
-        prior_review = prior_contract.get(
-            "empirical_metric_requirements_preexecution_review", {}
-        )
         if isinstance(prior_review, Mapping) and prior_review:
             contract["empirical_metric_requirements_preexecution_review"] = dict(
                 prior_review
@@ -2092,6 +2149,12 @@ def _architect_runtime_owned_evidence_contract(
             "reviewed_empirical_metric_requirement_set_id": str(
                 metric_authoring.get("empirical_metric_requirement_set_id", "")
                 or ""
+            ),
+            "source_theory_packet_id": str(
+                metric_authoring.get("source_theory_packet_id", "") or ""
+            ),
+            "source_theory_packet_hash": str(
+                metric_authoring.get("source_theory_packet_hash", "") or ""
             ),
             "reviewer_model": str(
                 metric_authoring.get("semantic_review_model", "") or ""
@@ -2132,12 +2195,11 @@ def _architect_runtime_owned_evidence_contract(
     ).strip()
     if requested_path:
         contract["recommended_research_path"] = requested_path
-    contract.update(_architect_runtime_evaluation_contract(config))
+    contract.update(evaluation_contract)
     capability_eval = _research_evaluation_contract_flag(
         contract,
         "typed_metric_contracts",
     )
-    theory_material = theory_informed_metric_protocol_material(context)
     accepted_requirements = bool(contract.get("empirical_metric_requirements"))
     if not capability_eval:
         contract["empirical_metric_protocol_phase"] = (

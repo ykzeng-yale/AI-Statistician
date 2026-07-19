@@ -45,6 +45,11 @@ from .algorithm_engineer_llm import (
     ALGORITHM_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
     LLMAlgorithmEngineerAgent,
 )
+from .coding_agent_source_repair_lineage import (
+    CODING_AGENT_SOURCE_OWNED_FAILURE_CLASSIFICATIONS,
+    coding_agent_source_repair_lineage_exhausted_result,
+    coding_agent_source_repair_lineage_state,
+)
 from .critic_evaluator_llm import (
     CRITIC_EVALUATOR_BOUNDARY,
     CRITIC_EVALUATOR_PROPOSAL_NOT_EVIDENCE,
@@ -87,6 +92,9 @@ from .generated_code_semantic_review_replan import (
     GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
     advance_generated_code_semantic_review_lineage_budget,
     build_generated_code_semantic_review_architect_replan_task,
+    consume_generated_code_semantic_review_upstream_theory_replan,
+    generated_code_semantic_review_upstream_theory_budget_exhausted_result,
+    generated_code_semantic_review_upstream_theory_revision_state,
     record_generated_code_semantic_review_lineage_action,
 )
 from .scientific_sandbox import (
@@ -110,6 +118,7 @@ from .metric_protocol_stage import (
     METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED,
     METRIC_PROTOCOL_PHASE_THEORY_PREREQUISITE_PENDING,
     build_theory_informed_metric_protocol_material,
+    reviewed_metric_protocol_authority_matches_theory,
 )
 from .research_evaluation import build_research_evaluation_summary
 from .formal_target_semantic_reviewer_llm import (
@@ -7350,6 +7359,7 @@ class ResearchAgentRuntimeConfig:
     algorithm_engineer_generated_code_repair_yield_after_attempts: int = 0
     simulation_evaluator_generated_code_repair_yield_after_attempts: int = 0
     generated_code_semantic_review_max_revisions: int = 1
+    generated_code_semantic_review_max_upstream_theory_revisions: int = 2
     metric_protocol_max_upstream_theory_revisions: int = 2
     metric_protocol_max_fresh_candidate_revisions: int = 0
     formal_target_semantic_review_required: bool = False
@@ -8508,6 +8518,118 @@ def _architect_identity_bound_source_repair_dispatch_result(
     )
 
 
+def _architect_context_with_bound_metric_protocol_theory_material(
+    *,
+    architect_context: Mapping[str, Any],
+    theory_material: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Bind metric execution authority to the exact current theory artifact."""
+
+    context = dict(architect_context)
+    material = dict(theory_material)
+    context["architect_metric_protocol_theory_material"] = material
+    theory_packet_id = str(
+        material.get("source_theory_packet_id", "") or ""
+    )
+    theory_packet_hash = str(
+        material.get("source_theory_packet_hash", "") or ""
+    )
+    if not theory_packet_id or not theory_packet_hash:
+        return context
+
+    prior_contract = _architect_runtime_plan(context).get("evidence_contract", {})
+    if not isinstance(prior_contract, Mapping):
+        prior_contract = {}
+    prior_review = prior_contract.get(
+        "empirical_metric_requirements_preexecution_review", {}
+    )
+    if not isinstance(prior_review, Mapping):
+        prior_review = {}
+    accepted_authoring = context.get(
+        "architect_metric_requirement_authoring", {}
+    )
+    metric_protocol_already_authorized = (
+        reviewed_metric_protocol_authority_matches_theory(
+            evidence_contract=prior_contract,
+            metric_authoring=(
+                accepted_authoring
+                if isinstance(accepted_authoring, Mapping)
+                else {}
+            ),
+            theory_material=material,
+        )
+    )
+    if not metric_protocol_already_authorized:
+        prior_gate = context.get("architect_metric_protocol_gate", {})
+        if not isinstance(prior_gate, Mapping):
+            prior_gate = {}
+        context["architect_metric_protocol_gate"] = {
+            **{
+                key: value
+                for key, value in prior_gate.items()
+                if key
+                in {
+                    "rejection_manifest_ids",
+                    "upstream_theory_revision_count",
+                    "max_upstream_theory_revisions",
+                    "source_theory_revision_feedback_id",
+                }
+            },
+            "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+            "source_theory_packet_id": theory_packet_id,
+            "source_theory_packet_hash": theory_packet_hash,
+            "required_disposition": "PREEXECUTION_REVIEW_ACCEPTED",
+            "execution_authorized": False,
+            "consumed": False,
+            "rehydrated_from_blackboard": True,
+            "proof_evidence_status": (
+                "ARCHITECT_METRIC_PROTOCOL_GATE_NOT_PROOF_EVIDENCE"
+            ),
+            "boundary": (
+                "Metric execution authority is valid only for the exact source "
+                "TheoryDeveloper packet ID and hash reviewed before execution. A "
+                "new theory packet invalidates prior authorization without erasing "
+                "its repair history; neither packet is proof evidence."
+            ),
+        }
+        prior_claimed_authority = bool(
+            prior_contract.get("metric_protocol_execution_authorized") is True
+            or (
+                isinstance(accepted_authoring, Mapping)
+                and accepted_authoring.get("semantic_review_status") == "ACCEPT"
+            )
+        )
+        if prior_claimed_authority:
+            context["architect_metric_protocol_authority_invalidation"] = {
+                "artifact_kind": (
+                    "RuntimeMetricProtocolTheoryLineageInvalidation"
+                ),
+                "current_source_theory_packet_id": theory_packet_id,
+                "current_source_theory_packet_hash": theory_packet_hash,
+                "prior_contract_source_theory_packet_id": str(
+                    prior_review.get("source_theory_packet_id", "") or ""
+                ),
+                "prior_contract_source_theory_packet_hash": str(
+                    prior_review.get("source_theory_packet_hash", "") or ""
+                ),
+                "prior_authoring_source_theory_packet_id": str(
+                    accepted_authoring.get("source_theory_packet_id", "")
+                    if isinstance(accepted_authoring, Mapping)
+                    else ""
+                ),
+                "prior_authoring_source_theory_packet_hash": str(
+                    accepted_authoring.get("source_theory_packet_hash", "")
+                    if isinstance(accepted_authoring, Mapping)
+                    else ""
+                ),
+                "execution_authorized": False,
+                "proof_evidence_status": (
+                    "METRIC_PROTOCOL_THEORY_LINEAGE_INVALIDATION_NOT_PROOF_EVIDENCE"
+                ),
+            }
+    return context
+
+
 def _architect_context_with_rehydrated_metric_protocol_theory_material(
     *,
     architect_context: Mapping[str, Any],
@@ -8517,20 +8639,23 @@ def _architect_context_with_rehydrated_metric_protocol_theory_material(
     context.pop("architect_metric_protocol_prior_rejection", None)
     existing = context.get("architect_metric_protocol_theory_material", {})
     theory_material = dict(existing) if isinstance(existing, Mapping) else {}
-    if not theory_material:
-        theory_packet_id = _architect_context_theory_packet_id(context)
-        if not theory_packet_id:
-            return context
+    theory_packet_id = _architect_context_theory_packet_id(context)
+    if theory_packet_id:
         theory_packet = blackboard.artifacts.get(theory_packet_id, {})
-        if not isinstance(theory_packet, Mapping) or not theory_packet:
+        if isinstance(theory_packet, Mapping) and theory_packet:
+            theory_material = build_theory_informed_metric_protocol_material(
+                theory_packet=theory_packet,
+                theory_packet_id=theory_packet_id,
+            )
+        elif str(
+            theory_material.get("source_theory_packet_id", "") or ""
+        ) != theory_packet_id:
             return context
-        theory_material = build_theory_informed_metric_protocol_material(
-            theory_packet=theory_packet,
-            theory_packet_id=theory_packet_id,
-        )
-        context["architect_metric_protocol_theory_material"] = theory_material
-    theory_packet_id = str(
-        theory_material.get("source_theory_packet_id", "") or ""
+    if not theory_material:
+        return context
+    context = _architect_context_with_bound_metric_protocol_theory_material(
+        architect_context=context,
+        theory_material=theory_material,
     )
     prior_rejection = _architect_metric_protocol_prior_rejection_context(
         architect_context=context,
@@ -8539,45 +8664,6 @@ def _architect_context_with_rehydrated_metric_protocol_theory_material(
     )
     if prior_rejection:
         context["architect_metric_protocol_prior_rejection"] = prior_rejection
-    prior_contract = _architect_runtime_plan(context).get("evidence_contract", {})
-    if not isinstance(prior_contract, Mapping):
-        prior_contract = {}
-    accepted_authoring = context.get(
-        "architect_metric_requirement_authoring", {}
-    )
-    accepted_authoring_authorized = bool(
-        isinstance(accepted_authoring, Mapping)
-        and accepted_authoring.get("empirical_metric_requirements")
-        and accepted_authoring.get("semantic_review_status") == "ACCEPT"
-        and accepted_authoring.get("semantic_review_independent_agent") is True
-        and accepted_authoring.get("semantic_review_independent_invocation") is True
-    )
-    metric_protocol_already_authorized = bool(
-        (
-            prior_contract.get("empirical_metric_requirements")
-            and prior_contract.get("metric_protocol_execution_authorized") is True
-        )
-        or accepted_authoring_authorized
-    )
-    if not metric_protocol_already_authorized:
-        context.setdefault(
-            "architect_metric_protocol_gate",
-            {
-                "artifact_kind": "RuntimeArchitectMetricProtocolGate",
-                "source_theory_packet_id": theory_packet_id,
-                "required_disposition": "PREEXECUTION_REVIEW_ACCEPTED",
-                "execution_authorized": False,
-                "rehydrated_from_blackboard": True,
-                "proof_evidence_status": (
-                    "ARCHITECT_METRIC_PROTOCOL_GATE_NOT_PROOF_EVIDENCE"
-                ),
-                "boundary": (
-                    "A prior TheoryDeveloper artifact was rehydrated for "
-                    "pre-execution metric authoring. Rehydration does not authorize "
-                    "execution or promote the theory proposal to proof evidence."
-                ),
-            },
-        )
     return context
 
 
@@ -11652,10 +11738,18 @@ class TheoryDeveloperRuntimeSubsystem:
         theory_developer: LLMTheoryDeveloperAgent,
         n_runs: int,
         seed: int,
+        max_generated_code_semantic_review_upstream_theory_revisions: int = 2,
     ) -> None:
         self.theory_developer = theory_developer
         self.n_runs = n_runs
         self.seed = seed
+        self.max_generated_code_semantic_review_upstream_theory_revisions = max(
+            0,
+            int(
+                max_generated_code_semantic_review_upstream_theory_revisions
+                or 0
+            ),
+        )
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
@@ -11663,6 +11757,23 @@ class TheoryDeveloperRuntimeSubsystem:
         context["runtime_task"] = _runtime_task_prompt_summary(task)
         if "environment_feedback" in task.inputs:
             context["environment_feedback"] = task.inputs["environment_feedback"]
+        upstream_theory_revision_state = (
+            generated_code_semantic_review_upstream_theory_revision_state(
+                architect_context=context,
+                question_id=question.id,
+                max_revisions=(
+                    self.max_generated_code_semantic_review_upstream_theory_revisions
+                ),
+            )
+        )
+        if upstream_theory_revision_state["budget_exhausted"]:
+            return (
+                generated_code_semantic_review_upstream_theory_budget_exhausted_result(
+                    task=task,
+                    question_id=question.id,
+                    budget_state=upstream_theory_revision_state,
+                )
+            )
         metric_protocol_revision_feedback = (
             theory_developer_source_environment_feedback(context)
         )
@@ -11864,6 +11975,29 @@ class TheoryDeveloperRuntimeSubsystem:
                 ),
                 inputs=simulation_inputs,
             )
+        current_theory_material = build_theory_informed_metric_protocol_material(
+            theory_packet=packet,
+            theory_packet_id=packet_id,
+        )
+        context = _architect_context_with_bound_metric_protocol_theory_material(
+            architect_context=context,
+            theory_material=current_theory_material,
+        )
+        context = consume_generated_code_semantic_review_upstream_theory_replan(
+            architect_context=context,
+            question_id=question.id,
+            revised_theory_packet_id=packet_id,
+            revised_theory_packet_hash=str(
+                current_theory_material.get("source_theory_packet_hash", "")
+                or ""
+            ),
+            max_revisions=(
+                self.max_generated_code_semantic_review_upstream_theory_revisions
+            ),
+        )
+        simulation_inputs = dict(simulation_task.inputs)
+        simulation_inputs["architect_context"] = context
+        simulation_task = replace(simulation_task, inputs=simulation_inputs)
         implementation_gaps = _implementation_gaps(
             packet,
             [],
@@ -11896,15 +12030,18 @@ class TheoryDeveloperRuntimeSubsystem:
                 if str(value).strip()
             ]
             context["theory_packet_id"] = packet_id
-            context["architect_metric_protocol_theory_material"] = (
-                build_theory_informed_metric_protocol_material(
-                    theory_packet=packet,
-                    theory_packet_id=packet_id,
-                )
+            context["architect_metric_protocol_theory_material"] = dict(
+                current_theory_material
             )
             context["architect_metric_protocol_gate"] = {
                 "artifact_kind": "RuntimeArchitectMetricProtocolGate",
                 "source_theory_packet_id": packet_id,
+                "source_theory_packet_hash": str(
+                    current_theory_material.get(
+                        "source_theory_packet_hash", ""
+                    )
+                    or ""
+                ),
                 "source_theory_revision_feedback_id": str(
                     metric_protocol_revision_feedback.get("feedback_id", "")
                     if metric_protocol_revision_feedback
@@ -11915,6 +12052,7 @@ class TheoryDeveloperRuntimeSubsystem:
                 "max_upstream_theory_revisions": max_upstream_theory_revisions,
                 "required_disposition": "PREEXECUTION_REVIEW_ACCEPTED",
                 "execution_authorized": False,
+                "consumed": False,
                 "proof_evidence_status": (
                     "ARCHITECT_METRIC_PROTOCOL_GATE_NOT_PROOF_EVIDENCE"
                 ),
@@ -16472,11 +16610,40 @@ class AlgorithmEngineerRuntimeSubsystem:
                     effective_context
                 )
             )
-            if (
+            local_repair_budget_exhausted = bool(
                 requires_generated_algorithm_code
                 and yield_after_attempts > 0
                 and repair_attempts_used >= yield_after_attempts
+            )
+            source_owned_failure = bool(
+                revision_failure_classification
+                in CODING_AGENT_SOURCE_OWNED_FAILURE_CLASSIFICATIONS
+            )
+            source_lineage = coding_agent_source_repair_lineage_state(
+                question_id=question.id,
+                source_subsystem="AlgorithmEngineer",
+                theory_packet_id=packet_id,
+                implementation_gaps=implementation_gaps,
+                architect_context=effective_context,
+                yield_after_attempts=yield_after_attempts,
+            )
+            if (
+                local_repair_budget_exhausted
+                and source_owned_failure
+                and int(source_lineage["dispatches_used"])
+                >= int(source_lineage["max_dispatches"])
             ):
+                return coding_agent_source_repair_lineage_exhausted_result(
+                    task=task,
+                    question=question,
+                    source_manifest_id=manifest_id,
+                    lineage_state=source_lineage,
+                    produced_artifacts=produced_artifacts,
+                    observations=observations,
+                    tool_calls=tool_calls,
+                    evidence_entries=(proposal_evidence, evidence),
+                )
+            if local_repair_budget_exhausted and not source_owned_failure:
                 next_task = _coding_agent_repair_budget_architect_task(
                     task=task,
                     question=question,
@@ -16537,6 +16704,45 @@ class AlgorithmEngineerRuntimeSubsystem:
                         yield_after_attempts
                     ),
                 }
+                if local_repair_budget_exhausted and source_owned_failure:
+                    source_ledger = dict(source_lineage["ledger"])
+                    source_ledger[str(source_lineage["lineage_key"])] = {
+                        "dispatches_used": int(
+                            source_lineage["dispatches_used"]
+                        )
+                        + 1,
+                        "max_dispatches": int(source_lineage["max_dispatches"]),
+                        "source_subsystem": "AlgorithmEngineer",
+                        "theory_packet_id": packet_id,
+                    }
+                    revision_context[
+                        "runtime_coding_agent_source_repair_lineage_ledger"
+                    ] = source_ledger
+                    revision_context["runtime_feedback_loop"]["handoff"] = (
+                        "algorithm_engineer_global_source_repair"
+                    )
+                    observations.append(
+                        EnvironmentObservation(
+                            observation_type=(
+                                "algorithm_engineer_global_source_repair"
+                            ),
+                            summary=(
+                                "exact sandbox diagnostics routed directly to the "
+                                "source coding agent under a global lineage budget"
+                            ),
+                            payload={
+                                "algorithm_sandbox_manifest_id": manifest_id,
+                                "source_repair_dispatch_index": int(
+                                    source_lineage["dispatches_used"]
+                                )
+                                + 1,
+                                "max_source_repair_dispatches": int(
+                                    source_lineage["max_dispatches"]
+                                ),
+                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                            },
+                        )
+                    )
                 next_task = AgentTask(
                     task_id=f"algorithm-revise:{question.id}:{stable_hash(feedback)[:8]}",
                     owner_subsystem="AlgorithmEngineer",
@@ -38595,6 +38801,9 @@ def run_research_agent_runtime(
                 theory_developer=theory_developer,
                 n_runs=config.n_runs,
                 seed=config.seed,
+                max_generated_code_semantic_review_upstream_theory_revisions=(
+                    config.generated_code_semantic_review_max_upstream_theory_revisions
+                ),
             ),
             "SimulationEvaluator": SimulationEvaluatorRuntimeSubsystem(
                 proposal_agent=simulation_engineer,

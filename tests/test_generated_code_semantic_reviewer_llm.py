@@ -16,7 +16,11 @@ from ai_statistician.generated_code_semantic_reviewer_llm import (
 )
 from ai_statistician.generated_code_semantic_review_replan import (
     GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY,
+    GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_THEORY_REVISION_LEDGER_KEY,
     advance_generated_code_semantic_review_lineage_budget,
+    consume_generated_code_semantic_review_upstream_theory_replan,
+    generated_code_semantic_review_upstream_theory_budget_exhausted_result,
+    generated_code_semantic_review_upstream_theory_revision_state,
     record_generated_code_semantic_review_lineage_action,
 )
 from ai_statistician.model_backend import (
@@ -239,6 +243,110 @@ def test_semantic_review_lineage_budget_survives_architect_replans() -> None:
     assert after_final_local_repair["local_repair_available"] is False
     assert after_final_local_repair["architect_replan_available"] is False
     assert after_final_local_repair["lineage_budget_exhausted"] is True
+
+
+def test_upstream_theory_feedback_is_consumed_once_and_globally_bounded() -> None:
+    def replan(
+        *,
+        prior_theory_packet_id: str,
+        review_execution_id: str,
+    ) -> dict[str, object]:
+        return {
+            "artifact_kind": "RuntimeGeneratedCodeSemanticReviewReplanContext",
+            "source_subsystem": "AlgorithmEngineer",
+            "source_manifest_id": "algorithm:rejected",
+            "review_packet_id": f"review-packet:{review_execution_id}",
+            "review_execution_id": review_execution_id,
+            "repair_scope": "upstream_theory",
+            "pending_artifact_ids": {
+                "theory_packet_id": prior_theory_packet_id,
+            },
+        }
+
+    first_replan = replan(
+        prior_theory_packet_id="theory:one",
+        review_execution_id="review-execution:one",
+    )
+    first_context = {
+        "runtime_generated_code_semantic_review_replan": first_replan,
+        "environment_feedback": {
+            "semantic_review_execution_id": "review-execution:one",
+        },
+        "runtime_feedback_loop": {
+            "semantic_review_execution_id": "review-execution:one",
+        },
+    }
+    first_state = generated_code_semantic_review_upstream_theory_revision_state(
+        architect_context=first_context,
+        question_id="generic-question",
+        max_revisions=2,
+    )
+    assert first_state["active"] is True
+    assert first_state["budget_exhausted"] is False
+
+    consumed_once = consume_generated_code_semantic_review_upstream_theory_replan(
+        architect_context=first_context,
+        question_id="generic-question",
+        revised_theory_packet_id="theory:two",
+        revised_theory_packet_hash="theory-hash-two",
+        max_revisions=2,
+    )
+    assert "runtime_generated_code_semantic_review_replan" not in consumed_once
+    assert "environment_feedback" not in consumed_once
+    assert "runtime_feedback_loop" not in consumed_once
+    resolution = consumed_once[
+        "runtime_generated_code_semantic_review_replan_resolution"
+    ]
+    assert resolution["resolution_status"] == (
+        "CONSUMED_BY_FRESH_THEORY_REVISION"
+    )
+    assert resolution["requires_fresh_metric_protocol_review"] is True
+
+    second_context = {
+        **consumed_once,
+        "runtime_generated_code_semantic_review_replan": replan(
+            prior_theory_packet_id="theory:two",
+            review_execution_id="review-execution:two",
+        ),
+    }
+    consumed_twice = consume_generated_code_semantic_review_upstream_theory_replan(
+        architect_context=second_context,
+        question_id="generic-question",
+        revised_theory_packet_id="theory:three",
+        revised_theory_packet_hash="theory-hash-three",
+        max_revisions=2,
+    )
+    ledger = consumed_twice[
+        GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_THEORY_REVISION_LEDGER_KEY
+    ]
+    assert next(iter(ledger.values()))["revisions_used"] == 2
+
+    third_context = {
+        **consumed_twice,
+        "runtime_generated_code_semantic_review_replan": replan(
+            prior_theory_packet_id="theory:three",
+            review_execution_id="review-execution:three",
+        ),
+    }
+    exhausted = generated_code_semantic_review_upstream_theory_revision_state(
+        architect_context=third_context,
+        question_id="generic-question",
+        max_revisions=2,
+    )
+    assert exhausted["budget_exhausted"] is True
+    result = generated_code_semantic_review_upstream_theory_budget_exhausted_result(
+        task=AgentTask(
+            task_id="theory:blocked",
+            owner_subsystem="TheoryDeveloper",
+            objective="Do not repeat an exhausted upstream theory revision.",
+        ),
+        question_id="generic-question",
+        budget_state=exhausted,
+    )
+    assert result.status == "BLOCKED"
+    assert result.failure_classification == (
+        "generated_code_semantic_review_upstream_theory_revision_budget_exhausted"
+    )
 
 
 def test_semantic_review_allows_only_one_post_replan_local_repair() -> None:

@@ -12097,6 +12097,14 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 )
                 or 0
             ),
+            generated_code_semantic_review_max_upstream_theory_revisions=int(
+                getattr(
+                    args,
+                    "generated_code_semantic_review_max_upstream_theory_revisions",
+                    2,
+                )
+                or 0
+            ),
             metric_protocol_max_upstream_theory_revisions=int(
                 getattr(
                     args,
@@ -14603,6 +14611,18 @@ def _apply_research_agent_runtime_capability_eval_preset(
             int(
                 getattr(
                     args,
+                    "generated_code_semantic_review_max_upstream_theory_revisions",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+        ):
+            args.generated_code_semantic_review_max_upstream_theory_revisions = 2
+        if (
+            int(
+                getattr(
+                    args,
                     "formal_target_semantic_review_max_revisions",
                     0,
                 )
@@ -15334,6 +15354,22 @@ def _research_agent_runtime_capability_config_errors(
                 "capability eval preset full-live requires bounded independent "
                 "generated-code semantic-review repair; set "
                 "--generated-code-semantic-review-max-revisions > 0"
+            )
+        if (
+            int(
+                getattr(
+                    args,
+                    "generated_code_semantic_review_max_upstream_theory_revisions",
+                    0,
+                )
+                or 0
+            )
+            <= 0
+        ):
+            errors.append(
+                "capability eval preset full-live requires a global cross-theory "
+                "semantic-review repair budget; set "
+                "--generated-code-semantic-review-max-upstream-theory-revisions > 0"
             )
         if not bool(
             getattr(args, "formal_target_semantic_review_required", False)
@@ -22319,7 +22355,8 @@ def build_parser() -> argparse.ArgumentParser:
         default="none",
         help=(
             "independent generator backend for semantic review of exact executed "
-            "generated code; full-live enables independent same-provider Sonnet review"
+            "generated code; live evaluations use the independent same-provider "
+            "current Haiku model"
         ),
     )
     research_agent_runtime.add_argument(
@@ -22335,7 +22372,8 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help=(
             "model for independent generated-code semantic review; Anthropic "
-            "is capped at the configured Claude Sonnet tier"
+            "production use is capped at the configured Claude Sonnet tier, while "
+            "live evaluations are pinned to the current Haiku model"
         ),
     )
     research_agent_runtime.add_argument(
@@ -22358,12 +22396,23 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     research_agent_runtime.add_argument(
+        "--generated-code-semantic-review-max-upstream-theory-revisions",
+        type=int,
+        default=2,
+        help=(
+            "maximum fresh TheoryDeveloper revisions consumed by upstream-theory "
+            "findings from independent generated-code review across theory hashes; "
+            "full-live requires a positive global bound"
+        ),
+    )
+    research_agent_runtime.add_argument(
         "--formal-target-semantic-reviewer-provider",
         choices=SUBSYSTEM_GENERATOR_PROVIDER_CHOICES,
         default="none",
         help=(
             "independent generator backend for mathematical review of exact Lean "
-            "theorem targets before proof search; full-live enables Sonnet review"
+            "theorem targets before proof search; live evaluations are pinned to "
+            "the current Haiku model"
         ),
     )
     research_agent_runtime.add_argument(
@@ -22934,9 +22983,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=0,
         help=(
-            "in capability-eval, route unresolved AlgorithmEngineer generated-code "
-            "diagnostics to FormalizationEvaluator after this many self-repair "
-            "attempts; 0 keeps the legacy unbounded self-repair routing"
+            "in capability-eval, end the local AlgorithmEngineer repair budget "
+            "after this many attempts; source-owned execution failures receive a "
+            "bounded theory-lineage repair dispatch before typed BLOCKED, while "
+            "cross-subsystem failures yield to ArchitectCoordinator; 0 keeps the "
+            "legacy unbounded self-repair routing"
         ),
     )
     research_agent_runtime.add_argument(

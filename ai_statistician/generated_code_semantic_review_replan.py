@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from .agent_runtime import AgentTask
+from .agent_runtime import (
+    AgentStepResult,
+    AgentTask,
+    EnvironmentObservation,
+    EvidenceLedgerEntry,
+)
 from .fingerprint import stable_hash
 from .research_schema import OpenResearchQuestion
 from .typed_repair_handoff import build_typed_repair_handoff_contract
@@ -12,6 +17,266 @@ GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM = "GeneratedCodeSemanticReviewer"
 GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY = (
     "runtime_generated_code_semantic_review_lineage_ledger"
 )
+GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_THEORY_REVISION_LEDGER_KEY = (
+    "runtime_generated_code_semantic_review_upstream_theory_revision_ledger"
+)
+
+
+def generated_code_semantic_review_upstream_theory_revision_state(
+    *,
+    architect_context: Mapping[str, Any],
+    question_id: str,
+    max_revisions: int,
+) -> dict[str, Any]:
+    """Read the cross-theory budget for one active upstream review lane."""
+
+    replan = _mapping(
+        architect_context.get("runtime_generated_code_semantic_review_replan")
+    )
+    active = bool(
+        replan.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewReplanContext"
+        and replan.get("repair_scope") == "upstream_theory"
+        and replan.get("review_execution_id")
+        and replan.get("source_subsystem")
+    )
+    lineage_key = stable_hash(
+        [
+            question_id,
+            str(replan.get("source_subsystem", "") or ""),
+            "upstream_theory",
+        ]
+    )
+    prior_ledger = architect_context.get(
+        GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_THEORY_REVISION_LEDGER_KEY,
+        {},
+    )
+    ledger = {
+        str(key): dict(value)
+        for key, value in (
+            prior_ledger.items() if isinstance(prior_ledger, Mapping) else []
+        )
+        if isinstance(value, Mapping)
+    }
+    prior = dict(ledger.get(lineage_key, {}))
+    revisions_used = max(0, int(prior.get("revisions_used", 0) or 0))
+    revision_limit = max(0, int(max_revisions or 0))
+    return {
+        "active": active,
+        "lineage_key": lineage_key,
+        "ledger": ledger,
+        "row": prior,
+        "replan": replan,
+        "revisions_used": revisions_used,
+        "max_revisions": revision_limit,
+        "budget_exhausted": bool(
+            active and revision_limit > 0 and revisions_used >= revision_limit
+        ),
+    }
+
+
+def consume_generated_code_semantic_review_upstream_theory_replan(
+    *,
+    architect_context: Mapping[str, Any],
+    question_id: str,
+    revised_theory_packet_id: str,
+    revised_theory_packet_hash: str,
+    max_revisions: int,
+) -> dict[str, Any]:
+    """Retire feedback once a fresh theory packet has consumed it."""
+
+    context = dict(architect_context)
+    state = generated_code_semantic_review_upstream_theory_revision_state(
+        architect_context=context,
+        question_id=question_id,
+        max_revisions=max_revisions,
+    )
+    if not state["active"]:
+        return context
+    replan = dict(state["replan"])
+    pending_ids = _mapping(replan.get("pending_artifact_ids"))
+    prior_theory_packet_id = str(
+        pending_ids.get("theory_packet_id", "") or ""
+    )
+    revised_theory_packet_id = str(revised_theory_packet_id or "")
+    revised_theory_packet_hash = str(revised_theory_packet_hash or "")
+    if not (
+        prior_theory_packet_id
+        and revised_theory_packet_id
+        and revised_theory_packet_hash
+        and revised_theory_packet_id != prior_theory_packet_id
+    ):
+        return context
+
+    revisions_used = int(state["revisions_used"]) + 1
+    lineage_key = str(state["lineage_key"])
+    ledger = dict(state["ledger"])
+    prior_row = dict(state["row"])
+    consumed_review_execution_ids = [
+        str(value)
+        for value in prior_row.get("consumed_review_execution_ids", []) or []
+        if str(value).strip()
+    ]
+    review_execution_id = str(replan.get("review_execution_id", "") or "")
+    if review_execution_id not in consumed_review_execution_ids:
+        consumed_review_execution_ids.append(review_execution_id)
+    ledger[lineage_key] = {
+        "lineage_key": lineage_key,
+        "question_id": question_id,
+        "source_subsystem": str(replan.get("source_subsystem", "") or ""),
+        "repair_scope": "upstream_theory",
+        "revisions_used": revisions_used,
+        "max_revisions": int(state["max_revisions"]),
+        "consumed_review_execution_ids": consumed_review_execution_ids,
+        "last_prior_theory_packet_id": prior_theory_packet_id,
+        "last_revised_theory_packet_id": revised_theory_packet_id,
+        "last_revised_theory_packet_hash": revised_theory_packet_hash,
+        "proof_evidence_status": (
+            "GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_THEORY_REVISION_"
+            "BUDGET_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    context[
+        GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_THEORY_REVISION_LEDGER_KEY
+    ] = ledger
+
+    resolution = {
+        "artifact_kind": "RuntimeGeneratedCodeSemanticReviewReplanResolution",
+        "source_subsystem": str(replan.get("source_subsystem", "") or ""),
+        "rejected_source_manifest_id": str(
+            replan.get("source_manifest_id", "") or ""
+        ),
+        "rejected_review_packet_id": str(
+            replan.get("review_packet_id", "") or ""
+        ),
+        "rejected_review_execution_id": review_execution_id,
+        "prior_theory_packet_id": prior_theory_packet_id,
+        "revised_theory_packet_id": revised_theory_packet_id,
+        "revised_theory_packet_hash": revised_theory_packet_hash,
+        "upstream_theory_revisions_used": revisions_used,
+        "max_upstream_theory_revisions": int(state["max_revisions"]),
+        "resolution_status": "CONSUMED_BY_FRESH_THEORY_REVISION",
+        "requires_fresh_metric_protocol_review": True,
+        "proof_evidence_status": (
+            "GENERATED_CODE_SEMANTIC_REVIEW_REPLAN_RESOLUTION_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    resolution["resolution_id"] = (
+        "generated_code_semantic_review_replan_resolution:"
+        + stable_hash(resolution)[:20]
+    )
+    context["runtime_generated_code_semantic_review_replan_resolution"] = resolution
+    context.pop("runtime_generated_code_semantic_review_replan", None)
+
+    feedback = context.get("environment_feedback", {})
+    if isinstance(feedback, Mapping) and str(
+        feedback.get("semantic_review_execution_id", "") or ""
+    ) == review_execution_id:
+        context.pop("environment_feedback", None)
+    feedback_loop = context.get("runtime_feedback_loop", {})
+    if isinstance(feedback_loop, Mapping) and str(
+        feedback_loop.get("semantic_review_execution_id", "") or ""
+    ) == review_execution_id:
+        context.pop("runtime_feedback_loop", None)
+    return context
+
+
+def generated_code_semantic_review_upstream_theory_budget_exhausted_result(
+    *,
+    task: AgentTask,
+    question_id: str,
+    budget_state: Mapping[str, Any],
+) -> AgentStepResult:
+    """Stop before another TheoryDeveloper call when the review lane is spent."""
+
+    replan = _mapping(budget_state.get("replan"))
+    artifact_id = (
+        "generated_code_semantic_review_upstream_theory_revision_exhausted:"
+        + stable_hash(
+            [question_id, budget_state.get("lineage_key", "")]
+        )[:20]
+    )
+    boundary = (
+        "The independent generated-code review exhausted its global upstream "
+        "theory-revision budget. The rejected generated artifact remains "
+        "unaccepted; stopping this feedback lineage is not research or proof evidence."
+    )
+    artifact = {
+        "schema_version": 1,
+        "artifact_kind": (
+            "RuntimeGeneratedCodeSemanticReviewUpstreamTheoryRevisionExhaustion"
+        ),
+        "exhaustion_id": artifact_id,
+        "question_id": question_id,
+        "source_subsystem": str(replan.get("source_subsystem", "") or ""),
+        "source_manifest_id": str(replan.get("source_manifest_id", "") or ""),
+        "review_packet_id": str(replan.get("review_packet_id", "") or ""),
+        "review_execution_id": str(
+            replan.get("review_execution_id", "") or ""
+        ),
+        "upstream_theory_revisions_used": int(
+            budget_state.get("revisions_used", 0) or 0
+        ),
+        "max_upstream_theory_revisions": int(
+            budget_state.get("max_revisions", 0) or 0
+        ),
+        "proof_evidence_status": (
+            "GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_THEORY_REVISION_"
+            "EXHAUSTED_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": boundary,
+    }
+    evidence = EvidenceLedgerEntry(
+        evidence_id="evidence:" + stable_hash([task.task_id, artifact_id])[:20],
+        task_id=task.task_id,
+        artifact_id=artifact_id,
+        evidence_type=(
+            "generated_code_semantic_review_upstream_theory_revision_exhaustion"
+        ),
+        status="UPSTREAM_THEORY_REVISION_LINEAGE_EXHAUSTED_BLOCKED",
+        boundary=boundary,
+        payload={
+            "source_manifest_id": artifact["source_manifest_id"],
+            "upstream_theory_revisions_used": artifact[
+                "upstream_theory_revisions_used"
+            ],
+            "max_upstream_theory_revisions": artifact[
+                "max_upstream_theory_revisions"
+            ],
+            "proof_evidence_status": artifact["proof_evidence_status"],
+        },
+    )
+    return AgentStepResult(
+        status="BLOCKED",
+        rationale=(
+            "Runtime stopped a repeated upstream semantic-review theory lineage "
+            "before another TheoryDeveloper provider call."
+        ),
+        produced_artifacts={artifact_id: artifact},
+        observations=(
+            EnvironmentObservation(
+                observation_type=(
+                    "generated_code_semantic_review_upstream_theory_revision_"
+                    "exhaustion"
+                ),
+                summary="upstream semantic-review theory revision budget exhausted",
+                payload={
+                    "exhaustion_id": artifact_id,
+                    "upstream_theory_revisions_used": artifact[
+                        "upstream_theory_revisions_used"
+                    ],
+                    "max_upstream_theory_revisions": artifact[
+                        "max_upstream_theory_revisions"
+                    ],
+                },
+            ),
+        ),
+        evidence_entries=(evidence,),
+        failure_classification=(
+            "generated_code_semantic_review_upstream_theory_revision_budget_"
+            "exhausted"
+        ),
+    )
 
 
 def advance_generated_code_semantic_review_lineage_budget(

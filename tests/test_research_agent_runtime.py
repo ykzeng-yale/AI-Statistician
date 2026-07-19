@@ -441,6 +441,18 @@ def _with_accepted_metric_protocol(
     threshold: float = 0.9,
 ) -> dict[str, object]:
     context = json.loads(json.dumps(architect_context))
+    theory_material = context.get(
+        "architect_metric_protocol_theory_material", {}
+    )
+    theory_material = (
+        dict(theory_material) if isinstance(theory_material, dict) else {}
+    )
+    source_theory_packet_id = str(
+        theory_material.get("source_theory_packet_id", "") or ""
+    )
+    source_theory_packet_hash = str(
+        theory_material.get("source_theory_packet_hash", "") or ""
+    )
     response = _architect_sample_response(
         required_runtime_replicates=required_runtime_replicates
     )
@@ -453,6 +465,8 @@ def _with_accepted_metric_protocol(
     context["architect_metric_requirement_authoring"] = {
         "artifact_kind": "ArchitectMetricRequirementAuthoringPacket",
         "packet_id": "architect_metric_requirement_authoring:test-accepted",
+        "source_theory_packet_id": source_theory_packet_id,
+        "source_theory_packet_hash": source_theory_packet_hash,
         "empirical_metric_requirements": requirements,
         "empirical_metric_requirement_set_id": requirement_set_id,
         "semantic_review_status": "ACCEPT",
@@ -473,6 +487,7 @@ def _with_accepted_metric_protocol(
     runtime_plan = context.get("architect_runtime_plan", {})
     runtime_plan = dict(runtime_plan) if isinstance(runtime_plan, dict) else {}
     contract = dict(contract)
+    contract["capability_eval_requires_typed_metric_contracts"] = True
     contract["empirical_metric_requirements"] = requirements
     contract["empirical_metric_requirement_set_id"] = requirement_set_id
     contract["empirical_metric_protocol_phase"] = (
@@ -485,6 +500,8 @@ def _with_accepted_metric_protocol(
         "review_packet_id": "architect_metric_semantic_review:test-accepted",
         "review_packet_hash": "test-review-hash",
         "reviewed_empirical_metric_requirement_set_id": requirement_set_id,
+        "source_theory_packet_id": source_theory_packet_id,
+        "source_theory_packet_hash": source_theory_packet_hash,
         "reviewer_model": "independent-test-reviewer",
         "reviewer_model_tier": "sonnet",
         "independent_agent": True,
@@ -497,6 +514,7 @@ def _with_accepted_metric_protocol(
     context["architect_metric_protocol_gate"] = {
         "artifact_kind": "RuntimeArchitectMetricProtocolGate",
         "source_theory_packet_id": str(context.get("theory_packet_id", "") or ""),
+        "source_theory_packet_hash": source_theory_packet_hash,
         "required_disposition": "PREEXECUTION_REVIEW_ACCEPTED",
         "execution_authorized": True,
         "consumed": True,
@@ -1935,6 +1953,235 @@ def test_theory_developer_preserves_metric_protocol_revision_lineage() -> None:
         "metric-protocol-rejection:1"
     ]
     assert next_gate["execution_authorized"] is False
+
+
+def test_revised_theory_invalidates_prior_metric_execution_authority() -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    prior_theory = _structured_theory_packet_fixture(
+        "theory_derivation:prior-authorized"
+    )
+    current_theory = _structured_theory_packet_fixture(
+        "theory_derivation:current-revision"
+    )
+    current_theory["theory_derivation_packet"]["derivation_summary"] = (
+        "a genuinely revised generic derivation"
+    )
+    prior_context = {
+        "theory_packet_id": str(prior_theory["packet_id"]),
+        "architect_metric_protocol_theory_material": (
+            build_theory_informed_metric_protocol_material(
+                theory_packet=prior_theory,
+                theory_packet_id=str(prior_theory["packet_id"]),
+            )
+        ),
+        "architect_metric_protocol_gate": {
+            "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+            "source_theory_packet_id": str(prior_theory["packet_id"]),
+            "execution_authorized": False,
+        },
+    }
+    accepted_context = _with_accepted_metric_protocol(
+        prior_context,
+        required_runtime_replicates=17,
+    )
+    accepted_context["previous_theory_packet_id"] = str(
+        prior_theory["packet_id"]
+    )
+    accepted_context["runtime_generated_code_semantic_review_replan"] = {
+        "artifact_kind": "RuntimeGeneratedCodeSemanticReviewReplanContext",
+        "source_subsystem": "AlgorithmEngineer",
+        "source_manifest_id": "algorithm_sandbox_manifest:rejected",
+        "review_packet_id": "generated_code_semantic_review:upstream",
+        "review_execution_id": (
+            "generated_code_semantic_review_execution:upstream"
+        ),
+        "repair_scope": "upstream_theory",
+        "pending_artifact_ids": {
+            "theory_packet_id": str(prior_theory["packet_id"]),
+        },
+    }
+    accepted_context["environment_feedback"] = {
+        "semantic_review_execution_id": (
+            "generated_code_semantic_review_execution:upstream"
+        ),
+        "repair_scope": "upstream_theory",
+    }
+    accepted_context["runtime_feedback_loop"] = {
+        "semantic_review_execution_id": (
+            "generated_code_semantic_review_execution:upstream"
+        ),
+    }
+
+    class RevisedTheoryDeveloper:
+        def derive(self, *_args: object, **_kwargs: object) -> dict[str, object]:
+            return copy.deepcopy(current_theory)
+
+    result = TheoryDeveloperRuntimeSubsystem(
+        theory_developer=RevisedTheoryDeveloper(),  # type: ignore[arg-type]
+        n_runs=17,
+        seed=20260719,
+    ).run(
+        AgentTask(
+            task_id="theory:invalidate-prior-metric-authority",
+            owner_subsystem="TheoryDeveloper",
+            objective="Revise the accepted generic theory packet.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": accepted_context,
+            },
+        ),
+        BlackboardState(
+            project_id="metric-authority-rebound",
+            artifacts={str(prior_theory["packet_id"]): prior_theory},
+        ),
+    )
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    rebound = result.next_task.inputs["architect_context"]
+    revised_packet = result.produced_artifacts[str(current_theory["packet_id"])]
+
+    material = rebound["architect_metric_protocol_theory_material"]
+    assert material["source_theory_packet_id"] == current_theory["packet_id"]
+    assert material["source_theory_packet_hash"] == runtime_module.stable_hash(
+        revised_packet
+    )
+    gate = rebound["architect_metric_protocol_gate"]
+    assert gate["source_theory_packet_id"] == current_theory["packet_id"]
+    assert gate["execution_authorized"] is False
+    assert gate["consumed"] is False
+    invalidation = rebound[
+        "architect_metric_protocol_authority_invalidation"
+    ]
+    assert invalidation["prior_contract_source_theory_packet_id"] == (
+        prior_theory["packet_id"]
+    )
+    assert invalidation["current_source_theory_packet_id"] == (
+        current_theory["packet_id"]
+    )
+    assert "runtime_generated_code_semantic_review_replan" not in rebound
+    assert "environment_feedback" not in rebound
+    assert "runtime_feedback_loop" not in rebound
+    replan_resolution = rebound[
+        "runtime_generated_code_semantic_review_replan_resolution"
+    ]
+    assert replan_resolution["resolution_status"] == (
+        "CONSUMED_BY_FRESH_THEORY_REVISION"
+    )
+    assert replan_resolution["prior_theory_packet_id"] == prior_theory["packet_id"]
+    assert replan_resolution["revised_theory_packet_id"] == (
+        current_theory["packet_id"]
+    )
+    assert _architect_metric_authoring_deferred_for_active_replan(rebound) is False
+
+    from ai_statistician.architect_coordinator_llm import (
+        _architect_runtime_owned_evidence_contract,
+    )
+
+    rebound_contract = _architect_runtime_owned_evidence_contract(
+        architect_context=rebound,
+        runtime_config={
+            "evaluation_mode": "capability_eval",
+            "n_runs": 17,
+        },
+    )
+    assert rebound_contract["empirical_metric_requirements"] == []
+    assert rebound_contract["empirical_metric_protocol_phase"] == (
+        "theory_informed_authoring_required"
+    )
+    assert rebound_contract["metric_protocol_execution_authorized"] is False
+
+
+def test_capability_eval_rejects_metric_authority_without_theory_material() -> None:
+    from ai_statistician.architect_coordinator_llm import (
+        _architect_runtime_owned_evidence_contract,
+    )
+
+    unbound_context = _with_accepted_metric_protocol(
+        {"theory_packet_id": "theory_derivation:missing-bytes"},
+        required_runtime_replicates=13,
+    )
+
+    contract = _architect_runtime_owned_evidence_contract(
+        architect_context=unbound_context,
+        runtime_config={
+            "evaluation_mode": "capability_eval",
+            "formal_verification_policy": "required",
+        },
+    )
+
+    assert contract["empirical_metric_requirements"] == []
+    assert contract["empirical_metric_protocol_phase"] == (
+        "theory_prerequisite_pending"
+    )
+    assert contract["metric_protocol_execution_authorized"] is False
+
+
+@pytest.mark.parametrize("question_index", [0, 1])
+def test_theory_developer_blocks_exhausted_upstream_review_before_model_call(
+    question_index: int,
+) -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[question_index]
+    lineage_key = runtime_module.stable_hash(
+        [question.id, "AlgorithmEngineer", "upstream_theory"]
+    )
+
+    class NeverCalledTheoryDeveloper:
+        calls = 0
+
+        def derive(self, *_args: object, **_kwargs: object) -> dict[str, object]:
+            self.calls += 1
+            raise AssertionError("exhausted lineage must block before provider call")
+
+    theory_developer = NeverCalledTheoryDeveloper()
+    result = TheoryDeveloperRuntimeSubsystem(
+        theory_developer=theory_developer,  # type: ignore[arg-type]
+        n_runs=11,
+        seed=20260719,
+        max_generated_code_semantic_review_upstream_theory_revisions=2,
+    ).run(
+        AgentTask(
+            task_id=f"theory:exhausted-upstream-review:{question.id}",
+            owner_subsystem="TheoryDeveloper",
+            objective="Respect the global upstream theory revision budget.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": {
+                    "runtime_generated_code_semantic_review_replan": {
+                        "artifact_kind": (
+                            "RuntimeGeneratedCodeSemanticReviewReplanContext"
+                        ),
+                        "source_subsystem": "AlgorithmEngineer",
+                        "source_manifest_id": "algorithm:rejected",
+                        "review_packet_id": "review:rejected",
+                        "review_execution_id": "review-execution:rejected",
+                        "repair_scope": "upstream_theory",
+                        "pending_artifact_ids": {
+                            "theory_packet_id": "theory:prior",
+                        },
+                    },
+                    (
+                        "runtime_generated_code_semantic_review_upstream_"
+                        "theory_revision_ledger"
+                    ): {
+                        lineage_key: {
+                            "revisions_used": 2,
+                        }
+                    },
+                },
+            },
+        ),
+        BlackboardState(project_id=f"upstream-review-budget:{question.id}"),
+    )
+
+    assert theory_developer.calls == 0
+    assert result.status == "BLOCKED"
+    assert result.failure_classification == (
+        "generated_code_semantic_review_upstream_theory_revision_budget_exhausted"
+    )
 
 
 def test_theory_validation_retry_preserves_metric_revision_feedback() -> None:
@@ -19035,8 +19282,15 @@ def test_runtime_executes_architect_routed_generated_simulation_gap(
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[0]
     theory_packet_id = "theory_derivation:direct_simulation_gap"
+    theory_packet = _structured_theory_packet_fixture(theory_packet_id)
     architect_context = {
         "theory_packet_id": theory_packet_id,
+        "architect_metric_protocol_theory_material": (
+            build_theory_informed_metric_protocol_material(
+                theory_packet=theory_packet,
+                theory_packet_id=theory_packet_id,
+            )
+        ),
         "runtime_capability_gap_routing": {
             "artifact_kind": "RuntimeCapabilityGapRoutingContext",
             "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
@@ -19153,9 +19407,7 @@ def test_runtime_executes_architect_routed_generated_simulation_gap(
             evaluation_mode="capability_eval",
         ),
         initial_blackboard_artifacts={
-            question.id: {
-                theory_packet_id: _structured_theory_packet_fixture(theory_packet_id)
-            }
+            question.id: {theory_packet_id: theory_packet}
         },
     )
 
@@ -19481,6 +19733,12 @@ def test_runtime_executes_architect_routed_generated_algorithm_gap(
     architect_context = {
         "theory_packet_id": theory_packet_id,
         "previous_simulation_manifest_id": simulation_manifest_id,
+        "architect_metric_protocol_theory_material": (
+            build_theory_informed_metric_protocol_material(
+                theory_packet=theory_packet,
+                theory_packet_id=theory_packet_id,
+            )
+        ),
         "runtime_capability_gap_routing": {
             "artifact_kind": "RuntimeCapabilityGapRoutingContext",
             "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
@@ -19692,6 +19950,12 @@ def test_runtime_preserves_combined_coding_gap_simulation_gate_after_algorithm(
     architect_context = {
         "theory_packet_id": theory_packet_id,
         "previous_simulation_manifest_id": simulation_manifest_id,
+        "architect_metric_protocol_theory_material": (
+            build_theory_informed_metric_protocol_material(
+                theory_packet=theory_packet,
+                theory_packet_id=theory_packet_id,
+            )
+        ),
         "runtime_capability_gap_routing": {
             "artifact_kind": "RuntimeCapabilityGapRoutingContext",
             "counts": {"rows_seen": 1, "rows_loaded": 1, "errors": 0, "max_rows": 5},
@@ -22228,6 +22492,13 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
 
 def test_architect_metric_replan_preserves_first_accepted_requirement_set() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet = _structured_theory_packet_fixture(
+        "theory_derivation:metric-replan"
+    )
+    theory_material = build_theory_informed_metric_protocol_material(
+        theory_packet=theory_packet,
+        theory_packet_id=str(theory_packet["packet_id"]),
+    )
     runtime_config = {
         "evaluation_mode": "capability_eval",
         "formal_verification_policy": "optional",
@@ -22246,7 +22517,14 @@ def test_architect_metric_replan_preserves_first_accepted_requirement_set() -> N
         raw_response="initial",
         runtime_config=runtime_config,
         architect_context={
+            "architect_metric_protocol_theory_material": theory_material,
             "architect_metric_requirement_authoring": {
+                "source_theory_packet_id": theory_material[
+                    "source_theory_packet_id"
+                ],
+                "source_theory_packet_hash": theory_material[
+                    "source_theory_packet_hash"
+                ],
                 "empirical_metric_requirements": initial_requirements,
                 "empirical_metric_requirement_set_id": (
                     runtime_module.generated_metric_requirement_set_id(
@@ -22280,6 +22558,10 @@ def test_architect_metric_replan_preserves_first_accepted_requirement_set() -> N
         "reviewed_empirical_metric_requirement_set_id": (
             initial_requirement_set_id
         ),
+        "source_theory_packet_id": theory_material["source_theory_packet_id"],
+        "source_theory_packet_hash": theory_material[
+            "source_theory_packet_hash"
+        ],
         "reviewer_model": "claude-sonnet-4-6",
         "reviewer_model_tier": "sonnet",
         "independent_agent": True,
@@ -22316,6 +22598,7 @@ def test_architect_metric_replan_preserves_first_accepted_requirement_set() -> N
         raw_response="replan",
         runtime_config=runtime_config,
         architect_context={
+            "architect_metric_protocol_theory_material": theory_material,
             "architect_runtime_plan": {
                 "evidence_contract": initial["evidence_contract"]
             }
@@ -22345,10 +22628,17 @@ def test_architect_metric_replan_preserves_first_accepted_requirement_set() -> N
     assert validate_architect_coordinator_packet(replanned) == []
 
 
-def test_architect_rejects_prior_metric_requirements_without_review_certificate() -> None:
+def test_architect_drops_prior_metric_requirements_without_review_certificate() -> None:
     question = load_open_research_questions(
         Path("examples/research_questions.json")
     )[1]
+    theory_packet = _structured_theory_packet_fixture(
+        "theory_derivation:unreviewed-prior-contract"
+    )
+    theory_material = build_theory_informed_metric_protocol_material(
+        theory_packet=theory_packet,
+        theory_packet_id=str(theory_packet["packet_id"]),
+    )
     response = _architect_sample_response(required_runtime_replicates=80)
     packet = _normalize_architect_packet(
         response,
@@ -22362,22 +22652,21 @@ def test_architect_rejects_prior_metric_requirements_without_review_certificate(
             "n_runs": 100,
         },
         architect_context={
+            "architect_metric_protocol_theory_material": theory_material,
             "architect_runtime_plan": {
                 "evidence_contract": response["evidence_contract"]
             }
         },
     )
 
-    errors = validate_architect_coordinator_packet(packet)
+    contract = packet["evidence_contract"]
 
-    assert any(
-        "require an ACCEPT pre-execution semantic review" in error
-        for error in errors
+    assert contract["empirical_metric_requirements"] == []
+    assert contract["empirical_metric_protocol_phase"] == (
+        "theory_informed_authoring_required"
     )
-    assert any(
-        "review certificate missing review_packet_id" in error
-        for error in errors
-    )
+    assert contract["metric_protocol_execution_authorized"] is False
+    assert validate_architect_coordinator_packet(packet) == []
 
 
 def test_architect_validator_rejects_runtime_completion_policy_as_formal_target() -> None:
@@ -23243,9 +23532,14 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
                                 "required_change": (
                                     "Re-derive and regenerate the complete metric contract."
                                 ),
-                                "repair_scope": "metric_contract",
-                                "evidence_refs": ["requirement:generic_gate"],
-                            }
+                                    "repair_scope": "metric_contract",
+                                    "evidence_refs": ["requirement:generic_gate"],
+                                    "new_finding_rationale": (
+                                        "This finite-sample defect is newly observed "
+                                        "for the current candidate and is not a "
+                                        "restatement of the carried prior finding."
+                                    ),
+                                }
                         ]
                     ),
                     "overall_verdict": "ACCEPT" if accepted else "REVISE",
@@ -47127,7 +47421,7 @@ def test_algorithm_engineer_regenerates_instead_of_refreshing_legacy_metric_gate
     )
 
 
-def test_agent_runtime_routes_exhausted_algorithm_execution_repair_to_architect(
+def test_agent_runtime_bounds_source_owned_algorithm_repair_without_replanning_theory(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -47253,7 +47547,7 @@ def test_agent_runtime_routes_exhausted_algorithm_execution_repair_to_architect(
 
     result = runtime.run(initial_task, max_iterations=3)
 
-    assert result.status == "ACCEPTED", [
+    assert result.status == "BLOCKED", [
         (
             trace.subsystem,
             trace.status,
@@ -47265,33 +47559,29 @@ def test_agent_runtime_routes_exhausted_algorithm_execution_repair_to_architect(
         )
         for trace in result.traces
     ]
-    assert proposal_agent.calls == 2
+    assert proposal_agent.calls == 3
     assert result.traces[0].status == "REVISE"
     assert result.traces[0].next_task is not None
     assert result.traces[0].next_task.owner_subsystem == "AlgorithmEngineer"
-    assert result.traces[1].status == "REROUTE"
+    assert result.traces[1].status == "REVISE"
     assert result.traces[1].next_task is not None
-    assert result.traces[1].next_task.owner_subsystem == "ArchitectCoordinator"
-    assert "ArchitectCoordinator" in result.traces[1].rationale
-    assert result.traces[2].subsystem == "ArchitectCoordinator"
-    assert len(architect.tasks) == 1
-
-    replan_task = architect.tasks[0]
-    feedback = replan_task.inputs["environment_feedback"]
-    assert feedback["feedback_type"] == "algorithm_sandbox_execution_feedback"
-    assert feedback["failure_classification"] == (
-        "generated_algorithm_sandbox_execution_failed"
+    assert result.traces[1].next_task.owner_subsystem == "AlgorithmEngineer"
+    assert result.traces[1].next_task.inputs["theory_packet_id"] == theory_packet_id
+    assert result.traces[2].subsystem == "AlgorithmEngineer"
+    assert result.traces[2].failure_classification == (
+        "coding_agent_source_repair_lineage_budget_exhausted"
     )
-    replan = replan_task.inputs["architect_context"][
-        "runtime_coding_agent_repair_budget_replan"
-    ]
-    assert replan["source_subsystem"] == "AlgorithmEngineer"
-    assert replan["repair_attempts_used"] == 1
-    assert replan["yield_after_attempts"] == 1
-    assert replan["implementation_gaps"][0]["estimator_id"] == "custom_estimator"
-    assert replan["proof_evidence_status"] == (
-        "CODING_AGENT_REPAIR_BUDGET_REPLAN_NOT_PROOF_EVIDENCE"
+    assert len(architect.tasks) == 0
+    assert all(trace.subsystem != "TheoryDeveloper" for trace in result.traces)
+    exhaustion = next(
+        artifact
+        for artifact in result.blackboard.artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind")
+        == "RuntimeCodingAgentSourceRepairLineageExhaustion"
     )
+    assert exhaustion["dispatches_used"] == 1
+    assert exhaustion["max_dispatches"] == 1
 
 
 def test_algorithm_success_routes_to_required_generated_simulation_before_formalization(
@@ -105779,6 +106069,10 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     )
     assert args.generated_code_semantic_review_max_revisions == 1
     assert (
+        args.generated_code_semantic_review_max_upstream_theory_revisions
+        == 2
+    )
+    assert (
         args.formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts
         == 1
     )
@@ -105907,6 +106201,14 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     ) in _research_agent_runtime_capability_config_errors(args)
 
     args.generated_code_semantic_review_max_revisions = 1
+    args.generated_code_semantic_review_max_upstream_theory_revisions = 0
+    assert (
+        "capability eval preset full-live requires a global cross-theory "
+        "semantic-review repair budget; set "
+        "--generated-code-semantic-review-max-upstream-theory-revisions > 0"
+    ) in _research_agent_runtime_capability_config_errors(args)
+
+    args.generated_code_semantic_review_max_upstream_theory_revisions = 2
     args.formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts = 0
     assert (
         "capability eval preset full-live requires bounded "
