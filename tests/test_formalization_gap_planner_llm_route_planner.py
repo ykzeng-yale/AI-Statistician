@@ -41,6 +41,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     _prior_staged_followup_stage_dependencies_match,
     _route_adoption_readiness,
     _row_requires_staged_followup,
+    _staged_followup_cross_stage_reference_contract,
     _staged_followup_reason,
     _staged_followup_incremental_contract_errors,
     _staged_followup_stage_prompt_context_packet,
@@ -7736,6 +7737,10 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "type": "array",
         "items": {"type": "string"},
     }
+    assert search_schema["properties"]["target_informal_node_ids"] == {
+        "type": "array",
+        "items": {"type": "string"},
+    }
     assert "resource_request_id" in search_schema["properties"]
     action_schema = response_payload_schema["properties"]["planner_next_actions"][
         "items"
@@ -7747,6 +7752,7 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert "resource_request_id" in action_schema["properties"]
     contract = payload["request_packets"][0]["required_output_contract"]
     assert "target_primitives" in contract["search_requests"][0]
+    assert "target_informal_node_ids" in contract["search_requests"][0]
     assert "resource_contract_ids" in contract["search_requests"][0]
     assert "target_primitives" in contract["planner_next_actions"][0]
     assert "resource_contract_ids" in contract["planner_next_actions"][0]
@@ -13094,6 +13100,47 @@ def test_staged_followup_reuse_requires_unchanged_upstream_fragment_identity() -
     )
 
 
+def test_staged_reference_contract_exposes_source_search_obligation_ids() -> None:
+    contract = _staged_followup_cross_stage_reference_contract(
+        (
+            {
+                "stage_id": "formal_realization_and_alignment",
+                "fragment": {
+                    "informal_knowledge_dag_nodes": [
+                        {
+                            "node_id": "informal:source_lemma",
+                            "source_search_status": "SEARCH_REQUESTED",
+                        },
+                        {
+                            "node_id": "informal:grounded_assumption",
+                            "source_search_status": "SOURCE_BACKED",
+                        },
+                    ],
+                    "formal_realization_dag_nodes": [
+                        {
+                            "node_id": "formal:source_lemma",
+                            "primitive": "source_lemma_primitive",
+                        }
+                    ],
+                    "route_alignment_edges": [
+                        {
+                            "informal_node_id": "informal:source_lemma",
+                            "formal_node_id": "formal:source_lemma",
+                        }
+                    ],
+                },
+            },
+        )
+    )
+
+    assert contract["source_search_obligations"] == [
+        {
+            "informal_node_id": "informal:source_lemma",
+            "aligned_target_primitives": ["source_lemma_primitive"],
+        }
+    ]
+
+
 def test_route_core_normalization_recomputes_only_derived_cost_accounting() -> None:
     source_plan = deepcopy(_llm_response_payload()["minimal_delta_plan"])
     semantic_fields = {
@@ -13488,6 +13535,9 @@ def test_llm_route_planner_assembles_staged_followup_full_contract_response() ->
         "matching request_kind=literature" in requirement
         for requirement in residual_stage_prompt["hard_requirements"]
     )
+    assert residual_stage_prompt["cross_stage_reference_contract"][
+        "source_search_obligations"
+    ] == []
     assert any(
         "formal_library" in requirement
         and "cannot replace" in requirement
@@ -13502,6 +13552,7 @@ def test_llm_route_planner_assembles_staged_followup_full_contract_response() ->
         "literature",
         "formal_library",
     ]
+    assert "target_informal_node_ids" in search_request_schema["required"]
     assert set(search_request_schema["properties"]) == set(
         search_request_schema["required"]
     )
@@ -17092,6 +17143,95 @@ def test_llm_route_planner_accepts_source_backed_residual_with_source_ref() -> N
     assert payload["n_response_contract_ok"] == 1
 
 
+def test_llm_route_planner_accepts_explicit_informal_search_obligation_link() -> None:
+    response = _llm_response_payload()
+    rank_node = response["informal_knowledge_dag_nodes"][1]
+    rank_node["source_refs"] = []
+    rank_node["source_snippets"] = []
+    rank_node["source_search_status"] = "SEARCH_REQUESTED"
+    response["search_requests"] = [
+        {
+            "request_kind": "literature",
+            "query": "source theorem for the pending informal lemma",
+            "reason": "ground the named informal source obligation",
+            "target_primitives": [],
+            "target_informal_node_ids": ["informal:rank_uniformity"],
+        }
+    ]
+
+    assert validate_llm_route_planner_response_payload(response) == []
+
+
+def test_llm_route_planner_rejects_unknown_informal_search_obligation_link() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_unknown_informal_search_link"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["search_requests"] = [
+        {
+            "request_kind": "literature",
+            "query": "source theorem for an unknown informal node",
+            "reason": "the linkage must resolve in the returned informal DAG",
+            "target_primitives": [],
+            "target_informal_node_ids": ["informal:unknown_node"],
+        }
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+    errors = payload["rows"][0]["errors"]
+
+    assert any(
+        "target_informal_node_ids reference unknown informal_knowledge_dag_nodes"
+        in error
+        for error in errors
+    )
+
+
+def test_llm_route_planner_rejects_duplicate_informal_search_obligation_link() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_duplicate_informal_search_link"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["search_requests"] = [
+        {
+            "request_kind": "literature",
+            "query": "source theorem for a named informal node",
+            "reason": "each node identity must occur at most once per request",
+            "target_primitives": [],
+            "target_informal_node_ids": [
+                "informal:rank_uniformity",
+                "informal:rank_uniformity",
+            ],
+        }
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+    errors = payload["rows"][0]["errors"]
+
+    assert any(
+        "target_informal_node_ids must be duplicate-free" in error
+        for error in errors
+    )
+
+
 def test_llm_route_planner_rejects_search_requested_without_search_request() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rejects_search_status_without_request"
@@ -17144,6 +17284,7 @@ def test_llm_route_planner_rejects_formal_source_search_as_literature_request() 
             "query": "rank_uniformity formal source declaration search",
             "reason": "formal-source search is not literature evidence",
             "target_primitives": ["rank_uniformity"],
+            "target_informal_node_ids": ["informal:rank_uniformity"],
         }
     ]
     response_json.write_text(json.dumps(bad_response), encoding="utf-8")

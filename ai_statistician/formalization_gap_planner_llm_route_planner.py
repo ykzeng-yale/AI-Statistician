@@ -960,6 +960,9 @@ LLM_ROUTE_PLANNER_OUTPUT_CONTRACT: dict[str, object] = {
             "query": "bounded next query",
             "reason": "why more evidence is needed before route adoption",
             "target_primitives": ["primitive ids bounded by this request"],
+            "target_informal_node_ids": [
+                "optional informal knowledge DAG node ids discharged by this request"
+            ],
             "resource_request_id": "optional queued request id",
             "resource_id": "optional registry or queued resource id",
             "resource_contract_ids": ["optional grounded resource contract ids"],
@@ -12063,7 +12066,7 @@ def _user_prompt(
             "source_snippets may cite only source_refs listed in context_packet.available_source_refs.",
             "Partial source_snippets are checked against both their own target_primitives and their enclosing informal/route primitive scope; omitting target_primitives inside a primitive-specific node does not make the source evidence support that primitive.",
             "If a needed source is not listed, emit a literature search_request instead of inventing a source_ref.",
-            "Any informal node or standalone primitive with SEARCH_REQUESTED/source_search_pending status must have a matching literature/source search_request.",
+            "Any informal node or standalone primitive with SEARCH_REQUESTED/source_search_pending status must have a matching literature/source search_request. For an informal node, prefer an exact target_informal_node_ids reference; target_primitives remains a compatibility matcher.",
             "Existing-library or reuse claims may cite only candidate_declarations or candidate_declaration_rows listed in context_packet.available_formal_declarations/available_formal_declaration_rows.",
             declaration_seed_requirement,
             declaration_scope_requirement,
@@ -12073,6 +12076,7 @@ def _user_prompt(
             "Any wrapper or wrapper_needed formal-realization node or standalone primitive must name the existing formal declaration it wraps via candidate_declarations/candidate_declaration_rows, or emit a matching formal_library search_request/formal_gap_boundary.",
             "Every search_requests row must use a supported request_kind, include a nonempty query, and include a nonempty reason.",
             "search_requests.target_primitives may mention only primitives already present in the request context, selected/delta/cost-hint plan, formal realization DAG, standalone route, alignment edges, or residual interpretations.",
+            "search_requests.target_informal_node_ids may mention only node_id values returned in informal_knowledge_dag_nodes.",
             "Every planner_next_actions row must include owner and action, and the row must resolve to a supported literature/formal-library/proof-state/route-revision hook family.",
             "planner_next_actions.target_primitives may mention only primitives already present in the request context, selected/delta/cost-hint plan, formal realization DAG, standalone route, alignment edges, or residual interpretations.",
             "Return formal_attempt_queue as the bottom-up execution schedule for the selected formal_realization_dag_nodes: each row must name an existing formal_node_id, target_prover_family, owner, action, attempt_kind, expected_feedback, target_primitives, and prerequisite_formal_node_ids.",
@@ -12968,6 +12972,7 @@ def llm_route_planner_response_payload_schema(
                         "query": {"type": "string", "minLength": 1},
                         "reason": {"type": "string", "minLength": 1},
                         "target_primitives": string_array,
+                        "target_informal_node_ids": string_array,
                         "target_prover_family": {"type": "string"},
                         "resource_request_id": {"type": "string"},
                         "resource_id": {"type": "string"},
@@ -15059,7 +15064,7 @@ def _staged_followup_stage_sequence(
                 "Use formal_gap_boundary for environment/tool blockers",
                 "Every residual_goal value must exactly copy a supplied request residual goal; route-adoption blockers are not residual goals",
                 "At most 4 search_requests and 4 planner_next_actions",
-                "A literature search_request may batch several SEARCH_REQUESTED source obligations when target_primitives covers their primitive scopes",
+                "A literature search_request may batch several SEARCH_REQUESTED source obligations when target_informal_node_ids lists every covered informal node; include aligned target_primitives when available",
                 "Use request_kind=literature for source grounding and request_kind=formal_library for Lean/declaration retrieval; formal_library does not discharge a literature/source obligation",
                 "No copied Lean diagnostics; use covered_residual_goal_indices",
             ],
@@ -15942,7 +15947,7 @@ def _staged_followup_stage_user_prompt(
                 "Planner action owner/resource IDs and resource_contract_ids must copy the exact IDs and mapping from the supplied component resource registry inventory.",
                 "Every residual_interpretations[].residual_goal, when present, must exactly copy one request_context.residual_goals item; encode route-adoption or workflow blockers as planner_next_actions or assembler_notes instead.",
                 "Every source_snippets item must exactly copy a snippet supplied by the request context; when no exact snippet is available, omit it and emit a bounded search_request instead.",
-                "Every SEARCH_REQUESTED source status must be paired with a matching literature/source search_request; a formal_library search_request is a separate Lean/library action and is not source evidence.",
+                "Every SEARCH_REQUESTED source status must be paired with a matching literature/source search_request; use exact target_informal_node_ids for informal DAG obligations. A formal_library search_request is a separate Lean/library action and is not source evidence.",
             ],
             "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
         },
@@ -16069,8 +16074,10 @@ def _staged_followup_search_tool_contract(stage_id: str) -> dict[str, object]:
             ),
         },
         "matching_rule": (
-            "A literature request matches when target_primitives contains an "
-            "obligation primitive. One request may batch several obligations."
+            "A literature request matches an informal DAG obligation when "
+            "target_informal_node_ids contains its exact node_id. The legacy "
+            "target_primitives matcher remains accepted for compatibility. One "
+            "request may batch several obligations."
         ),
         "separation_rule": (
             "request_kind=formal_library retrieves Lean/library material but does "
@@ -16088,7 +16095,7 @@ def _staged_followup_stage_search_hard_requirements(
         ]
     if stage_id == "residual_batch_interpretation":
         return [
-            "For every accepted upstream or current SEARCH_REQUESTED row, emit a matching request_kind=literature search_request with the relevant target_primitives.",
+            "For every accepted upstream source_search_obligations row, emit a matching request_kind=literature search_request whose target_informal_node_ids contains that exact informal_node_id; include relevant aligned target_primitives when available.",
             "Use request_kind=formal_library only for Lean/declaration retrieval; it cannot replace the required literature request.",
         ]
     return []
@@ -16107,6 +16114,9 @@ def _staged_followup_cross_stage_reference_contract(
         "formal_realization_and_alignment",
         route_core,
     )
+    informal_nodes = _dict_tuple(
+        formal_realization.get("informal_knowledge_dag_nodes", [])
+    )
     formal_nodes = _dict_tuple(
         formal_realization.get("formal_realization_dag_nodes", [])
     )
@@ -16123,6 +16133,25 @@ def _staged_followup_cross_stage_reference_contract(
         for row in formal_nodes
         if str(row.get("node_id", "") or "").strip()
     }
+    aligned_primitives_by_informal_node = (
+        _aligned_formal_primitive_keys_by_informal_node(formal_realization)
+    )
+    source_search_obligations = [
+        {
+            "informal_node_id": str(node.get("node_id", "") or ""),
+            "aligned_target_primitives": list(
+                aligned_primitives_by_informal_node.get(
+                    str(node.get("node_id", "") or ""),
+                    (),
+                )
+            ),
+        }
+        for node in informal_nodes
+        if str(node.get("node_id", "") or "").strip()
+        and _source_search_status_requires_request(
+            _source_ref_key(node.get("source_search_status", ""))
+        )
+    ]
     immediate_predecessors = {node_id: [] for node_id in formal_node_ids}
     for edge in formal_edges:
         source_node_id = str(edge.get("source_node_id", "") or "")
@@ -16136,6 +16165,7 @@ def _staged_followup_cross_stage_reference_contract(
         "accepted_stage_ids": list(fragments_by_stage),
         "formal_node_ids": formal_node_ids,
         "formal_node_primitives": formal_node_primitives,
+        "source_search_obligations": source_search_obligations,
         "formal_node_immediate_predecessors": {
             node_id: list(dict.fromkeys(predecessors))
             for node_id, predecessors in immediate_predecessors.items()
@@ -16476,6 +16506,7 @@ def _staged_followup_stage_fragment_contract(stage_id: str) -> dict[str, object]
                 "query",
                 "reason",
                 "target_primitives",
+                "target_informal_node_ids",
             ],
             "planner_next_actions[]": [
                 "owner",
@@ -17005,6 +17036,7 @@ def _staged_followup_residual_fragment_schema() -> dict[str, object]:
                     "query",
                     "reason",
                     "target_primitives",
+                    "target_informal_node_ids",
                     "resource_id",
                     "resource_contract_ids",
                 ],
@@ -17016,6 +17048,7 @@ def _staged_followup_residual_fragment_schema() -> dict[str, object]:
                     "query": {"type": "string"},
                     "reason": {"type": "string"},
                     "target_primitives": string_array,
+                    "target_informal_node_ids": string_array,
                     "resource_id": {"type": "string"},
                     "resource_contract_ids": string_array,
                 },
@@ -23146,6 +23179,9 @@ def _response_search_request_contract_errors(
     payload: Mapping[str, Any],
 ) -> list[str]:
     errors: list[str] = []
+    informal_node_ids = _node_ids(
+        _dict_tuple(payload.get("informal_knowledge_dag_nodes", []))
+    )
     for index, request in enumerate(_dict_tuple(payload.get("search_requests", []))):
         request_kind = _source_ref_key(request.get("request_kind", ""))
         if not request_kind:
@@ -23159,6 +23195,29 @@ def _response_search_request_contract_errors(
             errors.append(f"search_requests[{index}].query missing")
         if not str(request.get("reason", "")).strip():
             errors.append(f"search_requests[{index}].reason missing")
+        target_informal_node_ids = _str_tuple(
+            request.get("target_informal_node_ids", [])
+        )
+        duplicate_node_ids = sorted(
+            node_id
+            for node_id, count in Counter(target_informal_node_ids).items()
+            if count > 1
+        )
+        if duplicate_node_ids:
+            errors.append(
+                f"search_requests[{index}].target_informal_node_ids must be "
+                "duplicate-free: "
+                + ", ".join(duplicate_node_ids[:8])
+            )
+        unknown_node_ids = sorted(
+            set(target_informal_node_ids) - informal_node_ids
+        )
+        if unknown_node_ids:
+            errors.append(
+                f"search_requests[{index}].target_informal_node_ids reference "
+                "unknown informal_knowledge_dag_nodes: "
+                + ", ".join(unknown_node_ids[:8])
+            )
     return errors
 
 
@@ -23322,10 +23381,12 @@ def _response_source_search_obligation_errors(
         if not _has_literature_search_request_for_obligation(
             search_requests,
             primitives=primitives,
+            informal_node_id=str(node.get("node_id", "") or ""),
         ):
             errors.append(
                 "informal_knowledge_dag_nodes"
                 f"[{index}] SEARCH_REQUESTED requires a matching literature/source search_request"
+                f"; node_id={str(node.get('node_id', '') or '') or 'missing'}"
             )
     for index, residual in enumerate(
         _dict_tuple(payload.get("residual_interpretations", []))
@@ -23416,12 +23477,54 @@ def _informal_node_search_primitives(node: Mapping[str, Any]) -> tuple[str, ...]
     )
 
 
+def _aligned_formal_primitive_keys_by_informal_node(
+    payload: Mapping[str, Any],
+) -> dict[str, tuple[str, ...]]:
+    formal_primitive_by_node_id = {
+        str(node.get("node_id", "") or "").strip(): _primitive_key(
+            node.get("primitive", "")
+        )
+        for node in _formal_realization_nodes_from_payload(payload)
+        if str(node.get("node_id", "") or "").strip()
+        and _primitive_key(node.get("primitive", ""))
+    }
+    primitives_by_informal_node: dict[str, list[str]] = {}
+    for edge in _dict_tuple(payload.get("route_alignment_edges", [])):
+        informal_node_id = str(
+            edge.get("informal_node_id") or edge.get("source") or ""
+        ).strip()
+        formal_node_id = str(
+            edge.get("formal_node_id") or edge.get("target") or ""
+        ).strip()
+        primitive = formal_primitive_by_node_id.get(formal_node_id, "")
+        if not informal_node_id or not primitive:
+            continue
+        primitives_by_informal_node.setdefault(informal_node_id, []).append(
+            primitive
+        )
+    return {
+        node_id: tuple(dict.fromkeys(primitives))
+        for node_id, primitives in primitives_by_informal_node.items()
+    }
+
+
 def _has_literature_search_request_for_obligation(
     search_requests: tuple[dict[str, object], ...],
     *,
     primitives: tuple[str, ...],
+    informal_node_id: str = "",
 ) -> bool:
     literature_kind_keys = tuple(LLM_ROUTE_PLANNER_LITERATURE_SEARCH_REQUEST_KINDS)
+    node_id = str(informal_node_id or "").strip()
+    if node_id and any(
+        _search_request_kind_matches(
+            request.get("request_kind", ""),
+            literature_kind_keys,
+        )
+        and node_id in _str_tuple(request.get("target_informal_node_ids", []))
+        for request in search_requests
+    ):
+        return True
     if primitives:
         return any(
             _has_search_request_for_primitive(
