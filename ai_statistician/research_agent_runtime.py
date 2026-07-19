@@ -183,7 +183,6 @@ from .formalization_gap_planner_runtime_contract_revision import (
     CONTRACT_REPAIR_BOUNDARY as RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_BOUNDARY,
     CONTRACT_REPAIR_QUEUE_STATUS as RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_QUEUE_STATUS,
     CONTRACT_REPAIR_TRIGGER as RUNTIME_FORMALIZATION_GAP_PLANNER_LIVE_ROUTE_PLANNER_CONTRACT_REPAIR_TRIGGER,
-    MAX_SAME_RUN_CONTRACT_REVISIONS as RUNTIME_FORMALIZATION_GAP_PLANNER_MAX_SAME_RUN_CONTRACT_REVISIONS,
     build_contract_revision_artifact as _runtime_formalization_gap_planner_contract_revision_artifact,
     build_contract_revision_task as _runtime_formalization_gap_planner_contract_revision_task,
     contract_revision_handoff_errors as _runtime_formalization_gap_planner_contract_revision_handoff_errors,
@@ -7440,9 +7439,7 @@ class ResearchAgentRuntimeConfig:
     formalization_gap_planner_live_temperature: float = 0.1
     formalization_gap_planner_live_max_repair_attempts: int = 1
     formalization_gap_planner_live_max_provider_retries: int = 1
-    formalization_gap_planner_live_max_contract_revisions: int = (
-        RUNTIME_FORMALIZATION_GAP_PLANNER_MAX_SAME_RUN_CONTRACT_REVISIONS
-    )
+    formalization_gap_planner_live_max_contract_revisions: int = 1
     formalization_gap_planner_live_max_staged_followup_stage_calls: int = max(
         len(LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_IDS),
         LLM_ROUTE_PLANNER_DEFAULT_MAX_STAGED_FOLLOWUP_STAGE_CALLS,
@@ -97602,6 +97599,7 @@ def _runtime_formalization_gap_planner_route_contract_feedback_rows_for_bridge(
         )
     )
     rows: list[dict[str, Any]] = []
+    seen_feedback_keys: set[str] = set()
     for row in runtime_learning_rows:
         if not isinstance(row, Mapping):
             continue
@@ -97665,6 +97663,20 @@ def _runtime_formalization_gap_planner_route_contract_feedback_rows_for_bridge(
             or (seed_paths and row_seed_paths and seed_paths.intersection(row_seed_paths))
         ):
             continue
+        runtime_learning_row_id = str(
+            row.get("runtime_learning_row_id", "")
+            or input_summary.get("runtime_learning_row_id", "")
+            or ""
+        ).strip()
+        if feedback_ids:
+            feedback_key = "feedback:" + stable_hash(sorted(feedback_ids))
+        elif runtime_learning_row_id:
+            feedback_key = f"learning:{runtime_learning_row_id}"
+        else:
+            feedback_key = "row:" + stable_hash(dict(row))
+        if feedback_key in seen_feedback_keys:
+            continue
+        seen_feedback_keys.add(feedback_key)
         rows.append(dict(row))
     return rows[:12]
 

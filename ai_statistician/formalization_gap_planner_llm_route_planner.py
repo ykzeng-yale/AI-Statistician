@@ -15744,6 +15744,7 @@ def _generate_staged_followup_stage_attempt(
             payload,
             stage_status_inferred,
             proof_evidence_metadata_inferred,
+            runtime_owned_derived_accounting_fields,
         ) = _normalized_staged_followup_stage_response_payload(
             payload,
             stage_id=stage_id,
@@ -15767,6 +15768,17 @@ def _generate_staged_followup_stage_attempt(
                 **dict(generated.metadata),
                 "staged_followup_stage_repair_attempt": repair_attempt,
                 "staged_followup_stage_repair_budget": repair_budget,
+                "runtime_owned_derived_accounting_applied": bool(
+                    runtime_owned_derived_accounting_fields
+                ),
+                "runtime_owned_derived_accounting_fields": list(
+                    runtime_owned_derived_accounting_fields
+                ),
+                "runtime_owned_derived_accounting_boundary": (
+                    "The runtime only recomputed arithmetic fields derived from "
+                    "model-selected primitives and model-authored cost dimensions; "
+                    "it did not choose routes or alter mathematical content."
+                ),
             },
             requested_model_tier=model_tier,
             effective_model_tier=model_tier,
@@ -16150,11 +16162,18 @@ def _normalized_staged_followup_stage_response_payload(
     payload: Mapping[str, Any],
     *,
     stage_id: str,
-) -> tuple[Mapping[str, Any], bool, bool]:
+) -> tuple[Mapping[str, Any], bool, bool, tuple[str, ...]]:
     if not isinstance(payload, Mapping) or not payload:
-        return payload, False, False
+        return payload, False, False, ()
     normalized: dict[str, Any] = dict(payload)
     fragment = normalized.get("fragment", {})
+    runtime_owned_derived_accounting_fields: tuple[str, ...] = ()
+    if stage_id == "route_core_compaction" and isinstance(fragment, Mapping):
+        (
+            fragment,
+            runtime_owned_derived_accounting_fields,
+        ) = _normalized_route_core_derived_accounting(fragment)
+        normalized["fragment"] = fragment
     fragment_has_required_fields = (
         isinstance(fragment, Mapping)
         and all(
@@ -16190,7 +16209,173 @@ def _normalized_staged_followup_stage_response_payload(
         normalized,
         stage_status_inferred,
         proof_evidence_metadata_inferred,
+        runtime_owned_derived_accounting_fields,
     )
+
+
+_ROUTE_COST_DIMENSION_FIELDS = (
+    "base_cost",
+    "proof_difficulty_cost",
+    "import_cone_cost",
+    "definition_or_typeclass_cost",
+    "semantic_risk_cost",
+    "reuse_credit",
+)
+
+
+def _normalized_route_core_derived_accounting(
+    fragment: Mapping[str, Any],
+) -> tuple[dict[str, Any], tuple[str, ...]]:
+    normalized = deepcopy(dict(fragment))
+    minimal_delta = normalized.get("minimal_delta_plan", {})
+    if not isinstance(minimal_delta, Mapping):
+        return normalized, ()
+    normalized_minimal_delta = deepcopy(dict(minimal_delta))
+    normalized["minimal_delta_plan"] = normalized_minimal_delta
+    changed_fields: list[str] = []
+
+    global_cost_rows = normalized_minimal_delta.get("primitive_costs", [])
+    if isinstance(global_cost_rows, list):
+        _normalize_primitive_cost_row_totals(
+            global_cost_rows,
+            path_prefix="fragment.minimal_delta_plan.primitive_costs",
+            changed_fields=changed_fields,
+        )
+    global_rows_by_primitive = _cost_rows_by_primitive(global_cost_rows)
+    selected_primitives = _str_tuple(
+        normalized_minimal_delta.get("selected_primitives", [])
+    )
+    selected_route_cost = _derived_selected_primitive_route_cost(
+        selected_primitives,
+        global_rows_by_primitive,
+    )
+    if selected_route_cost is not None and normalized_minimal_delta.get(
+        "route_cost"
+    ) != selected_route_cost:
+        normalized_minimal_delta["route_cost"] = selected_route_cost
+        changed_fields.append("fragment.minimal_delta_plan.route_cost")
+
+    cost_graph = normalized_minimal_delta.get("and_or_cost_graph", {})
+    if isinstance(cost_graph, Mapping):
+        normalized_cost_graph = deepcopy(dict(cost_graph))
+        normalized_minimal_delta["and_or_cost_graph"] = normalized_cost_graph
+        route_options = normalized_cost_graph.get("route_options", [])
+        if isinstance(route_options, list):
+            for option_index, raw_option in enumerate(route_options):
+                if not isinstance(raw_option, Mapping):
+                    continue
+                option = deepcopy(dict(raw_option))
+                route_options[option_index] = option
+                option_cost_rows = option.get("primitive_costs", [])
+                if isinstance(option_cost_rows, list) and option_cost_rows:
+                    _normalize_primitive_cost_row_totals(
+                        option_cost_rows,
+                        path_prefix=(
+                            "fragment.minimal_delta_plan.and_or_cost_graph."
+                            f"route_options[{option_index}].primitive_costs"
+                        ),
+                        changed_fields=changed_fields,
+                    )
+                    rows_by_primitive = _cost_rows_by_primitive(option_cost_rows)
+                else:
+                    rows_by_primitive = global_rows_by_primitive
+                option_route_cost = _derived_selected_primitive_route_cost(
+                    _str_tuple(option.get("selected_primitives", [])),
+                    rows_by_primitive,
+                )
+                if option_route_cost is not None and option.get(
+                    "route_cost"
+                ) != option_route_cost:
+                    option["route_cost"] = option_route_cost
+                    changed_fields.append(
+                        "fragment.minimal_delta_plan.and_or_cost_graph."
+                        f"route_options[{option_index}].route_cost"
+                    )
+
+    return normalized, tuple(changed_fields)
+
+
+def _normalize_primitive_cost_row_totals(
+    rows: list[Any],
+    *,
+    path_prefix: str,
+    changed_fields: list[str],
+) -> None:
+    for row_index, raw_row in enumerate(rows):
+        if not isinstance(raw_row, Mapping):
+            continue
+        row = deepcopy(dict(raw_row))
+        rows[row_index] = row
+        total_cost = _derived_primitive_total_cost(row)
+        if total_cost is None or row.get("total_cost") == total_cost:
+            continue
+        row["total_cost"] = total_cost
+        changed_fields.append(f"{path_prefix}[{row_index}].total_cost")
+
+
+def _derived_primitive_total_cost(row: Mapping[str, Any]) -> int | float | None:
+    if any(
+        field_name not in row
+        or not _is_nonnegative_number(row.get(field_name))
+        for field_name in _ROUTE_COST_DIMENSION_FIELDS
+    ):
+        return None
+    accounted = (
+        float(row["base_cost"])
+        + float(row["proof_difficulty_cost"])
+        + float(row["import_cone_cost"])
+        + float(row["definition_or_typeclass_cost"])
+        + float(row["semantic_risk_cost"])
+        - float(row["reuse_credit"])
+    )
+    if accounted < 0:
+        return None
+    rounded = round(accounted)
+    return int(rounded) if abs(accounted - rounded) <= 1e-9 else accounted
+
+
+def _cost_rows_by_primitive(
+    rows: Any,
+) -> dict[str, list[Mapping[str, Any]]]:
+    rows_by_primitive: dict[str, list[Mapping[str, Any]]] = {}
+    if not isinstance(rows, list):
+        return rows_by_primitive
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        primitive = _primitive_key(row.get("primitive", ""))
+        if primitive:
+            rows_by_primitive.setdefault(primitive, []).append(row)
+    return rows_by_primitive
+
+
+def _derived_selected_primitive_route_cost(
+    selected_primitives: Iterable[str],
+    rows_by_primitive: Mapping[str, list[Mapping[str, Any]]],
+) -> int | float | None:
+    selected = tuple(
+        dict.fromkeys(
+            primitive
+            for primitive in (
+                _primitive_key(value) for value in selected_primitives
+            )
+            if primitive
+        )
+    )
+    if not selected:
+        return None
+    totals: list[int | float] = []
+    for primitive in selected:
+        rows = rows_by_primitive.get(primitive, [])
+        if len(rows) != 1:
+            return None
+        total = _derived_primitive_total_cost(rows[0])
+        if total is None:
+            return None
+        totals.append(total)
+    route_cost = float(sum(totals))
+    rounded = round(route_cost)
+    return int(rounded) if abs(route_cost - rounded) <= 1e-9 else route_cost
 
 
 def _staged_followup_stage_fragment_contract(stage_id: str) -> dict[str, object]:

@@ -979,6 +979,18 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             }
             next_inputs["architect_context"] = next_context
             if repair_owner == "TheoryDeveloper":
+                previous_theory_packet_id = str(
+                    work_order.get("theory_packet_id", "") or ""
+                ).strip()
+                previous_theory_packet_hash = str(
+                    work_order.get("theory_packet_hash", "") or ""
+                ).strip()
+                next_context["previous_theory_packet_id"] = (
+                    previous_theory_packet_id
+                )
+                next_context["previous_theory_packet_hash"] = (
+                    previous_theory_packet_hash
+                )
                 next_task = AgentTask(
                     task_id=(
                         f"formal-target-theory-revise:{question.id}:"
@@ -993,6 +1005,8 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                         "question": _question_to_payload(question),
                         "architect_context": next_context,
                         "environment_feedback": next_feedback,
+                        "previous_theory_packet_id": previous_theory_packet_id,
+                        "previous_theory_packet_hash": previous_theory_packet_hash,
                         "formal_target_semantic_review_revision_count": (
                             revision_count + 1
                         ),

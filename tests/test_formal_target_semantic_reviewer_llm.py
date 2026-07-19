@@ -367,6 +367,22 @@ def test_formal_target_semantic_review_blocks_back_to_theory_developer(
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "TheoryDeveloper"
     assert result.next_task.inputs["environment_feedback"]["blocking_reason"]
+    previous_theory_packet_id = result.next_task.inputs[
+        "previous_theory_packet_id"
+    ]
+    previous_theory_packet_hash = result.next_task.inputs[
+        "previous_theory_packet_hash"
+    ]
+    assert previous_theory_packet_id == "theory:generic-formal-target-review"
+    assert previous_theory_packet_hash == stable_hash(
+        blackboard.artifacts[previous_theory_packet_id]
+    )
+    assert result.next_task.inputs["architect_context"][
+        "previous_theory_packet_id"
+    ] == previous_theory_packet_id
+    assert result.next_task.inputs["architect_context"][
+        "previous_theory_packet_hash"
+    ] == previous_theory_packet_hash
     handoff = result.next_task.inputs["architect_context"]["runtime_feedback_loop"][
         "direct_repair_handoff_contract"
     ]

@@ -12510,7 +12510,7 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 getattr(
                     args,
                     "formalization_gap_planner_live_max_contract_revisions",
-                    2,
+                    1,
                 )
             ),
             formalization_gap_planner_live_timeout_seconds=float(
@@ -22872,7 +22872,7 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent_runtime.add_argument(
         "--formalization-gap-planner-live-max-contract-revisions",
         type=int,
-        default=2,
+        default=1,
         help=(
             "maximum same-run Architect contract-revision tasks after a live "
             "staged route assembly fails validation; 0 disables revision"

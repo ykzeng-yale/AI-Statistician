@@ -35,6 +35,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     _available_formal_declaration_rows_for_context,
     _generator_model_for_request,
     _formal_gap_boundary_is_anchored,
+    _normalized_staged_followup_stage_response_payload,
     _prompt_token_budget_preflight_errors,
     _prompt_token_budget_row,
     _prior_staged_followup_stage_dependencies_match,
@@ -13091,6 +13092,76 @@ def test_staged_followup_reuse_requires_unchanged_upstream_fragment_identity() -
         {},
         original_upstream,
     )
+
+
+def test_route_core_normalization_recomputes_only_derived_cost_accounting() -> None:
+    source_plan = deepcopy(_llm_response_payload()["minimal_delta_plan"])
+    semantic_fields = {
+        "selected_primitives": deepcopy(source_plan["selected_primitives"]),
+        "bridge_lemmas": deepcopy(source_plan["bridge_lemmas"]),
+        "route_options": [
+            {
+                "route_option_id": option["route_option_id"],
+                "selected": option["selected"],
+                "selected_primitives": deepcopy(option["selected_primitives"]),
+            }
+            for option in source_plan["and_or_cost_graph"]["route_options"]
+        ],
+    }
+    source_plan["primitive_costs"][1]["total_cost"] = 400
+    source_plan["route_cost"] = 500
+    route_options = source_plan["and_or_cost_graph"]["route_options"]
+    route_options[0]["route_cost"] = 600
+    route_options[1]["primitive_costs"][1]["total_cost"] = 700
+    route_options[1]["route_cost"] = 800
+    raw_payload = {"fragment": {"minimal_delta_plan": source_plan}}
+    raw_payload_before = deepcopy(raw_payload)
+
+    normalized, status_inferred, evidence_inferred, changed_fields = (
+        _normalized_staged_followup_stage_response_payload(
+            raw_payload,
+            stage_id="route_core_compaction",
+        )
+    )
+
+    assert raw_payload == raw_payload_before
+    assert status_inferred is True
+    assert evidence_inferred is True
+    minimal_delta = normalized["fragment"]["minimal_delta_plan"]
+    assert minimal_delta["primitive_costs"][1]["total_cost"] == 4
+    assert minimal_delta["route_cost"] == 4
+    normalized_options = minimal_delta["and_or_cost_graph"]["route_options"]
+    assert normalized_options[0]["route_cost"] == 4
+    assert normalized_options[1]["primitive_costs"][1]["total_cost"] == 7
+    assert normalized_options[1]["route_cost"] == 7
+    assert minimal_delta["selected_primitives"] == semantic_fields[
+        "selected_primitives"
+    ]
+    assert minimal_delta["bridge_lemmas"] == semantic_fields["bridge_lemmas"]
+    assert [
+        {
+            "route_option_id": option["route_option_id"],
+            "selected": option["selected"],
+            "selected_primitives": option["selected_primitives"],
+        }
+        for option in normalized_options
+    ] == semantic_fields["route_options"]
+    assert set(changed_fields) == {
+        "fragment.minimal_delta_plan.primitive_costs[1].total_cost",
+        "fragment.minimal_delta_plan.route_cost",
+        (
+            "fragment.minimal_delta_plan.and_or_cost_graph."
+            "route_options[0].route_cost"
+        ),
+        (
+            "fragment.minimal_delta_plan.and_or_cost_graph."
+            "route_options[1].primitive_costs[1].total_cost"
+        ),
+        (
+            "fragment.minimal_delta_plan.and_or_cost_graph."
+            "route_options[1].route_cost"
+        ),
+    }
 
 
 def test_llm_route_planner_executes_bounded_staged_followup_stage_calls() -> None:

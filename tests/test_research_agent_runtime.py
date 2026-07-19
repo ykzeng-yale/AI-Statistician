@@ -3007,6 +3007,46 @@ def _runtime_gap_planner_bridge_fixture(
     )
 
 
+def test_gap_planner_bridge_feedback_rows_deduplicate_feedback_identity() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    bridge = _runtime_gap_planner_bridge_fixture(question)
+    base_row = {
+        "runtime_learning_row_id": "learning:feedback:first",
+        "learning_task": (
+            "formalization_gap_planner_live_route_planner_contract_feedback"
+        ),
+        "route_planner_contract_feedback_id": "feedback:first",
+        "formalization_gap_planner_bridge_id": bridge["bridge_id"],
+    }
+    duplicate_row = {
+        **base_row,
+        "runtime_learning_row_id": "learning:feedback:first:duplicate",
+    }
+    second_row = {
+        **base_row,
+        "runtime_learning_row_id": "learning:feedback:second",
+        "route_planner_contract_feedback_id": "feedback:second",
+    }
+
+    rows = (
+        runtime_module._runtime_formalization_gap_planner_route_contract_feedback_rows_for_bridge(
+            bridge,
+            [base_row, duplicate_row, second_row],
+        )
+    )
+
+    assert [
+        row["route_planner_contract_feedback_id"] for row in rows
+    ] == ["feedback:first", "feedback:second"]
+
+
+def test_gap_planner_live_contract_revision_default_is_one() -> None:
+    assert (
+        ResearchAgentRuntimeConfig().formalization_gap_planner_live_max_contract_revisions
+        == 1
+    )
+
+
 def test_critic_routes_packet_validation_escalation_to_gap_planner_when_bridge_available() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     theory_packet_id = "theory_derivation:critic_packet_escalation_gap_planner"
