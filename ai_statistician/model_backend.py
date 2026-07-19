@@ -73,6 +73,8 @@ CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS = {
 }
 CLAUDE_MODEL_TIERS = tuple(DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER)
 LIVE_CLAUDE_MODEL_TIERS = ("haiku", "sonnet")
+LIVE_EVALUATION_CLAUDE_MODEL_TIER = "haiku"
+LIVE_EVALUATION_CLAUDE_MODEL = DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL
 ANTHROPIC_CLAUDE_TIER_ENV_VARS = {
     "haiku": (
         "AI_STATISTICIAN_CLAUDE_HAIKU_MODEL",
@@ -383,6 +385,24 @@ def resolve_generator_model(
         requested_model,
         env=env,
         model_tier=model_tier,
+    )
+
+
+def resolve_live_evaluation_model(
+    provider_name: str,
+    requested_model: str = "",
+    env: Mapping[str, str] | None = None,
+) -> str:
+    """Resolve live-evaluation calls without allowing Claude tier drift."""
+
+    provider = str(provider_name or "").strip().lower()
+    if provider == "anthropic":
+        return LIVE_EVALUATION_CLAUDE_MODEL
+    return default_generator_model(
+        provider,
+        requested_model,
+        env=env,
+        model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
     )
 
 

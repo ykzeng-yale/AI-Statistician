@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from ai_statistician.cli import (
+    _apply_research_agent_runtime_evaluation_model_policy,
     _build_algorithm_engineer_agent_from_args,
     _build_architect_coordinator_agent_from_args,
     _build_critic_evaluator_agent_from_args,
@@ -729,6 +730,81 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
     assert formal_target_reviewer is not None
     assert formal_target_reviewer.config.model == "claude-sonnet-4-6"
     assert formal_target_reviewer.config.model_tier == "sonnet"
+
+
+def test_live_evaluation_builders_are_pinned_to_current_haiku(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for key in (
+        "AI_STATISTICIAN_LLM_MODEL",
+        "AI_STATISTICIAN_ANTHROPIC_MODEL",
+        "AI_STATISTICIAN_CLAUDE_HAIKU_MODEL",
+        "AI_STATISTICIAN_ANTHROPIC_HAIKU_MODEL",
+        "AI_STATISTICIAN_THEORY_MODEL",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    args = build_parser().parse_args(
+        ["research-agent-runtime", "--capability-eval"]
+    )
+    args.generated_code_semantic_reviewer_provider = "same"
+    args.formal_target_semantic_reviewer_provider = "same"
+    args.architect_metric_repair_ownership_router = True
+    args.llm_model = "claude-sonnet-4-6"
+    args.serious_theory_llm_model = "claude-sonnet-4-6"
+    args.architect_llm_model = "claude-sonnet-4-6"
+    args.algorithm_llm_model = "claude-sonnet-4-6"
+    args.simulation_llm_model = "claude-sonnet-4-6"
+    args.formalizer_llm_model = "claude-sonnet-4-6"
+
+    _apply_research_agent_runtime_evaluation_model_policy(args)
+
+    expected_model = "claude-haiku-4-5-20251001"
+    assert args.evaluation_claude_model_tier == "haiku"
+    assert args.evaluation_claude_model == expected_model
+    assert args.theory_model_tier == "haiku"
+    assert args.serious_theory_model_tier == "haiku"
+    assert args.formalization_gap_planner_live_model_tier == "haiku"
+    assert args.pseudo_formal_block_verifier_runtime_model_tier == "haiku"
+    default_model = default_generator_model(
+        args.provider,
+        model_tier=args.evaluation_claude_model_tier,
+    )
+    agents = (
+        _build_architect_coordinator_agent_from_args(
+            args,
+            default_model=default_model,
+        ),
+        _build_algorithm_engineer_agent_from_args(
+            args,
+            default_model=default_model,
+        ),
+        _build_simulation_engineer_agent_from_args(
+            args,
+            default_model=default_model,
+        ),
+        _build_formalizer_agent_from_args(
+            args,
+            default_model=default_model,
+        ),
+        _build_critic_evaluator_agent_from_args(
+            args,
+            default_model=default_model,
+        ),
+        _build_generated_code_semantic_reviewer_agent_from_args(
+            args,
+            default_model=default_model,
+        ),
+        _build_formal_target_semantic_reviewer_agent_from_args(
+            args,
+            default_model=default_model,
+        ),
+    )
+    assert all(agent is not None for agent in agents)
+    assert all(agent.config.model_tier == "haiku" for agent in agents)
+    assert all(agent.config.model == expected_model for agent in agents)
+    architect = agents[0]
+    assert architect.metric_semantic_reviewer.config.model_tier == "haiku"
+    assert architect.metric_repair_ownership_router.config.model_tier == "haiku"
 
 
 def test_cli_never_offers_opus_as_a_live_model_tier() -> None:

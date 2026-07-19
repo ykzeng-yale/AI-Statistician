@@ -23,10 +23,12 @@ from ai_statistician.cli import (
     _load_runtime_capability_gap_routing,
     _load_runtime_learning_memory,
     _apply_research_agent_runtime_capability_eval_preset,
+    _apply_research_agent_runtime_evaluation_model_policy,
     _apply_research_agent_runtime_live_lean_defaults,
     _effective_resume_through_architect,
     _minimum_task_family_selection_errors,
     _research_agent_runtime_capability_config_errors,
+    _research_agent_runtime_evaluation_model_policy_errors,
     _research_agent_runtime_local_lean_preflight_errors,
     _research_agent_runtime_static_subsystem_config_errors,
     _select_questions_by_task_family,
@@ -2900,6 +2902,8 @@ def test_critic_suppresses_formalizer_reroute_for_packet_validation_escalation()
 
 def _runtime_gap_planner_bridge_fixture(
     question: OpenResearchQuestion,
+    *,
+    model_tier: str = "auto",
 ) -> dict[str, object]:
     return _runtime_formalization_gap_planner_bridge(
         question=question,
@@ -3004,6 +3008,28 @@ def _runtime_gap_planner_bridge_fixture(
         },
         formalization_manifest_id="formalization_manifest:packet_escalation",
         proof_state_feedback_manifest_id="proof_state_feedback_manifest:packet_escalation",
+        model_tier=model_tier,
+    )
+
+
+def test_runtime_gap_planner_bridge_pins_evaluation_handoff_tier() -> None:
+    bridge = _runtime_gap_planner_bridge_fixture(
+        OpenResearchQuestion(
+            id="haiku_gap_planner",
+            title="Haiku gap planner",
+            description="Verify evaluation tier propagation.",
+        ),
+        model_tier="haiku",
+    )
+
+    assert bridge["recommended_model_tier"] == "haiku"
+    assert "--model-tier haiku" in bridge["next_llm_route_planner_prompt_cli"]
+    assert "--model-tier haiku" in bridge["next_llm_route_planner_live_cli"]
+    assert "--llm-route-planner-model-tier haiku" in (
+        bridge["next_reuse_smoke_cli"]
+    )
+    assert "--feedback-llm-route-planner-model-tier haiku" in (
+        bridge["next_reuse_smoke_cli"]
     )
 
 
@@ -11706,6 +11732,7 @@ def test_capability_feedback_commands_keep_fresh_rerun_free_of_prior_memory(
         assert argv[:3] == [".venv/bin/python", "-m", "ai_statistician.cli"]
         args = cli_module.build_parser().parse_args(argv[3:])
         _apply_research_agent_runtime_capability_eval_preset(args)
+        _apply_research_agent_runtime_evaluation_model_policy(args)
         assert _research_agent_runtime_capability_config_errors(args) == []
 
 
@@ -25242,6 +25269,7 @@ def test_gap_planner_handoff_rows_inherit_architect_control_from_bridge(
     rows = runtime_module._runtime_formalization_gap_planner_handoff_rows(
         [bridge],
         runtime_out_dir=tmp_path,
+        model_tier="haiku",
     )
 
     assert len(rows) == 1
@@ -25254,6 +25282,13 @@ def test_gap_planner_handoff_rows_inherit_architect_control_from_bridge(
     assert control["formal_verification_policy"] == "required"
     assert rows[0]["proof_evidence_status"] == (
         "RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE"
+    )
+    assert rows[0]["recommended_model_tier"] == "haiku"
+    assert "--model-tier haiku" in rows[0]["llm_route_planner_prompt_cli"]
+    assert "--model-tier haiku" in rows[0]["llm_route_planner_live_cli"]
+    assert "--llm-route-planner-model-tier haiku" in rows[0]["reuse_smoke_cli"]
+    assert "--feedback-llm-route-planner-model-tier haiku" in (
+        rows[0]["reuse_smoke_cli"]
     )
 
 
@@ -52458,6 +52493,7 @@ def test_algorithm_engineer_generated_code_repair_eval_failure_manifest(
     assert manifest["failure_classification"] == "provider_or_runtime_exception"
     assert manifest["failure_exception_type"] == "RuntimeError"
     assert manifest["backend_provider_name"] == "anthropic"
+    assert manifest["model"] == "claude-haiku-4-5-20251001"
     assert manifest["live_generator"] is True
     assert manifest["capability_evidence_ok"] is False
     assert manifest["sandbox_clean_after_repair"] is False
@@ -52619,6 +52655,7 @@ def test_simulation_engineer_generated_code_repair_eval_failure_manifest(
     assert manifest["failure_classification"] == "provider_or_runtime_exception"
     assert manifest["failure_exception_type"] == "RuntimeError"
     assert manifest["backend_provider_name"] == "anthropic"
+    assert manifest["model"] == "claude-haiku-4-5-20251001"
     assert manifest["live_generator"] is True
     assert manifest["capability_evidence_ok"] is False
     assert manifest["sandbox_clean_after_repair"] is False
@@ -52903,6 +52940,7 @@ def test_formalizer_lean_candidate_repair_eval_failure_manifest(
     assert manifest["failure_classification"] == "provider_or_runtime_exception"
     assert manifest["failure_exception_type"] == "RuntimeError"
     assert manifest["backend_provider_name"] == "anthropic"
+    assert manifest["model"] == "claude-haiku-4-5-20251001"
     assert manifest["live_generator"] is True
     assert manifest["capability_evidence_ok"] is False
     assert manifest["candidate_kernel_verified"] is False
@@ -53002,6 +53040,7 @@ def test_architect_research_path_policy_eval_failure_manifest(
     assert manifest["failure_classification"] == "provider_or_runtime_exception"
     assert manifest["failure_exception_type"] == "RuntimeError"
     assert manifest["backend_provider_name"] == "anthropic"
+    assert manifest["model"] == "claude-haiku-4-5-20251001"
     assert manifest["live_generator"] is True
     assert manifest["capability_evidence_ok"] is False
     assert manifest["runtime_executed"] is False
@@ -103720,6 +103759,62 @@ def test_runtime_topology_accepts_contextual_serious_theory_at_sonnet_ceiling() 
     assert violations == []
 
 
+def test_runtime_topology_applies_haiku_only_evaluation_policy() -> None:
+    developer = LLMTheoryDeveloperAgent(
+        provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+        config=ResearchArchitectConfig(
+            provider_name="anthropic",
+            model_tier="haiku",
+            serious_model_tier="haiku",
+        ),
+    )
+
+    topology = runtime_module._runtime_llm_topology(
+        architect_coordinator=None,
+        theory_developer=developer,
+        simulation_engineer=None,
+        algorithm_engineer=None,
+        formalizer=None,
+        critic_evaluator=None,
+        proof_state_provider=None,
+        evaluation_claude_model_tier="haiku",
+        evaluation_claude_model="claude-haiku-4-5-20251001",
+    )
+    theory_row = next(
+        row
+        for row in topology["llm_agents"]
+        if row["subsystem"] == "TheoryDeveloper"
+    )
+
+    assert topology["policy_status"] == "OK"
+    assert topology["policy"]["evaluation_claude_model_tier"] == "haiku"
+    assert topology["policy"]["evaluation_claude_model"] == (
+        "claude-haiku-4-5-20251001"
+    )
+    assert theory_row["model"] == "claude-haiku-4-5-20251001"
+    assert theory_row["serious_model"] == "claude-haiku-4-5-20251001"
+    assert theory_row["expected_model_tier"] == "haiku"
+    assert theory_row["expected_serious_model_tier"] == "haiku"
+    assert theory_row["production_expected_model_tier"] == "sonnet"
+    assert theory_row["production_expected_serious_model_tier"] == "sonnet"
+
+
+def test_runtime_evaluation_model_policy_rejects_model_drift() -> None:
+    args = _capability_eval_preset_args("full-live")
+    args.provider = "anthropic"
+    args.llm_model = ""
+
+    _apply_research_agent_runtime_evaluation_model_policy(args)
+    args.evaluation_claude_model = "claude-haiku-3-5-20241022"
+    errors = _research_agent_runtime_evaluation_model_policy_errors(args)
+
+    assert any(
+        "did not pin the current Haiku model "
+        "claude-haiku-4-5-20251001" in error
+        for error in errors
+    )
+
+
 def test_runtime_topology_records_metric_repair_ownership_router() -> None:
     coordinator = LLMArchitectCoordinatorAgent(
         provider=StaticArchitectLLMProvider(_architect_sample_response()),
@@ -105221,6 +105316,8 @@ def test_local_lean_proof_state_provider_routes_placeholder_to_authoring_not_tac
 
 def _capability_eval_preset_args(preset: str) -> argparse.Namespace:
     return argparse.Namespace(
+        capability_eval=True,
+        research_eval=False,
         capability_eval_preset=preset,
         theory_model_tier="sonnet",
         serious_theory_llm_model="",
@@ -105294,6 +105391,8 @@ def _capability_eval_preset_args(preset: str) -> argparse.Namespace:
         formalization_gap_planner_live_max_handoffs=0,
         formalization_gap_planner_live_max_route_requests_per_handoff=0,
         formalization_gap_planner_live_provider="same",
+        formalization_gap_planner_live_model="",
+        formalization_gap_planner_live_model_tier="auto",
         formalization_gap_planner_live_timeout_seconds=0.0,
         coding_agent_packet_validation_replan_after_attempts=0,
         algorithm_engineer_generated_code_repair_yield_after_attempts=0,
@@ -105410,6 +105509,7 @@ def test_capability_eval_minimal_live_preset_populates_required_runtime_paths() 
     args = _capability_eval_preset_args("minimal-live")
 
     _apply_research_agent_runtime_capability_eval_preset(args)
+    _apply_research_agent_runtime_evaluation_model_policy(args)
 
     assert args.provider in {"anthropic", "openai"}
     assert args.architect_coordinator_provider == "same"
@@ -105422,6 +105522,10 @@ def test_capability_eval_minimal_live_preset_populates_required_runtime_paths() 
     assert args.formalizer_candidate_local_lean is True
     assert args.formalizer_candidate_lean_project == args.lean_project
     assert args.pseudo_formal_block_verifier_runtime is True
+    assert args.theory_model_tier == "haiku"
+    assert args.serious_theory_model_tier == "haiku"
+    assert args.formalization_gap_planner_live_model_tier == "haiku"
+    assert _research_agent_runtime_evaluation_model_policy_errors(args) == []
     assert args.source_theorem_exact_semantic_definition_source_root == [
         "legacy_sources/ai_statistician"
     ]
@@ -105568,6 +105672,7 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     args.formalization_gap_planner_live_timeout_seconds = None
 
     _apply_research_agent_runtime_capability_eval_preset(args)
+    _apply_research_agent_runtime_evaluation_model_policy(args)
 
     assert args.provider in {"anthropic", "openai"}
     assert args.architect_coordinator_provider == "same"
@@ -105582,8 +105687,8 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     assert args.max_iterations == 24
     assert args.min_task_families == 2
     assert args.formal_verification_policy == "required"
-    assert args.theory_model_tier == "sonnet"
-    assert args.serious_theory_model_tier == "sonnet"
+    assert args.theory_model_tier == "haiku"
+    assert args.serious_theory_model_tier == "haiku"
     assert args.serious_theory_max_tokens >= 8000
     assert args.llm_timeout_seconds == 240.0
     assert args.architect_metric_repair_ownership_router is True
@@ -105592,6 +105697,7 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     assert args.formalization_gap_planner_live_max_route_requests_per_handoff == 1
     assert args.formalization_gap_planner_live_max_provider_retries == 1
     assert args.formalization_gap_planner_live_provider == "same"
+    assert args.formalization_gap_planner_live_model_tier == "haiku"
     assert args.formalization_gap_planner_live_timeout_seconds == 240.0
     assert args.coding_agent_packet_validation_replan_after_attempts == 2
     assert (
@@ -105642,12 +105748,13 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     ) in _research_agent_runtime_capability_config_errors(args)
     args.architect_metric_repair_ownership_router = True
 
-    args.serious_theory_model_tier = "opus"
-    assert (
-        "capability eval preset full-live requires Sonnet-tier serious "
-        "TheoryDeveloper workspaces; set --serious-theory-model-tier sonnet"
-    ) in _research_agent_runtime_capability_config_errors(args)
     args.serious_theory_model_tier = "sonnet"
+    assert (
+        "capability eval preset full-live requires haiku-tier serious "
+        "TheoryDeveloper workspaces under the active evaluation model policy; "
+        "set --serious-theory-model-tier haiku"
+    ) in _research_agent_runtime_capability_config_errors(args)
+    args.serious_theory_model_tier = "haiku"
 
     args.serious_theory_max_tokens = 7999
     assert any(

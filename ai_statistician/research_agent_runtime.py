@@ -7360,6 +7360,8 @@ class ResearchAgentRuntimeConfig:
     max_proof_obligations: int = 0
     llm_timeout_seconds: float = DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS
     evaluation_mode: str = "debug"
+    evaluation_claude_model_tier: str = ""
+    evaluation_claude_model: str = ""
     formalizer_candidate_local_lean: bool = False
     formalizer_candidate_lean_lsp_mcp: bool = False
     formalizer_candidate_lean_project: str = ""
@@ -22426,6 +22428,9 @@ class FormalizationEvaluatorRuntimeSubsystem:
             ),
             formalization_manifest_id=manifest_id,
             proof_state_feedback_manifest_id=proof_state_manifest_id,
+            model_tier=(
+                self.runtime_config.formalization_gap_planner_live_model_tier
+            ),
         )
         gap_planner_bridge = _runtime_artifact_with_architect_control(
             str(gap_planner_bridge.get("bridge_id", "")),
@@ -36374,6 +36379,9 @@ class FormalizationGapPlannerRuntimeSubsystem:
                 runtime_out_dir=planner_root,
                 runtime_learning_rows=runtime_learning_rows,
                 contract_revision_artifact=contract_revision_artifact,
+                model_tier=(
+                    self.runtime_config.formalization_gap_planner_live_model_tier
+                ),
             )
             if architect_control_seed:
                 handoff_rows = [
@@ -38416,6 +38424,8 @@ def run_research_agent_runtime(
         generated_code_semantic_reviewer=generated_code_semantic_reviewer,
         formal_target_semantic_reviewer=formal_target_semantic_reviewer,
         proof_state_provider=proof_state_provider,
+        evaluation_claude_model_tier=config.evaluation_claude_model_tier,
+        evaluation_claude_model=config.evaluation_claude_model,
     )
     if llm_topology["policy_status"] != "OK":
         raise ValueError(
@@ -39079,6 +39089,10 @@ def run_research_agent_runtime(
             else "retrieval_theory_simulation_algorithm_formalization_critic_environment_loop"
         ),
         "runtime_evaluation_mode": config.evaluation_mode,
+        "runtime_evaluation_claude_model_tier": (
+            config.evaluation_claude_model_tier
+        ),
+        "runtime_evaluation_claude_model": config.evaluation_claude_model,
         "n_questions": len(questions),
         "question_ids": [question.id for question in questions],
         "question_titles": [question.title for question in questions],
@@ -41222,6 +41236,7 @@ def run_research_agent_runtime(
         gap_planner_bridge_rows,
         runtime_out_dir=out_dir,
         runtime_learning_rows=learning_rows,
+        model_tier=config.formalization_gap_planner_live_model_tier,
     )
     gap_planner_handoff_execution_plan_summary = (
         _runtime_formalization_gap_planner_handoff_execution_plan_summary(
@@ -56405,6 +56420,8 @@ def _runtime_llm_topology(
         LLMFormalTargetSemanticReviewerAgent | None
     ) = None,
     proof_state_provider: ProofStateFeedbackProvider | None,
+    evaluation_claude_model_tier: str = "",
+    evaluation_claude_model: str = "",
 ) -> dict[str, Any]:
     agents = [
         _llm_agent_topology_row(
@@ -56479,6 +56496,23 @@ def _runtime_llm_topology(
         ),
     ]
     enabled = [row for row in agents if row["enabled"]]
+    evaluation_claude_model_tier = str(
+        evaluation_claude_model_tier or ""
+    ).strip().lower()
+    evaluation_claude_model = str(evaluation_claude_model or "").strip()
+    if evaluation_claude_model_tier:
+        for row in agents:
+            row["production_expected_model_tier"] = str(
+                row.get("expected_model_tier", "") or ""
+            )
+            row["expected_model_tier"] = evaluation_claude_model_tier
+            if "serious_model_tier" in row:
+                row["production_expected_serious_model_tier"] = str(
+                    row.get("expected_serious_model_tier", "") or ""
+                )
+                row["expected_serious_model_tier"] = (
+                    evaluation_claude_model_tier
+                )
     by_tier: dict[str, int] = {}
     by_provider: dict[str, int] = {}
     for row in enabled:
@@ -56500,6 +56534,26 @@ def _runtime_llm_topology(
         "resolved Claude model tier policy violation: " + violation
         for violation in resolved_claude_model_tier_policy_violations
     ]
+    if evaluation_claude_model:
+        for row in enabled:
+            providers = {
+                str(row.get("provider_name", "") or "").strip().lower(),
+                str(row.get("backend_provider_name", "") or "").strip().lower(),
+            }
+            if "anthropic" not in providers:
+                continue
+            if str(row.get("model", "") or "") != evaluation_claude_model:
+                violations.append(
+                    f"{row.get('subsystem')} live evaluation requires model "
+                    f"{evaluation_claude_model} but resolved "
+                    f"{str(row.get('model', '') or 'missing')}"
+                )
+            serious_model = str(row.get("serious_model", "") or "")
+            if serious_model and serious_model != evaluation_claude_model:
+                violations.append(
+                    f"{row.get('subsystem')} serious live evaluation requires "
+                    f"model {evaluation_claude_model} but resolved {serious_model}"
+                )
     agents_by_subsystem = {str(row.get("subsystem", "")): row for row in agents}
 
     def _subsystem_field(subsystem: str, field: str) -> str:
@@ -56543,6 +56597,8 @@ def _runtime_llm_topology(
             "model_tier_assignment_policy": (
                 "centralized_subsystem_policy_from_model_backend"
             ),
+            "evaluation_claude_model_tier": evaluation_claude_model_tier,
+            "evaluation_claude_model": evaluation_claude_model,
             "backend_boundary": (
                 "LLM backends generate structured proposals only. AgentRuntime owns "
                 "tool use, filesystem changes, execution, tests, Lean checks, and evidence promotion."
@@ -97783,7 +97839,9 @@ def _runtime_formalization_gap_planner_handoff_rows(
     runtime_out_dir: Path,
     runtime_learning_rows: Sequence[Mapping[str, Any]] = (),
     contract_revision_artifact: Mapping[str, Any] | None = None,
+    model_tier: str = "auto",
 ) -> list[dict[str, Any]]:
+    model_tier = str(model_tier or "auto").strip().lower()
     rows: list[dict[str, Any]] = []
     handoff_root = runtime_out_dir / "runtime_formalization_gap_planner_handoffs"
     for bridge in bridge_rows:
@@ -97998,7 +98056,7 @@ def _runtime_formalization_gap_planner_handoff_rows(
         )
         llm_route_planner_prompt_cli = (
             "python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner "
-            f"--input {seed_arg} --provider anthropic --model-tier auto "
+            f"--input {seed_arg} --provider anthropic --model-tier {model_tier} "
             "--max-repair-attempts 1 "
             f"--max-estimated-prompt-input-tokens {prompt_budget_cap_arg} "
             "--goal-conditioned-minimal-formalization-plan-dir "
@@ -98013,7 +98071,7 @@ def _runtime_formalization_gap_planner_handoff_rows(
         )
         llm_route_planner_live_cli = (
             "python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner "
-            f"--input {seed_arg} --provider anthropic --model-tier auto "
+            f"--input {seed_arg} --provider anthropic --model-tier {model_tier} "
             "--max-repair-attempts 1 "
             f"--max-estimated-prompt-input-tokens {prompt_budget_cap_arg} "
             "--goal-conditioned-minimal-formalization-plan-dir "
@@ -98032,12 +98090,12 @@ def _runtime_formalization_gap_planner_handoff_rows(
             f"--target-prover-family {shlex.quote(target_prover_family)} "
             f"--target-library-snapshot-ref {shlex.quote(library_snapshot_ref)} "
             "--llm-route-planner-provider anthropic "
-            "--llm-route-planner-model-tier auto "
+            f"--llm-route-planner-model-tier {model_tier} "
             "--llm-route-planner-max-repair-attempts 1 "
             "--llm-route-planner-max-estimated-prompt-input-tokens "
             f"{prompt_budget_cap_arg} "
             "--feedback-llm-route-planner-provider anthropic "
-            "--feedback-llm-route-planner-model-tier auto "
+            f"--feedback-llm-route-planner-model-tier {model_tier} "
             "--feedback-llm-route-planner-max-repair-attempts 1 "
             "--feedback-llm-route-planner-max-estimated-prompt-input-tokens "
             f"{prompt_budget_cap_arg} "
@@ -98062,6 +98120,14 @@ def _runtime_formalization_gap_planner_handoff_rows(
             route_revision_overlay_dir=route_revision_overlay_dir_text,
             target_prover_family=target_prover_family,
             library_snapshot_ref=library_snapshot_ref,
+            recommended_model_tier=model_tier,
+        )
+        model_tier_policy = (
+            "stage Anthropic prompt packets with --model-tier auto; the LLM "
+            "route planner selects a bounded route tier from route complexity"
+            if model_tier == "auto"
+            else f"pin every generated handoff and replay command to the "
+            f"evaluation model tier {model_tier}"
         )
         row = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -98080,13 +98146,8 @@ def _runtime_formalization_gap_planner_handoff_rows(
             "target_prover_family": target_prover_family,
             "library_snapshot_ref": library_snapshot_ref,
             "recommended_llm_provider": "anthropic",
-            "recommended_model_tier": "auto",
-            "model_tier_policy": (
-                "stage Anthropic prompt packets with --model-tier auto; the "
-                "LLM route planner chooses Claude Haiku for small bounded "
-                "routes and Claude Sonnet for residual, bridge, source-port, "
-                "or new-theory routes"
-            ),
+            "recommended_model_tier": model_tier,
+            "model_tier_policy": model_tier_policy,
             "target_intake_dir": str(target_intake_out),
             "target_intake_cli": target_intake_cli,
             "component_resource_registry_dir": str(component_resource_registry_out),
@@ -98164,7 +98225,8 @@ def _runtime_formalization_gap_planner_handoff_rows(
         bridge["execution_plan"] = execution_plan
         bridge["execution_plan_stage_count"] = execution_plan["stage_count"]
         bridge["recommended_llm_provider"] = "anthropic"
-        bridge["recommended_model_tier"] = "auto"
+        bridge["recommended_model_tier"] = model_tier
+        bridge["model_tier_policy"] = model_tier_policy
         bridge["target_prover_family"] = row["target_prover_family"]
         rows.append(row)
     return rows
@@ -98180,7 +98242,9 @@ def _runtime_formalization_gap_planner_bridge(
     retrieval_context: Mapping[str, Any],
     formalization_manifest_id: str,
     proof_state_feedback_manifest_id: str,
+    model_tier: str = "auto",
 ) -> dict[str, Any]:
+    model_tier = str(model_tier or "auto").strip().lower()
     source_refs = _runtime_gap_planner_source_refs(retrieval_context)
     source_ref_rows = _runtime_gap_planner_source_ref_rows(retrieval_context)
     proof_state_by_subclaim = _runtime_proof_state_by_subclaim(proof_state_rows)
@@ -98300,7 +98364,7 @@ def _runtime_formalization_gap_planner_bridge(
         "next_llm_route_planner_prompt_cli": (
             "python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner "
             "--input <runtime_formalization_gap_planner_standalone_seed.json> "
-            "--provider anthropic --model-tier auto "
+            f"--provider anthropic --model-tier {model_tier} "
             "--max-repair-attempts 1 "
             "--max-estimated-prompt-input-tokens "
             f"{RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS} "
@@ -98315,7 +98379,8 @@ def _runtime_formalization_gap_planner_bridge(
         "next_llm_route_planner_live_cli": (
             "python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner "
             "--input <runtime_formalization_gap_planner_standalone_seed.json> "
-            "--provider anthropic --model-tier auto --max-repair-attempts 1 "
+            f"--provider anthropic --model-tier {model_tier} "
+            "--max-repair-attempts 1 "
             "--max-estimated-prompt-input-tokens "
             f"{RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS} "
             "--goal-conditioned-minimal-formalization-plan-dir "
@@ -98332,17 +98397,19 @@ def _runtime_formalization_gap_planner_bridge(
             "--input <runtime_formalization_gap_planner_target_intake.json> "
             f"--target-prover-family {target_prover_family} "
             "--target-library-snapshot-ref ai_statistician_runtime_formalization_snapshot "
-            "--llm-route-planner-provider anthropic --llm-route-planner-model-tier auto "
+            "--llm-route-planner-provider anthropic "
+            f"--llm-route-planner-model-tier {model_tier} "
             "--llm-route-planner-max-repair-attempts 1 "
             "--llm-route-planner-max-estimated-prompt-input-tokens "
             f"{RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS} "
             "--feedback-llm-route-planner-provider anthropic "
-            "--feedback-llm-route-planner-model-tier auto "
+            f"--feedback-llm-route-planner-model-tier {model_tier} "
             "--feedback-llm-route-planner-max-repair-attempts 1 "
             "--feedback-llm-route-planner-max-estimated-prompt-input-tokens "
             f"{RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS} "
             "--out runs/formalization_gap_planner_runtime_reuse_smoke"
         ),
+        "recommended_model_tier": model_tier,
         "proof_evidence_status": (
             RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE
         ),

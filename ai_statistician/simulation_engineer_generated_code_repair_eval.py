@@ -11,11 +11,11 @@ from .generated_metric_repair_policy import (
     generated_metric_gate_repair_instruction,
 )
 from .model_backend import (
+    LIVE_EVALUATION_CLAUDE_MODEL_TIER,
     OpenAIResponsesGeneratorBackend,
-    default_generator_model,
     generator_backend_provider_name,
     is_live_generator_backend,
-    llm_subsystem_expected_model_tier,
+    resolve_live_evaluation_model,
 )
 from .research_agent_runtime import (
     SimulationEvaluatorRuntimeSubsystem,
@@ -75,11 +75,10 @@ def run_simulation_engineer_generated_code_repair_eval(
         llm_timeout_seconds=llm_timeout_seconds,
     )
     backend_provider_name = generator_backend_provider_name(provider, provider_name)
-    model_tier = llm_subsystem_expected_model_tier("SimulationEngineer")
-    resolved_model = default_generator_model(
+    model_tier = LIVE_EVALUATION_CLAUDE_MODEL_TIER
+    resolved_model = resolve_live_evaluation_model(
         provider_name,
         model,
-        model_tier=model_tier,
     )
     simulation_engineer = LLMSimulationEngineerAgent(
         provider=provider,
@@ -422,10 +421,9 @@ def write_simulation_engineer_generated_code_repair_eval_failure_manifest(
     backend_provider_name = (
         backend_provider_name.strip().lower() if backend_provider_name else provider_name
     )
-    resolved_model = default_generator_model(
+    resolved_model = resolve_live_evaluation_model(
         provider_name,
         model,
-        model_tier="haiku",
     )
     live_generator = is_live_generator_backend(provider_name, backend_provider_name)
     manifest_path = out_dir / "simulation_engineer_generated_code_repair_eval_manifest.json"

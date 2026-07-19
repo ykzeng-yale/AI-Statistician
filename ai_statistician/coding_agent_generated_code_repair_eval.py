@@ -11,9 +11,9 @@ from .algorithm_engineer_generated_code_repair_eval import (
     write_algorithm_engineer_generated_code_repair_eval_failure_manifest,
 )
 from .model_backend import (
-    default_generator_model,
     is_live_generator_backend,
     normalize_generator_provider_name,
+    resolve_live_evaluation_model,
 )
 from .simulation_engineer_generated_code_repair_eval import (
     SIMULATION_REPAIR_EVAL_NOT_PROOF_EVIDENCE,
@@ -55,10 +55,9 @@ def run_coding_agent_generated_code_repair_eval(
 
     out_dir.mkdir(parents=True, exist_ok=True)
     provider_name = provider_name.strip().lower()
-    resolved_model = default_generator_model(
+    resolved_model = resolve_live_evaluation_model(
         provider_name,
         model,
-        model_tier="haiku",
     )
     algorithm_manifest: dict[str, Any]
     simulation_manifest: dict[str, Any]

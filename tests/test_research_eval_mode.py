@@ -17,6 +17,7 @@ from ai_statistician.architect_metric_contract_authoring import (
     _metric_candidate_repair_available,
 )
 from ai_statistician.cli import (
+    _apply_research_agent_runtime_evaluation_model_policy,
     _apply_research_agent_runtime_research_eval_profile,
     build_parser,
 )
@@ -375,6 +376,7 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
     )
 
     _apply_research_agent_runtime_research_eval_profile(args)
+    _apply_research_agent_runtime_evaluation_model_policy(args)
 
     assert args.generated_code_semantic_reviewer_provider == "same"
     assert args.formalizer_provider == "none"
@@ -383,7 +385,9 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
     assert args.formal_verification_policy == "advisory"
     assert args.recommended_research_path == "simulation_first"
     assert args.architect_metric_repair_ownership_router is True
-    assert args.serious_theory_model_tier == "sonnet"
+    assert args.serious_theory_model_tier == "haiku"
+    assert args.evaluation_claude_model_tier == "haiku"
+    assert args.evaluation_claude_model == "claude-haiku-4-5-20251001"
     assert args.serious_theory_max_tokens >= 8000
     assert args.llm_timeout_seconds == 240.0
     assert args.architect_metric_protocol_max_fresh_candidate_revisions == 1

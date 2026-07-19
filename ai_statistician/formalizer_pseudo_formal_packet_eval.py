@@ -15,11 +15,12 @@ from .formalizer_llm import (
 from .llm_json_repair import PacketValidationError
 from .model_backend import (
     AnthropicGeneratorBackend,
+    LIVE_EVALUATION_CLAUDE_MODEL_TIER,
     OpenAIResponsesGeneratorBackend,
     StaticJSONGeneratorBackend,
-    default_generator_model,
     generator_backend_provider_name,
     is_live_generator_backend,
+    resolve_live_evaluation_model,
 )
 from .pseudo_formalization import (
     PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
@@ -69,10 +70,9 @@ def run_formalizer_pseudo_formal_packet_eval(
         llm_timeout_seconds=llm_timeout_seconds,
     )
     backend_provider_name = generator_backend_provider_name(provider, provider_name)
-    resolved_model = default_generator_model(
+    resolved_model = resolve_live_evaluation_model(
         provider_name,
         model,
-        model_tier="sonnet",
     )
     question = _pseudo_formal_packet_eval_question()
     theory_packet = _pseudo_formal_packet_eval_theory_packet()
@@ -82,7 +82,7 @@ def run_formalizer_pseudo_formal_packet_eval(
         config=FormalizerConfig(
             provider_name=provider_name,
             model=resolved_model,
-            model_tier="sonnet",
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
             max_tokens=max_tokens,
             temperature=temperature,
             max_repair_attempts=max_repair_attempts,

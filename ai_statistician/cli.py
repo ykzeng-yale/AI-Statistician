@@ -437,6 +437,8 @@ from .coding_agent_generated_code_repair_eval import (
     run_coding_agent_generated_code_repair_eval,
 )
 from .model_backend import (
+    LIVE_EVALUATION_CLAUDE_MODEL,
+    LIVE_EVALUATION_CLAUDE_MODEL_TIER,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
     LIVE_CLAUDE_MODEL_TIERS,
     SUPPORTED_GENERATOR_PROVIDERS,
@@ -4826,6 +4828,105 @@ SUBSYSTEM_GENERATOR_PROVIDER_CHOICES = (
     "none",
 )
 
+_RUNTIME_EVALUATION_MODEL_TIER_FIELDS = (
+    "theory_model_tier",
+    "serious_theory_model_tier",
+    "pseudo_formal_block_verifier_runtime_model_tier",
+    "source_theorem_exact_semantic_definition_authoring_worker_model_tier",
+    "formalization_gap_planner_live_model_tier",
+    "pseudo_formal_block_verifier_eval_model_tier",
+)
+
+
+def _runtime_evaluation_model_tier(args: argparse.Namespace) -> str:
+    evaluation_mode = bool(getattr(args, "research_eval", False)) or bool(
+        getattr(args, "capability_eval", False)
+    )
+    if evaluation_mode:
+        return LIVE_EVALUATION_CLAUDE_MODEL_TIER
+    return ""
+
+
+def _runtime_effective_model_tier(
+    args: argparse.Namespace,
+    default_tier: str,
+) -> str:
+    return _runtime_evaluation_model_tier(args) or str(default_tier or "sonnet")
+
+
+def _runtime_resolved_provider_choice(
+    args: argparse.Namespace,
+    provider_choice: str,
+) -> str:
+    choice = str(provider_choice or "same").strip().lower()
+    if choice == "same":
+        return str(
+            getattr(args, "provider", _default_live_generator_provider()) or ""
+        ).strip().lower()
+    return choice
+
+
+def _runtime_evaluation_model_name(
+    args: argparse.Namespace,
+    *,
+    provider_choice: str,
+    configured_model: str,
+) -> str:
+    if (
+        _runtime_evaluation_model_tier(args)
+        and _runtime_resolved_provider_choice(args, provider_choice) == "anthropic"
+    ):
+        return LIVE_EVALUATION_CLAUDE_MODEL
+    return str(configured_model or "")
+
+
+def _apply_research_agent_runtime_evaluation_model_policy(
+    args: argparse.Namespace,
+) -> None:
+    """Pin live research evaluations to the current source-checked Haiku."""
+
+    evaluation_tier = _runtime_evaluation_model_tier(args)
+    if not evaluation_tier:
+        return
+    args.evaluation_claude_model_tier = evaluation_tier
+    args.evaluation_claude_model = LIVE_EVALUATION_CLAUDE_MODEL
+    for field_name in _RUNTIME_EVALUATION_MODEL_TIER_FIELDS:
+        if hasattr(args, field_name):
+            setattr(args, field_name, evaluation_tier)
+
+
+def _research_agent_runtime_evaluation_model_policy_errors(
+    args: argparse.Namespace,
+) -> list[str]:
+    evaluation_tier = _runtime_evaluation_model_tier(args)
+    if not evaluation_tier:
+        return []
+    errors: list[str] = []
+    if str(
+        getattr(args, "evaluation_claude_model_tier", "") or ""
+    ) != evaluation_tier:
+        errors.append(
+            "live research evaluation model policy was not applied before "
+            "runtime construction"
+        )
+    if str(getattr(args, "evaluation_claude_model", "") or "") != (
+        LIVE_EVALUATION_CLAUDE_MODEL
+    ):
+        errors.append(
+            "live research evaluation model policy did not pin the current "
+            f"Haiku model {LIVE_EVALUATION_CLAUDE_MODEL}"
+        )
+    for field_name in _RUNTIME_EVALUATION_MODEL_TIER_FIELDS:
+        if not hasattr(args, field_name):
+            continue
+        configured_tier = str(getattr(args, field_name, "") or "").lower()
+        if configured_tier != evaluation_tier:
+            errors.append(
+                f"live research evaluations require {field_name}="
+                f"{evaluation_tier}; configured {configured_tier or 'missing'}"
+            )
+    return errors
+
 
 def _default_live_generator_provider() -> str:
     provider = default_generator_provider()
@@ -4849,6 +4950,12 @@ def _model_for_subsystem_provider(
     default_model: str,
     model_tier: str,
 ) -> str:
+    model_tier = _runtime_effective_model_tier(args, model_tier)
+    explicit_model = _runtime_evaluation_model_name(
+        args,
+        provider_choice=provider_choice,
+        configured_model=explicit_model,
+    )
     if explicit_model:
         return explicit_model
     primary_provider = getattr(args, "provider", _default_live_generator_provider())
@@ -4893,18 +5000,19 @@ def _build_algorithm_engineer_agent_from_args(args: argparse.Namespace, *, defau
         static_response_file=static_file,
         llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
     )
+    model_tier = _runtime_effective_model_tier(args, "sonnet")
     model = _model_for_subsystem_provider(
         provider_choice=provider_choice,
         explicit_model=getattr(args, "algorithm_llm_model", ""),
         args=args,
         default_model=default_model,
-        model_tier="sonnet",
+        model_tier=model_tier,
     )
     return LLMAlgorithmEngineerAgent(
         provider=provider,
         config=AlgorithmEngineerConfig(
             model=model,
-            model_tier="sonnet",
+            model_tier=model_tier,
             max_tokens=getattr(args, "algorithm_max_tokens", 5000),
             temperature=getattr(args, "algorithm_temperature", 0.1),
             provider_name=provider_name,
@@ -4926,18 +5034,19 @@ def _build_simulation_engineer_agent_from_args(args: argparse.Namespace, *, defa
         static_response_file=static_file,
         llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
     )
+    model_tier = _runtime_effective_model_tier(args, "sonnet")
     model = _model_for_subsystem_provider(
         provider_choice=provider_choice,
         explicit_model=getattr(args, "simulation_llm_model", ""),
         args=args,
         default_model=default_model,
-        model_tier="sonnet",
+        model_tier=model_tier,
     )
     return LLMSimulationEngineerAgent(
         provider=provider,
         config=SimulationEngineerConfig(
             model=model,
-            model_tier="sonnet",
+            model_tier=model_tier,
             max_tokens=getattr(args, "simulation_max_tokens", 5000),
             temperature=getattr(args, "simulation_temperature", 0.1),
             provider_name=provider_name,
@@ -4959,18 +5068,19 @@ def _build_formalizer_agent_from_args(args: argparse.Namespace, *, default_model
         static_response_file=static_file,
         llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
     )
+    model_tier = _runtime_effective_model_tier(args, "sonnet")
     model = _model_for_subsystem_provider(
         provider_choice=provider_choice,
         explicit_model=getattr(args, "formalizer_llm_model", ""),
         args=args,
         default_model=default_model,
-        model_tier="sonnet",
+        model_tier=model_tier,
     )
     return LLMFormalizerProofEngineerAgent(
         provider=provider,
         config=FormalizerConfig(
             model=model,
-            model_tier="sonnet",
+            model_tier=model_tier,
             max_tokens=getattr(args, "formalizer_max_tokens", 6000),
             temperature=getattr(args, "formalizer_temperature", 0.1),
             provider_name=provider_name,
@@ -4992,18 +5102,19 @@ def _build_critic_evaluator_agent_from_args(args: argparse.Namespace, *, default
         static_response_file=static_file,
         llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
     )
+    model_tier = _runtime_effective_model_tier(args, "haiku")
     model = _model_for_subsystem_provider(
         provider_choice=provider_choice,
         explicit_model=getattr(args, "critic_llm_model", ""),
         args=args,
         default_model=default_model,
-        model_tier="haiku",
+        model_tier=model_tier,
     )
     return LLMCriticEvaluatorAgent(
         provider=provider,
         config=CriticEvaluatorConfig(
             model=model,
-            model_tier="haiku",
+            model_tier=model_tier,
             max_tokens=getattr(args, "critic_max_tokens", 5000),
             temperature=getattr(args, "critic_temperature", 0.1),
             provider_name=provider_name,
@@ -5037,6 +5148,7 @@ def _build_generated_code_semantic_reviewer_agent_from_args(
         static_response_file=static_file,
         llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
     )
+    model_tier = _runtime_effective_model_tier(args, "sonnet")
     model = _model_for_subsystem_provider(
         provider_choice=provider_choice,
         explicit_model=getattr(
@@ -5046,13 +5158,13 @@ def _build_generated_code_semantic_reviewer_agent_from_args(
         ),
         args=args,
         default_model=default_model,
-        model_tier="sonnet",
+        model_tier=model_tier,
     )
     return LLMGeneratedCodeSemanticReviewerAgent(
         provider=provider,
         config=GeneratedCodeSemanticReviewerConfig(
             model=model,
-            model_tier="sonnet",
+            model_tier=model_tier,
             max_tokens=getattr(
                 args,
                 "generated_code_semantic_reviewer_max_tokens",
@@ -5094,6 +5206,7 @@ def _build_formal_target_semantic_reviewer_agent_from_args(
         static_response_file=static_file,
         llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
     )
+    model_tier = _runtime_effective_model_tier(args, "sonnet")
     model = _model_for_subsystem_provider(
         provider_choice=provider_choice,
         explicit_model=getattr(
@@ -5103,13 +5216,13 @@ def _build_formal_target_semantic_reviewer_agent_from_args(
         ),
         args=args,
         default_model=default_model,
-        model_tier="sonnet",
+        model_tier=model_tier,
     )
     return LLMFormalTargetSemanticReviewerAgent(
         provider=provider,
         config=FormalTargetSemanticReviewerConfig(
             model=model,
-            model_tier="sonnet",
+            model_tier=model_tier,
             max_tokens=getattr(
                 args,
                 "formal_target_semantic_reviewer_max_tokens",
@@ -5139,26 +5252,32 @@ def _build_architect_coordinator_agent_from_args(args: argparse.Namespace, *, de
         static_response_file=static_file,
         llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
     )
+    model_tier = _runtime_effective_model_tier(args, "sonnet")
     model = _model_for_subsystem_provider(
         provider_choice=provider_choice,
         explicit_model=getattr(args, "architect_llm_model", ""),
         args=args,
         default_model=default_model,
-        model_tier="sonnet",
+        model_tier=model_tier,
     )
     return LLMArchitectCoordinatorAgent(
         provider=provider,
         config=ArchitectCoordinatorConfig(
             model=model,
-            model_tier="sonnet",
+            model_tier=model_tier,
             max_tokens=getattr(args, "architect_max_tokens", 5000),
             temperature=getattr(args, "architect_temperature", 0.1),
             provider_name=provider_name,
-            metric_semantic_reviewer_model=getattr(
+            metric_semantic_reviewer_model=_runtime_evaluation_model_name(
                 args,
-                "architect_metric_semantic_reviewer_llm_model",
-                "",
+                provider_choice=provider_choice,
+                configured_model=getattr(
+                    args,
+                    "architect_metric_semantic_reviewer_llm_model",
+                    "",
+                ),
             ),
+            metric_semantic_reviewer_model_tier=model_tier,
             metric_semantic_reviewer_max_tokens=getattr(
                 args,
                 "architect_metric_semantic_reviewer_max_tokens",
@@ -5176,11 +5295,16 @@ def _build_architect_coordinator_agent_from_args(args: argparse.Namespace, *, de
                     False,
                 )
             ),
-            metric_repair_ownership_router_model=getattr(
+            metric_repair_ownership_router_model=_runtime_evaluation_model_name(
                 args,
-                "architect_metric_repair_ownership_router_llm_model",
-                "",
+                provider_choice=provider_choice,
+                configured_model=getattr(
+                    args,
+                    "architect_metric_repair_ownership_router_llm_model",
+                    "",
+                ),
             ),
+            metric_repair_ownership_router_model_tier=model_tier,
             metric_repair_ownership_router_max_tokens=getattr(
                 args,
                 "architect_metric_repair_ownership_router_max_tokens",
@@ -11670,10 +11794,20 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
     try:
         _apply_research_agent_runtime_research_eval_profile(args)
         _apply_research_agent_runtime_capability_eval_preset(args)
+        _apply_research_agent_runtime_evaluation_model_policy(args)
     except ValueError as exc:
         print("\nAI Statistician Agent Runtime evaluation profile rejected")
         print("=" * 72)
         print(f"- {exc}")
+        return 2
+    evaluation_model_policy_errors = (
+        _research_agent_runtime_evaluation_model_policy_errors(args)
+    )
+    if evaluation_model_policy_errors:
+        print("\nAI Statistician Agent Runtime evaluation model policy rejected")
+        print("=" * 72)
+        for error in evaluation_model_policy_errors:
+            print(f"- {error}")
         return 2
     _apply_research_agent_runtime_live_lean_defaults(args)
     if getattr(args, "capability_eval", False):
@@ -11807,22 +11941,31 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
         extra_paths=resume_learning_memory_paths,
     )
     _attach_runtime_capability_gap_routing(args, context)
-    model = _default_model_for_provider(args.provider, args.llm_model, model_tier="sonnet")
+    theory_model_tier = _runtime_effective_model_tier(args, "sonnet")
+    serious_theory_model_tier = _runtime_effective_model_tier(args, "sonnet")
+    theory_model = _runtime_evaluation_model_name(
+        args,
+        provider_choice=args.provider,
+        configured_model=getattr(args, "llm_model", ""),
+    )
+    serious_theory_model = _runtime_evaluation_model_name(
+        args,
+        provider_choice=args.provider,
+        configured_model=getattr(args, "serious_theory_llm_model", ""),
+    )
+    model = _default_model_for_provider(
+        args.provider,
+        theory_model,
+        model_tier=theory_model_tier,
+    )
     theory_developer = LLMTheoryDeveloperAgent(
         provider=provider,
         config=ResearchArchitectConfig(
-            model=str(getattr(args, "llm_model", "") or ""),
-            model_tier=str(
-                getattr(args, "theory_model_tier", "sonnet") or "sonnet"
-            ),
+            model=theory_model,
+            model_tier=theory_model_tier,
             max_tokens=args.max_tokens,
-            serious_model=str(
-                getattr(args, "serious_theory_llm_model", "") or ""
-            ),
-            serious_model_tier=str(
-                getattr(args, "serious_theory_model_tier", "sonnet")
-                or "sonnet"
-            ),
+            serious_model=serious_theory_model,
+            serious_model_tier=serious_theory_model_tier,
             serious_max_tokens=int(
                 getattr(args, "serious_theory_max_tokens", 8000) or 0
             ),
@@ -12006,6 +12149,12 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 if getattr(args, "research_eval", False)
                 else "debug"
             ),
+            evaluation_claude_model_tier=str(
+                getattr(args, "evaluation_claude_model_tier", "") or ""
+            ),
+            evaluation_claude_model=str(
+                getattr(args, "evaluation_claude_model", "") or ""
+            ),
             formalizer_candidate_local_lean=bool(
                 getattr(args, "formalizer_candidate_local_lean", False)
                 or getattr(args, "formalizer_candidate_lean_lsp_mcp", False)
@@ -12026,20 +12175,18 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 getattr(args, "pseudo_formal_block_verifier_runtime", False)
             ),
             pseudo_formal_block_verifier_runtime_model=str(
-                getattr(
+                _runtime_evaluation_model_name(
                     args,
-                    "pseudo_formal_block_verifier_runtime_model",
-                    "",
+                    provider_choice=args.provider,
+                    configured_model=getattr(
+                        args,
+                        "pseudo_formal_block_verifier_runtime_model",
+                        "",
+                    ),
                 )
-                or ""
             ),
             pseudo_formal_block_verifier_runtime_model_tier=str(
-                getattr(
-                    args,
-                    "pseudo_formal_block_verifier_runtime_model_tier",
-                    "sonnet",
-                )
-                or "sonnet"
+                _runtime_effective_model_tier(args, "sonnet")
             ),
             pseudo_formal_block_verifier_runtime_max_packets=int(
                 getattr(
@@ -12330,20 +12477,25 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 or ""
             ),
             source_theorem_exact_semantic_definition_authoring_worker_model=str(
-                getattr(
+                _runtime_evaluation_model_name(
                     args,
-                    "source_theorem_exact_semantic_definition_authoring_worker_model",
-                    "",
+                    provider_choice=str(
+                        getattr(
+                            args,
+                            "source_theorem_exact_semantic_definition_authoring_worker_provider",
+                            "none",
+                        )
+                        or "none"
+                    ),
+                    configured_model=getattr(
+                        args,
+                        "source_theorem_exact_semantic_definition_authoring_worker_model",
+                        "",
+                    ),
                 )
-                or ""
             ),
             source_theorem_exact_semantic_definition_authoring_worker_model_tier=str(
-                getattr(
-                    args,
-                    "source_theorem_exact_semantic_definition_authoring_worker_model_tier",
-                    "sonnet",
-                )
-                or "sonnet"
+                _runtime_effective_model_tier(args, "sonnet")
             ),
             source_theorem_exact_semantic_definition_authoring_worker_max_tokens=int(
                 getattr(
@@ -12461,15 +12613,18 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             ),
             formalization_gap_planner_live_provider=gap_planner_live_provider,
             formalization_gap_planner_live_model=str(
-                getattr(args, "formalization_gap_planner_live_model", "") or ""
+                _runtime_evaluation_model_name(
+                    args,
+                    provider_choice=gap_planner_live_provider,
+                    configured_model=getattr(
+                        args,
+                        "formalization_gap_planner_live_model",
+                        "",
+                    ),
+                )
             ),
             formalization_gap_planner_live_model_tier=str(
-                getattr(
-                    args,
-                    "formalization_gap_planner_live_model_tier",
-                    "auto",
-                )
-                or "auto"
+                _runtime_effective_model_tier(args, "auto")
             ),
             formalization_gap_planner_live_max_tokens=int(
                 getattr(
@@ -15042,11 +15197,17 @@ def _research_agent_runtime_capability_config_errors(
         serious_theory_model_tier = str(
             getattr(args, "serious_theory_model_tier", "") or ""
         ).strip().lower()
-        if serious_theory_model_tier != "sonnet":
+        required_serious_theory_model_tier = _runtime_effective_model_tier(
+            args,
+            "sonnet",
+        )
+        if serious_theory_model_tier != required_serious_theory_model_tier:
             errors.append(
-                "capability eval preset full-live requires Sonnet-tier serious "
-                "TheoryDeveloper workspaces; set "
-                "--serious-theory-model-tier sonnet"
+                "capability eval preset full-live requires "
+                f"{required_serious_theory_model_tier}-tier serious "
+                "TheoryDeveloper workspaces under the active evaluation model "
+                "policy; set --serious-theory-model-tier "
+                f"{required_serious_theory_model_tier}"
             )
         serious_theory_max_tokens = int(
             getattr(args, "serious_theory_max_tokens", 0) or 0
@@ -23224,8 +23385,8 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent_runtime.add_argument(
         "--pseudo-formal-block-verifier-eval-model-tier",
         choices=list(LIVE_CLAUDE_MODEL_TIERS),
-        default="sonnet",
-        help="Claude cost tier used by the attached PF/BV component gate",
+        default=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        help="Claude tier used by the attached PF/BV component gate",
     )
     research_agent_runtime.add_argument(
         "--pseudo-formal-block-verifier-eval-static-response-file",

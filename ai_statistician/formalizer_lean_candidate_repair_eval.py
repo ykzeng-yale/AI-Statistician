@@ -8,10 +8,11 @@ from typing import Any, Mapping
 from .agent_runtime import AgentTask, BlackboardState
 from .formalizer_llm import FormalizerConfig, LLMFormalizerProofEngineerAgent
 from .model_backend import (
+    LIVE_EVALUATION_CLAUDE_MODEL_TIER,
     OpenAIResponsesGeneratorBackend,
-    default_generator_model,
     generator_backend_provider_name,
     is_live_generator_backend,
+    resolve_live_evaluation_model,
 )
 from .proof_state_feedback import (
     LeanLspMcpProofStateFeedbackProvider,
@@ -83,17 +84,16 @@ def run_formalizer_lean_candidate_repair_eval(
         llm_timeout_seconds=llm_timeout_seconds,
     )
     backend_provider_name = generator_backend_provider_name(provider, provider_name)
-    resolved_model = default_generator_model(
+    resolved_model = resolve_live_evaluation_model(
         provider_name,
         model,
-        model_tier="sonnet",
     )
     formalizer = LLMFormalizerProofEngineerAgent(
         provider=provider,
         config=FormalizerConfig(
             provider_name=provider_name,
             model=resolved_model,
-            model_tier="sonnet",
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
             max_tokens=max_tokens,
             temperature=temperature,
             max_repair_attempts=1,
@@ -451,10 +451,9 @@ def write_formalizer_lean_candidate_repair_eval_failure_manifest(
     backend_provider_name = (
         backend_provider_name.strip().lower() if backend_provider_name else provider_name
     )
-    resolved_model = default_generator_model(
+    resolved_model = resolve_live_evaluation_model(
         provider_name,
         model,
-        model_tier="sonnet",
     )
     live_generator = is_live_generator_backend(provider_name, backend_provider_name)
     manifest_path = out_dir / "formalizer_lean_candidate_repair_eval_manifest.json"

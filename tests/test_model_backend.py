@@ -39,6 +39,7 @@ from ai_statistician.model_backend import (
     default_generator_provider,
     llm_subsystem_expected_model_tier,
     resolved_claude_models_by_tier,
+    resolve_live_evaluation_model,
 )
 
 
@@ -51,6 +52,14 @@ def _request() -> GeneratorRequest:
         temperature=0.0,
         schema={"type": "object", "properties": {"ok": {"type": "boolean"}}},
     )
+
+
+def test_live_evaluation_model_resolver_pins_current_haiku() -> None:
+    assert resolve_live_evaluation_model(
+        "anthropic",
+        "claude-sonnet-4-6",
+        env={"AI_STATISTICIAN_CLAUDE_HAIKU_MODEL": "claude-haiku-old"},
+    ) == "claude-haiku-4-5-20251001"
 
 
 def test_static_json_generator_backend_returns_text_without_tools() -> None:

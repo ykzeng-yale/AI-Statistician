@@ -15,8 +15,10 @@ from .llm_json_repair import (
 from .model_backend import (
     GeneratorBackend,
     GeneratorRequest,
+    LIVE_EVALUATION_CLAUDE_MODEL_TIER,
     is_live_generator_backend,
     normalize_generator_provider_name,
+    resolve_live_evaluation_model,
     resolve_generator_model,
 )
 from .pseudo_formalization import (
@@ -527,7 +529,7 @@ def run_pseudo_formal_block_verifier_component_gate(
     provider: GeneratorBackend,
     provider_name: str = "anthropic",
     model: str = "",
-    model_tier: str = "sonnet",
+    model_tier: str = LIVE_EVALUATION_CLAUDE_MODEL_TIER,
     max_packets: int = 20,
     max_tokens: int = 2000,
     temperature: float = 0.0,
@@ -535,6 +537,8 @@ def run_pseudo_formal_block_verifier_component_gate(
 ) -> dict[str, Any]:
     """Run the full PF/BV prompt -> LLM response -> validation component gate."""
 
+    if str(model_tier or "").strip().lower() == LIVE_EVALUATION_CLAUDE_MODEL_TIER:
+        model = resolve_live_evaluation_model(provider_name, model)
     out_dir.mkdir(parents=True, exist_ok=True)
     prompt_out = out_dir / "prompt_packets"
     response_out = out_dir / "llm_responses"
