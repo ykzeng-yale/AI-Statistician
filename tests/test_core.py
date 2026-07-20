@@ -10712,7 +10712,7 @@ class SystemTests(unittest.TestCase):
         self.assertIn("llm_theory_blockers", report["summary"])
         self.assertEqual(report["summary"]["llm_provider"], "anthropic")
         self.assertEqual(report["summary"]["llm_models"]["haiku"], "claude-haiku-4-5-20251001")
-        self.assertEqual(report["summary"]["llm_models"]["sonnet"], "claude-sonnet-4-6")
+        self.assertEqual(report["summary"]["llm_models"]["sonnet"], "claude-sonnet-5")
         self.assertNotIn("opus", report["summary"]["llm_models"])
         self.assertEqual(report["summary"]["llm_provider_override_warnings"], [])
         self.assertEqual(report["summary"]["llm_model_tier_policy_violations"], [])
@@ -10733,7 +10733,7 @@ class SystemTests(unittest.TestCase):
             env_file=Path(".env"),
             environ={
                 "ANTHROPIC_API_KEY": "do-not-print-anthropic",
-                "AI_STATISTICIAN_LLM_MODEL": "claude-sonnet-4-6",
+                "AI_STATISTICIAN_LLM_MODEL": "claude-sonnet-5",
             },
             max_manifests=0,
         )
@@ -10741,7 +10741,7 @@ class SystemTests(unittest.TestCase):
         violations = report["summary"]["llm_model_tier_policy_violations"]
         self.assertEqual(violations, [])
         self.assertEqual(report["summary"]["llm_models"]["haiku"], "claude-haiku-4-5-20251001")
-        self.assertEqual(report["summary"]["llm_models"]["sonnet"], "claude-sonnet-4-6")
+        self.assertEqual(report["summary"]["llm_models"]["sonnet"], "claude-sonnet-5")
         self.assertNotIn("opus", report["summary"]["llm_models"])
         checks = {row["name"]: row for row in report["checks"]}
         self.assertEqual(checks["LLM provider override policy"]["status"], "OK")
@@ -10771,7 +10771,7 @@ class SystemTests(unittest.TestCase):
             )
         )
         self.assertEqual(report["summary"]["llm_models"]["haiku"], "claude-haiku-4-5-20251001")
-        self.assertEqual(report["summary"]["llm_models"]["sonnet"], "claude-sonnet-4-6")
+        self.assertEqual(report["summary"]["llm_models"]["sonnet"], "claude-sonnet-5")
         checks = {row["name"]: row for row in report["checks"]}
         self.assertEqual(checks["LLM provider override policy"]["status"], "WARN")
         self.assertNotIn("do-not-print-anthropic", json.dumps(report))
@@ -10792,7 +10792,7 @@ class SystemTests(unittest.TestCase):
         self.assertTrue(
             any(
                 "Claude sonnet tier resolves to claude-sonnet-4-5" in warning
-                and "claude-sonnet-4-6" in warning
+                and "claude-sonnet-5" in warning
                 for warning in warnings
             )
         )

@@ -58,6 +58,22 @@ async function runPython(request, source, estimatorSources) {
       `exec(compile(_ai_stat_simulation_source, "<generated_simulation>", "exec"), _ai_stat_simulation_namespace, _ai_stat_simulation_namespace)\n` +
       `_ai_stat_invocation_counts = {key: 0 for key in _ai_stat_estimator_sources}\n` +
       `_ai_stat_estimators = {}\n` +
+      `def _ai_stat_json_native(_value):\n` +
+      `    if _value is None or isinstance(_value, (bool, int, float, str)):\n` +
+      `        return _value\n` +
+      `    if isinstance(_value, dict):\n` +
+      `        if not all(isinstance(_key, str) for _key in _value):\n` +
+      `            raise TypeError("estimator request and response object keys must be strings")\n` +
+      `        return {_key: _ai_stat_json_native(_item) for _key, _item in _value.items()}\n` +
+      `    if isinstance(_value, (list, tuple)):\n` +
+      `        return [_ai_stat_json_native(_item) for _item in _value]\n` +
+      `    _tolist = getattr(_value, "tolist", None)\n` +
+      `    if callable(_tolist):\n` +
+      `        return _ai_stat_json_native(_tolist())\n` +
+      `    _scalar_item = getattr(_value, "item", None)\n` +
+      `    if callable(_scalar_item):\n` +
+      `        return _ai_stat_json_native(_scalar_item())\n` +
+      `    raise TypeError("estimator request and response values must be JSON-native or array-like")\n` +
       `def _ai_stat_bind_estimator(_artifact_id, _source):\n` +
       `    _namespace = {}\n` +
       `    exec(compile(_source, "<accepted_algorithm:" + _artifact_id + ">", "exec"), _namespace, _namespace)\n` +
@@ -67,11 +83,13 @@ async function runPython(request, source, estimatorSources) {
       `    def _bound_estimator(request):\n` +
       `        if not isinstance(request, dict):\n` +
       `            raise TypeError("run_estimator request must be a dict: " + _artifact_id)\n` +
-      `        _ai_stat_json.dumps(request, allow_nan=False, sort_keys=True)\n` +
       `        try:\n` +
-      `            response = _implementation(request)\n` +
-      `            if not isinstance(response, dict):\n` +
+      `            normalized_request = _ai_stat_json_native(request)\n` +
+      `            _ai_stat_json.dumps(normalized_request, allow_nan=False, sort_keys=True)\n` +
+      `            raw_response = _implementation(normalized_request)\n` +
+      `            if not isinstance(raw_response, dict):\n` +
       `                raise TypeError("run_estimator response must be a dict")\n` +
+      `            response = _ai_stat_json_native(raw_response)\n` +
       `            _ai_stat_json.dumps(response, allow_nan=False, sort_keys=True)\n` +
       `        except Exception as exc:\n` +
       `            raise RuntimeError("ACCEPTED_ESTIMATOR_RUNTIME_ERROR: " + _artifact_id + ": " + type(exc).__name__ + ": " + str(exc)) from exc\n` +

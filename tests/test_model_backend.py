@@ -718,9 +718,9 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
         monkeypatch.delenv(key, raising=False)
 
     assert default_generator_provider() == "anthropic"
-    assert default_generator_model("anthropic") == "claude-sonnet-4-6"
+    assert default_generator_model("anthropic") == "claude-sonnet-5"
     assert default_generator_model("anthropic", model_tier="haiku") == "claude-haiku-4-5-20251001"
-    assert default_generator_model("anthropic", model_tier="sonnet") == "claude-sonnet-4-6"
+    assert default_generator_model("anthropic", model_tier="sonnet") == "claude-sonnet-5"
     with pytest.raises(ValueError, match="capped at sonnet"):
         default_generator_model("anthropic", model_tier="opus")
     assert set(ANTHROPIC_CLAUDE_TIER_ENV_VARS) == {"haiku", "sonnet"}
@@ -732,7 +732,7 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
     ] == "sonnet"
     assert ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY["models_by_tier"] == {
         "haiku": "claude-haiku-4-5-20251001",
-        "sonnet": "claude-sonnet-4-6",
+        "sonnet": "claude-sonnet-5",
         "opus": "claude-opus-4-8",
     }
     assert (
@@ -740,7 +740,7 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
         == DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER
         == {
             "haiku": "claude-haiku-4-5",
-            "sonnet": "claude-sonnet-4-6",
+            "sonnet": "claude-sonnet-5",
             "opus": "claude-opus-4-8",
         }
     )
@@ -765,14 +765,14 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
     assert llm_subsystem_expected_model_tier("AlgorithmEngineer") == "sonnet"
     assert llm_subsystem_expected_model_tier("CriticEvaluator") == "haiku"
     assert llm_subsystem_expected_model_tier("unknown") == ""
-    assert ANTHROPIC_MODEL_SOURCE_CHECKED_DATE == "2026-07-18"
+    assert ANTHROPIC_MODEL_SOURCE_CHECKED_DATE == "2026-07-19"
     assert (
         ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY["source_evidence"]
         == ANTHROPIC_MODEL_SOURCE_EVIDENCE
     )
     assert ANTHROPIC_MODEL_SOURCE_EVIDENCE["verified_latest_cost_tier_api_ids"] == {
         "haiku": "claude-haiku-4-5-20251001",
-        "sonnet": "claude-sonnet-4-6",
+        "sonnet": "claude-sonnet-5",
         "opus": "claude-opus-4-8",
     }
     assert "pinned snapshots" in " ".join(
@@ -800,7 +800,7 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
     monkeypatch.setenv("AI_STATISTICIAN_LLM_PROVIDER", "codex_exec")
     monkeypatch.setenv("AI_STATISTICIAN_LLM_MODEL", "gpt-codex-test")
     assert default_generator_provider() == "anthropic"
-    assert default_generator_model("anthropic") == "claude-sonnet-4-6"
+    assert default_generator_model("anthropic") == "claude-sonnet-5"
     assert default_generator_model("anthropic", model_tier="haiku") == "claude-haiku-4-5-20251001"
     assert default_generator_model("codex") == ""
     assert default_generator_model("codex_exec") == ""
@@ -850,7 +850,7 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
 def test_global_model_env_does_not_collapse_anthropic_cost_aware_tiers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("AI_STATISTICIAN_LLM_MODEL", "claude-sonnet-4-6")
+    monkeypatch.setenv("AI_STATISTICIAN_LLM_MODEL", "claude-sonnet-5")
     models = {
         "haiku": default_generator_model("anthropic", model_tier="haiku"),
         "sonnet": default_generator_model("anthropic", model_tier="sonnet"),
@@ -858,7 +858,7 @@ def test_global_model_env_does_not_collapse_anthropic_cost_aware_tiers(
 
     assert models == {
         "haiku": "claude-haiku-4-5-20251001",
-        "sonnet": "claude-sonnet-4-6",
+        "sonnet": "claude-sonnet-5",
     }
     assert claude_model_tier_policy_violations(models) == []
     assert claude_model_freshness_warnings(models) == []
@@ -871,14 +871,14 @@ def test_claude_tier_routing_contract_reports_subsystem_policy_and_warnings(
 
     assert resolved_claude_models_by_tier(clean_env) == {
         "haiku": "claude-haiku-4-5-20251001",
-        "sonnet": "claude-sonnet-4-6",
+        "sonnet": "claude-sonnet-5",
     }
     clean_contract = claude_tier_routing_contract(clean_env)
     assert clean_contract["contract_name"] == "anthropic_claude_tier_routing_contract"
     assert clean_contract["effective_live_generator_provider"] == "anthropic"
     assert clean_contract["resolved_claude_models_by_tier"] == {
         "haiku": "claude-haiku-4-5-20251001",
-        "sonnet": "claude-sonnet-4-6",
+        "sonnet": "claude-sonnet-5",
     }
     assert clean_contract["allowed_live_anthropic_model_tiers"] == (
         "haiku",
@@ -938,7 +938,7 @@ def test_claude_model_freshness_warnings_detect_stale_same_tier_ids() -> None:
     )
     assert any(
         "Claude sonnet tier resolves to claude-sonnet-4-5" in item
-        and "claude-sonnet-4-6" in item
+        and "claude-sonnet-5" in item
         for item in warnings
     )
 

@@ -21,7 +21,12 @@ from ai_statistician.cli import (
     build_parser,
     main,
 )
-from ai_statistician.model_backend import GeneratorRequest, GeneratorResponse, default_generator_model
+from ai_statistician.model_backend import (
+    DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
+    GeneratorRequest,
+    GeneratorResponse,
+    default_generator_model,
+)
 from ai_statistician.research_architect import (
     KERNEL_PROOF_BOUNDARY,
     LLMTheoryDeveloperAgent,
@@ -669,7 +674,7 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
         architect_args.provider,
         architect_args.llm_model,
         model_tier="sonnet",
-    ) == "claude-sonnet-4-6"
+    ) == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert runtime_args.provider == "anthropic"
     assert runtime_args.architect_coordinator_provider == "same"
     assert runtime_args.generated_code_semantic_reviewer_provider == "none"
@@ -686,19 +691,19 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
         runtime_args.provider,
         runtime_args.llm_model,
         model_tier="sonnet",
-    ) == "claude-sonnet-4-6"
+    ) == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert default_generator_model(
         runtime_args.provider,
         runtime_args.serious_theory_llm_model,
         model_tier=runtime_args.serious_theory_model_tier,
-    ) == "claude-sonnet-4-6"
+    ) == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert loop_args.llm_theory_provider == "anthropic"
     assert loop_args.llm_theory_model == ""
     assert default_generator_model(
         loop_args.llm_theory_provider,
         loop_args.llm_theory_model,
         model_tier="sonnet",
-    ) == "claude-sonnet-4-6"
+    ) == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert intake_args.llm_provider == "anthropic"
     assert intake_args.llm_model == ""
     assert default_generator_model(
@@ -707,18 +712,48 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
         model_tier="haiku",
     ) == "claude-haiku-4-5-20251001"
     runtime_default_model = default_generator_model(runtime_args.provider, model_tier="sonnet")
-    assert _build_architect_coordinator_agent_from_args(runtime_args, default_model=runtime_default_model).config.model == "claude-sonnet-4-6"
-    assert _build_algorithm_engineer_agent_from_args(runtime_args, default_model=runtime_default_model).config.model == "claude-sonnet-4-6"
-    assert _build_formalizer_agent_from_args(runtime_args, default_model=runtime_default_model).config.model == "claude-sonnet-4-6"
-    assert _build_simulation_engineer_agent_from_args(runtime_args, default_model=runtime_default_model).config.model == "claude-sonnet-4-6"
-    assert _build_critic_evaluator_agent_from_args(runtime_args, default_model=runtime_default_model).config.model == "claude-haiku-4-5-20251001"
+    assert (
+        _build_architect_coordinator_agent_from_args(
+            runtime_args,
+            default_model=runtime_default_model,
+        ).config.model
+        == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
+    )
+    assert (
+        _build_algorithm_engineer_agent_from_args(
+            runtime_args,
+            default_model=runtime_default_model,
+        ).config.model
+        == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
+    )
+    assert (
+        _build_formalizer_agent_from_args(
+            runtime_args,
+            default_model=runtime_default_model,
+        ).config.model
+        == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
+    )
+    assert (
+        _build_simulation_engineer_agent_from_args(
+            runtime_args,
+            default_model=runtime_default_model,
+        ).config.model
+        == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
+    )
+    assert (
+        _build_critic_evaluator_agent_from_args(
+            runtime_args,
+            default_model=runtime_default_model,
+        ).config.model
+        == "claude-haiku-4-5-20251001"
+    )
     runtime_args.generated_code_semantic_reviewer_provider = "same"
     semantic_reviewer = _build_generated_code_semantic_reviewer_agent_from_args(
         runtime_args,
         default_model=runtime_default_model,
     )
     assert semantic_reviewer is not None
-    assert semantic_reviewer.config.model == "claude-sonnet-4-6"
+    assert semantic_reviewer.config.model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert semantic_reviewer.config.model_tier == "sonnet"
     runtime_args.formal_target_semantic_reviewer_provider = "same"
     formal_target_reviewer = (
@@ -728,7 +763,7 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
         )
     )
     assert formal_target_reviewer is not None
-    assert formal_target_reviewer.config.model == "claude-sonnet-4-6"
+    assert formal_target_reviewer.config.model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert formal_target_reviewer.config.model_tier == "sonnet"
 
 

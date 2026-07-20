@@ -104,6 +104,7 @@ def run_research_agent_runtime_offline_smoke(
             seed=seed,
             max_iterations=max_iterations,
             evaluation_mode="system_offline_smoke",
+            formal_verification_policy="required",
         ),
     )
     manifest["runtime_audit_source"] = OFFLINE_RUNTIME_SMOKE_SOURCE
@@ -205,13 +206,13 @@ def _architect_response() -> dict[str, Any]:
             }
         ],
         "evidence_contract": {
-            "formal_verification_policy": "optional",
+            "formal_verification_policy": "required",
             "recommended_research_path": "dual_track",
-            "formal_required_for_final": False,
+            "formal_required_for_final": True,
             "formal_targets": ["orthogonal score algebra"],
             "simulation_targets": ["finite-sample bias stress test"],
             "acceptance_modes": [
-                "research candidate may be accepted with disclosed formal gaps"
+                "final acceptance requires the selected formal target to close"
             ],
             "disclosure_requirements": [
                 "distinguish simulation support from Lean proof evidence"
@@ -697,6 +698,13 @@ def _critic_response() -> dict[str, Any]:
                 "action": "expand proof-bank primitives",
                 "priority": "high",
                 "acceptance_gate": "local Lean verifies promoted obligations",
+            }
+        ],
+        "critic_findings": [
+            {
+                "critic": "evidence_boundary_critic",
+                "finding": "Open formal gaps require a kernel-checked follow-up.",
+                "reroute_if_confirmed": "Formalizer/LeanProver",
             }
         ],
         "learning_updates": [

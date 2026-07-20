@@ -28,7 +28,7 @@ PROHIBITED_AGENT_GENERATOR_PROVIDERS = (
 DEFAULT_LIVE_GENERATOR_PROVIDER = "anthropic"
 DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL = "claude-opus-4-8"
 DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL = "claude-haiku-4-5-20251001"
-DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL = "claude-sonnet-4-6"
+DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL = "claude-sonnet-5"
 DEFAULT_CLAUDE_FABLE_GENERATOR_MODEL = "claude-fable-5"
 DEFAULT_CLAUDE_MYTHOS_GENERATOR_MODEL = "claude-mythos-5"
 DEFAULT_ANTHROPIC_GENERATOR_MODEL = DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
@@ -85,7 +85,7 @@ ANTHROPIC_CLAUDE_TIER_ENV_VARS = {
         "AI_STATISTICIAN_ANTHROPIC_SONNET_MODEL",
     ),
 }
-ANTHROPIC_MODEL_SOURCE_CHECKED_DATE = "2026-07-18"
+ANTHROPIC_MODEL_SOURCE_CHECKED_DATE = "2026-07-19"
 ANTHROPIC_MODELS_OVERVIEW_URL = (
     "https://platform.claude.com/docs/en/about-claude/models/overview"
 )
@@ -139,7 +139,7 @@ ANTHROPIC_MODEL_SOURCE_EVIDENCE = {
     "claims": [
         (
             "The latest Opus/Sonnet/Haiku comparison lists Claude API IDs "
-            "claude-opus-4-8, claude-sonnet-4-6, and "
+            "claude-opus-4-8, claude-sonnet-5, and "
             "claude-haiku-4-5-20251001."
         ),
         (

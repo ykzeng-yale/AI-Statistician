@@ -34,3 +34,4 @@ ai_statistician = ["policies/*.json", "runtime_assets/*.mjs"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]

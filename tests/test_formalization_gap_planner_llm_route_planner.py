@@ -96,7 +96,10 @@ from ai_statistician.formalization_gap_planner_source_grounding_audit import (
 from ai_statistician.formalization_gap_planner_target_intake import (
     normalize_formalization_gap_planner_target_intake,
 )
-from ai_statistician.model_backend import GeneratorResponse
+from ai_statistician.model_backend import (
+    DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
+    GeneratorResponse,
+)
 from ai_statistician.fingerprint import stable_hash
 
 
@@ -2213,7 +2216,7 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
         out_dir / "formalization_gap_planner_llm_route_planner_requests.jsonl"
     ).exists()
     assert request["provider_name"] == "anthropic"
-    assert request["model"] == "claude-sonnet-4-6"
+    assert request["model"] == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert request["model_tier"] == "sonnet"
     generation_policy = request["llm_generation_policy"]
     assert generation_policy["policy_kind"] == (
@@ -2225,7 +2228,7 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert generation_policy["requested_model_tier"] == "auto"
     assert generation_policy["claude_models_by_tier"] == {
         "haiku": "claude-haiku-4-5-20251001",
-        "sonnet": "claude-sonnet-4-6",
+        "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
         "opus": "claude-opus-4-8",
     }
     assert "not evergreen aliases" in generation_policy["claude_model_id_versioning"]
@@ -2983,7 +2986,7 @@ def test_llm_route_planner_auto_uses_sonnet_for_source_unbacked_target_intake() 
     assert payload["by_request_model_tier"] == {"sonnet": 1}
     packet = payload["request_packets"][0]
     assert packet["model_tier"] == "sonnet"
-    assert packet["model"] == "claude-sonnet-4-6"
+    assert packet["model"] == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert "target intake review flag(s):" in packet["model_selection_rationale"]
     assert "proof_source_refs_missing" in packet["model_selection_rationale"]
 
@@ -12713,7 +12716,7 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
     assert payload["n_accepted_route_plans"] == 1
     row = payload["rows"][0]
     assert row["provider_name"] == "anthropic"
-    assert row["model"] == "claude-sonnet-4-6"
+    assert row["model"] == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert row["model_tier"] == "sonnet"
     assert row["provider_failure"] is False
     assert row["generator_metadata"]["generator_only"] is True
@@ -12736,14 +12739,14 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
     assert tier_ledger_row["provider_name"] == "anthropic"
     assert tier_ledger_row["selected_model_tier"] == "sonnet"
     assert tier_ledger_row["effective_model_tier"] == "sonnet"
-    assert tier_ledger_row["request_model"] == "claude-sonnet-4-6"
-    assert tier_ledger_row["effective_model"] == "claude-sonnet-4-6"
+    assert tier_ledger_row["request_model"] == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
+    assert tier_ledger_row["effective_model"] == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert tier_ledger_row["response_present"] is True
     assert tier_ledger_row["response_contract_ok"] is True
     assert tier_ledger_row["provider_failure"] is False
     assert "retry_count" in tier_ledger_row["generator_metadata_keys"]
     packet = payload["request_packets"][0]
-    assert packet["model"] == "claude-sonnet-4-6"
+    assert packet["model"] == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert packet["model_tier"] == "sonnet"
     assert packet["model_tier_decision_evidence"] == row[
         "model_tier_decision_evidence"
@@ -12752,7 +12755,7 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
     assert packet["prompt_messages"]["user"].count("available_source_snippets") >= 1
     assert payload["llm_route_planner_model_tier_policy"]["claude_model_selection"]["models_by_tier"] == {
         "haiku": "claude-haiku-4-5-20251001",
-        "sonnet": "claude-sonnet-4-6",
+        "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
         "opus": "claude-opus-4-8",
     }
     assert (
@@ -12760,7 +12763,7 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
         in payload["llm_route_planner_model_tier_policy"]["claude_model_selection"]["model_id_versioning"]
     )
     request = captured["request"]
-    assert request.model == "claude-sonnet-4-6"
+    assert request.model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert request.max_tokens == LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS
     assert request.temperature == 0.1
     assert "LLM route planner" in request.system_prompt
@@ -14618,7 +14621,7 @@ def test_llm_route_planner_auto_uses_sonnet_for_unresolved_light_route_alignment
     assert payload["n_request_model_tier_decision_auto_haiku_bounded"] == 0
     packet = payload["request_packets"][0]
     assert packet["model_tier"] == "sonnet"
-    assert packet["model"] == "claude-sonnet-4-6"
+    assert packet["model"] == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     evidence = packet["model_tier_decision_evidence"]
     assert evidence["decision_basis"] == "auto_sonnet_triggers"
     assert "uncertain" in evidence["coverage_action_markers"]
@@ -14626,7 +14629,7 @@ def test_llm_route_planner_auto_uses_sonnet_for_unresolved_light_route_alignment
     assert any("uncertain" in trigger for trigger in evidence["sonnet_triggers"])
     assert "uncertain" in packet["model_selection_rationale"]
     request = captured["request"]
-    assert request.model == "claude-sonnet-4-6"
+    assert request.model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert request.metadata["model_tier"] == "sonnet"
 
 
@@ -14678,7 +14681,7 @@ def test_llm_route_planner_auto_uses_sonnet_for_light_route_resource_dispatch() 
         ]
     )
     packet = payload["request_packets"][0]
-    assert packet["model"] == "claude-sonnet-4-6"
+    assert packet["model"] == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     evidence = packet["model_tier_decision_evidence"]
     assert evidence["decision_basis"] == "auto_sonnet_triggers"
     assert evidence["route_signal_counts"]["residual_goal_count"] == 0
@@ -14841,7 +14844,7 @@ def test_llm_route_planner_auto_uses_sonnet_for_light_route_interactive_precondi
     assert payload["n_request_model_tier_decision_auto_haiku_bounded"] == 0
     packet = payload["request_packets"][0]
     evidence = packet["model_tier_decision_evidence"]
-    assert packet["model"] == "claude-sonnet-4-6"
+    assert packet["model"] == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert evidence["decision_basis"] == "auto_sonnet_triggers"
     assert any(
         "interactive route-adoption precondition" in trigger
@@ -14923,12 +14926,12 @@ def test_llm_route_planner_escalates_failed_haiku_repair_to_sonnet() -> None:
     assert requests[0].model == "claude-haiku-4-5-20251001"
     assert requests[0].metadata["model_tier"] == "haiku"
     assert requests[0].metadata["model_tier_escalated"] is False
-    assert requests[1].model == "claude-sonnet-4-6"
+    assert requests[1].model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert requests[1].metadata["requested_model_tier"] == "haiku"
     assert requests[1].metadata["model_tier"] == "sonnet"
     assert requests[1].metadata["model_tier_escalated"] is True
     row = payload["rows"][0]
-    assert row["model"] == "claude-sonnet-4-6"
+    assert row["model"] == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert row["model_tier"] == "sonnet"
     assert row["generator_metadata"]["requested_model_tier"] == "haiku"
     assert row["generator_metadata"]["effective_model_tier"] == "sonnet"
@@ -14944,7 +14947,7 @@ def test_llm_route_planner_escalates_failed_haiku_repair_to_sonnet() -> None:
     assert tier_ledger_row["selected_model_tier"] == "haiku"
     assert tier_ledger_row["effective_model_tier"] == "sonnet"
     assert tier_ledger_row["request_model"] == "claude-haiku-4-5-20251001"
-    assert tier_ledger_row["effective_model"] == "claude-sonnet-4-6"
+    assert tier_ledger_row["effective_model"] == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert tier_ledger_row["model_tier_escalated"] is True
     assert "Haiku repair attempt to Sonnet" in tier_ledger_row[
         "model_tier_escalation_reason"
@@ -14959,7 +14962,7 @@ def test_llm_route_planner_escalates_failed_haiku_repair_to_sonnet() -> None:
     assert repair_ledger_row["next_repair_model_tier"] == "sonnet"
     assert repair_ledger_row["model_tier_escalated"] is True
     seed_metadata = payload["standalone_seed"]["routes"][0]["replan_metadata"]
-    assert seed_metadata["llm_route_planner_model"] == "claude-sonnet-4-6"
+    assert seed_metadata["llm_route_planner_model"] == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert seed_metadata["llm_route_planner_model_tier"] == "sonnet"
 
 
@@ -14995,7 +14998,7 @@ def test_llm_route_planner_auto_uses_sonnet_for_seed_route_risk_markers() -> Non
     assert planner_payload["by_request_model_tier"] == {"sonnet": 1}
     packet = planner_payload["request_packets"][0]
     assert packet["model_tier"] == "sonnet"
-    assert packet["model"] == "claude-sonnet-4-6"
+    assert packet["model"] == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     rationale = packet["model_selection_rationale"]
     assert "seed route uncertainty flag(s)" in rationale
     assert "seed route semantic alignment risk(s)" in rationale
@@ -15015,7 +15018,7 @@ def test_llm_route_planner_generator_model_fallback_preserves_selected_tier() ->
     )
     assert (
         _generator_model_for_request(backend, "", model_tier="sonnet")
-        == "claude-sonnet-4-6"
+        == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     )
     assert (
         _generator_model_for_request(
@@ -15092,7 +15095,7 @@ def test_llm_route_planner_auto_uses_sonnet_for_generic_formal_library_queries()
     assert payload["by_request_model_tier"] == {"sonnet": 1}
     packet = payload["request_packets"][0]
     assert packet["model_tier"] == "sonnet"
-    assert packet["model"] == "claude-sonnet-4-6"
+    assert packet["model"] == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert "formal-library grounding query(s)" in packet["model_selection_rationale"]
     intake_row = packet["context_packet"]["target_intake_rows"][0]
     assert len(intake_row["formal_library_grounding_queries"]) == 9
@@ -15643,12 +15646,12 @@ def test_llm_route_planner_auto_uses_sonnet_for_incomplete_realization_feedback(
     assert payload["n_feedback_loop_summary_incomplete_realization_coverage"] == 1
     packet = payload["request_packets"][0]
     assert packet["model_tier"] == "sonnet"
-    assert packet["model"] == "claude-sonnet-4-6"
+    assert packet["model"] == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert "incomplete realization-coverage witness" in packet[
         "model_selection_rationale"
     ]
     request = captured["request"]
-    assert request.model == "claude-sonnet-4-6"
+    assert request.model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert request.metadata["model_tier"] == "sonnet"
 
 

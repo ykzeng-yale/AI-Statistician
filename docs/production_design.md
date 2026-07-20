@@ -28,9 +28,9 @@ used by `ai_statistician doctor`, even when only a subset of LLM agents is
 enabled. LLM worker configs carry a `model_tier` and may leave `model` empty;
 the concrete provider model is resolved when a request is built, so
 tier-specific environment overrides apply to direct worker construction as well
-as CLI-created agents. As of the 2026-07-18 Anthropic Models overview and Model
+as CLI-created agents. As of the 2026-07-19 Anthropic Models overview and Model
 IDs/versioning source check, the pinned live Claude API IDs are Haiku
-`claude-haiku-4-5-20251001` and Sonnet `claude-sonnet-4-6`. The source catalog
+`claude-haiku-4-5-20251001` and Sonnet `claude-sonnet-5`. The source catalog
 also records higher-tier IDs for historical audit, but they are not live routes;
 any request above Sonnet fails before an Anthropic client is constructed. The
 policy also records official API aliases by tier, but

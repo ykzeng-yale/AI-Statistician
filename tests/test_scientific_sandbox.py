@@ -712,6 +712,51 @@ def test_live_estimator_bound_simulation_invokes_exact_reviewed_source(
     assert result.estimator_binding_hash == stable_hash(result.estimator_code_hashes)
 
 
+def test_live_estimator_bound_python_normalizes_numpy_callback_values(
+    tmp_path: Path,
+) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    if not runtime.python_available:
+        pytest.skip("pinned Pyodide runtime is not installed on this host")
+    algorithm = (
+        "import numpy as np\n\n"
+        "def run_estimator(request):\n"
+        "    values = request['values']\n"
+        "    return {'estimate': np.float64(sum(values) / len(values))}\n"
+    )
+    simulation = (
+        "import numpy as np\n\n"
+        "def run_sandbox(seed, replicates, estimators):\n"
+        "    values = np.asarray([seed, replicates], dtype=float)\n"
+        "    fitted = estimators['candidate']({'values': values})\n"
+        "    return {'estimate': fitted['estimate'], 'n': replicates}\n"
+    )
+
+    result = execute_scientific_sandbox(
+        sandbox_dir=tmp_path,
+        artifact_id="bound-python-numpy-values",
+        language="python",
+        code=simulation,
+        dependencies=["numpy"],
+        seed=7,
+        replicates=5,
+        timeout_s=60,
+        estimator_bindings=(
+            ScientificEstimatorBinding(
+                artifact_id="candidate",
+                language="python",
+                code=algorithm,
+                code_hash=stable_hash(algorithm),
+                dependencies=("numpy",),
+            ),
+        ),
+    )
+
+    assert result.status == "EXECUTED"
+    assert result.metrics == {"estimate": 6, "n": 5}
+    assert result.estimator_invocation_counts == {"candidate": 1}
+
+
 def test_live_estimator_bound_simulation_fails_when_callback_is_not_used(
     tmp_path: Path,
 ) -> None:

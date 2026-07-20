@@ -328,6 +328,7 @@ from ai_statistician.research_agent_runtime_audit import (
 )
 from ai_statistician.model_backend import (
     AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
+    DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
     GeneratorResponse,
     LIVE_EVALUATION_CLAUDE_MODEL,
     LIVE_EVALUATION_CLAUDE_MODEL_TIER,
@@ -88701,12 +88702,12 @@ def test_research_agent_runtime_records_theory_to_simulation_loop_in_legacy_base
     assert topology["policy"]["default_live_provider"] == "anthropic"
     assert topology["policy"]["claude_model_selection"]["models_by_tier"] == {
         "haiku": "claude-haiku-4-5-20251001",
-        "sonnet": "claude-sonnet-4-6",
+        "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
         "opus": "claude-opus-4-8",
     }
     assert topology["policy"]["resolved_claude_models_by_tier"] == {
         "haiku": "claude-haiku-4-5-20251001",
-        "sonnet": "claude-sonnet-4-6",
+        "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
     }
     assert topology["policy"]["resolved_claude_model_tier_policy_status"] == "OK"
     assert topology["policy"]["resolved_claude_model_tier_policy_violations"] == []
@@ -104499,7 +104500,7 @@ def test_runtime_topology_accepts_contextual_serious_theory_at_sonnet_ceiling() 
     )
     violations = runtime_module._llm_topology_policy_violations([row])
 
-    assert row["serious_model"] == "claude-sonnet-4-6"
+    assert row["serious_model"] == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert row["expected_serious_model_tier"] == "sonnet"
     assert violations == []
 
@@ -104632,7 +104633,7 @@ def test_runtime_topology_records_metric_repair_ownership_router() -> None:
     )
 
     assert row["enabled"] is True
-    assert row["model"] == "claude-sonnet-4-6"
+    assert row["model"] == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert row["model_tier"] == "sonnet"
     assert row["expected_model_tier"] == "sonnet"
     assert runtime_module._llm_topology_policy_violations([row]) == []
@@ -104682,7 +104683,7 @@ def test_runtime_topology_audit_rejects_static_as_supported_live_provider() -> N
             "static_replay_generator_providers": ["static"],
             "resolved_claude_models_by_tier": {
                 "haiku": "claude-haiku-4-5-20251001",
-                "sonnet": "claude-sonnet-4-6",
+                "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
                 "opus": "claude-opus-4-8",
             },
             "resolved_claude_model_tier_policy_status": "OK",
@@ -104746,7 +104747,7 @@ def test_runtime_topology_summary_requires_explicit_live_backend_identity() -> N
             "supported_generator_providers": ["anthropic", "openai", "static"],
             "resolved_claude_models_by_tier": {
                 "haiku": "claude-haiku-4-5-20251001",
-                "sonnet": "claude-sonnet-4-6",
+                "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
                 "opus": "claude-opus-4-8",
             },
             "resolved_claude_model_tier_policy_status": "OK",
@@ -104856,7 +104857,7 @@ def test_runtime_topology_audit_rejects_live_count_without_live_backend_identity
             "supported_generator_providers": ["anthropic", "openai", "static"],
             "resolved_claude_models_by_tier": {
                 "haiku": "claude-haiku-4-5-20251001",
-                "sonnet": "claude-sonnet-4-6",
+                "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
                 "opus": "claude-opus-4-8",
             },
             "resolved_claude_model_tier_policy_status": "OK",
@@ -104899,7 +104900,7 @@ def test_runtime_topology_audit_rejects_subsystem_model_tier_drift() -> None:
             "supported_generator_providers": ["anthropic", "openai", "static"],
             "resolved_claude_models_by_tier": {
                 "haiku": "claude-haiku-4-5-20251001",
-                "sonnet": "claude-sonnet-4-6",
+                "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
                 "opus": "claude-opus-4-8",
             },
             "resolved_claude_model_tier_policy_status": "OK",

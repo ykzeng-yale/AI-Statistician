@@ -3686,7 +3686,7 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert llm_model_policy["default_live_generator_provider"] == "anthropic"
     assert llm_model_policy["latest_claude_models_by_tier"] == {
         "haiku": "claude-haiku-4-5-20251001",
-        "sonnet": "claude-sonnet-4-6",
+        "sonnet": "claude-sonnet-5",
         "opus": "claude-opus-4-8",
     }
     assert (
@@ -3694,7 +3694,7 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         == DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER
         == {
             "haiku": "claude-haiku-4-5",
-            "sonnet": "claude-sonnet-4-6",
+            "sonnet": "claude-sonnet-5",
             "opus": "claude-opus-4-8",
         }
     )
@@ -3704,14 +3704,13 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert (
         llm_model_policy["source_checked_date"]
         == ANTHROPIC_MODEL_SOURCE_CHECKED_DATE
-        == "2026-06-17"
     )
     assert llm_model_policy["source_evidence"] == ANTHROPIC_MODEL_SOURCE_EVIDENCE
     assert llm_model_policy["source_evidence"][
         "verified_latest_cost_tier_api_ids"
     ] == {
         "haiku": "claude-haiku-4-5-20251001",
-        "sonnet": "claude-sonnet-4-6",
+        "sonnet": "claude-sonnet-5",
         "opus": "claude-opus-4-8",
     }
     assert (

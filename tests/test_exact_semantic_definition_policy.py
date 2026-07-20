@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 
 import ai_statistician.exact_semantic_definition_policy as policy_module
@@ -34,15 +35,19 @@ def test_split_conformal_placeholder_policy_is_data_pack_owned() -> None:
         Path(policy_module.__file__).with_name("policies")
         / "source_theorem_exact_semantic_definition_placeholders.split_conformal.json"
     ).read_text(encoding="utf-8")
-    pyproject_source = (
-        Path(policy_module.__file__).resolve().parents[1] / "pyproject.toml"
-    ).read_text(encoding="utf-8")
+    pyproject = tomllib.loads(
+        (
+            Path(policy_module.__file__).resolve().parents[1] / "pyproject.toml"
+        ).read_text(encoding="utf-8")
+    )
 
     assert "_SPLIT_CONFORMAL_POLICIES" not in module_source
     assert "_split_conformal_registry" not in module_source
     assert "split_conformal_coverage.covered" not in module_source
     assert "split_conformal_coverage.covered" in policy_pack_source
-    assert 'ai_statistician = ["policies/*.json"]' in pyproject_source
+    assert "policies/*.json" in (
+        pyproject["tool"]["setuptools"]["package-data"]["ai_statistician"]
+    )
 
 
 def test_split_conformal_placeholder_policy_resolves_required_binders() -> None:

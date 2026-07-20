@@ -2290,18 +2290,52 @@ class _SequenceStaticGeneratorBackend:
     provider_name = "static"
 
     def __init__(self, responses: list[Any]) -> None:
-        self._responses = [
-            json.dumps(row, indent=2, default=str)
-            if isinstance(row, Mapping)
-            else str(row)
-            for row in responses
-        ]
+        self._responses = list(responses)
         self._index = 0
         self.requests: list[GeneratorRequest] = []
 
     def generate(self, request: GeneratorRequest) -> GeneratorResponse:
         self.requests.append(request)
-        response = self._responses[min(self._index, len(self._responses) - 1)]
+        response_index = min(self._index, len(self._responses) - 1)
+        configured_response = self._responses[response_index]
+        if (
+            isinstance(configured_response, Mapping)
+            and request.metadata.get("json_repair_mode") == "typed_semantic_patch"
+        ):
+            prompt_payload = json.loads(request.user_prompt.split("\n\n", 1)[1])
+            prior_response = self._responses[max(0, response_index - 1)]
+            assert isinstance(prior_response, Mapping)
+            updates = []
+            for key in sorted(set(prior_response) | set(configured_response)):
+                if prior_response.get(key) == configured_response.get(key):
+                    continue
+                assert key in configured_response
+                updates.append(
+                    {
+                        "path": [key],
+                        "replacement_json": json.dumps(
+                            configured_response[key],
+                            sort_keys=True,
+                            default=str,
+                        ),
+                    }
+                )
+            assert updates
+            response = json.dumps(
+                {
+                    "base_payload_fingerprint": prompt_payload[
+                        "base_payload_fingerprint"
+                    ],
+                    "updates": updates,
+                },
+                indent=2,
+            )
+        else:
+            response = (
+                json.dumps(configured_response, indent=2, default=str)
+                if isinstance(configured_response, Mapping)
+                else str(configured_response)
+            )
         self._index += 1
         return GeneratorResponse(
             text=response,
@@ -2458,6 +2492,7 @@ def _minimal_formalizer_response(
         "formal_targets": [
             {
                 "id": "source_theorem_still_gap",
+                "formal_target_role": "SOURCE_THEOREM_FORMAL_GAP",
                 "informal_source": "full source theorem remains a formal gap",
                 "lean_statement_sketch": "",
                 "expected_status": "FORMAL_GAP",

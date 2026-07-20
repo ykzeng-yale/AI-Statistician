@@ -424,6 +424,12 @@ def build_generated_code_semantic_review_prompt(
         "upstream_metric_contract only when changing source code cannot satisfy the "
         "protocol as written, and upstream_theory only for a missing or contradictory "
         "theory premise. Findings do not authorize post-result threshold relaxation. "
+        "Interpret required_runtime_replicates as the minimum replicate count for the "
+        "enclosing sandbox execution. It does not require every metric path to expose "
+        "one value per replicate: aggregation=identity may validly check one "
+        "deterministic scalar computed during that run. Do not call that combination "
+        "an upstream protocol defect unless another supplied field makes the "
+        "measurement incoherent or infeasible. "
         if confirmatory_empirical_evidence_eligible
         else "This is exploratory diagnostic execution with no frozen confirmatory "
         "protocol. Review whether the exact raw diagnostics can falsify or refine the "
@@ -565,7 +571,8 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
                     "rationale": {"type": "string"},
                     "evidence_refs": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "minItems": 1,
+                        "items": {"type": "string", "minLength": 1},
                     },
                 },
             },
@@ -600,7 +607,8 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
                     },
                     "evidence_refs": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "minItems": 1,
+                        "items": {"type": "string", "minLength": 1},
                     },
                 },
             },

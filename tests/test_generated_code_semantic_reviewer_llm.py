@@ -832,6 +832,8 @@ def test_semantic_reviewer_prompt_keeps_sibling_metrics_out_of_artifact_gate() -
     assert "do not choose one side as a coding instruction" in prompt
     assert "conservative, zero, noisy" in prompt
     assert "source_code finding needs a specific mismatch" in prompt
+    assert "minimum replicate count for the enclosing sandbox execution" in prompt
+    assert "aggregation=identity may validly check one deterministic scalar" in prompt
 
 
 def test_semantic_review_routes_valid_protocol_implementation_mismatch_to_source() -> None:
@@ -1130,6 +1132,24 @@ def test_semantic_reviewer_schema_supports_anthropic_structured_output() -> None
     assert transformed["properties"]["findings"]["items"][
         "additionalProperties"
     ] is False
+    dimension_evidence_schema = transformed["properties"]["dimension_reviews"][
+        "items"
+    ]["properties"]["evidence_refs"]
+    finding_evidence_schema = transformed["properties"]["findings"]["items"][
+        "properties"
+    ]["evidence_refs"]
+    assert dimension_evidence_schema["minItems"] == 1
+    assert finding_evidence_schema["minItems"] == 1
+    source_dimension_evidence_schema = (
+        GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA["properties"]
+        ["dimension_reviews"]["items"]["properties"]["evidence_refs"]
+    )
+    source_finding_evidence_schema = (
+        GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA["properties"]["findings"]
+        ["items"]["properties"]["evidence_refs"]
+    )
+    assert source_dimension_evidence_schema["items"]["minLength"] == 1
+    assert source_finding_evidence_schema["items"]["minLength"] == 1
     assert set(transformed["required"]) == {
         "dimension_reviews",
         "findings",
