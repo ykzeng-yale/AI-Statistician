@@ -149,14 +149,9 @@ def _generated_code_semantic_review_derived_verdict(
         for row in findings or []
         if isinstance(row, Mapping)
     )
-    has_actionable_finding = bool(
-        _generated_code_semantic_review_finding_scopes(findings)
-    )
     return (
         "ACCEPT"
-        if all_dimensions_pass
-        and not has_high_finding
-        and not has_actionable_finding
+        if all_dimensions_pass and not has_high_finding
         else "REVISE"
     )
 
@@ -459,6 +454,11 @@ def build_generated_code_semantic_review_prompt(
         "protocol node; cite both exact fields. When current theory nodes contradict "
         "one another or omit the premise needed to choose a correction, use an "
         "upstream_theory finding and do not choose one side as a coding instruction. "
+        "If a finding requires another generation or revision, mark a relevant "
+        "dimension FAIL or UNCERTAIN, or assign the finding high or critical "
+        "severity. Low or medium findings while every dimension is PASS are advisory: "
+        "use repair_scope=none and do not route them as mandatory repair instructions. "
+        "AgentRuntime preserves such advice for audit but will not schedule a repair. "
         "Do not introduce an uncited mathematical identity, "
         "normalization, expected-value claim, or performance expectation as mandatory "
         "source repair. An observed result being conservative, zero, noisy, or unlike "
@@ -676,7 +676,7 @@ def validate_generated_code_semantic_review_packet(
     if verdict != expected_verdict:
         errors.append(
             "overall_verdict must be ACCEPT exactly when all dimensions PASS "
-            "and no actionable or high/critical finding exists"
+            "and no high/critical finding exists"
         )
     source_subsystem = str(packet.get("source_subsystem", "") or "").strip()
     source_assessment = str(
@@ -849,6 +849,26 @@ def _normalize_generated_code_semantic_review_packet(
     body["confirmatory_empirical_evidence_eligible"] = (
         confirmatory_empirical_evidence_eligible
     )
+    overall_verdict = _generated_code_semantic_review_derived_verdict(
+        dimension_reviews=body.get("dimension_reviews", []),
+        findings=body.get("findings", []),
+    )
+    normalized_findings: list[Any] = []
+    for row in body.get("findings", []) or []:
+        if not isinstance(row, Mapping):
+            normalized_findings.append(row)
+            continue
+        finding = dict(row)
+        requested_scope = str(finding.get("repair_scope", "") or "").strip()
+        finding["model_requested_repair_scope"] = requested_scope
+        if (
+            overall_verdict == "ACCEPT"
+            and str(finding.get("severity", "") or "").strip().lower()
+            in {"low", "medium"}
+        ):
+            finding["repair_scope"] = "none"
+        normalized_findings.append(finding)
+    body["findings"] = normalized_findings
     finding_scopes = _generated_code_semantic_review_finding_scopes(
         body.get("findings", [])
     )
@@ -869,10 +889,7 @@ def _normalize_generated_code_semantic_review_packet(
         if "upstream_theory" in finding_scopes
         else "SUFFICIENT_FOR_IMPLEMENTATION_REPAIR"
     )
-    body["overall_verdict"] = _generated_code_semantic_review_derived_verdict(
-        dimension_reviews=body.get("dimension_reviews", []),
-        findings=body.get("findings", []),
-    )
+    body["overall_verdict"] = overall_verdict
     repair_scopes = generated_code_semantic_review_repair_scopes(
         verdict=body["overall_verdict"],
         source_assessment=body["reviewed_source_assessment"],

@@ -51,6 +51,11 @@ from ai_statistician.simulation_engineer_llm import (
 )
 
 
+STATIC_SOURCE_CLAUDE_MODEL = (
+    f"{LIVE_EVALUATION_CLAUDE_MODEL}:static-source-invocation"
+)
+
+
 def _question() -> OpenResearchQuestion:
     return OpenResearchQuestion(
         id="semantic-review-test",
@@ -142,8 +147,8 @@ def _review_response(
 def _reviewer(
     *,
     accept: bool,
-    model: str = "static-sonnet-reviewer",
-    model_tier: str = "sonnet",
+    model: str = LIVE_EVALUATION_CLAUDE_MODEL,
+    model_tier: str = LIVE_EVALUATION_CLAUDE_MODEL_TIER,
     repair_scope: str = "source_code",
 ):
     return LLMGeneratedCodeSemanticReviewerAgent(
@@ -462,10 +467,8 @@ def _runtime_fixture(
         "packet_id": "theory:test",
         "derivation_steps": [{"claim": "The metric estimates the target error."}],
     }
-    source_model_tier = (
-        LIVE_EVALUATION_CLAUDE_MODEL_TIER if capability_eval else "sonnet"
-    )
-    source_model = f"source-{source_model_tier}"
+    source_model_tier = LIVE_EVALUATION_CLAUDE_MODEL_TIER
+    source_model = STATIC_SOURCE_CLAUDE_MODEL
     proposal_packet = {
         "artifact_kind": "AlgorithmEngineerProposalPacket",
         "packet_id": "algorithm-proposal:test",
@@ -593,7 +596,7 @@ def _runtime_fixture(
     subsystem = GeneratedCodeSemanticReviewerRuntimeSubsystem(
         reviewer=_reviewer(
             accept=accept,
-            model=reviewer_model or f"static-{source_model_tier}-reviewer",
+            model=reviewer_model or LIVE_EVALUATION_CLAUDE_MODEL,
             model_tier=reviewer_model_tier or source_model_tier,
             repair_scope=repair_scope,
         ),
@@ -621,7 +624,9 @@ def test_generated_code_semantic_reviewer_accepts_and_resumes_deferred_task(
         == "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
     ]
     assert executions[0]["semantic_review_accepted"] is True
-    assert executions[0]["reviewer_model_tier"] == "sonnet"
+    assert executions[0]["reviewer_model_tier"] == (
+        LIVE_EVALUATION_CLAUDE_MODEL_TIER
+    )
     assert executions[0]["independent_invocation"] is True
     work_order = next(
         row
@@ -885,6 +890,90 @@ def test_reviewer_derives_aggregate_decisions_from_findings(
     assert review_packet["model_requested_overall_verdict"] == ""
 
 
+def test_all_pass_low_or_medium_findings_are_preserved_as_advisory(
+    tmp_path: Path,
+) -> None:
+    _, task, blackboard, _ = _runtime_fixture(tmp_path, accept=True)
+    response = _review_response(accept=True)
+    response["findings"] = [
+        {
+            "severity": "medium",
+            "category": "maintainability",
+            "summary": "The diagnostic name could be more explicit.",
+            "required_change": "Use a more descriptive diagnostic name later.",
+            "repair_scope": "source_code",
+            "evidence_refs": ["exact_source_code"],
+        }
+    ]
+    response["repair_instructions"] = [
+        "Use a more descriptive diagnostic name later."
+    ]
+    subsystem = GeneratedCodeSemanticReviewerRuntimeSubsystem(
+        reviewer=LLMGeneratedCodeSemanticReviewerAgent(
+            provider=StaticJSONGeneratorBackend(response),
+            config=GeneratedCodeSemanticReviewerConfig(
+                provider_name="static",
+                model=LIVE_EVALUATION_CLAUDE_MODEL,
+                model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+                max_repair_attempts=0,
+            ),
+        ),
+        max_revisions=1,
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REROUTE"
+    review_packet = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
+    )
+    assert review_packet["overall_verdict"] == "ACCEPT"
+    assert review_packet["repair_scope"] == "none"
+    assert review_packet["repair_scopes"] == ["none"]
+    assert review_packet["reviewed_source_assessment"] == "ALIGNED"
+    assert review_packet["findings"][0]["repair_scope"] == "none"
+    assert review_packet["findings"][0][
+        "model_requested_repair_scope"
+    ] == "source_code"
+
+
+def test_nonpass_dimension_keeps_low_severity_finding_actionable(
+    tmp_path: Path,
+) -> None:
+    _, task, blackboard, _ = _runtime_fixture(tmp_path, accept=False)
+    response = _review_response(accept=False, repair_scope="source_code")
+    response["findings"][0]["severity"] = "low"
+    subsystem = GeneratedCodeSemanticReviewerRuntimeSubsystem(
+        reviewer=LLMGeneratedCodeSemanticReviewerAgent(
+            provider=StaticJSONGeneratorBackend(response),
+            config=GeneratedCodeSemanticReviewerConfig(
+                provider_name="static",
+                model=LIVE_EVALUATION_CLAUDE_MODEL,
+                model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+                max_repair_attempts=0,
+            ),
+        ),
+        max_revisions=1,
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REVISE"
+    review_packet = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
+    )
+    assert review_packet["overall_verdict"] == "REVISE"
+    assert review_packet["repair_scope"] == "source_code"
+    assert review_packet["findings"][0]["repair_scope"] == "source_code"
+    assert review_packet["findings"][0][
+        "model_requested_repair_scope"
+    ] == "source_code"
+
+
 def test_mixed_semantic_assessments_preserve_both_repair_owners(
     tmp_path: Path,
 ) -> None:
@@ -1131,8 +1220,8 @@ def test_changed_finding_cannot_reset_source_lineage_repair_budget(
             provider=StaticJSONGeneratorBackend(changed_response),
             config=GeneratedCodeSemanticReviewerConfig(
                 provider_name="static",
-                model="changed-finding-sonnet-reviewer",
-                model_tier="sonnet",
+                model=LIVE_EVALUATION_CLAUDE_MODEL,
+                model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
                 max_repair_attempts=0,
             ),
         ),
@@ -1598,7 +1687,7 @@ def test_capability_eval_accepts_separate_same_model_reviewer_invocation(
         tmp_path,
         accept=True,
         capability_eval=True,
-        reviewer_model="source-haiku",
+        reviewer_model=STATIC_SOURCE_CLAUDE_MODEL,
     )
 
     result = subsystem.run(task, blackboard)
