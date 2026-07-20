@@ -222,6 +222,37 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 )
             return errors
 
+        def build_repair_context(**kwargs: Any) -> dict[str, Any]:
+            return {
+                "source_subsystem": str(
+                    trusted_lineage.get("source_subsystem", "") or ""
+                ),
+                "local_validation_errors": list(kwargs.get("errors", []) or []),
+                "repair_prompt_priority_instructions": [
+                    (
+                        "Preserve the independent typed source, frozen-contract, "
+                        "and theory assessments unless the supplied evidence itself "
+                        "requires changing one; never flip an assessment merely to "
+                        "make the packet validate."
+                    ),
+                    (
+                        "For every non-none repair scope implied by those typed "
+                        "assessments, include at least one specific finding with the "
+                        "same repair_scope and evidence references. Preserve existing "
+                        "valid findings and add only missing owner-bound rows."
+                    ),
+                    (
+                        "Use source_code only for the reviewed source subsystem and "
+                        "use upstream_metric_contract or upstream_theory only for the "
+                        "corresponding Architect-owned artifact defect."
+                    ),
+                    (
+                        "Keep all trusted lineage, evidence boundaries, required "
+                        "dimension rows, and unrelated valid fields unchanged."
+                    ),
+                ],
+            }
+
         return generate_validated_json_packet(
             provider=self.provider,
             request=request,
@@ -230,6 +261,8 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             validate_packet=validate_packet,
             validation_label="generated-code semantic review packet",
             max_repair_attempts=self.config.max_repair_attempts,
+            repair_context_builder=build_repair_context,
+            semantic_patch_repair=True,
         )
 
 
@@ -351,7 +384,10 @@ def build_generated_code_semantic_review_prompt(
         "State the source, frozen-contract, and theory assessments independently. "
         "AgentRuntime derives every repair scope and owner from those typed assessments, "
         "so do not collapse a source implementation mismatch into a protocol or "
-        "theory defect. A SOURCE_REPAIR_REQUIRED assessment needs a specific mismatch "
+        "theory defect. For every non-none repair scope implied by the typed "
+        "assessments, findings must include at least one specific row with that same "
+        "repair_scope and evidence references. A SOURCE_REPAIR_REQUIRED assessment "
+        "needs a specific mismatch "
         "between exact executed source and an unambiguous current theory or frozen "
         "protocol node; cite both exact fields. When current theory nodes contradict "
         "one another or omit the premise needed to choose a correction, set "

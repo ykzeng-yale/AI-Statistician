@@ -294,6 +294,81 @@ def test_semantic_patch_repair_preserves_unaffected_large_payload() -> None:
     assert patch_history["patched_payload_fingerprint"]
 
 
+def test_semantic_patch_defers_broad_defects_then_repairs_residual() -> None:
+    class AdaptiveRepairBackend:
+        provider_name = "test"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                response = {"generation": 0, "status": "broadly_invalid"}
+            elif len(self.requests) == 2:
+                response = {"generation": 1, "status": "one_residual"}
+            else:
+                repair_payload = json.loads(
+                    request.user_prompt.split("\n\n", 1)[1]
+                )
+                response = {
+                    "base_payload_fingerprint": repair_payload[
+                        "base_payload_fingerprint"
+                    ],
+                    "updates": [
+                        {
+                            "path": ["status"],
+                            "replacement_json": json.dumps("valid"),
+                        }
+                    ],
+                }
+            return GeneratorResponse(
+                text=json.dumps(response),
+                provider=self.provider_name,
+                model=request.model,
+            )
+
+    def validate(candidate: dict[str, object]) -> list[str]:
+        if candidate.get("generation") == 0:
+            return [f"independent broad defect {index}" for index in range(9)]
+        if candidate.get("status") != "valid":
+            return ["one residual semantic defect"]
+        return []
+
+    backend = AdaptiveRepairBackend()
+    packet = generate_validated_json_packet(
+        provider=backend,
+        request=GeneratorRequest(
+            system_prompt="Return JSON.",
+            user_prompt="Produce a typed packet.",
+            model="test-haiku",
+            max_tokens=5000,
+            schema={"type": "object"},
+        ),
+        extract_payload=lambda text: extract_json_object(
+            text,
+            label="adaptive typed packet",
+        ),
+        build_packet=lambda payload, response, raw_text: dict(payload),
+        validate_packet=validate,
+        validation_label="adaptive typed packet",
+        max_repair_attempts=2,
+        semantic_patch_repair=True,
+    )
+
+    assert [
+        request.metadata["json_repair_mode"] for request in backend.requests
+    ] == [
+        "full_packet_generation",
+        "full_packet_regeneration",
+        "typed_semantic_patch",
+    ]
+    assert backend.requests[2].max_tokens == 3000
+    assert packet["generation"] == 1
+    assert packet["status"] == "valid"
+    assert packet["llm_json_repair_attempts"] == 2
+
+
 def test_generate_validated_json_packet_escalates_truncated_repair_budget() -> None:
     class TruncatingThenValidBackend:
         provider_name = "test"

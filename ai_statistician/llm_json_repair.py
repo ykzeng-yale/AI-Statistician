@@ -251,7 +251,12 @@ def generate_validated_json_packet(
                 )
                 or truncation_repair_mode
             )
-            if semantic_patch_repair and payload is not None and not truncation_detected:
+            if (
+                semantic_patch_repair
+                and payload is not None
+                and not truncation_detected
+                and _typed_semantic_patch_fits_update_budget(last_errors)
+            ):
                 semantic_patch_base_payload = deepcopy(payload)
                 semantic_patch_base_fingerprint = _stable_payload_fingerprint(
                     semantic_patch_base_payload
@@ -319,6 +324,11 @@ def _typed_semantic_patch_prompt(
             "Preserve every unmentioned field byte-for-structure in the base payload.",
             "Use integer path components only for array indices.",
             "replacement_json must itself decode as one valid JSON value.",
+            (
+                "When several fields in one object must change, replace the "
+                "smallest parent object that contains them in one update instead "
+                "of spending one update per field."
+            ),
             "Do not remove evidence boundaries or claim unexecuted verification.",
         ],
         "original_request": _compact_original_request(
@@ -605,6 +615,12 @@ def _repair_attempt_max_tokens(
     if not truncation_repair_mode:
         return base
     return min(max(base * 2, base + 1024), 8000)
+
+
+def _typed_semantic_patch_fits_update_budget(errors: list[str]) -> bool:
+    """Use patch mode only when the residual fits its bounded edit envelope."""
+
+    return 0 < len(errors) <= _TYPED_SEMANTIC_PATCH_MAX_UPDATES
 
 
 def _compact_response_metadata(metadata: Mapping[str, Any]) -> dict[str, Any]:

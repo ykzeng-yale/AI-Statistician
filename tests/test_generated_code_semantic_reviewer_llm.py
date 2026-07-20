@@ -26,6 +26,9 @@ from ai_statistician.generated_code_semantic_review_replan import (
     record_generated_code_semantic_review_lineage_action,
 )
 from ai_statistician.model_backend import (
+    GeneratorRequest,
+    GeneratorResponse,
+    LIVE_EVALUATION_CLAUDE_MODEL,
     LIVE_EVALUATION_CLAUDE_MODEL_TIER,
     StaticJSONGeneratorBackend,
 )
@@ -821,6 +824,7 @@ def test_semantic_reviewer_prompt_keeps_sibling_metrics_out_of_artifact_gate() -
     assert "unambiguous current theory" in prompt
     assert "do not choose one side as a coding instruction" in prompt
     assert "conservative, zero, noisy" in prompt
+    assert "findings must include at least one specific row" in prompt
 
 
 def test_semantic_review_routes_valid_protocol_implementation_mismatch_to_source() -> None:
@@ -838,7 +842,8 @@ def test_mixed_semantic_assessments_preserve_both_repair_owners(
     _, task, blackboard, _ = _runtime_fixture(tmp_path, accept=False)
     response = _review_response(accept=False, repair_scope="source_code")
     response["source_theory_assessment"] = "THEORY_REVISION_REQUIRED"
-    response["findings"].append(
+    repaired_findings = [
+        *response["findings"],
         {
             "severity": "high",
             "category": "theory_premise",
@@ -846,29 +851,49 @@ def test_mixed_semantic_assessments_preserve_both_repair_owners(
             "required_change": "Revise the theory packet before final acceptance.",
             "repair_scope": "upstream_theory",
             "evidence_refs": ["theory_packet.derivation_steps"],
-        }
-    )
-    response["repair_scopes"] = ["source_code", "upstream_theory"]
-    response["repair_plan"] = [
-        {
-            "sequence": 1,
-            "repair_scope": "source_code",
-            "repair_owner": "AlgorithmEngineer",
-        },
-        {
-            "sequence": 2,
-            "repair_scope": "upstream_theory",
-            "repair_owner": "ArchitectCoordinator",
         },
     ]
+
+    class MixedOwnerPatchBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                payload = response
+            else:
+                repair_payload = json.loads(
+                    request.user_prompt.split("\n\n", 1)[1]
+                )
+                payload = {
+                    "base_payload_fingerprint": repair_payload[
+                        "base_payload_fingerprint"
+                    ],
+                    "updates": [
+                        {
+                            "path": ["findings"],
+                            "replacement_json": json.dumps(repaired_findings),
+                        }
+                    ],
+                }
+            return GeneratorResponse(
+                text=json.dumps(payload),
+                provider=self.provider_name,
+                model=request.model,
+            )
+
+    backend = MixedOwnerPatchBackend()
     subsystem = GeneratedCodeSemanticReviewerRuntimeSubsystem(
         reviewer=LLMGeneratedCodeSemanticReviewerAgent(
-            provider=StaticJSONGeneratorBackend(response),
+            provider=backend,
             config=GeneratedCodeSemanticReviewerConfig(
-                provider_name="static",
-                model="static-mixed-reviewer",
-                model_tier="sonnet",
-                max_repair_attempts=0,
+                provider_name="anthropic",
+                model=LIVE_EVALUATION_CLAUDE_MODEL,
+                model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+                max_repair_attempts=1,
             ),
         ),
         max_revisions=1,
@@ -877,6 +902,11 @@ def test_mixed_semantic_assessments_preserve_both_repair_owners(
     result = subsystem.run(task, blackboard)
 
     assert result.status == "REVISE"
+    assert len(backend.requests) == 2
+    assert backend.requests[1].metadata["json_repair_mode"] == (
+        "typed_semantic_patch"
+    )
+    assert backend.requests[1].max_tokens == 3000
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "AlgorithmEngineer"
     feedback = result.next_task.inputs["environment_feedback"]
