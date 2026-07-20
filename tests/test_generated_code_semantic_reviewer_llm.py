@@ -843,6 +843,15 @@ def test_semantic_review_routes_valid_protocol_implementation_mismatch_to_source
     ) == "source_code"
 
 
+def test_semantic_review_orders_repairs_by_artifact_dependency() -> None:
+    assert generated_code_semantic_review_repair_scopes(
+        verdict="REVISE",
+        source_assessment="SOURCE_REPAIR_REQUIRED",
+        metric_contract_assessment="INVALID_OR_INFEASIBLE",
+        theory_assessment="THEORY_REVISION_REQUIRED",
+    ) == ["upstream_theory", "upstream_metric_contract", "source_code"]
+
+
 def test_reviewer_derives_aggregate_decisions_from_findings(
     tmp_path: Path,
 ) -> None:
@@ -974,7 +983,7 @@ def test_nonpass_dimension_keeps_low_severity_finding_actionable(
     ] == "source_code"
 
 
-def test_mixed_semantic_assessments_preserve_both_repair_owners(
+def test_mixed_semantic_assessments_route_upstream_owner_before_source(
     tmp_path: Path,
 ) -> None:
     _, task, blackboard, _ = _runtime_fixture(tmp_path, accept=False)
@@ -1051,7 +1060,7 @@ def test_mixed_semantic_assessments_preserve_both_repair_owners(
 
     result = subsystem.run(task, blackboard)
 
-    assert result.status == "REVISE"
+    assert result.status == "REROUTE"
     assert len(backend.requests) == 2
     assert all(
         request.metadata["provider_structured_output"] is True
@@ -1074,13 +1083,13 @@ def test_mixed_semantic_assessments_preserve_both_repair_owners(
         for instruction in repair_payload["repair_instructions"]
     )
     assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "AlgorithmEngineer"
+    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
     feedback = result.next_task.inputs["environment_feedback"]
     assert feedback["overall_verdict"] == "REVISE"
-    assert feedback["repair_scopes"] == ["source_code", "upstream_theory"]
+    assert feedback["repair_scopes"] == ["upstream_theory", "source_code"]
     assert [row["repair_owner"] for row in feedback["repair_plan"]] == [
-        "AlgorithmEngineer",
         "ArchitectCoordinator",
+        "AlgorithmEngineer",
     ]
     review_packet = next(
         artifact
@@ -1097,12 +1106,14 @@ def test_mixed_semantic_assessments_preserve_both_repair_owners(
         "THEORY_REVISION_REQUIRED"
     )
     assert review_packet["model_requested_reviewed_source_assessment"] == "ALIGNED"
-    pending = result.next_task.inputs["architect_context"][
-        "runtime_generated_code_semantic_review_pending_repair_plan"
+    replan = result.next_task.inputs["architect_context"][
+        "runtime_generated_code_semantic_review_replan"
     ]
-    assert pending["pending_repair_scopes"] == ["upstream_theory"]
-    assert pending["theory_packet_hash"] == stable_hash(
-        blackboard.artifacts["theory:test"]
+    assert replan["repair_scope"] == "upstream_theory"
+    assert replan["repair_scopes"] == ["upstream_theory", "source_code"]
+    assert (
+        "runtime_generated_code_semantic_review_pending_repair_plan"
+        not in result.next_task.inputs["architect_context"]
     )
 
 

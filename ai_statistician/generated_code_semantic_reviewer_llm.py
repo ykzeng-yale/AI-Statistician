@@ -54,6 +54,11 @@ GENERATED_CODE_SEMANTIC_REVIEW_ACTIONABLE_REPAIR_SCOPES = (
     "upstream_metric_contract",
     "upstream_theory",
 )
+GENERATED_CODE_SEMANTIC_REVIEW_REPAIR_DEPENDENCY_ORDER = (
+    "upstream_theory",
+    "upstream_metric_contract",
+    "source_code",
+)
 GENERATED_CODE_SEMANTIC_REVIEW_SOURCE_ASSESSMENTS = (
     "ALIGNED",
     "SOURCE_REPAIR_REQUIRED",
@@ -94,18 +99,22 @@ def generated_code_semantic_review_repair_scopes(
     metric_contract_assessment: str,
     theory_assessment: str,
 ) -> list[str]:
-    """Derive every independently required owner from aggregate assessments."""
+    """Derive every required owner in upstream-to-descendant repair order."""
 
     if str(verdict or "").strip().upper() == "ACCEPT":
         return ["none"]
-    scopes: list[str] = []
-    if source_assessment == "SOURCE_REPAIR_REQUIRED":
-        scopes.append("source_code")
-    if metric_contract_assessment == "INVALID_OR_INFEASIBLE":
-        scopes.append("upstream_metric_contract")
-    if theory_assessment == "THEORY_REVISION_REQUIRED":
-        scopes.append("upstream_theory")
-    return scopes
+    required_scopes = {
+        "source_code": source_assessment == "SOURCE_REPAIR_REQUIRED",
+        "upstream_metric_contract": (
+            metric_contract_assessment == "INVALID_OR_INFEASIBLE"
+        ),
+        "upstream_theory": theory_assessment == "THEORY_REVISION_REQUIRED",
+    }
+    return [
+        scope
+        for scope in GENERATED_CODE_SEMANTIC_REVIEW_REPAIR_DEPENDENCY_ORDER
+        if required_scopes[scope]
+    ]
 
 
 def _generated_code_semantic_review_finding_scopes(
@@ -312,6 +321,12 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                         "Use source_code only for the reviewed source subsystem and "
                         "use upstream_metric_contract or upstream_theory only for the "
                         "corresponding Architect-owned artifact defect."
+                    ),
+                    (
+                        "When multiple repair scopes are supported, preserve all of "
+                        "them. AgentRuntime schedules upstream theory before its "
+                        "derived metric contract and generated source so descendants "
+                        "are rebuilt from the revised hash-bound artifacts."
                     ),
                     (
                         "Keep all trusted lineage, evidence boundaries, required "
