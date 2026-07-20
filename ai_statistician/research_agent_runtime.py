@@ -30943,7 +30943,11 @@ def _formalizer_lean_candidate_repair_feedback(
         )
         for key in exact_lineage_keys:
             value = prior_proofengineer_repair_context.get(key)
-            if value not in (None, "", [], {}):
+            current_value = merged_repair_context.get(key)
+            if value not in (None, "", [], {}) and (
+                not current_exact_search_eligible
+                or current_value in (None, "", [], {})
+            ):
                 merged_repair_context[key] = value
         if not current_exact_search_eligible:
             merged_repair_context[

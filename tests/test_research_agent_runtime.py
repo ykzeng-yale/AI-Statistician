@@ -23172,6 +23172,11 @@ def test_metric_authoring_numeric_repair_context_uses_local_catalog_slice() -> N
         "anchor_id"
     ] == matching_design_anchor
     assert context["numeric_authority_repair_automatic_selection"] is False
+    priority_instructions = " ".join(
+        context["repair_prompt_priority_instructions"]
+    )
+    assert "Authority is row-level" in priority_instructions
+    assert "whole row cannot remain" in priority_instructions
     assert context["repair_context_scope"] == (
         "numeric_authority_and_runtime_budget_local_slice"
     )
@@ -23421,6 +23426,10 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert "must not be copied into or misrepresented as theory" in (
         hard_requirements
     )
+    assert "Acceptance authority is row-level" in hard_requirements
+    assert "whole row cannot use a source-derived authority kind" in (
+        hard_requirements
+    )
     assert "Free-form citations" in hard_requirements
     assert "does not specify a minimum power" in hard_requirements
     assert "Audit mathematical feasibility before freezing each row" in (
@@ -23440,6 +23449,8 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert "architect_preregistered_design" in repair_instructions
     assert "do not copy the value into theory" in repair_instructions
     assert "numeric_authority_repair_matrix" in repair_instructions
+    assert "Authority is row-level" in repair_instructions
+    assert "whole row cannot remain" in repair_instructions
     assert repair_context["acceptance_authority_catalog_scope"] == (
         "numeric_authority_local_slice"
     )
@@ -36632,6 +36643,99 @@ def test_failed_formalizer_exact_candidate_requires_review_before_typed_prover(
     )
     assert work_order["request"]["source_lineage_id"] == (
         accepted_context["source_lineage_id"]
+    )
+
+
+def test_formalizer_repair_feedback_keeps_current_exact_candidate_lineage(
+    tmp_path: Path,
+) -> None:
+    parent_path = tmp_path / "ParentExactSource.lean"
+    parent_manifest = _generic_failed_exact_formalizer_manifest(parent_path)
+    prior_feedback = _formalizer_lean_candidate_repair_feedback(parent_manifest)
+    assert prior_feedback is not None
+    prior_context = prior_feedback["proofengineer_repair_context"]
+
+    child_path = tmp_path / "ChildExactSource.lean"
+    child_manifest = _generic_failed_exact_formalizer_manifest(child_path)
+    child_source = child_path.read_text(encoding="utf-8").replace(
+        "exact missing",
+        "exact missing_after_feedback",
+    )
+    child_path.write_text(child_source, encoding="utf-8")
+    child_manifest["manifest_id"] = (
+        "formalizer_lean_candidate_materialization:generic_exact_child"
+    )
+    child_manifest["task_id"] = "proofengineer-exact-result:generic_theorem_search"
+    child_row = child_manifest["candidate_rows"][0]
+    child_row["candidate_id"] = "generic_exact_source_repaired"
+    child_row["source_hash"] = runtime_module.stable_hash(child_source)
+    child_row["lean_source_excerpt"] = child_source
+
+    feedback = _formalizer_lean_candidate_repair_feedback(
+        child_manifest,
+        prior_environment_feedback=prior_feedback,
+    )
+
+    assert feedback is not None
+    context = feedback["proofengineer_repair_context"]
+    assert context["formalizer_candidate_exact_search_eligible"] is True
+    assert context["candidate_artifact_path"] == str(child_path)
+    assert context["lineage_candidate_artifact_path"] == str(child_path)
+    assert context["lineage_candidate_artifact_hash"] == (
+        runtime_module.stable_hash(child_source)
+    )
+    assert context["candidate_artifact_path"] != prior_context[
+        "candidate_artifact_path"
+    ]
+    assert context["target_theorem_statement_hash"] == prior_context[
+        "target_theorem_statement_hash"
+    ]
+
+    question = OpenResearchQuestion(
+        "generic_theorem_search",
+        "Generic exact theorem search",
+        "Review the current repaired exact target without stale artifact lineage.",
+        (),
+    )
+    source_task = AgentTask(
+        task_id="proofengineer-exact-result:generic_theorem_search",
+        owner_subsystem="ProofEngineer",
+        objective="Consume exact prover feedback and review the repaired child.",
+        inputs={"formal_target_semantic_review_revision_count": 1},
+    )
+    deferred_task = AgentTask(
+        task_id="formalize-lean-repair:generic_theorem_search:child",
+        owner_subsystem="ProofEngineer",
+        objective="Continue verifier-backed repair after independent review.",
+    )
+    dispatch = runtime_module._runtime_formal_target_semantic_review_dispatch(
+        task=source_task,
+        question=question,
+        source_subsystem="ProofEngineer",
+        candidate_materialization=child_manifest,
+        theory_packet={"packet_id": "theory_derivation:generic_child"},
+        proposal_packet={
+            "packet_id": "formalizer_proposal:generic_child",
+            "source_agent": "FormalizerProofEngineer",
+            "model": LIVE_EVALUATION_CLAUDE_MODEL,
+            "model_tier": LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        },
+        repair_feedback=feedback,
+        architect_context={
+            "runtime_requested_evidence_contract": {
+                "evaluation_mode": "capability_eval"
+            }
+        },
+        deferred_next_task=deferred_task,
+        max_revisions=2,
+    )
+    assert dispatch is not None
+    assert dispatch["dispatch_status"] == "READY"
+    work_order = dispatch["work_order"]
+    assert work_order["candidate_id"] == "generic_exact_source_repaired"
+    assert work_order["candidate_artifact_path"] == str(child_path)
+    assert work_order["candidate_source_hash"] == runtime_module.stable_hash(
+        child_source
     )
 
 

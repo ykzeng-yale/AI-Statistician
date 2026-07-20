@@ -176,8 +176,14 @@ def _metric_authoring_repair_priority_instructions(
             "its rationale. A field listed under "
             "numeric_gate_fields_without_exact_catalog_match cannot remain under a "
             "source-derived authority merely by repeating its value or rewriting "
-            "prose; do not copy the value into theory, change a gate merely to match "
-            "an anchor, or treat the matrix as an automatic repair."
+            "prose. Authority is row-level: if even one retained numeric gate lacks "
+            "an exact upstream match, the whole row cannot remain theory_derived, "
+            "theory_parameter_instantiation, or evaluation_mandated merely because "
+            "another field matches. Use architect_preregistered_design for the row "
+            "only when the unmatched choices are defensible pre-execution design "
+            "decisions; otherwise make the row diagnostic or remove it; do not copy "
+            "the value into theory, change a gate merely to match an anchor, or treat "
+            "the matrix as an automatic repair."
         )
     instructions.extend(
         [
@@ -529,6 +535,13 @@ def author_reviewed_architect_metric_requirements(
                 "those numbers are instead explicitly owned by this pre-execution "
                 "empirical design and must not be copied into or misrepresented as "
                 "theory."
+            ),
+            (
+                "Acceptance authority is row-level. If any retained threshold, bound, "
+                "nonzero tolerance, or quorum is an Architect-owned design choice "
+                "without an exact upstream numeric match, the whole row cannot use a "
+                "source-derived authority kind merely because another numeric field "
+                "matches upstream."
             ),
             (
                 "Every source_anchors entry must copy one exact anchor_id from "
