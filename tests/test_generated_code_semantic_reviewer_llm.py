@@ -8,6 +8,7 @@ from ai_statistician.algorithm_engineer_llm import build_algorithm_engineer_prom
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.generated_code_semantic_reviewer_llm import (
     GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS,
+    GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA,
     GeneratedCodeSemanticReviewerConfig,
     LLMGeneratedCodeSemanticReviewerAgent,
     build_generated_code_semantic_review_prompt,
@@ -877,13 +878,16 @@ def test_mixed_semantic_assessments_preserve_both_repair_owners(
                     ],
                     "updates": [
                         {
-                            "path": ["frozen_metric_contract_assessment"],
+                            "path": [
+                                "base_payload_excerpt",
+                                "frozen_metric_contract_assessment",
+                            ],
                             "replacement_json": json.dumps(
                                 "VALID_AND_FEASIBLE"
                             ),
                         },
                         {
-                            "path": ["findings"],
+                            "path": ["top_level_outline", "findings"],
                             "replacement_json": json.dumps(repaired_findings),
                         }
                     ],
@@ -912,6 +916,10 @@ def test_mixed_semantic_assessments_preserve_both_repair_owners(
 
     assert result.status == "REVISE"
     assert len(backend.requests) == 2
+    assert all(
+        request.metadata["provider_structured_output"] is True
+        for request in backend.requests
+    )
     assert backend.requests[1].metadata["json_repair_mode"] == (
         "typed_semantic_patch"
     )
@@ -939,6 +947,22 @@ def test_mixed_semantic_assessments_preserve_both_repair_owners(
     assert pending["theory_packet_hash"] == stable_hash(
         blackboard.artifacts["theory:test"]
     )
+
+
+def test_semantic_reviewer_schema_supports_anthropic_structured_output() -> None:
+    from copy import deepcopy
+
+    import anthropic
+
+    transformed = anthropic.transform_schema(
+        deepcopy(GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA)
+    )
+
+    assert transformed["additionalProperties"] is False
+    assert transformed["properties"]["findings"]["items"][
+        "additionalProperties"
+    ] is False
+    assert transformed["properties"]["overall_verdict"]["type"] == "string"
 
 
 def test_unchanged_upstream_artifact_cannot_retire_pending_repair() -> None:

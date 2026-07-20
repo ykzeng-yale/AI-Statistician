@@ -17,6 +17,16 @@ RepairContextBuilder = Callable[..., Mapping[str, Any] | None]
 _TYPED_SEMANTIC_PATCH_MAX_UPDATES = 8
 _TYPED_SEMANTIC_PATCH_MAX_PATH_DEPTH = 8
 _TYPED_SEMANTIC_PATCH_MAX_TOKENS = 3000
+_TYPED_SEMANTIC_PATCH_PROMPT_WRAPPER_KEYS = frozenset(
+    {
+        "base_payload_excerpt",
+        "top_level_outline",
+    }
+)
+_TYPED_SEMANTIC_PATCH_MAX_RAW_PATH_DEPTH = (
+    _TYPED_SEMANTIC_PATCH_MAX_PATH_DEPTH
+    + len(_TYPED_SEMANTIC_PATCH_PROMPT_WRAPPER_KEYS)
+)
 _TYPED_SEMANTIC_PATCH_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
@@ -36,7 +46,7 @@ _TYPED_SEMANTIC_PATCH_SCHEMA: dict[str, Any] = {
                     "path": {
                         "type": "array",
                         "minItems": 1,
-                        "maxItems": _TYPED_SEMANTIC_PATCH_MAX_PATH_DEPTH,
+                        "maxItems": _TYPED_SEMANTIC_PATCH_MAX_RAW_PATH_DEPTH,
                         "items": {
                             "anyOf": [
                                 {"type": "string"},
@@ -148,6 +158,7 @@ def generate_validated_json_packet(
         payload: dict[str, Any] | None = None
         packet: dict[str, Any] | None = None
         patched_paths: list[list[str | int]] = []
+        patch_path_normalizations: list[dict[str, Any]] = []
         patched_payload_fingerprint = ""
         try:
             effective_raw_text = raw_text
@@ -156,7 +167,11 @@ def generate_validated_json_packet(
                     raw_text,
                     label=f"{validation_label} typed semantic patch",
                 )
-                payload, patched_paths = _apply_typed_semantic_patch(
+                (
+                    payload,
+                    patched_paths,
+                    patch_path_normalizations,
+                ) = _apply_typed_semantic_patch(
                     base_payload=semantic_patch_base_payload or {},
                     expected_base_fingerprint=semantic_patch_base_fingerprint,
                     patch_envelope=patch_envelope,
@@ -217,6 +232,7 @@ def generate_validated_json_packet(
                 {
                     "base_payload_fingerprint": semantic_patch_base_fingerprint,
                     "patched_paths": patched_paths,
+                    "patch_path_normalizations": patch_path_normalizations,
                     "patched_payload_fingerprint": patched_payload_fingerprint,
                 }
             )
@@ -297,11 +313,15 @@ def _typed_semantic_patch_prompt(
     base_payload_fingerprint: str,
     repair_context: Mapping[str, Any] | None = None,
 ) -> str:
+    base_payload_excerpt, base_payload_excerpt_metadata = (
+        _compact_patch_base_payload(base_payload)
+    )
     payload: dict[str, Any] = {
         "validation_label": validation_label,
         "local_validation_errors": errors,
         "base_payload_fingerprint": base_payload_fingerprint,
-        "base_payload_excerpt": _compact_patch_base_payload(base_payload),
+        "base_payload_excerpt": base_payload_excerpt,
+        "base_payload_excerpt_metadata": base_payload_excerpt_metadata,
         "patch_contract": {
             "base_payload_fingerprint": (
                 "copy the supplied fingerprint exactly"
@@ -324,9 +344,9 @@ def _typed_semantic_patch_prompt(
             "Preserve every unmentioned field byte-for-structure in the base payload.",
             (
                 "Every update path is relative to the base payload root shown inside "
-                "base_payload_excerpt. Never prefix a path with "
-                "base_payload_excerpt, top_level_outline, or truncated; those are "
-                "prompt wrapper labels, not packet fields."
+                "base_payload_excerpt. Its first component must be an actual "
+                "top-level packet field, never a prompt-wrapper or excerpt-metadata "
+                "label."
             ),
             "Use integer path components only for array indices.",
             "replacement_json must itself decode as one valid JSON value.",
@@ -360,7 +380,11 @@ def _apply_typed_semantic_patch(
     base_payload: Mapping[str, Any],
     expected_base_fingerprint: str,
     patch_envelope: Mapping[str, Any],
-) -> tuple[dict[str, Any], list[list[str | int]]]:
+) -> tuple[
+    dict[str, Any],
+    list[list[str | int]],
+    list[dict[str, Any]],
+]:
     supplied_fingerprint = str(
         patch_envelope.get("base_payload_fingerprint", "") or ""
     )
@@ -380,6 +404,7 @@ def _apply_typed_semantic_patch(
 
     patched = deepcopy(dict(base_payload))
     applied_paths: list[list[str | int]] = []
+    path_normalizations: list[dict[str, Any]] = []
     for update_index, raw_update in enumerate(raw_updates):
         if not isinstance(raw_update, Mapping):
             raise ValueError(
@@ -390,9 +415,9 @@ def _apply_typed_semantic_patch(
             raise ValueError(
                 f"typed semantic patch update {update_index} must contain a path"
             )
-        if len(raw_path) > _TYPED_SEMANTIC_PATCH_MAX_PATH_DEPTH:
+        if len(raw_path) > _TYPED_SEMANTIC_PATCH_MAX_RAW_PATH_DEPTH:
             raise ValueError(
-                f"typed semantic patch update {update_index} exceeds maximum path depth"
+                f"typed semantic patch update {update_index} exceeds maximum raw path depth"
             )
         path: list[str | int] = []
         for component in raw_path:
@@ -409,6 +434,16 @@ def _apply_typed_semantic_patch(
                     f"typed semantic patch update {update_index} has an empty object key"
                 )
             path.append(component)
+        normalized_path, stripped_prefixes = (
+            _normalize_typed_semantic_patch_path(
+                base_payload=base_payload,
+                path=path,
+            )
+        )
+        if len(normalized_path) > _TYPED_SEMANTIC_PATCH_MAX_PATH_DEPTH:
+            raise ValueError(
+                f"typed semantic patch update {update_index} exceeds maximum path depth"
+            )
         replacement_json = raw_update.get("replacement_json")
         if not isinstance(replacement_json, str):
             raise ValueError(
@@ -420,9 +455,44 @@ def _apply_typed_semantic_patch(
             raise ValueError(
                 f"typed semantic patch update {update_index} replacement_json is invalid: {exc}"
             ) from exc
-        _replace_typed_patch_path(patched, path=path, replacement=replacement)
-        applied_paths.append(path)
-    return patched, applied_paths
+        _replace_typed_patch_path(
+            patched,
+            path=normalized_path,
+            replacement=replacement,
+        )
+        applied_paths.append(normalized_path)
+        if stripped_prefixes:
+            path_normalizations.append(
+                {
+                    "update_index": update_index,
+                    "stripped_prompt_wrapper_prefixes": stripped_prefixes,
+                    "normalized_path": normalized_path,
+                }
+            )
+    return patched, applied_paths, path_normalizations
+
+
+def _normalize_typed_semantic_patch_path(
+    *,
+    base_payload: Mapping[str, Any],
+    path: list[str | int],
+) -> tuple[list[str | int], list[str]]:
+    """Remove only non-payload prompt wrappers from an otherwise typed path."""
+
+    normalized = list(path)
+    stripped_prefixes: list[str] = []
+    while (
+        normalized
+        and isinstance(normalized[0], str)
+        and normalized[0] in _TYPED_SEMANTIC_PATCH_PROMPT_WRAPPER_KEYS
+        and normalized[0] not in base_payload
+    ):
+        stripped_prefixes.append(str(normalized.pop(0)))
+    if not normalized:
+        raise ValueError(
+            "typed semantic patch path contains only prompt-wrapper labels"
+        )
+    return normalized, stripped_prefixes
 
 
 def _replace_typed_patch_path(
@@ -490,7 +560,9 @@ def _stable_payload_fingerprint(payload: Mapping[str, Any]) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def _compact_patch_base_payload(payload: Mapping[str, Any]) -> Any:
+def _compact_patch_base_payload(
+    payload: Mapping[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
     serialized = json.dumps(
         payload,
         sort_keys=True,
@@ -499,15 +571,39 @@ def _compact_patch_base_payload(payload: Mapping[str, Any]) -> Any:
         ensure_ascii=False,
     )
     if len(serialized) <= 6000:
-        return deepcopy(dict(payload))
+        return deepcopy(dict(payload)), {
+            "truncated": False,
+            "full_payload_chars": len(serialized),
+            "excerpt_is_payload_root": True,
+        }
 
     outline: dict[str, Any] = {}
+    truncated_fields: list[dict[str, Any]] = []
     for key, value in payload.items():
         if isinstance(value, list):
-            outline[str(key)] = {
-                "item_count": len(value),
-                "first_items": deepcopy(value[:2]),
-            }
+            encoded = json.dumps(
+                value,
+                sort_keys=True,
+                separators=(",", ":"),
+                default=str,
+                ensure_ascii=False,
+            )
+            outline[str(key)] = (
+                deepcopy(value[:2])
+                if len(encoded) <= 1200
+                else [
+                    _compact_patch_excerpt_leaf(item) for item in value[:2]
+                ]
+            )
+            if len(value) > 2 or len(encoded) > 1200:
+                truncated_fields.append(
+                    {
+                        "path": [str(key)],
+                        "value_kind": "array",
+                        "item_count": len(value),
+                        "shown_items": min(2, len(value)),
+                    }
+                )
         elif isinstance(value, Mapping):
             encoded = json.dumps(
                 value,
@@ -519,17 +615,60 @@ def _compact_patch_base_payload(payload: Mapping[str, Any]) -> Any:
             outline[str(key)] = (
                 deepcopy(dict(value))
                 if len(encoded) <= 1200
-                else {"object_keys": [str(child) for child in value.keys()]}
+                else {
+                    str(child): _compact_patch_excerpt_leaf(item)
+                    for child, item in list(value.items())[:12]
+                }
             )
+            if len(encoded) > 1200:
+                truncated_fields.append(
+                    {
+                        "path": [str(key)],
+                        "value_kind": "object",
+                        "object_keys": [str(child) for child in value.keys()],
+                        "shown_keys": [
+                            str(child) for child in list(value.keys())[:12]
+                        ],
+                    }
+                )
         elif isinstance(value, str) and len(value) > 400:
             outline[str(key)] = value[:397] + "..."
+            truncated_fields.append(
+                {
+                    "path": [str(key)],
+                    "value_kind": "string",
+                    "value_chars": len(value),
+                    "shown_chars": 400,
+                }
+            )
         else:
             outline[str(key)] = deepcopy(value)
-    return {
+    return outline, {
         "truncated": True,
         "full_payload_chars": len(serialized),
-        "top_level_outline": outline,
+        "excerpt_is_payload_root": True,
+        "truncated_fields": truncated_fields,
     }
+
+
+def _compact_patch_excerpt_leaf(value: Any, *, depth: int = 0) -> Any:
+    if isinstance(value, str):
+        return value if len(value) <= 240 else value[:237] + "..."
+    if isinstance(value, list):
+        if depth >= 3:
+            return []
+        return [
+            _compact_patch_excerpt_leaf(item, depth=depth + 1)
+            for item in value[:1]
+        ]
+    if isinstance(value, Mapping):
+        if depth >= 3:
+            return {}
+        return {
+            str(key): _compact_patch_excerpt_leaf(item, depth=depth + 1)
+            for key, item in list(value.items())[:6]
+        }
+    return deepcopy(value)
 
 
 def _failure_history_suffix(history: list[dict[str, Any]]) -> str:

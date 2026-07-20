@@ -225,6 +225,8 @@ def test_semantic_patch_repair_preserves_unaffected_large_payload() -> None:
                     "updates": [
                         {
                             "path": [
+                                "base_payload_excerpt",
+                                "top_level_outline",
                                 "formal_targets",
                                 0,
                                 "provenance",
@@ -280,9 +282,20 @@ def test_semantic_patch_repair_preserves_unaffected_large_payload() -> None:
     repair_payload = json.loads(
         backend.requests[1].user_prompt.split("\n\n", 1)[1]
     )
+    assert repair_payload["base_payload_excerpt"]["formal_targets"][0][
+        "id"
+    ] == "FT1"
+    assert "top_level_outline" not in repair_payload["base_payload_excerpt"]
+    assert repair_payload["base_payload_excerpt_metadata"]["truncated"] is True
+    assert (
+        repair_payload["base_payload_excerpt_metadata"][
+            "excerpt_is_payload_root"
+        ]
+        is True
+    )
     assert any(
         "relative to the base payload root" in instruction
-        and "Never prefix a path with base_payload_excerpt" in instruction
+        and "first component must be an actual top-level packet field" in instruction
         for instruction in repair_payload["repair_instructions"]
     )
     assert large_candidate not in backend.requests[1].user_prompt
@@ -298,8 +311,87 @@ def test_semantic_patch_repair_preserves_unaffected_large_payload() -> None:
     assert patch_history["patched_paths"] == [
         ["formal_targets", 0, "provenance", "source_goal_id"]
     ]
+    assert patch_history["patch_path_normalizations"] == [
+        {
+            "update_index": 0,
+            "stripped_prompt_wrapper_prefixes": [
+                "base_payload_excerpt",
+                "top_level_outline",
+            ],
+            "normalized_path": [
+                "formal_targets",
+                0,
+                "provenance",
+                "source_goal_id",
+            ],
+        }
+    ]
     assert patch_history["base_payload_fingerprint"]
     assert patch_history["patched_payload_fingerprint"]
+
+
+def test_semantic_patch_does_not_strip_a_real_wrapper_named_payload_field() -> None:
+    class WrapperFieldBackend:
+        provider_name = "test"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                response = {
+                    "base_payload_excerpt": {"status": "invalid"},
+                }
+            else:
+                repair_payload = json.loads(
+                    request.user_prompt.split("\n\n", 1)[1]
+                )
+                response = {
+                    "base_payload_fingerprint": repair_payload[
+                        "base_payload_fingerprint"
+                    ],
+                    "updates": [
+                        {
+                            "path": ["base_payload_excerpt", "status"],
+                            "replacement_json": json.dumps("valid"),
+                        }
+                    ],
+                }
+            return GeneratorResponse(
+                text=json.dumps(response),
+                provider=self.provider_name,
+                model=request.model,
+            )
+
+    packet = generate_validated_json_packet(
+        provider=WrapperFieldBackend(),
+        request=GeneratorRequest(
+            system_prompt="Return JSON.",
+            user_prompt="Produce a wrapper-named packet.",
+            model="test-model",
+            max_tokens=1000,
+            schema={"type": "object"},
+        ),
+        extract_payload=lambda text: extract_json_object(
+            text,
+            label="wrapper-named packet",
+        ),
+        build_packet=lambda payload, response, raw_text: dict(payload),
+        validate_packet=lambda candidate: (
+            []
+            if candidate["base_payload_excerpt"]["status"] == "valid"
+            else ["status must be valid"]
+        ),
+        validation_label="wrapper-named packet",
+        max_repair_attempts=1,
+        semantic_patch_repair=True,
+    )
+
+    assert packet["base_payload_excerpt"]["status"] == "valid"
+    history = packet["llm_json_repair_history"][1]
+    assert history["patched_paths"] == [["base_payload_excerpt", "status"]]
+    assert history["patch_path_normalizations"] == []
 
 
 def test_semantic_patch_defers_broad_defects_then_repairs_residual() -> None:

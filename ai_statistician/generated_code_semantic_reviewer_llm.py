@@ -167,6 +167,10 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             requested_model=self.config.model,
             model_tier=self.config.model_tier,
         )
+        provider_name = str(
+            getattr(self.provider, "provider_name", self.config.provider_name)
+            or self.config.provider_name
+        ).lower()
         request = GeneratorRequest(
             system_prompt=GENERATED_CODE_SEMANTIC_REVIEW_SYSTEM_PROMPT,
             user_prompt=build_generated_code_semantic_review_prompt(
@@ -184,6 +188,7 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 "model_tier": self.config.model_tier,
                 "resolved_model": request_model,
                 "review_input_fingerprint": stable_hash(review_material),
+                "provider_structured_output": provider_name == "anthropic",
             },
         )
 
@@ -485,26 +490,54 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
     ],
     "properties": {
         "reviewed_source_assessment": {
+            "type": "string",
             "enum": list(GENERATED_CODE_SEMANTIC_REVIEW_SOURCE_ASSESSMENTS)
         },
         "frozen_metric_contract_assessment": {
+            "type": "string",
             "enum": list(
                 GENERATED_CODE_SEMANTIC_REVIEW_METRIC_CONTRACT_ASSESSMENTS
             )
         },
         "source_theory_assessment": {
+            "type": "string",
             "enum": list(GENERATED_CODE_SEMANTIC_REVIEW_THEORY_ASSESSMENTS)
         },
         "dimension_reviews": {
             "type": "array",
             "minItems": len(GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS),
             "maxItems": len(GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS),
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "dimension",
+                    "status",
+                    "rationale",
+                    "evidence_refs",
+                ],
+                "properties": {
+                    "dimension": {
+                        "type": "string",
+                        "enum": list(GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS),
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": ["PASS", "FAIL", "UNCERTAIN"],
+                    },
+                    "rationale": {"type": "string"},
+                    "evidence_refs": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                },
+            },
         },
         "findings": {
             "type": "array",
             "items": {
                 "type": "object",
-                "additionalProperties": True,
+                "additionalProperties": False,
                 "required": [
                     "severity",
                     "category",
@@ -515,12 +548,14 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
                 ],
                 "properties": {
                     "severity": {
+                        "type": "string",
                         "enum": ["low", "medium", "high", "critical"]
                     },
                     "category": {"type": "string"},
                     "summary": {"type": "string"},
                     "required_change": {"type": "string"},
                     "repair_scope": {
+                        "type": "string",
                         "enum": [
                             "none",
                             *GENERATED_CODE_SEMANTIC_REVIEW_ACTIONABLE_REPAIR_SCOPES,
@@ -533,8 +568,14 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
                 },
             },
         },
-        "overall_verdict": {"enum": ["ACCEPT", "REVISE"]},
-        "repair_instructions": {"type": "array"},
+        "overall_verdict": {
+            "type": "string",
+            "enum": ["ACCEPT", "REVISE"],
+        },
+        "repair_instructions": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
     },
 }
 
