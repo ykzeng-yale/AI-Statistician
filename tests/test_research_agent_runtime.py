@@ -23104,7 +23104,7 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
             ),
             "required_runtime_replicates": 17,
             "operator": "<=",
-            "threshold": 0.1,
+            "threshold": 0.25,
             "lower": None,
             "upper": None,
             "tolerance": 0.0,
@@ -23117,12 +23117,20 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
             ],
             "acceptance_authority_kind": "theory_derived",
             "acceptance_authority_rationale": (
-                "The exact current theory equation supplies the test gate."
+                "The current theory is asserted to supply this candidate gate."
             ),
             "boundary": "empirical acceptance control, not theorem proof evidence",
         }
         for target in ("SimulationEngineer",)
     ]
+    expected_metric_rows = copy.deepcopy(metric_rows)
+    expected_metric_rows[0]["acceptance_authority_kind"] = (
+        "architect_preregistered_design"
+    )
+    expected_metric_rows[0]["acceptance_authority_rationale"] = (
+        "The Architect preregisters this empirical decision before execution "
+        "under the fixed runtime budget; it is not a theorem claim."
+    )
 
     class SequencedAnthropicBackend:
         provider_name = "anthropic"
@@ -23133,7 +23141,45 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         def generate(self, request):
             self.requests.append(request)
             if request.metadata.get("subsystem") == "ArchitectMetricContractPlanner":
-                payload = {"empirical_metric_requirements": metric_rows}
+                if request.metadata.get("json_repair_mode") == (
+                    "typed_semantic_patch"
+                ):
+                    repair_payload = json.loads(
+                        request.user_prompt.split("\n\n", 1)[1]
+                    )
+                    payload = {
+                        "base_payload_fingerprint": repair_payload[
+                            "base_payload_fingerprint"
+                        ],
+                        "updates": [
+                            {
+                                "path": [
+                                    "empirical_metric_requirements",
+                                    0,
+                                    "acceptance_authority_kind",
+                                ],
+                                "replacement_json": json.dumps(
+                                    expected_metric_rows[0][
+                                        "acceptance_authority_kind"
+                                    ]
+                                ),
+                            },
+                            {
+                                "path": [
+                                    "empirical_metric_requirements",
+                                    0,
+                                    "acceptance_authority_rationale",
+                                ],
+                                "replacement_json": json.dumps(
+                                    expected_metric_rows[0][
+                                        "acceptance_authority_rationale"
+                                    ]
+                                ),
+                            },
+                        ],
+                    }
+                else:
+                    payload = {"empirical_metric_requirements": metric_rows}
                 metadata = {
                     "provider_structured_output_requested": True,
                     "provider_structured_output_applied": True,
@@ -23191,9 +23237,13 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         provider=backend,
         config=ArchitectCoordinatorConfig(
             provider_name="anthropic",
-            model="claude-sonnet-4-6",
-            model_tier="sonnet",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
             max_tokens=8000,
+            metric_semantic_reviewer_model=LIVE_EVALUATION_CLAUDE_MODEL,
+            metric_semantic_reviewer_model_tier=(
+                LIVE_EVALUATION_CLAUDE_MODEL_TIER
+            ),
         ),
     ).propose(
         question=question,
@@ -23207,9 +23257,16 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         },
     )
 
-    assert len(backend.requests) == 3
-    metric_request, review_request, architect_request = backend.requests
+    assert len(backend.requests) == 4
+    metric_request, patch_request, review_request, architect_request = (
+        backend.requests
+    )
     assert metric_request.metadata["provider_structured_output"] is True
+    assert metric_request.model == LIVE_EVALUATION_CLAUDE_MODEL
+    assert metric_request.max_tokens == 8000
+    assert patch_request.model == LIVE_EVALUATION_CLAUDE_MODEL
+    assert patch_request.max_tokens == 3000
+    assert patch_request.metadata["json_repair_mode"] == "typed_semantic_patch"
     assert metric_request.schema["required"] == [
         "empirical_metric_requirements"
     ]
@@ -23217,7 +23274,9 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert review_request.metadata["subsystem"] == (
         "ArchitectMetricSemanticReviewer"
     )
-    assert review_request.metadata["model_tier"] == "sonnet"
+    assert review_request.metadata["model_tier"] == (
+        LIVE_EVALUATION_CLAUDE_MODEL_TIER
+    )
     assert review_request.model == metric_request.model
     assert review_request.metadata["subsystem"] != metric_request.metadata["subsystem"]
     metric_prompt = json.loads(metric_request.user_prompt)
@@ -23271,6 +23330,12 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     )
     assert "upper versus lower limits" in hard_requirements
     assert "at-most versus at-least counts" in hard_requirements
+    repair_payload = json.loads(
+        patch_request.user_prompt.split("\n\n", 1)[1]
+    )
+    repair_instructions = " ".join(repair_payload["repair_instructions"])
+    assert "architect_preregistered_design" in repair_instructions
+    assert "do not copy the value into theory" in repair_instructions
     assert metric_prompt["metric_evaluation_semantics"]["authoring_example"][
         "threshold"
     ] == 0.10
@@ -23278,7 +23343,7 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         "minimum_pass_count"
     ] == 76
     assert packet["evidence_contract"]["empirical_metric_requirements"] == (
-        metric_rows
+        expected_metric_rows
     )
     assert packet["evidence_contract"][
         "empirical_metric_requirements_frozen_from_metric_planner"
@@ -23294,7 +23359,7 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     ] is True
     assert packet["metric_requirement_authoring"][
         "llm_json_repair_attempts"
-    ] == 0
+    ] == 1
     assert packet["metric_requirement_authoring"][
         "semantic_review_status"
     ] == "ACCEPT"

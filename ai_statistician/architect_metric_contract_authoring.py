@@ -28,6 +28,7 @@ from .generated_metric_contract import (
     generated_metric_requirement_prompt_schema,
     generated_metric_requirement_set_id,
     generated_metric_requirement_target_namespace_contract,
+    is_generated_metric_numeric_authority_error,
     validate_generated_metric_requirements,
 )
 from .llm_json_repair import (
@@ -144,6 +145,58 @@ class ArchitectMetricContractAuthoringConfig:
     provider_name: str = "anthropic"
     max_repair_attempts: int = 2
     metric_semantic_reviewer_max_revisions: int = 2
+
+
+def _metric_authoring_repair_priority_instructions(
+    errors: Any,
+) -> list[str]:
+    error_rows = (
+        [str(error) for error in errors]
+        if isinstance(errors, list | tuple)
+        else []
+    )
+    instructions: list[str] = []
+    if any(
+        is_generated_metric_numeric_authority_error(error)
+        for error in error_rows
+    ):
+        instructions.append(
+            "For each numeric-authority error, decide ownership from the current "
+            "artifacts. If the value is explicitly source-derived or mandated, "
+            "retain that authority kind and cite the exact catalog node containing "
+            "it. If it is an Architect-chosen pre-execution empirical benchmark, "
+            "tolerance, or quorum absent upstream, set that row to "
+            "acceptance_authority_kind=architect_preregistered_design and rewrite "
+            "its rationale; do not copy the value into theory or falsely relabel it "
+            "as source-derived."
+        )
+    instructions.extend(
+        [
+            (
+                "Resolve every supplied local validation error while preserving "
+                "valid requirement rows, stable requirement IDs, and unrelated "
+                "fields."
+            ),
+            (
+                "Use only exact anchor IDs from the current acceptance authority "
+                "catalog; never invent or paraphrase an anchor."
+            ),
+            (
+                "Keep one independently compared scalar quantity, or one truly "
+                "homogeneous collection, per row and split independent gates."
+            ),
+            (
+                "Retain at least one required SimulationEngineer row and copy the "
+                "runtime-owned replicate count exactly into its field and protocol."
+            ),
+            (
+                "Use only pre-execution artifacts: do not cite observed results, "
+                "claim proof, relax a gate after execution, or add task-specific "
+                "runtime rules."
+            ),
+        ]
+    )
+    return instructions[:6]
 
 
 def author_reviewed_architect_metric_requirements(
@@ -644,7 +697,7 @@ def author_reviewed_architect_metric_requirements(
                 default=str,
             ),
             model=request_model,
-            max_tokens=min(max(1, int(config.max_tokens)), 4000),
+            max_tokens=min(max(1, int(config.max_tokens)), 8000),
             temperature=0.0,
             schema=response_schema,
             metadata={
@@ -774,7 +827,7 @@ def author_reviewed_architect_metric_requirements(
                 validate_packet=validate_packet,
                 validation_label="LLM Architect metric-requirement packet",
                 max_repair_attempts=config.max_repair_attempts,
-                repair_context_builder=lambda **_kwargs: {
+                repair_context_builder=lambda **kwargs: {
                     "runtime_owned_replicates": runtime_replicates,
                     "target_namespace": (
                         generated_metric_requirement_target_namespace_contract()
@@ -787,15 +840,18 @@ def author_reviewed_architect_metric_requirements(
                         acceptance_authority_catalog
                     ),
                     "required_target_rows": prompt_payload["required_target_rows"],
-                    "repair_prompt_priority_instructions": prompt_payload[
-                        "hard_requirements"
-                    ],
+                    "repair_prompt_priority_instructions": (
+                        _metric_authoring_repair_priority_instructions(
+                            kwargs.get("errors", [])
+                        )
+                    ),
                     "independent_semantic_review_repair": (
                         candidate_prompt_payload.get(
                             "independent_semantic_review_repair", {}
                         )
                     ),
                 },
+                semantic_patch_repair=True,
             )
         authoring_packet_hash = stable_hash(authoring_packet)
         review_material = {
