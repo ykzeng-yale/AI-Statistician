@@ -531,6 +531,16 @@ def build_generated_code_semantic_review_architect_replan_task(
         "repair_scope": str(
             escalation_feedback.get("repair_scope", "") or ""
         ),
+        "repair_scopes": [
+            str(value)
+            for value in escalation_feedback.get("repair_scopes", []) or []
+            if str(value)
+        ],
+        "repair_plan": [
+            dict(row)
+            for row in escalation_feedback.get("repair_plan", []) or []
+            if isinstance(row, Mapping)
+        ],
         "findings": [
             dict(row)
             for row in escalation_feedback.get("findings", []) or []

@@ -11,7 +11,9 @@ from ai_statistician.generated_code_semantic_reviewer_llm import (
     GeneratedCodeSemanticReviewerConfig,
     LLMGeneratedCodeSemanticReviewerAgent,
     build_generated_code_semantic_review_prompt,
+    generated_code_semantic_review_pending_plan_errors,
     generated_code_semantic_review_repair_scope,
+    generated_code_semantic_review_repair_scopes,
     validate_generated_code_semantic_review_packet,
 )
 from ai_statistician.generated_code_semantic_review_replan import (
@@ -79,6 +81,7 @@ def _review_response(
                 "category": "metric_semantics",
                 "summary": "The metric label and implemented quantity differ.",
                 "required_change": "Compute the frozen protocol quantity directly.",
+                "repair_scope": repair_scope,
                 "evidence_refs": ["exact_source_code", "exact_result"],
             }
         ]
@@ -98,14 +101,35 @@ def _review_response(
         if not accept and repair_scope == "upstream_theory"
         else "SUFFICIENT_FOR_IMPLEMENTATION_REPAIR"
     )
+    verdict = "ACCEPT" if accept else "REVISE"
+    repair_scopes = generated_code_semantic_review_repair_scopes(
+        verdict=verdict,
+        source_assessment=source_assessment,
+        metric_contract_assessment=metric_contract_assessment,
+        theory_assessment=theory_assessment,
+    )
+    repair_plan = [
+        {
+            "sequence": index,
+            "repair_scope": scope,
+            "repair_owner": (
+                "ArchitectCoordinator"
+                if scope.startswith("upstream_")
+                else "AlgorithmEngineer"
+            ),
+        }
+        for index, scope in enumerate(repair_scopes, start=1)
+    ]
     return {
         "reviewed_source_assessment": source_assessment,
         "frozen_metric_contract_assessment": metric_contract_assessment,
         "source_theory_assessment": theory_assessment,
         "dimension_reviews": rows,
         "findings": findings,
-        "overall_verdict": "ACCEPT" if accept else "REVISE",
+        "overall_verdict": verdict,
         "repair_scope": "none" if accept else repair_scope,
+        "repair_scopes": repair_scopes,
+        "repair_plan": repair_plan,
         "repair_owner": "AlgorithmEngineer",
         "repair_instructions": instructions,
     }
@@ -792,8 +816,11 @@ def test_semantic_reviewer_prompt_keeps_sibling_metrics_out_of_artifact_gate() -
     assert "reject any current-source proposal claim" in prompt
     assert "frozen_metric_contract_assessment=VALID_AND_FEASIBLE" in prompt
     assert "source_theory_assessment=THEORY_REVISION_REQUIRED" in prompt
-    assert "AgentRuntime derives the repair scope and owner" in prompt
+    assert "AgentRuntime derives every repair scope and owner" in prompt
     assert "do not authorize post-result threshold relaxation" in prompt
+    assert "unambiguous current theory" in prompt
+    assert "do not choose one side as a coding instruction" in prompt
+    assert "conservative, zero, noisy" in prompt
 
 
 def test_semantic_review_routes_valid_protocol_implementation_mismatch_to_source() -> None:
@@ -803,6 +830,106 @@ def test_semantic_review_routes_valid_protocol_implementation_mismatch_to_source
         metric_contract_assessment="VALID_AND_FEASIBLE",
         theory_assessment="SUFFICIENT_FOR_IMPLEMENTATION_REPAIR",
     ) == "source_code"
+
+
+def test_mixed_semantic_assessments_preserve_both_repair_owners(
+    tmp_path: Path,
+) -> None:
+    _, task, blackboard, _ = _runtime_fixture(tmp_path, accept=False)
+    response = _review_response(accept=False, repair_scope="source_code")
+    response["source_theory_assessment"] = "THEORY_REVISION_REQUIRED"
+    response["findings"].append(
+        {
+            "severity": "high",
+            "category": "theory_premise",
+            "summary": "The current theory omits a premise needed downstream.",
+            "required_change": "Revise the theory packet before final acceptance.",
+            "repair_scope": "upstream_theory",
+            "evidence_refs": ["theory_packet.derivation_steps"],
+        }
+    )
+    response["repair_scopes"] = ["source_code", "upstream_theory"]
+    response["repair_plan"] = [
+        {
+            "sequence": 1,
+            "repair_scope": "source_code",
+            "repair_owner": "AlgorithmEngineer",
+        },
+        {
+            "sequence": 2,
+            "repair_scope": "upstream_theory",
+            "repair_owner": "ArchitectCoordinator",
+        },
+    ]
+    subsystem = GeneratedCodeSemanticReviewerRuntimeSubsystem(
+        reviewer=LLMGeneratedCodeSemanticReviewerAgent(
+            provider=StaticJSONGeneratorBackend(response),
+            config=GeneratedCodeSemanticReviewerConfig(
+                provider_name="static",
+                model="static-mixed-reviewer",
+                model_tier="sonnet",
+                max_repair_attempts=0,
+            ),
+        ),
+        max_revisions=1,
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REVISE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "AlgorithmEngineer"
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["repair_scopes"] == ["source_code", "upstream_theory"]
+    assert [row["repair_owner"] for row in feedback["repair_plan"]] == [
+        "AlgorithmEngineer",
+        "ArchitectCoordinator",
+    ]
+    pending = result.next_task.inputs["architect_context"][
+        "runtime_generated_code_semantic_review_pending_repair_plan"
+    ]
+    assert pending["pending_repair_scopes"] == ["upstream_theory"]
+    assert pending["theory_packet_hash"] == stable_hash(
+        blackboard.artifacts["theory:test"]
+    )
+
+
+def test_unchanged_upstream_artifact_cannot_retire_pending_repair() -> None:
+    theory_packet = {"packet_id": "theory:test", "claim": "unchanged"}
+    evidence_contract = {"requirements": ["unchanged"]}
+    review_material = {
+        "theory_packet": theory_packet,
+        "architect_frozen_evidence_contract": evidence_contract,
+        "pending_repair_plan": {
+            "pending_repair_scopes": [
+                "upstream_theory",
+                "upstream_metric_contract",
+            ],
+            "theory_packet_hash": stable_hash(theory_packet),
+            "architect_evidence_contract_hash": stable_hash(evidence_contract),
+        },
+    }
+    packet = {
+        "source_theory_assessment": "SUFFICIENT_FOR_IMPLEMENTATION_REPAIR",
+        "frozen_metric_contract_assessment": "VALID_AND_FEASIBLE",
+    }
+
+    errors = generated_code_semantic_review_pending_plan_errors(
+        packet=packet,
+        review_material=review_material,
+    )
+
+    assert any("unchanged theory" in error for error in errors)
+    assert any("unchanged metric contract" in error for error in errors)
+    changed_material = {
+        **review_material,
+        "theory_packet": {**theory_packet, "claim": "revised"},
+        "architect_frozen_evidence_contract": {"requirements": ["revised"]},
+    }
+    assert generated_code_semantic_review_pending_plan_errors(
+        packet=packet,
+        review_material=changed_material,
+    ) == []
 
 
 def test_generated_code_semantic_reviewer_routes_rejection_to_fresh_generation(
