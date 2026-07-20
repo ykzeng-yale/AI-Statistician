@@ -322,6 +322,12 @@ def _typed_semantic_patch_prompt(
             "Copy base_payload_fingerprint exactly.",
             "Update only paths needed to resolve every local_validation_error.",
             "Preserve every unmentioned field byte-for-structure in the base payload.",
+            (
+                "Every update path is relative to the base payload root shown inside "
+                "base_payload_excerpt. Never prefix a path with "
+                "base_payload_excerpt, top_level_outline, or truncated; those are "
+                "prompt wrapper labels, not packet fields."
+            ),
             "Use integer path components only for array indices.",
             "replacement_json must itself decode as one valid JSON value.",
             (

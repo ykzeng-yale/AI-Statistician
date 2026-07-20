@@ -223,12 +223,25 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             return errors
 
         def build_repair_context(**kwargs: Any) -> dict[str, Any]:
+            phase_repair_instruction = (
+                "This is a confirmatory review, even when the current source's "
+                "least-authority projection has no metric rows assigned to that "
+                "source. NOT_APPLICABLE_EXPLORATORY is invalid. Use "
+                "VALID_AND_FEASIBLE when the frozen protocol itself is coherent and "
+                "a source change can resolve the defect; use INVALID_OR_INFEASIBLE "
+                "only when source changes cannot satisfy the frozen protocol."
+                if confirmatory_empirical_evidence_eligible
+                else "This is an exploratory review with no frozen confirmatory "
+                "protocol. Use NOT_APPLICABLE_EXPLORATORY and do not invent an "
+                "acceptance threshold."
+            )
             return {
                 "source_subsystem": str(
                     trusted_lineage.get("source_subsystem", "") or ""
                 ),
                 "local_validation_errors": list(kwargs.get("errors", []) or []),
                 "repair_prompt_priority_instructions": [
+                    phase_repair_instruction,
                     (
                         "Preserve the independent typed source, frozen-contract, "
                         "and theory assessments unless the supplied evidence itself "

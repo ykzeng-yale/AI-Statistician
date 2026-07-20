@@ -842,6 +842,9 @@ def test_mixed_semantic_assessments_preserve_both_repair_owners(
     _, task, blackboard, _ = _runtime_fixture(tmp_path, accept=False)
     response = _review_response(accept=False, repair_scope="source_code")
     response["source_theory_assessment"] = "THEORY_REVISION_REQUIRED"
+    response["frozen_metric_contract_assessment"] = (
+        "NOT_APPLICABLE_EXPLORATORY"
+    )
     repaired_findings = [
         *response["findings"],
         {
@@ -873,6 +876,12 @@ def test_mixed_semantic_assessments_preserve_both_repair_owners(
                         "base_payload_fingerprint"
                     ],
                     "updates": [
+                        {
+                            "path": ["frozen_metric_contract_assessment"],
+                            "replacement_json": json.dumps(
+                                "VALID_AND_FEASIBLE"
+                            ),
+                        },
                         {
                             "path": ["findings"],
                             "replacement_json": json.dumps(repaired_findings),
@@ -907,6 +916,14 @@ def test_mixed_semantic_assessments_preserve_both_repair_owners(
         "typed_semantic_patch"
     )
     assert backend.requests[1].max_tokens == 3000
+    repair_payload = json.loads(
+        backend.requests[1].user_prompt.split("\n\n", 1)[1]
+    )
+    assert any(
+        "This is a confirmatory review" in instruction
+        and "NOT_APPLICABLE_EXPLORATORY is invalid" in instruction
+        for instruction in repair_payload["repair_instructions"]
+    )
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "AlgorithmEngineer"
     feedback = result.next_task.inputs["environment_feedback"]

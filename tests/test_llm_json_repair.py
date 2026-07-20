@@ -277,6 +277,14 @@ def test_semantic_patch_repair_preserves_unaffected_large_payload() -> None:
         "base_payload_fingerprint",
         "updates",
     }
+    repair_payload = json.loads(
+        backend.requests[1].user_prompt.split("\n\n", 1)[1]
+    )
+    assert any(
+        "relative to the base payload root" in instruction
+        and "Never prefix a path with base_payload_excerpt" in instruction
+        for instruction in repair_payload["repair_instructions"]
+    )
     assert large_candidate not in backend.requests[1].user_prompt
     assert packet["large_candidate"] == large_candidate
     assert packet["formal_targets"][0]["provenance"]["source_goal_id"] == (
