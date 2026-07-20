@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 import json
+import re
 from dataclasses import replace
 from typing import Any, Callable, Mapping
 
@@ -15,9 +16,14 @@ RepairContextBuilder = Callable[..., Mapping[str, Any] | None]
 
 
 _TYPED_SEMANTIC_PATCH_MAX_VALIDATION_ERRORS = 8
-_TYPED_SEMANTIC_PATCH_MAX_UPDATES = 16
+_TYPED_SEMANTIC_PATCH_MAX_UPDATES_PER_VALIDATION_ERROR = 4
+_TYPED_SEMANTIC_PATCH_MAX_UPDATES = (
+    _TYPED_SEMANTIC_PATCH_MAX_VALIDATION_ERRORS
+    * _TYPED_SEMANTIC_PATCH_MAX_UPDATES_PER_VALIDATION_ERROR
+)
 _TYPED_SEMANTIC_PATCH_MAX_PATH_DEPTH = 8
 _TYPED_SEMANTIC_PATCH_MAX_TOKENS = 5000
+_TYPED_SEMANTIC_PATCH_MAX_FOCUS_VALUE_CHARS = 4000
 _TYPED_SEMANTIC_PATCH_PROMPT_WRAPPER_KEYS = frozenset(
     {
         "base_payload_excerpt",
@@ -61,6 +67,15 @@ _TYPED_SEMANTIC_PATCH_SCHEMA: dict[str, Any] = {
         },
     },
 }
+_VALIDATION_ERROR_TOP_LEVEL_ARRAY_PATH = re.compile(
+    r"\b([A-Za-z_][A-Za-z0-9_]*)\[(\d+)\]"
+)
+
+
+def _typed_semantic_patch_schema(*, max_updates: int) -> dict[str, Any]:
+    schema = deepcopy(_TYPED_SEMANTIC_PATCH_SCHEMA)
+    schema["properties"]["updates"]["maxItems"] = max(1, int(max_updates))
+    return schema
 
 
 class PacketValidationError(ValueError):
@@ -116,6 +131,11 @@ def generate_validated_json_packet(
         typed_semantic_patch_mode = bool(
             semantic_patch_repair and semantic_patch_base_payload is not None
         )
+        typed_semantic_patch_max_updates = (
+            _typed_semantic_patch_update_budget(last_errors)
+            if typed_semantic_patch_mode
+            else 0
+        )
         truncation_repair_mode = bool(
             history and _history_row_indicates_truncation(history[-1])
         )
@@ -134,7 +154,9 @@ def generate_validated_json_packet(
                 user_prompt=user_prompt,
                 max_tokens=request_max_tokens,
                 schema=(
-                    _TYPED_SEMANTIC_PATCH_SCHEMA
+                    _typed_semantic_patch_schema(
+                        max_updates=typed_semantic_patch_max_updates
+                    )
                     if typed_semantic_patch_mode
                     else request.schema
                 ),
@@ -145,6 +167,7 @@ def generate_validated_json_packet(
                     "json_repair_previous_attempt_truncated": truncation_repair_mode,
                     "json_repair_truncation_repair_mode": truncation_repair_mode,
                     "json_repair_request_max_tokens": request_max_tokens,
+                    "json_repair_max_updates": typed_semantic_patch_max_updates,
                     "json_repair_mode": (
                         "typed_semantic_patch"
                         if typed_semantic_patch_mode
@@ -176,6 +199,7 @@ def generate_validated_json_packet(
                     base_payload=semantic_patch_base_payload or {},
                     expected_base_fingerprint=semantic_patch_base_fingerprint,
                     patch_envelope=patch_envelope,
+                    max_updates=typed_semantic_patch_max_updates,
                 )
                 patched_payload_fingerprint = _stable_payload_fingerprint(payload)
                 effective_raw_text = json.dumps(
@@ -281,6 +305,7 @@ def generate_validated_json_packet(
                     base_payload=semantic_patch_base_payload,
                     base_payload_fingerprint=semantic_patch_base_fingerprint,
                     repair_context=repair_context,
+                    max_updates=_typed_semantic_patch_update_budget(last_errors),
                 )
             else:
                 semantic_patch_base_payload = None
@@ -309,9 +334,14 @@ def _typed_semantic_patch_prompt(
     base_payload: Mapping[str, Any],
     base_payload_fingerprint: str,
     repair_context: Mapping[str, Any] | None = None,
+    max_updates: int,
 ) -> str:
     base_payload_excerpt, base_payload_excerpt_metadata = (
         _compact_patch_base_payload(base_payload)
+    )
+    validation_error_focus_values = _validation_error_focus_values(
+        base_payload,
+        errors=errors,
     )
     payload: dict[str, Any] = {
         "validation_label": validation_label,
@@ -319,6 +349,7 @@ def _typed_semantic_patch_prompt(
         "base_payload_fingerprint": base_payload_fingerprint,
         "base_payload_excerpt": base_payload_excerpt,
         "base_payload_excerpt_metadata": base_payload_excerpt_metadata,
+        "validation_error_focus_values": validation_error_focus_values,
         "patch_contract": {
             "base_payload_fingerprint": (
                 "copy the supplied fingerprint exactly"
@@ -331,7 +362,7 @@ def _typed_semantic_patch_prompt(
                     ),
                 }
             ],
-            "maximum_updates": _TYPED_SEMANTIC_PATCH_MAX_UPDATES,
+            "maximum_updates": max_updates,
             "maximum_path_depth": _TYPED_SEMANTIC_PATCH_MAX_PATH_DEPTH,
         },
         "repair_instructions": [
@@ -351,6 +382,11 @@ def _typed_semantic_patch_prompt(
                 "When several fields in one object must change, replace the "
                 "smallest parent object that contains them in one update instead "
                 "of spending one update per field."
+            ),
+            (
+                "validation_error_focus_values shows exact current values at the "
+                "original array indices named by local validation errors. Use those "
+                "original paths even when base_payload_excerpt omits other rows."
             ),
             "Do not remove evidence boundaries or claim unexecuted verification.",
         ],
@@ -377,6 +413,7 @@ def _apply_typed_semantic_patch(
     base_payload: Mapping[str, Any],
     expected_base_fingerprint: str,
     patch_envelope: Mapping[str, Any],
+    max_updates: int,
 ) -> tuple[
     dict[str, Any],
     list[list[str | int]],
@@ -393,10 +430,10 @@ def _apply_typed_semantic_patch(
     raw_updates = patch_envelope.get("updates", [])
     if not isinstance(raw_updates, list) or not raw_updates:
         raise ValueError("typed semantic patch must contain at least one update")
-    if len(raw_updates) > _TYPED_SEMANTIC_PATCH_MAX_UPDATES:
+    if len(raw_updates) > max_updates:
         raise ValueError(
             "typed semantic patch exceeds the bounded update count "
-            f"{_TYPED_SEMANTIC_PATCH_MAX_UPDATES}; received {len(raw_updates)}"
+            f"{max_updates}; received {len(raw_updates)}"
         )
 
     patched = deepcopy(dict(base_payload))
@@ -648,6 +685,50 @@ def _compact_patch_base_payload(
     }
 
 
+def _validation_error_focus_values(
+    payload: Mapping[str, Any],
+    *,
+    errors: list[str],
+) -> list[dict[str, Any]]:
+    """Expose exact rows named by validators without expanding the whole packet."""
+
+    focused: list[dict[str, Any]] = []
+    seen: set[tuple[str, int]] = set()
+    for error in errors:
+        for field, raw_index in _VALIDATION_ERROR_TOP_LEVEL_ARRAY_PATH.findall(
+            str(error)
+        ):
+            index = int(raw_index)
+            identity = (field, index)
+            value = payload.get(field)
+            if identity in seen or not isinstance(value, list) or index >= len(value):
+                continue
+            seen.add(identity)
+            row = deepcopy(value[index])
+            encoded = json.dumps(
+                row,
+                sort_keys=True,
+                separators=(",", ":"),
+                default=str,
+                ensure_ascii=False,
+            )
+            value_truncated = len(encoded) > _TYPED_SEMANTIC_PATCH_MAX_FOCUS_VALUE_CHARS
+            focused.append(
+                {
+                    "path": [field, index],
+                    "value": (
+                        _compact_patch_excerpt_leaf(row)
+                        if value_truncated
+                        else row
+                    ),
+                    "value_truncated": value_truncated,
+                }
+            )
+            if len(focused) >= _TYPED_SEMANTIC_PATCH_MAX_VALIDATION_ERRORS:
+                return focused
+    return focused
+
+
 def _compact_patch_excerpt_leaf(value: Any, *, depth: int = 0) -> Any:
     if isinstance(value, str):
         return value if len(value) <= 240 else value[:237] + "..."
@@ -763,6 +844,14 @@ def _typed_semantic_patch_fits_update_budget(errors: list[str]) -> bool:
     """Use patch mode only when the residual fits its bounded edit envelope."""
 
     return 0 < len(errors) <= _TYPED_SEMANTIC_PATCH_MAX_VALIDATION_ERRORS
+
+
+def _typed_semantic_patch_update_budget(errors: list[str]) -> int:
+    return min(
+        _TYPED_SEMANTIC_PATCH_MAX_UPDATES,
+        max(1, len(errors))
+        * _TYPED_SEMANTIC_PATCH_MAX_UPDATES_PER_VALIDATION_ERROR,
+    )
 
 
 def _compact_response_metadata(metadata: Mapping[str, Any]) -> dict[str, Any]:

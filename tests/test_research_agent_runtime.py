@@ -23146,7 +23146,14 @@ def test_metric_authoring_numeric_repair_context_uses_local_catalog_slice() -> N
         acceptance_authority_catalog_id="catalog:test",
         acceptance_authority_catalog=catalog,
         required_target_rows=[],
-        independent_semantic_review_repair={},
+        independent_semantic_review_repair={
+            "revision_index": 1,
+            "rejected_empirical_metric_requirements": [requirement],
+            "dimension_reviews": [{"dimension": "estimand", "status": "FAIL"}],
+            "findings": [{"finding_id": "finding:test"}],
+            "required_prior_finding_ids": ["finding:test"],
+            "revision_policy": "Resolve the active finding in place.",
+        },
     )
 
     assert context["acceptance_authority_catalog_scope"] == (
@@ -23165,6 +23172,16 @@ def test_metric_authoring_numeric_repair_context_uses_local_catalog_slice() -> N
         "anchor_id"
     ] == matching_design_anchor
     assert context["numeric_authority_repair_automatic_selection"] is False
+    assert context["repair_context_scope"] == (
+        "numeric_authority_and_runtime_budget_local_slice"
+    )
+    assert "requirement_schema" not in context
+    assert "target_namespace" not in context
+    assert "required_target_rows" not in context
+    compact_review = context["independent_semantic_review_repair"]
+    assert compact_review["findings"] == [{"finding_id": "finding:test"}]
+    assert "rejected_empirical_metric_requirements" not in compact_review
+    assert "dimension_reviews" not in compact_review
 
 
 def test_live_architect_preauthors_metric_contract_with_structured_substage() -> None:

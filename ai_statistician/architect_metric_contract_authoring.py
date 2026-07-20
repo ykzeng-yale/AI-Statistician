@@ -173,9 +173,11 @@ def _metric_authoring_repair_priority_instructions(
             "it. If it is an Architect-chosen pre-execution empirical benchmark, "
             "tolerance, or quorum absent upstream, set that row to "
             "acceptance_authority_kind=architect_preregistered_design and rewrite "
-            "its rationale; do not copy the value into theory or falsely relabel it "
-            "as source-derived. Do not change a gate merely to match an anchor, and "
-            "do not treat the matrix as an automatic repair."
+            "its rationale. A field listed under "
+            "numeric_gate_fields_without_exact_catalog_match cannot remain under a "
+            "source-derived authority merely by repeating its value or rewriting "
+            "prose; do not copy the value into theory, change a gate merely to match "
+            "an anchor, or treat the matrix as an automatic repair."
         )
     instructions.extend(
         [
@@ -194,7 +196,9 @@ def _metric_authoring_repair_priority_instructions(
             ),
             (
                 "Retain at least one required SimulationEngineer row and copy the "
-                "runtime-owned replicate count exactly into its field and protocol."
+                "runtime-owned replicate count exactly into its "
+                "required_runtime_replicates field and protocol. When validation "
+                "names that field, changing prose alone does not resolve the error."
             ),
             (
                 "Use only pre-execution artifacts: do not cite observed results, "
@@ -204,6 +208,29 @@ def _metric_authoring_repair_priority_instructions(
         ]
     )
     return instructions[:6]
+
+
+def _compact_independent_semantic_review_repair(
+    value: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    keep_fields = (
+        "revision_index",
+        "semantic_review_packet_id",
+        "findings",
+        "repair_instructions",
+        "active_prior_finding_ledger",
+        "required_prior_finding_ids",
+        "active_prior_finding_ledger_fingerprint",
+        "cross_theory_revision_context",
+        "revision_policy",
+    )
+    return {
+        field: value[field]
+        for field in keep_fields
+        if value.get(field) not in (None, "", [], {})
+    }
 
 
 def _metric_authoring_repair_context(
@@ -261,10 +288,8 @@ def _metric_authoring_repair_context(
         ]
         repair_catalog_scope = "numeric_authority_local_slice"
 
-    return {
+    context = {
         "runtime_owned_replicates": runtime_replicates,
-        "target_namespace": generated_metric_requirement_target_namespace_contract(),
-        "requirement_schema": generated_metric_requirement_prompt_schema(),
         "acceptance_authority_catalog_id": acceptance_authority_catalog_id,
         "acceptance_authority_catalog": repair_catalog,
         "acceptance_authority_catalog_scope": repair_catalog_scope,
@@ -274,14 +299,33 @@ def _metric_authoring_repair_context(
         "acceptance_authority_catalog_repair_rows": len(repair_catalog),
         "numeric_authority_repair_matrix": numeric_authority_repair_matrix,
         "numeric_authority_repair_automatic_selection": False,
-        "required_target_rows": required_target_rows,
         "repair_prompt_priority_instructions": (
             _metric_authoring_repair_priority_instructions(error_rows)
         ),
-        "independent_semantic_review_repair": dict(
-            independent_semantic_review_repair or {}
+        "independent_semantic_review_repair": (
+            _compact_independent_semantic_review_repair(
+                independent_semantic_review_repair
+            )
         ),
     }
+    if numeric_authority_repair_matrix:
+        context["repair_context_scope"] = (
+            "numeric_authority_and_runtime_budget_local_slice"
+        )
+        context["repair_context_omitted_redundant_sections"] = [
+            "target_namespace",
+            "requirement_schema",
+            "required_target_rows",
+            "rejected_empirical_metric_requirements",
+            "dimension_reviews",
+        ]
+    else:
+        context["target_namespace"] = (
+            generated_metric_requirement_target_namespace_contract()
+        )
+        context["requirement_schema"] = generated_metric_requirement_prompt_schema()
+        context["required_target_rows"] = required_target_rows
+    return context
 
 
 def author_reviewed_architect_metric_requirements(

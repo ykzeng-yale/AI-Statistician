@@ -330,6 +330,82 @@ def test_semantic_patch_repair_preserves_unaffected_large_payload() -> None:
     assert patch_history["patched_payload_fingerprint"]
 
 
+def test_semantic_patch_focuses_validator_named_rows_at_original_indices() -> None:
+    class FocusedRowBackend:
+        provider_name = "test"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                response = {
+                    "rows": [
+                        {"row_id": index, "status": "invalid"}
+                        for index in range(5)
+                    ],
+                    "large_candidate": "x" * 9000,
+                }
+            else:
+                repair_payload = json.loads(
+                    request.user_prompt.split("\n\n", 1)[1]
+                )
+                response = {
+                    "base_payload_fingerprint": repair_payload[
+                        "base_payload_fingerprint"
+                    ],
+                    "updates": [
+                        {
+                            "path": ["rows", 4, "status"],
+                            "replacement_json": json.dumps("valid"),
+                        }
+                    ],
+                }
+            return GeneratorResponse(
+                text=json.dumps(response),
+                provider=self.provider_name,
+                model=request.model,
+            )
+
+    backend = FocusedRowBackend()
+    packet = generate_validated_json_packet(
+        provider=backend,
+        request=GeneratorRequest(
+            system_prompt="Return JSON.",
+            user_prompt="Produce a row packet.",
+            model="test-haiku",
+            max_tokens=5000,
+            schema={"type": "object"},
+        ),
+        extract_payload=lambda text: extract_json_object(text, label="row packet"),
+        build_packet=lambda payload, response, raw_text: dict(payload),
+        validate_packet=lambda candidate: (
+            []
+            if candidate["rows"][4]["status"] == "valid"
+            else ["rows[4].status must be valid"]
+        ),
+        validation_label="row packet",
+        max_repair_attempts=1,
+        semantic_patch_repair=True,
+    )
+
+    repair_payload = json.loads(
+        backend.requests[1].user_prompt.split("\n\n", 1)[1]
+    )
+    assert len(repair_payload["base_payload_excerpt"]["rows"]) == 2
+    assert repair_payload["validation_error_focus_values"] == [
+        {
+            "path": ["rows", 4],
+            "value": {"row_id": 4, "status": "invalid"},
+            "value_truncated": False,
+        }
+    ]
+    assert repair_payload["patch_contract"]["maximum_updates"] == 4
+    assert backend.requests[1].schema["properties"]["updates"]["maxItems"] == 4
+    assert packet["rows"][4]["status"] == "valid"
+
+
 def test_semantic_patch_does_not_strip_a_real_wrapper_named_payload_field() -> None:
     class WrapperFieldBackend:
         provider_name = "test"
@@ -481,7 +557,8 @@ def test_typed_patch_separates_residual_count_from_edit_count() -> None:
             if len(self.requests) == 1:
                 response = {
                     "rows": [
-                        {"left": 0, "right": 0} for _ in range(8)
+                        {"left": 0, "middle": 0, "right": 0}
+                        for _ in range(7)
                     ]
                 }
             else:
@@ -489,8 +566,8 @@ def test_typed_patch_separates_residual_count_from_edit_count() -> None:
                     request.user_prompt.split("\n\n", 1)[1]
                 )
                 updates = []
-                for row_index in range(8):
-                    for field in ("left", "right"):
+                for row_index in range(7):
+                    for field in ("left", "middle", "right"):
                         updates.append(
                             {
                                 "path": ["rows", row_index, field],
@@ -512,9 +589,9 @@ def test_typed_patch_separates_residual_count_from_edit_count() -> None:
     def validate(candidate: dict[str, object]) -> list[str]:
         rows = candidate.get("rows", [])
         return [
-            f"row {index} needs two local field edits"
+            f"row {index} needs three local field edits"
             for index, row in enumerate(rows)
-            if row != {"left": 1, "right": 1}
+            if row != {"left": 1, "middle": 1, "right": 1}
         ]
 
     backend = MultiEditBackend()
@@ -542,7 +619,8 @@ def test_typed_patch_separates_residual_count_from_edit_count() -> None:
     assert backend.requests[1].metadata["json_repair_mode"] == (
         "typed_semantic_patch"
     )
-    assert len(packet["llm_json_repair_history"][1]["patched_paths"]) == 16
+    assert backend.requests[1].schema["properties"]["updates"]["maxItems"] == 28
+    assert len(packet["llm_json_repair_history"][1]["patched_paths"]) == 21
     assert validate(packet) == []
 
 
