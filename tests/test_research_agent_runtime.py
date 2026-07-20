@@ -23426,6 +23426,8 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert "Audit mathematical feasibility before freezing each row" in (
         hard_requirements
     )
+    assert "Operationally bind every evaluation argument" in hard_requirements
+    assert "recomputed from each replicate" in hard_requirements
     assert "upper versus lower limits" in hard_requirements
     assert "at-most versus at-least counts" in hard_requirements
     repair_payload = json.loads(

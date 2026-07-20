@@ -591,6 +591,13 @@ def author_reviewed_architect_metric_requirements(
                 "reference distribution merely to make a gate executable."
             ),
             (
+                "Operationally bind every evaluation argument used by an estimand or "
+                "metric: state whether it is fixed before all replicates, derived "
+                "once from frozen DGP/design parameters, or recomputed from each "
+                "replicate. Reject ambiguous labels that permit more than one of "
+                "those executions."
+            ),
+            (
                 "Audit mathematical feasibility before freezing each row: the "
                 "comparison must be attainable for the named procedure, data-generating "
                 "regime, runtime budget, and estimand, and it must not contradict an "

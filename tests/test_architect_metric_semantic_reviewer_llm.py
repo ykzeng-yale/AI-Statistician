@@ -205,6 +205,8 @@ def test_preexecution_metric_reviewer_accepts_only_with_independent_lineage() ->
     assert "before any coding agent" in backend.requests[0].user_prompt
     assert "more gates are not more rigorous" in backend.requests[0].user_prompt
     assert "runtime_evaluator_certificate" in backend.requests[0].user_prompt
+    assert "fixed before all replicates" in backend.requests[0].user_prompt
+    assert "recomputed from each replicate" in backend.requests[0].user_prompt
     assert "cannot require pilot or confirmatory results" in (
         backend.requests[0].user_prompt
     )

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 import json
+import math
 import re
 from dataclasses import replace
 from typing import Any, Callable, Mapping
@@ -34,6 +35,26 @@ _TYPED_SEMANTIC_PATCH_MAX_RAW_PATH_DEPTH = (
     _TYPED_SEMANTIC_PATCH_MAX_PATH_DEPTH
     + len(_TYPED_SEMANTIC_PATCH_PROMPT_WRAPPER_KEYS)
 )
+_TYPED_SEMANTIC_PATCH_PATH_SCHEMA: dict[str, Any] = {
+    "type": "array",
+    "minItems": 1,
+    "maxItems": _TYPED_SEMANTIC_PATCH_MAX_RAW_PATH_DEPTH,
+    "items": {
+        "anyOf": [
+            {"type": "string"},
+            {"type": "integer", "minimum": 0},
+        ]
+    },
+}
+_TYPED_SEMANTIC_PATCH_DIRECT_REPLACEMENT_SCHEMA: dict[str, Any] = {
+    "anyOf": [
+        {"type": "string"},
+        {"type": "number"},
+        {"type": "boolean"},
+        {"type": "null"},
+        {"type": "array", "items": {"type": "string"}},
+    ]
+}
 _TYPED_SEMANTIC_PATCH_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
@@ -46,23 +67,28 @@ _TYPED_SEMANTIC_PATCH_SCHEMA: dict[str, Any] = {
             "minItems": 1,
             "maxItems": _TYPED_SEMANTIC_PATCH_MAX_UPDATES,
             "items": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["path", "replacement_json"],
-                "properties": {
-                    "path": {
-                        "type": "array",
-                        "minItems": 1,
-                        "maxItems": _TYPED_SEMANTIC_PATCH_MAX_RAW_PATH_DEPTH,
-                        "items": {
-                            "anyOf": [
-                                {"type": "string"},
-                                {"type": "integer", "minimum": 0},
-                            ]
+                "anyOf": [
+                    {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["path", "replacement"],
+                        "properties": {
+                            "path": _TYPED_SEMANTIC_PATCH_PATH_SCHEMA,
+                            "replacement": (
+                                _TYPED_SEMANTIC_PATCH_DIRECT_REPLACEMENT_SCHEMA
+                            ),
                         },
                     },
-                    "replacement_json": {"type": "string"},
-                },
+                    {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["path", "replacement_json"],
+                        "properties": {
+                            "path": _TYPED_SEMANTIC_PATCH_PATH_SCHEMA,
+                            "replacement_json": {"type": "string"},
+                        },
+                    },
+                ]
             },
         },
     },
@@ -357,10 +383,12 @@ def _typed_semantic_patch_prompt(
             "updates": [
                 {
                     "path": ["top_level_field", 0, "nested_field"],
-                    "replacement_json": (
-                        "JSON-encoded replacement value, supplied as a string"
-                    ),
-                }
+                    "replacement": "direct scalar or array-of-strings value",
+                },
+                {
+                    "path": ["top_level_field", 1, "nested_object"],
+                    "replacement_json": "JSON-encoded complex object or array",
+                },
             ],
             "maximum_updates": max_updates,
             "maximum_path_depth": _TYPED_SEMANTIC_PATCH_MAX_PATH_DEPTH,
@@ -377,11 +405,19 @@ def _typed_semantic_patch_prompt(
                 "label."
             ),
             "Use integer path components only for array indices.",
-            "replacement_json must itself decode as one valid JSON value.",
+            (
+                "Use replacement directly for a string, number, boolean, null, or "
+                "array of strings; do not JSON-encode that direct value."
+            ),
+            (
+                "Use replacement_json only for a complex object or array, and make "
+                "that string decode as exactly one valid JSON value. Include exactly "
+                "one of replacement or replacement_json in each update."
+            ),
             (
                 "When several fields in one object must change, replace the "
-                "smallest parent object that contains them in one update instead "
-                "of spending one update per field."
+                "smallest parent object only when it is safely expressible as one "
+                "replacement_json value; otherwise use bounded leaf updates."
             ),
             (
                 "validation_error_focus_values shows exact current values at the "
@@ -478,17 +514,35 @@ def _apply_typed_semantic_patch(
             raise ValueError(
                 f"typed semantic patch update {update_index} exceeds maximum path depth"
             )
-        replacement_json = raw_update.get("replacement_json")
-        if not isinstance(replacement_json, str):
+        has_direct_replacement = "replacement" in raw_update
+        has_json_replacement = "replacement_json" in raw_update
+        if has_direct_replacement == has_json_replacement:
             raise ValueError(
-                f"typed semantic patch update {update_index} replacement_json must be a string"
+                f"typed semantic patch update {update_index} must contain exactly "
+                "one of replacement or replacement_json"
             )
-        try:
-            replacement = json.loads(replacement_json)
-        except json.JSONDecodeError as exc:
-            raise ValueError(
-                f"typed semantic patch update {update_index} replacement_json is invalid: {exc}"
-            ) from exc
+        if has_direct_replacement:
+            replacement = raw_update.get("replacement")
+            if not _is_typed_semantic_patch_direct_replacement(replacement):
+                raise ValueError(
+                    f"typed semantic patch update {update_index} replacement must "
+                    "be a finite JSON scalar or an array of strings"
+                )
+            replacement = deepcopy(replacement)
+        else:
+            replacement_json = raw_update.get("replacement_json")
+            if not isinstance(replacement_json, str):
+                raise ValueError(
+                    f"typed semantic patch update {update_index} replacement_json "
+                    "must be a string"
+                )
+            try:
+                replacement = json.loads(replacement_json)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"typed semantic patch update {update_index} replacement_json "
+                    f"is invalid: {exc}"
+                ) from exc
         _replace_typed_patch_path(
             patched,
             path=normalized_path,
@@ -504,6 +558,14 @@ def _apply_typed_semantic_patch(
                 }
             )
     return patched, applied_paths, path_normalizations
+
+
+def _is_typed_semantic_patch_direct_replacement(value: Any) -> bool:
+    if value is None or isinstance(value, (str, bool, int)):
+        return True
+    if isinstance(value, float):
+        return math.isfinite(value)
+    return isinstance(value, list) and all(isinstance(item, str) for item in value)
 
 
 def _normalize_typed_semantic_patch_path(

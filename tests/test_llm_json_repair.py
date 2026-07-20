@@ -5,6 +5,7 @@ import json
 import pytest
 
 from ai_statistician.llm_json_repair import (
+    _apply_typed_semantic_patch,
     _format_generation_error,
     _repair_prompt,
     extract_json_object,
@@ -342,7 +343,7 @@ def test_semantic_patch_focuses_validator_named_rows_at_original_indices() -> No
             if len(self.requests) == 1:
                 response = {
                     "rows": [
-                        {"row_id": index, "status": "invalid"}
+                        {"row_id": index, "status": "invalid", "anchors": []}
                         for index in range(5)
                     ],
                     "large_candidate": "x" * 9000,
@@ -358,7 +359,11 @@ def test_semantic_patch_focuses_validator_named_rows_at_original_indices() -> No
                     "updates": [
                         {
                             "path": ["rows", 4, "status"],
-                            "replacement_json": json.dumps("valid"),
+                            "replacement": "valid",
+                        },
+                        {
+                            "path": ["rows", 4, "anchors"],
+                            "replacement": ["source:current-row"],
                         }
                     ],
                 }
@@ -383,6 +388,7 @@ def test_semantic_patch_focuses_validator_named_rows_at_original_indices() -> No
         validate_packet=lambda candidate: (
             []
             if candidate["rows"][4]["status"] == "valid"
+            and candidate["rows"][4]["anchors"] == ["source:current-row"]
             else ["rows[4].status must be valid"]
         ),
         validation_label="row packet",
@@ -397,13 +403,50 @@ def test_semantic_patch_focuses_validator_named_rows_at_original_indices() -> No
     assert repair_payload["validation_error_focus_values"] == [
         {
             "path": ["rows", 4],
-            "value": {"row_id": 4, "status": "invalid"},
+            "value": {"anchors": [], "row_id": 4, "status": "invalid"},
             "value_truncated": False,
         }
     ]
     assert repair_payload["patch_contract"]["maximum_updates"] == 4
     assert backend.requests[1].schema["properties"]["updates"]["maxItems"] == 4
     assert packet["rows"][4]["status"] == "valid"
+    assert packet["rows"][4]["anchors"] == ["source:current-row"]
+
+
+@pytest.mark.parametrize(
+    ("update", "message"),
+    [
+        (
+            {
+                "path": ["status"],
+                "replacement": {"status": "valid"},
+            },
+            "finite JSON scalar or an array of strings",
+        ),
+        (
+            {
+                "path": ["status"],
+                "replacement": "valid",
+                "replacement_json": json.dumps("valid"),
+            },
+            "exactly one of replacement or replacement_json",
+        ),
+    ],
+)
+def test_typed_semantic_patch_rejects_ambiguous_or_complex_direct_replacements(
+    update: dict[str, object],
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        _apply_typed_semantic_patch(
+            base_payload={"status": "invalid"},
+            expected_base_fingerprint="base-fingerprint",
+            patch_envelope={
+                "base_payload_fingerprint": "base-fingerprint",
+                "updates": [update],
+            },
+            max_updates=4,
+        )
 
 
 def test_semantic_patch_does_not_strip_a_real_wrapper_named_payload_field() -> None:
