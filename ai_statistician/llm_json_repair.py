@@ -115,8 +115,8 @@ def generate_validated_json_packet(
         typed_semantic_patch_mode = bool(
             semantic_patch_repair and semantic_patch_base_payload is not None
         )
-        truncation_repair_mode = any(
-            _history_row_indicates_truncation(row) for row in history
+        truncation_repair_mode = bool(
+            history and _history_row_indicates_truncation(history[-1])
         )
         request_max_tokens = _repair_attempt_max_tokens(
             request.max_tokens,
@@ -254,18 +254,14 @@ def generate_validated_json_packet(
                     truncation_detected=_response_indicates_truncation(
                         response,
                         request_max_tokens=request_max_tokens,
-                    )
-                    or truncation_repair_mode,
+                    ),
                 )
                 if repair_context_builder is not None
                 else None
             )
-            truncation_detected = (
-                _response_indicates_truncation(
-                    response,
-                    request_max_tokens=request_max_tokens,
-                )
-                or truncation_repair_mode
+            truncation_detected = _response_indicates_truncation(
+                response,
+                request_max_tokens=request_max_tokens,
             )
             if (
                 semantic_patch_repair

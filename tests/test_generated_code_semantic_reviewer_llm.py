@@ -818,14 +818,15 @@ def test_semantic_reviewer_prompt_keeps_sibling_metrics_out_of_artifact_gate() -
     assert "least-authority view" in prompt
     assert "cannot make a required dimension FAIL" in prompt
     assert "reject any current-source proposal claim" in prompt
-    assert "frozen_metric_contract_assessment=VALID_AND_FEASIBLE" in prompt
-    assert "source_theory_assessment=THEORY_REVISION_REQUIRED" in prompt
-    assert "AgentRuntime derives every repair scope and owner" in prompt
-    assert "do not authorize post-result threshold relaxation" in prompt
+    assert "Scope a finding to source_code" in prompt
+    assert "upstream_theory only for a missing" in prompt
+    assert "single LLM-authored repair classification" in prompt
+    assert "AgentRuntime derives aggregate assessments" in prompt
+    assert "do not authorize post-result threshold relaxation" in prompt.lower()
     assert "unambiguous current theory" in prompt
     assert "do not choose one side as a coding instruction" in prompt
     assert "conservative, zero, noisy" in prompt
-    assert "findings must include at least one specific row" in prompt
+    assert "source_code finding needs a specific mismatch" in prompt
 
 
 def test_semantic_review_routes_valid_protocol_implementation_mismatch_to_source() -> None:
@@ -837,11 +838,61 @@ def test_semantic_review_routes_valid_protocol_implementation_mismatch_to_source
     ) == "source_code"
 
 
+def test_reviewer_derives_aggregate_decisions_from_findings(
+    tmp_path: Path,
+) -> None:
+    _, task, blackboard, _ = _runtime_fixture(tmp_path, accept=False)
+    response = _review_response(accept=False, repair_scope="source_code")
+    for duplicate_field in (
+        "reviewed_source_assessment",
+        "frozen_metric_contract_assessment",
+        "source_theory_assessment",
+        "overall_verdict",
+    ):
+        response.pop(duplicate_field)
+    subsystem = GeneratedCodeSemanticReviewerRuntimeSubsystem(
+        reviewer=LLMGeneratedCodeSemanticReviewerAgent(
+            provider=StaticJSONGeneratorBackend(response),
+            config=GeneratedCodeSemanticReviewerConfig(
+                provider_name="static",
+                model=LIVE_EVALUATION_CLAUDE_MODEL,
+                model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+                max_repair_attempts=0,
+            ),
+        ),
+        max_revisions=1,
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REVISE"
+    review_packet = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
+    )
+    assert review_packet["overall_verdict"] == "REVISE"
+    assert review_packet["reviewed_source_assessment"] == (
+        "SOURCE_REPAIR_REQUIRED"
+    )
+    assert review_packet["frozen_metric_contract_assessment"] == (
+        "VALID_AND_FEASIBLE"
+    )
+    assert review_packet["source_theory_assessment"] == (
+        "SUFFICIENT_FOR_IMPLEMENTATION_REPAIR"
+    )
+    assert review_packet["repair_scopes"] == ["source_code"]
+    assert review_packet["model_requested_overall_verdict"] == ""
+
+
 def test_mixed_semantic_assessments_preserve_both_repair_owners(
     tmp_path: Path,
 ) -> None:
     _, task, blackboard, _ = _runtime_fixture(tmp_path, accept=False)
     response = _review_response(accept=False, repair_scope="source_code")
+    # Legacy aggregate fields are deliberately contradictory; findings are the
+    # only LLM-authored repair authority in schema version 3.
+    response["reviewed_source_assessment"] = "ALIGNED"
     response["source_theory_assessment"] = "THEORY_REVISION_REQUIRED"
     response["frozen_metric_contract_assessment"] = (
         "NOT_APPLICABLE_EXPLORATORY"
@@ -857,6 +908,8 @@ def test_mixed_semantic_assessments_preserve_both_repair_owners(
             "evidence_refs": ["theory_packet.derivation_steps"],
         },
     ]
+    response["findings"] = [dict(row) for row in repaired_findings]
+    response["findings"][1]["evidence_refs"] = []
 
     class MixedOwnerPatchBackend:
         provider_name = "anthropic"
@@ -880,14 +933,9 @@ def test_mixed_semantic_assessments_preserve_both_repair_owners(
                         {
                             "path": [
                                 "base_payload_excerpt",
-                                "frozen_metric_contract_assessment",
+                                "top_level_outline",
+                                "findings",
                             ],
-                            "replacement_json": json.dumps(
-                                "VALID_AND_FEASIBLE"
-                            ),
-                        },
-                        {
-                            "path": ["top_level_outline", "findings"],
                             "replacement_json": json.dumps(repaired_findings),
                         }
                     ],
@@ -929,17 +977,37 @@ def test_mixed_semantic_assessments_preserve_both_repair_owners(
     )
     assert any(
         "This is a confirmatory review" in instruction
-        and "NOT_APPLICABLE_EXPLORATORY is invalid" in instruction
+        and "finding repair_scope=source_code" in instruction
+        for instruction in repair_payload["repair_instructions"]
+    )
+    assert any(
+        "single LLM-authored repair classification" in instruction
         for instruction in repair_payload["repair_instructions"]
     )
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "AlgorithmEngineer"
     feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["overall_verdict"] == "REVISE"
     assert feedback["repair_scopes"] == ["source_code", "upstream_theory"]
     assert [row["repair_owner"] for row in feedback["repair_plan"]] == [
         "AlgorithmEngineer",
         "ArchitectCoordinator",
     ]
+    review_packet = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
+    )
+    assert review_packet["reviewed_source_assessment"] == (
+        "SOURCE_REPAIR_REQUIRED"
+    )
+    assert review_packet["frozen_metric_contract_assessment"] == (
+        "VALID_AND_FEASIBLE"
+    )
+    assert review_packet["source_theory_assessment"] == (
+        "THEORY_REVISION_REQUIRED"
+    )
+    assert review_packet["model_requested_reviewed_source_assessment"] == "ALIGNED"
     pending = result.next_task.inputs["architect_context"][
         "runtime_generated_code_semantic_review_pending_repair_plan"
     ]
@@ -962,7 +1030,13 @@ def test_semantic_reviewer_schema_supports_anthropic_structured_output() -> None
     assert transformed["properties"]["findings"]["items"][
         "additionalProperties"
     ] is False
-    assert transformed["properties"]["overall_verdict"]["type"] == "string"
+    assert set(transformed["required"]) == {
+        "dimension_reviews",
+        "findings",
+        "repair_instructions",
+    }
+    assert "overall_verdict" not in transformed["properties"]
+    assert "reviewed_source_assessment" not in transformed["properties"]
 
 
 def test_unchanged_upstream_artifact_cannot_retire_pending_repair() -> None:

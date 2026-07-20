@@ -532,7 +532,7 @@ def test_generate_validated_json_packet_escalates_truncated_repair_budget() -> N
     assert packet["llm_json_repair_history"][1]["request_max_tokens"] > 128
 
 
-def test_generate_validated_json_packet_keeps_escalated_budget_after_truncation_mode() -> None:
+def test_complete_regeneration_clears_truncation_mode_for_typed_repair() -> None:
     class TruncatingThenInvalidThenValidBackend:
         provider_name = "test"
 
@@ -558,8 +558,23 @@ def test_generate_validated_json_packet_keeps_escalated_budget_after_truncation_
                     model=request.model,
                     metadata={"provider_stop_reason": "end_turn"},
                 )
+            repair_payload = json.loads(
+                request.user_prompt.split("\n\n", 1)[1]
+            )
             return GeneratorResponse(
-                text='{"ok": true}',
+                text=json.dumps(
+                    {
+                        "base_payload_fingerprint": repair_payload[
+                            "base_payload_fingerprint"
+                        ],
+                        "updates": [
+                            {
+                                "path": ["ok"],
+                                "replacement_json": "true",
+                            }
+                        ],
+                    }
+                ),
                 provider=self.provider_name,
                 model=request.model,
                 metadata={"provider_stop_reason": "end_turn"},
@@ -583,12 +598,21 @@ def test_generate_validated_json_packet_keeps_escalated_budget_after_truncation_
         else ["missing ok"],
         validation_label="test packet",
         max_repair_attempts=2,
+        semantic_patch_repair=True,
     )
 
     assert packet["ok"] is True
-    assert [request.max_tokens for request in backend.requests] == [128, 1152, 1152]
-    assert backend.requests[2].metadata["json_repair_truncation_repair_mode"] is True
+    assert [request.max_tokens for request in backend.requests] == [128, 1152, 128]
+    assert [
+        request.metadata["json_repair_mode"] for request in backend.requests
+    ] == [
+        "full_packet_generation",
+        "full_packet_regeneration",
+        "typed_semantic_patch",
+    ]
+    assert backend.requests[2].metadata["json_repair_truncation_repair_mode"] is False
     third_repair_payload = json.loads(
         backend.requests[2].user_prompt.split("\n\n", 1)[1]
     )
-    assert third_repair_payload["truncation_detected"] is True
+    assert "truncation_detected" not in third_repair_payload
+    assert packet["llm_json_repair_history"][2]["patched_paths"] == [["ok"]]
