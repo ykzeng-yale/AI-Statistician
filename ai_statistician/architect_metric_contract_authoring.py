@@ -22,6 +22,7 @@ from .fingerprint import stable_hash
 from .generated_metric_contract import (
     GENERATED_METRIC_REQUIREMENT_BOUNDARY,
     GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS,
+    generated_metric_acceptance_authority_catalog,
     generated_metric_evaluation_semantics_contract,
     generated_metric_requirement_json_schema,
     generated_metric_requirement_prompt_schema,
@@ -239,6 +240,26 @@ def author_reviewed_architect_metric_requirements(
     runtime_replicates = int(
         runtime_contract.get("generated_sandbox_runtime_replicates", 0) or 0
     )
+    question_material = {
+        "id": question.id,
+        "title": question.title,
+        "description": question.description,
+        "tags": list(question.tags),
+    }
+    acceptance_authority_catalog = generated_metric_acceptance_authority_catalog(
+        question=question_material,
+        runtime_contract=runtime_contract,
+        theory_protocol_material=theory_material,
+    )
+    acceptance_authority_anchor_ids = [
+        str(row["anchor_id"])
+        for row in acceptance_authority_catalog
+        if str(row.get("anchor_id", "") or "").strip()
+    ]
+    acceptance_authority_catalog_id = (
+        "generated_metric_acceptance_authority_catalog:"
+        + stable_hash(acceptance_authority_catalog)[:20]
+    )
     response_schema = {
         "type": "object",
         "additionalProperties": False,
@@ -247,7 +268,10 @@ def author_reviewed_architect_metric_requirements(
             "empirical_metric_requirements": {
                 "type": "array",
                 "minItems": 1,
-                "items": generated_metric_requirement_json_schema(),
+                "items": generated_metric_requirement_json_schema(
+                    require_acceptance_authority=True,
+                    authority_anchor_ids=acceptance_authority_anchor_ids,
+                ),
             }
         },
     }
@@ -256,13 +280,10 @@ def author_reviewed_architect_metric_requirements(
             "Author the pre-execution empirical acceptance requirements used by "
             "the AI Statistician confirmatory simulation agent."
         ),
-        "question": {
-            "id": question.id,
-            "title": question.title,
-            "description": question.description,
-            "tags": list(question.tags),
-        },
+        "question": question_material,
         "theory_developer_protocol_material": theory_material,
+        "acceptance_authority_catalog_id": acceptance_authority_catalog_id,
+        "acceptance_authority_catalog": acceptance_authority_catalog,
         "runtime_owned_replicates": runtime_replicates,
         "target_namespace": generated_metric_requirement_target_namespace_contract(),
         "metric_evaluation_semantics": (
@@ -318,10 +339,45 @@ def author_reviewed_architect_metric_requirements(
                 "minimum_pass_fraction describes how many comparisons must pass."
             ),
             (
-                "Before emitting any numeric constant, recompute it from the stated "
-                "definitions and assumptions instead of relying on a memorized "
-                "approximation; place a concise derivation or exact source anchor in "
-                "source_anchors."
+                "For every required row, each threshold, lower or upper bound, "
+                "nonzero tolerance, and quorum must exactly match one value in "
+                "explicit_numeric_values on an eligible cited authority node. For "
+                "theory_derived and evaluation_mandated rows that node must have the "
+                "same kind. Do not derive, round, calibrate, or interpolate a new "
+                "number inside this packet. A new finite-sample calibration first "
+                "belongs in a separately reviewed upstream theory artifact."
+            ),
+            (
+                "Every source_anchors entry must copy one exact anchor_id from "
+                "acceptance_authority_catalog. Free-form citations, packet IDs with "
+                "appended prose, and invented source labels are invalid."
+            ),
+            (
+                "Set acceptance_authority_kind=theory_derived only when the cited "
+                "theory nodes actually derive or bound every threshold, tolerance, "
+                "and quorum in the row. A topical mention, monotonicity statement, "
+                "asymptotic rate, or KL relationship does not by itself authorize a "
+                "finite-sample performance cutoff."
+            ),
+            (
+                "Use acceptance_authority_kind=theory_parameter_instantiation only "
+                "when one cited theory_derived node gives the symbolic finite-sample "
+                "gate (for example error <= alpha) and a separate cited "
+                "evaluation_design node preregisters the exact parameter value. Every "
+                "numeric gate must occur in that design node. A design value alone, "
+                "or a performance wish in expected behavior, cannot authorize a gate."
+            ),
+            (
+                "Set acceptance_authority_kind=evaluation_mandated only when an exact "
+                "catalog node explicitly mandates the numeric gate. A request to "
+                "evaluate power or stopping time, or a runtime simulation-planning "
+                "target, does not specify a minimum power or maximum stopping time."
+            ),
+            (
+                "When a useful measurement has no authority-backed acceptance cutoff, "
+                "emit it only as required=false with "
+                "acceptance_authority_kind=diagnostic_only, or omit it. Never turn an "
+                "unsupported expectation into a required gate."
             ),
             (
                 "Bind every procedure, estimand, data-generating regime, pivot, and "
@@ -619,6 +675,12 @@ def author_reviewed_architect_metric_requirements(
                 "source_theory_packet_hash": str(
                     theory_material.get("source_theory_packet_hash", "") or ""
                 ),
+                "acceptance_authority_catalog_id": (
+                    acceptance_authority_catalog_id
+                ),
+                "acceptance_authority_catalog_fingerprint": stable_hash(
+                    acceptance_authority_catalog
+                ),
                 "source_agent": "ArchitectMetricContractPlanner",
                 "provider_name": response.provider,
                 "model": response.model or request_model,
@@ -658,6 +720,8 @@ def author_reviewed_architect_metric_requirements(
                     GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
                 ),
                 expected_runtime_replicates=runtime_replicates,
+                require_acceptance_authority=True,
+                acceptance_authority_catalog=acceptance_authority_catalog,
             )
             errors.extend(
                 _fresh_candidate_requirement_set_errors(
@@ -693,6 +757,12 @@ def author_reviewed_architect_metric_requirements(
                         generated_metric_requirement_target_namespace_contract()
                     ),
                     "requirement_schema": generated_metric_requirement_prompt_schema(),
+                    "acceptance_authority_catalog_id": (
+                        acceptance_authority_catalog_id
+                    ),
+                    "acceptance_authority_catalog": (
+                        acceptance_authority_catalog
+                    ),
                     "required_target_rows": prompt_payload["required_target_rows"],
                     "repair_prompt_priority_instructions": prompt_payload[
                         "hard_requirements"
@@ -715,7 +785,12 @@ def author_reviewed_architect_metric_requirements(
             "metric_evaluation_semantics": (
                 generated_metric_evaluation_semantics_contract()
             ),
-            "requirement_schema": generated_metric_requirement_json_schema(),
+            "requirement_schema": generated_metric_requirement_json_schema(
+                require_acceptance_authority=True,
+                authority_anchor_ids=acceptance_authority_anchor_ids,
+            ),
+            "acceptance_authority_catalog_id": acceptance_authority_catalog_id,
+            "acceptance_authority_catalog": acceptance_authority_catalog,
             "runtime_contract_authority": {
                 "schema_version": 1,
                 "runtime_owned": True,
@@ -769,6 +844,10 @@ def author_reviewed_architect_metric_requirements(
             ),
             "source_theory_packet_hash": str(
                 theory_material.get("source_theory_packet_hash", "") or ""
+            ),
+            "acceptance_authority_catalog_id": acceptance_authority_catalog_id,
+            "acceptance_authority_catalog_fingerprint": stable_hash(
+                acceptance_authority_catalog
             ),
             "source_agent": str(authoring_packet["source_agent"]),
             "source_model": str(authoring_packet["model"]),
@@ -889,6 +968,12 @@ def author_reviewed_architect_metric_requirements(
                 ),
                 "source_theory_packet_hash": str(
                     theory_material.get("source_theory_packet_hash", "") or ""
+                ),
+                "acceptance_authority_catalog_id": (
+                    acceptance_authority_catalog_id
+                ),
+                "acceptance_authority_catalog_fingerprint": stable_hash(
+                    acceptance_authority_catalog
                 ),
                 "empirical_metric_requirements": [
                     dict(row)

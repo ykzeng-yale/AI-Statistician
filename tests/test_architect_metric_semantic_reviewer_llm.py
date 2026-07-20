@@ -211,6 +211,16 @@ def test_preexecution_metric_reviewer_accepts_only_with_independent_lineage() ->
     assert "finite-sample uncertainty as low-severity advisory" in (
         backend.requests[0].user_prompt
     )
+    assert "topically related node is not enough" in backend.requests[0].user_prompt
+    assert "diagnostic_only rows must be required=false" in (
+        backend.requests[0].user_prompt
+    )
+    assert "never recommend editing that derived list directly" in (
+        backend.requests[0].user_prompt
+    )
+    assert "Do not route upstream merely to make TheoryDeveloper ratify" in (
+        backend.requests[0].user_prompt
+    )
     assert packet["runtime_evaluator_certificate_set_id"].startswith(
         "generated_metric_evaluator_certificate_set:"
     )

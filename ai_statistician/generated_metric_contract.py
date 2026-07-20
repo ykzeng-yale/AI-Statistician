@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import re
 from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
@@ -38,6 +39,36 @@ GENERATED_METRIC_CONTRACT_AGGREGATIONS: tuple[str, ...] = (
 GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS: tuple[str, ...] = (
     "SimulationEngineer",
 )
+GENERATED_METRIC_ACCEPTANCE_AUTHORITY_KINDS: tuple[str, ...] = (
+    "theory_derived",
+    "theory_parameter_instantiation",
+    "evaluation_mandated",
+    "diagnostic_only",
+)
+GENERATED_METRIC_ACCEPTANCE_GATING_AUTHORITY_KINDS: tuple[str, ...] = (
+    "theory_derived",
+    "theory_parameter_instantiation",
+    "evaluation_mandated",
+)
+GENERATED_METRIC_THEORY_GATING_AUTHORITY_FIELDS: tuple[str, ...] = (
+    "theorem_cards",
+    "lemma_cards",
+    "theory_derivation_packet",
+)
+GENERATED_METRIC_THEORY_DIAGNOSTIC_AUTHORITY_FIELDS: tuple[str, ...] = (
+    "problem_card",
+    "estimator_specs",
+    "proof_plan",
+    "formalization_requests",
+)
+GENERATED_METRIC_EVALUATION_DESIGN_FIELDS: tuple[str, ...] = (
+    "dgps",
+    "methods",
+    "stress_tests",
+)
+GENERATED_METRIC_NUMERIC_AUTHORITY_ERROR_CODE = (
+    "generated_metric_numeric_authority_missing"
+)
 GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED = (
     "architect_authored_coding_agent_bound_required"
 )
@@ -71,6 +102,8 @@ GENERATED_METRIC_AUTHORITY_COPY_FIELDS: tuple[str, ...] = (
     "minimum_pass_fraction",
     "required",
     "source_anchors",
+    "acceptance_authority_kind",
+    "acceptance_authority_rationale",
 )
 GENERATED_METRIC_BINDING_FIELDS: tuple[str, ...] = (
     "contract_id",
@@ -255,7 +288,219 @@ def generated_metric_evaluator_certificate(
     }
 
 
-def generated_metric_requirement_json_schema() -> dict[str, Any]:
+def generated_metric_acceptance_authority_catalog(
+    *,
+    question: Mapping[str, Any],
+    runtime_contract: Mapping[str, Any],
+    theory_protocol_material: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Expose exact current-artifact leaves that may justify empirical gates."""
+
+    theory_semantic_material = theory_protocol_material.get(
+        "theory_semantic_material",
+        {},
+    )
+    theory_semantic_material = (
+        theory_semantic_material
+        if isinstance(theory_semantic_material, Mapping)
+        else {}
+    )
+    theory_gating_authority_material = {
+        field: theory_semantic_material[field]
+        for field in GENERATED_METRIC_THEORY_GATING_AUTHORITY_FIELDS
+        if field in theory_semantic_material
+    }
+    theory_diagnostic_authority_material = {
+        field: theory_semantic_material[field]
+        for field in GENERATED_METRIC_THEORY_DIAGNOSTIC_AUTHORITY_FIELDS
+        if field in theory_semantic_material
+    }
+    simulation_ademp_spec = theory_semantic_material.get(
+        "simulation_ademp_spec",
+        {},
+    )
+    simulation_ademp_spec = (
+        dict(simulation_ademp_spec)
+        if isinstance(simulation_ademp_spec, Mapping)
+        else {}
+    )
+    evaluation_design_material = {
+        "simulation_ademp_spec": {
+            field: simulation_ademp_spec[field]
+            for field in GENERATED_METRIC_EVALUATION_DESIGN_FIELDS
+            if field in simulation_ademp_spec
+        }
+    }
+    diagnostic_simulation_material = {
+        field: value
+        for field, value in simulation_ademp_spec.items()
+        if field not in GENERATED_METRIC_EVALUATION_DESIGN_FIELDS
+    }
+    if diagnostic_simulation_material:
+        theory_diagnostic_authority_material["simulation_ademp_spec"] = (
+            diagnostic_simulation_material
+        )
+    question_authority_material = {
+        field: question.get(field)
+        for field in ("title", "description")
+        if str(question.get(field, "") or "").strip()
+    }
+    runtime_authority_material = {
+        "simulation_targets": list(runtime_contract.get("simulation_targets", []) or [])
+    }
+    rows = [
+        *_generated_metric_authority_leaf_rows(
+            theory_gating_authority_material,
+            root="theory",
+            authority_kind="theory_derived",
+        ),
+        *_generated_metric_authority_leaf_rows(
+            theory_diagnostic_authority_material,
+            root="theory",
+            authority_kind="diagnostic_only",
+        ),
+        *_generated_metric_authority_leaf_rows(
+            evaluation_design_material,
+            root="theory",
+            authority_kind="evaluation_design",
+        ),
+        *_generated_metric_authority_leaf_rows(
+            question_authority_material,
+            root="question",
+            authority_kind="evaluation_mandated",
+        ),
+        *_generated_metric_authority_leaf_rows(
+            runtime_authority_material,
+            root="runtime_contract",
+            authority_kind="diagnostic_only",
+        ),
+    ]
+    return sorted(rows, key=lambda row: str(row["anchor_id"]))
+
+
+def _generated_metric_authority_leaf_rows(
+    value: Any,
+    *,
+    root: str,
+    authority_kind: str,
+    path: tuple[str, ...] = (),
+) -> list[dict[str, Any]]:
+    if isinstance(value, Mapping):
+        rows: list[dict[str, Any]] = []
+        for key in sorted(value, key=lambda item: str(item)):
+            rows.extend(
+                _generated_metric_authority_leaf_rows(
+                    value[key],
+                    root=root,
+                    authority_kind=authority_kind,
+                    path=(*path, str(key)),
+                )
+            )
+        return rows
+    if isinstance(value, (list, tuple)):
+        rows = []
+        for index, item in enumerate(value):
+            rows.extend(
+                _generated_metric_authority_leaf_rows(
+                    item,
+                    root=root,
+                    authority_kind=authority_kind,
+                    path=(*path, str(index)),
+                )
+            )
+        return rows
+    if isinstance(value, bool) or value is None:
+        return []
+    if isinstance(value, str):
+        content: Any = value.strip()
+        if not content:
+            return []
+    elif _finite_number(value):
+        content = value
+    else:
+        return []
+    pointer = "/".join(_json_pointer_escape(segment) for segment in path)
+    return [
+        {
+            "anchor_id": f"{root}#/{pointer}",
+            "authority_kind": authority_kind,
+            "content": content,
+            "explicit_numeric_values": _explicit_numeric_values(content),
+        }
+    ]
+
+
+def _json_pointer_escape(value: str) -> str:
+    return value.replace("~", "~0").replace("/", "~1")
+
+
+_EXPLICIT_NUMBER_PATTERN = re.compile(
+    r"(?<![A-Za-z0-9_.])"
+    r"(?P<number>[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)"
+    r"(?P<percent>\s*%)?"
+)
+
+
+def _explicit_numeric_values(value: Any) -> list[int | float]:
+    """Return literal numeric values without deriving unstated calibrations."""
+
+    if _finite_number(value):
+        return [_normalized_finite_number(value)]
+    if not isinstance(value, str):
+        return []
+    values: list[int | float] = []
+    for match in _EXPLICIT_NUMBER_PATTERN.finditer(value):
+        try:
+            parsed = float(match.group("number"))
+        except (TypeError, ValueError):
+            continue
+        candidates = [parsed]
+        if match.group("percent"):
+            candidates.append(parsed / 100.0)
+        for candidate in candidates:
+            normalized = _normalized_finite_number(candidate)
+            if not any(_same_finite_number(normalized, prior) for prior in values):
+                values.append(normalized)
+    return values
+
+
+def _normalized_finite_number(value: Any) -> int | float:
+    numeric = float(value)
+    if numeric.is_integer():
+        return int(numeric)
+    return numeric
+
+
+def _same_finite_number(left: Any, right: Any) -> bool:
+    return bool(
+        _finite_number(left)
+        and _finite_number(right)
+        and math.isclose(
+            float(left),
+            float(right),
+            rel_tol=1e-12,
+            abs_tol=1e-12,
+        )
+    )
+
+
+def generated_metric_numeric_authority_error(message: str) -> str:
+    """Attach a stable routing code while preserving actionable error text."""
+
+    return f"[{GENERATED_METRIC_NUMERIC_AUTHORITY_ERROR_CODE}] {message}"
+
+
+def is_generated_metric_numeric_authority_error(value: Any) -> bool:
+    return str(value or "").startswith(
+        f"[{GENERATED_METRIC_NUMERIC_AUTHORITY_ERROR_CODE}] "
+    )
+
+
+def generated_metric_requirement_json_schema(
+    *,
+    require_acceptance_authority: bool = False,
+    authority_anchor_ids: Sequence[str] = (),
+) -> dict[str, Any]:
     """Return the machine-readable domain-neutral requirement schema.
 
     Keep this schema aligned with ``validate_generated_metric_requirements``.
@@ -263,27 +508,45 @@ def generated_metric_requirement_json_schema() -> dict[str, Any]:
     scalar shapes belong here rather than only in a post-generation validator.
     """
 
-    return {
+    required_fields = [
+        "requirement_id",
+        "target_subsystems",
+        "metric_semantics",
+        "measurement_protocol",
+        "required_runtime_replicates",
+        "operator",
+        "threshold",
+        "lower",
+        "upper",
+        "tolerance",
+        "aggregation",
+        "minimum_pass_count",
+        "minimum_pass_fraction",
+        "required",
+        "source_anchors",
+        "boundary",
+    ]
+    if require_acceptance_authority:
+        required_fields.extend(
+            [
+                "acceptance_authority_kind",
+                "acceptance_authority_rationale",
+            ]
+        )
+    anchor_items: dict[str, Any] = {"type": "string", "minLength": 1}
+    exact_anchor_ids = list(
+        dict.fromkeys(
+            str(value).strip()
+            for value in authority_anchor_ids
+            if str(value).strip()
+        )
+    )
+    if exact_anchor_ids:
+        anchor_items["enum"] = exact_anchor_ids
+    schema = {
         "type": "object",
         "additionalProperties": True,
-        "required": [
-            "requirement_id",
-            "target_subsystems",
-            "metric_semantics",
-            "measurement_protocol",
-            "required_runtime_replicates",
-            "operator",
-            "threshold",
-            "lower",
-            "upper",
-            "tolerance",
-            "aggregation",
-            "minimum_pass_count",
-            "minimum_pass_fraction",
-            "required",
-            "source_anchors",
-            "boundary",
-        ],
+        "required": required_fields,
         "properties": {
             "requirement_id": {"type": "string", "minLength": 1},
             "target_subsystems": {
@@ -367,11 +630,34 @@ def generated_metric_requirement_json_schema() -> dict[str, Any]:
             "source_anchors": {
                 "type": "array",
                 "minItems": 1,
-                "items": {"type": "string", "minLength": 1},
+                "uniqueItems": True,
+                "items": anchor_items,
+                "description": (
+                    "Exact anchor IDs from the current acceptance-authority catalog; "
+                    "never free-form citations or paraphrases."
+                    if require_acceptance_authority
+                    else "Nonempty source, question, or theory reference IDs."
+                ),
+            },
+            "acceptance_authority_kind": {
+                "type": "string",
+                "enum": list(GENERATED_METRIC_ACCEPTANCE_AUTHORITY_KINDS),
+            },
+            "acceptance_authority_rationale": {
+                "type": "string",
+                "minLength": 1,
+                "description": (
+                    "Explain how the exact cited nodes authorize every numeric "
+                    "comparison boundary, tolerance, and quorum in this row."
+                ),
             },
             "boundary": {"type": "string", "minLength": 1},
         },
     }
+    if not require_acceptance_authority:
+        schema["properties"].pop("acceptance_authority_kind")
+        schema["properties"].pop("acceptance_authority_rationale")
+    return schema
 
 
 def generated_metric_requirement_prompt_schema(
@@ -417,8 +703,18 @@ def generated_metric_requirement_prompt_schema(
         ),
         "required": True,
         "source_anchors": [
-            "exact question, source, derivation, or Architect criterion id",
+            "exact anchor_id copied from acceptance_authority_catalog",
         ],
+        "acceptance_authority_kind": (
+            "theory_derived|theory_parameter_instantiation|"
+            "evaluation_mandated|diagnostic_only"
+        ),
+        "acceptance_authority_rationale": (
+            "how the cited exact nodes authorize every numeric gate field; a topical "
+            "or asymptotic mention is not finite-sample threshold authority; "
+            "theory_parameter_instantiation needs both the symbolic theory node and "
+            "the exact preregistered evaluation-design value"
+        ),
         "boundary": GENERATED_METRIC_REQUIREMENT_BOUNDARY,
     }
 
@@ -645,6 +941,8 @@ def validate_generated_metric_requirements(
     *,
     required_target_subsystems: Sequence[str] = (),
     expected_runtime_replicates: int | None = None,
+    require_acceptance_authority: bool = False,
+    acceptance_authority_catalog: Sequence[Mapping[str, Any]] = (),
 ) -> list[str]:
     """Validate upstream requirements without interpreting metric vocabulary."""
 
@@ -653,6 +951,16 @@ def validate_generated_metric_requirements(
     errors: list[str] = []
     seen_ids: set[str] = set()
     covered_required_targets: set[str] = set()
+    authority_row_by_anchor_id = {
+        str(row.get("anchor_id", "") or "").strip(): dict(row)
+        for row in acceptance_authority_catalog
+        if isinstance(row, Mapping)
+        and str(row.get("anchor_id", "") or "").strip()
+    }
+    authority_kind_by_anchor_id = {
+        anchor_id: str(row.get("authority_kind", "") or "").strip()
+        for anchor_id, row in authority_row_by_anchor_id.items()
+    }
     for index, raw_requirement in enumerate(value):
         prefix = f"empirical_metric_requirements[{index}]"
         if not isinstance(raw_requirement, Mapping):
@@ -714,6 +1022,130 @@ def validate_generated_metric_requirements(
         elif required:
             covered_required_targets.update(target_values)
         errors.extend(_metric_source_anchor_errors(raw_requirement, prefix=prefix))
+        authority_fields_present = any(
+            field in raw_requirement
+            for field in (
+                "acceptance_authority_kind",
+                "acceptance_authority_rationale",
+            )
+        )
+        if require_acceptance_authority or authority_fields_present:
+            authority_kind = str(
+                raw_requirement.get("acceptance_authority_kind", "") or ""
+            ).strip()
+            if authority_kind not in GENERATED_METRIC_ACCEPTANCE_AUTHORITY_KINDS:
+                errors.append(
+                    f"{prefix}.acceptance_authority_kind must be one of "
+                    + ", ".join(GENERATED_METRIC_ACCEPTANCE_AUTHORITY_KINDS)
+                )
+            if not str(
+                raw_requirement.get("acceptance_authority_rationale", "") or ""
+            ).strip():
+                errors.append(
+                    f"{prefix}.acceptance_authority_rationale must be a nonempty "
+                    "string"
+                )
+            source_anchors = raw_requirement.get("source_anchors", [])
+            anchor_ids = (
+                [
+                    str(anchor).strip()
+                    for anchor in source_anchors
+                    if isinstance(anchor, str) and str(anchor).strip()
+                ]
+                if isinstance(source_anchors, list)
+                else []
+            )
+            if require_acceptance_authority:
+                unknown_anchor_ids = sorted(
+                    set(anchor_ids) - set(authority_kind_by_anchor_id)
+                )
+                if unknown_anchor_ids:
+                    errors.append(
+                        f"{prefix}.source_anchors must copy exact current authority "
+                        "anchor IDs; unknown: " + ", ".join(unknown_anchor_ids)
+                    )
+                if len(anchor_ids) != len(set(anchor_ids)):
+                    errors.append(f"{prefix}.source_anchors entries must be unique")
+                required_catalog_kinds = (
+                    _generated_metric_required_catalog_authority_kinds(
+                        authority_kind
+                    )
+                )
+                for required_catalog_kind in required_catalog_kinds:
+                    if not any(
+                        authority_kind_by_anchor_id.get(anchor_id)
+                        == required_catalog_kind
+                        for anchor_id in anchor_ids
+                    ):
+                        errors.append(
+                            generated_metric_numeric_authority_error(
+                                f"{prefix}.source_anchors must include an exact "
+                                f"{required_catalog_kind} authority node"
+                            )
+                        )
+                if (
+                    required is True
+                    and authority_kind
+                    in GENERATED_METRIC_ACCEPTANCE_GATING_AUTHORITY_KINDS
+                ):
+                    numeric_catalog_kinds = set(
+                        _generated_metric_numeric_catalog_authority_kinds(
+                            authority_kind
+                        )
+                    )
+                    cited_numeric_values: list[int | float] = []
+                    for anchor_id in anchor_ids:
+                        authority_row = authority_row_by_anchor_id.get(
+                            anchor_id,
+                            {},
+                        )
+                        if str(
+                            authority_row.get("authority_kind", "") or ""
+                        ).strip() not in numeric_catalog_kinds:
+                            continue
+                        raw_values = authority_row.get(
+                            "explicit_numeric_values",
+                            _explicit_numeric_values(
+                                authority_row.get("content")
+                            ),
+                        )
+                        for value in raw_values or []:
+                            if _finite_number(value):
+                                cited_numeric_values.append(
+                                    _normalized_finite_number(value)
+                                )
+                    for gate_field, gate_value in (
+                        _generated_metric_required_gate_numeric_fields(
+                            raw_requirement
+                        )
+                    ):
+                        if not any(
+                            _same_finite_number(gate_value, cited_value)
+                            for cited_value in cited_numeric_values
+                        ):
+                            errors.append(
+                                generated_metric_numeric_authority_error(
+                                    f"{prefix}.{gate_field}={gate_value!r} must be "
+                                    "explicitly present in a cited "
+                                    + " or ".join(sorted(numeric_catalog_kinds))
+                                    + " authority node"
+                                )
+                            )
+            if authority_kind == "diagnostic_only" and required is not False:
+                errors.append(
+                    f"{prefix}.diagnostic_only rows must set required=false"
+                )
+            if (
+                required is True
+                and authority_kind
+                not in GENERATED_METRIC_ACCEPTANCE_GATING_AUTHORITY_KINDS
+            ):
+                errors.append(
+                    f"{prefix}.required acceptance gates need one of: "
+                    + ", ".join(
+                        GENERATED_METRIC_ACCEPTANCE_GATING_AUTHORITY_KINDS
+                    )
+                )
     missing_targets = {
         str(target).strip()
         for target in required_target_subsystems
@@ -726,6 +1158,73 @@ def validate_generated_metric_requirements(
             + ", ".join(sorted(missing_targets))
         )
     return sorted(set(errors))
+
+
+def _generated_metric_required_catalog_authority_kinds(
+    authority_kind: str,
+) -> tuple[str, ...]:
+    if authority_kind == "theory_parameter_instantiation":
+        return ("theory_derived", "evaluation_design")
+    if authority_kind in {
+        "theory_derived",
+        "evaluation_mandated",
+    }:
+        return (authority_kind,)
+    return ()
+
+
+def _generated_metric_numeric_catalog_authority_kinds(
+    authority_kind: str,
+) -> tuple[str, ...]:
+    if authority_kind == "theory_parameter_instantiation":
+        return ("evaluation_design",)
+    if authority_kind in {
+        "theory_derived",
+        "evaluation_mandated",
+    }:
+        return (authority_kind,)
+    return ()
+
+
+def _generated_metric_required_gate_numeric_fields(
+    requirement: Mapping[str, Any],
+) -> list[tuple[str, int | float]]:
+    """Return substantive numeric constants that determine required acceptance."""
+
+    rows: list[tuple[str, int | float]] = []
+    if str(requirement.get("operator", "") or "") == "between":
+        comparison_fields = ("lower", "upper")
+    else:
+        comparison_fields = ("threshold",)
+    for field in comparison_fields:
+        value = requirement.get(field)
+        if _finite_number(value):
+            rows.append((field, _normalized_finite_number(value)))
+
+    tolerance = requirement.get("tolerance")
+    if _finite_number(tolerance) and not _same_finite_number(tolerance, 0):
+        rows.append(("tolerance", _normalized_finite_number(tolerance)))
+
+    aggregation = str(requirement.get("aggregation", "") or "")
+    if aggregation == "at_least_count":
+        minimum_pass_count = requirement.get("minimum_pass_count")
+        if _finite_number(minimum_pass_count):
+            rows.append(
+                (
+                    "minimum_pass_count",
+                    _normalized_finite_number(minimum_pass_count),
+                )
+            )
+    elif aggregation == "at_least_fraction":
+        minimum_pass_fraction = requirement.get("minimum_pass_fraction")
+        if _finite_number(minimum_pass_fraction):
+            rows.append(
+                (
+                    "minimum_pass_fraction",
+                    _normalized_finite_number(minimum_pass_fraction),
+                )
+            )
+    return rows
 
 
 def generated_metric_requirement_set_id(
@@ -1114,6 +1613,12 @@ def _evaluate_generated_metric_contract(
         "passed": passed,
         "errors": errors,
         "source_anchors": list(contract.get("source_anchors", []) or []),
+        "acceptance_authority_kind": str(
+            contract.get("acceptance_authority_kind", "") or ""
+        ),
+        "acceptance_authority_rationale": str(
+            contract.get("acceptance_authority_rationale", "") or ""
+        ),
         "requirement_id": str(contract.get("requirement_id", "") or ""),
         "authority_requirement_fingerprint": str(
             contract.get("authority_requirement_fingerprint", "") or ""
@@ -1238,6 +1743,8 @@ def _metric_authority_mismatches(
         "aggregation",
         "required",
         "source_anchors",
+        "acceptance_authority_kind",
+        "acceptance_authority_rationale",
     ):
         if _normalized_authority_value(contract.get(field)) != (
             _normalized_authority_value(requirement.get(field))

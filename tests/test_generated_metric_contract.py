@@ -16,10 +16,12 @@ from ai_statistician.generated_metric_contract import (
     generated_metric_contracts_for_artifact,
     generated_metric_evaluation_semantics_contract,
     generated_metric_evaluator_certificate,
+    generated_metric_acceptance_authority_catalog,
     generated_metric_requirement_json_schema,
     generated_metric_requirement_prompt_schema,
     generated_metric_requirement_set_id,
     generated_metric_requirement_target_namespace_contract,
+    is_generated_metric_numeric_authority_error,
     materialize_generated_metric_contract_bindings,
     validate_generated_metric_requirements,
     validate_generated_metric_contracts,
@@ -37,6 +39,10 @@ def _contract(**overrides: object) -> dict[str, object]:
         "aggregation": "max",
         "required": True,
         "source_anchors": ["architect:acceptance:criterion"],
+        "acceptance_authority_kind": "theory_derived",
+        "acceptance_authority_rationale": (
+            "The cited theory node supplies the comparison boundary."
+        ),
     }
     row.update(overrides)
     return row
@@ -58,6 +64,10 @@ def _requirement(**overrides: object) -> dict[str, object]:
         "minimum_pass_count": 11,
         "required": True,
         "source_anchors": ["architect:acceptance:criterion-control"],
+        "acceptance_authority_kind": "theory_derived",
+        "acceptance_authority_rationale": (
+            "The cited theory node supplies the comparison boundary."
+        ),
     }
     row.update(overrides)
     return row
@@ -116,6 +126,278 @@ def test_metric_requirement_target_namespace_is_explicit_and_machine_readable() 
     assert "|" not in generated_metric_requirement_prompt_schema()[
         "target_subsystems"
     ][0]
+
+
+def test_metric_acceptance_authority_catalog_exposes_exact_current_artifact_leaves() -> None:
+    catalog = generated_metric_acceptance_authority_catalog(
+        question={
+            "title": "Generic evaluation",
+            "description": "Require empirical error at most 0.1.",
+        },
+        runtime_contract={"simulation_targets": ["measure finite-sample error"]},
+        theory_protocol_material={
+            "theory_semantic_material": {
+                "theory_derivation_packet": {
+                    "equation_chain": [
+                        {"step_id": "E1", "rhs": "error <= 0.1"}
+                    ]
+                },
+                "simulation_ademp_spec": {
+                    "methods": ["Instantiate alpha = 0.05."],
+                    "expected_theoretical_behavior": (
+                        "Power should exceed 0.8 when possible."
+                    ),
+                },
+                "model": "must-not-be-an-authority-anchor",
+            }
+        },
+    )
+    by_id = {row["anchor_id"]: row for row in catalog}
+
+    assert by_id[
+        "theory#/theory_derivation_packet/equation_chain/0/rhs"
+    ] == {
+        "anchor_id": "theory#/theory_derivation_packet/equation_chain/0/rhs",
+        "authority_kind": "theory_derived",
+        "content": "error <= 0.1",
+        "explicit_numeric_values": [0.1],
+    }
+    assert by_id["question#/description"]["authority_kind"] == (
+        "evaluation_mandated"
+    )
+    assert by_id["runtime_contract#/simulation_targets/0"]["content"] == (
+        "measure finite-sample error"
+    )
+    assert by_id["runtime_contract#/simulation_targets/0"][
+        "authority_kind"
+    ] == "diagnostic_only"
+    assert by_id["theory#/simulation_ademp_spec/methods/0"] == {
+        "anchor_id": "theory#/simulation_ademp_spec/methods/0",
+        "authority_kind": "evaluation_design",
+        "content": "Instantiate alpha = 0.05.",
+        "explicit_numeric_values": [0.05],
+    }
+    assert by_id[
+        "theory#/simulation_ademp_spec/expected_theoretical_behavior"
+    ]["authority_kind"] == "diagnostic_only"
+    assert not any("model" in anchor_id for anchor_id in by_id)
+
+
+def test_strict_metric_gate_authority_rejects_free_form_and_diagnostic_gates() -> None:
+    catalog = generated_metric_acceptance_authority_catalog(
+        question={"title": "Generic", "description": "Evaluate error."},
+        runtime_contract={"simulation_targets": []},
+        theory_protocol_material={
+            "theory_semantic_material": {
+                "theory_derivation_packet": {
+                    "equation_chain": [
+                        {"rhs": "error <= 0.02 in at least 11 cases"}
+                    ]
+                }
+            }
+        },
+    )
+    exact_anchor = "theory#/theory_derivation_packet/equation_chain/0/rhs"
+    accepted = _requirement(
+        source_anchors=[exact_anchor],
+        acceptance_authority_kind="theory_derived",
+    )
+    free_form = _requirement(
+        source_anchors=["theory packet says error is small"],
+        acceptance_authority_kind="theory_derived",
+    )
+    diagnostic_gate = _requirement(
+        source_anchors=[exact_anchor],
+        acceptance_authority_kind="diagnostic_only",
+        required=True,
+    )
+
+    assert validate_generated_metric_requirements(
+        [accepted],
+        required_target_subsystems=("SimulationEngineer",),
+        expected_runtime_replicates=80,
+        require_acceptance_authority=True,
+        acceptance_authority_catalog=catalog,
+    ) == []
+    free_form_errors = validate_generated_metric_requirements(
+        [free_form],
+        require_acceptance_authority=True,
+        acceptance_authority_catalog=catalog,
+    )
+    diagnostic_errors = validate_generated_metric_requirements(
+        [diagnostic_gate],
+        require_acceptance_authority=True,
+        acceptance_authority_catalog=catalog,
+    )
+
+    assert any("unknown" in error for error in free_form_errors)
+    assert any("exact theory_derived authority node" in error for error in free_form_errors)
+    assert any("diagnostic_only rows must set required=false" in error for error in diagnostic_errors)
+    assert any("required acceptance gates" in error for error in diagnostic_errors)
+
+
+def test_strict_metric_gate_authority_rejects_numeric_cutoff_laundering() -> None:
+    catalog = generated_metric_acceptance_authority_catalog(
+        question={"title": "Generic", "description": "Evaluate empirical error."},
+        runtime_contract={
+            "simulation_targets": ["Report error below 0.05 when possible."]
+        },
+        theory_protocol_material={
+            "theory_semantic_material": {
+                "theorem_cards": [
+                    {"conclusion": "The error converges to zero asymptotically."}
+                ],
+                "simulation_ademp_spec": {
+                    "expected_behavior": "Finite-sample error should be below 0.02."
+                },
+            }
+        },
+    )
+    theorem_anchor = "theory#/theorem_cards/0/conclusion"
+    simulation_anchor = "theory#/simulation_ademp_spec/expected_behavior"
+
+    no_numeric_derivation_errors = validate_generated_metric_requirements(
+        [
+            _requirement(
+                aggregation="mean",
+                minimum_pass_count=None,
+                threshold=0.02,
+                source_anchors=[theorem_anchor],
+            )
+        ],
+        require_acceptance_authority=True,
+        acceptance_authority_catalog=catalog,
+    )
+    diagnostic_laundering_errors = validate_generated_metric_requirements(
+        [
+            _requirement(
+                aggregation="mean",
+                minimum_pass_count=None,
+                threshold=0.02,
+                source_anchors=[simulation_anchor],
+            )
+        ],
+        require_acceptance_authority=True,
+        acceptance_authority_catalog=catalog,
+    )
+
+    assert any(
+        ".threshold=0.02 must be explicitly present" in error
+        for error in no_numeric_derivation_errors
+    )
+    assert any(
+        is_generated_metric_numeric_authority_error(error)
+        for error in no_numeric_derivation_errors
+    )
+    assert any(
+        "exact theory_derived authority node" in error
+        for error in diagnostic_laundering_errors
+    )
+
+
+def test_strict_metric_gate_authority_accepts_explicit_percent_value() -> None:
+    catalog = generated_metric_acceptance_authority_catalog(
+        question={
+            "title": "Generic",
+            "description": "Require empirical coverage of at least 95%.",
+        },
+        runtime_contract={"simulation_targets": []},
+        theory_protocol_material={"theory_semantic_material": {}},
+    )
+    errors = validate_generated_metric_requirements(
+        [
+            _requirement(
+                aggregation="mean",
+                minimum_pass_count=None,
+                operator=">=",
+                threshold=0.95,
+                source_anchors=["question#/description"],
+                acceptance_authority_kind="evaluation_mandated",
+            )
+        ],
+        required_target_subsystems=("SimulationEngineer",),
+        expected_runtime_replicates=80,
+        require_acceptance_authority=True,
+        acceptance_authority_catalog=catalog,
+    )
+
+    assert errors == []
+
+
+def test_strict_metric_gate_authority_accepts_theory_parameter_instantiation() -> None:
+    catalog = generated_metric_acceptance_authority_catalog(
+        question={"title": "Generic", "description": "Evaluate error."},
+        runtime_contract={"simulation_targets": []},
+        theory_protocol_material={
+            "theory_semantic_material": {
+                "theorem_cards": [
+                    {"conclusion": "Finite-sample error is at most alpha."}
+                ],
+                "simulation_ademp_spec": {
+                    "methods": ["Run the theorem-backed procedure at alpha = 0.05."],
+                    "expected_theoretical_behavior": (
+                        "Power should be at least 0.8."
+                    ),
+                },
+            }
+        },
+    )
+    theorem_anchor = "theory#/theorem_cards/0/conclusion"
+    design_anchor = "theory#/simulation_ademp_spec/methods/0"
+    requirement = _requirement(
+        aggregation="mean",
+        minimum_pass_count=None,
+        threshold=0.05,
+        source_anchors=[theorem_anchor, design_anchor],
+        acceptance_authority_kind="theory_parameter_instantiation",
+        acceptance_authority_rationale=(
+            "The theorem bounds error by alpha and the design fixes alpha=0.05."
+        ),
+    )
+
+    assert validate_generated_metric_requirements(
+        [requirement],
+        required_target_subsystems=("SimulationEngineer",),
+        expected_runtime_replicates=80,
+        require_acceptance_authority=True,
+        acceptance_authority_catalog=catalog,
+    ) == []
+
+    missing_theory_errors = validate_generated_metric_requirements(
+        [{**requirement, "source_anchors": [design_anchor]}],
+        require_acceptance_authority=True,
+        acceptance_authority_catalog=catalog,
+    )
+    unstated_design_value_errors = validate_generated_metric_requirements(
+        [{**requirement, "threshold": 0.1}],
+        require_acceptance_authority=True,
+        acceptance_authority_catalog=catalog,
+    )
+
+    assert any(
+        "exact theory_derived authority node" in error
+        for error in missing_theory_errors
+    )
+    assert any(
+        ".threshold=0.1 must be explicitly present" in error
+        for error in unstated_design_value_errors
+    )
+
+
+def test_strict_metric_requirement_schema_enumerates_current_authority_ids() -> None:
+    anchor_id = "theory#/theorem_cards/0/conclusion"
+    schema = generated_metric_requirement_json_schema(
+        require_acceptance_authority=True,
+        authority_anchor_ids=[anchor_id],
+    )
+
+    assert {
+        "acceptance_authority_kind",
+        "acceptance_authority_rationale",
+    } <= set(schema["required"])
+    assert schema["properties"]["source_anchors"]["items"]["enum"] == [
+        anchor_id
+    ]
 
 
 def test_metric_evaluation_semantics_separates_comparison_from_quorum() -> None:
