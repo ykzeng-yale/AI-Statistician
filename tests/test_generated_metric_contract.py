@@ -17,6 +17,7 @@ from ai_statistician.generated_metric_contract import (
     generated_metric_evaluation_semantics_contract,
     generated_metric_evaluator_certificate,
     generated_metric_acceptance_authority_catalog,
+    generated_metric_numeric_authority_repair_matrix,
     generated_metric_requirement_json_schema,
     generated_metric_requirement_prompt_schema,
     generated_metric_requirement_set_id,
@@ -382,6 +383,77 @@ def test_strict_metric_gate_authority_accepts_theory_parameter_instantiation() -
         ".threshold=0.1 must be explicitly present" in error
         for error in unstated_design_value_errors
     )
+
+
+def test_numeric_authority_repair_matrix_retrieves_matches_and_honest_absence() -> None:
+    catalog = generated_metric_acceptance_authority_catalog(
+        question={"title": "Generic", "description": "Evaluate error."},
+        runtime_contract={"simulation_targets": []},
+        theory_protocol_material={
+            "theory_semantic_material": {
+                "theorem_cards": [
+                    {"conclusion": "Finite-sample error is at most alpha."}
+                ],
+                "simulation_ademp_spec": {
+                    "methods": ["Run the procedure at alpha = 0.05."]
+                },
+            }
+        },
+    )
+    theorem_anchor = "theory#/theorem_cards/0/conclusion"
+    design_anchor = "theory#/simulation_ademp_spec/methods/0"
+    requirement = _requirement(
+        aggregation="mean",
+        minimum_pass_count=None,
+        threshold=0.05,
+        tolerance=0.01,
+        source_anchors=[theorem_anchor],
+        acceptance_authority_kind="theory_parameter_instantiation",
+    )
+    errors = validate_generated_metric_requirements(
+        [requirement],
+        require_acceptance_authority=True,
+        acceptance_authority_catalog=catalog,
+    )
+
+    matrix = generated_metric_numeric_authority_repair_matrix(
+        [requirement],
+        validation_errors=errors,
+        acceptance_authority_catalog=catalog,
+    )
+
+    assert len(matrix) == 1
+    row = matrix[0]
+    assert row["requirement_index"] == 0
+    assert row["current_requirement"] == requirement
+    assert row["current_acceptance_authority_kind"] == (
+        "theory_parameter_instantiation"
+    )
+    assert row["required_anchor_kinds"] == [
+        "theory_derived",
+        "evaluation_design",
+    ]
+    assert row["missing_required_anchor_kinds"] == [
+        "evaluation_design"
+    ]
+    assert row["current_anchor_kinds"] == {
+        theorem_anchor: "theory_derived"
+    }
+    matches_by_field = {
+        item["field"]: item for item in row["numeric_gate_matches"]
+    }
+    assert matches_by_field["threshold"]["exact_match_found"] is True
+    assert [
+        item["anchor_id"]
+        for item in matches_by_field["threshold"][
+            "matching_catalog_nodes"
+        ]
+    ] == [design_anchor]
+    assert matches_by_field["tolerance"]["exact_match_found"] is False
+    assert row["numeric_gate_fields_without_exact_catalog_match"] == [
+        "tolerance"
+    ]
+    assert row["automatic_repair_applied"] is False
 
 
 def test_strict_metric_gate_authority_accepts_preregistered_architect_design() -> None:

@@ -23334,8 +23334,17 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         patch_request.user_prompt.split("\n\n", 1)[1]
     )
     repair_instructions = " ".join(repair_payload["repair_instructions"])
+    repair_context = repair_payload["subsystem_repair_context"]
+    authority_matrix = repair_context["numeric_authority_repair_matrix"]
     assert "architect_preregistered_design" in repair_instructions
     assert "do not copy the value into theory" in repair_instructions
+    assert "numeric_authority_repair_matrix" in repair_instructions
+    assert len(authority_matrix) == 1
+    assert authority_matrix[0]["requirement_index"] == 0
+    assert authority_matrix[0][
+        "numeric_gate_fields_without_exact_catalog_match"
+    ] == ["threshold"]
+    assert authority_matrix[0]["automatic_repair_applied"] is False
     assert metric_prompt["metric_evaluation_semantics"]["authoring_example"][
         "threshold"
     ] == 0.10

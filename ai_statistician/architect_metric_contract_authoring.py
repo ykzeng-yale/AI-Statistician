@@ -24,6 +24,7 @@ from .generated_metric_contract import (
     GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS,
     generated_metric_acceptance_authority_catalog,
     generated_metric_evaluation_semantics_contract,
+    generated_metric_numeric_authority_repair_matrix,
     generated_metric_requirement_json_schema,
     generated_metric_requirement_prompt_schema,
     generated_metric_requirement_set_id,
@@ -161,14 +162,20 @@ def _metric_authoring_repair_priority_instructions(
         for error in error_rows
     ):
         instructions.append(
-            "For each numeric-authority error, decide ownership from the current "
-            "artifacts. If the value is explicitly source-derived or mandated, "
+            "Use numeric_authority_repair_matrix as the local retrieval index. "
+            "Each implicated row includes the exact current_requirement plus exact "
+            "matching catalog nodes for each gate field, and marks values with no "
+            "upstream numeric match. Preserve unimplicated fields. For each error, "
+            "decide ownership "
+            "from the current artifacts. If the value is explicitly source-derived "
+            "or mandated, "
             "retain that authority kind and cite the exact catalog node containing "
             "it. If it is an Architect-chosen pre-execution empirical benchmark, "
             "tolerance, or quorum absent upstream, set that row to "
             "acceptance_authority_kind=architect_preregistered_design and rewrite "
             "its rationale; do not copy the value into theory or falsely relabel it "
-            "as source-derived."
+            "as source-derived. Do not change a gate merely to match an anchor, and "
+            "do not treat the matrix as an automatic repair."
         )
     instructions.extend(
         [
@@ -838,6 +845,23 @@ def author_reviewed_architect_metric_requirements(
                     ),
                     "acceptance_authority_catalog": (
                         acceptance_authority_catalog
+                    ),
+                    "numeric_authority_repair_matrix": (
+                        generated_metric_numeric_authority_repair_matrix(
+                            (
+                                kwargs.get("invalid_packet", {}).get(
+                                    "empirical_metric_requirements", []
+                                )
+                                if isinstance(
+                                    kwargs.get("invalid_packet", {}), Mapping
+                                )
+                                else []
+                            ),
+                            validation_errors=kwargs.get("errors", []),
+                            acceptance_authority_catalog=(
+                                acceptance_authority_catalog
+                            ),
+                        )
                     ),
                     "required_target_rows": prompt_payload["required_target_rows"],
                     "repair_prompt_priority_instructions": (

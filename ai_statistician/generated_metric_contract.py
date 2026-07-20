@@ -1232,6 +1232,161 @@ def _generated_metric_required_gate_numeric_fields(
     return rows
 
 
+_GENERATED_METRIC_REQUIREMENT_INDEX_PATTERN = re.compile(
+    r"empirical_metric_requirements\[(?P<index>\d+)\]"
+)
+
+
+def generated_metric_numeric_authority_repair_matrix(
+    requirements: Any,
+    *,
+    validation_errors: Sequence[Any],
+    acceptance_authority_catalog: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Retrieve exact authority options for locally invalid numeric gates.
+
+    The matrix is repair context only. It reports exact catalog matches and
+    honest absences without selecting a gate, an anchor, or an authority kind.
+    """
+
+    if not isinstance(requirements, list):
+        return []
+    raw_errors = (
+        [validation_errors]
+        if isinstance(validation_errors, (str, bytes))
+        else list(validation_errors or [])
+    )
+    errors_by_index: dict[int, list[str]] = {}
+    for raw_error in raw_errors:
+        error = str(raw_error)
+        if not is_generated_metric_numeric_authority_error(error):
+            continue
+        match = _GENERATED_METRIC_REQUIREMENT_INDEX_PATTERN.search(error)
+        if match is None:
+            continue
+        index = int(match.group("index"))
+        errors_by_index.setdefault(index, []).append(error)
+
+    catalog_rows = [
+        dict(row)
+        for row in acceptance_authority_catalog
+        if isinstance(row, Mapping)
+        and str(row.get("anchor_id", "") or "").strip()
+    ]
+    catalog_by_anchor_id = {
+        str(row.get("anchor_id", "") or "").strip(): row
+        for row in catalog_rows
+    }
+    matrix: list[dict[str, Any]] = []
+    for index in sorted(errors_by_index):
+        if index >= len(requirements) or not isinstance(
+            requirements[index], Mapping
+        ):
+            continue
+        requirement = dict(requirements[index])
+        authority_kind = str(
+            requirement.get("acceptance_authority_kind", "") or ""
+        ).strip()
+        required_kinds = _generated_metric_required_catalog_authority_kinds(
+            authority_kind
+        )
+        numeric_kinds = _generated_metric_numeric_catalog_authority_kinds(
+            authority_kind
+        )
+        raw_source_anchors = requirement.get("source_anchors", [])
+        source_anchors = [
+            str(value).strip()
+            for value in (
+                raw_source_anchors
+                if isinstance(raw_source_anchors, list)
+                else []
+            )
+            if isinstance(value, str) and str(value).strip()
+        ]
+        current_anchor_kinds = {
+            anchor_id: str(
+                catalog_by_anchor_id.get(anchor_id, {}).get(
+                    "authority_kind", ""
+                )
+                or ""
+            ).strip()
+            for anchor_id in source_anchors
+        }
+        cited_anchor_kinds = set(current_anchor_kinds.values())
+
+        numeric_gate_matches: list[dict[str, Any]] = []
+        missing_numeric_fields: list[str] = []
+        for field, value in _generated_metric_required_gate_numeric_fields(
+            requirement
+        ):
+            matching_nodes: list[dict[str, Any]] = []
+            for catalog_row in catalog_rows:
+                catalog_kind = str(
+                    catalog_row.get("authority_kind", "") or ""
+                ).strip()
+                if catalog_kind not in numeric_kinds:
+                    continue
+                explicit_values = [
+                    _normalized_finite_number(candidate)
+                    for candidate in catalog_row.get(
+                        "explicit_numeric_values",
+                        _explicit_numeric_values(catalog_row.get("content")),
+                    )
+                    or []
+                    if _finite_number(candidate)
+                ]
+                if not any(
+                    _same_finite_number(value, candidate)
+                    for candidate in explicit_values
+                ):
+                    continue
+                content = str(catalog_row.get("content", "") or "")
+                matching_nodes.append(
+                    {
+                        "anchor_id": str(catalog_row["anchor_id"]),
+                        "authority_kind": catalog_kind,
+                        "explicit_numeric_values": explicit_values,
+                        "content_excerpt": (
+                            content if len(content) <= 280 else content[:277] + "..."
+                        ),
+                    }
+                )
+            if not matching_nodes:
+                missing_numeric_fields.append(field)
+            numeric_gate_matches.append(
+                {
+                    "field": field,
+                    "value": value,
+                    "required_numeric_authority_kinds": list(numeric_kinds),
+                    "matching_catalog_nodes": matching_nodes,
+                    "exact_match_found": bool(matching_nodes),
+                }
+            )
+
+        matrix.append(
+            {
+                "requirement_index": index,
+                "requirement_id": str(
+                    requirement.get("requirement_id", "") or ""
+                ),
+                "current_requirement": requirement,
+                "current_acceptance_authority_kind": authority_kind,
+                "current_source_anchors": source_anchors,
+                "current_anchor_kinds": current_anchor_kinds,
+                "required_anchor_kinds": list(required_kinds),
+                "missing_required_anchor_kinds": [
+                    kind for kind in required_kinds if kind not in cited_anchor_kinds
+                ],
+                "numeric_gate_matches": numeric_gate_matches,
+                "numeric_gate_fields_without_exact_catalog_match": (
+                    missing_numeric_fields
+                ),
+                "automatic_repair_applied": False,
+            }
+        )
+    return matrix
+
+
 def generated_metric_requirement_set_id(
     requirements: Sequence[Mapping[str, Any]],
 ) -> str:
