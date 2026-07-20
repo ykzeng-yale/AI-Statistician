@@ -7,11 +7,16 @@ from typing import Any, Mapping
 from .agent_runtime import (
     AgentStepResult,
     AgentTask,
+    BlackboardState,
     EnvironmentObservation,
     EvidenceLedgerEntry,
 )
 from .fingerprint import stable_hash
-from .generated_metric_contract import generated_metric_requirement_set_id
+from .llm_json_repair import PacketValidationError
+from .generated_metric_contract import (
+    generated_metric_requirement_set_id,
+    is_generated_metric_numeric_authority_error,
+)
 from .metric_protocol_stage import (
     METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED,
 )
@@ -216,6 +221,308 @@ def metric_protocol_upstream_theory_revision_blocked_result(
         failure_classification=(
             "metric_protocol_upstream_theory_revision_context_invalid"
         ),
+    )
+
+
+def architect_metric_requirement_validation_failure_result(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+    blackboard: BlackboardState,
+    exc: PacketValidationError,
+    max_upstream_theory_revisions: int,
+    runtime_architect_control: Mapping[str, Any] | None = None,
+) -> AgentStepResult:
+    """Turn exhausted numeric-authority authoring into bounded theory feedback."""
+
+    validation_errors = [str(error) for error in exc.errors if str(error)]
+    numeric_authority_failure = any(
+        is_generated_metric_numeric_authority_error(error)
+        for error in validation_errors
+    )
+    context = invalidate_metric_protocol_authorization(architect_context)
+    theory_material = context.get(
+        "architect_metric_protocol_theory_material",
+        {},
+    )
+    theory_material = (
+        dict(theory_material) if isinstance(theory_material, Mapping) else {}
+    )
+    source_theory_packet_id = str(
+        theory_material.get("source_theory_packet_id", "")
+        or context.get("theory_packet_id", "")
+        or ""
+    )
+    parent_theory_packet = blackboard.artifacts.get(
+        source_theory_packet_id,
+        {},
+    )
+    parent_theory_packet = (
+        dict(parent_theory_packet)
+        if isinstance(parent_theory_packet, Mapping)
+        else {}
+    )
+    source_theory_packet_hash = (
+        stable_hash(parent_theory_packet) if parent_theory_packet else ""
+    )
+    metric_gate = context.get("architect_metric_protocol_gate", {})
+    metric_gate = dict(metric_gate) if isinstance(metric_gate, Mapping) else {}
+    revisions_used = max(
+        0,
+        int(metric_gate.get("upstream_theory_revision_count", 0) or 0),
+    )
+    revision_limit = max(0, int(max_upstream_theory_revisions or 0))
+    route_to_theory = bool(
+        numeric_authority_failure
+        and source_theory_packet_id
+        and parent_theory_packet
+        and source_theory_packet_hash
+        and revisions_used < revision_limit
+    )
+    failure_id = "architect_metric_requirement_validation_failure:" + stable_hash(
+        [
+            question.id,
+            task.task_id,
+            source_theory_packet_id,
+            validation_errors,
+            exc.history,
+        ]
+    )[:20]
+    boundary = (
+        "This artifact records an LLM metric-authoring packet rejected by the "
+        "runtime validator before generated execution. Routing can request a fresh "
+        "theory derivation, but neither the failed packet nor its numeric values are "
+        "statistical acceptance or theorem proof evidence."
+    )
+    failure_artifact = {
+        "schema_version": EVALUATION_PROTOCOL_REVISION_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeArchitectMetricRequirementValidationFailure",
+        "failure_id": failure_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question_id": question.id,
+        "task_id": task.task_id,
+        "validation_label": exc.validation_label,
+        "validation_errors": validation_errors,
+        "validation_attempts": exc.attempts,
+        "llm_json_repair_history": [dict(row) for row in exc.history],
+        "numeric_authority_failure": numeric_authority_failure,
+        "source_theory_packet_id": source_theory_packet_id,
+        "source_theory_packet_hash": source_theory_packet_hash,
+        "upstream_theory_revisions_used": revisions_used,
+        "max_upstream_theory_revisions": revision_limit,
+        "upstream_theory_revision_routed": route_to_theory,
+        "execution_authorized": False,
+        "proof_evidence_status": (
+            "ARCHITECT_METRIC_REQUIREMENT_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": boundary,
+    }
+    architect_control = deepcopy(dict(runtime_architect_control or {}))
+    if architect_control:
+        failure_artifact["runtime_architect_control"] = architect_control
+    produced_artifacts: dict[str, dict[str, Any]] = {
+        failure_id: failure_artifact
+    }
+    next_task: AgentTask | None = None
+    status = "BLOCKED"
+    failure_classification = (
+        "architect_metric_requirement_numeric_authority_budget_exhausted"
+        if numeric_authority_failure and revisions_used >= revision_limit
+        else "architect_metric_requirement_numeric_authority_parent_unavailable"
+        if numeric_authority_failure
+        else "architect_metric_requirement_packet_validation_failed"
+    )
+    rationale = (
+        "Architect metric authoring exhausted local packet repair and remained "
+        "blocked; generated execution stays unauthorized."
+    )
+    if route_to_theory:
+        next_revision_count = revisions_used + 1
+        finding = {
+            "severity": "high",
+            "category": "missing_numeric_acceptance_authority",
+            "summary": (
+                "The metric author could not bind every required numeric gate to "
+                "an explicit eligible value in the current theory artifact."
+            ),
+            "required_change": (
+                "Derive or source a finite-sample calibration for each genuinely "
+                "required gate. When a theorem already supplies a symbolic bound, "
+                "record any chosen numeric parameter as an explicit preregistered "
+                "evaluation-design instantiation and preserve both anchors. Do not "
+                "copy a rejected candidate value merely to satisfy the schema; "
+                "unsupported measurements remain diagnostic-only."
+            ),
+            "repair_scope": "upstream_theory",
+            "evidence_refs": validation_errors,
+        }
+        feedback_id = "metric_protocol_upstream_theory_feedback:" + stable_hash(
+            [failure_id, next_revision_count, finding]
+        )[:20]
+        feedback = {
+            "schema_version": EVALUATION_PROTOCOL_REVISION_SCHEMA_VERSION,
+            "artifact_kind": "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback",
+            "feedback_id": feedback_id,
+            "feedback_source": "RuntimeMetricAuthorityValidator",
+            "feedback_type": (
+                "preexecution_metric_protocol_upstream_theory_revision"
+            ),
+            "trigger": "METRIC_PROTOCOL_NUMERIC_AUTHORITY_MISSING",
+            "failure_classification": (
+                "architect_metric_requirement_numeric_authority_missing"
+            ),
+            "question_id": question.id,
+            "source_task_id": task.task_id,
+            "source_owner_subsystem": "ArchitectCoordinator",
+            "target_consumer_subsystem": "TheoryDeveloper",
+            "source_metric_protocol_rejection_manifest_id": failure_id,
+            "source_theory_packet_id": source_theory_packet_id,
+            "source_theory_packet_hash": source_theory_packet_hash,
+            "recommended_repair_scope": "upstream_theory",
+            "ownership_clarification_required": False,
+            "upstream_theory_revision_count": next_revision_count,
+            "max_upstream_theory_revisions": revision_limit,
+            "dimension_reviews": [],
+            "findings": [finding],
+            "repair_instructions": [finding["required_change"]],
+            "high_priority_agenda": [finding],
+            "required_revision": finding["required_change"],
+            "acceptance_gate": (
+                "A fresh TheoryDeveloper packet supplies explicit, semantically "
+                "justified finite-sample gate authority or a theory-bound parameter "
+                "instantiation; a fresh metric packet then passes deterministic "
+                "provenance and independent semantic review."
+            ),
+            "generated_code_observed": False,
+            "simulation_results_observed": False,
+            "execution_authorized": False,
+            "proof_evidence_status": (
+                "METRIC_PROTOCOL_UPSTREAM_THEORY_REVISION_NOT_PROOF_EVIDENCE"
+            ),
+            "boundary": boundary,
+        }
+        if architect_control:
+            feedback["runtime_architect_control"] = deepcopy(
+                architect_control
+            )
+        produced_artifacts[feedback_id] = feedback
+        rejection_ids = [
+            str(value)
+            for value in metric_gate.get("rejection_manifest_ids", []) or []
+            if str(value)
+        ]
+        if failure_id not in rejection_ids:
+            rejection_ids.append(failure_id)
+        context["architect_metric_protocol_gate"] = {
+            **metric_gate,
+            "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+            "source_theory_packet_id": source_theory_packet_id,
+            "source_theory_packet_hash": source_theory_packet_hash,
+            "source_theory_revision_feedback_id": feedback_id,
+            "rejection_manifest_ids": rejection_ids,
+            "upstream_theory_revision_count": next_revision_count,
+            "max_upstream_theory_revisions": revision_limit,
+            "required_disposition": (
+                "REVISED_THEORY_THEN_PREEXECUTION_REVIEW_ACCEPTED"
+            ),
+            "execution_authorized": False,
+            "consumed": False,
+            "proof_evidence_status": (
+                "ARCHITECT_METRIC_PROTOCOL_GATE_NOT_PROOF_EVIDENCE"
+            ),
+        }
+        context.pop("architect_metric_protocol_theory_material", None)
+        context["previous_theory_packet_id"] = source_theory_packet_id
+        context["environment_feedback"] = feedback
+        context["theory_developer_source_environment_feedback"] = feedback
+        next_task = AgentTask(
+            task_id=(
+                f"theory-metric-authority-revision:{question.id}:"
+                f"{stable_hash([failure_id, feedback_id])[:8]}"
+            ),
+            owner_subsystem="TheoryDeveloper",
+            objective=(
+                "Revise the source theory so any required empirical gate has an "
+                "explicit finite-sample derivation, source-backed bound, or a "
+                "preregistered instantiation of a symbolic theory parameter."
+            ),
+            inputs={
+                "question": {
+                    "id": question.id,
+                    "title": question.title,
+                    "description": question.description,
+                    "tags": list(question.tags),
+                },
+                "architect_context": context,
+                "environment_feedback": feedback,
+            },
+            allowed_tools=("model_backend", "rag_memory", "evidence_ledger"),
+            expected_artifacts=("theory_derivation_packet",),
+            acceptance_gate=(
+                "fresh theory packet addresses numeric-authority feedback without "
+                "treating the rejected candidate as evidence"
+            ),
+            stop_condition=(
+                "revised theory is routed to fresh metric authoring, or the bounded "
+                "theory revision lane records a blocker"
+            ),
+        )
+        status = "REROUTE"
+        failure_classification = (
+            "architect_metric_requirement_numeric_authority_routed_to_theory"
+        )
+        rationale = (
+            "Metric authoring exhausted local repair because required gate values "
+            "lacked explicit authority; the immutable failure is routed to a bounded "
+            "fresh TheoryDeveloper revision before any generated execution."
+        )
+
+    evidence = EvidenceLedgerEntry(
+        evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
+        task_id=task.task_id,
+        artifact_id=failure_id,
+        evidence_type="architect_metric_requirement_validation_failure",
+        status=(
+            "NUMERIC_AUTHORITY_REVISION_ROUTED_NOT_EVIDENCE"
+            if route_to_theory
+            else "METRIC_AUTHORING_VALIDATION_BLOCKED_NOT_EVIDENCE"
+        ),
+        boundary=boundary,
+        payload={
+            "validation_errors": validation_errors,
+            "numeric_authority_failure": numeric_authority_failure,
+            "upstream_theory_revision_routed": route_to_theory,
+            "execution_authorized": False,
+            "kernel_verified": False,
+        },
+    )
+    return AgentStepResult(
+        status=status,
+        rationale=rationale,
+        produced_artifacts=produced_artifacts,
+        observations=(
+            EnvironmentObservation(
+                observation_type=(
+                    "architect_metric_requirement_validation_failure"
+                ),
+                summary=rationale[:500],
+                payload={
+                    "failure_id": failure_id,
+                    "validation_errors": validation_errors,
+                    "next_owner_subsystem": (
+                        next_task.owner_subsystem if next_task else ""
+                    ),
+                    "execution_authorized": False,
+                    "proof_evidence_status": failure_artifact[
+                        "proof_evidence_status"
+                    ],
+                },
+            ),
+        ),
+        evidence_entries=(evidence,),
+        next_task=next_task,
+        failure_classification=failure_classification,
     )
 
 

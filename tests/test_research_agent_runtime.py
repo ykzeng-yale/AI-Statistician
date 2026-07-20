@@ -332,6 +332,9 @@ from ai_statistician.model_backend import (
     LIVE_EVALUATION_CLAUDE_MODEL,
     LIVE_EVALUATION_CLAUDE_MODEL_TIER,
 )
+from ai_statistician.generated_metric_contract import (
+    generated_metric_numeric_authority_error,
+)
 from ai_statistician.research_system_audit import _research_agent_runtime_audit_overlay
 from ai_statistician.task_family import cross_task_generalization_family_pair
 from ai_statistician.agent_runtime import (
@@ -380,6 +383,14 @@ def _structured_theory_packet_fixture(
     return {
         "artifact_kind": "TheoryDerivationPacket",
         "packet_id": packet_id,
+        "theorem_cards": [
+            {
+                "theorem_id": "T_FINITE_SAMPLE_GATE_FIXTURE",
+                "conclusion": (
+                    "The preregistered candidate error bounds are 1e-12 and 0.1."
+                ),
+            }
+        ],
         "theory_derivation_packet": {
             "derivation_summary": "identify estimand, build score, bound remainder",
             "derivation_steps": [
@@ -23101,7 +23112,13 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
             "minimum_pass_count": None,
             "minimum_pass_fraction": None,
             "required": True,
-            "source_anchors": ["question:sequential_anytime_bernoulli"],
+            "source_anchors": [
+                "theory#/theorem_cards/0/conclusion"
+            ],
+            "acceptance_authority_kind": "theory_derived",
+            "acceptance_authority_rationale": (
+                "The exact current theory equation supplies the test gate."
+            ),
             "boundary": "empirical acceptance control, not theorem proof evidence",
         }
         for target in ("SimulationEngineer",)
@@ -23205,6 +23222,26 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert review_request.metadata["subsystem"] != metric_request.metadata["subsystem"]
     metric_prompt = json.loads(metric_request.user_prompt)
     theory_material = metric_prompt["theory_developer_protocol_material"]
+    authority_catalog = metric_prompt["acceptance_authority_catalog"]
+    authority_anchor_ids = {
+        row["anchor_id"] for row in authority_catalog
+    }
+    assert (
+        "theory#/theorem_cards/0/conclusion"
+        in authority_anchor_ids
+    )
+    requirement_item_schema = metric_request.schema["properties"][
+        "empirical_metric_requirements"
+    ]["items"]
+    assert {
+        "acceptance_authority_kind",
+        "acceptance_authority_rationale",
+    } <= set(requirement_item_schema["required"])
+    assert set(
+        requirement_item_schema["properties"]["source_anchors"]["items"][
+            "enum"
+        ]
+    ) == authority_anchor_ids
     assert theory_material["source_theory_packet_id"] == (
         "theory_derivation:structured"
     )
@@ -23222,7 +23259,9 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         hard_requirements
     )
     assert "operator == and threshold 1" in hard_requirements
-    assert "recompute it from the stated definitions" in hard_requirements
+    assert "must exactly match one value" in hard_requirements
+    assert "Free-form citations" in hard_requirements
+    assert "does not specify a minimum power" in hard_requirements
     assert "Audit mathematical feasibility before freezing each row" in (
         hard_requirements
     )
@@ -23371,6 +23410,117 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     ] is True
 
 
+def test_architect_numeric_authority_failure_routes_to_bounded_theory_revision() -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    theory_packet = _structured_theory_packet_fixture()
+    context = _theory_informed_metric_context_fixture()
+    context["architect_coordinator_proposal_id"] = (
+        "architect_coordinator_proposal:test-authority-failure"
+    )
+    context["architect_runtime_plan"] = {
+        "evidence_contract": {
+            "formal_verification_policy": "required",
+            "recommended_research_path": "dual_track",
+            "empirical_metric_requirements": [{"requirement_id": "stale"}],
+            "empirical_metric_protocol_phase": "preexecution_review_accepted",
+            "metric_protocol_execution_authorized": True,
+        }
+    }
+    blackboard = BlackboardState(project_id="metric-authority-revision")
+    blackboard.artifacts[str(theory_packet["packet_id"])] = theory_packet
+
+    class NumericAuthorityFailureCoordinator:
+        def propose(self, **_kwargs):
+            raise PacketValidationError(
+                validation_label="LLM Architect metric-requirement packet",
+                attempts=3,
+                errors=[
+                    generated_metric_numeric_authority_error(
+                        "empirical_metric_requirements[0].threshold=0.25 must be "
+                        "explicitly present in a cited theory_derived authority node"
+                    )
+                ],
+                history=[
+                    {
+                        "attempt_index": 2,
+                        "model": "static-haiku-fixture",
+                        "provider": "static",
+                        "ok": False,
+                    }
+                ],
+            )
+
+    subsystem = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=NumericAuthorityFailureCoordinator(),
+        runtime_config=ResearchAgentRuntimeConfig(
+            metric_protocol_max_upstream_theory_revisions=2
+        ),
+    )
+    task = AgentTask(
+        task_id="architect-metric-protocol:test-authority-failure",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Author a theory-bound metric protocol.",
+        inputs={
+            "question": {
+                "id": question.id,
+                "title": question.title,
+                "description": question.description,
+                "tags": list(question.tags),
+            },
+            "architect_context": context,
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REROUTE"
+    assert result.failure_classification == (
+        "architect_metric_requirement_numeric_authority_routed_to_theory"
+    )
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["feedback_source"] == "RuntimeMetricAuthorityValidator"
+    assert feedback["recommended_repair_scope"] == "upstream_theory"
+    assert feedback["execution_authorized"] is False
+    assert feedback["upstream_theory_revision_count"] == 1
+    assert feedback["max_upstream_theory_revisions"] == 2
+    assert feedback["runtime_architect_control"]["subsystem"] == (
+        "ArchitectCoordinator"
+    )
+    routed_contract = feedback["runtime_architect_control"]["evidence_contract"]
+    assert routed_contract["empirical_metric_requirements"] == []
+    assert routed_contract["metric_protocol_execution_authorized"] is False
+    routed_context = result.next_task.inputs["architect_context"]
+    assert "architect_metric_protocol_theory_material" not in routed_context
+    assert routed_context["previous_theory_packet_id"] == theory_packet["packet_id"]
+    assert routed_context["architect_metric_protocol_gate"][
+        "required_disposition"
+    ] == "REVISED_THEORY_THEN_PREEXECUTION_REVIEW_ACCEPTED"
+    assert feedback["source_theory_packet_hash"] == runtime_module.stable_hash(
+        theory_packet
+    )
+    assert runtime_module.metric_protocol_upstream_theory_revision_feedback_errors(
+        feedback,
+        question_id=question.id,
+        parent_theory_packet=theory_packet,
+    ) == []
+    failure = next(
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind")
+        == "RuntimeArchitectMetricRequirementValidationFailure"
+    )
+    assert failure["numeric_authority_failure"] is True
+    assert failure["upstream_theory_revision_routed"] is True
+    assert failure["execution_authorized"] is False
+    assert failure["runtime_architect_control"] == (
+        feedback["runtime_architect_control"]
+    )
+
+
 def test_confirmatory_simulation_task_requires_accepted_algorithm_handoff() -> None:
     question = load_open_research_questions(
         Path("examples/research_questions.json")
@@ -23438,7 +23588,13 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
                 "minimum_pass_count": None,
                 "minimum_pass_fraction": None,
                 "required": True,
-                "source_anchors": ["question:generic_protocol"],
+                "source_anchors": [
+                    "theory#/theorem_cards/0/conclusion"
+                ],
+                "acceptance_authority_kind": "theory_derived",
+                "acceptance_authority_rationale": (
+                    "The exact current theory equation supplies the test gate."
+                ),
                 "boundary": "empirical control, not theorem proof evidence",
             }
             for target in ("SimulationEngineer",)
@@ -23725,7 +23881,13 @@ def test_live_architect_stops_metric_rewrites_for_upstream_theory_gap() -> None:
             "minimum_pass_count": None,
             "minimum_pass_fraction": None,
             "required": True,
-            "source_anchors": ["theory:procedure"],
+            "source_anchors": [
+                "theory#/theorem_cards/0/conclusion"
+            ],
+            "acceptance_authority_kind": "theory_derived",
+            "acceptance_authority_rationale": (
+                "The exact current theory equation supplies the test gate."
+            ),
             "boundary": "empirical control, not theorem proof evidence",
         }
         for target in ("SimulationEngineer",)
@@ -23859,7 +24021,13 @@ def test_live_architect_uses_artifact_router_to_correct_repair_owner() -> None:
             "minimum_pass_count": None,
             "minimum_pass_fraction": None,
             "required": True,
-            "source_anchors": ["theory:equation"],
+            "source_anchors": [
+                "theory#/theorem_cards/0/conclusion"
+            ],
+            "acceptance_authority_kind": "theory_derived",
+            "acceptance_authority_rationale": (
+                "The exact current theory equation supplies the test gate."
+            ),
             "boundary": "empirical control, not theorem proof evidence",
         }
         for target in ("SimulationEngineer",)

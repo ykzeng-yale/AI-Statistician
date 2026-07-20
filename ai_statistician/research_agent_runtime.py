@@ -108,6 +108,7 @@ from .scientific_sandbox import (
 )
 from .evaluation_protocol_revision import (
     _architect_post_result_metric_protocol_revision_result,
+    architect_metric_requirement_validation_failure_result,
     architect_preexecution_metric_protocol_rejection_result,
     invalidate_metric_protocol_authorization,
     metric_protocol_upstream_theory_revision_blocked_result,
@@ -8240,6 +8241,23 @@ class ArchitectCoordinatorRuntimeSubsystem:
                     self.runtime_config.metric_protocol_max_upstream_theory_revisions
                 ),
             )
+        except PacketValidationError as exc:
+            if exc.validation_label != "LLM Architect metric-requirement packet":
+                raise
+            return architect_metric_requirement_validation_failure_result(
+                task=task,
+                question=question,
+                architect_context=context,
+                blackboard=blackboard,
+                exc=exc,
+                max_upstream_theory_revisions=(
+                    self.runtime_config.metric_protocol_max_upstream_theory_revisions
+                ),
+                runtime_architect_control=_architect_control_payload(
+                    invalidate_metric_protocol_authorization(context),
+                    "ArchitectCoordinator",
+                ),
+            )
         packet_id = str(packet["packet_id"])
         context["architect_coordinator_proposal_id"] = packet_id
         capability_gap_routing_agenda = architect_capability_gap_routing_agenda(
@@ -13191,6 +13209,19 @@ def _runtime_generated_code_semantic_review_dispatch(
             ),
         )
     )
+    pending_repair_plan = architect_context.get(
+        "runtime_generated_code_semantic_review_pending_repair_plan",
+        {},
+    )
+    pending_repair_plan = (
+        dict(pending_repair_plan)
+        if isinstance(pending_repair_plan, Mapping)
+        and str(pending_repair_plan.get("question_id", "") or "")
+        == question.id
+        and str(pending_repair_plan.get("source_subsystem", "") or "")
+        == source_subsystem
+        else {}
+    )
     has_required_metric_failure = any(
         isinstance(row.get("metric_contract_evaluation", {}), Mapping)
         and row.get("metric_contract_evaluation", {}).get("all_required_passed")
@@ -13248,6 +13279,7 @@ def _runtime_generated_code_semantic_review_dispatch(
         "source_responsibility_contract_fingerprint": stable_hash(
             source_responsibility_contract
         ),
+        "pending_repair_plan": pending_repair_plan,
         "capability_eval": research_evaluation,
         "review_revision_count": review_revision_count,
         "max_revisions": max(0, int(max_revisions or 0)),
@@ -13520,6 +13552,9 @@ def _runtime_generated_code_semantic_review_material(
         ),
         "source_responsibility_contract": source_responsibility_contract,
         "review_scope_projection": review_scope_projection,
+        "pending_repair_plan": dict(
+            work_order.get("pending_repair_plan", {}) or {}
+        ),
         "exact_executed_artifacts": exact_artifacts,
         "evidence_boundary": GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
     }
@@ -13825,6 +13860,16 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         review_packet_hash = stable_hash(review_packet)
         verdict = str(review_packet.get("overall_verdict", "") or "")
         repair_scope = str(review_packet.get("repair_scope", "") or "")
+        repair_scopes = [
+            str(value)
+            for value in review_packet.get("repair_scopes", []) or []
+            if str(value)
+        ]
+        repair_plan = [
+            dict(row)
+            for row in review_packet.get("repair_plan", []) or []
+            if isinstance(row, Mapping)
+        ]
         repair_owner_agent = str(
             review_packet.get("repair_owner", "") or ""
         )
@@ -13884,6 +13929,8 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             ),
             "overall_verdict": verdict,
             "repair_scope": repair_scope,
+            "repair_scopes": repair_scopes,
+            "repair_plan": repair_plan,
             "repair_owner_agent": repair_owner_agent,
             "semantic_review_accepted": verdict == "ACCEPT",
             "empirical_evaluation_phase": empirical_evaluation_phase,
@@ -13915,6 +13962,8 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "semantic_review_packet_hash": review_packet_hash,
             "overall_verdict": verdict,
             "repair_scope": repair_scope,
+            "repair_scopes": repair_scopes,
+            "repair_plan": repair_plan,
             "repair_owner_agent": repair_owner_agent,
             "empirical_evaluation_phase": empirical_evaluation_phase,
             "confirmatory_empirical_evidence_eligible": (
@@ -14091,6 +14140,50 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             next_context["environment_feedback"] = next_inputs[
                 "environment_feedback"
             ]
+            pending_upstream_scopes = [
+                scope
+                for scope in repair_scopes
+                if scope in GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_REPAIR_SCOPES
+            ]
+            if pending_upstream_scopes:
+                pending_plan = {
+                    "artifact_kind": (
+                        "RuntimeGeneratedCodeSemanticReviewPendingRepairPlan"
+                    ),
+                    "question_id": question.id,
+                    "source_subsystem": source_subsystem,
+                    "rejected_source_manifest_id": str(
+                        work_order.get("source_manifest_id", "") or ""
+                    ),
+                    "review_packet_id": review_packet_id,
+                    "review_execution_id": execution_id,
+                    "pending_repair_scopes": pending_upstream_scopes,
+                    "repair_plan": repair_plan,
+                    "theory_packet_hash": str(
+                        work_order.get("theory_packet_hash", "") or ""
+                    ),
+                    "architect_evidence_contract_hash": stable_hash(
+                        work_order.get("architect_evidence_contract", {})
+                    ),
+                    "pending_findings": [
+                        dict(row)
+                        for row in review_packet.get("findings", []) or []
+                        if isinstance(row, Mapping)
+                        and str(row.get("repair_scope", "") or "")
+                        in pending_upstream_scopes
+                    ],
+                    "proof_evidence_status": (
+                        "GENERATED_CODE_SEMANTIC_REVIEW_PENDING_REPAIR_"
+                        "PLAN_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+                pending_plan["pending_repair_plan_id"] = (
+                    "generated_code_semantic_review_pending_repair_plan:"
+                    + stable_hash(pending_plan)[:20]
+                )
+                next_context[
+                    "runtime_generated_code_semantic_review_pending_repair_plan"
+                ] = pending_plan
             lineage_ledger = record_generated_code_semantic_review_lineage_action(
                 lineage_budget_state,
                 action="local_repair",
@@ -14265,6 +14358,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 ),
                 "overall_verdict": verdict,
                 "repair_scope": repair_scope,
+                "repair_scopes": repair_scopes,
                 "repair_owner_agent": repair_owner_agent,
                 "empirical_evaluation_phase": empirical_evaluation_phase,
                 "confirmatory_empirical_evidence_eligible": (
