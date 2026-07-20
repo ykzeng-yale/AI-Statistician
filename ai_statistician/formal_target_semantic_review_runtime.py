@@ -40,6 +40,13 @@ def _bool_like(value: Any) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _nonnegative_int(value: Any) -> int:
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
 def _question_to_payload(question: OpenResearchQuestion) -> dict[str, Any]:
     return {
         "id": question.id,
@@ -198,9 +205,23 @@ def _runtime_formal_target_semantic_review_dispatch(
         if not field_value:
             dispatch_validation_errors.append(f"{field_name} missing")
 
+    runtime_feedback_loop = architect_context.get("runtime_feedback_loop", {})
+    if not isinstance(runtime_feedback_loop, Mapping):
+        runtime_feedback_loop = {}
     review_revision_count = max(
-        0,
-        int(task.inputs.get("formal_target_semantic_review_revision_count", 0) or 0),
+        _nonnegative_int(
+            task.inputs.get("formal_target_semantic_review_revision_count", 0)
+        ),
+        _nonnegative_int(
+            architect_context.get(
+                "formal_target_semantic_review_revision_count", 0
+            )
+        ),
+        _nonnegative_int(
+            runtime_feedback_loop.get(
+                "formal_target_semantic_review_revision_count", 0
+            )
+        ),
     )
     runtime_contract = architect_context.get(
         "runtime_requested_evidence_contract", {}
@@ -491,7 +512,7 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
         self,
         *,
         reviewer: LLMFormalTargetSemanticReviewerAgent,
-        max_revisions: int = 2,
+        max_revisions: int = 1,
     ) -> None:
         self.reviewer = reviewer
         self.max_revisions = max(0, int(max_revisions or 0))
@@ -982,6 +1003,9 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                 "semantic_review_execution_id": execution_id,
                 "formal_target_semantic_review_revision_count": revision_count + 1,
             }
+            next_context["formal_target_semantic_review_revision_count"] = (
+                revision_count + 1
+            )
             next_inputs["architect_context"] = next_context
             if repair_owner == "TheoryDeveloper":
                 previous_theory_packet_id = str(

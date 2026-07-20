@@ -11967,7 +11967,12 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             serious_model=serious_theory_model,
             serious_model_tier=serious_theory_model_tier,
             serious_max_tokens=int(
-                getattr(args, "serious_theory_max_tokens", 8000) or 0
+                getattr(
+                    args,
+                    "serious_theory_max_tokens",
+                    ResearchArchitectConfig().serious_max_tokens,
+                )
+                or 0
             ),
             temperature=args.temperature,
             provider_name=provider_name,
@@ -14522,13 +14527,13 @@ def _apply_research_agent_runtime_capability_eval_preset(
         if not str(
             getattr(args, "serious_theory_model_tier", "") or ""
         ).strip():
-            args.serious_theory_model_tier = "sonnet"
+            args.serious_theory_model_tier = LIVE_EVALUATION_CLAUDE_MODEL_TIER
         if not hasattr(args, "serious_theory_llm_model"):
             args.serious_theory_llm_model = ""
-        if not hasattr(args, "serious_theory_max_tokens"):
-            args.serious_theory_max_tokens = (
-                ResearchArchitectConfig().serious_max_tokens
-            )
+        args.serious_theory_max_tokens = max(
+            ResearchArchitectConfig().serious_max_tokens,
+            int(getattr(args, "serious_theory_max_tokens", 0) or 0),
+        )
         args.formal_verification_policy = "required"
         args.formal_target_semantic_review_required = True
         args.max_iterations = max(
@@ -14618,7 +14623,7 @@ def _apply_research_agent_runtime_capability_eval_preset(
             )
             <= 0
         ):
-            args.generated_code_semantic_review_max_upstream_theory_revisions = 2
+            args.generated_code_semantic_review_max_upstream_theory_revisions = 1
         if (
             int(
                 getattr(
@@ -14630,7 +14635,7 @@ def _apply_research_agent_runtime_capability_eval_preset(
             )
             <= 0
         ):
-            args.formal_target_semantic_review_max_revisions = 2
+            args.formal_target_semantic_review_max_revisions = 1
         if (
             int(
                 getattr(
@@ -22060,7 +22065,7 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent_runtime.add_argument(
         "--architect-metric-protocol-max-upstream-theory-revisions",
         type=int,
-        default=2,
+        default=1,
         help=(
             "maximum TheoryDeveloper revisions routed from independent "
             "pre-execution metric review before the task fails closed"
@@ -22398,7 +22403,7 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent_runtime.add_argument(
         "--generated-code-semantic-review-max-upstream-theory-revisions",
         type=int,
-        default=2,
+        default=1,
         help=(
             "maximum fresh TheoryDeveloper revisions consumed by upstream-theory "
             "findings from independent generated-code review across theory hashes; "
@@ -22452,7 +22457,7 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent_runtime.add_argument(
         "--formal-target-semantic-review-max-revisions",
         type=int,
-        default=2,
+        default=1,
         help=(
             "maximum fresh Formalizer or TheoryDeveloper revisions after an "
             "independent whole-target semantic rejection"

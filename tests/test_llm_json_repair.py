@@ -5,8 +5,10 @@ import json
 import pytest
 
 from ai_statistician.llm_json_repair import (
+    PacketValidationError,
     _apply_typed_semantic_patch,
     _format_generation_error,
+    _repair_attempt_max_tokens,
     _repair_prompt,
     extract_json_object,
     generate_validated_json_packet,
@@ -24,6 +26,17 @@ def test_extract_json_object_handles_fenced_json() -> None:
     )
 
     assert payload == {"ok": True, "items": [1, 2]}
+
+
+def test_truncation_repair_never_reduces_a_large_output_budget() -> None:
+    assert _repair_attempt_max_tokens(
+        10000,
+        truncation_repair_mode=True,
+    ) == 16000
+    assert _repair_attempt_max_tokens(
+        20000,
+        truncation_repair_mode=True,
+    ) == 20000
 
 
 def test_extract_json_object_uses_first_balanced_object_not_greedy_tail() -> None:
@@ -130,6 +143,50 @@ def test_generate_validated_json_packet_feeds_validation_errors_into_repair_prom
     assert "local_validation_errors" in repair_prompt
     assert "missing required semantic anchor references: hRank" in repair_prompt
     assert '"invalid_response_excerpt": "{\\"ok\\": false}"' in repair_prompt
+
+
+def test_validation_error_preserves_final_invalid_packet() -> None:
+    class InvalidBackend:
+        provider_name = "test"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            return GeneratorResponse(
+                text=json.dumps(
+                    {
+                        "revision": len(self.requests),
+                        "rows": [{"status": "invalid"}],
+                    }
+                ),
+                provider=self.provider_name,
+                model=request.model,
+            )
+
+    with pytest.raises(PacketValidationError) as caught:
+        generate_validated_json_packet(
+            provider=InvalidBackend(),
+            request=GeneratorRequest(
+                system_prompt="Return JSON.",
+                user_prompt="Produce a packet.",
+                model="test-haiku",
+                max_tokens=128,
+            ),
+            extract_payload=lambda text: extract_json_object(
+                text, label="invalid packet"
+            ),
+            build_packet=lambda payload, response, raw_text: dict(payload),
+            validate_packet=lambda candidate: ["rows[0].status must be valid"],
+            validation_label="invalid packet",
+            max_repair_attempts=1,
+        )
+
+    assert caught.value.last_invalid_packet == {
+        "revision": 2,
+        "rows": [{"status": "invalid"}],
+    }
 
 
 def test_generate_validated_json_packet_includes_subsystem_repair_context() -> None:

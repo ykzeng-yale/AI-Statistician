@@ -384,6 +384,9 @@ def _structured_theory_packet_fixture(
     return {
         "artifact_kind": "TheoryDerivationPacket",
         "packet_id": packet_id,
+        "source_agent": "LLMTheoryDeveloperAgent",
+        "model": LIVE_EVALUATION_CLAUDE_MODEL,
+        "model_tier": LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         "theorem_cards": [
             {
                 "theorem_id": "T_FINITE_SAMPLE_GATE_FIXTURE",
@@ -2621,6 +2624,24 @@ def test_metric_semantic_reviewer_cannot_accept_without_prior_finding_closure() 
                 text=json.dumps(
                     {
                         "prior_finding_reviews": [],
+                        "claim_checks": [
+                            {
+                                "claim_ref": "candidate:current.theory",
+                                "check_type": "direct_substitution",
+                                "recomputation": "Substitute the stated parameter.",
+                                "result": "The stated identity is coherent.",
+                                "verdict": "PASS",
+                                "evidence_refs": ["candidate:current.theory"],
+                            },
+                            {
+                                "claim_ref": "candidate:current.pass_set",
+                                "check_type": "pass_set_translation",
+                                "recomputation": "Translate the scalar comparison.",
+                                "result": "The pass set matches the requirement.",
+                                "verdict": "PASS",
+                                "evidence_refs": ["candidate:current.pass_set"],
+                            },
+                        ],
                         "dimension_reviews": [
                             {
                                 "dimension": dimension,
@@ -23060,6 +23081,154 @@ def test_live_architect_does_not_let_metric_authoring_intercept_source_repair() 
     ]
 
 
+def test_live_architect_dispatches_upstream_theory_without_replanning() -> None:
+    question = next(
+        question
+        for question in load_open_research_questions(
+            Path("examples/research_questions.json")
+        )
+        if question.id == "sequential_anytime_bernoulli"
+    )
+    context = _theory_informed_metric_context_fixture()
+    context["architect_runtime_plan"] = {
+        "subsystem_execution_plan": [
+            {
+                "subsystem": "RetrievalMemory",
+                "objective": "Refresh source context before revising theory.",
+                "inputs_needed": [],
+                "expected_artifacts": ["retrieval_memory_manifest"],
+                "acceptance_gate": "retrieval context is recorded",
+            }
+        ],
+        "evidence_contract": {"formal_verification_policy": "required"},
+    }
+    semantic_feedback = {
+        "feedback_type": "generated_code_semantic_review_feedback",
+        "semantic_review_packet_id": "generated_code_semantic_review:theory",
+        "semantic_review_execution_id": (
+            "generated_code_semantic_review_execution:theory"
+        ),
+        "source_subsystem": "AlgorithmEngineer",
+        "source_manifest_id": "algorithm_sandbox_manifest:rejected-theory",
+        "repair_scope": "upstream_theory",
+        "repair_owner_agent": "ArchitectCoordinator",
+        "findings": [
+            {
+                "severity": "critical",
+                "summary": "The current theory premise is contradictory.",
+                "required_change": "Revise the source theory artifact.",
+            }
+        ],
+    }
+    context["environment_feedback"] = semantic_feedback
+    context["runtime_generated_code_semantic_review_replan"] = {
+        "artifact_kind": "RuntimeGeneratedCodeSemanticReviewReplanContext",
+        "source_subsystem": "AlgorithmEngineer",
+        "source_manifest_id": semantic_feedback["source_manifest_id"],
+        "source_review_task_id": "semantic-review:theory",
+        "review_packet_id": semantic_feedback["semantic_review_packet_id"],
+        "review_execution_id": semantic_feedback[
+            "semantic_review_execution_id"
+        ],
+        "repair_scope": "upstream_theory",
+        "findings": semantic_feedback["findings"],
+    }
+
+    class NoReplanCoordinator:
+        def propose(self, **_kwargs):
+            raise AssertionError(
+                "identity-bound upstream repair must not invoke the planner"
+            )
+
+    subsystem = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=NoReplanCoordinator(),  # type: ignore[arg-type]
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            generated_code_semantic_review_max_upstream_theory_revisions=1,
+        ),
+    )
+    task = AgentTask(
+        task_id="architect:upstream-theory-repair",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Dispatch an adjudicated upstream-theory repair.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": context,
+        },
+    )
+
+    routed = subsystem.run(task, BlackboardState(project_id="theory-repair"))
+
+    assert routed.next_task is not None
+    assert routed.next_task.owner_subsystem == "RetrievalMemory"
+    assert routed.next_task.inputs["architect_context"][
+        "architect_initial_routing"
+    ]["source"] == "generated_code_semantic_review_upstream_theory_repair"
+    assert routed.next_task.inputs["architect_context"][
+        "architect_initial_routing"
+    ]["environment_feedback_forwarded"] is True
+    dispatch = next(iter(routed.produced_artifacts.values()))
+    assert dispatch["artifact_kind"] == "RuntimeArchitectTypedRepairDispatch"
+    assert dispatch["repair_scope"] == "upstream_theory"
+    assert dispatch["repair_target_subsystem"] == "RetrievalMemory"
+    assert dispatch["llm_planner_invoked"] is False
+
+    exhausted_context = copy.deepcopy(context)
+    lineage_key = runtime_module.stable_hash(
+        [question.id, "generated_code_semantic_review", "upstream_theory"]
+    )
+    exhausted_context[
+        "runtime_generated_code_semantic_review_upstream_theory_revision_ledger"
+    ] = {
+        lineage_key: {
+            "lineage_key": lineage_key,
+            "question_id": question.id,
+            "source_subsystem": "SimulationEvaluator",
+            "source_subsystems": ["SimulationEvaluator"],
+            "repair_scope": "upstream_theory",
+            "budget_scope": "question_global",
+            "revisions_used": 1,
+            "max_revisions": 1,
+        }
+    }
+    exhausted_task = replace(
+        task,
+        task_id="architect:upstream-theory-repair-exhausted",
+        inputs={
+            **task.inputs,
+            "architect_context": exhausted_context,
+        },
+    )
+    mismatched_context = copy.deepcopy(exhausted_context)
+    mismatched_context["environment_feedback"][
+        "semantic_review_packet_id"
+    ] = "generated_code_semantic_review:stale"
+    assert runtime_module._architect_identity_bound_repair_dispatch_result(
+        task=replace(
+            exhausted_task,
+            inputs={
+                **exhausted_task.inputs,
+                "architect_context": mismatched_context,
+            },
+        ),
+        question=question,
+        architect_context=mismatched_context,
+        runtime_config=subsystem.runtime_config,
+        blackboard=BlackboardState(project_id="theory-repair-stale"),
+    ) is None
+
+    exhausted = subsystem.run(
+        exhausted_task,
+        BlackboardState(project_id="theory-repair-exhausted"),
+    )
+
+    assert exhausted.status == "BLOCKED"
+    assert exhausted.next_task is None
+    assert exhausted.failure_classification == (
+        "generated_code_semantic_review_upstream_theory_revision_budget_exhausted"
+    )
+
+
 def test_architect_does_not_forward_mismatched_semantic_replan_feedback() -> None:
     feedback = {
         "feedback_type": "generated_code_semantic_review_feedback",
@@ -23172,6 +23341,10 @@ def test_metric_authoring_numeric_repair_context_uses_local_catalog_slice() -> N
     assert matrix[0]["numeric_gate_matches"][0]["matching_catalog_nodes"][0][
         "anchor_id"
     ] == matching_design_anchor
+    assert matrix[0]["source_derived_authority_allowed"] is True
+    assert "cite_exact_matching_catalog_nodes" in matrix[0][
+        "required_resolution_options"
+    ]
     assert context["numeric_authority_repair_automatic_selection"] is False
     priority_instructions = " ".join(
         context["repair_prompt_priority_instructions"]
@@ -23188,6 +23361,65 @@ def test_metric_authoring_numeric_repair_context_uses_local_catalog_slice() -> N
     assert compact_review["findings"] == [{"finding_id": "finding:test"}]
     assert "rejected_empirical_metric_requirements" not in compact_review
     assert "dimension_reviews" not in compact_review
+
+
+def test_metric_authoring_unmatched_numeric_gate_does_not_invent_source_authority() -> None:
+    from ai_statistician.architect_metric_contract_authoring import (
+        _metric_authoring_repair_context,
+    )
+
+    requirement = {
+        "requirement_id": "candidate_owned_gate",
+        "target_subsystems": ["SimulationEngineer"],
+        "metric_semantics": "one finite empirical diagnostic",
+        "measurement_protocol": "evaluate the frozen diagnostic",
+        "required_runtime_replicates": 17,
+        "operator": "<=",
+        "threshold": 0.0175,
+        "lower": None,
+        "upper": None,
+        "tolerance": 0.0,
+        "aggregation": "mean",
+        "minimum_pass_count": None,
+        "minimum_pass_fraction": None,
+        "required": True,
+        "source_anchors": ["theory#/theorem_cards/0/conclusion"],
+        "acceptance_authority_kind": "theory_derived",
+        "acceptance_authority_rationale": "Candidate incorrectly claimed theory authority.",
+        "boundary": "empirical control, not proof evidence",
+    }
+
+    context = _metric_authoring_repair_context(
+        invalid_packet={"empirical_metric_requirements": [requirement]},
+        errors=[
+            "[generated_metric_numeric_authority_missing] "
+            "empirical_metric_requirements[0].threshold=0.0175 must be explicitly "
+            "present in a cited theory_derived authority node"
+        ],
+        runtime_replicates=17,
+        acceptance_authority_catalog_id="catalog:unmatched",
+        acceptance_authority_catalog=[
+            {
+                "anchor_id": "theory#/theorem_cards/0/conclusion",
+                "authority_kind": "theory_derived",
+                "content": "The diagnostic is finite.",
+                "explicit_numeric_values": [],
+            }
+        ],
+        required_target_rows=[],
+        independent_semantic_review_repair={},
+    )
+
+    matrix_row = context["numeric_authority_repair_matrix"][0]
+    assert matrix_row["source_derived_authority_allowed"] is False
+    assert matrix_row["required_resolution_options"] == [
+        "architect_preregistered_design_with_preexecution_rationale",
+        "diagnostic_only_or_remove",
+    ]
+    assert "copy_candidate_value_into_upstream_theory" in matrix_row[
+        "forbidden_resolutions"
+    ]
+    assert matrix_row["automatic_repair_applied"] is False
 
 
 def test_live_architect_preauthors_metric_contract_with_structured_substage() -> None:
@@ -23297,6 +23529,29 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
                 )
 
                 payload = {
+                    "prior_finding_reviews": [],
+                    "claim_checks": [
+                        {
+                            "claim_ref": "requirement:typed_gate.threshold",
+                            "check_type": "direct_substitution",
+                            "recomputation": "Substitute the frozen threshold.",
+                            "result": "The scalar comparison is coherent.",
+                            "verdict": "PASS",
+                            "evidence_refs": [
+                                "requirement:typed_gate.threshold"
+                            ],
+                        },
+                        {
+                            "claim_ref": "requirement:typed_gate.operator",
+                            "check_type": "pass_set_translation",
+                            "recomputation": "Translate the executable pass set.",
+                            "result": "The pass set matches the protocol.",
+                            "verdict": "PASS",
+                            "evidence_refs": [
+                                "requirement:typed_gate.operator"
+                            ],
+                        },
+                    ],
                     "dimension_reviews": [
                         {
                             "dimension": dimension,
@@ -23431,6 +23686,9 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert "whole row cannot use a source-derived authority kind" in (
         hard_requirements
     )
+    assert "explicit uncertainty-scale calculation" in hard_requirements
+    assert "at runtime_owned_replicates" in hard_requirements
+    assert "diagnostic_only or omit it" in hard_requirements
     assert "Free-form citations" in hard_requirements
     assert "does not specify a minimum power" in hard_requirements
     assert "Audit mathematical feasibility before freezing each row" in (
@@ -23568,10 +23826,136 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert routing["source"] == "theory_informed_metric_protocol_accepted"
 
     algorithm_manifest_id = "algorithm_sandbox_manifest:accepted"
-    accepted_handoff = {
-        "handoff_id": "accepted_algorithm_handoff:test",
+    invalid_handoff_context = _theory_informed_metric_context_fixture()
+    invalid_handoff_context["algorithm_sandbox_manifest_id"] = (
+        algorithm_manifest_id
+    )
+    invalid_handoff_context["upstream_algorithm_handoff"] = {
+        "handoff_id": "accepted_algorithm_handoff:incomplete",
         "algorithm_sandbox_manifest_id": algorithm_manifest_id,
     }
+    invalid_handoff_routed = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=AcceptedCoordinator(),  # type: ignore[arg-type]
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            n_runs=17,
+        ),
+    ).run(
+        AgentTask(
+            task_id="architect-metric-protocol:incomplete-algorithm-handoff",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Reject an incomplete algorithm handoff before simulation.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": invalid_handoff_context,
+            },
+        ),
+        BlackboardState(
+            project_id="metric-protocol-incomplete-algorithm-handoff",
+            artifacts={
+                "theory_derivation:structured": theory_packet,
+                algorithm_manifest_id: {
+                    "artifact_kind": "RuntimeAlgorithmSandboxManifest"
+                },
+            },
+        ),
+    )
+    assert invalid_handoff_routed.next_task is not None
+    assert invalid_handoff_routed.next_task.owner_subsystem == (
+        "AlgorithmEngineer"
+    )
+    invalid_routing = invalid_handoff_routed.next_task.inputs[
+        "architect_context"
+    ]["architect_initial_routing"]
+    assert invalid_routing["requires_prerequisite_algorithm"] is True
+
+    exact_source = "def run_estimator(data):\n    return {'estimate': 0.5}\n"
+    exact_result = {"estimate": 0.5}
+    review_material = {
+        "exact_executed_artifacts": [
+            {
+                "artifact_id": "accepted-estimator",
+                "exact_source_code": exact_source,
+                "exact_source_hash": runtime_module.stable_hash(exact_source),
+                "exact_result": exact_result,
+                "exact_result_hash": runtime_module.stable_hash(exact_result),
+                "source_row": {
+                    "estimator_id": "accepted-estimator",
+                    "language": "python",
+                    "dependencies": [],
+                    "smoke_passed": True,
+                    "script_hash": runtime_module.stable_hash(exact_source),
+                    "result_hash": runtime_module.stable_hash(exact_result),
+                },
+            }
+        ]
+    }
+    materialization_id = "generated_code_semantic_review_materialization:accepted"
+    materialization = {
+        "artifact_kind": "RuntimeGeneratedCodeSemanticReviewMaterialization",
+        "materialization_id": materialization_id,
+        "review_material": review_material,
+        "review_input_fingerprint": runtime_module.stable_hash(review_material),
+    }
+    review_packet_id = "generated_code_semantic_review:accepted"
+    review_packet = {
+        "packet_id": review_packet_id,
+        "overall_verdict": "ACCEPT",
+    }
+    algorithm_manifest = {
+        "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+        "manifest_id": algorithm_manifest_id,
+        "theory_packet_id": "theory_derivation:structured",
+        "n_generated_code_executed": 1,
+        "n_passed": 1,
+    }
+    review_execution_id = "generated_code_semantic_review_execution:accepted"
+    review_execution = {
+        "execution_id": review_execution_id,
+        "semantic_review_accepted": True,
+        "source_subsystem": "AlgorithmEngineer",
+        "source_manifest_id": algorithm_manifest_id,
+        "source_manifest_hash": runtime_module.stable_hash(algorithm_manifest),
+        "review_packet_hash": runtime_module.stable_hash(review_packet),
+        "materialization_id": materialization_id,
+        "materialization_hash": runtime_module.stable_hash(materialization),
+    }
+    accepted_handoff = (
+        runtime_module._runtime_accepted_algorithm_handoff_from_review(
+            question_id=question.id,
+            theory_packet_id="theory_derivation:structured",
+            source_manifest=algorithm_manifest,
+            review_material=review_material,
+            execution_manifest=review_execution,
+            review_packet=review_packet,
+        )
+    )
+    assert accepted_handoff
+    accepted_handoff_artifacts = {
+        "theory_derivation:structured": theory_packet,
+        algorithm_manifest_id: algorithm_manifest,
+        materialization_id: materialization,
+        review_packet_id: review_packet,
+        review_execution_id: review_execution,
+    }
+    accepted_handoff_blackboard = BlackboardState(
+        project_id="metric-protocol-accepted-with-algorithm",
+        artifacts=accepted_handoff_artifacts,
+    )
+    assert runtime_module._runtime_validated_algorithm_handoff(
+        architect_context={"upstream_algorithm_handoff": accepted_handoff},
+        blackboard=accepted_handoff_blackboard,
+        question_id=question.id,
+        theory_packet_id="theory_derivation:structured",
+        algorithm_sandbox_manifest_id=algorithm_manifest_id,
+    )
+    assert not runtime_module._runtime_validated_algorithm_handoff(
+        architect_context={"upstream_algorithm_handoff": accepted_handoff},
+        blackboard=accepted_handoff_blackboard,
+        question_id=question.id,
+        theory_packet_id="theory_derivation:revised",
+        algorithm_sandbox_manifest_id=algorithm_manifest_id,
+    )
     simulation_context = _theory_informed_metric_context_fixture()
     simulation_context["algorithm_sandbox_manifest_id"] = algorithm_manifest_id
     simulation_context["upstream_algorithm_handoff"] = accepted_handoff
@@ -23591,15 +23975,7 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
                 "architect_context": simulation_context,
             },
         ),
-        BlackboardState(
-            project_id="metric-protocol-accepted-with-algorithm",
-            artifacts={
-                "theory_derivation:structured": theory_packet,
-                algorithm_manifest_id: {
-                    "artifact_kind": "RuntimeAlgorithmSandboxManifest"
-                },
-            },
-        ),
+        accepted_handoff_blackboard,
     )
     assert simulation_routed.next_task is not None
     assert simulation_routed.next_task.owner_subsystem == "SimulationEvaluator"
@@ -23612,6 +23988,9 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert simulation_routed.next_task.inputs["architect_context"][
         "confirmatory_simulation_requires_accepted_algorithm_handoff"
     ] is True
+    assert simulation_routed.next_task.inputs["architect_context"][
+        "architect_initial_routing"
+    ]["requires_prerequisite_algorithm"] is False
 
 
 def test_architect_numeric_authority_failure_stays_candidate_owned() -> None:
@@ -23654,6 +24033,15 @@ def test_architect_numeric_authority_failure_stays_candidate_owned() -> None:
                         "ok": False,
                     }
                 ],
+                last_invalid_packet={
+                    "empirical_metric_requirements": [
+                        {
+                            "requirement_id": "candidate_gate",
+                            "acceptance_authority_kind": "theory_derived",
+                            "threshold": 0.25,
+                        }
+                    ]
+                },
             )
 
     subsystem = ArchitectCoordinatorRuntimeSubsystem(
@@ -23692,6 +24080,15 @@ def test_architect_numeric_authority_failure_stays_candidate_owned() -> None:
         == "RuntimeArchitectMetricRequirementValidationFailure"
     )
     assert failure["numeric_authority_failure"] is True
+    assert failure["final_invalid_packet_available"] is True
+    assert failure["final_invalid_packet_fingerprint"]
+    assert failure["final_invalid_empirical_metric_requirements"] == [
+        {
+            "requirement_id": "candidate_gate",
+            "acceptance_authority_kind": "theory_derived",
+            "threshold": 0.25,
+        }
+    ]
     assert failure["repair_owner"] == "metric_contract"
     assert failure["upstream_theory_revision_routed"] is False
     assert failure["upstream_theory_revisions_used"] == 0
@@ -23840,6 +24237,30 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
                             ],
                         }
                         for row in active_prior_findings
+                    ],
+                    "claim_checks": [
+                        {
+                            "claim_ref": "theory:generic_gate",
+                            "check_type": "direct_substitution",
+                            "recomputation": "Substitute the stated theory value.",
+                            "result": "The symbolic gate is well defined.",
+                            "verdict": "PASS",
+                            "evidence_refs": ["theory:generic_gate"],
+                        },
+                        {
+                            "claim_ref": "requirement:generic_gate",
+                            "check_type": "uncertainty_scale",
+                            "recomputation": (
+                                "Compare the fixed threshold to its declared budget."
+                            ),
+                            "result": (
+                                "The revised gate is attainable."
+                                if accepted
+                                else "The first gate is not attainable."
+                            ),
+                            "verdict": "PASS" if accepted else "FAIL",
+                            "evidence_refs": ["requirement:generic_gate"],
+                        },
                     ],
                     "dimension_reviews": [
                         {
@@ -24094,7 +24515,28 @@ def test_live_architect_stops_metric_rewrites_for_upstream_theory_gap() -> None:
                 payload = {"empirical_metric_requirements": metric_rows}
             elif subsystem == "ArchitectMetricSemanticReviewer":
                 payload = {
-                    "dimension_reviews": [
+                        "claim_checks": [
+                            {
+                                "claim_ref": "theory:procedure.calibration",
+                                "check_type": "direct_substitution",
+                                "recomputation": (
+                                    "Substitute the candidate constant into the "
+                                    "available source equation."
+                                ),
+                                "result": "The required calibration is absent.",
+                                "verdict": "FAIL",
+                                "evidence_refs": ["theory:procedure"],
+                            },
+                            {
+                                "claim_ref": "requirement:generic_gate",
+                                "check_type": "pass_set_translation",
+                                "recomputation": "Translate mean(value) <= 0.1.",
+                                "result": "The pass set is typed but lacks authority.",
+                                "verdict": "PASS",
+                                "evidence_refs": ["requirement:generic_gate"],
+                            },
+                        ],
+                        "dimension_reviews": [
                         {
                             "dimension": dimension,
                             "status": (
@@ -24234,7 +24676,27 @@ def test_live_architect_uses_artifact_router_to_correct_repair_owner() -> None:
                 payload = {"empirical_metric_requirements": metric_rows}
             elif subsystem == "ArchitectMetricSemanticReviewer":
                 payload = {
-                    "dimension_reviews": [
+                        "claim_checks": [
+                            {
+                                "claim_ref": "theory_derivation_packet:E1",
+                                "check_type": "direct_substitution",
+                                "recomputation": (
+                                    "Substitute the stated quantities into E1."
+                                ),
+                                "result": "The source equation is contradictory.",
+                                "verdict": "FAIL",
+                                "evidence_refs": ["theory_derivation_packet:E1"],
+                            },
+                            {
+                                "claim_ref": "requirement:owner-routing",
+                                "check_type": "pass_set_translation",
+                                "recomputation": "Translate mean(value) <= 0.1.",
+                                "result": "The candidate evaluator pass set is typed.",
+                                "verdict": "PASS",
+                                "evidence_refs": ["requirement:owner-routing"],
+                            },
+                        ],
+                        "dimension_reviews": [
                         {
                             "dimension": dimension,
                             "status": (
@@ -24280,18 +24742,12 @@ def test_live_architect_uses_artifact_router_to_correct_repair_owner() -> None:
                             "required_artifact_changes": [
                                 {
                                     "artifact_role": "source_theory_packet",
-                                    "change_summary": (
-                                        "Correct the source theory derivation."
-                                    ),
                                 },
                                 {
                                     "artifact_role": "metric_protocol_candidate",
-                                    "change_summary": (
-                                        "Refresh the dependent source anchor."
-                                    ),
                                 },
                             ],
-                            "metric_author_can_repair_without_revising_source_theory": False,
+                            "source_theory_can_remain_unchanged": False,
                             "ownership_certainty": "resolved",
                             "rationale": (
                                 "The source equation cannot remain unchanged."
@@ -36702,7 +37158,7 @@ def test_formalizer_repair_feedback_keeps_current_exact_candidate_lineage(
         task_id="proofengineer-exact-result:generic_theorem_search",
         owner_subsystem="ProofEngineer",
         objective="Consume exact prover feedback and review the repaired child.",
-        inputs={"formal_target_semantic_review_revision_count": 1},
+        inputs={},
     )
     deferred_task = AgentTask(
         task_id="formalize-lean-repair:generic_theorem_search:child",
@@ -36723,6 +37179,7 @@ def test_formalizer_repair_feedback_keeps_current_exact_candidate_lineage(
         },
         repair_feedback=feedback,
         architect_context={
+            "formal_target_semantic_review_revision_count": 1,
             "runtime_requested_evidence_contract": {
                 "evaluation_mode": "capability_eval"
             }
@@ -36733,6 +37190,7 @@ def test_formalizer_repair_feedback_keeps_current_exact_candidate_lineage(
     assert dispatch is not None
     assert dispatch["dispatch_status"] == "READY"
     work_order = dispatch["work_order"]
+    assert work_order["review_revision_count"] == 1
     assert work_order["candidate_id"] == "generic_exact_source_repaired"
     assert work_order["candidate_artifact_path"] == str(child_path)
     assert work_order["candidate_source_hash"] == runtime_module.stable_hash(
@@ -45086,8 +45544,8 @@ def test_theory_developer_prompt_compacts_architect_and_retrieval_context() -> N
     assert "formalization_handoff" in prompt
     assert "equation_chain" in prompt
     assert "at least three derivation steps" in prompt
-    assert "validator_required_key_checklist" in prompt
-    assert "top_level_required_fields" in prompt
+    assert "validator_required_key_checklist" not in prompt
+    assert "top_level_required_fields" not in prompt
     assert "theorem_cards[0].informal_statement" in prompt
     assert "theorem_cards[0].proof_strategy" in prompt
     assert "proof_plan" in prompt
@@ -45124,8 +45582,10 @@ def test_theory_developer_capability_eval_uses_serious_theory_mode() -> None:
     assert '"min_derivation_steps":5' in prompt
     assert '"max_derivation_steps":8' in prompt
     assert '"min_equation_chain_steps":4' in prompt
+    assert '"min_sanity_checks":3' in prompt
     assert '"max_critic_findings":4' in prompt
     assert "finite-sample feasibility claim" in prompt
+    assert "A citation or repeated claim is not a sanity check" in prompt
     assert "exactly one primary procedure" not in prompt
     assert "s" * 800 not in prompt
     assert "x" * 800 not in prompt
@@ -87797,6 +88257,7 @@ def _static_generated_code_semantic_reviewer() -> (
                         "status": "PASS",
                         "rationale": "Static fixture accepts exact bound inputs.",
                         "evidence_refs": ["exact_executed_artifacts"],
+                        "artifact_citations": ["generated_source_artifact"],
                     }
                     for dimension in GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
                 ],
@@ -104481,7 +104942,7 @@ def test_runtime_topology_resolves_empty_config_model_from_tier(
     assert row["serious_model"] == "claude-sonnet-topology-test"
     assert row["serious_model_tier"] == "sonnet"
     assert row["expected_serious_model_tier"] == "sonnet"
-    assert row["serious_max_tokens"] == 8000
+    assert row["serious_max_tokens"] == 10000
 
 
 def test_runtime_topology_accepts_contextual_serious_theory_at_sonnet_ceiling() -> None:
@@ -106497,7 +106958,7 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     assert args.formal_verification_policy == "required"
     assert args.theory_model_tier == "haiku"
     assert args.serious_theory_model_tier == "haiku"
-    assert args.serious_theory_max_tokens >= 8000
+    assert args.serious_theory_max_tokens >= 10000
     assert args.llm_timeout_seconds == 240.0
     assert args.architect_metric_repair_ownership_router is True
     assert args.formalization_gap_planner_live_route_planner is True
@@ -106519,7 +106980,7 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     assert args.generated_code_semantic_review_max_revisions == 1
     assert (
         args.generated_code_semantic_review_max_upstream_theory_revisions
-        == 2
+        == 1
     )
     assert (
         args.formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts
@@ -106568,13 +107029,13 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     ) in _research_agent_runtime_capability_config_errors(args)
     args.serious_theory_model_tier = "haiku"
 
-    args.serious_theory_max_tokens = 7999
+    args.serious_theory_max_tokens = 9999
     assert any(
-        "serious TheoryDeveloper output budget of at least 8000 tokens"
+        "serious TheoryDeveloper output budget of at least 10000 tokens"
         in error
         for error in _research_agent_runtime_capability_config_errors(args)
     )
-    args.serious_theory_max_tokens = 8000
+    args.serious_theory_max_tokens = 10000
 
     args.pseudo_formal_block_verifier_runtime = False
     assert (
@@ -106657,7 +107118,7 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
         "--generated-code-semantic-review-max-upstream-theory-revisions > 0"
     ) in _research_agent_runtime_capability_config_errors(args)
 
-    args.generated_code_semantic_review_max_upstream_theory_revisions = 2
+    args.generated_code_semantic_review_max_upstream_theory_revisions = 1
     args.formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempts = 0
     assert (
         "capability eval preset full-live requires bounded "

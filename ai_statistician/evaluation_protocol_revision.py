@@ -289,6 +289,18 @@ def architect_metric_requirement_validation_failure_result(
         "neither the failed packet nor its values are statistical acceptance or "
         "theorem proof evidence."
     )
+    final_invalid_packet = (
+        dict(exc.last_invalid_packet)
+        if isinstance(exc.last_invalid_packet, Mapping)
+        else {}
+    )
+    final_invalid_requirements = [
+        dict(row)
+        for row in final_invalid_packet.get(
+            "empirical_metric_requirements", []
+        )
+        if isinstance(row, Mapping)
+    ]
     failure_artifact = {
         "schema_version": EVALUATION_PROTOCOL_REVISION_SCHEMA_VERSION,
         "artifact_kind": "RuntimeArchitectMetricRequirementValidationFailure",
@@ -300,6 +312,13 @@ def architect_metric_requirement_validation_failure_result(
         "validation_errors": validation_errors,
         "validation_attempts": exc.attempts,
         "llm_json_repair_history": [dict(row) for row in exc.history],
+        "final_invalid_packet_available": bool(final_invalid_packet),
+        "final_invalid_packet_fingerprint": (
+            stable_hash(final_invalid_packet) if final_invalid_packet else ""
+        ),
+        "final_invalid_empirical_metric_requirements": (
+            final_invalid_requirements
+        ),
         "numeric_authority_failure": numeric_authority_failure,
         "source_theory_packet_id": source_theory_packet_id,
         "source_theory_packet_hash": source_theory_packet_hash,

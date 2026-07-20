@@ -28,7 +28,7 @@ def generated_code_semantic_review_upstream_theory_revision_state(
     question_id: str,
     max_revisions: int,
 ) -> dict[str, Any]:
-    """Read the cross-theory budget for one active upstream review lane."""
+    """Read one question-global budget across all generated-code review lanes."""
 
     replan = _mapping(
         architect_context.get("runtime_generated_code_semantic_review_replan")
@@ -41,6 +41,9 @@ def generated_code_semantic_review_upstream_theory_revision_state(
         and replan.get("source_subsystem")
     )
     lineage_key = stable_hash(
+        [question_id, "generated_code_semantic_review", "upstream_theory"]
+    )
+    active_legacy_lineage_key = stable_hash(
         [
             question_id,
             str(replan.get("source_subsystem", "") or ""),
@@ -58,13 +61,75 @@ def generated_code_semantic_review_upstream_theory_revision_state(
         )
         if isinstance(value, Mapping)
     }
-    prior = dict(ledger.get(lineage_key, {}))
-    revisions_used = max(0, int(prior.get("revisions_used", 0) or 0))
+    canonical_row = _mapping(ledger.get(lineage_key))
+    if canonical_row:
+        budget_rows = [(lineage_key, canonical_row)]
+    else:
+        # Runs written before the question-global budget used one row per source
+        # subsystem. Aggregate those rows so resumed work cannot reopen the budget
+        # merely by moving a finding between Algorithm and Simulation.
+        budget_rows = [
+            (key, row)
+            for key, row in ledger.items()
+            if key == active_legacy_lineage_key
+            or (
+                str(row.get("question_id", "") or "") == question_id
+                and str(row.get("repair_scope", "") or "")
+                == "upstream_theory"
+            )
+        ]
+    consumed_review_execution_ids = list(
+        dict.fromkeys(
+            str(value)
+            for _, row in budget_rows
+            for value in row.get("consumed_review_execution_ids", []) or []
+            if str(value).strip()
+        )
+    )
+    recorded_revision_counts = [
+        max(0, int(row.get("revisions_used", 0) or 0))
+        for _, row in budget_rows
+    ]
+    if canonical_row:
+        revisions_used = max(recorded_revision_counts or [0])
+    elif consumed_review_execution_ids:
+        revisions_used = max(
+            len(consumed_review_execution_ids),
+            max(recorded_revision_counts or [0]),
+        )
+    else:
+        revisions_used = sum(recorded_revision_counts)
+    source_subsystems = list(
+        dict.fromkeys(
+            str(value)
+            for _, row in budget_rows
+            for value in (
+                list(row.get("source_subsystems", []) or [])
+                + [row.get("source_subsystem", "")]
+            )
+            if str(value).strip()
+        )
+    )
+    prior = dict(budget_rows[-1][1]) if budget_rows else {}
+    prior.update(
+        {
+            "lineage_key": lineage_key,
+            "question_id": question_id,
+            "repair_scope": "upstream_theory",
+            "budget_scope": "question_global",
+            "revisions_used": revisions_used,
+            "consumed_review_execution_ids": consumed_review_execution_ids,
+            "source_subsystems": source_subsystems,
+        }
+    )
     revision_limit = max(0, int(max_revisions or 0))
     return {
         "active": active,
         "lineage_key": lineage_key,
         "ledger": ledger,
+        "legacy_lineage_keys": [
+            key for key, _ in budget_rows if key != lineage_key
+        ],
         "row": prior,
         "replan": replan,
         "revisions_used": revisions_used,
@@ -108,7 +173,7 @@ def consume_generated_code_semantic_review_upstream_theory_replan(
     ):
         return context
 
-    revisions_used = int(state["revisions_used"]) + 1
+    review_execution_id = str(replan.get("review_execution_id", "") or "")
     lineage_key = str(state["lineage_key"])
     ledger = dict(state["ledger"])
     prior_row = dict(state["row"])
@@ -117,14 +182,29 @@ def consume_generated_code_semantic_review_upstream_theory_replan(
         for value in prior_row.get("consumed_review_execution_ids", []) or []
         if str(value).strip()
     ]
-    review_execution_id = str(replan.get("review_execution_id", "") or "")
+    revisions_used = int(state["revisions_used"])
     if review_execution_id not in consumed_review_execution_ids:
         consumed_review_execution_ids.append(review_execution_id)
+        revisions_used += 1
+    source_subsystems = list(
+        dict.fromkeys(
+            [
+                str(value)
+                for value in prior_row.get("source_subsystems", []) or []
+                if str(value).strip()
+            ]
+            + [str(replan.get("source_subsystem", "") or "")]
+        )
+    )
+    for legacy_lineage_key in state.get("legacy_lineage_keys", []) or []:
+        ledger.pop(str(legacy_lineage_key), None)
     ledger[lineage_key] = {
         "lineage_key": lineage_key,
         "question_id": question_id,
         "source_subsystem": str(replan.get("source_subsystem", "") or ""),
+        "source_subsystems": source_subsystems,
         "repair_scope": "upstream_theory",
+        "budget_scope": "question_global",
         "revisions_used": revisions_used,
         "max_revisions": int(state["max_revisions"]),
         "consumed_review_execution_ids": consumed_review_execution_ids,

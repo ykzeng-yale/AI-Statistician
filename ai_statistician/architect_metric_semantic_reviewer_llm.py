@@ -19,7 +19,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 
 
-ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 6
+ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 7
 ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -38,6 +38,7 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS = (
     "measurement_protocol_to_certified_pass_set_alignment",
     "cross_requirement_coverage_and_consistency",
 )
+ARCHITECT_METRIC_SEMANTIC_MIN_CLAIM_CHECKS = 2
 ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_METRIC_CONTRACT = "metric_contract"
 ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY = "upstream_theory"
 ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPES = (
@@ -178,6 +179,7 @@ def _architect_metric_semantic_review_repair_context(
             if key
             in {
                 "prior_finding_reviews",
+                "claim_checks",
                 "dimension_reviews",
                 "findings",
                 "overall_verdict",
@@ -347,7 +349,6 @@ class LLMArchitectMetricSemanticReviewerAgent:
             ),
         )
 
-
 def build_architect_metric_semantic_review_prompt(
     *,
     question: OpenResearchQuestion,
@@ -396,6 +397,17 @@ def build_architect_metric_semantic_review_prompt(
         "numeric gate only when the supplied pre-execution material shows it is "
         "undefined, contradictory, unidentifiable, or implausible. Never propose "
         "retuning a frozen gate from its own confirmatory result. "
+        "Before assigning the mathematical/numeric and finite-sample dimensions, "
+        "emit at least two claim_checks with an explicit substitution, arithmetic "
+        "recomputation, normalization check, boundary case, uncertainty-scale "
+        "calculation, inequality-direction check, or pass-set translation. Recompute "
+        "from supplied formulas and values instead of repeating a named distribution, "
+        "approximation, source claim, or prior LLM sentence. One check must audit a "
+        "theory or procedure claim used by the protocol and one must audit the "
+        "executable pass set or its fixed-budget calibration. A citation without a "
+        "displayed recomputation is not a claim check. Any failed claim check must "
+        "produce a FAIL dimension and a high or critical finding; do not ask "
+        "downstream code to work around an internally contradictory theory premise. "
         "Resolve every requirement source_anchors entry against the exact "
         "acceptance_authority_catalog. An ID resolving to a topically related node is "
         "not enough: for acceptance_authority_kind=theory_derived, the cited content "
@@ -422,6 +434,14 @@ def build_architect_metric_semantic_review_prompt(
         "results, or retunes a prior frozen gate. Prefer stronger theory-derived or "
         "evaluation-mandated authority when it actually exists, but do not require a "
         "candidate-owned evaluation choice to be copied into TheoryDeveloper first. "
+        "For every required architect_preregistered_design row whose returned "
+        "quantity is stochastic across replicates, include a claim_check that "
+        "computes an uncertainty scale from runtime_owned_replicates and the supplied "
+        "pre-execution model, then compares the actual tolerance, pass region, or "
+        "quorum with that scale. A generic statement that a gate is plausible is not "
+        "a calculation. If the supplied artifacts do not support such a calculation, "
+        "the row cannot remain a required confirmatory gate; route its removal or "
+        "diagnostic-only conversion to metric_contract rather than inventing theory. "
         "diagnostic_only rows must be "
         "required=false and cannot contribute to acceptance. Missing gate authority is "
         "also mechanical: every threshold, lower/upper bound, nonzero tolerance, and "
@@ -522,6 +542,19 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_OUTPUT_CONTRACT: dict[str, Any] = {
             ),
             "rationale": "current-artifact evidence for this disposition",
             "evidence_refs": ["current theory/candidate field reference"],
+        }
+    ],
+    "claim_checks": [
+        {
+            "claim_ref": "exact theory/protocol/requirement field",
+            "check_type": (
+                "direct_substitution|normalization|boundary_case|"
+                "uncertainty_scale|inequality_direction|pass_set_translation"
+            ),
+            "recomputation": "explicit substituted expression or calculation",
+            "result": "computed or logically reduced result",
+            "verdict": "PASS|FAIL",
+            "evidence_refs": ["exact source field"],
         }
     ],
     "dimension_reviews": [
@@ -639,12 +672,49 @@ _PRIOR_FINDING_REVIEW_SCHEMA: dict[str, Any] = {
 }
 
 
+_CLAIM_CHECK_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "claim_ref",
+        "check_type",
+        "recomputation",
+        "result",
+        "verdict",
+        "evidence_refs",
+    ],
+    "properties": {
+        "claim_ref": {"type": "string", "minLength": 1},
+        "check_type": {
+            "type": "string",
+            "enum": [
+                "direct_substitution",
+                "normalization",
+                "boundary_case",
+                "uncertainty_scale",
+                "inequality_direction",
+                "pass_set_translation",
+            ],
+        },
+        "recomputation": {"type": "string", "minLength": 1},
+        "result": {"type": "string", "minLength": 1},
+        "verdict": {"type": "string", "enum": ["PASS", "FAIL"]},
+        "evidence_refs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "minLength": 1},
+        },
+    },
+}
+
+
 ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "additionalProperties": False,
     "required": [
         "prior_finding_reviews",
+        "claim_checks",
         "dimension_reviews",
         "findings",
         "overall_verdict",
@@ -654,6 +724,11 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
         "prior_finding_reviews": {
             "type": "array",
             "items": _PRIOR_FINDING_REVIEW_SCHEMA,
+        },
+        "claim_checks": {
+            "type": "array",
+            "minItems": ARCHITECT_METRIC_SEMANTIC_MIN_CLAIM_CHECKS,
+            "items": _CLAIM_CHECK_SCHEMA,
         },
         "dimension_reviews": {
             "type": "array",
@@ -804,6 +879,43 @@ def validate_architect_metric_semantic_review_packet(
             f"received={json.dumps(reviewed_prior_finding_ids)}"
         )
 
+    claim_checks = packet.get("claim_checks", [])
+    if not isinstance(claim_checks, list) or len(claim_checks) < (
+        ARCHITECT_METRIC_SEMANTIC_MIN_CLAIM_CHECKS
+    ):
+        errors.append(
+            "claim_checks must contain at least two explicit recomputations"
+        )
+        claim_checks = []
+    failed_claim_checks = 0
+    allowed_check_types = {
+        "direct_substitution",
+        "normalization",
+        "boundary_case",
+        "uncertainty_scale",
+        "inequality_direction",
+        "pass_set_translation",
+    }
+    for index, row in enumerate(claim_checks, start=1):
+        if not isinstance(row, Mapping):
+            errors.append("claim_checks entries must be objects")
+            continue
+        for field in ("claim_ref", "recomputation", "result"):
+            if not str(row.get(field, "") or "").strip():
+                errors.append(f"claim check {index} missing {field}")
+        if str(row.get("check_type", "") or "") not in allowed_check_types:
+            errors.append(f"claim check {index} has invalid check_type")
+        claim_verdict = str(row.get("verdict", "") or "").upper()
+        if claim_verdict not in {"PASS", "FAIL"}:
+            errors.append(f"claim check {index} has invalid verdict")
+        elif claim_verdict == "FAIL":
+            failed_claim_checks += 1
+        evidence_refs = row.get("evidence_refs", [])
+        if not isinstance(evidence_refs, list) or not any(
+            str(value or "").strip() for value in evidence_refs
+        ):
+            errors.append(f"claim check {index} missing evidence_refs")
+
     dimension_rows = packet.get("dimension_reviews", [])
     if not isinstance(dimension_rows, list):
         errors.append("dimension_reviews must be an array")
@@ -896,6 +1008,12 @@ def validate_architect_metric_semantic_review_packet(
         errors.append(
             "each active prior finding may be linked by at most one current finding"
         )
+    if failed_claim_checks and high_findings == 0:
+        errors.append(
+            "a failed claim check requires a high or critical typed finding"
+        )
+    if failed_claim_checks and not any(status == "FAIL" for status in statuses):
+        errors.append("a failed claim check requires a FAIL review dimension")
 
     complete_dimensions = len(statuses) == len(
         ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS

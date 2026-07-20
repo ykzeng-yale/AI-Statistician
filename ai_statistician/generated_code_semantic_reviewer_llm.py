@@ -11,7 +11,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 
 
-GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 3
+GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 4
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -53,6 +53,11 @@ GENERATED_CODE_SEMANTIC_REVIEW_ACTIONABLE_REPAIR_SCOPES = (
     "source_code",
     "upstream_metric_contract",
     "upstream_theory",
+)
+GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS = (
+    "source_theory_packet",
+    "metric_protocol_candidate",
+    "generated_source_artifact",
 )
 GENERATED_CODE_SEMANTIC_REVIEW_REPAIR_DEPENDENCY_ORDER = (
     "upstream_theory",
@@ -306,16 +311,23 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 "repair_prompt_priority_instructions": [
                     phase_repair_instruction,
                     (
-                        "Each finding repair_scope is the single LLM-authored repair "
-                        "classification. AgentRuntime derives aggregate assessments, "
-                        "verdict, owner, and repair plan from the dimension rows and "
-                        "findings; do not emit or patch duplicate aggregate decisions."
+                        "Each finding repair_scope is a reviewer hypothesis needed by "
+                        "this packet schema, not final ownership authority. The "
+                        "independent artifact-owner router decides which immutable "
+                        "artifact changes; AgentRuntime derives aggregate routing from "
+                        "that decision."
                     ),
                     (
                         "Every required repair must have at least one specific finding "
                         "with the correct repair_scope and evidence references. "
                         "Preserve unrelated valid findings and remove or rescope only "
                         "rows contradicted by the supplied evidence."
+                    ),
+                    (
+                        "Preserve typed artifact_citations on every dimension and "
+                        "finding. They identify which supplied immutable artifacts "
+                        "were actually inspected; they are evidence provenance, not "
+                        "repair-owner decisions."
                     ),
                     (
                         "Use source_code only for the reviewed source subsystem and "
@@ -422,7 +434,9 @@ def build_generated_code_semantic_review_prompt(
         "protocol during source-code repair. Scope a finding to source_code when the "
         "protocol is coherent and executable code merely fails to implement it; use "
         "upstream_metric_contract only when changing source code cannot satisfy the "
-        "protocol as written, and upstream_theory only for a missing or contradictory "
+        "protocol as written for a structural reason that existed before results, "
+        "never merely because a required gate failed; use upstream_theory only for a "
+        "missing or contradictory "
         "theory premise. Findings do not authorize post-result threshold relaxation. "
         "Interpret required_runtime_replicates as the minimum replicate count for the "
         "enclosing sandbox execution. It does not require every metric path to expose "
@@ -466,15 +480,37 @@ def build_generated_code_semantic_review_prompt(
         "ignore the actual runtime arguments, or satisfy a metric name while measuring "
         "a different quantity. Do not invent domain-specific hardcoded rules; reason "
         "from the supplied question, theory, protocol, code, and results. "
-        "Each finding repair_scope is the single LLM-authored repair classification. "
-        "AgentRuntime derives aggregate assessments, overall verdict, repair owner, "
-        "and repair plan from the dimension rows and findings. Do not emit duplicate "
+        "Each finding repair_scope is a reviewer hypothesis, not final repair-owner "
+        "authority. An independent artifact-owner router rechecks the exact artifacts "
+        "after REVISE; AgentRuntime derives aggregate routing from that decision. "
+        "Populate artifact_citations on every dimension and finding using only "
+        "source_theory_packet, metric_protocol_candidate, and "
+        "generated_source_artifact. Cite every supplied immutable artifact actually "
+        "used to support that row. These typed citations record provenance and do not "
+        "decide repair ownership. A source_code finding must cite "
+        "generated_source_artifact; an upstream_metric_contract finding must cite "
+        "metric_protocol_candidate; an upstream_theory finding must cite "
+        "source_theory_packet. Keep evidence_refs as precise human-readable locators "
+        "inside those cited artifacts; no special string prefix is required. Do not "
+        "emit duplicate "
         "aggregate decisions, and do not collapse a source implementation mismatch "
         "into a protocol or theory defect. A source_code finding needs a specific mismatch "
         "between exact executed source and an unambiguous current theory or frozen "
         "protocol node; cite both exact fields. When current theory nodes contradict "
         "one another or omit the premise needed to choose a correction, use an "
         "upstream_theory finding and do not choose one side as a coding instruction. "
+        "Do not create a mandatory diagnostic, stress test, metric, or empirical "
+        "verification that is absent from the current source-responsibility contract, "
+        "the frozen requirements assigned to this source, and the source proposal's "
+        "own claims. Preserve such useful ideas only as advisory findings with "
+        "repair_scope=none; they cannot make a required dimension FAIL or UNCERTAIN. "
+        "Do not ask generated code to empirically prove a theorem premise or replace "
+        "formal reasoning. A finite Monte Carlo deviation, by itself, identifies a "
+        "gate outcome rather than its cause: require an exact source, argument-binding, "
+        "or measurement mismatch before assigning source_code. Numerical stability, "
+        "finite-precision behavior, loop boundaries, runtime checks, and diagnostic "
+        "reporting are generated-source concerns, not missing mathematical theory, "
+        "unless an exact theory field explicitly claims that computational behavior. "
         "If a finding requires another generation or revision, mark a relevant "
         "dimension FAIL or UNCERTAIN, or assign the finding high or critical "
         "severity. Low or medium findings while every dimension is PASS are advisory: "
@@ -518,6 +554,9 @@ GENERATED_CODE_SEMANTIC_REVIEW_OUTPUT_CONTRACT: dict[str, Any] = {
             "status": "PASS|FAIL|UNCERTAIN",
             "rationale": "specific semantic reasoning",
             "evidence_refs": ["source/code/result/protocol reference"],
+            "artifact_citations": [
+                "source_theory_packet|metric_protocol_candidate|generated_source_artifact"
+            ],
         }
     ],
     "findings": [
@@ -530,6 +569,9 @@ GENERATED_CODE_SEMANTIC_REVIEW_OUTPUT_CONTRACT: dict[str, Any] = {
                 "none|source_code|upstream_metric_contract|upstream_theory"
             ),
             "evidence_refs": ["source/code/result/protocol reference"],
+            "artifact_citations": [
+                "source_theory_packet|metric_protocol_candidate|generated_source_artifact"
+            ],
         }
     ],
     "repair_instructions": ["concrete instruction"],
@@ -558,6 +600,7 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
                     "status",
                     "rationale",
                     "evidence_refs",
+                    "artifact_citations",
                 ],
                 "properties": {
                     "dimension": {
@@ -574,6 +617,17 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
                         "minItems": 1,
                         "items": {"type": "string", "minLength": 1},
                     },
+                    "artifact_citations": {
+                        "type": "array",
+                        "minItems": 1,
+                        "uniqueItems": True,
+                        "items": {
+                            "type": "string",
+                            "enum": list(
+                                GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS
+                            ),
+                        },
+                    },
                 },
             },
         },
@@ -589,6 +643,7 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
                     "required_change",
                     "repair_scope",
                     "evidence_refs",
+                    "artifact_citations",
                 ],
                 "properties": {
                     "severity": {
@@ -609,6 +664,17 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
                         "type": "array",
                         "minItems": 1,
                         "items": {"type": "string", "minLength": 1},
+                    },
+                    "artifact_citations": {
+                        "type": "array",
+                        "minItems": 1,
+                        "uniqueItems": True,
+                        "items": {
+                            "type": "string",
+                            "enum": list(
+                                GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS
+                            ),
+                        },
                     },
                 },
             },
@@ -657,6 +723,19 @@ def validate_generated_code_semantic_review_packet(
             errors.append(
                 f"semantic review dimension {dimension} missing evidence_refs"
             )
+        artifact_citations = row.get("artifact_citations", [])
+        if not isinstance(artifact_citations, list) or not artifact_citations:
+            errors.append(
+                f"semantic review dimension {dimension} missing artifact_citations"
+            )
+        elif any(
+            str(value or "").strip()
+            not in GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS
+            for value in artifact_citations
+        ):
+            errors.append(
+                f"semantic review dimension {dimension} has invalid artifact_citations"
+            )
     if sorted(seen_dimensions) != sorted(GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS):
         errors.append("dimension_reviews must contain each required dimension exactly once")
 
@@ -690,6 +769,15 @@ def validate_generated_code_semantic_review_packet(
             str(value or "").strip() for value in evidence_refs
         ):
             errors.append("semantic review finding missing evidence_refs")
+        artifact_citations = row.get("artifact_citations", [])
+        if not isinstance(artifact_citations, list) or not artifact_citations:
+            errors.append("semantic review finding missing artifact_citations")
+        elif any(
+            str(value or "").strip()
+            not in GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS
+            for value in artifact_citations
+        ):
+            errors.append("semantic review finding has invalid artifact_citations")
 
     expected_verdict = _generated_code_semantic_review_derived_verdict(
         dimension_reviews=dimension_rows,

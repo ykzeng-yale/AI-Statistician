@@ -25,6 +25,7 @@ _TYPED_SEMANTIC_PATCH_MAX_UPDATES = (
 _TYPED_SEMANTIC_PATCH_MAX_PATH_DEPTH = 8
 _TYPED_SEMANTIC_PATCH_MAX_TOKENS = 5000
 _TYPED_SEMANTIC_PATCH_MAX_FOCUS_VALUE_CHARS = 4000
+_TRUNCATION_REPAIR_MAX_TOKENS = 16000
 _TYPED_SEMANTIC_PATCH_PROMPT_WRAPPER_KEYS = frozenset(
     {
         "base_payload_excerpt",
@@ -114,11 +115,17 @@ class PacketValidationError(ValueError):
         attempts: int,
         errors: list[str],
         history: list[dict[str, Any]],
+        last_invalid_packet: Mapping[str, Any] | None = None,
     ) -> None:
         self.validation_label = validation_label
         self.attempts = attempts
         self.errors = [str(error) for error in errors]
         self.history = [dict(row) for row in history]
+        self.last_invalid_packet = (
+            deepcopy(dict(last_invalid_packet))
+            if isinstance(last_invalid_packet, Mapping)
+            else None
+        )
         super().__init__(
             f"{validation_label} failed validation after {attempts} attempt(s): "
             + "; ".join(self.errors)
@@ -152,6 +159,7 @@ def generate_validated_json_packet(
     last_errors: list[str] = []
     semantic_patch_base_payload: dict[str, Any] | None = None
     semantic_patch_base_fingerprint = ""
+    last_invalid_packet: dict[str, Any] | None = None
     attempts = max(0, max_repair_attempts) + 1
     for attempt_index in range(attempts):
         typed_semantic_patch_mode = bool(
@@ -260,6 +268,8 @@ def generate_validated_json_packet(
                 else [generation_error]
             )
         last_errors = [str(error) for error in errors]
+        if packet is not None and last_errors:
+            last_invalid_packet = deepcopy(packet)
         history_row = {
             "attempt_index": attempt_index,
             "provider": response.provider,
@@ -349,6 +359,7 @@ def generate_validated_json_packet(
         attempts=attempts,
         errors=last_errors,
         history=history,
+        last_invalid_packet=last_invalid_packet,
     )
 
 
@@ -899,7 +910,10 @@ def _repair_attempt_max_tokens(
     base = max(1, int(base_max_tokens or 1))
     if not truncation_repair_mode:
         return base
-    return min(max(base * 2, base + 1024), 8000)
+    return max(
+        base,
+        min(max(base * 2, base + 1024), _TRUNCATION_REPAIR_MAX_TOKENS),
+    )
 
 
 def _typed_semantic_patch_fits_update_budget(errors: list[str]) -> bool:

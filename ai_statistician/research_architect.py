@@ -25,6 +25,7 @@ THEORY_MIN_DERIVATION_STEPS = 3
 THEORY_MIN_EQUATION_CHAIN_STEPS = 2
 THEORY_SERIOUS_MIN_DERIVATION_STEPS = 5
 THEORY_SERIOUS_MIN_EQUATION_CHAIN_STEPS = 4
+THEORY_SERIOUS_MIN_SANITY_CHECKS = 3
 THEORY_PROMPT_MODE_COMPACT = "compact_theory_discovery_packet"
 THEORY_PROMPT_MODE_SERIOUS_CAPABILITY = "serious_capability_theory_workspace"
 THEORY_PROMPT_MODE_SERIOUS_REVISION = "serious_upstream_theory_revision"
@@ -94,7 +95,7 @@ class ResearchArchitectConfig:
     max_tokens: int = 4500
     serious_model: str = ""
     serious_model_tier: str = "sonnet"
-    serious_max_tokens: int = 8000
+    serious_max_tokens: int = 10000
     temperature: float = 0.2
     provider_name: str = "anthropic"
     max_repair_attempts: int = 2
@@ -203,6 +204,7 @@ class LLMTheoryDeveloperAgent:
             validation_label="LLM TheoryDeveloper packet",
             max_repair_attempts=self.config.max_repair_attempts,
             repair_context_builder=_theory_developer_json_repair_context,
+            semantic_patch_repair=True,
         )
 
 
@@ -342,6 +344,8 @@ def build_theory_developer_prompt(
             "min_derivation_steps": THEORY_SERIOUS_MIN_DERIVATION_STEPS,
             "max_derivation_steps": 8,
             "min_equation_chain_steps": THEORY_SERIOUS_MIN_EQUATION_CHAIN_STEPS,
+            "min_sanity_checks": THEORY_SERIOUS_MIN_SANITY_CHECKS,
+            "max_sanity_checks": 6,
             "max_candidate_procedures": 2,
             "max_theorem_goals": 2,
             "max_lemma_cards": 4,
@@ -356,9 +360,17 @@ def build_theory_developer_prompt(
                 "steps and at least four equation-chain rows. Explicitly audit every "
                 "DGP calibration, finite-sample feasibility claim, estimand/procedure "
                 "alignment, rejected alternative, and assumption used downstream. "
+                "Include at least three explicit sanity_checks that independently "
+                "substitute into or recompute named-distribution properties, numeric "
+                "calibrations and uncertainty scales, boundary cases, normalization, "
+                "or inequality direction. A citation or repeated claim is not a "
+                "sanity check. Repair any contradiction in the theory packet itself; "
+                "never ask generated code to enforce incompatible premises. "
                 "Include multiple lemmas or critic findings when needed to represent "
                 "real dependencies; do not compress unresolved contradictions into a "
-                "single vague risk sentence."
+                "single vague risk sentence. Do not repeat the same definition, "
+                "formula, or caveat across fields: state it once and refer to its id "
+                "elsewhere so the complete JSON object finishes within budget."
             ),
         }
     else:
@@ -400,7 +412,6 @@ def build_theory_developer_prompt(
         "prompt_mode": prompt_mode,
         "architect_context": compact_context,
         "required_output_contract": THEORY_DEVELOPER_OUTPUT_CONTRACT,
-        "validator_required_key_checklist": THEORY_DEVELOPER_VALIDATOR_CHECKLIST,
         output_budget_key: output_budget,
         "proof_boundary": KERNEL_PROOF_BOUNDARY,
     }
@@ -482,10 +493,13 @@ def build_theory_developer_prompt(
         "claim Lean/kernel proof evidence. Build a structured derivation trace that a "
         "Formalizer/ProofEngineer can consume: name assumptions, write an explicit "
         "equation chain, expose lemma dependencies, and state exactly which semantic "
-        "alignment constraints must survive formalization. Before returning, check "
-        "validator_required_key_checklist exactly, including "
-        "all top_level_required_fields, theorem_cards[0].informal_statement, "
-        "theorem_cards[0].proof_strategy, proof_plan, and simulation_ademp_spec. "
+        "alignment constraints must survive formalization. In serious mode, show "
+        "independent substitutions or recomputations in sanity_checks; do not treat "
+        "the model's own earlier prose as evidence that a formula, named distribution, "
+        "calibration, uncertainty scale, normalization, or inequality is correct. "
+        "Before returning, check required_output_contract exactly, including "
+        "theorem_cards[0].informal_statement, theorem_cards[0].proof_strategy, "
+        "proof_plan, simulation_ademp_spec, and every sanity_checks field. "
         + mode_instruction
         + " Keep the packet within its declared budget and finish as one valid JSON "
         "object; do not trade JSON completeness for detail.\n\n"
@@ -574,6 +588,13 @@ THEORY_DEVELOPER_VALIDATOR_CHECKLIST: dict[str, Any] = {
         "equation_chain[0..1].justification",
         "assumption_ledger[0].assumption",
         "assumption_ledger[0].used_in",
+        "sanity_checks[0].claim_ref",
+        "sanity_checks[0].id",
+        "sanity_checks[0].check_type",
+        "sanity_checks[0].recomputation",
+        "sanity_checks[0].result",
+        "sanity_checks[0].conclusion",
+        "sanity_checks[0].depends_on",
         "formalization_handoff.semantic_alignment_constraints",
     ],
     "theorem_cards[0]": [
@@ -1599,6 +1620,20 @@ THEORY_DEVELOPER_OUTPUT_CONTRACT: dict[str, Any] = {
                 "risk_if_dropped": "string",
             }
         ],
+        "sanity_checks": [
+            {
+                "id": "short id",
+                "claim_ref": "derivation/equation/assumption/procedure id",
+                "check_type": (
+                    "direct_substitution|normalization|boundary_case|"
+                    "uncertainty_scale|inequality_direction|dimensional_consistency"
+                ),
+                "recomputation": "explicit substituted expression or calculation",
+                "result": "computed or logically reduced result",
+                "conclusion": "PASS|FAIL and the theory revision made if FAIL",
+                "depends_on": ["source ids"],
+            }
+        ],
         "formalization_handoff": {
             "source_theorem_target": "theorem_card_id",
             "candidate_lean_targets": ["string"],
@@ -1671,34 +1706,30 @@ THEORY_DEVELOPER_OUTPUT_CONTRACT: dict[str, Any] = {
 }
 
 
+def _json_schema_from_output_contract(value: Any) -> dict[str, Any]:
+    if isinstance(value, Mapping):
+        properties = {
+            str(key): _json_schema_from_output_contract(item)
+            for key, item in value.items()
+        }
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "required": list(properties),
+            "properties": properties,
+        }
+    if isinstance(value, list):
+        item_contract = value[0] if value else "string"
+        return {
+            "type": "array",
+            "items": _json_schema_from_output_contract(item_contract),
+        }
+    return {"type": "string"}
+
+
 THEORY_DEVELOPER_JSON_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "type": "object",
-    "additionalProperties": True,
-    "required": [
-        "problem_card",
-        "theory_derivation_packet",
-        "estimator_specs",
-        "theorem_cards",
-        "lemma_cards",
-        "proof_plan",
-        "formalization_requests",
-        "simulation_ademp_spec",
-        "critic_findings",
-        "next_actions",
-    ],
-    "properties": {
-        "problem_card": {"type": "object"},
-        "theory_derivation_packet": {"type": "object"},
-        "estimator_specs": {"type": "array", "minItems": 1},
-        "theorem_cards": {"type": "array", "minItems": 1},
-        "lemma_cards": {"type": "array", "minItems": 1},
-        "proof_plan": {"type": "object"},
-        "formalization_requests": {"type": "array", "minItems": 1},
-        "simulation_ademp_spec": {"type": "object"},
-        "critic_findings": {"type": "array", "minItems": 1},
-        "next_actions": {"type": "array", "minItems": 1},
-    },
+    **_json_schema_from_output_contract(THEORY_DEVELOPER_OUTPUT_CONTRACT),
 }
 
 
@@ -1783,6 +1814,40 @@ def validate_theory_packet(packet: Mapping[str, Any]) -> list[str]:
                     errors.append(f"assumption_ledger row {idx} missing assumption")
                 if not row.get("used_in"):
                     errors.append(f"assumption_ledger row {idx} missing used_in")
+        sanity_checks = derivation.get("sanity_checks", [])
+        if serious_theory_mode and (
+            not isinstance(sanity_checks, list)
+            or len(sanity_checks) < THEORY_SERIOUS_MIN_SANITY_CHECKS
+        ):
+            errors.append(
+                "theory_derivation_packet.sanity_checks must contain at least "
+                f"{THEORY_SERIOUS_MIN_SANITY_CHECKS} explicit recomputations in "
+                "serious theory mode"
+            )
+        if isinstance(sanity_checks, list):
+            for idx, row in enumerate(sanity_checks):
+                if not isinstance(row, Mapping):
+                    errors.append(
+                        f"theory_derivation_packet.sanity_checks[{idx}] must be an object"
+                    )
+                    continue
+                missing_fields = [
+                    field
+                    for field in (
+                        "id",
+                        "claim_ref",
+                        "check_type",
+                        "recomputation",
+                        "result",
+                        "conclusion",
+                    )
+                    if not str(row.get(field, "") or "").strip()
+                ]
+                if missing_fields:
+                    errors.append(
+                        f"theory_derivation_packet.sanity_checks[{idx}] missing "
+                        "required fields: " + ", ".join(missing_fields)
+                    )
         formalization_handoff = derivation.get("formalization_handoff", {})
         if not isinstance(formalization_handoff, Mapping) or not formalization_handoff:
             errors.append("theory_derivation_packet.formalization_handoff must be non-empty")
@@ -1849,10 +1914,14 @@ def _normalize_theory_packet(
             if serious_theory_mode
             else THEORY_MIN_EQUATION_CHAIN_STEPS
         ),
+        "min_sanity_checks": (
+            THEORY_SERIOUS_MIN_SANITY_CHECKS if serious_theory_mode else 0
+        ),
         "theory_prompt_mode": theory_prompt_mode,
         "n_derivation_steps": _safe_len(derivation.get("derivation_steps", [])),
         "n_equation_chain_steps": _safe_len(derivation.get("equation_chain", [])),
         "n_assumption_ledger_rows": _safe_len(derivation.get("assumption_ledger", [])),
+        "n_sanity_checks": _safe_len(derivation.get("sanity_checks", [])),
         "has_formalization_handoff": bool(
             isinstance(derivation.get("formalization_handoff", {}), Mapping)
             and derivation.get("formalization_handoff")
@@ -1916,6 +1985,11 @@ def _canonicalize_theory_derivation_packet(
     packet["assumption_ledger"] = [
         _canonicalize_assumption_row(row, derivation_step_ids)
         for row in packet.get("assumption_ledger", []) or []
+        if isinstance(row, Mapping)
+    ]
+    packet["sanity_checks"] = [
+        dict(row)
+        for row in packet.get("sanity_checks", []) or []
         if isinstance(row, Mapping)
     ]
     handoff = packet.get("formalization_handoff", {})

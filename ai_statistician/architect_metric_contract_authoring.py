@@ -14,6 +14,7 @@ from .architect_metric_semantic_reviewer_llm import (
     ARCHITECT_METRIC_RUNTIME_CONTRACT_RETRACTION_EVIDENCE_IDS,
     ARCHITECT_METRIC_SEMANTIC_REVIEW_BOUNDARY,
     ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_METRIC_CONTRACT,
+    ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY,
     LLMArchitectMetricSemanticReviewerAgent,
     architect_metric_review_material_with_runtime_evaluator_certificate,
     architect_metric_semantic_recommended_repair_scope,
@@ -266,6 +267,32 @@ def _metric_authoring_repair_context(
             acceptance_authority_catalog=acceptance_authority_catalog,
         )
     )
+    for matrix_row in numeric_authority_repair_matrix:
+        unmatched_fields = [
+            str(field)
+            for field in matrix_row.get(
+                "numeric_gate_fields_without_exact_catalog_match", []
+            )
+            if str(field).strip()
+        ]
+        matrix_row["source_derived_authority_allowed"] = not unmatched_fields
+        matrix_row["required_resolution_options"] = (
+            [
+                "architect_preregistered_design_with_preexecution_rationale",
+                "diagnostic_only_or_remove",
+            ]
+            if unmatched_fields
+            else [
+                "cite_exact_matching_catalog_nodes",
+                "architect_preregistered_design_with_preexecution_rationale",
+                "diagnostic_only_or_remove",
+            ]
+        )
+        matrix_row["forbidden_resolutions"] = [
+            "copy_candidate_value_into_upstream_theory",
+            "change_gate_only_to_match_an_anchor",
+            "retain_source_derived_authority_when_any_gate_field_is_unmatched",
+        ]
 
     repair_catalog = acceptance_authority_catalog
     repair_catalog_scope = "full_catalog"
@@ -581,6 +608,15 @@ def author_reviewed_architect_metric_requirements(
                 "uncertainty, the fixed runtime budget, and attainable behavior. The "
                 "cited nodes provide semantic context and need not contain those "
                 "candidate-owned numbers."
+            ),
+            (
+                "For every architect_preregistered_design gate applied to a "
+                "stochastic finite-replicate estimate, include an explicit "
+                "uncertainty-scale calculation at runtime_owned_replicates in "
+                "acceptance_authority_rationale and compare the proposed pass region "
+                "or quorum with that scale. If no defensible pre-execution "
+                "calculation supports a decision-relevant gate, make the row "
+                "diagnostic_only or omit it."
             ),
             (
                 "An architect_preregistered_design gate is frozen before generated "

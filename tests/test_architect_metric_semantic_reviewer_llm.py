@@ -51,6 +51,28 @@ def _review_payload(*, accept: bool) -> dict[str, object]:
     status = "PASS" if accept else "FAIL"
     return {
         "prior_finding_reviews": [],
+        "claim_checks": [
+            {
+                "claim_ref": "requirement:generic_gate.metric_semantics",
+                "check_type": "direct_substitution",
+                "recomputation": "Substitute the declared scalar into its definition.",
+                "result": "The declared metric is finite and scalar.",
+                "verdict": "PASS",
+                "evidence_refs": ["requirement:generic_gate.metric_semantics"],
+            },
+            {
+                "claim_ref": "requirement:generic_gate.operator",
+                "check_type": "pass_set_translation",
+                "recomputation": "The executable pass set is value <= 0.1.",
+                "result": (
+                    "The pass set matches the protocol."
+                    if accept
+                    else "The finite-sample calibration is unsupported."
+                ),
+                "verdict": "PASS" if accept else "FAIL",
+                "evidence_refs": ["requirement:generic_gate.operator"],
+            },
+        ],
         "dimension_reviews": [
             {
                 "dimension": dimension,
@@ -213,11 +235,22 @@ def test_preexecution_metric_reviewer_accepts_only_with_independent_lineage() ->
     assert "finite-sample uncertainty as low-severity advisory" in (
         backend.requests[0].user_prompt
     )
+    assert "at least two claim_checks" in backend.requests[0].user_prompt
+    assert "A citation without a displayed recomputation" in (
+        backend.requests[0].user_prompt
+    )
     assert "topically related node is not enough" in backend.requests[0].user_prompt
     assert "diagnostic_only rows must be required=false" in (
         backend.requests[0].user_prompt
     )
     assert "architect_preregistered_design" in backend.requests[0].user_prompt
+    assert "every required architect_preregistered_design row" in (
+        backend.requests[0].user_prompt
+    )
+    assert "computes an uncertainty scale" in backend.requests[0].user_prompt
+    assert "generic statement that a gate is plausible" in (
+        backend.requests[0].user_prompt
+    )
     assert "do not require a candidate-owned evaluation choice" in (
         backend.requests[0].user_prompt
     )
@@ -241,6 +274,18 @@ def test_preexecution_metric_reviewer_returns_typed_revision_feedback() -> None:
     assert packet["findings"][0]["repair_scope"] == "metric_contract"
     assert packet["recommended_repair_scope"] == "metric_contract"
     assert validate_architect_metric_semantic_review_packet(packet) == []
+
+
+def test_preexecution_metric_reviewer_requires_explicit_claim_recomputation() -> None:
+    payload = _review_payload(accept=True)
+    payload.pop("claim_checks")
+
+    with pytest.raises(PacketValidationError) as exc_info:
+        _review(accept=True, payload=payload)
+
+    assert "claim_checks must contain at least two explicit recomputations" in str(
+        exc_info.value
+    )
 
 
 def test_metric_reviewer_binds_certificate_to_authoring_requirement_set() -> None:

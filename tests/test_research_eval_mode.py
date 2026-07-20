@@ -391,7 +391,7 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
     assert args.serious_theory_model_tier == "haiku"
     assert args.evaluation_claude_model_tier == "haiku"
     assert args.evaluation_claude_model == "claude-haiku-4-5-20251001"
-    assert args.serious_theory_max_tokens >= 8000
+    assert args.serious_theory_max_tokens >= 10000
     assert args.llm_timeout_seconds == 240.0
     assert args.architect_metric_protocol_max_fresh_candidate_revisions == 1
     assert args.coding_agent_packet_validation_max_lineage_failures == 4
@@ -401,6 +401,8 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
     )
     assert parsed.research_eval is True
     assert parsed.capability_eval is False
+    assert parsed.architect_metric_protocol_max_upstream_theory_revisions == 1
+    assert parsed.generated_code_semantic_review_max_upstream_theory_revisions == 1
     assert parsed.architect_metric_protocol_max_fresh_candidate_revisions == 0
     with pytest.raises(SystemExit):
         build_parser().parse_args(

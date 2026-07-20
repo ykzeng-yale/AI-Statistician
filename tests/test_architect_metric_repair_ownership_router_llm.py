@@ -5,11 +5,16 @@ import json
 import pytest
 
 from ai_statistician.architect_metric_repair_ownership_router_llm import (
+    ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_PREEXECUTION,
     ARCHITECT_METRIC_REPAIR_OWNERSHIP_JSON_SCHEMA,
     ArchitectMetricRepairOwnershipRouterConfig,
     LLMArchitectMetricRepairOwnershipRouterAgent,
+    _postexecution_artifact_target_eligibility,
     apply_architect_metric_repair_ownership_routes,
+    apply_generated_code_repair_ownership_routes,
     architect_metric_repair_scope_from_decision,
+    generated_code_recommended_scope_from_ownership_decisions,
+    generated_code_repair_scope_from_ownership_decision,
     validate_architect_metric_repair_ownership_packet,
 )
 from ai_statistician.fingerprint import stable_hash
@@ -76,14 +81,12 @@ def _routing_payload() -> dict[str, object]:
                 "required_artifact_changes": [
                     {
                         "artifact_role": "source_theory_packet",
-                        "change_summary": "Correct the source derivation.",
                     },
                     {
                         "artifact_role": "metric_protocol_candidate",
-                        "change_summary": "Refresh the dependent source anchor.",
                     },
                 ],
-                "metric_author_can_repair_without_revising_source_theory": False,
+                "source_theory_can_remain_unchanged": False,
                 "ownership_certainty": "resolved",
                 "rationale": "The source equation itself cannot remain unchanged.",
             },
@@ -92,10 +95,9 @@ def _routing_payload() -> dict[str, object]:
                 "required_artifact_changes": [
                     {
                         "artifact_role": "metric_protocol_candidate",
-                        "change_summary": "Align the typed aggregation with prose.",
                     }
                 ],
-                "metric_author_can_repair_without_revising_source_theory": True,
+                "source_theory_can_remain_unchanged": True,
                 "ownership_certainty": "resolved",
                 "rationale": "The supplied theory remains true and sufficient.",
             },
@@ -116,7 +118,8 @@ def _route(
         provider=backend,
         config=ArchitectMetricRepairOwnershipRouterConfig(
             provider_name="anthropic",
-            model="claude-sonnet-4-6",
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
             max_repair_attempts=max_repair_attempts,
         ),
     ).route(
@@ -166,7 +169,7 @@ def test_repair_router_overrides_free_scope_with_artifact_bound_ownership() -> N
     assert backend.requests[0].metadata["subsystem"] == (
         "ArchitectMetricRepairOwnershipRouter"
     )
-    assert backend.requests[0].metadata["model_tier"] == "sonnet"
+    assert backend.requests[0].metadata["model_tier"] == "haiku"
     assert "Do not repeat the reviewer's repair_scope" in (
         backend.requests[0].user_prompt
     )
@@ -187,12 +190,9 @@ def test_repair_router_retries_a_resolved_but_contradictory_decision() -> None:
     first_decision["required_artifact_changes"] = [
         {
             "artifact_role": "metric_protocol_candidate",
-            "change_summary": "Repair only the candidate measurement.",
         }
     ]
-    first_decision[
-        "metric_author_can_repair_without_revising_source_theory"
-    ] = False
+    first_decision["source_theory_can_remain_unchanged"] = False
     backend = _Backend([contradictory, _routing_payload()])
 
     packet = _route(backend, max_repair_attempts=1)
@@ -201,7 +201,7 @@ def test_repair_router_retries_a_resolved_but_contradictory_decision() -> None:
     assert packet["recommended_repair_scope"] == "upstream_theory"
     assert packet["llm_json_repair_attempts"] == 1
     assert (
-        "claims resolved ownership but its targets and repair flag contradict"
+        "source-theory preservation flag"
         in backend.requests[1].user_prompt
     )
 
@@ -233,10 +233,9 @@ def test_repair_router_unresolved_decision_fails_closed() -> None:
         "required_artifact_changes": [
             {
                 "artifact_role": "metric_protocol_candidate",
-                "change_summary": "A candidate change may be needed.",
             }
         ],
-        "metric_author_can_repair_without_revising_source_theory": True,
+        "source_theory_can_remain_unchanged": True,
         "ownership_certainty": "unresolved",
     }
 
@@ -248,10 +247,9 @@ def test_repair_router_does_not_compensate_for_contradictory_targets() -> None:
         "required_artifact_changes": [
             {
                 "artifact_role": "metric_protocol_candidate",
-                "change_summary": "Only the candidate is named.",
             }
         ],
-        "metric_author_can_repair_without_revising_source_theory": False,
+        "source_theory_can_remain_unchanged": False,
         "ownership_certainty": "resolved",
     }
 
@@ -261,7 +259,9 @@ def test_repair_router_does_not_compensate_for_contradictory_targets() -> None:
         "proof_evidence_status": (
             "ARCHITECT_METRIC_REPAIR_OWNERSHIP_NOT_PROOF_EVIDENCE"
         ),
+        "routing_phase": ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_PREEXECUTION,
         "execution_results_observed": False,
+        "frozen_protocol_immutable_after_execution": False,
         "question_id": "q_contradictory_owner",
         "authoring_packet_id": "metric-authoring:contradictory",
         "authoring_packet_hash": "authoring-hash",
@@ -282,10 +282,297 @@ def test_repair_router_does_not_compensate_for_contradictory_targets() -> None:
         "recommended_repair_scope": "unresolved",
     }
     assert any(
-        "claims resolved ownership but its targets and repair flag contradict"
+        "source-theory preservation flag"
         in error
         for error in validate_architect_metric_repair_ownership_packet(packet)
     )
+
+
+def test_postexecution_router_replaces_result_driven_reviewer_instruction() -> None:
+    backend = _Backend(
+        [
+            {
+                "decisions": [
+                    {
+                        "finding_index": 0,
+                        "required_artifact_changes": [
+                            {"artifact_role": "source_theory_packet"}
+                        ],
+                        "source_theory_can_remain_unchanged": False,
+                        "ownership_certainty": "resolved",
+                        "rationale": "This first target lacks artifact evidence.",
+                    }
+                ]
+            },
+            {
+                "decisions": [
+                    {
+                        "finding_index": 0,
+                        "required_artifact_changes": [
+                            {
+                                "artifact_role": "generated_source_artifact",
+                            }
+                        ],
+                        "source_theory_can_remain_unchanged": True,
+                        "ownership_certainty": "resolved",
+                        "rationale": (
+                            "The protocol and theory are coherent; exact source "
+                            "behavior does not implement the required measurement."
+                        ),
+                    }
+                ]
+            },
+        ]
+    )
+    semantic_review = {
+        "packet_id": "generated-review:post-result",
+        "reviewed_source_assessment": "SOURCE_REPAIR_REQUIRED",
+        "frozen_metric_contract_assessment": "VALID_AND_FEASIBLE",
+        "source_theory_assessment": "SUFFICIENT_FOR_IMPLEMENTATION_REPAIR",
+        "dimension_reviews": [],
+        "findings": [
+            {
+                "severity": "high",
+                "category": "failed gate",
+                "summary": "The observed metric missed the frozen threshold.",
+                "required_change": "Relax the threshold after observing the result.",
+                "repair_scope": "upstream_metric_contract",
+                "evidence_refs": ["result:metric_gate"],
+            },
+            {
+                "severity": "low",
+                "category": "advisory note",
+                "summary": "A diagnostic could be logged in a later cleanup.",
+                "required_change": "Optionally add one diagnostic field.",
+                "repair_scope": "none",
+                "evidence_refs": ["result:diagnostic"],
+            },
+        ],
+    }
+    router = LLMArchitectMetricRepairOwnershipRouterAgent(
+        provider=backend,
+        config=ArchitectMetricRepairOwnershipRouterConfig(
+            provider_name="anthropic",
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+            max_repair_attempts=1,
+        ),
+    )
+
+    packet = router.route_generated_code_review(
+        question=OpenResearchQuestion(
+            id="q_post_result_owner",
+            title="Route a post-result source defect",
+            description="Keep a frozen evaluation protocol immutable.",
+        ),
+        review_material={
+            "theory_packet": {"packet_id": "theory:post-result"},
+            "architect_frozen_evidence_contract": {
+                "empirical_metric_requirements": [{"requirement_id": "gate:1"}]
+            },
+            "coding_agent_proposal_packet": {"packet_id": "code:proposal"},
+            "source_responsibility_contract": {"assigned_requirement_ids": []},
+            "exact_executed_artifacts": [
+                {
+                    "artifact_id": "code:exact",
+                    "exact_source_code": "def estimate(): return 1.0",
+                    "exact_result": {
+                        "summary": {"metric": 0.5},
+                        "cells": [{"large_replicate_payload": "omit-me"}],
+                    },
+                }
+            ],
+        },
+        semantic_review_packet=semantic_review,
+        trusted_lineage={
+            "work_order_id": "work-order:post-result",
+            "work_order_hash": "work-order-hash",
+            "source_manifest_id": "source-manifest:post-result",
+            "source_manifest_hash": "source-manifest-hash",
+            "theory_packet_id": "theory:post-result",
+            "theory_packet_hash": "theory-hash",
+        },
+    )
+
+    assert packet["execution_results_observed"] is True
+    assert packet["llm_json_repair_attempts"] == 1
+    assert packet["frozen_protocol_immutable_after_execution"] is True
+    assert packet["reviewed_finding_count"] == 1
+    assert packet["recommended_repair_scope"] == "source_code"
+    assert packet["artifact_target_eligibility"] == [
+        {
+            "finding_index": 0,
+            "eligible_artifact_roles": ["generated_source_artifact"],
+            "basis": (
+                "A post-execution target is eligible only when the finding "
+                "cites that artifact. A frozen metric protocol is eligible "
+                "only from outcome-independent protocol evidence."
+            ),
+            "expanded_review_dimensions": [],
+        }
+    ]
+    assert validate_architect_metric_repair_ownership_packet(packet) == []
+    routed = apply_generated_code_repair_ownership_routes(
+        findings=semantic_review["findings"],
+        ownership_packet=packet,
+    )
+    assert routed[0]["semantic_reviewer_repair_scope"] == (
+        "upstream_metric_contract"
+    )
+    assert routed[0]["repair_scope"] == "source_code"
+    assert "Relax the threshold" in routed[0][
+        "semantic_reviewer_required_change"
+    ]
+    assert "Reinspect generated_source_artifact" in routed[0][
+        "required_change"
+    ]
+    assert "Relax the threshold" not in routed[0]["required_change"]
+    assert routed[1]["repair_scope"] == "none"
+    assert routed[1]["required_change"] == "Optionally add one diagnostic field."
+    assert "Relax the threshold" not in backend.requests[0].user_prompt
+    assert "failed gate" in backend.requests[0].user_prompt
+    assert "advisory note" not in backend.requests[0].user_prompt
+    assert "omit-me" not in backend.requests[0].user_prompt
+    assert '"metric":0.5' in backend.requests[0].user_prompt
+    assert "not by itself a protocol defect" in backend.requests[0].user_prompt
+    assert "downstream-repair counterfactual" in backend.requests[0].user_prompt
+    assert "Finite-precision arithmetic" in backend.requests[0].user_prompt
+    assert "missing non-required diagnostic" in backend.requests[0].user_prompt
+    assert "one bounded generated-source repair" in backend.requests[0].user_prompt
+    assert "A separate theory-only finding" in backend.requests[0].user_prompt
+    assert "semantic_review_artifact_assessments" in (
+        backend.requests[0].user_prompt
+    )
+    assert "SUFFICIENT_FOR_IMPLEMENTATION_REPAIR" in (
+        backend.requests[0].user_prompt
+    )
+    assert "artifact_target_eligibility" in backend.requests[1].user_prompt
+    assert '"eligible_artifact_roles"' in (
+        backend.requests[1].user_prompt
+    )
+    assert '"generated_source_artifact"' in (
+        backend.requests[1].user_prompt
+    )
+    assert "targets an artifact not supported by its typed artifact citations" in (
+        backend.requests[1].user_prompt
+    )
+
+    forged = json.loads(json.dumps(packet))
+    forged["decisions"][0]["required_artifact_changes"] = [
+        {"artifact_role": "metric_protocol_candidate"}
+    ]
+    forged["decisions"][0]["derived_repair_scope"] = (
+        "upstream_metric_contract"
+    )
+    forged["recommended_repair_scope"] = "upstream_metric_contract"
+    assert any(
+        "not supported by its typed artifact citations" in error
+        for error in validate_architect_metric_repair_ownership_packet(forged)
+    )
+
+
+def test_postexecution_eligibility_uses_typed_artifact_citations() -> None:
+    eligibility = _postexecution_artifact_target_eligibility(
+        [
+            {
+                "evidence_refs": [
+                    "eprocess_test_statistic capping logic and returned mean"
+                ],
+                "artifact_citations": ["generated_source_artifact"],
+            }
+        ],
+        semantic_review_dimensions=[
+            {
+                "dimension": "experiment_non_vacuity_and_identifiability",
+                "evidence_refs": [
+                    "exact_executed_artifacts[0]/exact_source_code"
+                ],
+                "artifact_citations": ["generated_source_artifact"],
+            }
+        ],
+    )
+
+    assert eligibility[0]["eligible_artifact_roles"] == [
+        "generated_source_artifact"
+    ]
+    assert eligibility[0]["expanded_review_dimensions"] == []
+
+
+def test_postexecution_eligibility_replays_legacy_dimension_evidence() -> None:
+    eligibility = _postexecution_artifact_target_eligibility(
+        [
+            {
+                "evidence_refs": [
+                    "experiment_non_vacuity_and_identifiability: diagnostic absent"
+                ]
+            }
+        ],
+        semantic_review_dimensions=[
+            {
+                "dimension": "experiment_non_vacuity_and_identifiability",
+                "evidence_refs": [
+                    "exact_executed_artifacts[0]/exact_source_code"
+                ],
+            }
+        ],
+    )
+
+    assert eligibility[0]["eligible_artifact_roles"] == [
+        "generated_source_artifact"
+    ]
+    assert eligibility[0]["expanded_review_dimensions"] == [
+        "experiment_non_vacuity_and_identifiability"
+    ]
+
+
+def test_coupled_postexecution_source_and_theory_defect_repairs_source_first() -> None:
+    decision = {
+        "finding_index": 0,
+        "required_artifact_changes": [
+            {"artifact_role": "generated_source_artifact"},
+            {"artifact_role": "source_theory_packet"},
+        ],
+        "source_theory_can_remain_unchanged": False,
+        "ownership_certainty": "resolved",
+        "rationale": (
+            "The observed symptom supports a concrete source defect and an upstream "
+            "hypothesis that must be reassessed after source repair."
+        ),
+    }
+
+    assert generated_code_repair_scope_from_ownership_decision(decision) == (
+        "source_code"
+    )
+    assert generated_code_recommended_scope_from_ownership_decisions(
+        [decision]
+    ) == "source_code"
+    routed = apply_generated_code_repair_ownership_routes(
+        findings=[
+            {
+                "severity": "high",
+                "category": "generic execution mismatch",
+                "summary": "The exact execution disagrees with its declared model.",
+                "required_change": "Recheck the implementation and theory.",
+                "repair_scope": "upstream_theory",
+                "evidence_refs": ["theory_packet", "exact_source_code"],
+            }
+        ],
+        ownership_packet={
+            "packet_id": "metric_repair_ownership:coupled",
+            "decisions": [decision],
+        },
+    )
+
+    assert routed[0]["repair_scope"] == "source_code"
+    assert routed[0]["repair_target_artifacts"] == [
+        {"artifact_role": "generated_source_artifact"},
+        {"artifact_role": "source_theory_packet"},
+    ]
+    assert routed[0]["deferred_repair_target_artifacts"] == [
+        {"artifact_role": "source_theory_packet"}
+    ]
+    assert "Reinspect generated_source_artifact" in routed[0]["required_change"]
+    assert "source_theory_packet" not in routed[0]["required_change"]
 
 
 def test_repair_ownership_schema_transforms_for_anthropic() -> None:

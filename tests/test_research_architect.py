@@ -156,6 +156,41 @@ def _sample_response() -> dict[str, object]:
                     "risk_if_dropped": "second-order remainder may dominate",
                 },
             ],
+            "sanity_checks": [
+                {
+                    "id": "check_identification",
+                    "claim_ref": "identified_estimand",
+                    "check_type": "direct_substitution",
+                    "recomputation": (
+                        "Substitute the conditional means into the g-formula."
+                    ),
+                    "result": "psi = E[m_1(X)-m_0(X)]",
+                    "conclusion": "PASS",
+                    "depends_on": ["identify_ate"],
+                },
+                {
+                    "id": "check_positivity",
+                    "claim_ref": "orthogonal_score",
+                    "check_type": "boundary_case",
+                    "recomputation": (
+                        "Let e(X) approach zero in A/e(X); the weight diverges."
+                    ),
+                    "result": "A positive lower propensity bound is required.",
+                    "conclusion": "PASS after retaining positivity",
+                    "depends_on": ["orthogonal_score"],
+                },
+                {
+                    "id": "check_remainder_scale",
+                    "claim_ref": "orthogonal_expansion",
+                    "check_type": "uncertainty_scale",
+                    "recomputation": (
+                        "Multiply two o_p(n^-1/4) nuisance errors."
+                    ),
+                    "result": "Their product is o_p(n^-1/2).",
+                    "conclusion": "PASS",
+                    "depends_on": ["remainder_control"],
+                },
+            ],
             "formalization_handoff": {
                 "source_theorem_target": "aipw_asymptotic_normality",
                 "candidate_lean_targets": ["bounded_aipw_expansion"],
@@ -298,6 +333,23 @@ def test_llm_theory_developer_validation_rejects_shallow_derivation_contract() -
     assert any("formalization_handoff" in error for error in errors)
 
 
+def test_serious_theory_validation_requires_explicit_sanity_recomputations() -> None:
+    packet = _sample_response()
+    derivation = dict(packet["theory_derivation_packet"])
+    derivation.pop("sanity_checks")
+    packet["theory_derivation_packet"] = derivation
+    packet["serious_theory_mode"] = True
+    packet["proof_evidence_status"] = THEORY_DERIVATION_NOT_PROOF_EVIDENCE
+    packet["kernel_verified"] = False
+
+    errors = validate_theory_packet(packet)
+
+    assert any(
+        "sanity_checks must contain at least 3 explicit recomputations" in error
+        for error in errors
+    )
+
+
 def test_capability_theory_mode_requires_deeper_equation_trace(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -335,7 +387,7 @@ def test_capability_theory_mode_requires_deeper_equation_trace(
     assert len(provider.requests) == 1
     request = provider.requests[0]
     assert request.model == "claude-sonnet-serious-theory-test"
-    assert request.max_tokens == 8000
+    assert request.max_tokens == 10000
     assert request.metadata["model_tier"] == "sonnet"
     assert request.metadata["base_model_tier"] == "sonnet"
     assert request.metadata["serious_theory_mode"] is True
@@ -683,7 +735,7 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
     assert runtime_args.theory_model_tier == "sonnet"
     assert runtime_args.serious_theory_llm_model == ""
     assert runtime_args.serious_theory_model_tier == "sonnet"
-    assert runtime_args.serious_theory_max_tokens == 8000
+    assert runtime_args.serious_theory_max_tokens == 10000
     assert runtime_args.architect_metric_repair_ownership_router is False
     assert runtime_args.architect_metric_repair_ownership_router_llm_model == ""
     assert runtime_args.architect_metric_repair_ownership_router_max_tokens == 5000

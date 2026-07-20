@@ -116,6 +116,8 @@ def _runtime_fixture(
     *,
     target_hash_algorithm: str = EXACT_TARGET_STATEMENT_HASH_ALGORITHM,
     reviewer_model_tier: str = LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+    max_revisions: int = 2,
+    revision_count: int = 0,
 ):
     question = _question()
     source = (
@@ -219,7 +221,8 @@ def _runtime_fixture(
             "architect_context": {
                 "runtime_requested_evidence_contract": {
                     "evaluation_mode": "capability_eval"
-                }
+                },
+                "formal_target_semantic_review_revision_count": revision_count,
             },
         },
     )
@@ -271,7 +274,7 @@ def _runtime_fixture(
         repair_feedback=repair_feedback,
         architect_context=repair_task.inputs["architect_context"],
         deferred_next_task=deferred_task,
-        max_revisions=2,
+        max_revisions=max_revisions,
     )
     assert dispatch is not None
     blackboard = BlackboardState(project_id="formal-target-semantic-review-test")
@@ -285,7 +288,7 @@ def _runtime_fixture(
     )
     subsystem = FormalTargetSemanticReviewerRuntimeSubsystem(
         reviewer=_reviewer(verdict, model_tier=reviewer_model_tier),
-        max_revisions=2,
+        max_revisions=max_revisions,
     )
     return subsystem, dispatch["next_task"], blackboard, artifact_path
 
@@ -410,10 +413,32 @@ def test_formal_target_semantic_review_blocks_back_to_theory_developer(
     assert result.next_task.inputs["architect_context"][
         "previous_theory_packet_hash"
     ] == previous_theory_packet_hash
+    assert result.next_task.inputs["architect_context"][
+        "formal_target_semantic_review_revision_count"
+    ] == 1
     handoff = result.next_task.inputs["architect_context"]["runtime_feedback_loop"][
         "direct_repair_handoff_contract"
     ]
     assert handoff["target_repair_subsystem"] == "TheoryDeveloper"
+
+
+def test_formal_target_revision_budget_survives_theory_replans(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        "BLOCK",
+        max_revisions=1,
+        revision_count=1,
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
+    assert result.failure_classification == (
+        "formal_target_semantic_review_revision_budget_exhausted"
+    )
 
 
 def test_formal_target_semantic_review_fails_closed_on_source_hash_drift(
