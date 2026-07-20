@@ -23086,6 +23086,87 @@ def test_architect_does_not_forward_mismatched_semantic_replan_feedback() -> Non
     assert routed_feedback == {}
 
 
+def test_metric_authoring_numeric_repair_context_uses_local_catalog_slice() -> None:
+    from ai_statistician.architect_metric_contract_authoring import (
+        _metric_authoring_repair_context,
+    )
+
+    theory_anchor = "theory#/theorem_cards/0/conclusion"
+    matching_design_anchor = "theory#/simulation_ademp_spec/dgps/0"
+    irrelevant_design_anchor = "theory#/simulation_ademp_spec/dgps/1"
+    catalog = [
+        {
+            "anchor_id": theory_anchor,
+            "authority_kind": "theory_derived",
+            "content": "The target error is controlled asymptotically.",
+            "explicit_numeric_values": [],
+        },
+        {
+            "anchor_id": matching_design_anchor,
+            "authority_kind": "evaluation_design",
+            "content": "Evaluate the null at p = 0.5.",
+            "explicit_numeric_values": [0.5],
+        },
+        {
+            "anchor_id": irrelevant_design_anchor,
+            "authority_kind": "evaluation_design",
+            "content": "Evaluate an alternative at p = 0.7.",
+            "explicit_numeric_values": [0.7],
+        },
+    ]
+    requirement = {
+        "requirement_id": "null_parameter_gate",
+        "target_subsystems": ["SimulationEngineer"],
+        "metric_semantics": "absolute null-parameter deviation",
+        "measurement_protocol": "evaluate the declared null DGP",
+        "required_runtime_replicates": 17,
+        "operator": "<=",
+        "threshold": 0.5,
+        "lower": None,
+        "upper": None,
+        "tolerance": 0.0,
+        "aggregation": "mean",
+        "minimum_pass_count": None,
+        "minimum_pass_fraction": None,
+        "required": True,
+        "source_anchors": [theory_anchor],
+        "acceptance_authority_kind": "theory_parameter_instantiation",
+        "acceptance_authority_rationale": "Bind the theory to the null DGP.",
+        "boundary": "empirical control, not proof evidence",
+    }
+
+    context = _metric_authoring_repair_context(
+        invalid_packet={"empirical_metric_requirements": [requirement]},
+        errors=[
+            "[generated_metric_numeric_authority_missing] "
+            "empirical_metric_requirements[0].threshold=0.5 must be explicitly "
+            "present in a cited evaluation_design authority node"
+        ],
+        runtime_replicates=17,
+        acceptance_authority_catalog_id="catalog:test",
+        acceptance_authority_catalog=catalog,
+        required_target_rows=[],
+        independent_semantic_review_repair={},
+    )
+
+    assert context["acceptance_authority_catalog_scope"] == (
+        "numeric_authority_local_slice"
+    )
+    assert context["acceptance_authority_catalog_total_rows"] == 3
+    assert context["acceptance_authority_catalog_repair_rows"] == 2
+    assert {
+        row["anchor_id"] for row in context["acceptance_authority_catalog"]
+    } == {theory_anchor, matching_design_anchor}
+    assert irrelevant_design_anchor not in {
+        row["anchor_id"] for row in context["acceptance_authority_catalog"]
+    }
+    matrix = context["numeric_authority_repair_matrix"]
+    assert matrix[0]["numeric_gate_matches"][0]["matching_catalog_nodes"][0][
+        "anchor_id"
+    ] == matching_design_anchor
+    assert context["numeric_authority_repair_automatic_selection"] is False
+
+
 def test_live_architect_preauthors_metric_contract_with_structured_substage() -> None:
     question = next(
         question
@@ -23336,9 +23417,23 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     repair_instructions = " ".join(repair_payload["repair_instructions"])
     repair_context = repair_payload["subsystem_repair_context"]
     authority_matrix = repair_context["numeric_authority_repair_matrix"]
+    repair_catalog = repair_context["acceptance_authority_catalog"]
     assert "architect_preregistered_design" in repair_instructions
     assert "do not copy the value into theory" in repair_instructions
     assert "numeric_authority_repair_matrix" in repair_instructions
+    assert repair_context["acceptance_authority_catalog_scope"] == (
+        "numeric_authority_local_slice"
+    )
+    assert repair_context["acceptance_authority_catalog_total_rows"] > len(
+        repair_catalog
+    )
+    assert repair_context["acceptance_authority_catalog_repair_rows"] == len(
+        repair_catalog
+    )
+    assert repair_context["numeric_authority_repair_automatic_selection"] is False
+    assert {row["anchor_id"] for row in repair_catalog} == {
+        "theory#/theorem_cards/0/conclusion"
+    }
     assert len(authority_matrix) == 1
     assert authority_matrix[0]["requirement_index"] == 0
     assert authority_matrix[0][

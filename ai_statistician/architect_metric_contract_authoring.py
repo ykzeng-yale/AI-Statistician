@@ -206,6 +206,84 @@ def _metric_authoring_repair_priority_instructions(
     return instructions[:6]
 
 
+def _metric_authoring_repair_context(
+    *,
+    invalid_packet: Mapping[str, Any] | None,
+    errors: Any,
+    runtime_replicates: int,
+    acceptance_authority_catalog_id: str,
+    acceptance_authority_catalog: list[dict[str, Any]],
+    required_target_rows: list[dict[str, Any]],
+    independent_semantic_review_repair: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    error_rows = (
+        [str(error) for error in errors]
+        if isinstance(errors, list | tuple)
+        else []
+    )
+    requirements = (
+        invalid_packet.get("empirical_metric_requirements", [])
+        if isinstance(invalid_packet, Mapping)
+        else []
+    )
+    numeric_authority_repair_matrix = (
+        generated_metric_numeric_authority_repair_matrix(
+            requirements,
+            validation_errors=error_rows,
+            acceptance_authority_catalog=acceptance_authority_catalog,
+        )
+    )
+
+    repair_catalog = acceptance_authority_catalog
+    repair_catalog_scope = "full_catalog"
+    if numeric_authority_repair_matrix:
+        relevant_anchor_ids: set[str] = set()
+        for matrix_row in numeric_authority_repair_matrix:
+            relevant_anchor_ids.update(
+                str(anchor_id)
+                for anchor_id in matrix_row.get("current_source_anchors", [])
+                if str(anchor_id).strip()
+            )
+            for gate_match in matrix_row.get("numeric_gate_matches", []):
+                if not isinstance(gate_match, Mapping):
+                    continue
+                relevant_anchor_ids.update(
+                    str(node.get("anchor_id", "") or "").strip()
+                    for node in gate_match.get("matching_catalog_nodes", [])
+                    if isinstance(node, Mapping)
+                    and str(node.get("anchor_id", "") or "").strip()
+                )
+        repair_catalog = [
+            dict(row)
+            for row in acceptance_authority_catalog
+            if str(row.get("anchor_id", "") or "").strip()
+            in relevant_anchor_ids
+        ]
+        repair_catalog_scope = "numeric_authority_local_slice"
+
+    return {
+        "runtime_owned_replicates": runtime_replicates,
+        "target_namespace": generated_metric_requirement_target_namespace_contract(),
+        "requirement_schema": generated_metric_requirement_prompt_schema(),
+        "acceptance_authority_catalog_id": acceptance_authority_catalog_id,
+        "acceptance_authority_catalog": repair_catalog,
+        "acceptance_authority_catalog_scope": repair_catalog_scope,
+        "acceptance_authority_catalog_total_rows": len(
+            acceptance_authority_catalog
+        ),
+        "acceptance_authority_catalog_repair_rows": len(repair_catalog),
+        "numeric_authority_repair_matrix": numeric_authority_repair_matrix,
+        "numeric_authority_repair_automatic_selection": False,
+        "required_target_rows": required_target_rows,
+        "repair_prompt_priority_instructions": (
+            _metric_authoring_repair_priority_instructions(error_rows)
+        ),
+        "independent_semantic_review_repair": dict(
+            independent_semantic_review_repair or {}
+        ),
+    }
+
+
 def author_reviewed_architect_metric_requirements(
     *,
     provider: GeneratorBackend,
@@ -834,47 +912,33 @@ def author_reviewed_architect_metric_requirements(
                 validate_packet=validate_packet,
                 validation_label="LLM Architect metric-requirement packet",
                 max_repair_attempts=config.max_repair_attempts,
-                repair_context_builder=lambda **kwargs: {
-                    "runtime_owned_replicates": runtime_replicates,
-                    "target_namespace": (
-                        generated_metric_requirement_target_namespace_contract()
-                    ),
-                    "requirement_schema": generated_metric_requirement_prompt_schema(),
-                    "acceptance_authority_catalog_id": (
-                        acceptance_authority_catalog_id
-                    ),
-                    "acceptance_authority_catalog": (
-                        acceptance_authority_catalog
-                    ),
-                    "numeric_authority_repair_matrix": (
-                        generated_metric_numeric_authority_repair_matrix(
-                            (
-                                kwargs.get("invalid_packet", {}).get(
-                                    "empirical_metric_requirements", []
-                                )
-                                if isinstance(
-                                    kwargs.get("invalid_packet", {}), Mapping
-                                )
-                                else []
-                            ),
-                            validation_errors=kwargs.get("errors", []),
-                            acceptance_authority_catalog=(
-                                acceptance_authority_catalog
-                            ),
-                        )
-                    ),
-                    "required_target_rows": prompt_payload["required_target_rows"],
-                    "repair_prompt_priority_instructions": (
-                        _metric_authoring_repair_priority_instructions(
-                            kwargs.get("errors", [])
-                        )
-                    ),
-                    "independent_semantic_review_repair": (
-                        candidate_prompt_payload.get(
-                            "independent_semantic_review_repair", {}
-                        )
-                    ),
-                },
+                repair_context_builder=lambda **kwargs: (
+                    _metric_authoring_repair_context(
+                        invalid_packet=(
+                            kwargs.get("invalid_packet")
+                            if isinstance(
+                                kwargs.get("invalid_packet"), Mapping
+                            )
+                            else None
+                        ),
+                        errors=kwargs.get("errors", []),
+                        runtime_replicates=runtime_replicates,
+                        acceptance_authority_catalog_id=(
+                            acceptance_authority_catalog_id
+                        ),
+                        acceptance_authority_catalog=(
+                            acceptance_authority_catalog
+                        ),
+                        required_target_rows=prompt_payload[
+                            "required_target_rows"
+                        ],
+                        independent_semantic_review_repair=(
+                            candidate_prompt_payload.get(
+                                "independent_semantic_review_repair", {}
+                            )
+                        ),
+                    )
+                ),
                 semantic_patch_repair=True,
             )
         authoring_packet_hash = stable_hash(authoring_packet)
