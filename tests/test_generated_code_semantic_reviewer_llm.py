@@ -971,7 +971,7 @@ def test_mixed_semantic_assessments_preserve_both_repair_owners(
     assert backend.requests[1].metadata["json_repair_mode"] == (
         "typed_semantic_patch"
     )
-    assert backend.requests[1].max_tokens == 3000
+    assert backend.requests[1].max_tokens == 5000
     repair_payload = json.loads(
         backend.requests[1].user_prompt.split("\n\n", 1)[1]
     )

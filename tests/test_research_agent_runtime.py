@@ -23265,7 +23265,7 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert metric_request.model == LIVE_EVALUATION_CLAUDE_MODEL
     assert metric_request.max_tokens == 8000
     assert patch_request.model == LIVE_EVALUATION_CLAUDE_MODEL
-    assert patch_request.max_tokens == 3000
+    assert patch_request.max_tokens == 5000
     assert patch_request.metadata["json_repair_mode"] == "typed_semantic_patch"
     assert metric_request.schema["required"] == [
         "empirical_metric_requirements"

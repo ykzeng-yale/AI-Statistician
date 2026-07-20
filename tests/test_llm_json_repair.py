@@ -273,7 +273,7 @@ def test_semantic_patch_repair_preserves_unaffected_large_payload() -> None:
     assert backend.requests[1].metadata["json_repair_mode"] == (
         "typed_semantic_patch"
     )
-    assert backend.requests[1].max_tokens == 3000
+    assert backend.requests[1].max_tokens == 5000
     assert backend.requests[1].schema is not None
     assert set(backend.requests[1].schema["required"]) == {
         "base_payload_fingerprint",
@@ -463,10 +463,87 @@ def test_semantic_patch_defers_broad_defects_then_repairs_residual() -> None:
         "full_packet_regeneration",
         "typed_semantic_patch",
     ]
-    assert backend.requests[2].max_tokens == 3000
+    assert backend.requests[2].max_tokens == 5000
     assert packet["generation"] == 1
     assert packet["status"] == "valid"
     assert packet["llm_json_repair_attempts"] == 2
+
+
+def test_typed_patch_separates_residual_count_from_edit_count() -> None:
+    class MultiEditBackend:
+        provider_name = "test"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                response = {
+                    "rows": [
+                        {"left": 0, "right": 0} for _ in range(8)
+                    ]
+                }
+            else:
+                repair_payload = json.loads(
+                    request.user_prompt.split("\n\n", 1)[1]
+                )
+                updates = []
+                for row_index in range(8):
+                    for field in ("left", "right"):
+                        updates.append(
+                            {
+                                "path": ["rows", row_index, field],
+                                "replacement_json": "1",
+                            }
+                        )
+                response = {
+                    "base_payload_fingerprint": repair_payload[
+                        "base_payload_fingerprint"
+                    ],
+                    "updates": updates,
+                }
+            return GeneratorResponse(
+                text=json.dumps(response),
+                provider=self.provider_name,
+                model=request.model,
+            )
+
+    def validate(candidate: dict[str, object]) -> list[str]:
+        rows = candidate.get("rows", [])
+        return [
+            f"row {index} needs two local field edits"
+            for index, row in enumerate(rows)
+            if row != {"left": 1, "right": 1}
+        ]
+
+    backend = MultiEditBackend()
+    packet = generate_validated_json_packet(
+        provider=backend,
+        request=GeneratorRequest(
+            system_prompt="Return JSON.",
+            user_prompt="Produce a bounded multi-edit packet.",
+            model="test-haiku",
+            max_tokens=5000,
+            schema={"type": "object"},
+        ),
+        extract_payload=lambda text: extract_json_object(
+            text,
+            label="multi-edit packet",
+        ),
+        build_packet=lambda payload, response, raw_text: dict(payload),
+        validate_packet=validate,
+        validation_label="multi-edit packet",
+        max_repair_attempts=1,
+        semantic_patch_repair=True,
+    )
+
+    assert len(backend.requests) == 2
+    assert backend.requests[1].metadata["json_repair_mode"] == (
+        "typed_semantic_patch"
+    )
+    assert len(packet["llm_json_repair_history"][1]["patched_paths"]) == 16
+    assert validate(packet) == []
 
 
 def test_generate_validated_json_packet_escalates_truncated_repair_budget() -> None:

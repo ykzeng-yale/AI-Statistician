@@ -14,9 +14,10 @@ PayloadExtractor = Callable[[str], dict[str, Any]]
 RepairContextBuilder = Callable[..., Mapping[str, Any] | None]
 
 
-_TYPED_SEMANTIC_PATCH_MAX_UPDATES = 8
+_TYPED_SEMANTIC_PATCH_MAX_VALIDATION_ERRORS = 8
+_TYPED_SEMANTIC_PATCH_MAX_UPDATES = 16
 _TYPED_SEMANTIC_PATCH_MAX_PATH_DEPTH = 8
-_TYPED_SEMANTIC_PATCH_MAX_TOKENS = 3000
+_TYPED_SEMANTIC_PATCH_MAX_TOKENS = 5000
 _TYPED_SEMANTIC_PATCH_PROMPT_WRAPPER_KEYS = frozenset(
     {
         "base_payload_excerpt",
@@ -395,7 +396,7 @@ def _apply_typed_semantic_patch(
     if len(raw_updates) > _TYPED_SEMANTIC_PATCH_MAX_UPDATES:
         raise ValueError(
             "typed semantic patch exceeds the bounded update count "
-            f"{_TYPED_SEMANTIC_PATCH_MAX_UPDATES}"
+            f"{_TYPED_SEMANTIC_PATCH_MAX_UPDATES}; received {len(raw_updates)}"
         )
 
     patched = deepcopy(dict(base_payload))
@@ -761,7 +762,7 @@ def _repair_attempt_max_tokens(
 def _typed_semantic_patch_fits_update_budget(errors: list[str]) -> bool:
     """Use patch mode only when the residual fits its bounded edit envelope."""
 
-    return 0 < len(errors) <= _TYPED_SEMANTIC_PATCH_MAX_UPDATES
+    return 0 < len(errors) <= _TYPED_SEMANTIC_PATCH_MAX_VALIDATION_ERRORS
 
 
 def _compact_response_metadata(metadata: Mapping[str, Any]) -> dict[str, Any]:
