@@ -23259,7 +23259,11 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         hard_requirements
     )
     assert "operator == and threshold 1" in hard_requirements
-    assert "must exactly match one value" in hard_requirements
+    assert "must exactly match explicit_numeric_values" in hard_requirements
+    assert "architect_preregistered_design" in hard_requirements
+    assert "must not be copied into or misrepresented as theory" in (
+        hard_requirements
+    )
     assert "Free-form citations" in hard_requirements
     assert "does not specify a minimum power" in hard_requirements
     assert "Audit mathematical feasibility before freezing each row" in (
@@ -23410,7 +23414,7 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     ] is True
 
 
-def test_architect_numeric_authority_failure_routes_to_bounded_theory_revision() -> None:
+def test_architect_numeric_authority_failure_stays_candidate_owned() -> None:
     question = load_open_research_questions(
         Path("examples/research_questions.json")
     )[0]
@@ -23475,38 +23479,12 @@ def test_architect_numeric_authority_failure_routes_to_bounded_theory_revision()
 
     result = subsystem.run(task, blackboard)
 
-    assert result.status == "REROUTE"
+    assert result.status == "BLOCKED"
     assert result.failure_classification == (
-        "architect_metric_requirement_numeric_authority_routed_to_theory"
+        "architect_metric_requirement_candidate_authority_invalid"
     )
-    assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "TheoryDeveloper"
-    feedback = result.next_task.inputs["environment_feedback"]
-    assert feedback["feedback_source"] == "RuntimeMetricAuthorityValidator"
-    assert feedback["recommended_repair_scope"] == "upstream_theory"
-    assert feedback["execution_authorized"] is False
-    assert feedback["upstream_theory_revision_count"] == 1
-    assert feedback["max_upstream_theory_revisions"] == 2
-    assert feedback["runtime_architect_control"]["subsystem"] == (
-        "ArchitectCoordinator"
-    )
-    routed_contract = feedback["runtime_architect_control"]["evidence_contract"]
-    assert routed_contract["empirical_metric_requirements"] == []
-    assert routed_contract["metric_protocol_execution_authorized"] is False
-    routed_context = result.next_task.inputs["architect_context"]
-    assert "architect_metric_protocol_theory_material" not in routed_context
-    assert routed_context["previous_theory_packet_id"] == theory_packet["packet_id"]
-    assert routed_context["architect_metric_protocol_gate"][
-        "required_disposition"
-    ] == "REVISED_THEORY_THEN_PREEXECUTION_REVIEW_ACCEPTED"
-    assert feedback["source_theory_packet_hash"] == runtime_module.stable_hash(
-        theory_packet
-    )
-    assert runtime_module.metric_protocol_upstream_theory_revision_feedback_errors(
-        feedback,
-        question_id=question.id,
-        parent_theory_packet=theory_packet,
-    ) == []
+    assert result.next_task is None
+    assert len(result.produced_artifacts) == 1
     failure = next(
         row
         for row in result.produced_artifacts.values()
@@ -23514,10 +23492,20 @@ def test_architect_numeric_authority_failure_routes_to_bounded_theory_revision()
         == "RuntimeArchitectMetricRequirementValidationFailure"
     )
     assert failure["numeric_authority_failure"] is True
-    assert failure["upstream_theory_revision_routed"] is True
+    assert failure["repair_owner"] == "metric_contract"
+    assert failure["upstream_theory_revision_routed"] is False
+    assert failure["upstream_theory_revisions_used"] == 0
+    assert failure["max_upstream_theory_revisions"] == 2
     assert failure["execution_authorized"] is False
-    assert failure["runtime_architect_control"] == (
-        feedback["runtime_architect_control"]
+    control = failure["runtime_architect_control"]
+    assert control["subsystem"] == "ArchitectCoordinator"
+    routed_contract = control["evidence_contract"]
+    assert routed_contract["empirical_metric_requirements"] == []
+    assert routed_contract["metric_protocol_execution_authorized"] is False
+    assert all(
+        artifact.get("artifact_kind")
+        != "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback"
+        for artifact in result.produced_artifacts.values()
     )
 
 

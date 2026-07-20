@@ -43,12 +43,14 @@ GENERATED_METRIC_ACCEPTANCE_AUTHORITY_KINDS: tuple[str, ...] = (
     "theory_derived",
     "theory_parameter_instantiation",
     "evaluation_mandated",
+    "architect_preregistered_design",
     "diagnostic_only",
 )
 GENERATED_METRIC_ACCEPTANCE_GATING_AUTHORITY_KINDS: tuple[str, ...] = (
     "theory_derived",
     "theory_parameter_instantiation",
     "evaluation_mandated",
+    "architect_preregistered_design",
 )
 GENERATED_METRIC_THEORY_GATING_AUTHORITY_FIELDS: tuple[str, ...] = (
     "theorem_cards",
@@ -647,8 +649,9 @@ def generated_metric_requirement_json_schema(
                 "type": "string",
                 "minLength": 1,
                 "description": (
-                    "Explain how the exact cited nodes authorize every numeric "
-                    "comparison boundary, tolerance, and quorum in this row."
+                    "Explain how exact cited nodes authorize the numeric gate, or, "
+                    "for architect_preregistered_design, why each pre-execution "
+                    "design choice is statistically meaningful and feasible."
                 ),
             },
             "boundary": {"type": "string", "minLength": 1},
@@ -707,11 +710,12 @@ def generated_metric_requirement_prompt_schema(
         ],
         "acceptance_authority_kind": (
             "theory_derived|theory_parameter_instantiation|"
-            "evaluation_mandated|diagnostic_only"
+            "evaluation_mandated|architect_preregistered_design|diagnostic_only"
         ),
         "acceptance_authority_rationale": (
-            "how the cited exact nodes authorize every numeric gate field; a topical "
-            "or asymptotic mention is not finite-sample threshold authority; "
+            "how cited exact nodes authorize every numeric gate field, or why an "
+            "architect_preregistered_design choice is meaningful before execution; "
+            "a topical or asymptotic mention is not theory authority; "
             "theory_parameter_instantiation needs both the symbolic theory node and "
             "the exact preregistered evaluation-design value"
         ),
@@ -1093,44 +1097,45 @@ def validate_generated_metric_requirements(
                             authority_kind
                         )
                     )
-                    cited_numeric_values: list[int | float] = []
-                    for anchor_id in anchor_ids:
-                        authority_row = authority_row_by_anchor_id.get(
-                            anchor_id,
-                            {},
-                        )
-                        if str(
-                            authority_row.get("authority_kind", "") or ""
-                        ).strip() not in numeric_catalog_kinds:
-                            continue
-                        raw_values = authority_row.get(
-                            "explicit_numeric_values",
-                            _explicit_numeric_values(
-                                authority_row.get("content")
-                            ),
-                        )
-                        for value in raw_values or []:
-                            if _finite_number(value):
-                                cited_numeric_values.append(
-                                    _normalized_finite_number(value)
-                                )
-                    for gate_field, gate_value in (
-                        _generated_metric_required_gate_numeric_fields(
-                            raw_requirement
-                        )
-                    ):
-                        if not any(
-                            _same_finite_number(gate_value, cited_value)
-                            for cited_value in cited_numeric_values
-                        ):
-                            errors.append(
-                                generated_metric_numeric_authority_error(
-                                    f"{prefix}.{gate_field}={gate_value!r} must be "
-                                    "explicitly present in a cited "
-                                    + " or ".join(sorted(numeric_catalog_kinds))
-                                    + " authority node"
-                                )
+                    if numeric_catalog_kinds:
+                        cited_numeric_values: list[int | float] = []
+                        for anchor_id in anchor_ids:
+                            authority_row = authority_row_by_anchor_id.get(
+                                anchor_id,
+                                {},
                             )
+                            if str(
+                                authority_row.get("authority_kind", "") or ""
+                            ).strip() not in numeric_catalog_kinds:
+                                continue
+                            raw_values = authority_row.get(
+                                "explicit_numeric_values",
+                                _explicit_numeric_values(
+                                    authority_row.get("content")
+                                ),
+                            )
+                            for value in raw_values or []:
+                                if _finite_number(value):
+                                    cited_numeric_values.append(
+                                        _normalized_finite_number(value)
+                                    )
+                        for gate_field, gate_value in (
+                            _generated_metric_required_gate_numeric_fields(
+                                raw_requirement
+                            )
+                        ):
+                            if not any(
+                                _same_finite_number(gate_value, cited_value)
+                                for cited_value in cited_numeric_values
+                            ):
+                                errors.append(
+                                    generated_metric_numeric_authority_error(
+                                        f"{prefix}.{gate_field}={gate_value!r} must be "
+                                        "explicitly present in a cited "
+                                        + " or ".join(sorted(numeric_catalog_kinds))
+                                        + " authority node"
+                                    )
+                                )
             if authority_kind == "diagnostic_only" and required is not False:
                 errors.append(
                     f"{prefix}.diagnostic_only rows must set required=false"

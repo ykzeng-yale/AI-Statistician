@@ -215,6 +215,10 @@ def test_preexecution_metric_reviewer_accepts_only_with_independent_lineage() ->
     assert "diagnostic_only rows must be required=false" in (
         backend.requests[0].user_prompt
     )
+    assert "architect_preregistered_design" in backend.requests[0].user_prompt
+    assert "do not require a candidate-owned evaluation choice" in (
+        backend.requests[0].user_prompt
+    )
     assert "never recommend editing that derived list directly" in (
         backend.requests[0].user_prompt
     )

@@ -339,13 +339,14 @@ def author_reviewed_architect_metric_requirements(
                 "minimum_pass_fraction describes how many comparisons must pass."
             ),
             (
-                "For every required row, each threshold, lower or upper bound, "
-                "nonzero tolerance, and quorum must exactly match one value in "
-                "explicit_numeric_values on an eligible cited authority node. For "
-                "theory_derived and evaluation_mandated rows that node must have the "
-                "same kind. Do not derive, round, calibrate, or interpolate a new "
-                "number inside this packet. A new finite-sample calibration first "
-                "belongs in a separately reviewed upstream theory artifact."
+                "For theory_derived and evaluation_mandated rows, each threshold, "
+                "lower or upper bound, nonzero tolerance, and quorum must exactly "
+                "match explicit_numeric_values on a cited node of the same kind. A "
+                "theory_parameter_instantiation row must use the exact cited "
+                "evaluation-design value. In an architect_preregistered_design row, "
+                "those numbers are instead explicitly owned by this pre-execution "
+                "empirical design and must not be copied into or misrepresented as "
+                "theory."
             ),
             (
                 "Every source_anchors entry must copy one exact anchor_id from "
@@ -374,10 +375,32 @@ def author_reviewed_architect_metric_requirements(
                 "target, does not specify a minimum power or maximum stopping time."
             ),
             (
+                "Prefer theory_derived, theory_parameter_instantiation, or "
+                "evaluation_mandated whenever their requirements are genuinely met. "
+                "When a required finite-sample benchmark is an evaluation decision "
+                "not fixed upstream, use "
+                "acceptance_authority_kind=architect_preregistered_design. Cite the "
+                "exact current question or theory nodes that define the metric, DGP, "
+                "procedure, and estimand, then justify every chosen threshold, "
+                "nonzero tolerance, and quorum from decision relevance, Monte Carlo "
+                "uncertainty, the fixed runtime budget, and attainable behavior. The "
+                "cited nodes provide semantic context and need not contain those "
+                "candidate-owned numbers."
+            ),
+            (
+                "An architect_preregistered_design gate is frozen before generated "
+                "code or simulation, remains empirical-control evidence only, and "
+                "must pass independent semantic review. Never describe it as a "
+                "theorem guarantee, derive it from observed results, or retune it "
+                "against its own confirmatory execution."
+            ),
+            (
                 "When a useful measurement has no authority-backed acceptance cutoff, "
                 "emit it only as required=false with "
                 "acceptance_authority_kind=diagnostic_only, or omit it. Never turn an "
-                "unsupported expectation into a required gate."
+                "unsupported expectation into a theory-backed required gate. Use an "
+                "architect_preregistered_design gate only when a statistically "
+                "defensible pre-execution acceptance decision is actually needed."
             ),
             (
                 "Bind every procedure, estimand, data-generating regime, pivot, and "

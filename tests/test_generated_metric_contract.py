@@ -384,6 +384,54 @@ def test_strict_metric_gate_authority_accepts_theory_parameter_instantiation() -
     )
 
 
+def test_strict_metric_gate_authority_accepts_preregistered_architect_design() -> None:
+    catalog = generated_metric_acceptance_authority_catalog(
+        question={
+            "title": "Generic finite-sample evaluation",
+            "description": "Evaluate the procedure's empirical error and stability.",
+        },
+        runtime_contract={"simulation_targets": []},
+        theory_protocol_material={
+            "theory_semantic_material": {
+                "theorem_cards": [
+                    {"conclusion": "The target procedure estimates the named risk."}
+                ]
+            }
+        },
+    )
+    requirement = _requirement(
+        aggregation="mean",
+        minimum_pass_count=None,
+        threshold=0.08,
+        tolerance=0.015,
+        source_anchors=[
+            "question#/description",
+            "theory#/theorem_cards/0/conclusion",
+        ],
+        acceptance_authority_kind="architect_preregistered_design",
+        acceptance_authority_rationale=(
+            "Before execution, the Architect chooses a non-vacuous error benchmark "
+            "and Monte Carlo tolerance that are feasible for 80 replicates; these "
+            "numbers are empirical design choices, not theorem guarantees."
+        ),
+    )
+
+    assert validate_generated_metric_requirements(
+        [requirement],
+        required_target_subsystems=("SimulationEngineer",),
+        expected_runtime_replicates=80,
+        require_acceptance_authority=True,
+        acceptance_authority_catalog=catalog,
+    ) == []
+
+    unknown_anchor_errors = validate_generated_metric_requirements(
+        [{**requirement, "source_anchors": ["invented:semantic-context"]}],
+        require_acceptance_authority=True,
+        acceptance_authority_catalog=catalog,
+    )
+    assert any("unknown" in error for error in unknown_anchor_errors)
+
+
 def test_strict_metric_requirement_schema_enumerates_current_authority_ids() -> None:
     anchor_id = "theory#/theorem_cards/0/conclusion"
     schema = generated_metric_requirement_json_schema(
