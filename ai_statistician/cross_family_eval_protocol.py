@@ -5,6 +5,10 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
+from .model_backend import (
+    LIVE_EVALUATION_CLAUDE_MODEL,
+    LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+)
 from .task_family import (
     is_explicit_task_family,
     primary_task_family_from_question,
@@ -70,12 +74,28 @@ def validate_cross_family_eval_protocol(value: Any) -> list[str]:
             "candidate_gate_independence_required",
             "generated_code_semantic_review_required",
             "semantic_review_source_and_execution_lineage_required",
+            "all_live_anthropic_agents_exact_model_required",
+            "sonnet_opus_live_calls_forbidden",
         )
         for field in required_true_fields:
             if run_contract.get(field) is not True:
                 errors.append(f"run_contract.{field} must be true")
         if str(run_contract.get("capability_eval_preset", "") or "") != "full-live":
             errors.append("run_contract.capability_eval_preset must equal full-live")
+        if str(
+            run_contract.get("evaluation_claude_model_tier", "") or ""
+        ) != LIVE_EVALUATION_CLAUDE_MODEL_TIER:
+            errors.append(
+                "run_contract.evaluation_claude_model_tier must equal "
+                f"{LIVE_EVALUATION_CLAUDE_MODEL_TIER}"
+            )
+        if str(run_contract.get("evaluation_claude_model", "") or "") != (
+            LIVE_EVALUATION_CLAUDE_MODEL
+        ):
+            errors.append(
+                "run_contract.evaluation_claude_model must equal "
+                f"{LIVE_EVALUATION_CLAUDE_MODEL}"
+            )
 
     panels = value.get("panels", {})
     if not isinstance(panels, Mapping):
@@ -219,6 +239,14 @@ def resolve_cross_family_eval_panel(
         "task_learning_memory_forbidden": True,
         "component_eval_substitution_forbidden": True,
         "candidate_gate_independence_required": True,
+        "evaluation_claude_model_tier": str(
+            protocol["run_contract"]["evaluation_claude_model_tier"]
+        ),
+        "evaluation_claude_model": str(
+            protocol["run_contract"]["evaluation_claude_model"]
+        ),
+        "all_live_anthropic_agents_exact_model_required": True,
+        "sonnet_opus_live_calls_forbidden": True,
         "required_per_task_evidence": list(protocol["required_per_task_evidence"]),
         "proof_evidence_status": "EVALUATION_PROTOCOL_SELECTION_NOT_PROOF_EVIDENCE",
     }

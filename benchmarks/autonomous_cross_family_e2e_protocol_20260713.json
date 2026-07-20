@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "artifact_kind": "CrossFamilyEndToEndEvaluationProtocol",
-  "protocol_id": "s14-cross-family-generalization-20260713-v2",
+  "protocol_id": "s14-cross-family-generalization-20260713-v3",
   "split_frozen_at": "2026-07-13T21:30:00Z",
   "split_frozen_at_base_commit": "507eb34d662f6ac8c4cbb48a7e7f4ceb640c4bfa",
   "question_source": "examples/research_questions.json",
@@ -15,7 +15,11 @@
     "component_eval_substitution_forbidden": true,
     "candidate_gate_independence_required": true,
     "generated_code_semantic_review_required": true,
-    "semantic_review_source_and_execution_lineage_required": true
+    "semantic_review_source_and_execution_lineage_required": true,
+    "evaluation_claude_model_tier": "haiku",
+    "evaluation_claude_model": "claude-haiku-4-5-20251001",
+    "all_live_anthropic_agents_exact_model_required": true,
+    "sonnet_opus_live_calls_forbidden": true
   },
   "panels": {
     "development": {
@@ -49,7 +53,7 @@
     "fresh live Architect plan",
     "live rigorous TheoryDeveloper derivation and Critic revision",
     "LLM-generated algorithm and simulation artifacts executed locally",
-    "independent Sonnet reviewer invocation accepts exact generated source, runtime arguments, results, theory alignment, and frozen measurement protocol",
+    "independent exact-Haiku reviewer invocation accepts exact generated source, runtime arguments, results, theory alignment, and frozen measurement protocol",
     "Architect-authored empirical requirements independently enforced",
     "formal-source RAG bound to the current task",
     "LLM-generated Lean candidate with compiler or proof-state feedback",
@@ -65,5 +69,5 @@
     "held_out_failure_remains_visible": true,
     "task_specific_runtime_or_validator_patch_after_held_out_start_forbidden": true
   },
-  "boundary": "This protocol freezes task selection and evidence requirements. It contains no expected statistical answer, theorem proof, metric threshold, Lean grammar rule, or task-specific runtime behavior."
+  "boundary": "This protocol freezes task selection, exact-Haiku live evaluation policy, and evidence requirements. It contains no expected statistical answer, theorem proof, metric threshold, Lean grammar rule, or task-specific runtime behavior."
 }

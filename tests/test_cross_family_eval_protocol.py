@@ -46,6 +46,11 @@ def test_frozen_cross_family_protocol_resolves_disjoint_panels() -> None:
     assert held_out["task_families"] == ["high_dimensional", "extremes"]
     assert set(development["task_families"]).isdisjoint(held_out["task_families"])
     assert development["protocol_fingerprint"] == held_out["protocol_fingerprint"]
+    assert development["evaluation_claude_model_tier"] == "haiku"
+    assert development["evaluation_claude_model"] == (
+        "claude-haiku-4-5-20251001"
+    )
+    assert development["sonnet_opus_live_calls_forbidden"] is True
 
 
 def test_cross_family_protocol_rejects_family_overlap() -> None:
@@ -127,6 +132,9 @@ def test_cross_family_cli_selects_the_complete_frozen_panel() -> None:
     ]
     assert selection["minimum_distinct_task_families"] == 2
     assert selection["protocol_path"] == str(PROTOCOL_PATH)
+    assert selection["evaluation_claude_model_tier"] == "haiku"
+    assert selection["evaluation_claude_model"] == "claude-haiku-4-5-20251001"
+    assert selection["sonnet_opus_live_calls_forbidden"] is True
 
 
 def test_cross_family_cli_rejects_single_question_override() -> None:

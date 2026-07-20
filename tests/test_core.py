@@ -10713,7 +10713,7 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(report["summary"]["llm_provider"], "anthropic")
         self.assertEqual(report["summary"]["llm_models"]["haiku"], "claude-haiku-4-5-20251001")
         self.assertEqual(report["summary"]["llm_models"]["sonnet"], "claude-sonnet-4-6")
-        self.assertEqual(report["summary"]["llm_models"]["opus"], "claude-opus-4-8")
+        self.assertNotIn("opus", report["summary"]["llm_models"])
         self.assertEqual(report["summary"]["llm_provider_override_warnings"], [])
         self.assertEqual(report["summary"]["llm_model_tier_policy_violations"], [])
         self.assertEqual(report["summary"]["llm_model_freshness_warnings"], [])
@@ -10742,7 +10742,7 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(violations, [])
         self.assertEqual(report["summary"]["llm_models"]["haiku"], "claude-haiku-4-5-20251001")
         self.assertEqual(report["summary"]["llm_models"]["sonnet"], "claude-sonnet-4-6")
-        self.assertEqual(report["summary"]["llm_models"]["opus"], "claude-opus-4-8")
+        self.assertNotIn("opus", report["summary"]["llm_models"])
         checks = {row["name"]: row for row in report["checks"]}
         self.assertEqual(checks["LLM provider override policy"]["status"], "OK")
         self.assertEqual(checks["LLM Claude tier policy"]["status"], "OK")
