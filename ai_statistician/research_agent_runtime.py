@@ -7371,6 +7371,7 @@ def _runtime_research_acceptance_contract_from_manifest(
 class ResearchAgentRuntimeConfig:
     n_runs: int = 100
     seed: int = 20260528
+    generated_simulation_timeout_seconds: int = 60
     max_iterations: int = 12
     max_subsystem_retries: int = 1
     max_critic_repair_rounds: int = 1
@@ -15989,6 +15990,7 @@ class SimulationEvaluatorRuntimeSubsystem:
         packet_validation_max_lineage_failures: int = 0,
         semantic_reviewer_available: bool = False,
         semantic_review_max_revisions: int = 1,
+        timeout_s: int = 60,
     ) -> None:
         self.proposal_agent = proposal_agent
         self.sandbox_root = sandbox_root
@@ -16005,6 +16007,7 @@ class SimulationEvaluatorRuntimeSubsystem:
             0,
             int(semantic_review_max_revisions or 0),
         )
+        self.timeout_s = max(1, int(timeout_s or 60))
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
@@ -16214,6 +16217,44 @@ class SimulationEvaluatorRuntimeSubsystem:
                     target_consumer_subsystem="SimulationEngineer",
                 )
             )
+            available_upstream_estimator_ids = [
+                str(row.get("estimator_id", "") or "").strip()
+                for row in upstream_algorithm_handoff.get(
+                    "exact_algorithm_artifacts", []
+                )
+                or []
+                if isinstance(row, Mapping)
+                and str(row.get("estimator_id", "") or "").strip()
+            ]
+            environment_feedback = {
+                **dict(environment_feedback),
+                "runtime_execution_contract": {
+                    "timeout_seconds": self.timeout_s,
+                    "runtime_replicates": generated_sandbox_runtime_replicates(
+                        n_runs
+                    ),
+                    "available_upstream_estimator_ids": list(
+                        dict.fromkeys(available_upstream_estimator_ids)
+                    ),
+                    "estimator_callback_policy": (
+                        "Every estimator ID selected in required_estimator_ids "
+                        "must be invoked at least once on the executed path. "
+                        "Estimator callbacks run exact accepted source inside the "
+                        "isolated scientific runtime and may dominate cost, so "
+                        "avoid redundant calls while preserving the frozen protocol."
+                    ),
+                    "resource_policy": (
+                        "The complete confirmatory workload must finish within "
+                        "timeout_seconds. A timeout is failed execution evidence "
+                        "and must be repaired from exact runtime diagnostics; it "
+                        "does not authorize fewer frozen replicates or weaker gates."
+                    ),
+                    "evidence_boundary": (
+                        "This contract controls generated simulation execution "
+                        "only and is not theorem proof evidence."
+                    ),
+                },
+            }
             effective_context = _runtime_context_with_environment_feedback_contract(
                 context,
                 environment_feedback,
@@ -16544,7 +16585,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 upstream_algorithm_handoff=upstream_algorithm_handoff,
                 n_runs=n_runs,
                 seed=seed,
-                timeout_s=30,
+                timeout_s=self.timeout_s,
             )
             generated_simulation_rows.append(
                 _annotate_generated_sandbox_prototype_provenance(
@@ -40340,6 +40381,7 @@ def run_research_agent_runtime(
             "SimulationEvaluator": SimulationEvaluatorRuntimeSubsystem(
                 proposal_agent=simulation_engineer,
                 sandbox_root=out_dir / "generated_simulation_sandbox",
+                timeout_s=config.generated_simulation_timeout_seconds,
                 packet_validation_replan_after_attempts=(
                     config.coding_agent_packet_validation_replan_after_attempts
                 ),
@@ -105853,6 +105895,22 @@ def _generated_python_sandbox_code_excerpt(
     return ""
 
 
+def _generated_python_sandbox_parent_source(
+    row: Mapping[str, Any],
+    *,
+    limit: int = 12000,
+) -> str:
+    script_path = str(row.get("script_path", "") or "")
+    if script_path:
+        try:
+            path = Path(script_path)
+            if path.exists() and path.is_file():
+                return path.read_text(encoding="utf-8")[:limit]
+        except OSError:
+            pass
+    return str(row.get("code_excerpt", "") or "")[:limit]
+
+
 def _generated_simulation_revision_feedback(
     *,
     manifest: Mapping[str, Any],
@@ -105868,6 +105926,9 @@ def _generated_simulation_revision_feedback(
     forbidden_generated_code_calls: list[str] = []
     for row in prototypes[:5]:
         safety_errors = list(_str_tuple(row.get("safety_errors", [])))[:5]
+        script_hash = _generated_sandbox_prototype_script_hash(row)
+        parent_source = _generated_python_sandbox_parent_source(row)
+        parent_source_hash = stable_hash(parent_source) if parent_source else ""
         row_forbidden_calls = _generated_python_forbidden_call_names_from_safety_errors(
             safety_errors
         )
@@ -105878,15 +105939,27 @@ def _generated_simulation_revision_feedback(
                 "prototype_artifact_id": _generated_sandbox_prototype_artifact_id(
                     row
                 ),
-                "script_hash": _generated_sandbox_prototype_script_hash(row),
+                "script_hash": script_hash,
+                "parent_source": parent_source,
+                "parent_source_hash": parent_source_hash,
+                "parent_source_complete": bool(
+                    parent_source
+                    and script_hash
+                    and parent_source_hash == script_hash
+                ),
                 "prototype_status": str(row.get("prototype_status", "") or ""),
                 "executor": str(row.get("executor", "") or ""),
                 "smoke_passed": row.get("smoke_passed"),
                 "execution_smoke_passed": row.get("execution_smoke_passed"),
+                "execution_attempted": row.get("execution_attempted"),
+                "returncode": row.get("returncode"),
                 "metric_gate_errors": list(
                     _str_tuple(row.get("metric_gate_errors", []))
                 )[:5],
                 "safety_errors": safety_errors,
+                "runtime_errors": list(
+                    _str_tuple(row.get("runtime_errors", []))
+                )[:8],
                 "estimator_binding_errors": list(
                     _str_tuple(row.get("estimator_binding_errors", []))
                 )[:5],
@@ -105899,6 +105972,26 @@ def _generated_simulation_revision_feedback(
                 "estimator_runtime_errors": list(
                     _str_tuple(row.get("estimator_runtime_errors", []))
                 )[:5],
+                "available_upstream_estimator_ids": list(
+                    _str_tuple(
+                        row.get("available_upstream_estimator_ids", [])
+                    )
+                ),
+                "estimator_invocation_counts": (
+                    {
+                        str(key): max(0, int(value or 0))
+                        for key, value in row.get(
+                            "estimator_invocation_counts", {}
+                        ).items()
+                    }
+                    if isinstance(
+                        row.get("estimator_invocation_counts", {}), Mapping
+                    )
+                    else {}
+                ),
+                "mechanical_estimator_invocation_verified": row.get(
+                    "mechanical_estimator_invocation_verified"
+                ),
                 "forbidden_generated_code_calls": row_forbidden_calls[:5],
                 "metrics": _compact_generated_sandbox_metrics(
                     row.get("metrics", {})
@@ -105930,6 +106023,11 @@ def _generated_simulation_revision_feedback(
                 ),
                 "result_parse_error": _generated_sandbox_diagnostic_excerpt(
                     row.get("result_parse_error", ""), limit=500
+                ),
+                "resource_limits": (
+                    dict(row.get("resource_limits", {}))
+                    if isinstance(row.get("resource_limits", {}), Mapping)
+                    else {}
                 ),
                 "reason": str(row.get("reason", "") or "")[:500],
             }

@@ -47981,6 +47981,13 @@ def test_algorithm_runtime_injects_sandbox_failure_memory_without_current_feedba
 
 def test_simulation_engineer_prompt_includes_generated_code_repair_feedback() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    parent_source = (
+        "def run_sandbox(seed, replicates, estimators):\n"
+        "    first = estimators['EST1']({'values': [seed]})\n"
+        "    return {'metric': first['value']}\n"
+        "# FULL_EXECUTION_PARENT_SOURCE_TAIL\n"
+    )
+    parent_source_hash = runtime_module.stable_hash(parent_source)
     prompt = build_simulation_engineer_prompt(
         question=question,
         theory_packet={
@@ -48000,11 +48007,34 @@ def test_simulation_engineer_prompt_includes_generated_code_repair_feedback() ->
             "feedback_type": "generated_simulation_sandbox_execution_feedback",
             "simulation_manifest_id": "simulation_manifest:bad",
             "failure_classification": "generated_simulation_sandbox_no_executable_draft",
+            "runtime_execution_contract": {
+                "timeout_seconds": 60,
+                "runtime_replicates": 80,
+                "available_upstream_estimator_ids": ["EST1", "EST2"],
+                "estimator_callback_policy": (
+                    "Every selected estimator callback must run."
+                ),
+                "resource_policy": "Finish the complete workload before timeout.",
+                "evidence_boundary": "Execution evidence only.",
+            },
             "generated_simulation_prototypes": [
                 {
                     "simulation_id": "custom_stress",
-                    "prototype_status": "REJECTED_UNSAFE_GENERATED_CODE",
+                    "prototype_status": "FAILED",
                     "executor": "generated_simulation_sandbox",
+                    "script_hash": parent_source_hash,
+                    "parent_source_hash": parent_source_hash,
+                    "parent_source_complete": True,
+                    "parent_source": parent_source,
+                    "execution_attempted": True,
+                    "returncode": 0,
+                    "required_estimator_ids": ["EST1", "EST2"],
+                    "available_upstream_estimator_ids": ["EST1", "EST2"],
+                    "estimator_invocation_counts": {"EST1": 80, "EST2": 0},
+                    "mechanical_estimator_invocation_verified": False,
+                    "runtime_errors": [
+                        "bound estimator source was not invoked: EST2"
+                    ],
                     "safety_errors": ["can import only math/statistics"],
                 }
             ],
@@ -48016,8 +48046,18 @@ def test_simulation_engineer_prompt_includes_generated_code_repair_feedback() ->
     assert "Capability-eval mode is active" in prompt
     assert "include exactly one safe simulation_code_drafts entry" in prompt
     assert "generated_simulation_sandbox_no_executable_draft" in prompt
-    assert "REJECTED_UNSAFE_GENERATED_CODE" in prompt
+    assert '"prototype_status":"FAILED"' in prompt
     assert "can import only math/statistics" in prompt
+    assert "bound estimator source was not invoked: EST2" in prompt
+    assert '"EST2":"0"' in prompt
+    assert "FULL_EXECUTION_PARENT_SOURCE_TAIL" in prompt
+    assert parent_source_hash in prompt
+    assert '"timeout_seconds":60' in prompt
+    assert '"runtime_replicates":80' in prompt
+    assert "Every selected estimator callback must run" in prompt
+    assert "Generated-simulation execution feedback is active" in prompt
+    assert "complete hash-bound parent_source" in prompt
+    assert "Preserve the frozen" in prompt
     assert "imports except math/statistics/random" in prompt
     assert "from statistics import ..." in prompt
     assert "bare helper aliases" in prompt
@@ -48496,6 +48536,7 @@ def test_simulation_runtime_injects_generated_code_failure_memory_without_curren
     subsystem = SimulationEvaluatorRuntimeSubsystem(
         proposal_agent=agent,  # type: ignore[arg-type]
         sandbox_root=tmp_path / "generated_simulation_sandbox",
+        timeout_s=47,
     )
     blackboard = BlackboardState(
         project_id=f"runtime:{question.id}",
@@ -48529,6 +48570,15 @@ def test_simulation_runtime_injects_generated_code_failure_memory_without_curren
     assert agent.seen_feedback["failure_classification"] == (
         "generated_simulation_sandbox_no_executable_draft"
     )
+    assert agent.seen_feedback["runtime_execution_contract"][
+        "timeout_seconds"
+    ] == 47
+    assert agent.seen_feedback["runtime_execution_contract"][
+        "runtime_replicates"
+    ] == 8
+    assert "not theorem proof evidence" in agent.seen_feedback[
+        "runtime_execution_contract"
+    ]["evidence_boundary"]
     prototype = agent.seen_feedback["generated_simulation_prototypes"][0]  # type: ignore[index]
     assert "import numpy as np" in prototype["code_excerpt"]
     assert "sandbox rejected unsafe import" in prototype["stderr_summary"]
@@ -52041,6 +52091,74 @@ def test_generated_python_sandbox_rejection_feedback_includes_code_excerpt(
     assert "values = [1, 2, 3" in simulation_feedback[
         "generated_simulation_prototypes"
     ][0]["code_excerpt"]
+
+
+def test_generated_simulation_feedback_preserves_exact_execution_repair_context(
+    tmp_path: Path,
+) -> None:
+    parent_source = (
+        "def run_sandbox(seed, replicates, estimators):\n"
+        "    result = estimators['EST_A']({'seed': seed})\n"
+        "    return {'metric': result['value']}\n"
+        "# EXACT_PARENT_SOURCE_TAIL\n"
+    )
+    script_path = tmp_path / "generated_simulation.py"
+    script_path.write_text(parent_source, encoding="utf-8")
+    script_hash = runtime_module.stable_hash(parent_source)
+
+    feedback = _generated_simulation_revision_feedback(
+        manifest={
+            "manifest_id": "simulation_manifest:execution_failure",
+            "generated_simulation_sandbox_prototypes": [
+                {
+                    "simulation_id": "SIM_A",
+                    "prototype_status": "FAILED",
+                    "executor": "generated_simulation_sandbox",
+                    "script_path": str(script_path),
+                    "script_hash": script_hash,
+                    "code_excerpt": parent_source[:40],
+                    "execution_attempted": True,
+                    "returncode": 0,
+                    "required_estimator_ids": ["EST_A", "EST_B"],
+                    "available_upstream_estimator_ids": ["EST_A", "EST_B"],
+                    "estimator_invocation_counts": {"EST_A": 80, "EST_B": 0},
+                    "mechanical_estimator_invocation_verified": False,
+                    "runtime_errors": [
+                        "bound estimator source was not invoked: EST_B"
+                    ],
+                    "resource_limits": {
+                        "cpu_seconds": 61,
+                        "node_heap_mb": 768,
+                    },
+                    "smoke_passed": False,
+                    "execution_smoke_passed": False,
+                }
+            ],
+            "n_generated_simulation_sandbox_prototypes": 1,
+            "n_generated_simulation_sandbox_executed": 0,
+            "n_generated_simulation_sandbox_execution_attempted": 1,
+            "n_generated_simulation_sandbox_execution_failed": 1,
+            "n_generated_simulation_sandbox_passed": 0,
+            "n_generated_simulation_sandbox_metric_gate_failed": 0,
+        },
+        boundary="simulation execution is not theorem proof",
+        failure_classification="generated_simulation_sandbox_execution_failed",
+    )
+
+    prototype = feedback["generated_simulation_prototypes"][0]
+    assert prototype["parent_source"] == parent_source
+    assert prototype["parent_source_hash"] == script_hash
+    assert prototype["parent_source_complete"] is True
+    assert prototype["required_estimator_ids"] == ["EST_A", "EST_B"]
+    assert prototype["estimator_invocation_counts"] == {
+        "EST_A": 80,
+        "EST_B": 0,
+    }
+    assert prototype["runtime_errors"] == [
+        "bound estimator source was not invoked: EST_B"
+    ]
+    assert prototype["resource_limits"]["cpu_seconds"] == 61
+    assert prototype["returncode"] == 0
 
 
 def test_generated_simulation_sandbox_rejects_degenerate_coverage_metric(

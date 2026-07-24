@@ -12051,6 +12051,10 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
         config=ResearchAgentRuntimeConfig(
             n_runs=args.runs,
             seed=args.seed,
+            generated_simulation_timeout_seconds=int(
+                getattr(args, "generated_simulation_timeout_seconds", 60)
+                or 60
+            ),
             max_iterations=args.max_iterations,
             max_subsystem_retries=args.max_subsystem_retries,
             max_critic_repair_rounds=args.max_critic_repair_rounds,
@@ -22894,6 +22898,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_agent_runtime.add_argument("--runs", type=int, default=100)
     research_agent_runtime.add_argument("--seed", type=int, default=20260528)
+    research_agent_runtime.add_argument(
+        "--generated-simulation-timeout-seconds",
+        type=int,
+        default=60,
+        help=(
+            "wall-clock budget for one full generated simulation sandbox run; "
+            "the exact budget is supplied to SimulationEngineer and recorded in "
+            "its repair contract"
+        ),
+    )
     research_agent_runtime.add_argument("--max-iterations", type=int, default=12)
     research_agent_runtime.add_argument(
         "--formal-verification-policy",
