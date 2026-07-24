@@ -440,6 +440,67 @@ def _runtime_formal_target_semantic_review_material(
         candidate_row: dict[str, Any] = {}
     else:
         candidate_row = matching_rows[0]
+    matching_proposal_targets = [
+        dict(row)
+        for row in proposal_packet.get("formal_targets", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("id", "") or "") == candidate_id
+    ]
+    if len(matching_proposal_targets) != 1:
+        errors.append("formal-target proposal target is not uniquely bound")
+        proposal_target: dict[str, Any] = {}
+    else:
+        proposal_target = matching_proposal_targets[0]
+    proposal_target_provenance = proposal_target.get(
+        "source_theorem_target_provenance", {}
+    )
+    if not isinstance(proposal_target_provenance, Mapping):
+        proposal_target_provenance = {}
+    explicit_goal_ids = [
+        str(value or "").strip()
+        for value in (
+            proposal_target.get("source_theorem_goal_id", ""),
+            proposal_target_provenance.get("source_theorem_goal_id", ""),
+        )
+        if str(value or "").strip()
+    ]
+    candidate_goal_ids = [
+        *explicit_goal_ids,
+        str(proposal_target.get("source_identity", "") or "").strip(),
+        *[
+            str(value or "").strip()
+            for value in work_order.get("target_ids", []) or []
+        ],
+    ]
+    theory_cards_by_id = {
+        str(row.get("id", "") or ""): dict(row)
+        for row in theory_packet.get("theorem_cards", []) or []
+        if isinstance(row, Mapping) and str(row.get("id", "") or "")
+    }
+    matching_theory_goal_ids = list(
+        dict.fromkeys(
+            goal_id
+            for goal_id in candidate_goal_ids
+            if goal_id and goal_id in theory_cards_by_id
+        )
+    )
+    if len(matching_theory_goal_ids) > 1:
+        errors.append("formal-target theory theorem card binding is ambiguous")
+        source_theorem_goal_id = ""
+    elif matching_theory_goal_ids:
+        source_theorem_goal_id = matching_theory_goal_ids[0]
+    else:
+        source_theorem_goal_id = explicit_goal_ids[0] if explicit_goal_ids else ""
+    matching_theory_cards = (
+        [theory_cards_by_id[source_theorem_goal_id]]
+        if source_theorem_goal_id in theory_cards_by_id
+        else []
+    )
+    bound_theory_card = (
+        matching_theory_cards[0] if len(matching_theory_cards) == 1 else {}
+    )
+    if source_theorem_goal_id and len(matching_theory_cards) != 1:
+        errors.append("formal-target theory theorem card is not uniquely bound")
     source = ""
     path = Path(candidate_path).expanduser() if candidate_path else Path()
     if not candidate_path or not path.is_file():
@@ -466,6 +527,13 @@ def _runtime_formal_target_semantic_review_material(
     material = {
         "theory_derivation_packet": dict(theory_packet),
         "formalizer_proposal_packet": dict(proposal_packet),
+        "bound_target_contract": {
+            "candidate_id": candidate_id,
+            "target_ids": list(work_order.get("target_ids", []) or []),
+            "source_theorem_goal_id": source_theorem_goal_id,
+            "proposal_target": proposal_target,
+            "theory_theorem_card": bound_theory_card,
+        },
         "exact_formal_target": {
             "candidate_id": candidate_id,
             "target_ids": list(work_order.get("target_ids", []) or []),
@@ -829,6 +897,28 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
         review_packet_id = str(review_packet.get("packet_id", "") or "")
         review_packet_hash = stable_hash(review_packet)
         verdict = str(review_packet.get("overall_verdict", "") or "")
+        repair_scope = str(review_packet.get("repair_scope", "") or "")
+        repair_scopes = [
+            str(value or "")
+            for value in review_packet.get("repair_scopes", []) or []
+            if str(value or "")
+        ]
+        review_findings = [
+            dict(row)
+            for row in review_packet.get("findings", []) or []
+            if isinstance(row, Mapping)
+        ]
+        active_repair_findings = [
+            dict(row)
+            for row in review_findings
+            if str(row.get("repair_scope", "") or "") == repair_scope
+        ]
+        deferred_repair_findings = [
+            dict(row)
+            for row in review_findings
+            if str(row.get("repair_scope", "") or "")
+            not in {"", "none", repair_scope}
+        ]
         execution_id = "formal_target_semantic_review_execution:" + stable_hash(
             [work_order_id, work_order_hash, review_packet_id, review_packet_hash]
         )[:20]
@@ -870,6 +960,10 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             "independent_invocation": True,
             "independent_model": bool(source_model and reviewer_model != source_model),
             "overall_verdict": verdict,
+            "repair_scope": repair_scope,
+            "repair_scopes": repair_scopes,
+            "n_active_repair_findings": len(active_repair_findings),
+            "n_deferred_repair_findings": len(deferred_repair_findings),
             "semantic_review_accepted": verdict == "ACCEPT",
             "review_revision_count": int(
                 work_order.get("review_revision_count", 0) or 0
@@ -904,9 +998,13 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             "semantic_review_packet_id": review_packet_id,
             "semantic_review_packet_hash": review_packet_hash,
             "overall_verdict": verdict,
+            "repair_scope": repair_scope,
+            "repair_scopes": repair_scopes,
             "repair_owner_agent": str(review_packet.get("repair_owner", "") or ""),
             "dimension_reviews": list(review_packet.get("dimension_reviews", []) or []),
-            "findings": list(review_packet.get("findings", []) or []),
+            "findings": review_findings,
+            "active_repair_findings": active_repair_findings,
+            "deferred_repair_findings": deferred_repair_findings,
             "repair_instructions": list(
                 review_packet.get("repair_instructions", []) or []
             ),
@@ -1142,8 +1240,13 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                 )
             status = "REVISE"
             rationale = (
-                "Independent semantic review rejected the exact theorem target "
-                "and routed mathematical findings upstream for fresh LLM generation."
+                "Independent semantic review found a defect in the supplied theory "
+                "and routed only theory-owned findings to TheoryDeveloper before "
+                "formal-target regeneration."
+                if repair_owner == "TheoryDeveloper"
+                else "Independent semantic review rejected the exact theorem target "
+                "while finding the supplied theory sufficient; target-owned findings "
+                "are returning to Formalizer for fresh generation."
             )
             failure_classification = (
                 "formal_target_semantic_review_theory_block"

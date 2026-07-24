@@ -81,6 +81,7 @@ def _review_response(verdict: str) -> dict[str, object]:
                 "category": "mathematical_target_drift",
                 "summary": "The target does not establish the requested claim.",
                 "required_change": "Regenerate a faithful exact theorem statement.",
+                "repair_scope": repair_scope,
                 "evidence_refs": ["theory_derivation_packet", "exact_formal_target"],
             }
         ]
@@ -159,6 +160,14 @@ def _runtime_fixture(
                 {"assumption": "hp : p", "used_in": ["identity_step"]}
             ],
         },
+        "theorem_cards": [
+            {
+                "id": "theorem:exact_source",
+                "informal_statement": "A supplied proposition follows from its proof.",
+                "assumptions_used": ["hp : p"],
+                "conclusion": "p",
+            }
+        ],
     }
     proposal_packet = {
         "artifact_kind": "FormalizerProofEngineerProposalPacket",
@@ -173,6 +182,10 @@ def _runtime_fixture(
                     FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE
                 ),
                 "lean_statement_sketch": source,
+                "source_theorem_target_provenance": {
+                    "source_theorem_goal_id": "theorem:exact_source",
+                    "source_theorem_target_known": True,
+                },
                 "semantic_alignment_constraints": [
                     "preserve the supplied hypothesis and conclusion"
                 ],
@@ -344,6 +357,19 @@ def test_formal_target_semantic_review_accepts_before_typed_prover_search(
     assert review_lineage["target_theorem_statement_hash"] == (
         context["target_theorem_statement_hash"]
     )
+    review_materialization = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeFormalTargetSemanticReviewMaterialization"
+    )
+    bound_target = review_materialization["review_material"][
+        "bound_target_contract"
+    ]
+    assert bound_target["candidate_id"] == "exact_source"
+    assert bound_target["proposal_target"]["id"] == "exact_source"
+    assert bound_target["source_theorem_goal_id"] == "theorem:exact_source"
+    assert bound_target["theory_theorem_card"]["id"] == "theorem:exact_source"
     assert all(row.payload["kernel_verified"] is False for row in result.evidence_entries)
 
 
@@ -378,6 +404,10 @@ def test_formal_target_semantic_review_rejects_target_and_disables_prover(
     assert result.next_task.owner_subsystem == "FormalizationEvaluator"
     feedback = result.next_task.inputs["environment_feedback"]
     assert feedback["overall_verdict"] == "REVISE"
+    assert feedback["repair_scope"] == "formal_target"
+    assert feedback["repair_scopes"] == ["formal_target"]
+    assert feedback["active_repair_findings"]
+    assert feedback["deferred_repair_findings"] == []
     assert feedback["proofengineer_repair_context"][
         "external_proof_search_dispatch_eligible"
     ] is False
@@ -396,7 +426,7 @@ def test_formal_target_semantic_review_rejects_target_and_disables_prover(
     assert handoff["target_task_id"] == result.next_task.task_id
 
 
-def test_formal_target_review_derives_verdict_and_owner_from_scope(
+def test_formal_target_review_derives_owner_from_finding_scopes(
     tmp_path: Path,
 ) -> None:
     subsystem, task, blackboard, _ = _runtime_fixture(
@@ -405,6 +435,7 @@ def test_formal_target_review_derives_verdict_and_owner_from_scope(
         reviewer_response_overrides={
             "overall_verdict": "ACCEPT",
             "repair_owner": "Formalizer",
+            "repair_scope": "upstream_theory",
         },
     )
 
@@ -421,10 +452,73 @@ def test_formal_target_review_derives_verdict_and_owner_from_scope(
     )
     assert review_packet["model_requested_overall_verdict"] == "ACCEPT"
     assert review_packet["model_requested_repair_owner"] == "Formalizer"
+    assert review_packet["model_requested_repair_scope"] == "upstream_theory"
     assert review_packet["overall_verdict"] == "REVISE"
     assert review_packet["repair_scope"] == "formal_target"
+    assert review_packet["repair_scopes"] == ["formal_target"]
     assert review_packet["repair_owner"] == "FormalizationEvaluator"
     assert validate_formal_target_semantic_review_packet(review_packet) == []
+
+
+def test_formal_target_review_preserves_mixed_repair_frontier(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        "REVISE",
+        reviewer_response_overrides={
+            "findings": [
+                {
+                    "severity": "critical",
+                    "category": "missing_theory_premise",
+                    "summary": "The derivation omits a premise needed by the target.",
+                    "required_change": "Add the missing premise to the theory packet.",
+                    "repair_scope": "upstream_theory",
+                    "evidence_refs": ["theory_derivation_packet.assumption_ledger"],
+                },
+                {
+                    "severity": "high",
+                    "category": "vacuous_target",
+                    "summary": "The current target assumes its own conclusion.",
+                    "required_change": "Regenerate the exact formal target.",
+                    "repair_scope": "formal_target",
+                    "evidence_refs": ["exact_formal_target"],
+                },
+            ],
+            "repair_scope": "formal_target",
+            "blocking_reason": "The missing premise must be resolved first.",
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REVISE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["repair_scope"] == "upstream_theory"
+    assert feedback["repair_scopes"] == [
+        "upstream_theory",
+        "formal_target",
+    ]
+    assert [
+        row["repair_scope"] for row in feedback["active_repair_findings"]
+    ] == ["upstream_theory"]
+    assert [
+        row["repair_scope"] for row in feedback["deferred_repair_findings"]
+    ] == ["formal_target"]
+    review_packet = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "FormalTargetSemanticReviewPacket"
+    )
+    assert review_packet["model_requested_repair_scope"] == "formal_target"
+    assert review_packet["repair_scope"] == "upstream_theory"
+    assert review_packet["repair_scopes"] == [
+        "upstream_theory",
+        "formal_target",
+    ]
 
 
 def test_formal_target_invalid_scope_preserves_typed_failure_lineage(
@@ -433,7 +527,22 @@ def test_formal_target_invalid_scope_preserves_typed_failure_lineage(
     subsystem, task, blackboard, _ = _runtime_fixture(
         tmp_path,
         "REVISE",
-        reviewer_response_overrides={"repair_scope": "none"},
+        reviewer_response_overrides={
+            "findings": [
+                {
+                    "severity": "high",
+                    "category": "mathematical_target_drift",
+                    "summary": "The target does not establish the requested claim.",
+                    "required_change": "Regenerate a faithful exact theorem statement.",
+                    "repair_scope": "none",
+                    "evidence_refs": [
+                        "theory_derivation_packet",
+                        "exact_formal_target",
+                    ],
+                }
+            ],
+            "repair_scope": "none",
+        },
     )
 
     result = subsystem.run(task, blackboard)
@@ -581,11 +690,20 @@ def test_formal_target_semantic_review_prompt_is_domain_general() -> None:
 
     assert "Do not invent task-family rules" in prompt
     assert "do not propose tactics" in prompt
+    assert "Do not require one candidate to restate every theorem goal" in prompt
+    assert "separate candidates" in prompt
+    assert "Review only the single candidate and theorem card" in prompt
+    assert "Do not use upstream_theory merely because" in prompt
     assert "AgentRuntime derives" in prompt
     assert "This review is never proof evidence" in prompt
-    assert "repair_scope" in FORMAL_TARGET_SEMANTIC_REVIEW_JSON_SCHEMA[
+    assert "repair_scope" not in FORMAL_TARGET_SEMANTIC_REVIEW_JSON_SCHEMA[
         "properties"
     ]
+    finding_schema = FORMAL_TARGET_SEMANTIC_REVIEW_JSON_SCHEMA[
+        "properties"
+    ]["findings"]["items"]
+    assert "repair_scope" in finding_schema["required"]
+    assert "repair_scope" in finding_schema["properties"]
     assert "overall_verdict" not in FORMAL_TARGET_SEMANTIC_REVIEW_JSON_SCHEMA[
         "properties"
     ]
