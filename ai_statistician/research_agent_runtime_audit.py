@@ -23,7 +23,11 @@ from .exact_source_theorem_proof_body_executor import (
     SOURCE_KERNEL_STATUS as EXACT_PROOF_BODY_SOURCE_KERNEL_STATUS,
 )
 from .formalization_gap_planner_runtime_handoff_audit import (
+    _argv_arg_value as _runtime_execution_plan_argv_value,
     validate_runtime_handoff_execution_plan,
+)
+from .formalization_gap_planner_llm_route_planner import (
+    LLM_ROUTE_PLANNER_MODEL_TIERS,
 )
 from .model_backend import (
     LIVE_EVALUATION_CLAUDE_MODEL_TIER,
@@ -17402,6 +17406,16 @@ def _runtime_formal_gap_planner_handoff_execution_plan_summary(
         reuse_stage_argv = (
             reuse_stage_argv if isinstance(reuse_stage_argv, list) else []
         )
+        handoff_model_tier = str(
+            handoff.get("recommended_model_tier", "")
+        ).strip().lower()
+        execution_plan_model_tier = str(
+            execution_plan.get("recommended_model_tier", "")
+        ).strip().lower()
+        exact_model_tier_consistent = (
+            handoff_model_tier in LLM_ROUTE_PLANNER_MODEL_TIERS
+            and execution_plan_model_tier == handoff_model_tier
+        )
         counts["execution_plan_rows"] += 1
         counts["execution_plan_stage_rows"] += len(stages)
         if not execution_plan_errors:
@@ -17417,7 +17431,12 @@ def _runtime_formal_gap_planner_handoff_execution_plan_summary(
             and prompt_stage.get("requires_operator_review_before_live") is False
             and "--invoke-provider" not in prompt_stage_argv
             and "--model-tier" in prompt_stage_argv
-            and "auto" in prompt_stage_argv
+            and exact_model_tier_consistent
+            and _runtime_execution_plan_argv_value(
+                prompt_stage_argv,
+                "--model-tier",
+            )
+            == handoff_model_tier
         ):
             counts["execution_plan_prompt_stage_cost_control_ok"] += 1
         if (
@@ -17427,7 +17446,12 @@ def _runtime_formal_gap_planner_handoff_execution_plan_summary(
             and live_stage.get("requires_operator_review_before_live") is True
             and "--invoke-provider" in live_stage_argv
             and "--model-tier" in live_stage_argv
-            and "auto" in live_stage_argv
+            and exact_model_tier_consistent
+            and _runtime_execution_plan_argv_value(
+                live_stage_argv,
+                "--model-tier",
+            )
+            == handoff_model_tier
         ):
             counts["execution_plan_live_stage_explicit_ok"] += 1
         if (
@@ -17437,6 +17461,17 @@ def _runtime_formal_gap_planner_handoff_execution_plan_summary(
             and reuse_stage.get("requires_operator_review_before_live") is False
             and "--llm-route-planner-invoke-provider" not in reuse_stage_argv
             and "--feedback-llm-route-planner-invoke-provider" not in reuse_stage_argv
+            and exact_model_tier_consistent
+            and _runtime_execution_plan_argv_value(
+                reuse_stage_argv,
+                "--llm-route-planner-model-tier",
+            )
+            == handoff_model_tier
+            and _runtime_execution_plan_argv_value(
+                reuse_stage_argv,
+                "--feedback-llm-route-planner-model-tier",
+            )
+            == handoff_model_tier
         ):
             counts["execution_plan_reuse_smoke_stage_cost_control_ok"] += 1
     return {

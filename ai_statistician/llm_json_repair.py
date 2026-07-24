@@ -97,6 +97,23 @@ _TYPED_SEMANTIC_PATCH_SCHEMA: dict[str, Any] = {
 _VALIDATION_ERROR_TOP_LEVEL_ARRAY_PATH = re.compile(
     r"\b([A-Za-z_][A-Za-z0-9_]*)\[(\d+)\]"
 )
+_TYPED_SEMANTIC_PATCH_NONLOCAL_SHAPE_ERROR_PATTERNS = (
+    re.compile(r"\bmust contain each required\b", re.IGNORECASE),
+    re.compile(r"\bmust contain\b.*\bexactly once\b", re.IGNORECASE),
+    re.compile(
+        r"\bmust (?:have|contain|include) exactly \d+\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:array|list|collection)\b.*\b(?:cardinality|length|size)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:too many|too few) (?:items|rows|entries|elements)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\b(?:minitems|maxitems)\b", re.IGNORECASE),
+)
 
 
 def _typed_semantic_patch_schema(*, max_updates: int) -> dict[str, Any]:
@@ -919,7 +936,14 @@ def _repair_attempt_max_tokens(
 def _typed_semantic_patch_fits_update_budget(errors: list[str]) -> bool:
     """Use patch mode only when the residual fits its bounded edit envelope."""
 
-    return 0 < len(errors) <= _TYPED_SEMANTIC_PATCH_MAX_VALIDATION_ERRORS
+    return (
+        0 < len(errors) <= _TYPED_SEMANTIC_PATCH_MAX_VALIDATION_ERRORS
+        and not any(
+            pattern.search(str(error))
+            for error in errors
+            for pattern in _TYPED_SEMANTIC_PATCH_NONLOCAL_SHAPE_ERROR_PATTERNS
+        )
+    )
 
 
 def _typed_semantic_patch_update_budget(errors: list[str]) -> int:

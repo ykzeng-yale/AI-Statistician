@@ -16,6 +16,8 @@ from ai_statistician.llm_json_repair import (
 from ai_statistician.model_backend import (
     GeneratorRequest,
     GeneratorResponse,
+    LIVE_EVALUATION_CLAUDE_MODEL,
+    LIVE_EVALUATION_CLAUDE_MODEL_TIER,
 )
 
 
@@ -143,6 +145,72 @@ def test_generate_validated_json_packet_feeds_validation_errors_into_repair_prom
     assert "local_validation_errors" in repair_prompt
     assert "missing required semantic anchor references: hRank" in repair_prompt
     assert '"invalid_response_excerpt": "{\\"ok\\": false}"' in repair_prompt
+
+
+def test_collection_cardinality_error_uses_full_packet_regeneration() -> None:
+    class SequencedBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+            self.responses = [
+                {"rows": [{"status": "PASS"} for _ in range(7)]},
+                {"rows": [{"status": "PASS"} for _ in range(6)]},
+            ]
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            return GeneratorResponse(
+                text=json.dumps(self.responses.pop(0)),
+                provider=self.provider_name,
+                model=request.model,
+            )
+
+    backend = SequencedBackend()
+    packet = generate_validated_json_packet(
+        provider=backend,
+        request=GeneratorRequest(
+            system_prompt="Return JSON.",
+            user_prompt="Return exactly six runtime-owned review slots.",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            max_tokens=512,
+            schema={
+                "type": "object",
+                "properties": {
+                    "rows": {
+                        "type": "array",
+                        "minItems": 6,
+                        "maxItems": 6,
+                    }
+                },
+            },
+            metadata={"model_tier": LIVE_EVALUATION_CLAUDE_MODEL_TIER},
+        ),
+        extract_payload=lambda text: extract_json_object(
+            text,
+            label="runtime-owned slot packet",
+        ),
+        build_packet=lambda payload, response, raw_text: dict(payload),
+        validate_packet=lambda candidate: []
+        if len(candidate.get("rows", [])) == 6
+        else ["rows must contain each required slot exactly once"],
+        validation_label="runtime-owned slot packet",
+        max_repair_attempts=1,
+        semantic_patch_repair=True,
+    )
+
+    assert len(packet["rows"]) == 6
+    assert [request.model for request in backend.requests] == [
+        LIVE_EVALUATION_CLAUDE_MODEL,
+        LIVE_EVALUATION_CLAUDE_MODEL,
+    ]
+    assert [
+        request.metadata["json_repair_mode"] for request in backend.requests
+    ] == [
+        "full_packet_generation",
+        "full_packet_regeneration",
+    ]
+    assert backend.requests[1].schema == backend.requests[0].schema
 
 
 def test_validation_error_preserves_final_invalid_packet() -> None:

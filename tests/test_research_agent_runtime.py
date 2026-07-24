@@ -13138,14 +13138,15 @@ def test_formal_gap_planner_handoff_context_allows_compact_sibling_marker() -> N
 def test_formal_gap_planner_handoff_execution_plan_summary_recovers_rows() -> None:
     prompt_cli = (
         "python -m ai_statistician.cli formalization-gap-planner-llm-route-planner "
-        "--model-tier auto"
+        f"--model-tier {LIVE_EVALUATION_CLAUDE_MODEL_TIER}"
     )
     live_cli = f"{prompt_cli} --invoke-provider"
     reuse_cli = (
         "python -m ai_statistician.cli formalization-gap-planner-reuse-smoke "
         "--llm-route-planner-provider anthropic "
-        "--llm-route-planner-model-tier auto "
-        "--feedback-llm-route-planner-model-tier auto"
+        f"--llm-route-planner-model-tier {LIVE_EVALUATION_CLAUDE_MODEL_TIER} "
+        "--feedback-llm-route-planner-model-tier "
+        f"{LIVE_EVALUATION_CLAUDE_MODEL_TIER}"
     )
     proof_status = "RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE"
     proof_boundary = "Planner handoff metadata is not theorem proof evidence."
@@ -13175,7 +13176,7 @@ def test_formal_gap_planner_handoff_execution_plan_summary_recovers_rows() -> No
         "plan_kind": "runtime_formalization_gap_planner_handoff_execution_plan",
         "schema_version": 1,
         "recommended_llm_provider": "anthropic",
-        "recommended_model_tier": "auto",
+        "recommended_model_tier": LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         "target_prover_family": "lean4",
         "library_snapshot_ref": "mathlib4",
         "stage_count": 6,
@@ -13202,6 +13203,7 @@ def test_formal_gap_planner_handoff_execution_plan_summary_recovers_rows() -> No
     handoff = {
         "handoff_id": "runtime_formalization_gap_planner_handoff:test",
         "bridge_id": "runtime_formalization_gap_planner_bridge:test",
+        "recommended_model_tier": LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         "llm_route_planner_prompt_cli": prompt_cli,
         "llm_route_planner_live_cli": live_cli,
         "reuse_smoke_cli": reuse_cli,
@@ -23779,6 +23781,25 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
             return packet
 
     metric_context = _theory_informed_metric_context_fixture()
+    metric_context["empirical_evaluation_phase"] = (
+        EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+    )
+    metric_context["runtime_dependency_rebuild"] = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeTheoryRevisionDependencyRebuild",
+        "parent_theory_packet_id": "theory_derivation:parent",
+        "revised_theory_packet_id": "theory_derivation:structured",
+        "invalidated_descendant_roles": [
+            "simulation_manifest",
+            "algorithm_sandbox_manifest",
+            "formalization_manifest",
+        ],
+        "next_dependency": "exploratory_simulation_manifest",
+        "empirical_evaluation_phase": EMPIRICAL_EVALUATION_PHASE_EXPLORATORY,
+        "proof_evidence_status": (
+            "THEORY_REVISION_DEPENDENCY_REBUILD_NOT_PROOF_EVIDENCE"
+        ),
+    }
     theory_packet = _structured_theory_packet_fixture(
         "theory_derivation:structured"
     )
@@ -23826,6 +23847,17 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         "architect_initial_routing"
     ]
     assert routing["source"] == "theory_informed_metric_protocol_accepted"
+    assert routing["theory_revision_dependency_rebuild_resolved"] is True
+    routed_context = routed.next_task.inputs["architect_context"]
+    assert "empirical_evaluation_phase" not in routed_context
+    resolved_rebuild = routed_context["runtime_dependency_rebuild"]
+    assert resolved_rebuild["resolution_status"] == (
+        "PREEXECUTION_METRIC_PROTOCOL_ACCEPTED"
+    )
+    assert resolved_rebuild["confirmatory_descendant_rebuild_authorized"] is True
+    assert resolved_rebuild["resolved_requirement_set_id"] == packet[
+        "evidence_contract"
+    ]["empirical_metric_requirement_set_id"]
 
     algorithm_manifest_id = "algorithm_sandbox_manifest:accepted"
     invalid_handoff_context = _theory_informed_metric_context_fixture()

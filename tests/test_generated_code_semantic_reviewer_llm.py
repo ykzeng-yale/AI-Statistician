@@ -870,6 +870,76 @@ def test_generated_code_semantic_reviewer_accepts_and_resumes_deferred_task(
     ] == stable_hash(work_order["architect_evidence_contract"])
 
 
+def test_semantic_reviewer_regenerates_packet_after_extra_runtime_owned_slot(
+    tmp_path: Path,
+) -> None:
+    _, task, blackboard, _ = _runtime_fixture(tmp_path, accept=True)
+    invalid_response = _review_response(accept=True)
+    dimension_rows = list(invalid_response["dimension_reviews"])
+    invalid_response["dimension_reviews"] = [
+        *dimension_rows,
+        dict(dimension_rows[-1]),
+    ]
+    valid_response = _review_response(accept=True)
+
+    class SequencedReviewBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+            self.responses = [invalid_response, valid_response]
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            return GeneratorResponse(
+                text=json.dumps(self.responses.pop(0)),
+                provider=self.provider_name,
+                model=request.model,
+            )
+
+    backend = SequencedReviewBackend()
+    subsystem = GeneratedCodeSemanticReviewerRuntimeSubsystem(
+        reviewer=LLMGeneratedCodeSemanticReviewerAgent(
+            provider=backend,
+            config=GeneratedCodeSemanticReviewerConfig(
+                provider_name="anthropic",
+                model=LIVE_EVALUATION_CLAUDE_MODEL,
+                model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+                max_repair_attempts=1,
+            ),
+        ),
+        max_revisions=1,
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
+    assert [request.model for request in backend.requests] == [
+        LIVE_EVALUATION_CLAUDE_MODEL,
+        LIVE_EVALUATION_CLAUDE_MODEL,
+    ]
+    assert all(
+        request.metadata["model_tier"] == LIVE_EVALUATION_CLAUDE_MODEL_TIER
+        for request in backend.requests
+    )
+    assert [
+        request.metadata["json_repair_mode"] for request in backend.requests
+    ] == [
+        "full_packet_generation",
+        "full_packet_regeneration",
+    ]
+    review_packet = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
+    )
+    assert len(review_packet["dimension_reviews"]) == len(
+        GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
+    )
+
+
 def test_accepted_algorithm_review_hands_exact_source_to_simulation(
     tmp_path: Path,
 ) -> None:

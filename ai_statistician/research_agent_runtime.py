@@ -184,12 +184,14 @@ from .formalization_gap_planner_component_resource_registry import (
 from .formalization_gap_planner_runtime_handoff_audit import (
     PROOF_EVIDENCE_BOUNDARY as FORMALIZATION_GAP_PLANNER_HANDOFF_AUDIT_BOUNDARY,
     PROOF_EVIDENCE_STATUS as FORMALIZATION_GAP_PLANNER_HANDOFF_AUDIT_STATUS,
+    _argv_arg_value as _runtime_execution_plan_argv_value,
     audit_formalization_gap_planner_runtime_handoffs,
     validate_runtime_handoff_execution_plan,
 )
 from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_DEFAULT_MAX_STAGED_FOLLOWUP_STAGE_CALLS,
     LLM_ROUTE_PLANNER_DEFAULT_MAX_TOKENS,
+    LLM_ROUTE_PLANNER_MODEL_TIERS,
     LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_IDS,
     PROOF_EVIDENCE_BOUNDARY as FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_BOUNDARY,
     PROOF_EVIDENCE_STATUS as FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_STATUS,
@@ -9347,6 +9349,56 @@ def _architect_initial_routing_decision(
                 else ""
             )
             context["architect_metric_protocol_gate"] = consumed_gate
+        dependency_rebuild = context.get("runtime_dependency_rebuild", {})
+        if (
+            isinstance(dependency_rebuild, Mapping)
+            and dependency_rebuild.get("artifact_kind")
+            == "RuntimeTheoryRevisionDependencyRebuild"
+            and str(
+                dependency_rebuild.get("revised_theory_packet_id", "") or ""
+            )
+            == _architect_context_theory_packet_id(context)
+            and context.get("empirical_evaluation_phase")
+            == EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+        ):
+            accepted_contract = packet.get("evidence_contract", {})
+            accepted_contract = (
+                accepted_contract
+                if isinstance(accepted_contract, Mapping)
+                else {}
+            )
+            resolved_rebuild = dict(dependency_rebuild)
+            resolved_rebuild.update(
+                {
+                    "resolution_status": (
+                        "PREEXECUTION_METRIC_PROTOCOL_ACCEPTED"
+                    ),
+                    "confirmatory_descendant_rebuild_authorized": True,
+                    "resolved_requirement_set_id": str(
+                        accepted_contract.get(
+                            "empirical_metric_requirement_set_id",
+                            "",
+                        )
+                        or ""
+                    ),
+                    "resolved_by_architect_packet_id": str(
+                        packet.get("packet_id", "") or ""
+                    ),
+                    "resolution_boundary": (
+                        "The revised theory now has a hash-bound, independently "
+                        "accepted pre-execution metric protocol. Clearing the "
+                        "temporary exploratory phase authorizes fresh descendants "
+                        "to bind that protocol; it does not promote prior "
+                        "exploratory results or provide proof evidence."
+                    ),
+                }
+            )
+            context["runtime_dependency_rebuild"] = resolved_rebuild
+            context.pop("empirical_evaluation_phase", None)
+            record["theory_revision_dependency_rebuild_resolved"] = True
+            record["theory_revision_dependency_rebuild_resolution_status"] = (
+                resolved_rebuild["resolution_status"]
+            )
     if selected["selected_subsystem"] == "TheoryDeveloper":
         feedback = routed_environment_feedback
         if not feedback and selected.get("gap_row"):
@@ -97250,6 +97302,16 @@ def _runtime_formalization_gap_planner_handoff_execution_plan_summary(
         reuse_stage_argv = (
             reuse_stage_argv if isinstance(reuse_stage_argv, list) else []
         )
+        handoff_model_tier = str(
+            handoff.get("recommended_model_tier", "")
+        ).strip().lower()
+        execution_plan_model_tier = str(
+            execution_plan.get("recommended_model_tier", "")
+        ).strip().lower()
+        exact_model_tier_consistent = (
+            handoff_model_tier in LLM_ROUTE_PLANNER_MODEL_TIERS
+            and execution_plan_model_tier == handoff_model_tier
+        )
         counts["execution_plan_rows"] += 1
         counts["execution_plan_stage_rows"] += len(stages)
         if not execution_plan_errors:
@@ -97265,7 +97327,12 @@ def _runtime_formalization_gap_planner_handoff_execution_plan_summary(
             and prompt_stage.get("requires_operator_review_before_live") is False
             and "--invoke-provider" not in prompt_stage_argv
             and "--model-tier" in prompt_stage_argv
-            and "auto" in prompt_stage_argv
+            and exact_model_tier_consistent
+            and _runtime_execution_plan_argv_value(
+                prompt_stage_argv,
+                "--model-tier",
+            )
+            == handoff_model_tier
         ):
             counts["execution_plan_prompt_stage_cost_control_ok"] += 1
         if (
@@ -97275,7 +97342,12 @@ def _runtime_formalization_gap_planner_handoff_execution_plan_summary(
             and live_stage.get("requires_operator_review_before_live") is True
             and "--invoke-provider" in live_stage_argv
             and "--model-tier" in live_stage_argv
-            and "auto" in live_stage_argv
+            and exact_model_tier_consistent
+            and _runtime_execution_plan_argv_value(
+                live_stage_argv,
+                "--model-tier",
+            )
+            == handoff_model_tier
         ):
             counts["execution_plan_live_stage_explicit_ok"] += 1
         if (
@@ -97285,6 +97357,17 @@ def _runtime_formalization_gap_planner_handoff_execution_plan_summary(
             and reuse_stage.get("requires_operator_review_before_live") is False
             and "--llm-route-planner-invoke-provider" not in reuse_stage_argv
             and "--feedback-llm-route-planner-invoke-provider" not in reuse_stage_argv
+            and exact_model_tier_consistent
+            and _runtime_execution_plan_argv_value(
+                reuse_stage_argv,
+                "--llm-route-planner-model-tier",
+            )
+            == handoff_model_tier
+            and _runtime_execution_plan_argv_value(
+                reuse_stage_argv,
+                "--feedback-llm-route-planner-model-tier",
+            )
+            == handoff_model_tier
         ):
             counts["execution_plan_reuse_smoke_stage_cost_control_ok"] += 1
     return {
