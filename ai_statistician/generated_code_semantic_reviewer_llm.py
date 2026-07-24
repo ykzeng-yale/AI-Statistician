@@ -592,7 +592,28 @@ def generated_code_semantic_review_active_pending_repair_plan(
         for value in pending_plan.get("pending_repair_scopes", []) or []
         if str(value) in GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_REPAIR_SCOPES
     ]
-    current_theory_hash = stable_hash(review_material.get("theory_packet", {}))
+    current_theory_packet = review_material.get("theory_packet", {})
+    current_theory_packet = (
+        current_theory_packet
+        if isinstance(current_theory_packet, Mapping)
+        else {}
+    )
+    theory_review_projection = current_theory_packet.get(
+        "theory_review_projection",
+        {},
+    )
+    theory_review_projection = (
+        theory_review_projection
+        if isinstance(theory_review_projection, Mapping)
+        else {}
+    )
+    current_theory_hash = str(
+        theory_review_projection.get(
+            "canonical_theory_packet_fingerprint",
+            "",
+        )
+        or ""
+    ) or stable_hash(current_theory_packet)
     review_scope_projection = review_material.get("review_scope_projection", {})
     review_scope_projection = (
         review_scope_projection
@@ -714,13 +735,21 @@ def build_generated_code_semantic_review_prompt(
         + "Apply the supplied source_responsibility_contract: "
         "a generated artifact may own one bounded part of the system, so judge it "
         "against requirements assigned to its author subsystem and against every "
-        "implementation claim made by its own proposal. Do not reject it merely for "
+        "current-artifact implementation claim retained by "
+        "coding_agent_proposal_packet.proposal_review_projection. Fields listed as "
+        "excluded_non_authoritative_fields, including LLM-authored next actions, "
+        "validation ideas, risk notes, and duplicate code envelopes, are advisory "
+        "and cannot create acceptance obligations. Do not reject it merely for "
         "omitting a requirement assigned only to a sibling artifact; final system-wide "
         "coverage belongs to CriticEvaluator after separately reviewed artifacts are "
         "assembled. review_scope_projection is a hash-bound least-authority view: "
         "full requirement rows are supplied only for the current source owner, while "
         "sibling_only_requirement_refs are handoff context and cannot make a required "
-        "dimension FAIL. A smoke-test artifact does not fail merely because a sibling "
+        "dimension FAIL. When source_theory_packet contains theory_review_projection, "
+        "only its included anchors can gate this artifact. Theory branches, critic "
+        "findings, and future work outside that projection remain system-level "
+        "context and cannot become source-code repair requirements. A smoke-test "
+        "artifact does not fail merely because a sibling "
         "SimulationEngineer later owns a larger confirmatory run. Still reject any "
         "current-source proposal claim that its exact code "
         "does not implement. A script merely running or returning finite metrics "
@@ -754,6 +783,10 @@ def build_generated_code_semantic_review_prompt(
         "the frozen requirements assigned to this source, and the source proposal's "
         "own claims. Preserve such useful ideas only as advisory findings with "
         "repair_scope=none; they cannot make a required dimension FAIL or UNCERTAIN. "
+        "If source comments or metadata overclaim an optional capability that is "
+        "absent from the assigned contract, request removal or accurate relabeling "
+        "of that claim; never expand the current artifact by requiring implementation "
+        "of the optional capability. "
         "Do not ask generated code to empirically prove a theorem premise or replace "
         "formal reasoning. A finite Monte Carlo deviation, by itself, identifies a "
         "gate outcome rather than its cause: require an exact source, argument-binding, "

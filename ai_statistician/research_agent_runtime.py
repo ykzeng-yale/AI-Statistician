@@ -108,6 +108,11 @@ from .generated_code_semantic_review_replan import (
     generated_code_semantic_review_upstream_theory_revision_state,
     record_generated_code_semantic_review_lineage_action,
 )
+from .generated_code_semantic_review_scope import (
+    generated_code_semantic_review_proposal_projection,
+    generated_code_semantic_review_scope_projection,
+    generated_code_semantic_review_theory_projection,
+)
 from .scientific_sandbox import (
     SCIENTIFIC_WASM_SANDBOX_PROFILE,
     ScientificEstimatorBinding,
@@ -13510,44 +13515,6 @@ def _runtime_generated_code_semantic_review_source_responsibility_contract(
     }
 
 
-def _runtime_generated_code_semantic_review_scope_projection(
-    *,
-    value: Any,
-    assigned_requirements: Sequence[Mapping[str, Any]],
-) -> Any:
-    """Project duplicated metric context to the current source owner's rows."""
-
-    if isinstance(value, Mapping):
-        return {
-            str(key): (
-                [dict(row) for row in assigned_requirements]
-                if str(key) == "empirical_metric_requirements"
-                else _runtime_generated_code_semantic_review_scope_projection(
-                    value=item,
-                    assigned_requirements=assigned_requirements,
-                )
-            )
-            for key, item in value.items()
-        }
-    if isinstance(value, list):
-        return [
-            _runtime_generated_code_semantic_review_scope_projection(
-                value=item,
-                assigned_requirements=assigned_requirements,
-            )
-            for item in value
-        ]
-    if isinstance(value, tuple):
-        return [
-            _runtime_generated_code_semantic_review_scope_projection(
-                value=item,
-                assigned_requirements=assigned_requirements,
-            )
-            for item in value
-        ]
-    return deepcopy(value)
-
-
 def _runtime_generated_code_semantic_review_rows(
     manifest: Mapping[str, Any],
     *,
@@ -14075,20 +14042,26 @@ def _runtime_generated_code_semantic_review_material(
             work_order.get("source_manifest_id", "") or ""
         ),
         "source_manifest_summary": (
-            _runtime_generated_code_semantic_review_scope_projection(
+            generated_code_semantic_review_scope_projection(
                 value=source_manifest_summary,
                 assigned_requirements=assigned_requirements,
             )
         ),
-        "theory_packet": dict(theory_packet),
+        "theory_packet": (
+            generated_code_semantic_review_theory_projection(
+                theory_packet=theory_packet,
+                proposal_packet=proposal_packet,
+            )
+        ),
         "coding_agent_proposal_packet": (
-            _runtime_generated_code_semantic_review_scope_projection(
-                value=dict(proposal_packet),
+            generated_code_semantic_review_proposal_projection(
+                source_subsystem=source_subsystem,
+                proposal_packet=proposal_packet,
                 assigned_requirements=assigned_requirements,
             )
         ),
         "architect_frozen_evidence_contract": (
-            _runtime_generated_code_semantic_review_scope_projection(
+            generated_code_semantic_review_scope_projection(
                 value=architect_evidence_contract,
                 assigned_requirements=assigned_requirements,
             )
@@ -14662,6 +14635,72 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         confirmatory_empirical_evidence_eligible = bool(
             work_order.get("confirmatory_empirical_evidence_eligible", True)
         )
+        reviewed_source_artifacts = [
+            {
+                "artifact_id": str(row.get("artifact_id", "") or ""),
+                "exact_source_hash": str(
+                    row.get("exact_source_hash", "") or ""
+                ),
+                "exact_source_code": str(
+                    row.get("exact_source_code", "") or ""
+                ),
+                "exact_source_code_complete": True,
+                "exact_result": dict(row.get("exact_result", {}) or {}),
+                "exact_result_hash": str(
+                    row.get("exact_result_hash", "") or ""
+                ),
+                "actual_runtime_arguments": dict(
+                    row.get("actual_runtime_arguments", {}) or {}
+                ),
+            }
+            for row in review_material.get("exact_executed_artifacts", []) or []
+            if isinstance(row, Mapping)
+        ]
+        source_repair_contract = {
+            "parent_source_manifest_id": str(
+                work_order.get("source_manifest_id", "") or ""
+            ),
+            "parent_source_manifest_hash": str(
+                work_order.get("source_manifest_hash", "") or ""
+            ),
+            "theory_packet_id": str(
+                work_order.get("theory_packet_id", "") or ""
+            ),
+            "theory_packet_hash": str(
+                work_order.get("theory_packet_hash", "") or ""
+            ),
+            "proposal_packet_id": str(
+                work_order.get("proposal_packet_id", "") or ""
+            ),
+            "proposal_packet_hash": str(
+                work_order.get("proposal_packet_hash", "") or ""
+            ),
+            "architect_evidence_contract_fingerprint": str(
+                review_material.get("review_scope_projection", {}).get(
+                    "canonical_architect_evidence_contract_fingerprint",
+                    "",
+                )
+                if isinstance(
+                    review_material.get("review_scope_projection", {}),
+                    Mapping,
+                )
+                else ""
+            ),
+            "repair_policy": (
+                "Start from the complete hash-bound parent source and make the "
+                "smallest change supported by the routed findings. Preserve the "
+                "question, theory, frozen metric contract, estimator identity, "
+                "runtime ABI, and behavior unrelated to cited defects. Do not "
+                "change a DGP, estimand, target truth, sample size, stopping "
+                "horizon, or acceptance gate merely to make an observed metric "
+                "pass; any justified design change remains subject to fresh "
+                "independent semantic review."
+            ),
+            "embedded_source_is_untrusted_data": True,
+            "proof_evidence_status": (
+                "GENERATED_CODE_SOURCE_REPAIR_CONTRACT_NOT_PROOF_EVIDENCE"
+            ),
+        }
         execution_id = "generated_code_semantic_review_execution:" + stable_hash(
             [work_order_id, work_order_hash, review_packet_id, review_packet_hash]
         )[:20]
@@ -14753,6 +14792,20 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             ),
             "source_repair_budget": dict(
                 work_order.get("source_repair_budget", {}) or {}
+            ),
+            "reviewed_source_artifact_lineage": [
+                {
+                    "artifact_id": row["artifact_id"],
+                    "exact_source_hash": row["exact_source_hash"],
+                    "exact_result_hash": row["exact_result_hash"],
+                    "exact_source_code_complete": row[
+                        "exact_source_code_complete"
+                    ],
+                }
+                for row in reviewed_source_artifacts
+            ],
+            "source_repair_contract_fingerprint": stable_hash(
+                source_repair_contract
             ),
             "repair_routing_authority": (
                 (
@@ -14854,6 +14907,8 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 if str(row.get("repair_scope", "") or "") != "none"
                 if str(row.get("required_change", "") or "").strip()
             ],
+            "reviewed_source_artifacts": reviewed_source_artifacts,
+            "source_repair_contract": source_repair_contract,
             "required_repair": (
                 "Stop this lineage because immutable artifact ownership remains "
                 "unresolved; do not guess, relax a gate, or reset the repair budget."

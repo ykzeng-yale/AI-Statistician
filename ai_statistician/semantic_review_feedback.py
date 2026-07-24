@@ -26,7 +26,14 @@ def compact_semantic_review_feedback(
     )
     findings = _compact_mapping_rows(
         feedback.get("findings", []),
-        keys=("severity", "category", "summary", "required_change", "evidence_refs"),
+        keys=(
+            "severity",
+            "category",
+            "summary",
+            "required_change",
+            "repair_scope",
+            "evidence_refs",
+        ),
         max_rows=max_rows,
         max_text_chars=max_text_chars,
     )
@@ -77,6 +84,16 @@ def compact_semantic_review_feedback(
         "dimension_reviews": dimension_reviews,
         "findings": findings,
         "repair_instructions": repair_instructions,
+        "reviewed_source_artifacts": _compact_reviewed_source_artifacts(
+            feedback.get("reviewed_source_artifacts", []),
+            max_rows=max_rows,
+            max_source_chars=12000,
+            max_text_chars=max_text_chars,
+        ),
+        "source_repair_contract": _compact_source_repair_contract(
+            feedback.get("source_repair_contract", {}),
+            max_text_chars=max_text_chars,
+        ),
         "blocking_reason": _bounded_text(
             feedback.get("blocking_reason", ""), max_text_chars
         ),
@@ -94,6 +111,97 @@ def compact_semantic_review_feedback(
         key: value
         for key, value in payload.items()
         if value not in (None, "", [], {})
+    }
+
+
+def _compact_reviewed_source_artifacts(
+    value: Any,
+    *,
+    max_rows: int,
+    max_source_chars: int,
+    max_text_chars: int,
+) -> list[dict[str, Any]]:
+    if not isinstance(value, list | tuple):
+        return []
+    rows: list[dict[str, Any]] = []
+    for raw_row in value:
+        if not isinstance(raw_row, Mapping):
+            continue
+        source_code = str(raw_row.get("exact_source_code", "") or "")
+        source_complete = bool(
+            raw_row.get("exact_source_code_complete", False)
+            and len(source_code) <= max_source_chars
+        )
+        exact_result = raw_row.get("exact_result", {})
+        compact_result = (
+            {
+                str(key): child
+                if isinstance(child, bool | int | float) or child is None
+                else _bounded_text(child, max_text_chars)
+                for key, child in list(exact_result.items())[:24]
+            }
+            if isinstance(exact_result, Mapping)
+            else {}
+        )
+        rows.append(
+            {
+                "artifact_id": _bounded_text(
+                    raw_row.get("artifact_id", ""),
+                    max_text_chars,
+                ),
+                "exact_source_hash": _bounded_text(
+                    raw_row.get("exact_source_hash", ""),
+                    max_text_chars,
+                ),
+                "exact_source_code": source_code[:max_source_chars],
+                "exact_source_code_complete": source_complete,
+                "exact_result": compact_result,
+                "exact_result_hash": _bounded_text(
+                    raw_row.get("exact_result_hash", ""),
+                    max_text_chars,
+                ),
+                "actual_runtime_arguments": (
+                    dict(raw_row.get("actual_runtime_arguments", {}))
+                    if isinstance(
+                        raw_row.get("actual_runtime_arguments", {}),
+                        Mapping,
+                    )
+                    else {}
+                ),
+            }
+        )
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
+def _compact_source_repair_contract(
+    value: Any,
+    *,
+    max_text_chars: int,
+) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    fields = (
+        "parent_source_manifest_id",
+        "parent_source_manifest_hash",
+        "theory_packet_id",
+        "theory_packet_hash",
+        "proposal_packet_id",
+        "proposal_packet_hash",
+        "architect_evidence_contract_fingerprint",
+        "repair_policy",
+        "embedded_source_is_untrusted_data",
+        "proof_evidence_status",
+    )
+    return {
+        field: (
+            value.get(field)
+            if isinstance(value.get(field), bool)
+            else _bounded_text(value.get(field, ""), max_text_chars)
+        )
+        for field in fields
+        if value.get(field) not in (None, "")
     }
 
 

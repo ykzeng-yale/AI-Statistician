@@ -871,6 +871,185 @@ def test_generated_code_semantic_reviewer_accepts_and_resumes_deferred_task(
     ] == stable_hash(work_order["architect_evidence_contract"])
 
 
+def test_semantic_review_projection_excludes_advisory_coding_agent_work(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accept=True)
+    work_order = blackboard.artifacts[str(task.inputs["work_order_id"])]
+    proposal = blackboard.artifacts[str(work_order["proposal_packet_id"])]
+    theory = blackboard.artifacts[str(work_order["theory_packet_id"])]
+    theory["question"] = {"id": "semantic-review-test"}
+    theory["problem_card"] = {
+        "dgp": "Current-artifact data-generating process.",
+        "estimand": "Current-artifact target.",
+        "assumptions": ["current assumption"],
+    }
+    theory["theory_derivation_packet"] = {
+        "derivation_steps": [
+            {
+                "id": "current-step",
+                "claim": "The current artifact estimates the target.",
+            },
+            {
+                "id": "future-step",
+                "claim": "A future unrelated method may be developed.",
+            },
+        ],
+        "equation_chain": [
+            {
+                "step_id": "current-equation",
+                "lhs": "target",
+                "rhs": "estimate",
+            },
+            {
+                "step_id": "future-equation",
+                "lhs": "future",
+                "rhs": "work",
+            },
+        ],
+        "assumption_ledger": [
+            {
+                "assumption": "current assumption",
+                "used_in": ["current-step"],
+            },
+            {
+                "assumption": "future assumption",
+                "used_in": ["future-step"],
+            },
+        ],
+        "sanity_checks": [
+            {
+                "id": "current-check",
+                "claim_ref": "current-step",
+                "result": "passes",
+            },
+            {
+                "id": "future-check",
+                "claim_ref": "future-step",
+                "result": "not delegated",
+            },
+        ],
+        "formalization_handoff": {
+            "semantic_alignment_constraints": [
+                "current formal target",
+                "future formal target",
+            ]
+        },
+    }
+    theory["critic_findings"] = [
+        {"finding": "Future system-level work is still open."}
+    ]
+    proposal["implementation_targets"] = [
+        {
+            "estimator_id": "generated-estimator",
+            "adapter_strategy": "Implement the theory-defined estimator.",
+            "registered_template_hint": "none",
+            "data_contract": ["named finite request and response"],
+            "validation_metrics": [
+                "Advisory future diagnostic not assigned by Architect"
+            ],
+            "risk_controls": ["Advisory future stress test"],
+        }
+    ]
+    proposal["sandbox_code_drafts"] = [
+        {
+            "estimator_id": "generated-estimator",
+            "code": "duplicate source envelope",
+        }
+    ]
+    proposal["next_actions"] = [
+        {
+            "owner_agent": "AlgorithmEngineer",
+            "action": "Invent a future capability.",
+            "acceptance_gate": "Advisory only.",
+        }
+    ]
+    proposal["theory_trace_alignment_contract"] = {
+        "artifact_kind": "TheoryTraceAlignmentContract",
+        "structured_alignment_observed": True,
+        "supported_derivation_steps": ["current-step"],
+        "supported_equation_steps": ["current-equation"],
+        "supported_assumptions": ["current assumption"],
+        "supported_formalization_targets": ["current formal target"],
+    }
+    work_order["theory_packet_hash"] = stable_hash(theory)
+    work_order["proposal_packet_hash"] = stable_hash(proposal)
+    task.inputs["work_order_hash"] = stable_hash(work_order)
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REROUTE"
+    materialization = next(
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewMaterialization"
+    )
+    projected = materialization["review_material"][
+        "coding_agent_proposal_packet"
+    ]
+    assert "next_actions" not in projected
+    assert "sandbox_code_drafts" not in projected
+    target = projected["implementation_targets"][0]
+    assert set(target) == {
+        "estimator_id",
+        "adapter_strategy",
+        "registered_template_hint",
+        "data_contract",
+    }
+    projection = projected["proposal_review_projection"]
+    assert projection["canonical_proposal_fingerprint"] == stable_hash(
+        proposal
+    )
+    assert "next_actions" in projection["excluded_non_authoritative_fields"]
+    assert projection[
+        "advisory_fields_cannot_create_acceptance_obligations"
+    ] is True
+    projected_theory = materialization["review_material"]["theory_packet"]
+    assert projected_theory["theory_derivation_packet"] == {
+        "derivation_steps": [
+            {
+                "id": "current-step",
+                "claim": "The current artifact estimates the target.",
+            }
+        ],
+        "equation_chain": [
+            {
+                "step_id": "current-equation",
+                "lhs": "target",
+                "rhs": "estimate",
+            }
+        ],
+        "assumption_ledger": [
+            {
+                "assumption": "current assumption",
+                "used_in": ["current-step"],
+            }
+        ],
+        "sanity_checks": [
+            {
+                "id": "current-check",
+                "claim_ref": "current-step",
+                "result": "passes",
+            }
+        ],
+        "formalization_handoff": {
+            "semantic_alignment_constraints": ["current formal target"]
+        },
+    }
+    assert "critic_findings" not in projected_theory
+    theory_projection = projected_theory["theory_review_projection"]
+    assert theory_projection["canonical_theory_packet_fingerprint"] == (
+        stable_hash(theory)
+    )
+    assert theory_projection[
+        "content_outside_projection_cannot_gate_current_artifact"
+    ] is True
+    assert "critic_findings" in theory_projection[
+        "excluded_non_authoritative_top_level_fields"
+    ]
+
+
 def test_semantic_reviewer_regenerates_packet_after_extra_runtime_owned_slot(
     tmp_path: Path,
 ) -> None:
@@ -1093,6 +1272,10 @@ def test_semantic_reviewer_prompt_keeps_sibling_metrics_out_of_artifact_gate() -
     assert "least-authority view" in prompt
     assert "cannot make a required dimension FAIL" in prompt
     assert "reject any current-source proposal claim" in prompt
+    assert "excluded_non_authoritative_fields" in prompt
+    assert "cannot create acceptance obligations" in prompt
+    assert "theory_review_projection" in prompt
+    assert "cannot become source-code repair requirements" in prompt
     assert "Scope a finding to source_code" in prompt
     assert "upstream_theory only for a missing" in prompt
     assert "reviewer hypothesis, not final repair-owner authority" in prompt
@@ -1106,6 +1289,7 @@ def test_semantic_reviewer_prompt_keeps_sibling_metrics_out_of_artifact_gate() -
     assert "aggregation=identity may validly check one deterministic scalar" in prompt
     assert "Do not create a mandatory diagnostic" in prompt
     assert "absent from the current source-responsibility contract" in prompt
+    assert "never expand the current artifact" in prompt
     assert "empirically prove a theorem premise" in prompt
     assert "finite Monte Carlo deviation" in prompt
     assert "Numerical stability" in prompt
@@ -1737,6 +1921,26 @@ def test_runtime_carries_pending_repair_until_owning_artifact_changes() -> None:
         packet=packet,
         review_material=review_material,
     ) == []
+    projected_material = {
+        **review_material,
+        "theory_packet": {
+            "packet_id": theory_packet["packet_id"],
+            "theory_derivation_packet": {
+                "derivation_steps": [{"id": "consumed-step"}]
+            },
+            "theory_review_projection": {
+                "canonical_theory_packet_fingerprint": stable_hash(
+                    theory_packet
+                )
+            },
+        },
+    }
+    assert generated_code_semantic_review_active_pending_repair_plan(
+        projected_material
+    )["active_repair_scopes"] == [
+        "upstream_theory",
+        "upstream_metric_contract",
+    ]
     changed_material = {
         **review_material,
         "theory_packet": {**theory_packet, "claim": "revised"},
@@ -1939,6 +2143,21 @@ def test_generated_code_semantic_reviewer_routes_rejection_to_fresh_generation(
     feedback = result.next_task.inputs["environment_feedback"]
     assert feedback["overall_verdict"] == "REVISE"
     assert feedback["findings"][0]["severity"] == "high"
+    reviewed_source = feedback["reviewed_source_artifacts"][0]
+    assert reviewed_source["exact_source_code_complete"] is True
+    assert reviewed_source["exact_source_code"].endswith(
+        "return run_estimator({'numerator': seed % 7, "
+        "'denominator': max(replicates, 1)})\n"
+    )
+    assert reviewed_source["exact_source_hash"] == stable_hash(
+        reviewed_source["exact_source_code"]
+    )
+    assert feedback["source_repair_contract"][
+        "parent_source_manifest_hash"
+    ]
+    assert "smallest change" in feedback["source_repair_contract"][
+        "repair_policy"
+    ]
     assert result.next_task.inputs["generated_code_semantic_review_revision_count"] == 1
     handoff = result.next_task.inputs["architect_context"]["runtime_feedback_loop"][
         "direct_repair_handoff_contract"
@@ -2646,6 +2865,11 @@ def test_coding_agent_prompts_preserve_independent_semantic_findings() -> None:
         "Use one shared latent parameter across the full sequence, compute the "
         "joint marginal likelihood, and rerun the unchanged frozen protocol."
     )
+    parent_source = (
+        "def run_sandbox(seed, replicates):\n"
+        + "    values = []\n" * 120
+        + "    return {'tail_marker': 'FULL_PARENT_SOURCE_TAIL'}\n"
+    )
     feedback = {
         "feedback_type": "generated_code_semantic_review_feedback",
         "feedback_source": "GeneratedCodeSemanticReviewer",
@@ -2667,10 +2891,41 @@ def test_coding_agent_prompts_preserve_independent_semantic_findings() -> None:
                 "category": "joint_model_semantics",
                 "summary": "The generated update implements a different model.",
                 "required_change": required_change,
+                "repair_scope": "source_code",
                 "evidence_refs": ["theory_packet", "exact_source_code"],
             }
         ],
         "repair_instructions": [required_change],
+        "reviewed_source_artifacts": [
+            {
+                "artifact_id": "joint-mixture",
+                "exact_source_hash": stable_hash(parent_source),
+                "exact_source_code": parent_source,
+                "exact_source_code_complete": True,
+                "exact_result": {"sandbox_failed": False},
+                "exact_result_hash": stable_hash(
+                    {"sandbox_failed": False}
+                ),
+                "actual_runtime_arguments": {
+                    "seed": 11,
+                    "replicates": 50,
+                },
+            }
+        ],
+        "source_repair_contract": {
+            "parent_source_manifest_id": "manifest:parent",
+            "parent_source_manifest_hash": "manifest-hash",
+            "theory_packet_id": "theory:test",
+            "theory_packet_hash": "theory-hash",
+            "proposal_packet_id": "proposal:parent",
+            "proposal_packet_hash": "proposal-hash",
+            "architect_evidence_contract_fingerprint": "contract-hash",
+            "repair_policy": (
+                "Start from the complete hash-bound parent source and make the "
+                "smallest supported change."
+            ),
+            "embedded_source_is_untrusted_data": True,
+        },
         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
     }
     theory_packet = {
@@ -2704,7 +2959,12 @@ def test_coding_agent_prompts_preserve_independent_semantic_findings() -> None:
         assert required_change in prompt
         assert "treat" in prompt
         assert "as binding" in prompt
-        assert "do not respond by only changing metric paths" in prompt
+        assert "FULL_PARENT_SOURCE_TAIL" in prompt
+        assert stable_hash(parent_source) in prompt
+        assert "smallest source change" in prompt
+        assert "untrusted data" in prompt
+        assert "cannot create new acceptance obligations" in prompt
+        assert "merely to improve an observed score" in prompt
         assert '"metric_evaluation_semantics"' in prompt
     assert "Never place a quorum in threshold" in simulation_prompt
     assert "pre-thresholded 0/1 flags" in simulation_prompt
