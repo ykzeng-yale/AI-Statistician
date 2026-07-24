@@ -319,7 +319,12 @@ def _metric_authoring_repair_priority_instructions(
             "theory_parameter_instantiation, or evaluation_mandated merely because "
             "another field matches. Use architect_preregistered_design for the row "
             "only when the unmatched choices are defensible pre-execution design "
-            "decisions; otherwise make the row diagnostic or remove it; do not copy "
+            "decisions. If and only if the returned quantity is intrinsically "
+            "true/false, set metric_value_kind=boolean and use the exact runtime "
+            "truth representation == 1 with zero tolerance; the predicate still "
+            "needs semantic source authority, but the representational 1 is not a "
+            "source-derived cutoff. Otherwise make the row diagnostic or remove it; "
+            "do not copy "
             "the value into theory, change a gate merely to match an anchor, or treat "
             "the matrix as an automatic repair."
         )
@@ -416,12 +421,14 @@ def _metric_authoring_repair_context(
         matrix_row["source_derived_authority_allowed"] = not unmatched_fields
         matrix_row["required_resolution_options"] = (
             [
+                "typed_boolean_predicate_if_intrinsically_boolean",
                 "architect_preregistered_design_with_preexecution_rationale",
                 "diagnostic_only_or_remove",
             ]
             if unmatched_fields
             else [
                 "cite_exact_matching_catalog_nodes",
+                "typed_boolean_predicate_if_intrinsically_boolean",
                 "architect_preregistered_design_with_preexecution_rationale",
                 "diagnostic_only_or_remove",
             ]
@@ -920,8 +927,13 @@ def author_reviewed_architect_metric_requirements(
             ),
             (
                 "Require raw measurements whenever they exist. Use bool/0/1 with "
-                "operator == and threshold 1 only for an intrinsically boolean "
-                "predicate."
+                "metric_value_kind=boolean with operator == and threshold 1, "
+                "tolerance 0, "
+                "and null bounds only for an intrinsically boolean predicate. The "
+                "1 is the runtime-owned representation of true, not a substantive "
+                "numeric cutoff; source anchors must still authorize the predicate "
+                "itself. Use metric_value_kind=numeric for every measurable "
+                "quantity."
             ),
             "Copy runtime_owned_replicates into every required_runtime_replicates field and state that exact count in each measurement_protocol.",
             "Use null for comparison or quorum fields that do not apply to the selected operator or aggregation.",

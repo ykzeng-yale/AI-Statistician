@@ -23417,6 +23417,7 @@ def test_metric_authoring_unmatched_numeric_gate_does_not_invent_source_authorit
     matrix_row = context["numeric_authority_repair_matrix"][0]
     assert matrix_row["source_derived_authority_allowed"] is False
     assert matrix_row["required_resolution_options"] == [
+        "typed_boolean_predicate_if_intrinsically_boolean",
         "architect_preregistered_design_with_preexecution_rationale",
         "diagnostic_only_or_remove",
     ]
@@ -23723,6 +23724,309 @@ def test_theory_revision_keeps_pending_source_repairs_for_fresh_code() -> None:
     assert gated_selection["source"] != (
         "generated_code_semantic_review_pending_source_repair"
     )
+
+    pending_simulation = {
+        **pending,
+        "target_subsystem": "SimulationEvaluator",
+    }
+    pending_simulation_context = {
+        **revised_context,
+        "runtime_generated_code_semantic_review_pending_source_repair": (
+            pending_simulation
+        ),
+        "runtime_requested_evidence_contract": {
+            "capability_eval_requires_generated_algorithm_code": True,
+            "capability_eval_requires_generated_simulation_code": True,
+        },
+    }
+    prerequisite_selection = runtime_module._architect_select_initial_subsystem(
+        packet={
+            "evidence_contract": {
+                "empirical_metric_protocol_phase": (
+                    "preexecution_review_accepted"
+                ),
+                "metric_protocol_execution_authorized": True,
+                "capability_eval_requires_generated_algorithm_code": True,
+            }
+        },
+        architect_context=pending_simulation_context,
+        blackboard=BlackboardState(
+            project_id="pending-simulation-repair-prerequisite"
+        ),
+        question_id="mixed_repair_question",
+    )
+    assert prerequisite_selection["requested_subsystem"] == (
+        "SimulationEvaluator"
+    )
+    assert prerequisite_selection["selected_subsystem"] == "AlgorithmEngineer"
+    assert prerequisite_selection["requires_prerequisite_algorithm"] is True
+    assert prerequisite_selection["source"] == (
+        "generated_code_semantic_review_pending_source_repair_"
+        "prerequisite_algorithm"
+    )
+    assert "environment_feedback" not in prerequisite_selection
+
+    simulation_task = (
+        runtime_module._generated_simulation_required_before_formalization_task(
+            question=load_open_research_questions(
+                Path("examples/research_questions.json")
+            )[0],
+            packet_id="theory_derivation:revised",
+            simulation_manifest_id="simulation_manifest:prior",
+            algorithm_sandbox_manifest_id="algorithm_sandbox_manifest:revised",
+            architect_context=pending_simulation_context,
+            n_runs=80,
+            seed=41,
+        )
+    )
+    assert simulation_task.inputs["environment_feedback"]["feedback_type"] == (
+        "generated_code_semantic_review_pending_source_repair_feedback"
+    )
+    assert simulation_task.inputs["environment_feedback"][
+        "generated_simulation_capability_feedback"
+    ]["capability_id"] == "generated_simulation_code_executed_locally"
+    deferred_pending = simulation_task.inputs["architect_context"][
+        "runtime_generated_code_semantic_review_pending_source_repair"
+    ]
+    assert deferred_pending["dispatch_status"] == (
+        "PENDING_AFTER_THEORY_REVISION"
+    )
+    dispatched_context = (
+        runtime_module._runtime_context_with_dispatched_pending_source_repair(
+            architect_context=simulation_task.inputs["architect_context"],
+            target_subsystem="SimulationEvaluator",
+            theory_packet_id="theory_derivation:revised",
+        )
+    )
+    dispatched_pending = dispatched_context[
+        "runtime_generated_code_semantic_review_pending_source_repair"
+    ]
+    assert dispatched_pending["dispatch_status"] == (
+        "DISPATCHED_TO_REVISED_DESCENDANT"
+    )
+    assert dispatched_pending["dispatched_to_subsystem"] == (
+        "SimulationEvaluator"
+    )
+
+
+def test_semantic_review_honors_exhausted_source_repair_budget(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    theory_packet = {
+        "packet_id": "theory_derivation:source-budget",
+        "theorem_cards": [],
+    }
+    metric_feedback = {
+        "feedback_type": "generated_simulation_sandbox_execution_feedback",
+        "failure_classification": (
+            "generated_simulation_sandbox_metric_gate_failed"
+        ),
+    }
+    context = {
+        "runtime_requested_evidence_contract": {
+            "capability_eval_requires_generated_simulation_code": True,
+            "capability_eval_simulation_evaluator_generated_code_repair_yield_after_attempts": 1,
+        },
+        "runtime_feedback_loop": {
+            "source_subsystem": "SimulationEvaluator",
+            "simulation_evaluator_generated_code_repair_attempts_used": 1,
+            "simulation_evaluator_generated_code_repair_yield_after_attempts": 1,
+        },
+        "architect_runtime_plan": {
+            "evidence_contract": {
+                "empirical_metric_requirements": [],
+            }
+        },
+    }
+    repair_task = AgentTask(
+        task_id="simulation:source-budget-exhausted",
+        owner_subsystem="SimulationEvaluator",
+        objective="Review an exhausted generated simulation lineage.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet["packet_id"],
+            "architect_context": context,
+            "environment_feedback": metric_feedback,
+        },
+    )
+    source = (
+        "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+        "    return {'is_valid': False, 'replicates': int(replicates)}\n"
+    )
+    result_payload = {"is_valid": False, "replicates": 80}
+    script_path = tmp_path / "source-budget.py"
+    result_path = tmp_path / "source-budget.json"
+    script_path.write_text(source, encoding="utf-8")
+    result_path.write_text(json.dumps(result_payload), encoding="utf-8")
+    source_manifest = {
+        "artifact_kind": "RuntimeSimulationManifest",
+        "manifest_id": "simulation_manifest:source-budget",
+        "generated_simulation_sandbox_prototypes": [
+            {
+                "simulation_id": "source-budget-probe",
+                "smoke_passed": True,
+                "script_path": str(script_path),
+                "script_hash": runtime_module.stable_hash(source),
+                "result_path": str(result_path),
+                "result_hash": runtime_module.stable_hash(result_payload),
+                "metrics": result_payload,
+                "metric_contract_evaluation": {
+                    "all_required_passed": False,
+                },
+            }
+        ],
+    }
+    proposal_packet = {
+        "packet_id": "simulation_engineer_proposal:source-budget",
+        "source_agent": "SimulationEngineer",
+        "model": "static-source-model",
+        "model_tier": "haiku",
+        "simulation_code_drafts": [
+            {
+                "simulation_id": "source-budget-probe",
+                "language": "python",
+                "entrypoint": "run_sandbox",
+                "code": source,
+            }
+        ],
+    }
+    deferred_task = AgentTask(
+        task_id="formalize-simulation-yield:source-budget",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Continue formal feedback with the empirical blocker open.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet["packet_id"],
+            "architect_context": context,
+            "environment_feedback": {
+                "feedback_type": (
+                    "simulation_evaluator_repair_budget_yield_feedback"
+                )
+            },
+        },
+    )
+
+    dispatch = runtime_module._runtime_generated_code_semantic_review_dispatch(
+        task=repair_task,
+        question=question,
+        source_subsystem="SimulationEvaluator",
+        source_manifest=source_manifest,
+        theory_packet=theory_packet,
+        proposal_packet=proposal_packet,
+        architect_context=context,
+        deferred_next_task=deferred_task,
+        max_revisions=1,
+        metric_failure_feedback=metric_feedback,
+    )
+
+    assert dispatch is not None
+    work_order = dispatch["work_order"]
+    assert work_order["source_repair_budget"] == {
+        "source_subsystem": "SimulationEvaluator",
+        "attempts_used": 1,
+        "yield_after_attempts": 1,
+        "budget_exhausted": True,
+        "authority": "runtime_source_agent_repair_budget",
+        "proof_evidence_status": (
+            "SOURCE_REPAIR_BUDGET_STATE_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    assert work_order["deferred_next_task"]["owner_subsystem"] == (
+        "FormalizationEvaluator"
+    )
+
+    review_payload = {
+        "dimension_reviews": [
+            {
+                "status": "FAIL" if index == 0 else "PASS",
+                "rationale": (
+                    "The exact generated source still implements the rejected "
+                    "predicate."
+                    if index == 0
+                    else "No additional defect is required for this fixture."
+                ),
+                "evidence_citations": [
+                    {
+                        "artifact_role": "generated_source_artifact",
+                        "locator": "/exact_executed_artifacts/0/exact_source_code",
+                    }
+                ],
+            }
+            for index, _dimension in enumerate(
+                GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
+            )
+        ],
+        "findings": [
+            {
+                "severity": "high",
+                "category": "source_semantics",
+                "summary": "The generated predicate remains false.",
+                "required_change": "Generate source that implements the predicate.",
+                "repair_scope": "source_code",
+                "evidence_citations": [
+                    {
+                        "artifact_role": "generated_source_artifact",
+                        "locator": "/exact_executed_artifacts/0/exact_result",
+                    },
+                    {
+                        "artifact_role": "source_theory_packet",
+                        "locator": "/theorem_cards",
+                    },
+                ],
+            }
+        ],
+        "repair_instructions": [
+            "Regenerate the source without changing the frozen gate."
+        ],
+    }
+    reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=StaticArchitectLLMProvider(review_payload),
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="anthropic",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        ),
+    )
+    blackboard = BlackboardState(
+        project_id="semantic-review-source-budget",
+        artifacts={
+            theory_packet["packet_id"]: theory_packet,
+            source_manifest["manifest_id"]: source_manifest,
+            proposal_packet["packet_id"]: proposal_packet,
+            work_order["work_order_id"]: work_order,
+        },
+    )
+    review_result = (
+        runtime_module.GeneratedCodeSemanticReviewerRuntimeSubsystem(
+            reviewer=reviewer,
+            max_revisions=1,
+        ).run(dispatch["next_task"], blackboard)
+    )
+
+    assert review_result.status == "REROUTE", (
+        review_result.rationale,
+        review_result.failure_classification,
+        [
+            (row.observation_type, row.summary, row.payload)
+            for row in review_result.observations
+        ],
+    )
+    assert review_result.failure_classification == (
+        "generated_code_semantic_review_source_repair_budget_yield"
+    )
+    assert review_result.next_task is not None
+    assert review_result.next_task.owner_subsystem == "FormalizationEvaluator"
+    assert review_result.next_task.inputs["environment_feedback"][
+        "source_artifact_remains_unaccepted"
+    ] is True
+    yield_state = review_result.next_task.inputs["architect_context"][
+        "runtime_generated_code_semantic_review_source_budget_yield"
+    ]
+    assert yield_state["source_repair_budget"]["budget_exhausted"] is True
+    assert yield_state["source_artifact_remains_unaccepted"] is True
 
 
 def test_live_architect_preauthors_metric_contract_with_structured_substage() -> None:

@@ -9328,6 +9328,46 @@ def _architect_selected_worker_environment_feedback(
     return dict(feedback)
 
 
+def _runtime_context_with_dispatched_pending_source_repair(
+    *,
+    architect_context: Mapping[str, Any],
+    target_subsystem: str,
+    theory_packet_id: str,
+) -> dict[str, Any]:
+    context = dict(architect_context)
+    pending = context.get(
+        GENERATED_CODE_SEMANTIC_REVIEW_PENDING_SOURCE_REPAIR_KEY,
+        {},
+    )
+    if not (
+        isinstance(pending, Mapping)
+        and pending.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewPendingSourceRepair"
+        and pending.get("dispatch_status") == "PENDING_AFTER_THEORY_REVISION"
+        and _canonical_architect_subsystem(
+            pending.get("target_subsystem")
+        )
+        == _canonical_architect_subsystem(target_subsystem)
+        and str(pending.get("revised_theory_packet_id", "") or "")
+        == str(theory_packet_id or "")
+    ):
+        return context
+    dispatched = dict(pending)
+    dispatched.update(
+        {
+            "dispatch_status": "DISPATCHED_TO_REVISED_DESCENDANT",
+            "dispatched_to_subsystem": _canonical_architect_subsystem(
+                target_subsystem
+            ),
+            "dispatched_theory_packet_id": str(theory_packet_id or ""),
+        }
+    )
+    context[
+        GENERATED_CODE_SEMANTIC_REVIEW_PENDING_SOURCE_REPAIR_KEY
+    ] = dispatched
+    return context
+
+
 def _architect_initial_routing_decision(
     *,
     question: OpenResearchQuestion,
@@ -9354,26 +9394,11 @@ def _architect_initial_routing_decision(
         routed_environment_feedback.get("feedback_type")
         == "generated_code_semantic_review_pending_source_repair_feedback"
     ):
-        pending_source_repair = context.get(
-            GENERATED_CODE_SEMANTIC_REVIEW_PENDING_SOURCE_REPAIR_KEY,
-            {},
+        context = _runtime_context_with_dispatched_pending_source_repair(
+            architect_context=context,
+            target_subsystem=selected["selected_subsystem"],
+            theory_packet_id=_architect_context_theory_packet_id(context),
         )
-        if isinstance(pending_source_repair, Mapping):
-            dispatched_source_repair = dict(pending_source_repair)
-            dispatched_source_repair.update(
-                {
-                    "dispatch_status": "DISPATCHED_TO_REVISED_DESCENDANT",
-                    "dispatched_to_subsystem": selected[
-                        "selected_subsystem"
-                    ],
-                    "dispatched_theory_packet_id": (
-                        _architect_context_theory_packet_id(context)
-                    ),
-                }
-            )
-            context[
-                GENERATED_CODE_SEMANTIC_REVIEW_PENDING_SOURCE_REPAIR_KEY
-            ] = dispatched_source_repair
     record = {
         "artifact_kind": "ArchitectInitialRoutingDecision",
         "selected_subsystem": selected["selected_subsystem"],
@@ -10046,6 +10071,34 @@ def _architect_select_initial_subsystem(
         == _architect_context_theory_packet_id(architect_context)
         and pending_source_repair.get("findings")
     ):
+        requires_current_algorithm_handoff = bool(
+            pending_source_owner == "SimulationEvaluator"
+            and evidence_contract.get(
+                "capability_eval_requires_generated_algorithm_code"
+            )
+            is True
+        )
+        current_algorithm_handoff_ready = (
+            _architect_current_theory_algorithm_handoff_ready(
+                architect_context=architect_context,
+                blackboard=blackboard,
+                question_id=question_id,
+            )
+        )
+        if (
+            requires_current_algorithm_handoff
+            and not current_algorithm_handoff_ready
+        ):
+            return {
+                "requested_subsystem": pending_source_owner,
+                "selected_subsystem": "AlgorithmEngineer",
+                "source": (
+                    "generated_code_semantic_review_pending_source_repair_"
+                    "prerequisite_algorithm"
+                ),
+                "requires_prerequisite_theory": False,
+                "requires_prerequisite_algorithm": True,
+            }
         pending_source_feedback = (
             _architect_selected_worker_environment_feedback(
                 selected={"selected_subsystem": pending_source_owner},
@@ -10157,29 +10210,11 @@ def _architect_select_initial_subsystem(
             )
             is True
         )
-        algorithm_manifest_id = (
-            _architect_context_algorithm_sandbox_manifest_id(
-                architect_context
-            )
-        )
-        raw_algorithm_handoff = architect_context.get(
-            "upstream_algorithm_handoff", {}
-        )
-        algorithm_handoff_ready = bool(
-            algorithm_manifest_id
-            and _runtime_validated_algorithm_handoff(
+        algorithm_handoff_ready = (
+            _architect_current_theory_algorithm_handoff_ready(
                 architect_context=architect_context,
                 blackboard=blackboard,
                 question_id=question_id,
-                theory_packet_id=_architect_context_theory_packet_id(
-                    architect_context
-                ),
-                algorithm_sandbox_manifest_id=algorithm_manifest_id,
-                upstream_algorithm_handoff=(
-                    raw_algorithm_handoff
-                    if isinstance(raw_algorithm_handoff, Mapping)
-                    else {}
-                ),
             )
         )
         selected_subsystem = (
@@ -10257,6 +10292,37 @@ def _architect_select_initial_subsystem(
         "source": "architect_packet",
         "requires_prerequisite_theory": requested != selected,
     }
+
+
+def _architect_current_theory_algorithm_handoff_ready(
+    *,
+    architect_context: Mapping[str, Any],
+    blackboard: BlackboardState,
+    question_id: str,
+) -> bool:
+    algorithm_manifest_id = _architect_context_algorithm_sandbox_manifest_id(
+        architect_context
+    )
+    raw_algorithm_handoff = architect_context.get(
+        "upstream_algorithm_handoff", {}
+    )
+    return bool(
+        algorithm_manifest_id
+        and _runtime_validated_algorithm_handoff(
+            architect_context=architect_context,
+            blackboard=blackboard,
+            question_id=question_id,
+            theory_packet_id=_architect_context_theory_packet_id(
+                architect_context
+            ),
+            algorithm_sandbox_manifest_id=algorithm_manifest_id,
+            upstream_algorithm_handoff=(
+                raw_algorithm_handoff
+                if isinstance(raw_algorithm_handoff, Mapping)
+                else {}
+            ),
+        )
+    )
 
 
 def _architect_packet_requested_subsystem(packet: Mapping[str, Any]) -> str:
@@ -13418,6 +13484,62 @@ def _runtime_generated_code_semantic_review_rows(
     return rows
 
 
+def _runtime_generated_code_source_repair_budget_state(
+    *,
+    source_subsystem: str,
+    repair_task: AgentTask,
+) -> dict[str, Any]:
+    """Expose the source agent's existing bounded repair state to its reviewer."""
+
+    context = repair_task.inputs.get("architect_context", {})
+    context = dict(context) if isinstance(context, Mapping) else {}
+    feedback = repair_task.inputs.get("environment_feedback", {})
+    feedback = dict(feedback) if isinstance(feedback, Mapping) else {}
+    if source_subsystem == "SimulationEvaluator":
+        yield_after_attempts = (
+            _runtime_simulation_evaluator_generated_code_repair_yield_after_attempts(
+                context,
+                feedback,
+            )
+        )
+        attempts_used = (
+            _runtime_simulation_evaluator_generated_code_repair_attempts_used(
+                context
+            )
+        )
+    elif source_subsystem == "AlgorithmEngineer":
+        yield_after_attempts = (
+            _runtime_algorithm_engineer_generated_code_repair_yield_after_attempts(
+                context,
+                feedback,
+            )
+        )
+        attempts_used = (
+            _runtime_algorithm_engineer_generated_code_repair_attempts_used(
+                context
+            )
+        )
+    else:
+        yield_after_attempts = 0
+        attempts_used = 0
+    return {
+        "source_subsystem": source_subsystem,
+        "attempts_used": max(0, int(attempts_used or 0)),
+        "yield_after_attempts": max(
+            0,
+            int(yield_after_attempts or 0),
+        ),
+        "budget_exhausted": bool(
+            int(yield_after_attempts or 0) > 0
+            and int(attempts_used or 0) >= int(yield_after_attempts or 0)
+        ),
+        "authority": "runtime_source_agent_repair_budget",
+        "proof_evidence_status": (
+            "SOURCE_REPAIR_BUDGET_STATE_NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+
 def _runtime_generated_code_semantic_review_dispatch(
     *,
     task: AgentTask,
@@ -13531,8 +13653,15 @@ def _runtime_generated_code_semantic_review_dispatch(
         == expected_metric_failure_classification
         else {}
     )
+    source_repair_budget = _runtime_generated_code_source_repair_budget_state(
+        source_subsystem=source_subsystem,
+        repair_task=task,
+    )
     accepted_next_task = deferred_next_task
-    if trusted_metric_failure_feedback:
+    if (
+        trusted_metric_failure_feedback
+        and source_repair_budget.get("budget_exhausted") is not True
+    ):
         accepted_next_task = _coding_agent_metric_gate_architect_task(
             task=task,
             question=question,
@@ -13571,6 +13700,7 @@ def _runtime_generated_code_semantic_review_dispatch(
             source_responsibility_contract
         ),
         "pending_repair_plan": pending_repair_plan,
+        "source_repair_budget": source_repair_budget,
         "capability_eval": research_evaluation,
         "review_revision_count": review_revision_count,
         "max_revisions": max(0, int(max_revisions or 0)),
@@ -14396,6 +14526,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "repair_ownership_resolved": bool(
                 authoritative_routing.get("ownership_resolved", True)
             ),
+            "source_repair_budget": dict(
+                work_order.get("source_repair_budget", {}) or {}
+            ),
             "repair_routing_authority": (
                 "ArchitectMetricRepairOwnershipRouter"
                 if repair_ownership_packet
@@ -14607,6 +14740,24 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             next_context["accepted_generated_code_semantic_reviews"] = (
                 accepted_reviews
             )
+            next_feedback = next_inputs.get("environment_feedback", {})
+            if (
+                isinstance(next_feedback, Mapping)
+                and next_feedback.get("feedback_type")
+                == (
+                    "generated_code_semantic_review_pending_source_repair_"
+                    "feedback"
+                )
+            ):
+                next_context = (
+                    _runtime_context_with_dispatched_pending_source_repair(
+                        architect_context=next_context,
+                        target_subsystem=deferred_task.owner_subsystem,
+                        theory_packet_id=str(
+                            work_order.get("theory_packet_id", "") or ""
+                        ),
+                    )
+                )
             next_context = (
                 _runtime_retire_resolved_generated_code_semantic_review_replan(
                     architect_context=next_context,
@@ -14651,6 +14802,84 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             )
             failure_classification = (
                 "generated_code_repair_ownership_unresolved"
+            )
+        elif (
+            repair_scope == "source_code"
+            and isinstance(work_order.get("source_repair_budget", {}), Mapping)
+            and work_order.get("source_repair_budget", {}).get(
+                "budget_exhausted"
+            )
+            is True
+        ):
+            deferred_task = _agent_task_from_runtime_payload(
+                deferred_task_payload
+            )
+            next_inputs = dict(deferred_task.inputs)
+            prior_feedback = next_inputs.get("environment_feedback", {})
+            next_inputs["environment_feedback"] = {
+                **(
+                    dict(prior_feedback)
+                    if isinstance(prior_feedback, Mapping)
+                    else {}
+                ),
+                "generated_code_semantic_review_feedback": feedback,
+                "source_artifact_remains_unaccepted": True,
+            }
+            next_context = dict(
+                next_inputs.get("architect_context", {}) or {}
+            )
+            next_context[
+                "runtime_generated_code_semantic_review_source_budget_yield"
+            ] = {
+                "artifact_kind": (
+                    "RuntimeGeneratedCodeSemanticReviewSourceBudgetYield"
+                ),
+                "source_manifest_id": str(
+                    work_order.get("source_manifest_id", "") or ""
+                ),
+                "review_execution_id": execution_id,
+                "source_repair_budget": dict(
+                    work_order.get("source_repair_budget", {}) or {}
+                ),
+                "source_artifact_remains_unaccepted": True,
+                "proof_evidence_status": (
+                    "SOURCE_REPAIR_BUDGET_YIELD_NOT_PROOF_EVIDENCE"
+                ),
+            }
+            lineage_ledger = (
+                record_generated_code_semantic_review_lineage_action(
+                    lineage_budget_state,
+                    action="source_budget_yield",
+                )
+            )
+            next_context[
+                GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY
+            ] = lineage_ledger
+            execution_manifest["semantic_review_lineage_budget"][
+                "selected_action"
+            ] = "source_budget_yield"
+            execution_manifest[
+                GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY
+            ] = lineage_ledger
+            next_inputs["architect_context"] = next_context
+            next_task = replace(
+                deferred_task,
+                task_id=(
+                    f"semantic-review-source-budget-yield:{question.id}:"
+                    f"{stable_hash([execution_id, deferred_task.task_id])[:8]}"
+                ),
+                inputs=next_inputs,
+            )
+            status = "REROUTE"
+            rationale = (
+                "Independent semantic review kept the source-code blocker open, "
+                "but the source agent's runtime repair budget was already "
+                f"exhausted; the deferred {deferred_task.owner_subsystem} task "
+                "is resuming so the empirical loop cannot starve other evidence "
+                "lanes."
+            )
+            failure_classification = (
+                "generated_code_semantic_review_source_repair_budget_yield"
             )
         elif (
             repair_scope == "source_code"
@@ -65080,14 +65309,39 @@ def _generated_simulation_required_before_formalization_task(
     n_runs: int,
     seed: int,
 ) -> AgentTask:
-    feedback = _generated_simulation_required_before_formalization_feedback(
-        question=question,
-        theory_packet_id=packet_id,
-        simulation_manifest_id=simulation_manifest_id,
-        algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
+    capability_feedback = (
+        _generated_simulation_required_before_formalization_feedback(
+            question=question,
+            theory_packet_id=packet_id,
+            simulation_manifest_id=simulation_manifest_id,
+            algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
+        )
     )
+    pending_source_feedback = (
+        _architect_selected_worker_environment_feedback(
+            selected={"selected_subsystem": "SimulationEvaluator"},
+            architect_context=architect_context,
+        )
+    )
+    feedback = dict(capability_feedback)
+    if (
+        pending_source_feedback.get("feedback_type")
+        == "generated_code_semantic_review_pending_source_repair_feedback"
+    ):
+        feedback = {
+            **capability_feedback,
+            **pending_source_feedback,
+            "generated_simulation_capability_feedback": capability_feedback,
+            "runtime_requested_evidence_contract": dict(
+                capability_feedback.get(
+                    "runtime_requested_evidence_contract", {}
+                )
+                or {}
+            ),
+        }
+    context = dict(architect_context)
     context = _runtime_context_with_environment_feedback_contract(
-        dict(architect_context),
+        context,
         feedback,
         subsystem="SimulationEvaluator",
     )

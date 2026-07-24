@@ -8,6 +8,7 @@ from ai_statistician.generated_metric_contract import (
     GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE,
     GENERATED_METRIC_CONTRACT_OPERATORS,
     GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS,
+    GENERATED_METRIC_VALUE_KINDS,
     bind_generated_metric_contract_authority,
     evaluate_generated_metric_contracts,
     generated_metric_authority_repair_context,
@@ -97,9 +98,13 @@ def test_metric_requirement_target_namespace_is_explicit_and_machine_readable() 
     assert schema["properties"]["aggregation"]["enum"] == list(
         GENERATED_METRIC_CONTRACT_AGGREGATIONS
     )
+    assert schema["properties"]["metric_value_kind"]["enum"] == list(
+        GENERATED_METRIC_VALUE_KINDS
+    )
     assert {
         "requirement_id",
         "metric_semantics",
+        "metric_value_kind",
         "measurement_protocol",
         "required_runtime_replicates",
         "operator",
@@ -127,6 +132,98 @@ def test_metric_requirement_target_namespace_is_explicit_and_machine_readable() 
     assert "|" not in generated_metric_requirement_prompt_schema()[
         "target_subsystems"
     ][0]
+
+
+def test_typed_boolean_metric_uses_runtime_truth_representation() -> None:
+    catalog = generated_metric_acceptance_authority_catalog(
+        question={
+            "title": "Generic adapted-process check",
+            "description": "Require a non-anticipating stopping rule.",
+        },
+        runtime_contract={"simulation_targets": []},
+        theory_protocol_material={
+            "theory_semantic_material": {
+                "theorem_cards": [
+                    {
+                        "informal_statement": (
+                            "The stopping decision is measurable with respect to "
+                            "the current filtration."
+                        )
+                    }
+                ]
+            }
+        },
+    )
+    anchor = "theory#/theorem_cards/0/informal_statement"
+    requirement = _requirement(
+        requirement_id="architect:adapted-process",
+        metric_semantics="whether the implemented stopping rule is non-anticipating",
+        metric_value_kind="boolean",
+        measurement_protocol=(
+            "return a boolean after checking that every stopping decision uses "
+            "only the current filtration"
+        ),
+        operator="==",
+        threshold=1,
+        tolerance=0,
+        aggregation="identity",
+        minimum_pass_count=None,
+        source_anchors=[anchor],
+        acceptance_authority_kind="theory_derived",
+    )
+
+    assert validate_generated_metric_requirements(
+        [requirement],
+        required_target_subsystems=("SimulationEngineer",),
+        expected_runtime_replicates=80,
+        require_acceptance_authority=True,
+        acceptance_authority_catalog=catalog,
+    ) == []
+
+    contracts = materialize_generated_metric_contract_bindings(
+        [
+            {
+                "contract_id": "adapted-process-contract",
+                "requirement_id": "architect:adapted-process",
+                "artifact_id": "artifact:boolean",
+                "metric_path": ["is_non_anticipating"],
+            }
+        ],
+        authoritative_requirements=[requirement],
+        target_subsystem="SimulationEngineer",
+    )
+    passed = evaluate_generated_metric_contracts(
+        {"is_non_anticipating": True},
+        contracts=contracts,
+        artifact_id="artifact:boolean",
+        runtime_replicates=80,
+        authoritative_requirements=[requirement],
+        target_subsystem="SimulationEngineer",
+        require_authoritative_requirements=True,
+    )
+    failed = evaluate_generated_metric_contracts(
+        {"is_non_anticipating": False},
+        contracts=contracts,
+        artifact_id="artifact:boolean",
+        runtime_replicates=80,
+        authoritative_requirements=[requirement],
+        target_subsystem="SimulationEngineer",
+        require_authoritative_requirements=True,
+    )
+
+    assert passed["all_required_passed"] is True
+    assert failed["all_required_passed"] is False
+
+    numeric_errors = validate_generated_metric_requirements(
+        [{**requirement, "metric_value_kind": "numeric"}],
+        require_acceptance_authority=True,
+        acceptance_authority_catalog=catalog,
+    )
+    assert any(
+        "threshold=1" in error
+        and "explicitly present in a cited theory_derived authority node" in error
+        for error in numeric_errors
+    )
 
 
 def test_metric_acceptance_authority_catalog_exposes_exact_current_artifact_leaves() -> None:

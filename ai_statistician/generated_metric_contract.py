@@ -36,6 +36,10 @@ GENERATED_METRIC_CONTRACT_AGGREGATIONS: tuple[str, ...] = (
     "at_least_count",
     "at_least_fraction",
 )
+GENERATED_METRIC_VALUE_KINDS: tuple[str, ...] = (
+    "numeric",
+    "boolean",
+)
 GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS: tuple[str, ...] = (
     "SimulationEngineer",
 )
@@ -92,6 +96,7 @@ GENERATED_METRIC_EVALUATOR_CERTIFICATE_BOUNDARY = (
 GENERATED_METRIC_AUTHORITY_COPY_FIELDS: tuple[str, ...] = (
     "requirement_id",
     "metric_semantics",
+    "metric_value_kind",
     "measurement_protocol",
     "required_runtime_replicates",
     "operator",
@@ -155,9 +160,22 @@ def generated_metric_evaluation_semantics_contract() -> dict[str, Any]:
 
     return {
         "resolved_value_rule": (
-            "metric_path must resolve to raw finite numeric measurements; do not "
-            "pre-threshold a measurable quantity merely to return pass/fail flags"
+            "metric_path must resolve to raw measurements matching "
+            "metric_value_kind; do not pre-threshold a measurable numeric "
+            "quantity merely to return pass/fail flags"
         ),
+        "metric_value_kinds": {
+            "numeric": (
+                "raw finite numeric measurements whose comparison constants "
+                "remain subject to numeric acceptance authority"
+            ),
+            "boolean": (
+                "an intrinsically boolean predicate returned as bool or exact "
+                "0/1; operator ==, threshold 1, and tolerance 0 are the "
+                "runtime-owned truth representation rather than a substantive "
+                "numeric cutoff"
+            ),
+        },
         "scalar_aggregations": {
             "values": ["identity", "mean", "min", "max"],
             "evaluation_order": (
@@ -238,6 +256,7 @@ def generated_metric_evaluator_certificate(
             "dispatch_field": "aggregation",
             "dispatch_value": aggregation,
             "dispatch_class": dispatch_class,
+            "metric_value_kind": _generated_metric_value_kind(requirement),
             "evaluation_order": evaluation_order,
             "comparison_stage": {
                 "input": comparison_input,
@@ -514,6 +533,7 @@ def generated_metric_requirement_json_schema(
         "requirement_id",
         "target_subsystems",
         "metric_semantics",
+        "metric_value_kind",
         "measurement_protocol",
         "required_runtime_replicates",
         "operator",
@@ -568,6 +588,15 @@ def generated_metric_requirement_json_schema(
                 "description": (
                     "The raw scalar quantity returned at metric_path, before any "
                     "runtime comparison or quorum aggregation."
+                ),
+            },
+            "metric_value_kind": {
+                "type": "string",
+                "enum": list(GENERATED_METRIC_VALUE_KINDS),
+                "description": (
+                    "Use numeric for measurable finite quantities. Use boolean "
+                    "only for an intrinsically true/false predicate returned as "
+                    "bool or exact 0/1."
                 ),
             },
             "measurement_protocol": {
@@ -683,6 +712,7 @@ def generated_metric_requirement_prompt_schema(
             "collection whose members all use this row's single comparison; when a "
             "target varies by scenario, define a scalar deviation or ratio to it"
         ),
+        "metric_value_kind": "numeric|boolean",
         "measurement_protocol": (
             "how this one comparison quantity is computed across seeds, scenarios, "
             "or replicates; split quantities with different comparisons into rows"
@@ -713,7 +743,8 @@ def generated_metric_requirement_prompt_schema(
             "evaluation_mandated|architect_preregistered_design|diagnostic_only"
         ),
         "acceptance_authority_rationale": (
-            "how cited exact nodes authorize every numeric gate field, or why an "
+            "how cited exact nodes authorize the predicate and every substantive "
+            "numeric gate field, or why an "
             "architect_preregistered_design choice is meaningful before execution; "
             "a topical or asymptotic mention is not theory authority; "
             "theory_parameter_instantiation needs both the symbolic theory node and "
@@ -1197,7 +1228,10 @@ def _generated_metric_required_gate_numeric_fields(
     """Return substantive numeric constants that determine required acceptance."""
 
     rows: list[tuple[str, int | float]] = []
-    if str(requirement.get("operator", "") or "") == "between":
+    metric_value_kind = _generated_metric_value_kind(requirement)
+    if metric_value_kind == "boolean":
+        comparison_fields: tuple[str, ...] = ()
+    elif str(requirement.get("operator", "") or "") == "between":
         comparison_fields = ("lower", "upper")
     else:
         comparison_fields = ("threshold",)
@@ -1701,7 +1735,10 @@ def _evaluate_generated_metric_contract(
     if path_error:
         errors.append(f"metric contract {contract_id}: {path_error}")
     else:
-        numeric_values, numeric_error = _metric_numeric_values(values)
+        numeric_values, numeric_error = _metric_numeric_values(
+            values,
+            metric_value_kind=_generated_metric_value_kind(contract),
+        )
         if numeric_error:
             errors.append(f"metric contract {contract_id}: {numeric_error}")
     aggregation = str(contract.get("aggregation", "") or "")
@@ -1949,6 +1986,12 @@ def _metric_comparison_shape_errors(
     prefix: str,
 ) -> list[str]:
     errors: list[str] = []
+    metric_value_kind = _generated_metric_value_kind(value)
+    if metric_value_kind not in GENERATED_METRIC_VALUE_KINDS:
+        errors.append(
+            f"{prefix}.metric_value_kind must be one of "
+            + ", ".join(GENERATED_METRIC_VALUE_KINDS)
+        )
     operator = str(value.get("operator", "") or "").strip()
     if operator not in GENERATED_METRIC_CONTRACT_OPERATORS:
         errors.append(
@@ -1995,6 +2038,31 @@ def _metric_comparison_shape_errors(
             errors.append(
                 f"{prefix}.minimum_pass_fraction must be in [0,1] for "
                 "at_least_fraction"
+            )
+    if metric_value_kind == "boolean":
+        if operator != "==":
+            errors.append(
+                f"{prefix}.boolean metric_value_kind requires operator =="
+            )
+        if not _same_finite_number(value.get("threshold"), 1):
+            errors.append(
+                f"{prefix}.boolean metric_value_kind requires threshold=1"
+            )
+        if not _same_finite_number(value.get("tolerance"), 0):
+            errors.append(
+                f"{prefix}.boolean metric_value_kind requires tolerance=0"
+            )
+        if value.get("lower") not in (None, "") or value.get("upper") not in (
+            None,
+            "",
+        ):
+            errors.append(
+                f"{prefix}.boolean metric_value_kind requires null lower/upper"
+            )
+        if aggregation in {"mean", "min", "max"}:
+            errors.append(
+                f"{prefix}.boolean metric_value_kind cannot use {aggregation} "
+                "aggregation"
             )
     return errors
 
@@ -2046,7 +2114,11 @@ def _resolve_generated_metric_path(
     return current, ""
 
 
-def _metric_numeric_values(values: Sequence[Any]) -> tuple[list[float], str]:
+def _metric_numeric_values(
+    values: Sequence[Any],
+    *,
+    metric_value_kind: str = "numeric",
+) -> tuple[list[float], str]:
     numeric: list[float] = []
     stack = list(values)
     while stack:
@@ -2054,12 +2126,29 @@ def _metric_numeric_values(values: Sequence[Any]) -> tuple[list[float], str]:
         if isinstance(value, (list, tuple)):
             stack[0:0] = list(value)
             continue
+        if metric_value_kind == "boolean":
+            if isinstance(value, bool):
+                numeric.append(1.0 if value else 0.0)
+                continue
+            if _finite_number(value) and float(value) in {0.0, 1.0}:
+                numeric.append(float(value))
+                continue
+            return [], (
+                "metric_path resolved a value outside the declared boolean "
+                "bool-or-0/1 representation"
+            )
         if not _finite_number(value):
             return [], "metric_path resolved a nonnumeric or nonfinite value"
         numeric.append(float(value))
     if not numeric:
         return [], "metric_path resolved no numeric values"
     return numeric, ""
+
+
+def _generated_metric_value_kind(value: Mapping[str, Any]) -> str:
+    """Default legacy packets to numeric while new authoring schemas stay typed."""
+
+    return str(value.get("metric_value_kind", "numeric") or "numeric").strip()
 
 
 def _metric_comparison_passes(value: float, contract: Mapping[str, Any]) -> bool:
