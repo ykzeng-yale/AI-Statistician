@@ -19,6 +19,7 @@ from ai_statistician.generated_code_semantic_reviewer_llm import (
     GeneratedCodeSemanticReviewerConfig,
     LLMGeneratedCodeSemanticReviewerAgent,
     build_generated_code_semantic_review_prompt,
+    generated_code_semantic_review_active_pending_repair_plan,
     generated_code_semantic_review_pending_plan_errors,
     generated_code_semantic_review_repair_scope,
     generated_code_semantic_review_repair_scopes,
@@ -1355,12 +1356,18 @@ def test_schema_v7_rejects_legacy_duplicate_fields_as_model_input(
     )
 
 
-def test_schema_v7_ignores_model_authored_dimension_names(
+def test_schema_v7_binds_fixed_dimension_object_keys(
     tmp_path: Path,
 ) -> None:
     response = _review_response(accept=True)
-    for index, row in enumerate(response["dimension_reviews"]):
-        row["dimension"] = f"model_invented_dimension_{index}"
+    response["dimension_reviews"] = {
+        dimension: row
+        for dimension, row in zip(
+            GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS,
+            response["dimension_reviews"],
+            strict=True,
+        )
+    }
     reviewer = LLMGeneratedCodeSemanticReviewerAgent(
         provider=StaticJSONGeneratorBackend(response),
         config=GeneratedCodeSemanticReviewerConfig(
@@ -1615,15 +1622,16 @@ def test_semantic_reviewer_schema_supports_anthropic_structured_output() -> None
     dimension_review_schema = transformed["properties"][
         "dimension_reviews"
     ]
-    assert dimension_review_schema["minItems"] == len(
+    assert dimension_review_schema["type"] == "object"
+    assert dimension_review_schema["additionalProperties"] is False
+    assert set(dimension_review_schema["required"]) == set(
         GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
     )
-    assert dimension_review_schema["maxItems"] == len(
+    assert set(dimension_review_schema["properties"]) == set(
         GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
     )
-    assert "dimension" not in dimension_review_schema["items"]["properties"]
-    dimension_evidence_schema = transformed["properties"]["dimension_reviews"][
-        "items"
+    dimension_evidence_schema = dimension_review_schema["properties"][
+        GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS[0]
     ]["properties"]["evidence_citations"]
     finding_evidence_schema = transformed["properties"]["findings"]["items"][
         "properties"
@@ -1646,7 +1654,9 @@ def test_semantic_reviewer_schema_supports_anthropic_structured_output() -> None
     )
     source_dimension_evidence_schema = (
         GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA["properties"]
-        ["dimension_reviews"]["items"]["properties"]["evidence_citations"]
+        ["dimension_reviews"]["properties"]
+        [GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS[0]]["properties"]
+        ["evidence_citations"]
     )
     source_finding_evidence_schema = (
         GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA["properties"]["findings"]
@@ -1664,9 +1674,9 @@ def test_semantic_reviewer_schema_supports_anthropic_structured_output() -> None
         ]
         == 1
     )
-    assert "evidence_refs" not in transformed["properties"][
-        "dimension_reviews"
-    ]["items"]["properties"]
+    assert "evidence_refs" not in dimension_review_schema["properties"][
+        GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS[0]
+    ]["properties"]
     assert "artifact_citations" not in transformed["properties"][
         "findings"
     ]["items"]["properties"]
@@ -1679,19 +1689,32 @@ def test_semantic_reviewer_schema_supports_anthropic_structured_output() -> None
     assert "reviewed_source_assessment" not in transformed["properties"]
 
 
-def test_unchanged_upstream_artifact_cannot_retire_pending_repair() -> None:
+def test_runtime_carries_pending_repair_until_owning_artifact_changes() -> None:
     theory_packet = {"packet_id": "theory:test", "claim": "unchanged"}
     evidence_contract = {"requirements": ["unchanged"]}
     review_material = {
         "theory_packet": theory_packet,
         "architect_frozen_evidence_contract": evidence_contract,
         "pending_repair_plan": {
+            "pending_repair_plan_id": "pending-repair:test",
             "pending_repair_scopes": [
                 "upstream_theory",
                 "upstream_metric_contract",
             ],
             "theory_packet_hash": stable_hash(theory_packet),
             "architect_evidence_contract_hash": stable_hash(evidence_contract),
+            "pending_findings": [
+                {
+                    "repair_scope": "upstream_theory",
+                    "category": "theory",
+                    "summary": "Revise the theory.",
+                },
+                {
+                    "repair_scope": "upstream_metric_contract",
+                    "category": "metric",
+                    "summary": "Revise the metric contract.",
+                },
+            ],
         },
     }
     packet = {
@@ -1699,22 +1722,207 @@ def test_unchanged_upstream_artifact_cannot_retire_pending_repair() -> None:
         "frozen_metric_contract_assessment": "VALID_AND_FEASIBLE",
     }
 
-    errors = generated_code_semantic_review_pending_plan_errors(
-        packet=packet,
-        review_material=review_material,
+    active = generated_code_semantic_review_active_pending_repair_plan(
+        review_material
     )
 
-    assert any("unchanged theory" in error for error in errors)
-    assert any("unchanged metric contract" in error for error in errors)
+    assert active["active_repair_scopes"] == [
+        "upstream_theory",
+        "upstream_metric_contract",
+    ]
+    assert len(active["active_findings"]) == 2
+    assert active["runtime_carries_obligation"] is True
+    assert active["model_must_repeat_obligation"] is False
+    assert generated_code_semantic_review_pending_plan_errors(
+        packet=packet,
+        review_material=review_material,
+    ) == []
     changed_material = {
         **review_material,
         "theory_packet": {**theory_packet, "claim": "revised"},
         "architect_frozen_evidence_contract": {"requirements": ["revised"]},
     }
+    assert generated_code_semantic_review_active_pending_repair_plan(
+        changed_material
+    )["active_repair_scopes"] == []
     assert generated_code_semantic_review_pending_plan_errors(
         packet=packet,
         review_material=changed_material,
     ) == []
+
+
+def test_pending_metric_repair_uses_canonical_contract_fingerprint() -> None:
+    canonical_contract = {
+        "empirical_metric_requirements": [
+            {"requirement_id": "simulation:sibling"}
+        ]
+    }
+    projected_contract = {"empirical_metric_requirements": []}
+    review_material = {
+        "theory_packet": {"packet_id": "theory:test"},
+        "architect_frozen_evidence_contract": projected_contract,
+        "review_scope_projection": {
+            "canonical_architect_evidence_contract_fingerprint": stable_hash(
+                canonical_contract
+            )
+        },
+        "pending_repair_plan": {
+            "pending_repair_plan_id": "pending-repair:metric",
+            "pending_repair_scopes": ["upstream_metric_contract"],
+            "architect_evidence_contract_hash": stable_hash(
+                canonical_contract
+            ),
+            "pending_findings": [
+                {
+                    "repair_scope": "upstream_metric_contract",
+                    "category": "metric",
+                    "summary": "Revise the canonical metric contract.",
+                }
+            ],
+        },
+    }
+
+    active = generated_code_semantic_review_active_pending_repair_plan(
+        review_material
+    )
+
+    assert active["active_repair_scopes"] == [
+        "upstream_metric_contract"
+    ]
+    assert active["runtime_carries_obligation"] is True
+
+
+def test_runtime_rejects_malformed_pending_plan_before_model_call(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accept=True)
+    work_order = blackboard.artifacts[str(task.inputs["work_order_id"])]
+    work_order["pending_repair_plan"] = {
+        "pending_repair_plan_id": "pending-repair:malformed",
+        "pending_repair_scopes": ["upstream_theory"],
+        "theory_packet_hash": str(work_order["theory_packet_hash"]),
+        "architect_evidence_contract_hash": stable_hash(
+            work_order["architect_evidence_contract"]
+        ),
+        "pending_findings": [],
+    }
+    task.inputs["work_order_hash"] = stable_hash(work_order)
+
+    class ProviderMustNotRun:
+        provider_name = "static"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            del request
+            self.calls += 1
+            raise AssertionError("runtime-owned state must fail before model use")
+
+    provider = ProviderMustNotRun()
+    subsystem.reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=provider,
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="static",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            max_repair_attempts=1,
+        ),
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "BLOCKED"
+    assert result.failure_classification == (
+        "generated_code_semantic_review_input_invalid"
+    )
+    assert provider.calls == 0
+    assert any(
+        "pending repair scopes require owner-bound pending findings"
+        in error
+        for error in result.observations[0].payload["validation_errors"]
+    )
+
+
+def test_runtime_routes_pending_theory_after_fresh_source_review_accepts(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accept=True)
+    work_order = blackboard.artifacts[str(task.inputs["work_order_id"])]
+    pending_plan = {
+        "artifact_kind": (
+            "RuntimeGeneratedCodeSemanticReviewPendingRepairPlan"
+        ),
+        "pending_repair_plan_id": "pending-repair:test",
+        "question_id": _question().id,
+        "source_subsystem": "AlgorithmEngineer",
+        "pending_repair_scopes": ["upstream_theory"],
+        "theory_packet_hash": str(work_order["theory_packet_hash"]),
+        "architect_evidence_contract_hash": stable_hash(
+            work_order["architect_evidence_contract"]
+        ),
+        "pending_findings": [
+            {
+                "severity": "high",
+                "category": "theory_premise",
+                "summary": "The unchanged theory premise still requires revision.",
+                "required_change": "Revise the exact source-theory premise.",
+                "repair_scope": "upstream_theory",
+                "evidence_citations": [
+                    {
+                        "artifact_role": "source_theory_packet",
+                        "locator": "/derivation_steps",
+                    }
+                ],
+                "evidence_refs": [
+                    "source_theory_packet#/derivation_steps"
+                ],
+                "artifact_citations": ["source_theory_packet"],
+                "repair_ownership_certainty": "resolved",
+            }
+        ],
+        "proof_evidence_status": (
+            "GENERATED_CODE_SEMANTIC_REVIEW_PENDING_REPAIR_"
+            "PLAN_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    work_order["pending_repair_plan"] = pending_plan
+    task.inputs["work_order_hash"] = stable_hash(work_order)
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    review_packet = next(
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
+    )
+    execution = next(
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
+    )
+    assert review_packet["overall_verdict"] == "ACCEPT"
+    assert execution["reviewer_overall_verdict"] == "ACCEPT"
+    assert execution["workflow_verdict"] == "REVISE"
+    assert execution["semantic_review_accepted"] is False
+    assert execution["runtime_carried_pending_repair"] is True
+    assert execution["active_pending_repair_scopes"] == [
+        "upstream_theory"
+    ]
+    assert execution["repair_routing_authority"] == (
+        "RuntimePendingRepairPlan"
+    )
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["reviewer_overall_verdict"] == "ACCEPT"
+    assert feedback["overall_verdict"] == "REVISE"
+    assert feedback["repair_scope"] == "upstream_theory"
+    assert feedback["findings"][0][
+        "runtime_carried_pending_repair"
+    ] is True
 
 
 def test_generated_code_semantic_reviewer_routes_rejection_to_fresh_generation(

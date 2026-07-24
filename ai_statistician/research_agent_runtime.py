@@ -93,6 +93,8 @@ from .generated_code_semantic_reviewer_llm import (
     GENERATED_CODE_SEMANTIC_REVIEW_REPAIR_DEPENDENCY_ORDER,
     GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_REPAIR_SCOPES,
     LLMGeneratedCodeSemanticReviewerAgent,
+    generated_code_semantic_review_active_pending_repair_plan,
+    generated_code_semantic_review_pending_plan_errors,
     validate_generated_code_semantic_review_packet,
 )
 from .generated_code_semantic_review_replan import (
@@ -14327,6 +14329,12 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 )
             )
             validation_errors.extend(material_errors)
+            validation_errors.extend(
+                generated_code_semantic_review_pending_plan_errors(
+                    packet={},
+                    review_material=review_material,
+                )
+            )
         if validation_errors:
             return AgentStepResult(
                 status="BLOCKED",
@@ -14477,14 +14485,19 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
 
         review_packet_id = str(review_packet.get("packet_id", "") or "")
         review_packet_hash = stable_hash(review_packet)
-        verdict = str(review_packet.get("overall_verdict", "") or "")
+        reviewer_verdict = str(
+            review_packet.get("overall_verdict", "") or ""
+        )
         routed_findings = [
             dict(row)
             for row in review_packet.get("findings", []) or []
             if isinstance(row, Mapping)
         ]
         repair_ownership_packet: dict[str, Any] = {}
-        if verdict == "REVISE" and self.repair_ownership_router is not None:
+        if (
+            reviewer_verdict == "REVISE"
+            and self.repair_ownership_router is not None
+        ):
             with agent_runtime_substage(
                 "generated_code_repair_ownership_router",
                 metadata={
@@ -14518,7 +14531,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 findings=routed_findings,
                 ownership_packet=repair_ownership_packet,
             )
-        elif verdict == "REVISE" and capability_eval:
+        elif reviewer_verdict == "REVISE" and capability_eval:
             return AgentStepResult(
                 status="BLOCKED",
                 rationale=(
@@ -14533,13 +14546,69 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     "generated_code_repair_ownership_router_missing"
                 ),
             )
+        active_pending_plan = (
+            generated_code_semantic_review_active_pending_repair_plan(
+                review_material
+            )
+        )
+        active_pending_scopes = [
+            str(value)
+            for value in active_pending_plan.get(
+                "active_repair_scopes", []
+            )
+            or []
+            if str(value)
+        ]
+        existing_finding_fingerprints = {
+            stable_hash(
+                [
+                    str(row.get("repair_scope", "") or ""),
+                    str(row.get("category", "") or ""),
+                    str(row.get("summary", "") or ""),
+                    str(row.get("required_change", "") or ""),
+                ]
+            )
+            for row in routed_findings
+        }
+        carried_pending_findings: list[dict[str, Any]] = []
+        for row in active_pending_plan.get("active_findings", []) or []:
+            if not isinstance(row, Mapping):
+                continue
+            finding_fingerprint = stable_hash(
+                [
+                    str(row.get("repair_scope", "") or ""),
+                    str(row.get("category", "") or ""),
+                    str(row.get("summary", "") or ""),
+                    str(row.get("required_change", "") or ""),
+                ]
+            )
+            if finding_fingerprint in existing_finding_fingerprints:
+                continue
+            carried = dict(row)
+            carried["runtime_carried_pending_repair"] = True
+            carried["pending_repair_plan_id"] = str(
+                active_pending_plan.get(
+                    "pending_repair_plan_id",
+                    "",
+                )
+                or ""
+            )
+            carried_pending_findings.append(carried)
+            existing_finding_fingerprints.add(finding_fingerprint)
+        routed_findings.extend(carried_pending_findings)
+        verdict = (
+            "REVISE"
+            if active_pending_scopes
+            else reviewer_verdict
+        )
         authoritative_routing = (
             _runtime_generated_code_authoritative_repair_routing(
                 source_subsystem=source_subsystem,
                 review_packet=review_packet,
                 routed_findings=routed_findings,
             )
-            if verdict == "REVISE" and repair_ownership_packet
+            if verdict == "REVISE"
+            and (repair_ownership_packet or active_pending_scopes)
             else {
                 "semantic_reviewer_repair_scope": str(
                     review_packet.get("repair_scope", "") or ""
@@ -14641,7 +14710,20 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 and reviewer_model
                 and reviewer_model != source_model
             ),
+            "reviewer_overall_verdict": reviewer_verdict,
             "overall_verdict": verdict,
+            "workflow_verdict": verdict,
+            "runtime_carried_pending_repair": bool(
+                active_pending_scopes
+            ),
+            "active_pending_repair_scopes": active_pending_scopes,
+            "pending_repair_plan_id": str(
+                active_pending_plan.get(
+                    "pending_repair_plan_id",
+                    "",
+                )
+                or ""
+            ),
             "repair_scope": repair_scope,
             "repair_scopes": repair_scopes,
             "repair_plan": repair_plan,
@@ -14673,10 +14755,18 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 work_order.get("source_repair_budget", {}) or {}
             ),
             "repair_routing_authority": (
-                "ArchitectMetricRepairOwnershipRouter"
+                (
+                    "ArchitectMetricRepairOwnershipRouter"
+                    "+RuntimePendingRepairPlan"
+                )
+                if repair_ownership_packet and active_pending_scopes
+                else "ArchitectMetricRepairOwnershipRouter"
                 if repair_ownership_packet
+                else "RuntimePendingRepairPlan"
+                if active_pending_scopes
                 else "GeneratedCodeSemanticReviewer"
             ),
+            "reviewer_packet_accepted": reviewer_verdict == "ACCEPT",
             "semantic_review_accepted": verdict == "ACCEPT",
             "empirical_evaluation_phase": empirical_evaluation_phase,
             "confirmatory_empirical_evidence_eligible": (
@@ -14709,7 +14799,20 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "semantic_review_execution_id": execution_id,
             "semantic_review_packet_id": review_packet_id,
             "semantic_review_packet_hash": review_packet_hash,
+            "reviewer_overall_verdict": reviewer_verdict,
             "overall_verdict": verdict,
+            "workflow_verdict": verdict,
+            "runtime_carried_pending_repair": bool(
+                active_pending_scopes
+            ),
+            "active_pending_repair_scopes": active_pending_scopes,
+            "pending_repair_plan_id": str(
+                active_pending_plan.get(
+                    "pending_repair_plan_id",
+                    "",
+                )
+                or ""
+            ),
             "repair_scope": repair_scope,
             "repair_scopes": repair_scopes,
             "repair_plan": repair_plan,
