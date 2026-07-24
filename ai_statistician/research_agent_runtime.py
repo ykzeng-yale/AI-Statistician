@@ -10115,6 +10115,55 @@ def _architect_select_initial_subsystem(
                 "requires_prerequisite_theory": False,
                 "environment_feedback": pending_source_feedback,
             }
+    metric_gate_replan = architect_context.get(
+        "runtime_metric_gate_replan",
+        {},
+    )
+    if (
+        isinstance(metric_gate_replan, Mapping)
+        and metric_gate_replan.get("artifact_kind")
+        == "RuntimeCodingAgentMetricGateReplanContext"
+    ):
+        source_repair_budget = metric_gate_replan.get(
+            "source_repair_budget",
+            {},
+        )
+        source_owner = _canonical_architect_subsystem(
+            metric_gate_replan.get("source_subsystem")
+        )
+        deferred_owner = _canonical_architect_subsystem(
+            metric_gate_replan.get("deferred_next_owner_subsystem")
+        )
+        if (
+            isinstance(source_repair_budget, Mapping)
+            and source_repair_budget.get("budget_exhausted") is True
+            and requested_for_metric_gate == source_owner
+            and deferred_owner
+            and deferred_owner != source_owner
+        ):
+            selected_owner = _architect_feasible_initial_subsystem(
+                deferred_owner,
+                architect_context=architect_context,
+                blackboard=blackboard,
+                question_id=question_id,
+            )
+            environment_feedback = architect_context.get(
+                "environment_feedback",
+                {},
+            )
+            return {
+                "requested_subsystem": requested_for_metric_gate,
+                "selected_subsystem": selected_owner,
+                "source": "metric_gate_source_repair_budget_yield",
+                "requires_prerequisite_theory": (
+                    selected_owner != deferred_owner
+                ),
+                "environment_feedback": (
+                    dict(environment_feedback)
+                    if isinstance(environment_feedback, Mapping)
+                    else {}
+                ),
+            }
     semantic_replan = architect_context.get(
         "runtime_generated_code_semantic_review_replan",
         {},
@@ -13540,6 +13589,19 @@ def _runtime_generated_code_source_repair_budget_state(
     }
 
 
+def _runtime_generated_code_semantic_review_source_repair_task_payload(
+    *,
+    source_subsystem: str,
+    source_execution_task: Mapping[str, Any],
+    source_planned_next_task: Mapping[str, Any],
+) -> dict[str, Any]:
+    if _canonical_architect_subsystem(
+        source_planned_next_task.get("owner_subsystem")
+    ) == _canonical_architect_subsystem(source_subsystem):
+        return dict(source_planned_next_task)
+    return dict(source_execution_task)
+
+
 def _runtime_generated_code_semantic_review_dispatch(
     *,
     task: AgentTask,
@@ -13658,10 +13720,7 @@ def _runtime_generated_code_semantic_review_dispatch(
         repair_task=task,
     )
     accepted_next_task = deferred_next_task
-    if (
-        trusted_metric_failure_feedback
-        and source_repair_budget.get("budget_exhausted") is not True
-    ):
+    if trusted_metric_failure_feedback:
         accepted_next_task = _coding_agent_metric_gate_architect_task(
             task=task,
             question=question,
@@ -13709,7 +13768,8 @@ def _runtime_generated_code_semantic_review_dispatch(
             confirmatory_empirical_evidence_eligible
         ),
         "repair_task": asdict(task),
-        "deferred_next_task": asdict(accepted_next_task),
+        "deferred_next_task": asdict(deferred_next_task),
+        "review_accepted_next_task": asdict(accepted_next_task),
         "proof_evidence_status": (
             "GENERATED_CODE_SEMANTIC_REVIEW_WORK_ORDER_NOT_PROOF_EVIDENCE"
         ),
@@ -14171,6 +14231,16 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             if isinstance(work_order.get("deferred_next_task", {}), Mapping)
             else {}
         )
+        accepted_task_payload = (
+            work_order.get("review_accepted_next_task", {})
+            if isinstance(
+                work_order.get("review_accepted_next_task", {}),
+                Mapping,
+            )
+            else {}
+        )
+        if not accepted_task_payload:
+            accepted_task_payload = deferred_task_payload
         if str(repair_task_payload.get("owner_subsystem", "") or "") != (
             source_subsystem
         ):
@@ -14181,6 +14251,10 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             validation_errors.append("semantic review repair task identity mismatch")
         if not str(deferred_task_payload.get("owner_subsystem", "") or ""):
             validation_errors.append("semantic review deferred task missing")
+        if not str(accepted_task_payload.get("owner_subsystem", "") or ""):
+            validation_errors.append(
+                "semantic review accepted-next task missing"
+            )
 
         review_material: dict[str, Any] = {}
         if not validation_errors:
@@ -14676,7 +14750,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             )
             feedback["semantic_review_lineage_budget"] = lineage_budget_summary
         if verdict == "ACCEPT":
-            deferred_task = _agent_task_from_runtime_payload(deferred_task_payload)
+            deferred_task = _agent_task_from_runtime_payload(
+                accepted_task_payload
+            )
             next_inputs = dict(deferred_task.inputs)
             algorithm_handoff: dict[str, Any] = {}
             if source_subsystem == "AlgorithmEngineer":
@@ -14885,7 +14961,16 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             repair_scope == "source_code"
             and lineage_budget_state.get("local_repair_available") is True
         ):
-            repair_task = _agent_task_from_runtime_payload(repair_task_payload)
+            source_planned_task_payload = (
+                _runtime_generated_code_semantic_review_source_repair_task_payload(
+                    source_subsystem=source_subsystem,
+                    source_execution_task=repair_task_payload,
+                    source_planned_next_task=deferred_task_payload,
+                )
+            )
+            repair_task = _agent_task_from_runtime_payload(
+                source_planned_task_payload
+            )
             next_inputs = dict(repair_task.inputs)
             prior_feedback = (
                 dict(next_inputs.get("environment_feedback", {}) or {})
@@ -16307,6 +16392,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 "architect_acceptance_gate": simulation_control.get("acceptance_gate", ""),
             },
         )
+        semantic_review_deferred_next_task: AgentTask | None = None
         if generated_simulation_revision_required:
             generated_simulation_failure_classification = (
                 "accepted_algorithm_estimator_abi_failed"
@@ -16542,6 +16628,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                     == "generated_simulation_sandbox_metric_gate_failed"
                 ):
                     deferred_next_task = next_task
+                    semantic_review_deferred_next_task = deferred_next_task
                     next_task = _coding_agent_metric_gate_architect_task(
                         task=task,
                         question=question,
@@ -16680,7 +16767,9 @@ class SimulationEvaluatorRuntimeSubsystem:
                         ),
                         proposal_packet=proposal_packet,
                         architect_context=effective_context,
-                        deferred_next_task=next_task,
+                        deferred_next_task=(
+                            semantic_review_deferred_next_task or next_task
+                        ),
                         max_revisions=self.semantic_review_max_revisions,
                         metric_failure_feedback=(
                             feedback
@@ -18120,6 +18209,10 @@ def _coding_agent_metric_gate_architect_task(
 
     replan_context = dict(context)
     replan_context["environment_feedback"] = dict(metric_feedback)
+    source_repair_budget = _runtime_generated_code_source_repair_budget_state(
+        source_subsystem=task.owner_subsystem,
+        repair_task=task,
+    )
     prototype_rows = [
         dict(row)
         for key in (
@@ -18151,6 +18244,7 @@ def _coding_agent_metric_gate_architect_task(
         "feedback_id": str(metric_feedback.get("feedback_id", "") or ""),
         "metric_evaluations": metric_evaluations,
         "deferred_next_owner_subsystem": deferred_next_owner_subsystem,
+        "source_repair_budget": source_repair_budget,
         "pending_artifact_ids": {
             str(key): str(value)
             for key, value in {

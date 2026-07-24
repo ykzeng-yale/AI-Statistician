@@ -23809,6 +23809,57 @@ def test_theory_revision_keeps_pending_source_repairs_for_fresh_code() -> None:
     )
 
 
+def _source_code_revise_semantic_review_payload() -> dict[str, object]:
+    return {
+        "dimension_reviews": [
+            {
+                "status": "FAIL" if index == 0 else "PASS",
+                "rationale": (
+                    "The exact generated source still implements the rejected "
+                    "predicate."
+                    if index == 0
+                    else "No additional defect is required for this fixture."
+                ),
+                "evidence_citations": [
+                    {
+                        "artifact_role": "generated_source_artifact",
+                        "locator": (
+                            "/exact_executed_artifacts/0/exact_source_code"
+                        ),
+                    }
+                ],
+            }
+            for index, _dimension in enumerate(
+                GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
+            )
+        ],
+        "findings": [
+            {
+                "severity": "high",
+                "category": "source_semantics",
+                "summary": "The generated predicate remains false.",
+                "required_change": (
+                    "Generate source that implements the predicate."
+                ),
+                "repair_scope": "source_code",
+                "evidence_citations": [
+                    {
+                        "artifact_role": "generated_source_artifact",
+                        "locator": "/exact_executed_artifacts/0/exact_result",
+                    },
+                    {
+                        "artifact_role": "source_theory_packet",
+                        "locator": "/theorem_cards",
+                    },
+                ],
+            }
+        ],
+        "repair_instructions": [
+            "Regenerate the source without changing the frozen gate."
+        ],
+    }
+
+
 def test_semantic_review_honors_exhausted_source_repair_budget(
     tmp_path: Path,
 ) -> None:
@@ -23937,53 +23988,14 @@ def test_semantic_review_honors_exhausted_source_repair_budget(
     assert work_order["deferred_next_task"]["owner_subsystem"] == (
         "FormalizationEvaluator"
     )
+    assert work_order["review_accepted_next_task"]["owner_subsystem"] == (
+        "ArchitectCoordinator"
+    )
 
-    review_payload = {
-        "dimension_reviews": [
-            {
-                "status": "FAIL" if index == 0 else "PASS",
-                "rationale": (
-                    "The exact generated source still implements the rejected "
-                    "predicate."
-                    if index == 0
-                    else "No additional defect is required for this fixture."
-                ),
-                "evidence_citations": [
-                    {
-                        "artifact_role": "generated_source_artifact",
-                        "locator": "/exact_executed_artifacts/0/exact_source_code",
-                    }
-                ],
-            }
-            for index, _dimension in enumerate(
-                GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
-            )
-        ],
-        "findings": [
-            {
-                "severity": "high",
-                "category": "source_semantics",
-                "summary": "The generated predicate remains false.",
-                "required_change": "Generate source that implements the predicate.",
-                "repair_scope": "source_code",
-                "evidence_citations": [
-                    {
-                        "artifact_role": "generated_source_artifact",
-                        "locator": "/exact_executed_artifacts/0/exact_result",
-                    },
-                    {
-                        "artifact_role": "source_theory_packet",
-                        "locator": "/theorem_cards",
-                    },
-                ],
-            }
-        ],
-        "repair_instructions": [
-            "Regenerate the source without changing the frozen gate."
-        ],
-    }
     reviewer = LLMGeneratedCodeSemanticReviewerAgent(
-        provider=StaticArchitectLLMProvider(review_payload),
+        provider=StaticArchitectLLMProvider(
+            _source_code_revise_semantic_review_payload()
+        ),
         config=GeneratedCodeSemanticReviewerConfig(
             provider_name="anthropic",
             model=LIVE_EVALUATION_CLAUDE_MODEL,
@@ -24027,6 +24039,45 @@ def test_semantic_review_honors_exhausted_source_repair_budget(
     ]
     assert yield_state["source_repair_budget"]["budget_exhausted"] is True
     assert yield_state["source_artifact_remains_unaccepted"] is True
+
+
+def test_semantic_review_selects_source_planned_repair_task() -> None:
+    source_execution_task = AgentTask(
+        task_id="simulation:source-execution",
+        owner_subsystem="SimulationEvaluator",
+        objective="Execute the current source.",
+        inputs={"architect_context": {"attempts_used": 0}},
+    )
+    source_planned_repair = AgentTask(
+        task_id="simulation:source-repair",
+        owner_subsystem="SimulationEvaluator",
+        objective="Run the source-owned bounded repair.",
+        inputs={"architect_context": {"attempts_used": 1}},
+    )
+
+    select_repair_task = (
+        runtime_module._runtime_generated_code_semantic_review_source_repair_task_payload
+    )
+    selected = select_repair_task(
+        source_subsystem="SimulationEvaluator",
+        source_execution_task=asdict(source_execution_task),
+        source_planned_next_task=asdict(source_planned_repair),
+    )
+
+    assert selected["task_id"] == source_planned_repair.task_id
+    assert selected["inputs"]["architect_context"]["attempts_used"] == 1
+
+    selected_fallback = select_repair_task(
+        source_subsystem="SimulationEvaluator",
+        source_execution_task=asdict(source_execution_task),
+        source_planned_next_task=asdict(
+            replace(
+                source_planned_repair,
+                owner_subsystem="FormalizationEvaluator",
+            )
+        ),
+    )
+    assert selected_fallback["task_id"] == source_execution_task.task_id
 
 
 def test_live_architect_preauthors_metric_contract_with_structured_substage() -> None:
@@ -50542,6 +50593,136 @@ def test_agent_runtime_repairs_generated_simulation_metric_gate_failure(
     )
 
 
+def test_exhausted_simulation_review_preserves_formal_lane(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[1]
+    theory_packet_id = "theory:review-preserves-formal-lane"
+    blackboard = BlackboardState(
+        project_id=f"runtime:{question.id}",
+        artifacts={
+            theory_packet_id: {
+                "packet_id": theory_packet_id,
+                "theorem_cards": [],
+                "estimator_specs": [],
+                "simulation_ademp_spec": {
+                    "aim": "preserve formal work after empirical repair yield"
+                },
+            }
+        },
+    )
+
+    class FailingSimulationEngineer:
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            simulation_id = "formal_lane_metric_failure"
+            return {
+                "packet_id": (
+                    "simulation_engineer_proposal:formal-lane-failure"
+                ),
+                "simulation_targets": [
+                    {
+                        "simulation_id": simulation_id,
+                        "estimand": "runtime diagnostic",
+                    }
+                ],
+                "runtime_execution_plan": {
+                    "registered_simulator": "ResearchSimulator.run",
+                    "n_runs": 12,
+                    "seed": 20260623,
+                },
+                "simulation_code_drafts": [
+                    {
+                        "simulation_id": simulation_id,
+                        "language": "python",
+                        "entrypoint": "run_sandbox",
+                        "code": (
+                            "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                            "    return {'sandbox_failed': False, "
+                            "'empirical_coverage': 0.0, "
+                            "'replicates': max(5, int(replicates))}\n"
+                        ),
+                    }
+                ],
+                "metric_contracts": [
+                    {
+                        **_typed_metric_contract_fixture(
+                            simulation_id,
+                            required_runtime_replicates=12,
+                        ),
+                        "contract_id": "formal-lane-failure-contract",
+                    }
+                ],
+                "simulation_evidence_status": (
+                    "LLM_SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE"
+                ),
+                "simulations_executed": False,
+                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+            }
+
+    context = _with_accepted_metric_protocol(
+        {
+            "theory_packet_id": theory_packet_id,
+            "runtime_evaluation_mode": "capability_eval",
+            "runtime_requested_evidence_contract": {
+                "capability_eval_requires_generated_simulation_code": True,
+                "capability_eval_requires_typed_metric_contracts": True,
+                "generated_metric_requirement_authority_policy": (
+                    "architect_authored_coding_agent_bound_required"
+                ),
+                "capability_eval_simulation_evaluator_generated_code_repair_yield_after_attempts": 1,
+            },
+        },
+        required_runtime_replicates=12,
+    )
+    context["runtime_feedback_loop"] = {
+        "source_subsystem": "SimulationEvaluator",
+        "simulation_evaluator_generated_code_repair_attempts_used": 1,
+        "simulation_evaluator_generated_code_repair_yield_after_attempts": 1,
+    }
+    result = SimulationEvaluatorRuntimeSubsystem(
+        proposal_agent=FailingSimulationEngineer(),  # type: ignore[arg-type]
+        sandbox_root=tmp_path / "generated_simulation_sandbox",
+        semantic_reviewer_available=True,
+        semantic_review_max_revisions=1,
+    ).run(
+        AgentTask(
+            task_id="simulation:review-preserves-formal-lane",
+            owner_subsystem="SimulationEvaluator",
+            objective="Keep the formal lane runnable after source budget yield.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "theory_packet_id": theory_packet_id,
+                "n_runs": 12,
+                "seed": 20260623,
+                "architect_context": context,
+            },
+            expected_artifacts=("simulation_manifest",),
+        ),
+        blackboard,
+    )
+
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == (
+        "GeneratedCodeSemanticReviewer"
+    )
+    work_order = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewWorkOrder"
+    )
+    assert work_order["source_repair_budget"]["budget_exhausted"] is True
+    assert work_order["deferred_next_task"]["owner_subsystem"] == (
+        "FormalizationEvaluator"
+    )
+    assert work_order["review_accepted_next_task"]["owner_subsystem"] == (
+        "ArchitectCoordinator"
+    )
+
+
 def test_agent_runtime_routes_exhausted_simulation_metric_gate_to_architect(
     tmp_path: Path,
 ) -> None:
@@ -50715,6 +50896,8 @@ def test_agent_runtime_routes_exhausted_simulation_metric_gate_to_architect(
     ]
     assert replan["source_subsystem"] == "SimulationEvaluator"
     assert replan["deferred_next_owner_subsystem"] == "FormalizationEvaluator"
+    assert replan["source_repair_budget"]["budget_exhausted"] is True
+    assert replan["source_repair_budget"]["attempts_used"] == 1
     assert replan["metric_evaluations"]
     assert replan["metric_evaluations"][0]["passed"] is False
     assert "Do not weaken, delete, or post-hoc reinterpret" in (
@@ -50723,6 +50906,70 @@ def test_agent_runtime_routes_exhausted_simulation_metric_gate_to_architect(
     assert replan["proof_evidence_status"] == (
         "CODING_AGENT_METRIC_GATE_REPLAN_NOT_PROOF_EVIDENCE"
     )
+
+
+def test_architect_cannot_reset_exhausted_metric_source_budget() -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[1]
+    theory_packet_id = "theory:metric-source-budget"
+    simulation_manifest_id = "simulation_manifest:metric-source-budget"
+    algorithm_manifest_id = "algorithm_sandbox_manifest:metric-source-budget"
+    feedback = {
+        "feedback_type": "generated_simulation_sandbox_execution_feedback",
+        "failure_classification": (
+            "generated_simulation_sandbox_metric_gate_failed"
+        ),
+    }
+    context = {
+        "theory_packet_id": theory_packet_id,
+        "simulation_manifest_id": simulation_manifest_id,
+        "algorithm_sandbox_manifest_id": algorithm_manifest_id,
+        "environment_feedback": feedback,
+        "runtime_metric_gate_replan": {
+            "artifact_kind": "RuntimeCodingAgentMetricGateReplanContext",
+            "source_subsystem": "SimulationEvaluator",
+            "deferred_next_owner_subsystem": "FormalizationEvaluator",
+            "source_repair_budget": {
+                "source_subsystem": "SimulationEvaluator",
+                "attempts_used": 1,
+                "yield_after_attempts": 1,
+                "budget_exhausted": True,
+            },
+        },
+    }
+    blackboard = BlackboardState(
+        project_id=f"metric-source-budget:{question.id}",
+        artifacts={
+            theory_packet_id: {"packet_id": theory_packet_id},
+            simulation_manifest_id: {
+                "manifest_id": simulation_manifest_id,
+                "implementation_gaps": [],
+            },
+            algorithm_manifest_id: {
+                "manifest_id": algorithm_manifest_id,
+            },
+        },
+    )
+
+    selected = runtime_module._architect_select_initial_subsystem(
+        packet={
+            "next_actions": [
+                {
+                    "owner_agent": "SimulationEvaluator",
+                    "action": "retry the same source lineage",
+                }
+            ]
+        },
+        architect_context=context,
+        blackboard=blackboard,
+        question_id=question.id,
+    )
+
+    assert selected["requested_subsystem"] == "SimulationEvaluator"
+    assert selected["selected_subsystem"] == "FormalizationEvaluator"
+    assert selected["source"] == "metric_gate_source_repair_budget_yield"
+    assert selected["environment_feedback"] == feedback
 
 
 def test_exhausted_simulation_metric_gate_replan_preserves_algorithm_route(
