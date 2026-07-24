@@ -88253,7 +88253,6 @@ def _static_generated_code_semantic_reviewer() -> (
                 ),
                 "dimension_reviews": [
                     {
-                        "dimension": dimension,
                         "status": "PASS",
                         "rationale": "Static fixture accepts exact bound inputs.",
                         "evidence_citations": [

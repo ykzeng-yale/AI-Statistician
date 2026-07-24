@@ -111,7 +111,6 @@ def _review_response(
 ) -> dict[str, object]:
     rows = [
         {
-            "dimension": dimension,
             "status": "PASS",
             "rationale": f"The exact source and result support {dimension}.",
             "evidence_citations": [
@@ -1160,7 +1159,7 @@ def test_all_pass_low_or_medium_findings_are_preserved_as_advisory(
     ] == "source_code"
 
 
-def test_schema_v6_derives_artifact_rooted_evidence_from_typed_citations(
+def test_schema_v7_derives_runtime_owned_dimensions_and_typed_citations(
     tmp_path: Path,
 ) -> None:
     subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accept=True)
@@ -1172,9 +1171,12 @@ def test_schema_v6_derives_artifact_rooted_evidence_from_typed_citations(
         for artifact in result.produced_artifacts.values()
         if artifact.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
     )
-    assert review_packet["schema_version"] == 6
+    assert review_packet["schema_version"] == 7
     assert validate_generated_code_semantic_review_packet(review_packet) == []
     first_dimension = review_packet["dimension_reviews"][0]
+    assert first_dimension["dimension"] == (
+        GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS[0]
+    )
     assert first_dimension["evidence_citations"] == [
         {
             "artifact_role": "generated_source_artifact",
@@ -1202,14 +1204,18 @@ def test_schema_v6_derives_artifact_rooted_evidence_from_typed_citations(
         for error in validate_generated_code_semantic_review_packet(tampered)
     )
 
-    replay_v5 = json.loads(json.dumps(review_packet))
+    replay_v6 = json.loads(json.dumps(review_packet))
+    replay_v6["schema_version"] = 6
+    assert validate_generated_code_semantic_review_packet(replay_v6) == []
+
+    replay_v5 = json.loads(json.dumps(replay_v6))
     replay_v5["schema_version"] = 5
     for row in replay_v5["dimension_reviews"]:
         row.pop("evidence_citations")
     assert validate_generated_code_semantic_review_packet(replay_v5) == []
 
 
-def test_schema_v6_normalizes_model_locator_format(
+def test_schema_v7_normalizes_model_locator_format(
     tmp_path: Path,
 ) -> None:
     response = _review_response(accept=True)
@@ -1242,7 +1248,7 @@ def test_schema_v6_normalizes_model_locator_format(
     assert validate_generated_code_semantic_review_packet(review_packet) == []
 
 
-def test_schema_v6_rejects_legacy_duplicate_fields_as_model_input(
+def test_schema_v7_rejects_legacy_duplicate_fields_as_model_input(
     tmp_path: Path,
 ) -> None:
     response = _review_response(accept=True)
@@ -1276,6 +1282,46 @@ def test_schema_v6_rejects_legacy_duplicate_fields_as_model_input(
         "missing typed evidence_citations"
         in error
         for error in result.observations[0].payload["validation_errors"]
+    )
+
+
+def test_schema_v7_ignores_model_authored_dimension_names(
+    tmp_path: Path,
+) -> None:
+    response = _review_response(accept=True)
+    for index, row in enumerate(response["dimension_reviews"]):
+        row["dimension"] = f"model_invented_dimension_{index}"
+    reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=StaticJSONGeneratorBackend(response),
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="static",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            max_repair_attempts=0,
+        ),
+    )
+    subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accept=True)
+    subsystem.reviewer = reviewer
+
+    result = subsystem.run(task, blackboard)
+
+    review_packet = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
+    )
+    assert [
+        row["dimension"] for row in review_packet["dimension_reviews"]
+    ] == list(GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS)
+    assert validate_generated_code_semantic_review_packet(review_packet) == []
+
+    tampered = json.loads(json.dumps(review_packet))
+    tampered["dimension_reviews"][0]["dimension"] = (
+        "model_invented_dimension"
+    )
+    assert any(
+        "dimension identity must be runtime-derived" in error
+        for error in validate_generated_code_semantic_review_packet(tampered)
     )
 
 
@@ -1496,6 +1542,16 @@ def test_semantic_reviewer_schema_supports_anthropic_structured_output() -> None
     assert transformed["properties"]["findings"]["items"][
         "additionalProperties"
     ] is False
+    dimension_review_schema = transformed["properties"][
+        "dimension_reviews"
+    ]
+    assert dimension_review_schema["minItems"] == len(
+        GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
+    )
+    assert dimension_review_schema["maxItems"] == len(
+        GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
+    )
+    assert "dimension" not in dimension_review_schema["items"]["properties"]
     dimension_evidence_schema = transformed["properties"]["dimension_reviews"][
         "items"
     ]["properties"]["evidence_citations"]
