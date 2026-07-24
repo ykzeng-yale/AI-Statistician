@@ -88,6 +88,7 @@ from .generated_metric_contract import (
 from .generated_code_semantic_reviewer_llm import (
     GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
     GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE,
+    GENERATED_CODE_SEMANTIC_REVIEW_POSTEXECUTION_REPAIR_ORDER,
     GENERATED_CODE_SEMANTIC_REVIEW_SOURCE_SUBSYSTEMS,
     GENERATED_CODE_SEMANTIC_REVIEW_REPAIR_DEPENDENCY_ORDER,
     GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_REPAIR_SCOPES,
@@ -14124,7 +14125,7 @@ def _runtime_generated_code_authoritative_repair_routing(
         if unresolved
         else [
             scope
-            for scope in GENERATED_CODE_SEMANTIC_REVIEW_REPAIR_DEPENDENCY_ORDER
+            for scope in GENERATED_CODE_SEMANTIC_REVIEW_POSTEXECUTION_REPAIR_ORDER
             if scope in actionable_observed_scopes
         ]
     )
@@ -14577,6 +14578,15 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         repair_owner_agent = str(
             authoritative_routing.get("repair_owner", "") or ""
         )
+        immediate_routed_findings = [
+            dict(row)
+            for row in routed_findings
+            if isinstance(row, Mapping)
+            and (
+                repair_scope != "source_code"
+                or str(row.get("repair_scope", "") or "") == repair_scope
+            )
+        ]
         empirical_evaluation_phase = str(
             work_order.get("empirical_evaluation_phase", "") or ""
         )
@@ -14731,13 +14741,13 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "dimension_reviews": list(
                 review_packet.get("dimension_reviews", []) or []
             ),
-            "findings": routed_findings,
+            "findings": immediate_routed_findings,
             "semantic_reviewer_repair_instructions": list(
                 review_packet.get("repair_instructions", []) or []
             ),
             "repair_instructions": [
                 str(row.get("required_change", "") or "")
-                for row in routed_findings
+                for row in immediate_routed_findings
                 if str(row.get("repair_scope", "") or "") != "none"
                 if str(row.get("required_change", "") or "").strip()
             ],

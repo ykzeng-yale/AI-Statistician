@@ -440,7 +440,10 @@ def test_postexecution_router_replaces_result_driven_reviewer_instruction() -> N
     assert "Finite-precision arithmetic" in backend.requests[0].user_prompt
     assert "missing non-required diagnostic" in backend.requests[0].user_prompt
     assert "one bounded generated-source repair" in backend.requests[0].user_prompt
-    assert "A separate theory-only finding" in backend.requests[0].user_prompt
+    assert "separate findings require a concrete" in backend.requests[0].user_prompt
+    assert "independently re-review the generated source" in (
+        backend.requests[0].user_prompt
+    )
     assert "semantic_review_artifact_assessments" in (
         backend.requests[0].user_prompt
     )
@@ -812,6 +815,29 @@ def test_coupled_postexecution_source_and_theory_defect_repairs_source_first() -
     ]
     assert "Reinspect generated_source_artifact" in routed[0]["required_change"]
     assert "source_theory_packet" not in routed[0]["required_change"]
+
+
+def test_separate_postexecution_source_and_theory_findings_repair_source_first() -> None:
+    source_repair = {
+        "finding_index": 0,
+        "required_artifact_changes": [
+            {"artifact_role": "generated_source_artifact"}
+        ],
+        "source_theory_can_remain_unchanged": True,
+        "ownership_certainty": "resolved",
+        "rationale": "The generated measurement path must change.",
+    }
+    theory_repair = {
+        "finding_index": 1,
+        "required_artifact_changes": [{"artifact_role": "source_theory_packet"}],
+        "source_theory_can_remain_unchanged": False,
+        "ownership_certainty": "resolved",
+        "rationale": "A distinct mathematical premise must be reassessed.",
+    }
+
+    assert generated_code_recommended_scope_from_ownership_decisions(
+        [source_repair, theory_repair]
+    ) == "source_code"
 
 
 def test_repair_ownership_schema_transforms_for_anthropic() -> None:

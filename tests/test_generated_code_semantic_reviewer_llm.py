@@ -2172,6 +2172,110 @@ def test_runtime_repairs_coupled_source_and_theory_finding_at_source_first(
     assert ownership["decisions"][0]["derived_repair_scope"] == "source_code"
 
 
+def test_runtime_defers_separate_theory_finding_behind_required_source_repair(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        accept=False,
+        repair_scope="source_code",
+    )
+    response = _review_response(accept=False, repair_scope="source_code")
+    response["findings"] = [
+        *response["findings"],
+        {
+            "severity": "high",
+            "category": "theory_premise",
+            "summary": "A distinct mathematical premise needs reassessment.",
+            "required_change": "Reassess the exact source-theory premise.",
+            "repair_scope": "upstream_theory",
+            "evidence_citations": [
+                {
+                    "artifact_role": "source_theory_packet",
+                    "locator": "/derivation_steps",
+                }
+            ],
+        },
+    ]
+    response["repair_instructions"] = [
+        "Repair the generated measurement path.",
+        "Reassess the exact source-theory premise.",
+    ]
+    subsystem.reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=StaticJSONGeneratorBackend(response),
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="static",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            max_repair_attempts=0,
+        ),
+    )
+    subsystem.repair_ownership_router = (
+        LLMArchitectMetricRepairOwnershipRouterAgent(
+            provider=StaticJSONGeneratorBackend(
+                {
+                    "decisions": [
+                        {
+                            "finding_index": 0,
+                            "required_artifact_changes": [
+                                {"artifact_role": "generated_source_artifact"}
+                            ],
+                            "ownership_certainty": "resolved",
+                            "rationale": (
+                                "The generated measurement path must change."
+                            ),
+                        },
+                        {
+                            "finding_index": 1,
+                            "required_artifact_changes": [
+                                {"artifact_role": "source_theory_packet"}
+                            ],
+                            "ownership_certainty": "resolved",
+                            "rationale": (
+                                "A distinct mathematical premise must be reassessed."
+                            ),
+                        },
+                    ]
+                }
+            ),
+            config=ArchitectMetricRepairOwnershipRouterConfig(
+                provider_name="static",
+                model=LIVE_EVALUATION_CLAUDE_MODEL,
+                model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+                max_repair_attempts=0,
+            ),
+        )
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REVISE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "AlgorithmEngineer"
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["repair_scope"] == "source_code"
+    assert feedback["repair_scopes"] == ["source_code", "upstream_theory"]
+    assert [row["repair_owner"] for row in feedback["repair_plan"]] == [
+        "AlgorithmEngineer",
+        "ArchitectCoordinator",
+    ]
+    assert len(feedback["findings"]) == 1
+    assert feedback["findings"][0]["repair_scope"] == "source_code"
+    assert feedback["repair_instructions"] == [
+        feedback["findings"][0]["required_change"]
+    ]
+    assert all(
+        "source_theory_packet" not in instruction
+        for instruction in feedback["repair_instructions"]
+    )
+    pending = result.next_task.inputs["architect_context"][
+        "runtime_generated_code_semantic_review_pending_repair_plan"
+    ]
+    assert pending["pending_repair_scopes"] == ["upstream_theory"]
+    assert len(pending["pending_findings"]) == 1
+    assert pending["pending_findings"][0]["repair_scope"] == "upstream_theory"
+
+
 def test_capability_eval_fails_closed_without_postexecution_owner_router(
     tmp_path: Path,
 ) -> None:

@@ -733,8 +733,12 @@ def build_architect_metric_repair_ownership_prompt(
         "conformance. If one post-execution finding genuinely supports both "
         "generated_source_artifact and source_theory_packet, include both roles; the "
         "runtime will make one bounded generated-source repair and independently "
-        "re-review before changing theory. A separate theory-only finding still "
-        "routes upstream immediately. "
+        "re-review before changing theory. When separate findings require a concrete "
+        "generated-source repair and a theory reassessment under the same coherent "
+        "frozen protocol, repair and independently re-review the generated source "
+        "once before escalating the still-open theory finding. A structurally invalid "
+        "frozen protocol remains the earlier owner because it terminates the current "
+        "candidate. "
         "Use only artifact roles listed in artifact_target_eligibility for that "
         "finding. Eligibility is derived from the finding's artifact evidence; it "
         "is an authority constraint, not a suggestion. If exact artifacts establish "
@@ -986,14 +990,16 @@ def _recommended_scope_from_ownership_decisions(
     }
     if ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED in scopes:
         return ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED
-    if ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY in scopes:
-        return ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
     if routing_phase == ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_POSTEXECUTION:
         if "upstream_metric_contract" in scopes:
             return "upstream_metric_contract"
-        if "source_code" in scopes and scopes.issubset({"source_code", "none"}):
+        if "source_code" in scopes:
             return "source_code"
+        if ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY in scopes:
+            return ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
         return ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED
+    if ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY in scopes:
+        return ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
     if scopes == {ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_METRIC_CONTRACT}:
         return ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_METRIC_CONTRACT
     return ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED

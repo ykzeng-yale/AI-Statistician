@@ -64,6 +64,11 @@ GENERATED_CODE_SEMANTIC_REVIEW_REPAIR_DEPENDENCY_ORDER = (
     "upstream_metric_contract",
     "source_code",
 )
+GENERATED_CODE_SEMANTIC_REVIEW_POSTEXECUTION_REPAIR_ORDER = (
+    "upstream_metric_contract",
+    "source_code",
+    "upstream_theory",
+)
 GENERATED_CODE_SEMANTIC_REVIEW_SOURCE_ASSESSMENTS = (
     "ALIGNED",
     "SOURCE_REPAIR_REQUIRED",
