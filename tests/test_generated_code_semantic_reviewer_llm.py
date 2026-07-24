@@ -73,6 +73,35 @@ def _question() -> OpenResearchQuestion:
     )
 
 
+def _model_evidence_citations(
+    *,
+    evidence_refs: list[str],
+    artifact_citations: list[str],
+) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for evidence_ref in evidence_refs:
+        matched_role = next(
+            (
+                role
+                for role in GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS
+                if evidence_ref.startswith(f"{role}#")
+            ),
+            artifact_citations[0] if len(artifact_citations) == 1 else "",
+        )
+        locator = (
+            evidence_ref.split("#", 1)[1]
+            if "#" in evidence_ref
+            else evidence_ref
+        )
+        rows.append(
+            {
+                "artifact_role": matched_role,
+                "locator": locator,
+            }
+        )
+    return rows
+
+
 def _review_response(
     *,
     accept: bool,
@@ -85,10 +114,12 @@ def _review_response(
             "dimension": dimension,
             "status": "PASS",
             "rationale": f"The exact source and result support {dimension}.",
-            "evidence_refs": [
-                f"generated_source_artifact#/exact_executed_artifacts/0/{dimension}"
+            "evidence_citations": [
+                {
+                    "artifact_role": "generated_source_artifact",
+                    "locator": f"/exact_executed_artifacts/0/{dimension}",
+                }
             ],
-            "artifact_citations": ["generated_source_artifact"],
         }
         for dimension in GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
     ]
@@ -109,6 +140,13 @@ def _review_response(
                 "source_theory_packet#/theory_derivation_packet"
             ],
         }[repair_scope]
+        resolved_finding_artifact_citations = finding_artifact_citations or [
+            {
+                "source_code": "generated_source_artifact",
+                "upstream_metric_contract": "metric_protocol_candidate",
+                "upstream_theory": "source_theory_packet",
+            }[repair_scope]
+        ]
         findings = [
             {
                 "severity": "high",
@@ -116,15 +154,10 @@ def _review_response(
                 "summary": "The metric label and implemented quantity differ.",
                 "required_change": "Compute the frozen protocol quantity directly.",
                 "repair_scope": repair_scope,
-                "evidence_refs": resolved_finding_evidence_refs,
-                "artifact_citations": finding_artifact_citations
-                or [
-                    {
-                        "source_code": "generated_source_artifact",
-                        "upstream_metric_contract": "metric_protocol_candidate",
-                        "upstream_theory": "source_theory_packet",
-                    }[repair_scope]
-                ],
+                "evidence_citations": _model_evidence_citations(
+                    evidence_refs=resolved_finding_evidence_refs,
+                    artifact_citations=resolved_finding_artifact_citations,
+                ),
             }
         ]
         instructions = ["Regenerate code that computes the frozen protocol quantity."]
@@ -1085,8 +1118,12 @@ def test_all_pass_low_or_medium_findings_are_preserved_as_advisory(
             "summary": "The diagnostic name could be more explicit.",
             "required_change": "Use a more descriptive diagnostic name later.",
             "repair_scope": "source_code",
-            "evidence_refs": ["generated_source_artifact#/exact_source_code"],
-            "artifact_citations": ["generated_source_artifact"],
+            "evidence_citations": [
+                {
+                    "artifact_role": "generated_source_artifact",
+                    "locator": "/exact_source_code",
+                }
+            ],
         }
     ]
     response["repair_instructions"] = [
@@ -1123,7 +1160,7 @@ def test_all_pass_low_or_medium_findings_are_preserved_as_advisory(
     ] == "source_code"
 
 
-def test_schema_v5_requires_artifact_rooted_evidence_locators(
+def test_schema_v6_derives_artifact_rooted_evidence_from_typed_citations(
     tmp_path: Path,
 ) -> None:
     subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accept=True)
@@ -1135,20 +1172,110 @@ def test_schema_v5_requires_artifact_rooted_evidence_locators(
         for artifact in result.produced_artifacts.values()
         if artifact.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
     )
-    assert review_packet["schema_version"] == 5
+    assert review_packet["schema_version"] == 6
     assert validate_generated_code_semantic_review_packet(review_packet) == []
+    first_dimension = review_packet["dimension_reviews"][0]
+    assert first_dimension["evidence_citations"] == [
+        {
+            "artifact_role": "generated_source_artifact",
+            "locator": (
+                f"/exact_executed_artifacts/0/{first_dimension['dimension']}"
+            ),
+        }
+    ]
+    assert first_dimension["evidence_refs"] == [
+        (
+            "generated_source_artifact#"
+            f"/exact_executed_artifacts/0/{first_dimension['dimension']}"
+        )
+    ]
+    assert first_dimension["artifact_citations"] == [
+        "generated_source_artifact"
+    ]
 
-    unrooted = json.loads(json.dumps(review_packet))
-    unrooted["dimension_reviews"][0]["evidence_refs"] = ["exact_result:metric"]
+    tampered = json.loads(json.dumps(review_packet))
+    tampered["dimension_reviews"][0]["evidence_refs"] = [
+        "exact_result:metric"
+    ]
     assert any(
-        "artifact-rooted locator" in error
-        for error in validate_generated_code_semantic_review_packet(unrooted)
+        "evidence_refs must be runtime-derived" in error
+        for error in validate_generated_code_semantic_review_packet(tampered)
     )
 
-    unrooted["schema_version"] = 4
-    assert not any(
-        "artifact-rooted locator" in error
-        for error in validate_generated_code_semantic_review_packet(unrooted)
+    replay_v5 = json.loads(json.dumps(review_packet))
+    replay_v5["schema_version"] = 5
+    for row in replay_v5["dimension_reviews"]:
+        row.pop("evidence_citations")
+    assert validate_generated_code_semantic_review_packet(replay_v5) == []
+
+
+def test_schema_v6_normalizes_model_locator_format(
+    tmp_path: Path,
+) -> None:
+    response = _review_response(accept=True)
+    response["dimension_reviews"][0]["evidence_citations"][0][
+        "locator"
+    ] = "exact_executed_artifacts/0/theory_assumption_alignment"
+    reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=StaticJSONGeneratorBackend(response),
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="static",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            max_repair_attempts=0,
+        ),
+    )
+    subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accept=True)
+    subsystem.reviewer = reviewer
+
+    result = subsystem.run(task, blackboard)
+
+    review_packet = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
+    )
+    first_dimension = review_packet["dimension_reviews"][0]
+    assert first_dimension["evidence_citations"][0]["locator"] == (
+        "/exact_executed_artifacts/0/theory_assumption_alignment"
+    )
+    assert validate_generated_code_semantic_review_packet(review_packet) == []
+
+
+def test_schema_v6_rejects_legacy_duplicate_fields_as_model_input(
+    tmp_path: Path,
+) -> None:
+    response = _review_response(accept=True)
+    first_dimension = response["dimension_reviews"][0]
+    first_dimension.pop("evidence_citations")
+    first_dimension["evidence_refs"] = [
+        "generated_source_artifact#/exact_executed_artifacts"
+    ]
+    first_dimension["artifact_citations"] = [
+        "generated_source_artifact"
+    ]
+    reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=StaticJSONGeneratorBackend(response),
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="static",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            max_repair_attempts=0,
+        ),
+    )
+    subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accept=True)
+    subsystem.reviewer = reviewer
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "BLOCKED"
+    assert result.failure_classification == (
+        "generated_code_semantic_review_packet_invalid"
+    )
+    assert any(
+        "missing typed evidence_citations"
+        in error
+        for error in result.observations[0].payload["validation_errors"]
     )
 
 
@@ -1235,14 +1362,18 @@ def test_mixed_semantic_assessments_route_upstream_owner_before_source(
             "summary": "The current theory omits a premise needed downstream.",
             "required_change": "Revise the theory packet before final acceptance.",
             "repair_scope": "upstream_theory",
-            "evidence_refs": [
-                "source_theory_packet#/theory_derivation_packet/derivation_steps"
+            "evidence_citations": [
+                {
+                    "artifact_role": "source_theory_packet",
+                    "locator": (
+                        "/theory_derivation_packet/derivation_steps"
+                    ),
+                }
             ],
-            "artifact_citations": ["source_theory_packet"],
         },
     ]
     response["findings"] = [dict(row) for row in repaired_findings]
-    response["findings"][1]["evidence_refs"] = []
+    response["findings"][1]["evidence_citations"] = []
 
     class MixedOwnerPatchBackend:
         provider_name = "anthropic"
@@ -1367,36 +1498,52 @@ def test_semantic_reviewer_schema_supports_anthropic_structured_output() -> None
     ] is False
     dimension_evidence_schema = transformed["properties"]["dimension_reviews"][
         "items"
-    ]["properties"]["evidence_refs"]
+    ]["properties"]["evidence_citations"]
     finding_evidence_schema = transformed["properties"]["findings"]["items"][
         "properties"
-    ]["evidence_refs"]
-    dimension_citation_schema = transformed["properties"]["dimension_reviews"][
-        "items"
-    ]["properties"]["artifact_citations"]
-    finding_citation_schema = transformed["properties"]["findings"]["items"][
-        "properties"
-    ]["artifact_citations"]
+    ]["evidence_citations"]
     assert dimension_evidence_schema["minItems"] == 1
     assert finding_evidence_schema["minItems"] == 1
-    assert dimension_citation_schema["minItems"] == 1
-    assert finding_citation_schema["minItems"] == 1
-    assert set(dimension_citation_schema["items"]["enum"]) == set(
+    assert set(
+        dimension_evidence_schema["items"]["properties"]["artifact_role"][
+            "enum"
+        ]
+    ) == set(
         GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS
     )
-    assert set(finding_citation_schema["items"]["enum"]) == set(
+    assert set(
+        finding_evidence_schema["items"]["properties"]["artifact_role"][
+            "enum"
+        ]
+    ) == set(
         GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS
     )
     source_dimension_evidence_schema = (
         GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA["properties"]
-        ["dimension_reviews"]["items"]["properties"]["evidence_refs"]
+        ["dimension_reviews"]["items"]["properties"]["evidence_citations"]
     )
     source_finding_evidence_schema = (
         GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA["properties"]["findings"]
-        ["items"]["properties"]["evidence_refs"]
+        ["items"]["properties"]["evidence_citations"]
     )
-    assert source_dimension_evidence_schema["items"]["minLength"] == 1
-    assert source_finding_evidence_schema["items"]["minLength"] == 1
+    assert (
+        source_dimension_evidence_schema["items"]["properties"]["locator"][
+            "minLength"
+        ]
+        == 1
+    )
+    assert (
+        source_finding_evidence_schema["items"]["properties"]["locator"][
+            "minLength"
+        ]
+        == 1
+    )
+    assert "evidence_refs" not in transformed["properties"][
+        "dimension_reviews"
+    ]["items"]["properties"]
+    assert "artifact_citations" not in transformed["properties"][
+        "findings"
+    ]["items"]["properties"]
     assert set(transformed["required"]) == {
         "dimension_reviews",
         "findings",
@@ -2231,32 +2378,28 @@ def test_semantic_review_validator_rejects_incomplete_dimension_set() -> None:
     assert any("overall_verdict must be ACCEPT" in error for error in errors)
 
 
-def test_semantic_review_validator_binds_upstream_scope_to_architect() -> None:
-    packet = {
-        **_review_response(
-            accept=False,
-            repair_scope="upstream_metric_contract",
-        ),
-        "proof_evidence_status": (
-            "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
-        ),
-        "kernel_verified": False,
-        "source_subsystem": "AlgorithmEngineer",
-        "work_order_id": "work-order:test",
-        "work_order_hash": "hash",
-        "source_manifest_id": "manifest:test",
-        "source_manifest_hash": "hash",
-        "review_input_fingerprint": "hash",
-    }
+def test_semantic_review_validator_binds_upstream_scope_to_architect(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        accept=False,
+        repair_scope="upstream_metric_contract",
+    )
+    result = subsystem.run(task, blackboard)
+    packet = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
+    )
+    assert validate_generated_code_semantic_review_packet(packet) == []
 
+    packet["repair_owner"] = "AlgorithmEngineer"
     errors = validate_generated_code_semantic_review_packet(packet)
-
     assert any(
         "upstream semantic repair must route to ArchitectCoordinator" in error
         for error in errors
     )
-    packet["repair_owner"] = "ArchitectCoordinator"
-    assert validate_generated_code_semantic_review_packet(packet) == []
 
 
 def test_capability_scorecard_requires_both_independent_semantic_review_lanes() -> None:

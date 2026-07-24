@@ -88256,10 +88256,12 @@ def _static_generated_code_semantic_reviewer() -> (
                         "dimension": dimension,
                         "status": "PASS",
                         "rationale": "Static fixture accepts exact bound inputs.",
-                        "evidence_refs": [
-                            "generated_source_artifact#/exact_executed_artifacts"
+                        "evidence_citations": [
+                            {
+                                "artifact_role": "generated_source_artifact",
+                                "locator": "/exact_executed_artifacts",
+                            }
                         ],
-                        "artifact_citations": ["generated_source_artifact"],
                     }
                     for dimension in GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
                 ],

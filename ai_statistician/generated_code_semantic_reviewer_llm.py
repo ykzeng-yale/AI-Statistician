@@ -11,7 +11,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 
 
-GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 5
+GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 6
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -216,6 +216,97 @@ def _artifact_rooted_evidence_errors(
     return errors
 
 
+def _normalize_evidence_locator(locator: Any) -> str:
+    normalized = str(locator or "").strip()
+    if normalized.startswith("#"):
+        normalized = normalized[1:]
+    if normalized and not normalized.startswith("/"):
+        normalized = "/" + normalized
+    return normalized
+
+
+def _normalize_review_row_evidence(
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    normalized = dict(row)
+    raw_citations = normalized.get("evidence_citations")
+    citation_rows: list[dict[str, str]] = []
+    if isinstance(raw_citations, list):
+        for raw_citation in raw_citations:
+            if not isinstance(raw_citation, Mapping):
+                citation_rows.append(
+                    {
+                        "artifact_role": "",
+                        "locator": "",
+                    }
+                )
+                continue
+            citation_rows.append(
+                {
+                    "artifact_role": str(
+                        raw_citation.get("artifact_role", "") or ""
+                    ).strip(),
+                    "locator": _normalize_evidence_locator(
+                        raw_citation.get("locator", "")
+                    ),
+                }
+            )
+    deduplicated_citations: list[dict[str, str]] = []
+    seen_citations: set[tuple[str, str]] = set()
+    for citation in citation_rows:
+        key = (citation["artifact_role"], citation["locator"])
+        if key in seen_citations:
+            continue
+        seen_citations.add(key)
+        deduplicated_citations.append(citation)
+    normalized["evidence_citations"] = deduplicated_citations
+    normalized["evidence_refs"] = [
+        f"{citation['artifact_role']}#{citation['locator']}"
+        for citation in deduplicated_citations
+        if citation["artifact_role"]
+        in GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS
+        and citation["locator"]
+    ]
+    normalized["artifact_citations"] = [
+        role
+        for role in GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS
+        if any(
+            citation["artifact_role"] == role
+            for citation in deduplicated_citations
+        )
+    ]
+    return normalized
+
+
+def _typed_evidence_citation_errors(
+    *,
+    row: Mapping[str, Any],
+    row_label: str,
+) -> list[str]:
+    citations = row.get("evidence_citations", [])
+    if not isinstance(citations, list) or not citations:
+        return [f"{row_label} missing typed evidence_citations"]
+    errors: list[str] = []
+    for citation in citations:
+        if not isinstance(citation, Mapping):
+            errors.append(f"{row_label} evidence_citations must contain objects")
+            continue
+        role = str(citation.get("artifact_role", "") or "").strip()
+        locator = str(citation.get("locator", "") or "").strip()
+        if role not in GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS:
+            errors.append(f"{row_label} evidence_citation has invalid artifact_role")
+        if not locator or not locator.startswith("/"):
+            errors.append(f"{row_label} evidence_citation has invalid locator")
+    normalized = _normalize_review_row_evidence(row)
+    if list(row.get("evidence_refs", []) or []) != normalized["evidence_refs"]:
+        errors.append(f"{row_label} evidence_refs must be runtime-derived")
+    if list(row.get("artifact_citations", []) or []) != normalized[
+        "artifact_citations"
+    ]:
+        errors.append(f"{row_label} artifact_citations must be runtime-derived")
+    return errors
+
+
 def _generated_code_semantic_review_repair_plan(
     *,
     repair_scopes: list[str],
@@ -370,10 +461,10 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                         "rows contradicted by the supplied evidence."
                     ),
                     (
-                        "Preserve artifact-rooted evidence_refs and matching typed "
-                        "artifact_citations on every dimension and finding. Every "
-                        "evidence locator must begin source_theory_packet#, "
-                        "metric_protocol_candidate#, or generated_source_artifact#."
+                        "Preserve typed evidence_citations on every dimension and "
+                        "finding. Each citation has one artifact_role enum and one "
+                        "non-empty locator. Runtime derives evidence_refs and "
+                        "artifact_citations; do not author those duplicate fields."
                     ),
                     (
                         "Use source_code only for the reviewed source subsystem and "
@@ -529,20 +620,17 @@ def build_generated_code_semantic_review_prompt(
         "Each finding repair_scope is a reviewer hypothesis, not final repair-owner "
         "authority. An independent artifact-owner router rechecks the exact artifacts "
         "after REVISE; AgentRuntime derives aggregate routing from that decision. "
-        "Populate artifact_citations on every dimension and finding using only "
-        "source_theory_packet, metric_protocol_candidate, and "
-        "generated_source_artifact. Cite every supplied immutable artifact actually "
-        "used to support that row. These typed citations record provenance and do not "
-        "decide repair ownership. A source_code finding must cite "
-        "generated_source_artifact; an upstream_metric_contract finding must cite "
-        "metric_protocol_candidate; an upstream_theory finding must cite "
-        "source_theory_packet. Every evidence_refs item must be an artifact-rooted "
-        "human-readable locator beginning exactly source_theory_packet#, "
-        "metric_protocol_candidate#, or generated_source_artifact#, and every cited "
-        "artifact must have at least one such locator. A result or exact source locator "
-        "belongs to generated_source_artifact even when it motivates a claim about "
-        "another artifact; do not hide observed-result evidence behind a metric-"
-        "protocol citation. Do not emit duplicate "
+        "Populate evidence_citations on every dimension and finding. Each citation "
+        "must contain artifact_role equal to source_theory_packet, "
+        "metric_protocol_candidate, or generated_source_artifact, plus a precise "
+        "non-empty locator inside that artifact. Runtime derives evidence_refs and "
+        "artifact_citations from this single typed source; do not emit either duplicate "
+        "field. A source_code finding must cite generated_source_artifact; an "
+        "upstream_metric_contract finding must cite metric_protocol_candidate; an "
+        "upstream_theory finding must cite source_theory_packet. A result or exact "
+        "source locator belongs to generated_source_artifact even when it motivates "
+        "a claim about another artifact; do not hide observed-result evidence behind "
+        "a metric-protocol citation. Do not emit duplicate "
         "aggregate decisions, and do not collapse a source implementation mismatch "
         "into a protocol or theory defect. A source_code finding needs a specific mismatch "
         "between exact executed source and an unambiguous current theory or frozen "
@@ -603,9 +691,14 @@ GENERATED_CODE_SEMANTIC_REVIEW_OUTPUT_CONTRACT: dict[str, Any] = {
             "dimension": "one required dimension",
             "status": "PASS|FAIL|UNCERTAIN",
             "rationale": "specific semantic reasoning",
-            "evidence_refs": ["source/code/result/protocol reference"],
-            "artifact_citations": [
-                "source_theory_packet|metric_protocol_candidate|generated_source_artifact"
+            "evidence_citations": [
+                {
+                    "artifact_role": (
+                        "source_theory_packet|metric_protocol_candidate|"
+                        "generated_source_artifact"
+                    ),
+                    "locator": "/precise/path/inside/artifact",
+                }
             ],
         }
     ],
@@ -618,13 +711,32 @@ GENERATED_CODE_SEMANTIC_REVIEW_OUTPUT_CONTRACT: dict[str, Any] = {
             "repair_scope": (
                 "none|source_code|upstream_metric_contract|upstream_theory"
             ),
-            "evidence_refs": ["source/code/result/protocol reference"],
-            "artifact_citations": [
-                "source_theory_packet|metric_protocol_candidate|generated_source_artifact"
+            "evidence_citations": [
+                {
+                    "artifact_role": (
+                        "source_theory_packet|metric_protocol_candidate|"
+                        "generated_source_artifact"
+                    ),
+                    "locator": "/precise/path/inside/artifact",
+                }
             ],
         }
     ],
     "repair_instructions": ["concrete instruction"],
+}
+
+
+_MODEL_EVIDENCE_CITATION_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["artifact_role", "locator"],
+    "properties": {
+        "artifact_role": {
+            "type": "string",
+            "enum": list(GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS),
+        },
+        "locator": {"type": "string", "minLength": 1},
+    },
 }
 
 
@@ -649,8 +761,7 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
                     "dimension",
                     "status",
                     "rationale",
-                    "evidence_refs",
-                    "artifact_citations",
+                    "evidence_citations",
                 ],
                 "properties": {
                     "dimension": {
@@ -662,21 +773,10 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
                         "enum": ["PASS", "FAIL", "UNCERTAIN"],
                     },
                     "rationale": {"type": "string"},
-                    "evidence_refs": {
+                    "evidence_citations": {
                         "type": "array",
                         "minItems": 1,
-                        "items": {"type": "string", "minLength": 1},
-                    },
-                    "artifact_citations": {
-                        "type": "array",
-                        "minItems": 1,
-                        "uniqueItems": True,
-                        "items": {
-                            "type": "string",
-                            "enum": list(
-                                GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS
-                            ),
-                        },
+                        "items": _MODEL_EVIDENCE_CITATION_SCHEMA,
                     },
                 },
             },
@@ -692,8 +792,7 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
                     "summary",
                     "required_change",
                     "repair_scope",
-                    "evidence_refs",
-                    "artifact_citations",
+                    "evidence_citations",
                 ],
                 "properties": {
                     "severity": {
@@ -710,21 +809,10 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
                             *GENERATED_CODE_SEMANTIC_REVIEW_ACTIONABLE_REPAIR_SCOPES,
                         ]
                     },
-                    "evidence_refs": {
+                    "evidence_citations": {
                         "type": "array",
                         "minItems": 1,
-                        "items": {"type": "string", "minLength": 1},
-                    },
-                    "artifact_citations": {
-                        "type": "array",
-                        "minItems": 1,
-                        "uniqueItems": True,
-                        "items": {
-                            "type": "string",
-                            "enum": list(
-                                GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS
-                            ),
-                        },
+                        "items": _MODEL_EVIDENCE_CITATION_SCHEMA,
                     },
                 },
             },
@@ -797,6 +885,13 @@ def validate_generated_code_semantic_review_packet(
                     row_label=f"semantic review dimension {dimension}",
                 )
             )
+        if schema_version >= 6:
+            errors.extend(
+                _typed_evidence_citation_errors(
+                    row=row,
+                    row_label=f"semantic review dimension {dimension}",
+                )
+            )
     if sorted(seen_dimensions) != sorted(GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS):
         errors.append("dimension_reviews must contain each required dimension exactly once")
 
@@ -842,6 +937,13 @@ def validate_generated_code_semantic_review_packet(
         if schema_version >= 5:
             errors.extend(
                 _artifact_rooted_evidence_errors(
+                    row=row,
+                    row_label="semantic review finding",
+                )
+            )
+        if schema_version >= 6:
+            errors.extend(
+                _typed_evidence_citation_errors(
                     row=row,
                     row_label="semantic review finding",
                 )
@@ -1001,6 +1103,12 @@ def _normalize_generated_code_semantic_review_packet(
     raw_response: str,
 ) -> dict[str, Any]:
     body = dict(payload)
+    body["dimension_reviews"] = [
+        _normalize_review_row_evidence(row)
+        if isinstance(row, Mapping)
+        else row
+        for row in body.get("dimension_reviews", []) or []
+    ]
     source_subsystem = str(
         trusted_lineage.get("source_subsystem", "") or ""
     ).strip()
@@ -1037,7 +1145,7 @@ def _normalize_generated_code_semantic_review_packet(
         if not isinstance(row, Mapping):
             normalized_findings.append(row)
             continue
-        finding = dict(row)
+        finding = _normalize_review_row_evidence(row)
         requested_scope = str(finding.get("repair_scope", "") or "").strip()
         finding["model_requested_repair_scope"] = requested_scope
         if (
