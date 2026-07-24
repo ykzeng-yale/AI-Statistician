@@ -13143,7 +13143,9 @@ def test_formal_gap_planner_handoff_execution_plan_summary_recovers_rows() -> No
     live_cli = f"{prompt_cli} --invoke-provider"
     reuse_cli = (
         "python -m ai_statistician.cli formalization-gap-planner-reuse-smoke "
-        "--llm-route-planner-provider anthropic"
+        "--llm-route-planner-provider anthropic "
+        "--llm-route-planner-model-tier auto "
+        "--feedback-llm-route-planner-model-tier auto"
     )
     proof_status = "RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE"
     proof_boundary = "Planner handoff metadata is not theorem proof evidence."

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 import tempfile
 from collections import Counter
 from dataclasses import asdict, dataclass
@@ -14,6 +15,7 @@ from .formalization_gap_planner_component_resource_registry import (
     export_formalization_gap_planner_component_resource_registry,
 )
 from .formalization_gap_planner_llm_route_planner import (
+    LLM_ROUTE_PLANNER_MODEL_TIERS,
     export_formalization_gap_planner_llm_route_planner,
 )
 from .formalization_gap_planner_standalone import (
@@ -557,7 +559,10 @@ def runtime_handoff_execution_plan_json_schema() -> dict[str, object]:
             },
             "schema_version": {"type": "integer"},
             "recommended_llm_provider": {"type": "string", "const": "anthropic"},
-            "recommended_model_tier": {"type": "string", "const": "auto"},
+            "recommended_model_tier": {
+                "type": "string",
+                "enum": list(LLM_ROUTE_PLANNER_MODEL_TIERS),
+            },
             "target_prover_family": {"type": "string", "minLength": 1},
             "library_snapshot_ref": {"type": "string"},
             "stage_count": {"type": "integer"},
@@ -675,6 +680,39 @@ def validate_runtime_handoff_execution_plan(
     live_argv = live_argv if isinstance(live_argv, list) else []
     reuse_argv = by_stage.get("reuse_smoke", {}).get("argv", [])
     reuse_argv = reuse_argv if isinstance(reuse_argv, list) else []
+    recommended_model_tier = str(
+        plan.get("recommended_model_tier", "")
+    ).strip().lower()
+    if recommended_model_tier in LLM_ROUTE_PLANNER_MODEL_TIERS:
+        tier_bindings = (
+            (
+                "llm_route_planner_prompt",
+                prompt_argv,
+                "--model-tier",
+            ),
+            (
+                "llm_route_planner_live_optional",
+                live_argv,
+                "--model-tier",
+            ),
+            (
+                "reuse_smoke",
+                reuse_argv,
+                "--llm-route-planner-model-tier",
+            ),
+            (
+                "reuse_smoke",
+                reuse_argv,
+                "--feedback-llm-route-planner-model-tier",
+            ),
+        )
+        for stage_id, argv, flag in tier_bindings:
+            observed_tier = _argv_arg_value(argv, flag)
+            if observed_tier != recommended_model_tier:
+                errors.append(
+                    f"{stage_id}.argv {flag} must equal "
+                    f"recommended_model_tier {recommended_model_tier}"
+                )
     if "--invoke-provider" in prompt_argv:
         errors.append("llm_route_planner_prompt must not invoke the provider")
     if "--invoke-provider" not in live_argv:
@@ -722,6 +760,12 @@ def _audit_handoff_row(
         handoff.get("component_resource_registry_dir", "")
     ).strip()
     handoff_target = str(handoff.get("target_prover_family", "")).strip()
+    recommended_model_tier = str(
+        handoff.get("recommended_model_tier", "")
+    ).strip().lower()
+    recommended_model_tier_supported = (
+        recommended_model_tier in LLM_ROUTE_PLANNER_MODEL_TIERS
+    )
     execution_plan = handoff.get("execution_plan", {})
     execution_plan = execution_plan if isinstance(execution_plan, Mapping) else {}
     execution_plan_schema_errors = validate_runtime_handoff_execution_plan(
@@ -840,18 +884,21 @@ def _audit_handoff_row(
     seed_snapshot = str(seed_payload.get("library_snapshot_ref", "")).strip()
     cost_control_ok = _prompt_cli_cost_control_ok(
         prompt_cli,
+        expected_model_tier=recommended_model_tier,
         standalone_plan_dir_text=standalone_plan_dir_text,
         target_intake_dir_text=target_intake_dir_text,
         component_resource_registry_dir_text=component_resource_registry_dir_text,
     )
     live_explicit_ok = _live_cli_explicit_ok(
         live_cli,
+        expected_model_tier=recommended_model_tier,
         standalone_plan_dir_text=standalone_plan_dir_text,
         target_intake_dir_text=target_intake_dir_text,
         component_resource_registry_dir_text=component_resource_registry_dir_text,
     )
     reuse_smoke_cost_control_ok = _reuse_smoke_cli_cost_control_ok(
         reuse_smoke_cli,
+        expected_model_tier=recommended_model_tier,
         target_intake_path_text=target_intake_path_text,
         target_prover_family=handoff_target,
         library_snapshot_ref=seed_snapshot,
@@ -862,10 +909,11 @@ def _audit_handoff_row(
         and prompt_stage.get("requires_live_llm") is False
         and prompt_stage.get("requires_operator_review_before_live") is False
         and "--invoke-provider" not in prompt_stage_argv
-        and "--model-tier" in prompt_stage_argv
-        and "auto" in prompt_stage_argv
+        and _argv_arg_value(prompt_stage_argv, "--model-tier")
+        == recommended_model_tier
         and _prompt_cli_cost_control_ok(
             str(prompt_stage.get("cli", "")),
+            expected_model_tier=recommended_model_tier,
             standalone_plan_dir_text=standalone_plan_dir_text,
             target_intake_dir_text=target_intake_dir_text,
             component_resource_registry_dir_text=component_resource_registry_dir_text,
@@ -877,10 +925,11 @@ def _audit_handoff_row(
         and live_stage.get("requires_live_llm") is True
         and live_stage.get("requires_operator_review_before_live") is True
         and "--invoke-provider" in live_stage_argv
-        and "--model-tier" in live_stage_argv
-        and "auto" in live_stage_argv
+        and _argv_arg_value(live_stage_argv, "--model-tier")
+        == recommended_model_tier
         and _live_cli_explicit_ok(
             str(live_stage.get("cli", "")),
+            expected_model_tier=recommended_model_tier,
             standalone_plan_dir_text=standalone_plan_dir_text,
             target_intake_dir_text=target_intake_dir_text,
             component_resource_registry_dir_text=component_resource_registry_dir_text,
@@ -893,8 +942,19 @@ def _audit_handoff_row(
         and reuse_smoke_stage.get("requires_operator_review_before_live") is False
         and "--llm-route-planner-invoke-provider" not in reuse_stage_argv
         and "--feedback-llm-route-planner-invoke-provider" not in reuse_stage_argv
+        and _argv_arg_value(
+            reuse_stage_argv,
+            "--llm-route-planner-model-tier",
+        )
+        == recommended_model_tier
+        and _argv_arg_value(
+            reuse_stage_argv,
+            "--feedback-llm-route-planner-model-tier",
+        )
+        == recommended_model_tier
         and _reuse_smoke_cli_cost_control_ok(
             str(reuse_smoke_stage.get("cli", "")),
+            expected_model_tier=recommended_model_tier,
             target_intake_path_text=target_intake_path_text,
             target_prover_family=handoff_target,
             library_snapshot_ref=seed_snapshot,
@@ -1019,9 +1079,9 @@ def _audit_handoff_row(
             "cost_control",
             handoff_id,
             bridge_id,
-            "auto",
+            "one of " + ", ".join(LLM_ROUTE_PLANNER_MODEL_TIERS),
             str(handoff.get("recommended_model_tier", "")),
-            handoff.get("recommended_model_tier") == "auto",
+            recommended_model_tier_supported,
         ),
         _row_check(
             "row_standalone_cli_present",
@@ -1118,7 +1178,10 @@ def _audit_handoff_row(
             "cost_control",
             handoff_id,
             bridge_id,
-            "Anthropic auto prompt-only command without --invoke-provider",
+            (
+                f"Anthropic {recommended_model_tier} prompt-only command "
+                "without --invoke-provider"
+            ),
             prompt_cli,
             cost_control_ok,
         ),
@@ -1136,7 +1199,10 @@ def _audit_handoff_row(
             "cost_control",
             handoff_id,
             bridge_id,
-            "Anthropic auto reuse-smoke command without live provider flags",
+            (
+                f"Anthropic {recommended_model_tier} reuse-smoke command "
+                "without live provider flags"
+            ),
             reuse_smoke_cli,
             reuse_smoke_cost_control_ok,
         ),
@@ -1161,7 +1227,10 @@ def _audit_handoff_row(
             "cost_control",
             handoff_id,
             bridge_id,
-            "Anthropic auto command with explicit --invoke-provider",
+            (
+                f"Anthropic {recommended_model_tier} command with explicit "
+                "--invoke-provider"
+            ),
             live_cli,
             live_explicit_ok,
         ),
@@ -1226,20 +1295,24 @@ def _audit_handoff_row(
             "execution_plan",
             handoff_id,
             bridge_id,
-            "anthropic/auto",
+            f"anthropic/{recommended_model_tier}",
             (
                 f"{execution_plan.get('recommended_llm_provider', '')}/"
                 f"{execution_plan.get('recommended_model_tier', '')}"
             ),
             execution_plan.get("recommended_llm_provider") == "anthropic"
-            and execution_plan.get("recommended_model_tier") == "auto",
+            and execution_plan.get("recommended_model_tier")
+            == recommended_model_tier,
         ),
         _row_check(
             "row_execution_plan_prompt_stage_cost_control",
             "execution_plan",
             handoff_id,
             bridge_id,
-            "prompt stage has argv, model-tier auto, no --invoke-provider",
+            (
+                "prompt stage has argv, model-tier "
+                f"{recommended_model_tier}, no --invoke-provider"
+            ),
             str(prompt_stage_argv),
             execution_plan_prompt_stage_cost_control_ok,
         ),
@@ -1391,6 +1464,7 @@ def _audit_handoff_row(
             smoke_root=smoke_root,
             target_intake_dir=llm_prompt_target_intake_dir,
             component_resource_registry_dir=registry_dir if registry_ok else None,
+            model_tier=recommended_model_tier,
             max_estimated_prompt_input_tokens=prompt_budget_cap,
         )
         summary.update(llm_counts)
@@ -1745,8 +1819,10 @@ def _run_llm_prompt_smoke(
     smoke_root: Path | None,
     target_intake_dir: Path | None = None,
     component_resource_registry_dir: Path | None = None,
+    model_tier: str = "auto",
     max_estimated_prompt_input_tokens: int = 0,
 ) -> tuple[bool, str, dict[str, int]]:
+    normalized_model_tier = str(model_tier or "auto").strip().lower()
     try:
         payload = export_formalization_gap_planner_llm_route_planner(
             seed_path,
@@ -1754,7 +1830,7 @@ def _run_llm_prompt_smoke(
             if smoke_root is not None
             else None,
             provider_name="anthropic",
-            model_tier="auto",
+            model_tier=normalized_model_tier,
             max_estimated_prompt_input_tokens=max(0, int(max_estimated_prompt_input_tokens)),
             max_repair_attempts=1,
             invoke_provider=False,
@@ -1876,6 +1952,25 @@ def _run_llm_prompt_smoke(
         + n_tier_decision_sonnet
         + n_tier_decision_operator_override
     )
+    requested_tier_distribution_ok = (
+        normalized_model_tier == "auto"
+        or (
+            normalized_model_tier == "haiku"
+            and n_tier_haiku == n_packets
+            and n_tier_sonnet == 0
+            and n_tier_opus == 0
+        )
+        or (
+            normalized_model_tier == "sonnet"
+            and n_tier_haiku == 0
+            and n_tier_sonnet == n_packets
+            and n_tier_opus == 0
+        )
+    )
+    requested_tier_decision_ok = (
+        normalized_model_tier == "auto"
+        or n_tier_decision_operator_override == n_packets
+    )
     monolithic_prompt_ready = (
         bool(payload.get("all_ok", False))
         and n_awaiting == n_packets
@@ -1901,7 +1996,8 @@ def _run_llm_prompt_smoke(
         and (monolithic_prompt_ready or staged_budget_route_ready)
         and bool(payload.get("invoke_provider", True)) is False
         and str(payload.get("provider_name", "")) == "anthropic"
-        and str(payload.get("model_tier_selection_mode", "")) == "auto"
+        and str(payload.get("model_tier_selection_mode", ""))
+        == normalized_model_tier
         and n_requests_with_cost_hints == n_packets
         and n_primitive_cost_hints > 0
         and n_route_option_cost_hints > 0
@@ -1914,9 +2010,11 @@ def _run_llm_prompt_smoke(
         )
         and n_model_tier_mismatches == 0
         and n_tier_accounted == n_packets
+        and requested_tier_distribution_ok
         and n_tier_decision_evidence == n_packets
         and n_tier_decision_invalid == 0
         and n_tier_decision_accounted == n_packets
+        and requested_tier_decision_ok
     )
     return ok, (
         f"all_ok={payload.get('all_ok')} provider={payload.get('provider_name')} "
@@ -2035,6 +2133,7 @@ def _run_target_intake_smoke(
 def _prompt_cli_cost_control_ok(
     prompt_cli: str,
     *,
+    expected_model_tier: str,
     standalone_plan_dir_text: str,
     target_intake_dir_text: str,
     component_resource_registry_dir_text: str,
@@ -2042,7 +2141,8 @@ def _prompt_cli_cost_control_ok(
     return (
         "formalization-gap-planner-llm-route-planner" in prompt_cli
         and "--provider anthropic" in prompt_cli
-        and "--model-tier auto" in prompt_cli
+        and _cli_arg_value(prompt_cli, "--model-tier")
+        == expected_model_tier
         and "--max-repair-attempts 1" in prompt_cli
         and _cli_has_int_arg(prompt_cli, "--max-estimated-prompt-input-tokens")
         and "--goal-conditioned-minimal-formalization-plan-dir" in prompt_cli
@@ -2084,9 +2184,29 @@ def _cli_has_int_arg(cli: str, flag: str) -> bool:
     )
 
 
+def _cli_arg_value(cli: str, flag: str) -> str:
+    try:
+        argv = shlex.split(str(cli or ""))
+    except ValueError:
+        return ""
+    return _argv_arg_value(argv, flag)
+
+
+def _argv_arg_value(argv: object, flag: str) -> str:
+    if not isinstance(argv, (list, tuple)):
+        return ""
+    values = [
+        str(argv[index + 1]).strip().lower()
+        for index, item in enumerate(argv[:-1])
+        if str(item) == flag
+    ]
+    return values[0] if len(values) == 1 else ""
+
+
 def _reuse_smoke_cli_cost_control_ok(
     reuse_smoke_cli: str,
     *,
+    expected_model_tier: str,
     target_intake_path_text: str,
     target_prover_family: str,
     library_snapshot_ref: str,
@@ -2097,14 +2217,22 @@ def _reuse_smoke_cli_cost_control_ok(
         and f"--target-prover-family {target_prover_family}" in reuse_smoke_cli
         and f"--target-library-snapshot-ref {library_snapshot_ref}" in reuse_smoke_cli
         and "--llm-route-planner-provider anthropic" in reuse_smoke_cli
-        and "--llm-route-planner-model-tier auto" in reuse_smoke_cli
+        and _cli_arg_value(
+            reuse_smoke_cli,
+            "--llm-route-planner-model-tier",
+        )
+        == expected_model_tier
         and "--llm-route-planner-max-repair-attempts 1" in reuse_smoke_cli
         and _cli_has_int_arg(
             reuse_smoke_cli,
             "--llm-route-planner-max-estimated-prompt-input-tokens",
         )
         and "--feedback-llm-route-planner-provider anthropic" in reuse_smoke_cli
-        and "--feedback-llm-route-planner-model-tier auto" in reuse_smoke_cli
+        and _cli_arg_value(
+            reuse_smoke_cli,
+            "--feedback-llm-route-planner-model-tier",
+        )
+        == expected_model_tier
         and "--feedback-llm-route-planner-max-repair-attempts 1" in reuse_smoke_cli
         and _cli_has_int_arg(
             reuse_smoke_cli,
@@ -2118,6 +2246,7 @@ def _reuse_smoke_cli_cost_control_ok(
 def _live_cli_explicit_ok(
     live_cli: str,
     *,
+    expected_model_tier: str,
     standalone_plan_dir_text: str,
     target_intake_dir_text: str,
     component_resource_registry_dir_text: str,
@@ -2125,7 +2254,8 @@ def _live_cli_explicit_ok(
     return (
         "formalization-gap-planner-llm-route-planner" in live_cli
         and "--provider anthropic" in live_cli
-        and "--model-tier auto" in live_cli
+        and _cli_arg_value(live_cli, "--model-tier")
+        == expected_model_tier
         and "--max-repair-attempts 1" in live_cli
         and _cli_has_int_arg(live_cli, "--max-estimated-prompt-input-tokens")
         and "--goal-conditioned-minimal-formalization-plan-dir" in live_cli
