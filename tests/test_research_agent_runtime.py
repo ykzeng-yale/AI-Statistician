@@ -24439,6 +24439,82 @@ def test_architect_numeric_authority_failure_stays_candidate_owned() -> None:
     )
 
 
+def test_architect_metric_reviewer_packet_failure_is_typed_not_subsystem_exception() -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    context = _theory_informed_metric_context_fixture()
+
+    class InvalidMetricReviewCoordinator:
+        def propose(self, **_kwargs):
+            raise PacketValidationError(
+                validation_label="Architect metric semantic review packet",
+                attempts=2,
+                errors=[
+                    "dimension_reviews must contain each required dimension exactly once"
+                ],
+                history=[
+                    {
+                        "attempt_index": 1,
+                        "model": "claude-haiku-4-5-20251001",
+                        "provider": "anthropic",
+                        "ok": False,
+                    }
+                ],
+                last_invalid_packet={
+                    "packet_id": "architect_metric_semantic_review:invalid",
+                    "authoring_packet_id": "metric-authoring:invalid",
+                    "reviewed_empirical_metric_requirement_set_id": (
+                        "generated_metric_requirement_set:invalid"
+                    ),
+                    "model_requested_overall_verdict": "ACCEPT",
+                    "overall_verdict": "REVISE",
+                    "dimension_reviews": [],
+                    "findings": [],
+                    "proof_evidence_status": (
+                        "ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
+                    ),
+                },
+            )
+
+    result = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=InvalidMetricReviewCoordinator(),
+        runtime_config=ResearchAgentRuntimeConfig(),
+    ).run(
+        AgentTask(
+            task_id="architect-metric-protocol:invalid-review",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Author and review a theory-bound metric protocol.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": context,
+            },
+        ),
+        BlackboardState(project_id="metric-review-packet-invalid"),
+    )
+
+    assert result.status == "BLOCKED"
+    assert result.failure_classification == (
+        "architect_metric_semantic_review_packet_validation_failed"
+    )
+    failure = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeArchitectMetricSemanticReviewValidationFailure"
+    )
+    assert failure["validation_attempts"] == 2
+    assert failure["llm_json_repair_history"][0]["model"] == (
+        "claude-haiku-4-5-20251001"
+    )
+    assert failure["last_invalid_packet_available"] is True
+    assert failure["metric_protocol_execution_authorized"] is False
+    assert failure["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
+    assert result.observations[0].observation_type == (
+        "architect_metric_semantic_review_packet_invalid"
+    )
+
+
 def test_confirmatory_simulation_task_requires_accepted_algorithm_handoff() -> None:
     question = load_open_research_questions(
         Path("examples/research_questions.json")

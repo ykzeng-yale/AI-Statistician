@@ -117,6 +117,7 @@ from .scientific_sandbox import (
 from .evaluation_protocol_revision import (
     _architect_post_result_metric_protocol_revision_result,
     architect_metric_requirement_validation_failure_result,
+    architect_metric_semantic_review_validation_failure_result,
     architect_preexecution_metric_protocol_rejection_result,
     invalidate_metric_protocol_authorization,
     metric_protocol_upstream_theory_revision_blocked_result,
@@ -8252,22 +8253,31 @@ class ArchitectCoordinatorRuntimeSubsystem:
                 ),
             )
         except PacketValidationError as exc:
-            if exc.validation_label != "LLM Architect metric-requirement packet":
-                raise
-            return architect_metric_requirement_validation_failure_result(
-                task=task,
-                question=question,
-                architect_context=context,
-                blackboard=blackboard,
-                exc=exc,
-                max_upstream_theory_revisions=(
-                    self.runtime_config.metric_protocol_max_upstream_theory_revisions
-                ),
-                runtime_architect_control=_architect_control_payload(
-                    invalidate_metric_protocol_authorization(context),
-                    "ArchitectCoordinator",
-                ),
-            )
+            if exc.validation_label == "LLM Architect metric-requirement packet":
+                return architect_metric_requirement_validation_failure_result(
+                    task=task,
+                    question=question,
+                    architect_context=context,
+                    blackboard=blackboard,
+                    exc=exc,
+                    max_upstream_theory_revisions=(
+                        self.runtime_config.metric_protocol_max_upstream_theory_revisions
+                    ),
+                    runtime_architect_control=_architect_control_payload(
+                        invalidate_metric_protocol_authorization(context),
+                        "ArchitectCoordinator",
+                    ),
+                )
+            if exc.validation_label == (
+                "Architect metric semantic review packet"
+            ):
+                return architect_metric_semantic_review_validation_failure_result(
+                    task=task,
+                    question=question,
+                    architect_context=context,
+                    exc=exc,
+                )
+            raise
         packet_id = str(packet["packet_id"])
         context["architect_coordinator_proposal_id"] = packet_id
         capability_gap_routing_agenda = architect_capability_gap_routing_agenda(

@@ -14,6 +14,7 @@ from ai_statistician.exact_source_theorem_proof_body_executor import (
 )
 from ai_statistician.formal_target_semantic_reviewer_llm import (
     FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS,
+    FORMAL_TARGET_SEMANTIC_REVIEW_JSON_SCHEMA,
     FormalTargetSemanticReviewerConfig,
     LLMFormalTargetSemanticReviewerAgent,
     build_formal_target_semantic_review_prompt,
@@ -64,9 +65,12 @@ def _review_response(verdict: str) -> dict[str, object]:
     ]
     findings: list[dict[str, object]] = []
     instructions: list[str] = []
-    repair_owner = "FormalizationEvaluator"
+    repair_scope = "none"
     blocking_reason = ""
     if verdict != "ACCEPT":
+        repair_scope = (
+            "upstream_theory" if verdict == "BLOCK" else "formal_target"
+        )
         rows[3]["status"] = "FAIL" if verdict == "REVISE" else "UNCERTAIN"
         rows[3]["rationale"] = (
             "The current target is not supported by the supplied derivation."
@@ -82,13 +86,11 @@ def _review_response(verdict: str) -> dict[str, object]:
         ]
         instructions = ["Preserve the exact assumptions, quantifiers, and conclusion."]
     if verdict == "BLOCK":
-        repair_owner = "TheoryDeveloper"
         blocking_reason = "The current derivation does not support a coherent target."
     return {
         "dimension_reviews": rows,
         "findings": findings,
-        "overall_verdict": verdict,
-        "repair_owner": repair_owner,
+        "repair_scope": repair_scope,
         "repair_instructions": instructions,
         "blocking_reason": blocking_reason,
     }
@@ -98,9 +100,12 @@ def _reviewer(
     verdict: str,
     *,
     model_tier: str = LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+    response_overrides: dict[str, object] | None = None,
 ) -> LLMFormalTargetSemanticReviewerAgent:
+    response = _review_response(verdict)
+    response.update(response_overrides or {})
     return LLMFormalTargetSemanticReviewerAgent(
-        provider=StaticJSONGeneratorBackend(_review_response(verdict)),
+        provider=StaticJSONGeneratorBackend(response),
         config=FormalTargetSemanticReviewerConfig(
             provider_name="static",
             model=f"static-{model_tier}-formal-target-reviewer",
@@ -116,6 +121,7 @@ def _runtime_fixture(
     *,
     target_hash_algorithm: str = EXACT_TARGET_STATEMENT_HASH_ALGORITHM,
     reviewer_model_tier: str = LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+    reviewer_response_overrides: dict[str, object] | None = None,
     max_revisions: int = 2,
     revision_count: int = 0,
 ):
@@ -287,7 +293,11 @@ def _runtime_fixture(
         }
     )
     subsystem = FormalTargetSemanticReviewerRuntimeSubsystem(
-        reviewer=_reviewer(verdict, model_tier=reviewer_model_tier),
+        reviewer=_reviewer(
+            verdict,
+            model_tier=reviewer_model_tier,
+            response_overrides=reviewer_response_overrides,
+        ),
         max_revisions=max_revisions,
     )
     return subsystem, dispatch["next_task"], blackboard, artifact_path
@@ -384,6 +394,66 @@ def test_formal_target_semantic_review_rejects_target_and_disables_prover(
         "semantic_review_packet_id"
     ]
     assert handoff["target_task_id"] == result.next_task.task_id
+
+
+def test_formal_target_review_derives_verdict_and_owner_from_scope(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        "REVISE",
+        reviewer_response_overrides={
+            "overall_verdict": "ACCEPT",
+            "repair_owner": "Formalizer",
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REVISE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
+    review_packet = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "FormalTargetSemanticReviewPacket"
+    )
+    assert review_packet["model_requested_overall_verdict"] == "ACCEPT"
+    assert review_packet["model_requested_repair_owner"] == "Formalizer"
+    assert review_packet["overall_verdict"] == "REVISE"
+    assert review_packet["repair_scope"] == "formal_target"
+    assert review_packet["repair_owner"] == "FormalizationEvaluator"
+    assert validate_formal_target_semantic_review_packet(review_packet) == []
+
+
+def test_formal_target_invalid_scope_preserves_typed_failure_lineage(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        "REVISE",
+        reviewer_response_overrides={"repair_scope": "none"},
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "BLOCKED"
+    assert result.failure_classification == (
+        "formal_target_semantic_review_packet_invalid"
+    )
+    failure = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeFormalTargetSemanticReviewValidationFailure"
+    )
+    assert failure["validation_attempts"] == 1
+    assert failure["llm_json_repair_history"]
+    assert failure["last_invalid_packet_available"] is True
+    assert failure["external_proof_search_dispatch_eligible"] is False
+    assert failure["kernel_verified"] is False
+    assert failure["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
 
 
 def test_formal_target_semantic_review_blocks_back_to_theory_developer(
@@ -511,7 +581,17 @@ def test_formal_target_semantic_review_prompt_is_domain_general() -> None:
 
     assert "Do not invent task-family rules" in prompt
     assert "do not propose tactics" in prompt
+    assert "AgentRuntime derives" in prompt
     assert "This review is never proof evidence" in prompt
+    assert "repair_scope" in FORMAL_TARGET_SEMANTIC_REVIEW_JSON_SCHEMA[
+        "properties"
+    ]
+    assert "overall_verdict" not in FORMAL_TARGET_SEMANTIC_REVIEW_JSON_SCHEMA[
+        "properties"
+    ]
+    assert "repair_owner" not in FORMAL_TARGET_SEMANTIC_REVIEW_JSON_SCHEMA[
+        "properties"
+    ]
 
 
 def test_formalizer_prompt_preserves_independent_target_review_reasoning() -> None:
@@ -632,7 +712,10 @@ def test_formal_target_review_validator_rejects_failed_dimension_acceptance() ->
 
     errors = validate_formal_target_semantic_review_packet(packet)
 
-    assert "overall_verdict cannot be ACCEPT while semantic blockers remain" in errors
+    assert (
+        "overall_verdict must be derived from the dimension reviews, findings, "
+        "and repair_scope"
+    ) in errors
 
 
 def test_already_compiling_exact_target_still_requires_semantic_review(

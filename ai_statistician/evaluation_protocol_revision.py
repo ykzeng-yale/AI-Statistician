@@ -391,6 +391,136 @@ def architect_metric_requirement_validation_failure_result(
     )
 
 
+def architect_metric_semantic_review_validation_failure_result(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+    exc: PacketValidationError,
+) -> AgentStepResult:
+    """Preserve an exhausted reviewer packet as typed control-plane evidence."""
+
+    context = invalidate_metric_protocol_authorization(architect_context)
+    validation_errors = [str(error) for error in exc.errors if str(error)]
+    last_invalid_packet = (
+        dict(exc.last_invalid_packet)
+        if isinstance(exc.last_invalid_packet, Mapping)
+        else {}
+    )
+    review_projection = {
+        key: deepcopy(last_invalid_packet.get(key))
+        for key in (
+            "packet_id",
+            "authoring_packet_id",
+            "authoring_packet_hash",
+            "reviewed_empirical_metric_requirement_set_id",
+            "review_input_fingerprint",
+            "model_requested_overall_verdict",
+            "overall_verdict",
+            "recommended_repair_scope",
+            "prior_finding_reviews",
+            "claim_checks",
+            "dimension_reviews",
+            "findings",
+            "repair_instructions",
+            "proof_evidence_status",
+        )
+        if key in last_invalid_packet
+    }
+    failure_id = (
+        "architect_metric_semantic_review_validation_failure:"
+        + stable_hash(
+            [
+                question.id,
+                task.task_id,
+                validation_errors,
+                exc.history,
+                review_projection,
+            ]
+        )[:20]
+    )
+    boundary = (
+        "This artifact records an independently generated pre-execution metric "
+        "review packet that remained structurally invalid after bounded repair. "
+        "The candidate protocol stays unauthorized; the invalid review is feedback "
+        "for the reviewer interface and is not execution, statistical acceptance, "
+        "or theorem proof evidence."
+    )
+    artifact = {
+        "schema_version": EVALUATION_PROTOCOL_REVISION_SCHEMA_VERSION,
+        "artifact_kind": (
+            "RuntimeArchitectMetricSemanticReviewValidationFailure"
+        ),
+        "failure_id": failure_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question_id": question.id,
+        "task_id": task.task_id,
+        "validation_label": exc.validation_label,
+        "validation_errors": validation_errors,
+        "validation_attempts": exc.attempts,
+        "llm_json_repair_history": [dict(row) for row in exc.history],
+        "last_invalid_packet_available": bool(last_invalid_packet),
+        "last_invalid_packet_fingerprint": (
+            stable_hash(last_invalid_packet) if last_invalid_packet else ""
+        ),
+        "last_invalid_review_projection": review_projection,
+        "metric_protocol_execution_authorized": False,
+        "runtime_architect_control": {
+            "metric_protocol_execution_authorized": False,
+            "architect_context_fingerprint": stable_hash(context),
+        },
+        "proof_evidence_status": (
+            "ARCHITECT_METRIC_SEMANTIC_REVIEW_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": boundary,
+    }
+    evidence = EvidenceLedgerEntry(
+        evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
+        task_id=task.task_id,
+        artifact_id=failure_id,
+        evidence_type="architect_metric_semantic_review_validation_failure",
+        status="PREEXECUTION_REVIEW_PACKET_INVALID_NOT_EVIDENCE",
+        boundary=boundary,
+        payload={
+            "validation_errors": validation_errors,
+            "validation_attempts": exc.attempts,
+            "metric_protocol_execution_authorized": False,
+            "kernel_verified": False,
+        },
+    )
+    return AgentStepResult(
+        status="BLOCKED",
+        rationale=(
+            "The independent metric reviewer exhausted bounded packet repair; "
+            "its exact validation lineage was preserved without authorizing "
+            "generated execution."
+        ),
+        produced_artifacts={failure_id: artifact},
+        observations=(
+            EnvironmentObservation(
+                observation_type=(
+                    "architect_metric_semantic_review_packet_invalid"
+                ),
+                summary="; ".join(validation_errors)[:500],
+                payload={
+                    "failure_id": failure_id,
+                    "validation_errors": validation_errors,
+                    "validation_attempts": exc.attempts,
+                    "metric_protocol_execution_authorized": False,
+                    "proof_evidence_status": artifact[
+                        "proof_evidence_status"
+                    ],
+                },
+            ),
+        ),
+        evidence_entries=(evidence,),
+        next_task=None,
+        failure_classification=(
+            "architect_metric_semantic_review_packet_validation_failed"
+        ),
+    )
+
+
 def architect_preexecution_metric_protocol_rejection_result(
     *,
     task: AgentTask,

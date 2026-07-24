@@ -677,20 +677,96 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                 trusted_lineage=trusted_lineage,
             )
         except PacketValidationError as exc:
+            last_invalid_packet = (
+                dict(exc.last_invalid_packet)
+                if isinstance(exc.last_invalid_packet, Mapping)
+                else {}
+            )
+            invalid_review_projection = {
+                key: last_invalid_packet.get(key)
+                for key in (
+                    "packet_id",
+                    "review_input_fingerprint",
+                    "model_requested_overall_verdict",
+                    "model_requested_repair_owner",
+                    "model_requested_repair_scope",
+                    "overall_verdict",
+                    "repair_scope",
+                    "repair_owner",
+                    "dimension_reviews",
+                    "findings",
+                    "repair_instructions",
+                    "blocking_reason",
+                    "proof_evidence_status",
+                )
+                if key in last_invalid_packet
+            }
+            failure_id = (
+                "formal_target_semantic_review_validation_failure:"
+                + stable_hash(
+                    [
+                        work_order_id,
+                        list(exc.errors),
+                        exc.history,
+                        invalid_review_projection,
+                    ]
+                )[:20]
+            )
+            failure_artifact = {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "artifact_kind": (
+                    "RuntimeFormalTargetSemanticReviewValidationFailure"
+                ),
+                "failure_id": failure_id,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "question_id": question.id,
+                "task_id": task.task_id,
+                "work_order_id": work_order_id,
+                "work_order_hash": work_order_hash,
+                "materialization_id": materialization_id,
+                "materialization_hash": stable_hash(materialization),
+                "validation_label": exc.validation_label,
+                "validation_errors": list(exc.errors),
+                "validation_attempts": exc.attempts,
+                "llm_json_repair_history": [
+                    dict(row) for row in exc.history
+                ],
+                "last_invalid_packet_available": bool(last_invalid_packet),
+                "last_invalid_packet_fingerprint": (
+                    stable_hash(last_invalid_packet)
+                    if last_invalid_packet
+                    else ""
+                ),
+                "last_invalid_review_projection": (
+                    invalid_review_projection
+                ),
+                "external_proof_search_dispatch_eligible": False,
+                "kernel_verified": False,
+                "proof_evidence_status": (
+                    "FORMAL_TARGET_SEMANTIC_REVIEW_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
+                ),
+                "evidence_boundary": FORMAL_TARGET_SEMANTIC_REVIEW_BOUNDARY,
+            }
             return AgentStepResult(
                 status="BLOCKED",
                 rationale=(
                     "The independent formal-target reviewer exhausted typed packet "
                     "repair without a contract-valid verdict."
                 ),
-                produced_artifacts={materialization_id: materialization},
+                produced_artifacts={
+                    materialization_id: materialization,
+                    failure_id: failure_artifact,
+                },
                 observations=(
                     EnvironmentObservation(
                         observation_type="formal_target_semantic_review_packet_invalid",
                         summary=str(exc)[:500],
                         payload={
                             "work_order_id": work_order_id,
+                            "failure_id": failure_id,
                             "validation_errors": list(exc.errors),
+                            "validation_attempts": exc.attempts,
+                            "external_proof_search_dispatch_eligible": False,
                             "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                         },
                     ),

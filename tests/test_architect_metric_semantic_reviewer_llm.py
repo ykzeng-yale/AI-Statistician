@@ -24,6 +24,9 @@ from ai_statistician.model_backend import GeneratorResponse
 from ai_statistician.research_schema import OpenResearchQuestion
 
 
+TEST_HAIKU_MODEL = "claude-haiku-4-5-20251001"
+
+
 def _generic_requirement(**overrides: object) -> dict[str, object]:
     row: dict[str, object] = {
         "requirement_id": "generic_gate",
@@ -158,7 +161,7 @@ class _SequenceBackend:
 def _review(
     *,
     accept: bool,
-    reviewer_model: str = "claude-sonnet-4-6",
+    reviewer_model: str = TEST_HAIKU_MODEL,
     payload: dict[str, object] | None = None,
     material: dict[str, object] | None = None,
 ):
@@ -179,7 +182,7 @@ def _review(
         config=ArchitectMetricSemanticReviewerConfig(
             provider_name="anthropic",
             model=reviewer_model,
-            model_tier="sonnet",
+            model_tier="haiku",
             max_repair_attempts=0,
         ),
     ).review(
@@ -194,8 +197,8 @@ def _review(
             "authoring_packet_hash": stable_hash({"candidate": 1}),
             "empirical_metric_requirement_set_id": requirement_set_id,
             "source_agent": "ArchitectMetricContractPlanner",
-            "source_model": "claude-sonnet-4-6",
-            "source_model_tier": "sonnet",
+            "source_model": TEST_HAIKU_MODEL,
+            "source_model_tier": "haiku",
         },
     )
     return packet, backend, material
@@ -222,7 +225,7 @@ def test_preexecution_metric_reviewer_accepts_only_with_independent_lineage() ->
     assert backend.requests[0].metadata["subsystem"] == (
         "ArchitectMetricSemanticReviewer"
     )
-    assert backend.requests[0].metadata["model_tier"] == "sonnet"
+    assert backend.requests[0].metadata["model_tier"] == "haiku"
     assert backend.requests[0].metadata["provider_structured_output"] is True
     assert "before any coding agent" in backend.requests[0].user_prompt
     assert "more gates are not more rigorous" in backend.requests[0].user_prompt
@@ -263,6 +266,19 @@ def test_preexecution_metric_reviewer_accepts_only_with_independent_lineage() ->
     assert packet["runtime_evaluator_certificate_set_id"].startswith(
         "generated_metric_evaluator_certificate_set:"
     )
+
+
+def test_metric_reviewer_derives_verdict_from_granular_judgments() -> None:
+    payload = _review_payload(accept=True)
+    payload["overall_verdict"] = "REVISE"
+
+    packet, backend, _ = _review(accept=True, payload=payload)
+
+    assert "overall_verdict" not in backend.requests[0].schema["properties"]
+    assert packet["model_requested_overall_verdict"] == "REVISE"
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["recommended_repair_scope"] == "none"
+    assert validate_architect_metric_semantic_review_packet(packet) == []
 
 
 def test_preexecution_metric_reviewer_returns_typed_revision_feedback() -> None:
@@ -337,8 +353,8 @@ def test_preexecution_metric_reviewer_routes_missing_semantics_upstream() -> Non
         provider=backend,
         config=ArchitectMetricSemanticReviewerConfig(
             provider_name="anthropic",
-            model="claude-sonnet-4-6",
-            model_tier="sonnet",
+            model=TEST_HAIKU_MODEL,
+            model_tier="haiku",
             max_repair_attempts=0,
         ),
     ).review(
@@ -359,8 +375,8 @@ def test_preexecution_metric_reviewer_routes_missing_semantics_upstream() -> Non
                 generated_metric_requirement_set_id([_generic_requirement()])
             ),
             "source_agent": "ArchitectMetricContractPlanner",
-            "source_model": "claude-sonnet-4-6",
-            "source_model_tier": "sonnet",
+            "source_model": TEST_HAIKU_MODEL,
+            "source_model_tier": "haiku",
         },
     )
 
@@ -369,7 +385,7 @@ def test_preexecution_metric_reviewer_routes_missing_semantics_upstream() -> Non
 
 
 def test_preexecution_metric_reviewer_accepts_separate_same_model_invocation() -> None:
-    packet, _, _ = _review(accept=True, reviewer_model="claude-sonnet-4-6")
+    packet, _, _ = _review(accept=True, reviewer_model=TEST_HAIKU_MODEL)
 
     assert packet["independent_agent"] is True
     assert packet["independent_invocation"] is True
@@ -423,8 +439,8 @@ def test_metric_reviewer_repair_preserves_exact_active_finding_context() -> None
         provider=backend,
         config=ArchitectMetricSemanticReviewerConfig(
             provider_name="anthropic",
-            model="claude-sonnet-4-6",
-            model_tier="sonnet",
+            model=TEST_HAIKU_MODEL,
+            model_tier="haiku",
             max_repair_attempts=1,
         ),
     ).review(
@@ -443,8 +459,8 @@ def test_metric_reviewer_repair_preserves_exact_active_finding_context() -> None
                 )
             ),
             "source_agent": "ArchitectMetricContractPlanner",
-            "source_model": "claude-sonnet-4-6",
-            "source_model_tier": "sonnet",
+            "source_model": TEST_HAIKU_MODEL,
+            "source_model_tier": "haiku",
         },
     )
 
@@ -642,7 +658,7 @@ def test_metric_review_schema_transforms_for_anthropic_structured_output() -> No
     transformed = anthropic.transform_schema(dynamic_schema)
 
     assert transformed["type"] == "object"
-    assert transformed["properties"]["overall_verdict"]["type"] == "string"
+    assert "overall_verdict" not in transformed["properties"]
     transformed_prior_schema = transformed["properties"][
         "prior_finding_reviews"
     ]
