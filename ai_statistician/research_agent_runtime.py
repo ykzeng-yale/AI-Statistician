@@ -8702,7 +8702,35 @@ def _architect_context_with_bound_metric_protocol_theory_material(
                     "METRIC_PROTOCOL_THEORY_LINEAGE_INVALIDATION_NOT_PROOF_EVIDENCE"
                 ),
             }
+    else:
+        context.pop("architect_metric_protocol_authority_invalidation", None)
     return context
+
+
+def _architect_packet_metric_protocol_authority_matches_current_theory(
+    *,
+    packet: Mapping[str, Any],
+    architect_context: Mapping[str, Any],
+) -> bool:
+    evidence_contract = packet.get("evidence_contract", {})
+    evidence_contract = (
+        evidence_contract if isinstance(evidence_contract, Mapping) else {}
+    )
+    metric_authoring = packet.get("metric_requirement_authoring", {})
+    metric_authoring = (
+        metric_authoring if isinstance(metric_authoring, Mapping) else {}
+    )
+    theory_material = architect_context.get(
+        "architect_metric_protocol_theory_material", {}
+    )
+    theory_material = (
+        theory_material if isinstance(theory_material, Mapping) else {}
+    )
+    return reviewed_metric_protocol_authority_matches_theory(
+        evidence_contract=evidence_contract,
+        metric_authoring=metric_authoring,
+        theory_material=theory_material,
+    )
 
 
 def _architect_context_with_rehydrated_metric_protocol_theory_material(
@@ -9399,6 +9427,14 @@ def _architect_initial_routing_decision(
             target_subsystem=selected["selected_subsystem"],
             theory_packet_id=_architect_context_theory_packet_id(context),
         )
+    metric_protocol_execution_route_authorized = bool(
+        selected["selected_subsystem"]
+        in {"AlgorithmEngineer", "SimulationEvaluator"}
+        and _architect_packet_metric_protocol_authority_matches_current_theory(
+            packet=packet,
+            architect_context=context,
+        )
+    )
     record = {
         "artifact_kind": "ArchitectInitialRoutingDecision",
         "selected_subsystem": selected["selected_subsystem"],
@@ -9465,7 +9501,7 @@ def _architect_initial_routing_decision(
             deferred_meta_gap.get("requested_next_owner_subsystem", "")
         )
     context["architect_initial_routing"] = record
-    if record["source"] == "theory_informed_metric_protocol_accepted":
+    if metric_protocol_execution_route_authorized:
         metric_gate = context.get("architect_metric_protocol_gate", {})
         if isinstance(metric_gate, Mapping):
             consumed_gate = dict(metric_gate)
@@ -9479,6 +9515,11 @@ def _architect_initial_routing_decision(
                 else ""
             )
             context["architect_metric_protocol_gate"] = consumed_gate
+            context.pop(
+                "architect_metric_protocol_authority_invalidation",
+                None,
+            )
+            record["metric_protocol_authority_consumed"] = True
         dependency_rebuild = context.get("runtime_dependency_rebuild", {})
         if (
             isinstance(dependency_rebuild, Mapping)
@@ -9588,7 +9629,12 @@ def _architect_initial_routing_decision(
             )
         evidence_contract = packet.get("evidence_contract", {})
         requires_accepted_algorithm_handoff = bool(
-            record["source"] == "theory_informed_metric_protocol_accepted"
+            metric_protocol_execution_route_authorized
+            and record["source"]
+            in {
+                "theory_informed_metric_protocol_accepted",
+                "generated_code_semantic_review_pending_source_repair",
+            }
             and isinstance(evidence_contract, Mapping)
             and evidence_contract.get(
                 "capability_eval_requires_generated_algorithm_code"
@@ -12287,7 +12333,9 @@ class TheoryDeveloperRuntimeSubsystem:
             packet["packet_id"] = packet_id
             packet["runtime_revision_artifact"] = True
         prior_theory_packet_id = str(
-            context.get("previous_theory_packet_id", "") or ""
+            context.get("previous_theory_packet_id", "")
+            or context.get("theory_packet_id", "")
+            or ""
         ).strip()
         theory_revision = bool(
             prior_theory_packet_id and prior_theory_packet_id != packet_id
@@ -12296,6 +12344,9 @@ class TheoryDeveloperRuntimeSubsystem:
             packet = dict(packet)
             packet.setdefault("parent_theory_packet_id", prior_theory_packet_id)
             packet["runtime_revision_artifact"] = True
+            context = _runtime_context_with_reset_empirical_source_repair_attempts(
+                context
+            )
         context["theory_packet_id"] = packet_id
         theory_derivation_contract = dict(
             packet.get("theory_derivation_contract", {}) or {}
@@ -13544,6 +13595,11 @@ def _runtime_generated_code_source_repair_budget_state(
     context = dict(context) if isinstance(context, Mapping) else {}
     feedback = repair_task.inputs.get("environment_feedback", {})
     feedback = dict(feedback) if isinstance(feedback, Mapping) else {}
+    theory_packet_id = str(
+        repair_task.inputs.get("theory_packet_id", "")
+        or _architect_context_theory_packet_id(context)
+        or ""
+    )
     if source_subsystem == "SimulationEvaluator":
         yield_after_attempts = (
             _runtime_simulation_evaluator_generated_code_repair_yield_after_attempts(
@@ -13553,7 +13609,8 @@ def _runtime_generated_code_source_repair_budget_state(
         )
         attempts_used = (
             _runtime_simulation_evaluator_generated_code_repair_attempts_used(
-                context
+                context,
+                theory_packet_id=theory_packet_id,
             )
         )
     elif source_subsystem == "AlgorithmEngineer":
@@ -13565,7 +13622,8 @@ def _runtime_generated_code_source_repair_budget_state(
         )
         attempts_used = (
             _runtime_algorithm_engineer_generated_code_repair_attempts_used(
-                context
+                context,
+                theory_packet_id=theory_packet_id,
             )
         )
     else:
@@ -13573,6 +13631,7 @@ def _runtime_generated_code_source_repair_budget_state(
         attempts_used = 0
     return {
         "source_subsystem": source_subsystem,
+        "theory_packet_id": theory_packet_id,
         "attempts_used": max(0, int(attempts_used or 0)),
         "yield_after_attempts": max(
             0,
@@ -16424,7 +16483,8 @@ class SimulationEvaluatorRuntimeSubsystem:
             )
             repair_attempts_used = (
                 _runtime_simulation_evaluator_generated_code_repair_attempts_used(
-                    effective_context
+                    effective_context,
+                    theory_packet_id=packet_id,
                 )
             )
             repair_budget_exhausted = bool(
@@ -16703,6 +16763,9 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "simulation_manifest_id": manifest_id,
                     "simulation_evaluator_generated_code_repair_attempts_used": (
                         repair_attempts_used + 1
+                    ),
+                    "simulation_evaluator_generated_code_repair_theory_packet_id": (
+                        packet_id
                     ),
                     "simulation_evaluator_generated_code_repair_yield_after_attempts": (
                         yield_after_attempts
@@ -17559,7 +17622,8 @@ class AlgorithmEngineerRuntimeSubsystem:
             )
             repair_attempts_used = (
                 _runtime_algorithm_engineer_generated_code_repair_attempts_used(
-                    effective_context
+                    effective_context,
+                    theory_packet_id=packet_id,
                 )
             )
             local_repair_budget_exhausted = bool(
@@ -17651,6 +17715,9 @@ class AlgorithmEngineerRuntimeSubsystem:
                     "algorithm_sandbox_manifest_id": manifest_id,
                     "algorithm_engineer_generated_code_repair_attempts_used": (
                         repair_attempts_used + 1
+                    ),
+                    "algorithm_engineer_generated_code_repair_theory_packet_id": (
+                        packet_id
                     ),
                     "algorithm_engineer_generated_code_repair_yield_after_attempts": (
                         yield_after_attempts
@@ -65173,11 +65240,47 @@ def _runtime_formalizer_lean_candidate_repair_yield_to_gap_planner_after_attempt
     )
 
 
+def _runtime_context_with_reset_empirical_source_repair_attempts(
+    context: Mapping[str, Any],
+) -> dict[str, Any]:
+    updated = dict(context)
+    loop = context.get("runtime_feedback_loop", {})
+    if not isinstance(loop, Mapping):
+        return updated
+    reset_loop = dict(loop)
+    for key in (
+        "algorithm_engineer_generated_code_repair_attempts_used",
+        "algorithm_engineer_generated_code_repair_turns",
+        "algorithm_engineer_generated_code_repair_theory_packet_id",
+        "simulation_evaluator_generated_code_repair_attempts_used",
+        "simulation_evaluator_generated_code_repair_turns",
+        "simulation_evaluator_generated_code_repair_theory_packet_id",
+    ):
+        reset_loop.pop(key, None)
+    updated["runtime_feedback_loop"] = reset_loop
+    return updated
+
+
 def _runtime_algorithm_engineer_generated_code_repair_attempts_used(
     context: Mapping[str, Any],
+    *,
+    theory_packet_id: str = "",
 ) -> int:
     loop = context.get("runtime_feedback_loop", {})
     if not isinstance(loop, Mapping):
+        return 0
+    repair_theory_packet_id = str(
+        loop.get(
+            "algorithm_engineer_generated_code_repair_theory_packet_id",
+            "",
+        )
+        or ""
+    )
+    if (
+        theory_packet_id
+        and repair_theory_packet_id
+        and repair_theory_packet_id != theory_packet_id
+    ):
         return 0
     for key in (
         "algorithm_engineer_generated_code_repair_attempts_used",
@@ -65192,9 +65295,24 @@ def _runtime_algorithm_engineer_generated_code_repair_attempts_used(
 
 def _runtime_simulation_evaluator_generated_code_repair_attempts_used(
     context: Mapping[str, Any],
+    *,
+    theory_packet_id: str = "",
 ) -> int:
     loop = context.get("runtime_feedback_loop", {})
     if not isinstance(loop, Mapping):
+        return 0
+    repair_theory_packet_id = str(
+        loop.get(
+            "simulation_evaluator_generated_code_repair_theory_packet_id",
+            "",
+        )
+        or ""
+    )
+    if (
+        theory_packet_id
+        and repair_theory_packet_id
+        and repair_theory_packet_id != theory_packet_id
+    ):
         return 0
     for key in (
         "simulation_evaluator_generated_code_repair_attempts_used",

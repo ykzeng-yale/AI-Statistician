@@ -1547,7 +1547,19 @@ def test_theory_revision_rebuilds_descendants_through_exploratory_simulation() -
             inputs={
                 "question": runtime_module._question_to_payload(question),
                 "architect_context": {
-                    "previous_theory_packet_id": parent_packet_id,
+                    "theory_packet_id": parent_packet_id,
+                    "runtime_feedback_loop": {
+                        "source_subsystem": "SimulationEvaluator",
+                        "critic_repair_round": 2,
+                        "algorithm_engineer_generated_code_repair_attempts_used": 1,
+                        "algorithm_engineer_generated_code_repair_theory_packet_id": (
+                            parent_packet_id
+                        ),
+                        "simulation_evaluator_generated_code_repair_attempts_used": 1,
+                        "simulation_evaluator_generated_code_repair_theory_packet_id": (
+                            parent_packet_id
+                        ),
+                    },
                     "previous_simulation_manifest_id": (
                         "simulation_manifest:dependency-parent"
                     ),
@@ -1606,6 +1618,18 @@ def test_theory_revision_rebuilds_descendants_through_exploratory_simulation() -
     assert result.observations[0].payload[
         "theory_revision_dependency_rebuild_required"
     ] is True
+    revised_loop = result.next_task.inputs["architect_context"][
+        "runtime_feedback_loop"
+    ]
+    assert revised_loop["critic_repair_round"] == 2
+    assert (
+        "algorithm_engineer_generated_code_repair_attempts_used"
+        not in revised_loop
+    )
+    assert (
+        "simulation_evaluator_generated_code_repair_attempts_used"
+        not in revised_loop
+    )
     assert "non-confirmatory simulation handoff" in result.rationale
 
 
@@ -23809,6 +23833,136 @@ def test_theory_revision_keeps_pending_source_repairs_for_fresh_code() -> None:
     )
 
 
+def test_pending_source_repair_consumes_current_theory_metric_authority() -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    theory_packet = _structured_theory_packet_fixture()
+    theory_packet_id = str(theory_packet["packet_id"])
+    context = _with_accepted_metric_protocol(
+        _theory_informed_metric_context_fixture(),
+        required_runtime_replicates=17,
+    )
+    evidence_contract = copy.deepcopy(
+        context["architect_runtime_plan"]["evidence_contract"]
+    )
+    context["architect_metric_protocol_gate"] = {
+        **context["architect_metric_protocol_gate"],
+        "execution_authorized": False,
+        "consumed": False,
+        "rehydrated_from_blackboard": True,
+    }
+    context["architect_metric_protocol_authority_invalidation"] = {
+        "artifact_kind": "RuntimeMetricProtocolTheoryLineageInvalidation",
+        "current_source_theory_packet_id": theory_packet_id,
+        "execution_authorized": False,
+    }
+    context[
+        "runtime_generated_code_semantic_review_pending_source_repair"
+    ] = {
+        "artifact_kind": (
+            "RuntimeGeneratedCodeSemanticReviewPendingSourceRepair"
+        ),
+        "pending_source_repair_id": "pending-source-repair:current-theory",
+        "target_subsystem": "AlgorithmEngineer",
+        "revised_theory_packet_id": theory_packet_id,
+        "dispatch_status": "PENDING_AFTER_THEORY_REVISION",
+        "source_manifest_id": "algorithm_sandbox_manifest:rejected",
+        "findings": [
+            {
+                "repair_scope": "source_code",
+                "summary": "Regenerate the implementation for the revised theory.",
+            }
+        ],
+    }
+    context["empirical_evaluation_phase"] = (
+        EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+    )
+    context["runtime_dependency_rebuild"] = {
+        "artifact_kind": "RuntimeTheoryRevisionDependencyRebuild",
+        "parent_theory_packet_id": "theory_derivation:parent",
+        "revised_theory_packet_id": theory_packet_id,
+        "resolution_status": "PENDING_PREEXECUTION_METRIC_PROTOCOL",
+    }
+    packet = _architect_sample_response(required_runtime_replicates=17)
+    packet["packet_id"] = "architect_coordinator_proposal:pending-source"
+    packet["evidence_contract"] = evidence_contract
+    packet["metric_requirement_authoring"] = copy.deepcopy(
+        context["architect_metric_requirement_authoring"]
+    )
+    blackboard = BlackboardState(
+        project_id="pending-source-current-authority",
+        artifacts={theory_packet_id: theory_packet},
+    )
+
+    routed = runtime_module._architect_initial_routing_decision(
+        question=question,
+        packet=packet,
+        architect_context=context,
+        packet_id=str(packet["packet_id"]),
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            n_runs=17,
+        ),
+        blackboard=blackboard,
+    )
+
+    assert routed["record"]["source"] == (
+        "generated_code_semantic_review_pending_source_repair"
+    )
+    assert routed["record"]["metric_protocol_authority_consumed"] is True
+    assert routed["task"].owner_subsystem == "AlgorithmEngineer"
+    routed_context = routed["task"].inputs["architect_context"]
+    routed_gate = routed_context["architect_metric_protocol_gate"]
+    assert routed_gate["execution_authorized"] is True
+    assert routed_gate["consumed"] is True
+    assert (
+        routed_gate["accepted_requirement_set_id"]
+        == evidence_contract["empirical_metric_requirement_set_id"]
+    )
+    assert "architect_metric_protocol_authority_invalidation" not in (
+        routed_context
+    )
+    assert "empirical_evaluation_phase" not in routed_context
+    assert routed_context["runtime_dependency_rebuild"][
+        "resolution_status"
+    ] == "PREEXECUTION_METRIC_PROTOCOL_ACCEPTED"
+    assert (
+        runtime_module._runtime_metric_protocol_authoring_required(
+            evidence_contract=evidence_contract,
+            architect_context=routed_context,
+        )
+        is False
+    )
+
+    stale_packet = copy.deepcopy(packet)
+    stale_packet["evidence_contract"][
+        "empirical_metric_requirements_preexecution_review"
+    ]["source_theory_packet_hash"] = "stale-theory-hash"
+    stale_packet["metric_requirement_authoring"][
+        "source_theory_packet_hash"
+    ] = "stale-theory-hash"
+    stale_routed = runtime_module._architect_initial_routing_decision(
+        question=question,
+        packet=stale_packet,
+        architect_context=context,
+        packet_id="architect_coordinator_proposal:stale-source",
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            n_runs=17,
+        ),
+        blackboard=blackboard,
+    )
+    stale_context = stale_routed["task"].inputs["architect_context"]
+    assert stale_context["architect_metric_protocol_gate"][
+        "execution_authorized"
+    ] is False
+    assert "metric_protocol_authority_consumed" not in stale_routed["record"]
+    assert (
+        "architect_metric_protocol_authority_invalidation" in stale_context
+    )
+
+
 def _source_code_revise_semantic_review_payload() -> dict[str, object]:
     return {
         "dimension_reviews": [
@@ -23977,6 +24131,7 @@ def test_semantic_review_honors_exhausted_source_repair_budget(
     work_order = dispatch["work_order"]
     assert work_order["source_repair_budget"] == {
         "source_subsystem": "SimulationEvaluator",
+        "theory_packet_id": "theory_derivation:source-budget",
         "attempts_used": 1,
         "yield_after_attempts": 1,
         "budget_exhausted": True,
@@ -24250,6 +24405,23 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
             )
 
     backend = SequencedAnthropicBackend()
+    theory_packet = _structured_theory_packet_fixture(
+        "theory_derivation:structured"
+    )
+    theory_packet["estimator_specs"] = [
+        {
+            "id": "theory-owned-candidate",
+            "name": "Theory-owned candidate",
+            "algorithm_sketch": "Implement the estimator from the accepted theory.",
+        }
+    ]
+    metric_context = _theory_informed_metric_context_fixture()
+    metric_context["architect_metric_protocol_theory_material"] = (
+        build_theory_informed_metric_protocol_material(
+            theory_packet=theory_packet,
+            theory_packet_id=str(theory_packet["packet_id"]),
+        )
+    )
     packet = LLMArchitectCoordinatorAgent(
         provider=backend,
         config=ArchitectCoordinatorConfig(
@@ -24264,7 +24436,7 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         ),
     ).propose(
         question=question,
-        architect_context=_theory_informed_metric_context_fixture(),
+        architect_context=metric_context,
         runtime_config={
             "evaluation_mode": "capability_eval",
             "formal_verification_policy": "required",
@@ -24434,7 +24606,6 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         def propose(self, **_kwargs):
             return packet
 
-    metric_context = _theory_informed_metric_context_fixture()
     metric_context["empirical_evaluation_phase"] = (
         EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
     )
@@ -24454,16 +24625,6 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
             "THEORY_REVISION_DEPENDENCY_REBUILD_NOT_PROOF_EVIDENCE"
         ),
     }
-    theory_packet = _structured_theory_packet_fixture(
-        "theory_derivation:structured"
-    )
-    theory_packet["estimator_specs"] = [
-        {
-            "id": "theory-owned-candidate",
-            "name": "Theory-owned candidate",
-            "algorithm_sketch": "Implement the estimator from the accepted theory.",
-        }
-    ]
     routed = ArchitectCoordinatorRuntimeSubsystem(
         coordinator=AcceptedCoordinator(),  # type: ignore[arg-type]
         runtime_config=ResearchAgentRuntimeConfig(
