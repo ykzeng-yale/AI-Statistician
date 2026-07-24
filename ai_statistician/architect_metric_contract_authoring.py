@@ -1779,6 +1779,11 @@ def author_reviewed_architect_metric_requirements(
                 "dimension_reviews": list(
                     semantic_review_packet.get("dimension_reviews", []) or []
                 ),
+                "claim_checks": [
+                    dict(row)
+                    for row in semantic_review_packet.get("claim_checks", []) or []
+                    if isinstance(row, Mapping)
+                ],
                 "findings": routed_findings,
                 "repair_instructions": list(
                     semantic_review_packet.get("repair_instructions", []) or []

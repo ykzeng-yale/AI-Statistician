@@ -555,23 +555,35 @@ def advance_generated_code_semantic_review_lineage_budget(
     )
     if len(ledger) > 32:
         ledger = dict(list(ledger.items())[-32:])
+    local_repair_available = bool(
+        (
+            row["repair_scope"] == "source_code"
+            and source_local_repair_count < row["max_local_revisions"]
+            and source_architect_replan_count == 0
+        )
+        or post_replan_local_repair_available
+    )
+    architect_replan_available = bool(
+        row["repair_scope"] != "source_code"
+        and source_architect_replan_count == 0
+    )
     return {
         "lineage_key": lineage_key,
         "source_lineage_key": source_lineage_key,
         "row": row,
         "ledger": ledger,
-        "local_repair_available": bool(
+        "local_repair_available": local_repair_available,
+        "architect_replan_available": architect_replan_available,
+        "lineage_budget_exhausted": bool(
             (
                 row["repair_scope"] == "source_code"
-                and source_local_repair_count < row["max_local_revisions"]
-                and source_architect_replan_count == 0
+                and not local_repair_available
             )
-            or post_replan_local_repair_available
-        ),
-        "architect_replan_available": source_architect_replan_count == 0,
-        "lineage_budget_exhausted": bool(
-            source_architect_replan_count > 0
-            and not post_replan_local_repair_available
+            or (
+                row["repair_scope"] != "source_code"
+                and source_architect_replan_count > 0
+                and not post_replan_local_repair_available
+            )
         ),
     }
 

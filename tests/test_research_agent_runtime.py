@@ -24905,6 +24905,12 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert packet["metric_requirement_authoring"][
         "semantic_review_independent_model"
     ] is False
+    semantic_review_history = packet["metric_requirement_authoring"][
+        "semantic_review_history"
+    ]
+    assert semantic_review_history[0]["claim_checks"][0]["check_type"] == (
+        "direct_substitution"
+    )
     review_certificate = packet["evidence_contract"][
         "empirical_metric_requirements_preexecution_review"
     ]
@@ -25482,15 +25488,20 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
                         }
                         for row in active_prior_findings
                     ],
-                    "claim_checks": [
-                        {
+                    "theory_scope_checks": {
+                        "generic:simulationengineer:gate": {
                             "claim_ref": "theory:generic_gate",
-                            "check_type": "direct_substitution",
-                            "recomputation": "Substitute the stated theory value.",
+                            "recomputation": (
+                                "Substitute the stated theory value."
+                            ),
                             "result": "The symbolic gate is well defined.",
                             "verdict": "PASS",
-                            "evidence_refs": ["theory:generic_gate"],
-                        },
+                            "evidence_refs": [
+                                "theory#/theorem_cards/0/conclusion"
+                            ],
+                        }
+                    },
+                    "claim_checks": [
                         {
                             "claim_ref": "requirement:generic_gate",
                             "check_type": "uncertainty_scale",
@@ -25771,18 +25782,21 @@ def test_live_architect_stops_metric_rewrites_for_upstream_theory_gap() -> None:
                 payload = {"empirical_metric_requirements": metric_rows}
             elif subsystem == "ArchitectMetricSemanticReviewer":
                 payload = {
-                        "claim_checks": [
-                            {
+                        "theory_scope_checks": {
+                            "generic:simulationengineer:gate": {
                                 "claim_ref": "theory:procedure.calibration",
-                                "check_type": "direct_substitution",
                                 "recomputation": (
                                     "Substitute the candidate constant into the "
                                     "available source equation."
                                 ),
                                 "result": "The required calibration is absent.",
                                 "verdict": "FAIL",
-                                "evidence_refs": ["theory:procedure"],
-                            },
+                                "evidence_refs": [
+                                    "theory#/theorem_cards/0/conclusion"
+                                ],
+                            }
+                        },
+                        "claim_checks": [
                             {
                                 "claim_ref": "requirement:generic_gate",
                                 "check_type": "pass_set_translation",
@@ -25848,14 +25862,14 @@ def test_live_architect_stops_metric_rewrites_for_upstream_theory_gap() -> None:
     backend = UpstreamTheoryGapBackend()
     with pytest.raises(ArchitectMetricSemanticReviewRejected) as exc_info:
         LLMArchitectCoordinatorAgent(
-            provider=backend,
-            config=ArchitectCoordinatorConfig(
-                provider_name="anthropic",
-                model="claude-sonnet-4-6",
-                model_tier="sonnet",
-                max_tokens=8000,
-                metric_semantic_reviewer_max_revisions=2,
-            ),
+                provider=backend,
+                config=ArchitectCoordinatorConfig(
+                    provider_name="anthropic",
+                    model=LIVE_EVALUATION_CLAUDE_MODEL,
+                    model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+                    max_tokens=8000,
+                    metric_semantic_reviewer_max_revisions=2,
+                ),
         ).propose(
             question=question,
             architect_context=_theory_informed_metric_context_fixture(),
@@ -25932,17 +25946,22 @@ def test_live_architect_uses_artifact_router_to_correct_repair_owner() -> None:
                 payload = {"empirical_metric_requirements": metric_rows}
             elif subsystem == "ArchitectMetricSemanticReviewer":
                 payload = {
-                        "claim_checks": [
-                            {
+                        "theory_scope_checks": {
+                            "generic:simulationengineer:owner-routing": {
                                 "claim_ref": "theory_derivation_packet:E1",
-                                "check_type": "direct_substitution",
                                 "recomputation": (
                                     "Substitute the stated quantities into E1."
                                 ),
-                                "result": "The source equation is contradictory.",
+                                "result": (
+                                    "The source equation is contradictory."
+                                ),
                                 "verdict": "FAIL",
-                                "evidence_refs": ["theory_derivation_packet:E1"],
-                            },
+                                "evidence_refs": [
+                                    "theory#/theorem_cards/0/conclusion"
+                                ],
+                            }
+                        },
+                        "claim_checks": [
                             {
                                 "claim_ref": "requirement:owner-routing",
                                 "check_type": "pass_set_translation",
@@ -26031,8 +26050,8 @@ def test_live_architect_uses_artifact_router_to_correct_repair_owner() -> None:
             provider=backend,
             config=ArchitectCoordinatorConfig(
                 provider_name="anthropic",
-                model="claude-sonnet-4-6",
-                model_tier="sonnet",
+                model=LIVE_EVALUATION_CLAUDE_MODEL,
+                model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
                 max_tokens=8000,
                 metric_semantic_reviewer_max_revisions=2,
                 metric_repair_ownership_router_enabled=True,

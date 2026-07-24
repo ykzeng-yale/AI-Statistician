@@ -13980,6 +13980,11 @@ def test_llm_route_planner_reuses_only_valid_source_bound_staged_fragments(
                 "target_ids": [revision["staged_followup_rows"][0]["route_id"]],
                 "staged_followup_assembly_error_preview": [
                     "minimal_delta_plan.route_cost must equal selected primitive costs",
+                    (
+                        "staged_followup_stage[residual_batch_interpretation]: "
+                        "informal_knowledge_dag_nodes[1] SEARCH_REQUESTED "
+                        "requires a matching literature/source search_request"
+                    ),
                     "formal_attempt_queue missing selected-route formal DAG nodes",
                 ],
             }
@@ -14038,12 +14043,12 @@ def test_llm_route_planner_reuses_only_valid_source_bound_staged_fragments(
         prior_staged_followup_stage_attempts_jsonl=prior_attempts,
         formalization_gap_planner_route_contract_feedback_jsonl=feedback_path,
     )
-    assert len(feedback_backend.calls) == 3
-    assert feedback_revision["n_staged_followup_stage_attempts_reused"] == 2
+    assert len(feedback_backend.calls) == 4
+    assert feedback_revision["n_staged_followup_stage_attempts_reused"] == 1
     assert feedback_revision[
         "n_staged_followup_stage_reuse_blocked_by_contract_feedback"
-    ] == 1
-    assert feedback_revision["n_staged_followup_stage_provider_calls"] == 2
+    ] == 2
+    assert feedback_revision["n_staged_followup_stage_provider_calls"] == 3
     assert feedback_revision["n_staged_followup_stage_response_contract_ok"] == 4
     assert feedback_revision[
         "n_staged_followup_assembled_response_contract_ok"
@@ -14055,7 +14060,6 @@ def test_llm_route_planner_reuses_only_valid_source_bound_staged_fragments(
     ]
     assert [row["stage_id"] for row in feedback_reused_rows] == [
         "formal_realization_and_alignment",
-        "residual_batch_interpretation",
     ]
     feedback_blocked_rows = [
         row
@@ -14063,11 +14067,15 @@ def test_llm_route_planner_reuses_only_valid_source_bound_staged_fragments(
         if row.get("prior_stage_attempt_reuse_blocked_by_contract_feedback") is True
     ]
     assert [row["stage_id"] for row in feedback_blocked_rows] == [
-        "route_core_compaction"
+        "route_core_compaction",
+        "residual_batch_interpretation",
     ]
     assert feedback_blocked_rows[0][
         "prior_stage_attempt_reuse_blocking_output_fields"
     ] == ["minimal_delta_plan"]
+    assert feedback_blocked_rows[1][
+        "prior_stage_attempt_reuse_blocking_output_fields"
+    ] == ["search_requests"]
     feedback_stage_requests = {
         str(request.metadata.get("stage_id", "")): request
         for request in feedback_backend.calls

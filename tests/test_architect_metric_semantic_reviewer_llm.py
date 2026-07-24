@@ -178,6 +178,10 @@ def _review(
     requirement_set_id = generated_metric_requirement_set_id(
         material["empirical_metric_requirements"]
     )
+    theory_material = material.get("theory_developer_protocol_material", {})
+    theory_material = (
+        dict(theory_material) if isinstance(theory_material, dict) else {}
+    )
     packet = LLMArchitectMetricSemanticReviewerAgent(
         provider=backend,
         config=ArchitectMetricSemanticReviewerConfig(
@@ -200,6 +204,12 @@ def _review(
             "source_agent": "ArchitectMetricContractPlanner",
             "source_model": TEST_HAIKU_MODEL,
             "source_model_tier": "haiku",
+            "source_theory_packet_id": str(
+                theory_material.get("source_theory_packet_id", "") or ""
+            ),
+            "source_theory_packet_hash": str(
+                theory_material.get("source_theory_packet_hash", "") or ""
+            ),
         },
     )
     return packet, backend, material
@@ -241,6 +251,12 @@ def test_preexecution_metric_reviewer_accepts_only_with_independent_lineage() ->
     )
     assert "at least two claim_checks" in backend.requests[0].user_prompt
     assert "A citation without a displayed recomputation" in (
+        backend.requests[0].user_prompt
+    )
+    assert "entry in theory_scope_checks" in (
+        backend.requests[0].user_prompt
+    )
+    assert "cannot validate a claim over their wider stated scope" in (
         backend.requests[0].user_prompt
     )
     assert "topically related node is not enough" in backend.requests[0].user_prompt
@@ -302,6 +318,121 @@ def test_preexecution_metric_reviewer_requires_explicit_claim_recomputation() ->
 
     assert "claim_checks must contain at least two explicit recomputations" in str(
         exc_info.value
+    )
+
+
+def test_theory_bound_metric_review_requires_scope_consistency_check() -> None:
+    material = {
+        "review_stage": "pre_execution_metric_contract_review",
+        "execution_results_available": False,
+        "empirical_metric_requirements": [
+            _generic_requirement(
+                acceptance_authority_kind="theory_derived",
+                acceptance_authority_rationale=(
+                    "The cited theory node derives this generic gate."
+                ),
+                source_anchors=[
+                    "theory:generic-gate",
+                    "theory:generic-sanity",
+                ],
+            )
+        ],
+        "theory_developer_protocol_material": {
+            "source_theory_packet_id": "theory:scope-check",
+            "source_theory_packet_hash": stable_hash({"theory": "scope-check"}),
+            "theory_semantic_material": {
+                "theorem_cards": [
+                    {
+                        "id": "theorem:generic",
+                        "conclusion": "The claim holds throughout the stated domain.",
+                    }
+                ],
+                "sanity_checks": [
+                    {
+                        "id": "check:special-case",
+                        "result": "The identity holds at one special value.",
+                    }
+                ],
+            },
+        },
+    }
+    with pytest.raises(PacketValidationError) as exc_info:
+        _review(accept=True, material=material)
+
+    assert (
+        "theory-bound pre-execution review requires exactly one "
+        "theory_scope_consistency claim check for requirement_id generic_gate"
+    ) in str(exc_info.value)
+
+    wrong_type_payload = _review_payload(accept=True)
+    wrong_type_payload["claim_checks"][0]["requirement_id"] = "generic_gate"
+    with pytest.raises(PacketValidationError) as wrong_type_exc:
+        _review(
+            accept=True,
+            payload=wrong_type_payload,
+            material=material,
+        )
+    assert (
+        "may set requirement_id only for theory_scope_consistency"
+        in str(wrong_type_exc.value)
+    )
+
+    missing_anchor_payload = _review_payload(accept=True)
+    missing_anchor_payload["theory_scope_checks"] = {
+        "generic_gate": {
+            "claim_ref": "theory:generic-gate",
+            "recomputation": "Compare the stated and checked parameter scopes.",
+            "result": "The checked scope is narrower.",
+            "verdict": "FAIL",
+            "evidence_refs": ["theory:generic-gate"],
+        }
+    }
+    with pytest.raises(PacketValidationError) as missing_anchor_exc:
+        _review(
+            accept=True,
+            payload=missing_anchor_payload,
+            material=material,
+        )
+    assert "must cite every source anchor" in str(missing_anchor_exc.value)
+    assert "theory:generic-sanity" in str(missing_anchor_exc.value)
+
+    payload = _review_payload(accept=True)
+    payload["theory_scope_checks"] = {
+        "generic_gate": {
+            "claim_ref": "theory:generic-gate",
+            "recomputation": "Compare the stated and checked parameter scopes.",
+            "result": "The checked scope covers the stated scope.",
+            "verdict": "PASS",
+            "evidence_refs": [
+                "theory:generic-gate",
+                "theory:generic-sanity",
+            ],
+        }
+    }
+    packet, _, _ = _review(
+        accept=True,
+        payload=payload,
+        material=material,
+    )
+
+    assert packet["theory_scope_check_required"] is True
+    assert packet["source_theory_packet_id"] == "theory:scope-check"
+    assert validate_architect_metric_semantic_review_packet(packet) == []
+
+    contextless_material = {
+        key: value
+        for key, value in material.items()
+        if key != "theory_developer_protocol_material"
+    }
+    with pytest.raises(PacketValidationError) as context_exc:
+        _review(
+            accept=True,
+            payload=payload,
+            material=contextless_material,
+        )
+    assert (
+        "requires exact source theory lineage and semantic material"
+        in str(context_exc.value)
     )
 
 
@@ -924,6 +1055,14 @@ def test_metric_review_schema_transforms_for_anthropic_structured_output() -> No
                     "generated_metric_evaluator_certificate:test"
                 ]
             },
+            "theory_scope_check_contract": {
+                "rows": [
+                    {
+                        "requirement_id": "gate:one",
+                        "source_anchors": ["theory:gate-one"],
+                    }
+                ]
+            },
         }
     )
     transformed = anthropic.transform_schema(dynamic_schema)
@@ -942,6 +1081,22 @@ def test_metric_review_schema_transforms_for_anthropic_structured_output() -> No
     assert transformed["properties"]["findings"]["items"]["properties"][
         "prior_finding_id"
     ]["enum"] == ["", "finding:one", "finding:two"]
+    transformed_scope_schema = transformed["properties"][
+        "theory_scope_checks"
+    ]
+    assert transformed_scope_schema["required"] == ["gate:one"]
+    assert transformed_scope_schema["properties"]["gate:one"][
+        "properties"
+    ]["evidence_refs"]["items"]["enum"] == ["theory:gate-one"]
+    assert transformed_scope_schema["properties"]["gate:one"][
+        "properties"
+    ]["evidence_refs"]["minItems"] == 1
+    assert "requirement_id" not in transformed["properties"]["claim_checks"][
+        "items"
+    ]["properties"]
+    assert "theory_scope_consistency" not in transformed["properties"][
+        "claim_checks"
+    ]["items"]["properties"]["check_type"]["enum"]
     assert "minItems: 2" in transformed_prior_schema["description"]
     assert ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA["properties"][
         "prior_finding_reviews"

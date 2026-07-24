@@ -21,7 +21,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 
 
-ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 9
+ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 10
 ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -41,6 +41,19 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS = (
     "cross_requirement_coverage_and_consistency",
 )
 ARCHITECT_METRIC_SEMANTIC_MIN_CLAIM_CHECKS = 2
+ARCHITECT_METRIC_THEORY_SCOPE_CHECK_TYPE = "theory_scope_consistency"
+ARCHITECT_METRIC_GENERAL_CLAIM_CHECK_TYPES = (
+    "direct_substitution",
+    "normalization",
+    "boundary_case",
+    "uncertainty_scale",
+    "inequality_direction",
+    "pass_set_translation",
+)
+ARCHITECT_METRIC_THEORY_SCOPE_AUTHORITY_KINDS = (
+    "theory_derived",
+    "theory_parameter_instantiation",
+)
 ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_METRIC_CONTRACT = "metric_contract"
 ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY = "upstream_theory"
 ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPES = (
@@ -121,6 +134,9 @@ def architect_metric_review_material_with_runtime_evaluator_certificate(
     )
     body["runtime_contract_authority"] = authority
     body["runtime_evaluator_certificate"] = certificate
+    body["theory_scope_check_contract"] = (
+        _architect_metric_theory_scope_check_contract(requirements)
+    )
     current_evidence = architect_metric_active_prior_finding_current_evidence(
         body
     )
@@ -129,6 +145,64 @@ def architect_metric_review_material_with_runtime_evaluator_certificate(
         stable_hash(current_evidence) if current_evidence else ""
     )
     return body
+
+
+def _architect_metric_theory_scope_check_contract(
+    requirements: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    rows = []
+    for requirement in requirements:
+        requirement_id = str(
+            requirement.get("requirement_id", "") or ""
+        ).strip()
+        authority_kind = str(
+            requirement.get("acceptance_authority_kind", "") or ""
+        ).strip()
+        if (
+            not requirement_id
+            or requirement.get("required") is not True
+            or authority_kind
+            not in ARCHITECT_METRIC_THEORY_SCOPE_AUTHORITY_KINDS
+        ):
+            continue
+        rows.append(
+            {
+                "requirement_id": requirement_id,
+                "acceptance_authority_kind": authority_kind,
+                "source_anchors": list(
+                    dict.fromkeys(
+                        str(value).strip()
+                        for value in requirement.get("source_anchors", []) or []
+                        if str(value).strip()
+                    )
+                ),
+            }
+        )
+    return {
+        "required": bool(rows),
+        "required_check_type": ARCHITECT_METRIC_THEORY_SCOPE_CHECK_TYPE,
+        "rows": rows,
+        "coverage_policy": (
+            "Emit exactly one theory_scope_consistency claim check for every "
+            "listed requirement_id and cite every listed source anchor."
+        ),
+    }
+
+
+def _architect_metric_theory_scope_rows(
+    review_material: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    contract = review_material.get("theory_scope_check_contract", {})
+    return [
+        dict(row)
+        for row in (
+            contract.get("rows", [])
+            if isinstance(contract, Mapping)
+            else []
+        )
+        if isinstance(row, Mapping)
+        and str(row.get("requirement_id", "") or "").strip()
+    ]
 
 
 def architect_metric_semantic_recommended_repair_scope(
@@ -618,6 +692,23 @@ def build_architect_metric_semantic_review_prompt(
     question: OpenResearchQuestion,
     review_material: Mapping[str, Any],
 ) -> str:
+    required_output_contract = deepcopy(
+        ARCHITECT_METRIC_SEMANTIC_REVIEW_OUTPUT_CONTRACT
+    )
+    theory_scope_rows = _architect_metric_theory_scope_rows(review_material)
+    if theory_scope_rows:
+        required_output_contract["theory_scope_checks"] = {
+            str(row["requirement_id"]): {
+                "claim_ref": "exact foundational theory or procedure field",
+                "recomputation": (
+                    "explicit parameter, quantifier, and regime scope audit"
+                ),
+                "result": "computed or logically reduced scope comparison",
+                "verdict": "PASS|FAIL",
+                "evidence_refs": list(row.get("source_anchors", []) or []),
+            }
+            for row in theory_scope_rows
+        }
     payload = {
         "question": {
             "id": question.id,
@@ -627,7 +718,7 @@ def build_architect_metric_semantic_review_prompt(
         },
         "review_material": dict(review_material),
         "required_dimensions": list(ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS),
-        "required_output_contract": ARCHITECT_METRIC_SEMANTIC_REVIEW_OUTPUT_CONTRACT,
+        "required_output_contract": required_output_contract,
         "evidence_boundary": ARCHITECT_METRIC_SEMANTIC_REVIEW_BOUNDARY,
     }
     return (
@@ -672,6 +763,20 @@ def build_architect_metric_semantic_review_prompt(
         "displayed recomputation is not a claim check. Any failed claim check must "
         "produce a FAIL dimension and a high or critical finding; do not ask "
         "downstream code to work around an internally contradictory theory premise. "
+        "When review_material.theory_scope_check_contract.required is true, emit "
+        "exactly one entry in theory_scope_checks for every listed row before "
+        "accepting the contract. Use the exact requirement_id as the object key and "
+        "include every one of its source_anchors in evidence_refs. Audit "
+        "the anchors together: state the full parameter, quantifier, and regime "
+        "scope of the foundational claim, state the narrower scope actually covered "
+        "by each cited derivation or sanity check, and, when the claim has a "
+        "nontrivial parameter domain or a special-case sanity check, substitute at "
+        "least one admissible non-degenerate case outside that special value. "
+        "A calculation that succeeds only when two distinct regimes, hypotheses, "
+        "parameters, or objects collapse to the same special case cannot validate a "
+        "claim over their wider stated scope. Mark that check FAIL and route it to "
+        "upstream_theory instead of selecting one contradictory theory branch as a "
+        "coding instruction. "
         "Resolve every requirement source_anchors entry against the exact "
         "acceptance_authority_catalog. An ID resolving to a topically related node is "
         "not enough: for acceptance_authority_kind=theory_derived, the cited content "
@@ -976,14 +1081,7 @@ _CLAIM_CHECK_SCHEMA: dict[str, Any] = {
         "claim_ref": {"type": "string", "minLength": 1},
         "check_type": {
             "type": "string",
-            "enum": [
-                "direct_substitution",
-                "normalization",
-                "boundary_case",
-                "uncertainty_scale",
-                "inequality_direction",
-                "pass_set_translation",
-            ],
+            "enum": list(ARCHITECT_METRIC_GENERAL_CLAIM_CHECK_TYPES),
         },
         "recomputation": {"type": "string", "minLength": 1},
         "result": {"type": "string", "minLength": 1},
@@ -995,7 +1093,6 @@ _CLAIM_CHECK_SCHEMA: dict[str, Any] = {
         },
     },
 }
-
 
 ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1086,6 +1183,42 @@ def architect_metric_semantic_review_json_schema(
         prior_reviews_schema["items"]["properties"]["evidence_refs"][
             "items"
         ]["enum"] = allowed_prior_evidence_ids
+    theory_scope_rows = _architect_metric_theory_scope_rows(review_material)
+    if theory_scope_rows:
+        theory_scope_check_properties: dict[str, Any] = {}
+        for row in theory_scope_rows:
+            requirement_id = str(row["requirement_id"])
+            scope_check_schema = deepcopy(_CLAIM_CHECK_SCHEMA)
+            scope_check_schema["required"].remove("check_type")
+            scope_check_schema["properties"].pop("check_type")
+            source_anchors = list(
+                dict.fromkeys(
+                    str(value).strip()
+                    for value in row.get("source_anchors", []) or []
+                    if str(value).strip()
+                )
+            )
+            if source_anchors:
+                evidence_schema = scope_check_schema["properties"][
+                    "evidence_refs"
+                ]
+                evidence_schema["minItems"] = len(source_anchors)
+                evidence_schema["maxItems"] = len(source_anchors)
+                evidence_schema["uniqueItems"] = True
+                evidence_schema["items"]["enum"] = source_anchors
+            theory_scope_check_properties[requirement_id] = scope_check_schema
+        schema["required"].append("theory_scope_checks")
+        schema["properties"]["theory_scope_checks"] = {
+            "type": "object",
+            "additionalProperties": False,
+            "required": list(theory_scope_check_properties),
+            "properties": theory_scope_check_properties,
+        }
+        schema["properties"]["claim_checks"]["minItems"] = max(
+            1,
+            ARCHITECT_METRIC_SEMANTIC_MIN_CLAIM_CHECKS
+            - len(theory_scope_rows),
+        )
     return schema
 
 
@@ -1331,12 +1464,8 @@ def validate_architect_metric_semantic_review_packet(
         claim_checks = []
     failed_claim_checks = 0
     allowed_check_types = {
-        "direct_substitution",
-        "normalization",
-        "boundary_case",
-        "uncertainty_scale",
-        "inequality_direction",
-        "pass_set_translation",
+        *ARCHITECT_METRIC_GENERAL_CLAIM_CHECK_TYPES,
+        ARCHITECT_METRIC_THEORY_SCOPE_CHECK_TYPE,
     }
     for index, row in enumerate(claim_checks, start=1):
         if not isinstance(row, Mapping):
@@ -1357,6 +1486,100 @@ def validate_architect_metric_semantic_review_packet(
             str(value or "").strip() for value in evidence_refs
         ):
             errors.append(f"claim check {index} missing evidence_refs")
+    required_theory_scope_rows = [
+        dict(row)
+        for row in packet.get("required_theory_scope_check_rows", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("requirement_id", "") or "").strip()
+    ]
+    required_theory_scope_rows_by_id = {
+        str(row.get("requirement_id", "") or "").strip(): row
+        for row in required_theory_scope_rows
+    }
+    if (
+        required_theory_scope_rows
+        and packet.get("theory_scope_check_context_available") is not True
+    ):
+        errors.append(
+            "theory-bound pre-execution review requires exact source theory "
+            "lineage and semantic material"
+        )
+    theory_scope_checks_by_requirement_id: dict[
+        str, list[Mapping[str, Any]]
+    ] = {}
+    for row in claim_checks:
+        if (
+            not isinstance(row, Mapping)
+            or str(row.get("check_type", "") or "")
+            != ARCHITECT_METRIC_THEORY_SCOPE_CHECK_TYPE
+        ):
+            continue
+        requirement_id = str(row.get("requirement_id", "") or "").strip()
+        if not requirement_id:
+            errors.append(
+                "theory_scope_consistency claim checks require requirement_id"
+            )
+            continue
+        theory_scope_checks_by_requirement_id.setdefault(
+            requirement_id,
+            [],
+        ).append(row)
+    for index, row in enumerate(claim_checks, start=1):
+        if not isinstance(row, Mapping):
+            continue
+        requirement_id = str(row.get("requirement_id", "") or "").strip()
+        check_type = str(row.get("check_type", "") or "").strip()
+        if (
+            requirement_id
+            and check_type != ARCHITECT_METRIC_THEORY_SCOPE_CHECK_TYPE
+        ):
+            errors.append(
+                f"claim check {index} may set requirement_id only for "
+                "theory_scope_consistency"
+            )
+    for requirement_id, required_row in (
+        required_theory_scope_rows_by_id.items()
+    ):
+        matching_checks = theory_scope_checks_by_requirement_id.get(
+            requirement_id,
+            [],
+        )
+        if len(matching_checks) != 1:
+            errors.append(
+                "theory-bound pre-execution review requires exactly one "
+                "theory_scope_consistency claim check for requirement_id "
+                f"{requirement_id}"
+            )
+            continue
+        required_anchors = {
+            str(value).strip()
+            for value in required_row.get("source_anchors", []) or []
+            if str(value).strip()
+        }
+        cited_anchors = {
+            str(value).strip()
+            for value in matching_checks[0].get("evidence_refs", []) or []
+            if str(value).strip()
+        }
+        missing_anchors = sorted(required_anchors - cited_anchors)
+        if missing_anchors:
+            errors.append(
+                "theory_scope_consistency claim check for requirement_id "
+                f"{requirement_id} must cite every source anchor; "
+                f"missing={json.dumps(missing_anchors)}"
+            )
+    unexpected_theory_scope_requirement_ids = sorted(
+        requirement_id
+        for requirement_id in theory_scope_checks_by_requirement_id
+        if requirement_id
+        and requirement_id not in required_theory_scope_rows_by_id
+    )
+    if unexpected_theory_scope_requirement_ids:
+        errors.append(
+            "theory_scope_consistency claim checks reference non-required "
+            "requirement_ids: "
+            + json.dumps(unexpected_theory_scope_requirement_ids)
+        )
 
     dimension_rows = packet.get("dimension_reviews", [])
     if not isinstance(dimension_rows, list):
@@ -1592,6 +1815,29 @@ def _normalize_architect_metric_semantic_review_packet(
         trusted_lineage.get("source_model_tier", "") or ""
     ).strip()
     body = dict(payload)
+    raw_theory_scope_checks = body.pop("theory_scope_checks", {})
+    theory_scope_claim_checks = [
+        {
+            **dict(raw_check),
+            "requirement_id": str(requirement_id),
+            "check_type": ARCHITECT_METRIC_THEORY_SCOPE_CHECK_TYPE,
+        }
+        for requirement_id, raw_check in (
+            raw_theory_scope_checks.items()
+            if isinstance(raw_theory_scope_checks, Mapping)
+            else []
+        )
+        if str(requirement_id).strip() and isinstance(raw_check, Mapping)
+    ]
+    general_claim_checks = [
+        dict(row)
+        for row in body.get("claim_checks", []) or []
+        if isinstance(row, Mapping)
+    ]
+    body["claim_checks"] = [
+        *theory_scope_claim_checks,
+        *general_claim_checks,
+    ]
     active_prior_finding_ledger = _active_prior_finding_ledger(review_material)
     active_prior_finding_ids = {
         str(row.get("finding_id", "") or "").strip()
@@ -1725,6 +1971,34 @@ def _normalize_architect_metric_semantic_review_packet(
     body["runtime_evaluator_certificate_all_rows_schema_valid"] = bool(
         isinstance(runtime_evaluator_certificate, Mapping)
         and runtime_evaluator_certificate.get("all_rows_schema_valid") is True
+    )
+    theory_protocol_material = review_material.get(
+        "theory_developer_protocol_material",
+        {},
+    )
+    theory_semantic_material = (
+        theory_protocol_material.get("theory_semantic_material", {})
+        if isinstance(theory_protocol_material, Mapping)
+        else {}
+    )
+    source_theory_packet_id = str(
+        trusted_lineage.get("source_theory_packet_id", "") or ""
+    ).strip()
+    source_theory_packet_hash = str(
+        trusted_lineage.get("source_theory_packet_hash", "") or ""
+    ).strip()
+    body["source_theory_packet_id"] = source_theory_packet_id
+    body["source_theory_packet_hash"] = source_theory_packet_hash
+    theory_scope_check_rows = _architect_metric_theory_scope_rows(
+        review_material
+    )
+    body["required_theory_scope_check_rows"] = theory_scope_check_rows
+    body["theory_scope_check_required"] = bool(theory_scope_check_rows)
+    body["theory_scope_check_context_available"] = bool(
+        source_theory_packet_id
+        and source_theory_packet_hash
+        and isinstance(theory_semantic_material, Mapping)
+        and theory_semantic_material
     )
     body["unresolved_prior_findings"] = unresolved_prior_findings
     body.update(

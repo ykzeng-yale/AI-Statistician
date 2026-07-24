@@ -15275,28 +15275,58 @@ def _staged_followup_stage_contract_feedback_reuse_block(
     request: Mapping[str, Any],
     stage: Mapping[str, object],
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    stage_id = str(stage.get("stage_id", "") or "").strip()
     required_output_fields = _str_tuple(stage.get("required_output_fields", []))
     feedback_errors = _route_contract_feedback_error_previews(request)
     if not required_output_fields or not feedback_errors:
+        return tuple(), tuple()
+    stage_errors: list[str] = []
+    for error in feedback_errors:
+        explicitly_owned_stage_ids = tuple(
+            dict.fromkeys(
+                match.strip()
+                for match in re.findall(
+                    r"staged_followup_stage\[([^\]]+)\]\s*:",
+                    error,
+                )
+                if match.strip()
+            )
+        )
+        if explicitly_owned_stage_ids:
+            if stage_id in explicitly_owned_stage_ids:
+                stage_errors.append(error)
+            continue
+        if any(
+            _contract_feedback_error_mentions_output_field(error, field_name)
+            for field_name in required_output_fields
+        ):
+            stage_errors.append(error)
+    if not stage_errors:
         return tuple(), tuple()
     implicated_fields = tuple(
         field_name
         for field_name in required_output_fields
         if any(
             _contract_feedback_error_mentions_output_field(error, field_name)
-            for error in feedback_errors
+            for error in stage_errors
         )
     )
+    if not implicated_fields:
+        # A validator-owned stage error can target top-level stage metadata rather
+        # than one fragment field. It still invalidates this stage only.
+        implicated_fields = required_output_fields
     if not implicated_fields:
         return tuple(), tuple()
     implicated_errors = tuple(
         error
-        for error in feedback_errors
+        for error in stage_errors
         if any(
             _contract_feedback_error_mentions_output_field(error, field_name)
             for field_name in implicated_fields
         )
     )
+    if not implicated_errors:
+        implicated_errors = tuple(stage_errors)
     return (
         implicated_fields,
         implicated_errors[:LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_FEEDBACK_ERROR_LIMIT],
