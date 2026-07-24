@@ -11,7 +11,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 
 
-GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 4
+GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 5
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -170,6 +170,52 @@ def _generated_code_semantic_review_derived_verdict(
     )
 
 
+def _artifact_rooted_evidence_errors(
+    *,
+    row: Mapping[str, Any],
+    row_label: str,
+) -> list[str]:
+    """Require fresh evidence locators to identify their immutable artifact."""
+
+    evidence_refs = [
+        str(value or "").strip()
+        for value in row.get("evidence_refs", []) or []
+        if str(value or "").strip()
+    ]
+    artifact_citations = [
+        str(value or "").strip()
+        for value in row.get("artifact_citations", []) or []
+        if str(value or "").strip()
+        in GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS
+    ]
+    rooted_roles: list[str] = []
+    errors: list[str] = []
+    for evidence_ref in evidence_refs:
+        matched_roles = [
+            role
+            for role in GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS
+            if evidence_ref.startswith(f"{role}#")
+        ]
+        if len(matched_roles) != 1:
+            errors.append(
+                f"{row_label} evidence_refs must use one artifact-rooted locator"
+            )
+            continue
+        role = matched_roles[0]
+        rooted_roles.append(role)
+        if role not in artifact_citations:
+            errors.append(
+                f"{row_label} evidence locator is missing its artifact_citation"
+            )
+    missing_roles = sorted(set(artifact_citations) - set(rooted_roles))
+    if missing_roles:
+        errors.append(
+            f"{row_label} artifact_citations lack rooted evidence locators: "
+            + ", ".join(missing_roles)
+        )
+    return errors
+
+
 def _generated_code_semantic_review_repair_plan(
     *,
     repair_scopes: list[str],
@@ -324,10 +370,10 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                         "rows contradicted by the supplied evidence."
                     ),
                     (
-                        "Preserve typed artifact_citations on every dimension and "
-                        "finding. They identify which supplied immutable artifacts "
-                        "were actually inspected; they are evidence provenance, not "
-                        "repair-owner decisions."
+                        "Preserve artifact-rooted evidence_refs and matching typed "
+                        "artifact_citations on every dimension and finding. Every "
+                        "evidence locator must begin source_theory_packet#, "
+                        "metric_protocol_candidate#, or generated_source_artifact#."
                     ),
                     (
                         "Use source_code only for the reviewed source subsystem and "
@@ -490,9 +536,13 @@ def build_generated_code_semantic_review_prompt(
         "decide repair ownership. A source_code finding must cite "
         "generated_source_artifact; an upstream_metric_contract finding must cite "
         "metric_protocol_candidate; an upstream_theory finding must cite "
-        "source_theory_packet. Keep evidence_refs as precise human-readable locators "
-        "inside those cited artifacts; no special string prefix is required. Do not "
-        "emit duplicate "
+        "source_theory_packet. Every evidence_refs item must be an artifact-rooted "
+        "human-readable locator beginning exactly source_theory_packet#, "
+        "metric_protocol_candidate#, or generated_source_artifact#, and every cited "
+        "artifact must have at least one such locator. A result or exact source locator "
+        "belongs to generated_source_artifact even when it motivates a claim about "
+        "another artifact; do not hide observed-result evidence behind a metric-"
+        "protocol citation. Do not emit duplicate "
         "aggregate decisions, and do not collapse a source implementation mismatch "
         "into a protocol or theory defect. A source_code finding needs a specific mismatch "
         "between exact executed source and an unambiguous current theory or frozen "
@@ -691,6 +741,10 @@ def validate_generated_code_semantic_review_packet(
     packet: Mapping[str, Any],
 ) -> list[str]:
     errors: list[str] = []
+    try:
+        schema_version = int(packet.get("schema_version", 0) or 0)
+    except (TypeError, ValueError):
+        schema_version = 0
     if packet.get("proof_evidence_status") != (
         GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE
     ):
@@ -736,6 +790,13 @@ def validate_generated_code_semantic_review_packet(
             errors.append(
                 f"semantic review dimension {dimension} has invalid artifact_citations"
             )
+        if schema_version >= 5:
+            errors.extend(
+                _artifact_rooted_evidence_errors(
+                    row=row,
+                    row_label=f"semantic review dimension {dimension}",
+                )
+            )
     if sorted(seen_dimensions) != sorted(GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS):
         errors.append("dimension_reviews must contain each required dimension exactly once")
 
@@ -778,6 +839,13 @@ def validate_generated_code_semantic_review_packet(
             for value in artifact_citations
         ):
             errors.append("semantic review finding has invalid artifact_citations")
+        if schema_version >= 5:
+            errors.extend(
+                _artifact_rooted_evidence_errors(
+                    row=row,
+                    row_label="semantic review finding",
+                )
+            )
 
     expected_verdict = _generated_code_semantic_review_derived_verdict(
         dimension_reviews=dimension_rows,

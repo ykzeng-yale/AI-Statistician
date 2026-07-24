@@ -13658,8 +13658,11 @@ def _runtime_generated_code_authoritative_repair_routing(
         for row in routed_findings
         if isinstance(row, Mapping)
     }
+    actionable_observed_scopes = observed_scopes.intersection(
+        GENERATED_CODE_SEMANTIC_REVIEW_REPAIR_DEPENDENCY_ORDER
+    )
     unresolved = bool(
-        not observed_scopes
+        not actionable_observed_scopes
         or ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED in observed_scopes
     )
     repair_scopes = (
@@ -13668,7 +13671,7 @@ def _runtime_generated_code_authoritative_repair_routing(
         else [
             scope
             for scope in GENERATED_CODE_SEMANTIC_REVIEW_REPAIR_DEPENDENCY_ORDER
-            if scope in observed_scopes
+            if scope in actionable_observed_scopes
         ]
     )
     repair_scope = repair_scopes[0] if repair_scopes else ""

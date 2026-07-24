@@ -20,7 +20,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 
 
-ARCHITECT_METRIC_REPAIR_OWNERSHIP_SCHEMA_VERSION = 2
+ARCHITECT_METRIC_REPAIR_OWNERSHIP_SCHEMA_VERSION = 3
 ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_PREEXECUTION = (
     "pre_execution_metric_protocol"
 )
@@ -44,7 +44,11 @@ ARCHITECT_GENERATED_CODE_REPAIR_TARGETS = (
     ARCHITECT_METRIC_REPAIR_TARGET_GENERATED_SOURCE,
 )
 ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED = "unresolved"
-ARCHITECT_METRIC_REPAIR_OWNERSHIP_CERTAINTIES = ("resolved", "unresolved")
+ARCHITECT_METRIC_REPAIR_OWNERSHIP_CERTAINTIES = (
+    "resolved",
+    "resolved_no_change",
+    "unresolved",
+)
 ARCHITECT_METRIC_REPAIR_OWNERSHIP_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_METRIC_REPAIR_OWNERSHIP_NOT_PROOF_EVIDENCE"
 )
@@ -576,6 +580,14 @@ def _postexecution_artifact_target_eligibility(
                 ]
             )
         )
+        rooted_evidence_roles = {
+            role
+            for role in ARCHITECT_GENERATED_CODE_REPAIR_TARGETS
+            if any(
+                evidence_ref.startswith(f"{role}#")
+                for evidence_ref in evidence_refs
+            )
+        }
         if "artifact_citations" in finding:
             eligible_roles = [
                 role
@@ -584,7 +596,7 @@ def _postexecution_artifact_target_eligibility(
             ]
         else:
             # Compatibility for replaying schema-v3 reviewer packets. Fresh
-            # schema-v4 packets carry typed citations and never use this parser.
+            # schema-v4+ packets carry typed citations and never use this parser.
             eligible_roles = [
                 role
                 for role, prefixes in (
@@ -596,17 +608,30 @@ def _postexecution_artifact_target_eligibility(
                     for prefix in prefixes
                 )
             ]
-        if (
-            ARCHITECT_METRIC_REPAIR_TARGET_METRIC_PROTOCOL in eligible_roles
-            and any(
-                evidence_ref.startswith(prefix)
+        if ARCHITECT_METRIC_REPAIR_TARGET_METRIC_PROTOCOL in eligible_roles:
+            fresh_rooted_evidence = bool(evidence_refs) and all(
+                any(
+                    evidence_ref.startswith(f"{role}#")
+                    for role in ARCHITECT_GENERATED_CODE_REPAIR_TARGETS
+                )
                 for evidence_ref in evidence_refs
-                for prefix in _POSTEXECUTION_OUTCOME_EVIDENCE_PREFIXES
             )
-        ):
-            eligible_roles.remove(
+            metric_protocol_evidence_eligible = (
                 ARCHITECT_METRIC_REPAIR_TARGET_METRIC_PROTOCOL
+                in rooted_evidence_roles
+                and ARCHITECT_METRIC_REPAIR_TARGET_GENERATED_SOURCE
+                not in rooted_evidence_roles
+                if fresh_rooted_evidence
+                else not any(
+                    prefix in evidence_ref
+                    for evidence_ref in evidence_refs
+                    for prefix in _POSTEXECUTION_OUTCOME_EVIDENCE_PREFIXES
+                )
             )
+            if not metric_protocol_evidence_eligible:
+                eligible_roles.remove(
+                    ARCHITECT_METRIC_REPAIR_TARGET_METRIC_PROTOCOL
+                )
         eligibility.append(
             {
                 "finding_index": finding_index,
@@ -713,7 +738,12 @@ def build_architect_metric_repair_ownership_prompt(
         "routes upstream immediately. "
         "Use only artifact roles listed in artifact_target_eligibility for that "
         "finding. Eligibility is derived from the finding's artifact evidence; it "
-        "is an authority constraint, not a suggestion. "
+        "is an authority constraint, not a suggestion. If exact artifacts establish "
+        "that a reviewer marked an advisory observation as mandatory even though no "
+        "artifact must change, use ownership_certainty=resolved_no_change, no targets, "
+        "and source_theory_can_remain_unchanged=true. This disposition cannot accept "
+        "a lineage by itself; it is ignored only when another concrete repair forces "
+        "fresh generation and independent re-review. "
     )
     return (
         "Route every semantic-review finding to the artifact or artifacts that must "
@@ -768,7 +798,9 @@ ARCHITECT_METRIC_REPAIR_OWNERSHIP_OUTPUT_CONTRACT: dict[str, Any] = {
                 }
             ],
             "source_theory_can_remain_unchanged": False,
-            "ownership_certainty": "resolved|unresolved",
+            "ownership_certainty": (
+                "resolved|resolved_no_change(post-execution only)|unresolved"
+            ),
             "rationale": "artifact-bound ownership reasoning",
         }
     ]
@@ -837,6 +869,16 @@ def architect_metric_repair_ownership_json_schema(
     changes_schema["items"]["properties"]["artifact_role"]["enum"] = list(
         targets
     )
+    decision_schema["properties"]["ownership_certainty"]["enum"] = [
+        "resolved",
+        *(
+            ["resolved_no_change"]
+            if routing_phase
+            == ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_POSTEXECUTION
+            else []
+        ),
+        "unresolved",
+    ]
     return schema
 
 
@@ -871,6 +913,12 @@ def _repair_scope_from_ownership_decision(
         if isinstance(row, Mapping)
     } if isinstance(changes, list) else set()
     theory_unchanged = decision.get("source_theory_can_remain_unchanged")
+    if certainty == "resolved_no_change":
+        return (
+            "none"
+            if not roles and theory_unchanged is True
+            else ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED
+        )
     if certainty != "resolved":
         return ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED
     if (
@@ -945,7 +993,7 @@ def _recommended_scope_from_ownership_decisions(
     if routing_phase == ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_POSTEXECUTION:
         if "upstream_metric_contract" in scopes:
             return "upstream_metric_contract"
-        if scopes == {"source_code"}:
+        if "source_code" in scopes and scopes.issubset({"source_code", "none"}):
             return "source_code"
         return ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED
     if scopes == {ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_METRIC_CONTRACT}:
@@ -1057,7 +1105,12 @@ def _apply_repair_ownership_routes(
                 "fresh artifact and repeat independent review. Finding: "
                 + finding_summary
                 if immediate_target_roles
-                else "Artifact repair ownership is unresolved; stop this lineage."
+                else (
+                    "No artifact change is authorized for this advisory finding; "
+                    "preserve it for the next independent review."
+                    if finding["repair_scope"] == "none"
+                    else "Artifact repair ownership is unresolved; stop this lineage."
+                )
             )
         finding["repair_ownership_certainty"] = str(
             decision.get("ownership_certainty", "") or ""
@@ -1180,9 +1233,16 @@ def validate_architect_metric_repair_ownership_packet(
                 errors.append(
                     f"repair ownership decision {finding_index} repeats a target"
                 )
-        if certainty not in (
-            ARCHITECT_METRIC_REPAIR_OWNERSHIP_CERTAINTIES
-        ):
+        allowed_certainties = {
+            "resolved",
+            "unresolved",
+            *(
+                {"resolved_no_change"}
+                if expected_execution_observed
+                else set()
+            ),
+        }
+        if certainty not in allowed_certainties:
             errors.append(
                 f"repair ownership decision {finding_index} has invalid certainty"
             )
@@ -1205,6 +1265,13 @@ def validate_architect_metric_repair_ownership_packet(
             errors.append(
                 f"repair ownership decision {finding_index} has inconsistent "
                 "source-theory preservation flag"
+            )
+        if certainty == "resolved_no_change" and (
+            roles or theory_can_remain is not True
+        ):
+            errors.append(
+                f"repair ownership decision {finding_index} has inconsistent "
+                "no-change disposition"
             )
         expected_scope = _repair_scope_from_ownership_decision(
             decision,

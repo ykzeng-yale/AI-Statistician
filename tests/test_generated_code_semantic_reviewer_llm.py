@@ -45,6 +45,7 @@ from ai_statistician.research_agent_runtime import (
     GeneratedCodeSemanticReviewerRuntimeSubsystem,
     ResearchAgentRuntimeConfig,
     _runtime_algorithm_handoff_receipt,
+    _runtime_generated_code_authoritative_repair_routing,
     _runtime_generated_code_semantic_review_dispatch,
     _runtime_validated_algorithm_handoff,
 )
@@ -84,7 +85,9 @@ def _review_response(
             "dimension": dimension,
             "status": "PASS",
             "rationale": f"The exact source and result support {dimension}.",
-            "evidence_refs": [f"exact_executed_artifacts[0].{dimension}"],
+            "evidence_refs": [
+                f"generated_source_artifact#/exact_executed_artifacts/0/{dimension}"
+            ],
             "artifact_citations": ["generated_source_artifact"],
         }
         for dimension in GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
@@ -95,11 +98,16 @@ def _review_response(
         rows[-1]["status"] = "FAIL"
         rows[-1]["rationale"] = "The returned metric measures a different quantity."
         resolved_finding_evidence_refs = finding_evidence_refs or {
-            "source_code": ["exact_source_code", "exact_result"],
-            "upstream_metric_contract": [
-                "architect_frozen_evidence_contract#/empirical_metric_requirements"
+            "source_code": [
+                "generated_source_artifact#/exact_source_code",
+                "generated_source_artifact#/exact_result",
             ],
-            "upstream_theory": ["theory_packet#/theory_derivation_packet"],
+            "upstream_metric_contract": [
+                "metric_protocol_candidate#/empirical_metric_requirements"
+            ],
+            "upstream_theory": [
+                "source_theory_packet#/theory_derivation_packet"
+            ],
         }[repair_scope]
         findings = [
             {
@@ -1077,7 +1085,7 @@ def test_all_pass_low_or_medium_findings_are_preserved_as_advisory(
             "summary": "The diagnostic name could be more explicit.",
             "required_change": "Use a more descriptive diagnostic name later.",
             "repair_scope": "source_code",
-            "evidence_refs": ["exact_source_code"],
+            "evidence_refs": ["generated_source_artifact#/exact_source_code"],
             "artifact_citations": ["generated_source_artifact"],
         }
     ]
@@ -1113,6 +1121,63 @@ def test_all_pass_low_or_medium_findings_are_preserved_as_advisory(
     assert review_packet["findings"][0][
         "model_requested_repair_scope"
     ] == "source_code"
+
+
+def test_schema_v5_requires_artifact_rooted_evidence_locators(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accept=True)
+
+    result = subsystem.run(task, blackboard)
+
+    review_packet = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
+    )
+    assert review_packet["schema_version"] == 5
+    assert validate_generated_code_semantic_review_packet(review_packet) == []
+
+    unrooted = json.loads(json.dumps(review_packet))
+    unrooted["dimension_reviews"][0]["evidence_refs"] = ["exact_result:metric"]
+    assert any(
+        "artifact-rooted locator" in error
+        for error in validate_generated_code_semantic_review_packet(unrooted)
+    )
+
+    unrooted["schema_version"] = 4
+    assert not any(
+        "artifact-rooted locator" in error
+        for error in validate_generated_code_semantic_review_packet(unrooted)
+    )
+
+
+def test_runtime_requires_one_concrete_scope_alongside_advisory_findings() -> None:
+    review_packet = {
+        "repair_scope": "source_code",
+        "repair_scopes": ["source_code"],
+    }
+
+    mixed = _runtime_generated_code_authoritative_repair_routing(
+        source_subsystem="AlgorithmEngineer",
+        review_packet=review_packet,
+        routed_findings=[
+            {"repair_scope": "source_code"},
+            {"repair_scope": "none"},
+        ],
+    )
+    advisory_only = _runtime_generated_code_authoritative_repair_routing(
+        source_subsystem="AlgorithmEngineer",
+        review_packet=review_packet,
+        routed_findings=[{"repair_scope": "none"}],
+    )
+
+    assert mixed["repair_scope"] == "source_code"
+    assert mixed["repair_scopes"] == ["source_code"]
+    assert mixed["ownership_resolved"] is True
+    assert advisory_only["repair_scope"] == "unresolved"
+    assert advisory_only["repair_scopes"] == ["unresolved"]
+    assert advisory_only["ownership_resolved"] is False
 
 
 def test_nonpass_dimension_keeps_low_severity_finding_actionable(
@@ -1156,7 +1221,7 @@ def test_mixed_semantic_assessments_route_upstream_owner_before_source(
     _, task, blackboard, _ = _runtime_fixture(tmp_path, accept=False)
     response = _review_response(accept=False, repair_scope="source_code")
     # Legacy aggregate fields are deliberately contradictory; findings are the
-    # only LLM-authored repair hypothesis in schema version 4.
+    # only LLM-authored repair hypothesis in the current schema.
     response["reviewed_source_assessment"] = "ALIGNED"
     response["source_theory_assessment"] = "THEORY_REVISION_REQUIRED"
     response["frozen_metric_contract_assessment"] = (
@@ -1170,7 +1235,9 @@ def test_mixed_semantic_assessments_route_upstream_owner_before_source(
             "summary": "The current theory omits a premise needed downstream.",
             "required_change": "Revise the theory packet before final acceptance.",
             "repair_scope": "upstream_theory",
-            "evidence_refs": ["theory_packet.derivation_steps"],
+            "evidence_refs": [
+                "source_theory_packet#/theory_derivation_packet/derivation_steps"
+            ],
             "artifact_citations": ["source_theory_packet"],
         },
     ]
@@ -1732,7 +1799,10 @@ def test_runtime_uses_router_scope_instead_of_reviewer_scope(
         accept=False,
         metric_failed=True,
         repair_scope="upstream_metric_contract",
-        finding_evidence_refs=["exact_source_code", "exact_result"],
+        finding_evidence_refs=[
+            "generated_source_artifact#/exact_source_code",
+            "generated_source_artifact#/exact_result",
+        ],
         finding_artifact_citations=["generated_source_artifact"],
     )
     subsystem.repair_ownership_router = _repair_ownership_router("source_code")
@@ -1769,7 +1839,10 @@ def test_runtime_repairs_coupled_source_and_theory_finding_at_source_first(
         tmp_path,
         accept=False,
         repair_scope="upstream_theory",
-        finding_evidence_refs=["theory_packet", "exact_source_code"],
+        finding_evidence_refs=[
+            "source_theory_packet#/theory_derivation_packet",
+            "generated_source_artifact#/exact_source_code",
+        ],
         finding_artifact_citations=[
             "source_theory_packet",
             "generated_source_artifact",

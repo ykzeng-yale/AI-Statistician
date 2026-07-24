@@ -5,6 +5,7 @@ import json
 import pytest
 
 from ai_statistician.architect_metric_repair_ownership_router_llm import (
+    ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_POSTEXECUTION,
     ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_PREEXECUTION,
     ARCHITECT_METRIC_REPAIR_OWNERSHIP_JSON_SCHEMA,
     ArchitectMetricRepairOwnershipRouterConfig,
@@ -496,6 +497,157 @@ def test_postexecution_eligibility_uses_typed_artifact_citations() -> None:
         "generated_source_artifact"
     ]
     assert eligibility[0]["expanded_review_dimensions"] == []
+
+
+def test_postexecution_metric_protocol_requires_outcome_independent_evidence() -> None:
+    eligibility = _postexecution_artifact_target_eligibility(
+        [
+            {
+                "evidence_refs": [
+                    "metric_protocol_candidate#/requirements/0/threshold",
+                    "generated_source_artifact#/exact_result/power",
+                ],
+                "artifact_citations": [
+                    "metric_protocol_candidate",
+                    "generated_source_artifact",
+                ],
+            },
+            {
+                "evidence_refs": [
+                    "metric_protocol_candidate#/requirements/0/aggregation",
+                ],
+                "artifact_citations": ["metric_protocol_candidate"],
+            },
+            {
+                "evidence_refs": [
+                    "EST2 exact_result: observed power missed a preferred target",
+                ],
+                "artifact_citations": ["metric_protocol_candidate"],
+            },
+        ],
+        semantic_review_dimensions=[],
+    )
+
+    assert eligibility[0]["eligible_artifact_roles"] == [
+        "generated_source_artifact"
+    ]
+    assert eligibility[1]["eligible_artifact_roles"] == [
+        "metric_protocol_candidate"
+    ]
+    assert eligibility[2]["eligible_artifact_roles"] == []
+
+
+def test_postexecution_advisory_disposition_does_not_block_concrete_repair() -> None:
+    source_repair = {
+        "finding_index": 0,
+        "required_artifact_changes": [
+            {"artifact_role": "generated_source_artifact"}
+        ],
+        "source_theory_can_remain_unchanged": True,
+        "ownership_certainty": "resolved",
+        "rationale": "The generated measurement path must change.",
+    }
+    advisory = {
+        "finding_index": 1,
+        "required_artifact_changes": [],
+        "source_theory_can_remain_unchanged": True,
+        "ownership_certainty": "resolved_no_change",
+        "rationale": "The observation is advisory and identifies no artifact defect.",
+    }
+
+    assert generated_code_repair_scope_from_ownership_decision(advisory) == "none"
+    assert generated_code_recommended_scope_from_ownership_decisions(
+        [source_repair, advisory]
+    ) == "source_code"
+    assert generated_code_recommended_scope_from_ownership_decisions(
+        [advisory]
+    ) == "unresolved"
+
+    routed = apply_generated_code_repair_ownership_routes(
+        findings=[
+            {
+                "severity": "high",
+                "category": "implementation mismatch",
+                "summary": "The generated metric path is wrong.",
+                "required_change": "Repair the source.",
+                "repair_scope": "source_code",
+            },
+            {
+                "severity": "medium",
+                "category": "finite sample observation",
+                "summary": "A finite sample diagnostic is noisy.",
+                "required_change": "Consider documenting the observation.",
+                "repair_scope": "source_code",
+            },
+        ],
+        ownership_packet={
+            "packet_id": "metric_repair_ownership:mixed",
+            "decisions": [source_repair, advisory],
+        },
+    )
+
+    assert routed[0]["repair_scope"] == "source_code"
+    assert routed[1]["repair_scope"] == "none"
+    assert "No artifact change is authorized" in routed[1]["required_change"]
+
+
+def test_postexecution_advisory_disposition_packet_is_typed_and_fail_closed() -> None:
+    packet = {
+        "schema_version": 3,
+        "proof_evidence_status": (
+            "ARCHITECT_METRIC_REPAIR_OWNERSHIP_NOT_PROOF_EVIDENCE"
+        ),
+        "routing_phase": ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_POSTEXECUTION,
+        "execution_results_observed": True,
+        "frozen_protocol_immutable_after_execution": True,
+        "question_id": "q_advisory_owner",
+        "semantic_review_packet_id": "review:advisory",
+        "semantic_review_packet_hash": "review-hash",
+        "source_theory_packet_id": "theory:advisory",
+        "source_theory_packet_hash": "theory-hash",
+        "work_order_id": "work-order:advisory",
+        "work_order_hash": "work-order-hash",
+        "source_manifest_id": "source-manifest:advisory",
+        "source_manifest_hash": "source-manifest-hash",
+        "routing_input_fingerprint": "routing-hash",
+        "reviewed_finding_count": 1,
+        "artifact_target_eligibility": [
+            {
+                "finding_index": 0,
+                "eligible_artifact_roles": [],
+                "basis": "The observation identifies no artifact defect.",
+                "expanded_review_dimensions": [],
+            }
+        ],
+        "decisions": [
+            {
+                "finding_index": 0,
+                "required_artifact_changes": [],
+                "source_theory_can_remain_unchanged": True,
+                "ownership_certainty": "resolved_no_change",
+                "rationale": "This is advisory and requires no artifact change.",
+                "derived_repair_scope": "none",
+            }
+        ],
+        "recommended_repair_scope": "unresolved",
+    }
+
+    assert validate_architect_metric_repair_ownership_packet(packet) == []
+
+    preexecution = json.loads(json.dumps(packet))
+    preexecution["routing_phase"] = (
+        ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_PREEXECUTION
+    )
+    preexecution["execution_results_observed"] = False
+    preexecution["frozen_protocol_immutable_after_execution"] = False
+    preexecution["authoring_packet_id"] = "authoring:advisory"
+    preexecution["authoring_packet_hash"] = "authoring-hash"
+    assert any(
+        "invalid certainty" in error
+        for error in validate_architect_metric_repair_ownership_packet(
+            preexecution
+        )
+    )
 
 
 def test_postexecution_eligibility_replays_legacy_dimension_evidence() -> None:
