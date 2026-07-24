@@ -23257,6 +23257,285 @@ def test_live_architect_dispatches_upstream_theory_without_replanning() -> None:
     )
 
 
+def test_architect_dispatches_upstream_generated_dependency_without_replanning() -> None:
+    question = next(
+        question
+        for question in load_open_research_questions(
+            Path("examples/research_questions.json")
+        )
+        if question.id == "sequential_anytime_bernoulli"
+    )
+    dependency_source = (
+        "def run_estimator(request):\n"
+        "    return {'estimate': request['value']}\n"
+    )
+    context = _theory_informed_metric_context_fixture()
+    context["implementation_gaps"] = [
+        {
+            "estimator_id": "EST1",
+            "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+            "reason": "The immutable upstream dependency requires fresh generation.",
+        }
+    ]
+    context["architect_runtime_plan"] = {
+        "subsystem_execution_plan": [
+            {
+                "subsystem": "AlgorithmEngineer",
+                "objective": "Repair the independently routed generated dependency.",
+                "inputs_needed": [],
+                "expected_artifacts": ["algorithm_sandbox_manifest"],
+                "acceptance_gate": (
+                    "fresh execution and independent semantic review pass"
+                ),
+            }
+        ],
+        "evidence_contract": {"formal_verification_policy": "optional"},
+    }
+    semantic_feedback = {
+        "feedback_type": "generated_code_semantic_review_feedback",
+        "semantic_review_packet_id": "generated_code_semantic_review:dependency",
+        "semantic_review_execution_id": (
+            "generated_code_semantic_review_execution:dependency"
+        ),
+        "source_subsystem": "SimulationEvaluator",
+        "source_manifest_id": "simulation_manifest:rejected-consumer",
+        "repair_scope": "upstream_generated_dependency",
+        "repair_owner_agent": "AlgorithmEngineer",
+        "repair_target_subsystem": "AlgorithmEngineer",
+        "reviewed_source_artifacts": [
+            {
+                "artifact_id": "EST1",
+                "exact_source_code": dependency_source,
+                "exact_source_hash": runtime_module.stable_hash(
+                    dependency_source
+                ),
+                "exact_source_code_complete": True,
+            }
+        ],
+        "source_repair_contract": {
+            "parent_source_manifest_id": "algorithm_sandbox_manifest:parent",
+            "parent_source_manifest_hash": "algorithm-parent-hash",
+            "repair_target_subsystem": "AlgorithmEngineer",
+            "rejected_descendant_source_manifest_id": (
+                "simulation_manifest:rejected-consumer"
+            ),
+            "current_consumer_source_may_not_modify_dependency": True,
+        },
+        "findings": [
+            {
+                "severity": "critical",
+                "summary": "The injected estimator implements the wrong quantity.",
+                "required_change": "Repair the exact dependency source.",
+                "repair_scope": "upstream_generated_dependency",
+            }
+        ],
+    }
+    context["environment_feedback"] = semantic_feedback
+    context["runtime_generated_code_semantic_review_replan"] = {
+        "artifact_kind": "RuntimeGeneratedCodeSemanticReviewReplanContext",
+        "source_subsystem": "SimulationEvaluator",
+        "source_manifest_id": semantic_feedback["source_manifest_id"],
+        "source_review_task_id": "semantic-review:dependency",
+        "review_packet_id": semantic_feedback["semantic_review_packet_id"],
+        "review_execution_id": semantic_feedback[
+            "semantic_review_execution_id"
+        ],
+        "repair_scope": "upstream_generated_dependency",
+        "repair_target_subsystem": "AlgorithmEngineer",
+        "repair_target_source_manifest_id": (
+            "algorithm_sandbox_manifest:parent"
+        ),
+        "repair_target_source_manifest_hash": "algorithm-parent-hash",
+        "rejected_descendant_source_manifest_id": (
+            "simulation_manifest:rejected-consumer"
+        ),
+        "findings": semantic_feedback["findings"],
+    }
+
+    class NoDependencyReplanCoordinator:
+        def propose(self, **_kwargs):
+            raise AssertionError(
+                "identity-bound dependency repair must not invoke the planner"
+            )
+
+    routed = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=NoDependencyReplanCoordinator(),  # type: ignore[arg-type]
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            formal_verification_policy="optional",
+        ),
+    ).run(
+        AgentTask(
+            task_id="architect:upstream-dependency-repair",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Dispatch an adjudicated upstream dependency repair.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": context,
+            },
+        ),
+        BlackboardState(project_id="dependency-repair"),
+    )
+
+    assert routed.next_task is not None
+    assert routed.next_task.owner_subsystem == "AlgorithmEngineer"
+    assert routed.next_task.inputs["environment_feedback"] == semantic_feedback
+    routing = routed.next_task.inputs["architect_context"][
+        "architect_initial_routing"
+    ]
+    assert routing["source"] == (
+        "generated_code_semantic_review_upstream_dependency_repair"
+    )
+    dispatch = next(iter(routed.produced_artifacts.values()))
+    assert dispatch["artifact_kind"] == "RuntimeArchitectTypedRepairDispatch"
+    assert dispatch["repair_scope"] == "upstream_generated_dependency"
+    assert dispatch["repair_target_subsystem"] == "AlgorithmEngineer"
+    assert dispatch["llm_planner_invoked"] is False
+    repair_prompt = build_algorithm_engineer_prompt(
+        question=question,
+        theory_packet={
+            "packet_id": context["theory_packet_id"],
+            "theorem_cards": [],
+            "estimator_specs": [],
+        },
+        simulation_manifest={},
+        implementation_gaps=context["implementation_gaps"],
+        environment_feedback=routed.next_task.inputs["environment_feedback"],
+    )
+    repair_payload = json.loads(repair_prompt.rsplit("\n\n", maxsplit=1)[1])
+    semantic_review = repair_payload["runtime_environment_feedback"][
+        "generated_code_semantic_review"
+    ]
+    assert semantic_review["reviewed_source_artifacts"][0][
+        "exact_source_code"
+    ] == dependency_source
+    assert semantic_review["findings"][0]["repair_scope"] == (
+        "upstream_generated_dependency"
+    )
+    assert semantic_review["source_repair_contract"][
+        "current_consumer_source_may_not_modify_dependency"
+    ] is True
+
+
+def test_fresh_dependency_acceptance_requires_descendant_rerun() -> None:
+    question = next(
+        question
+        for question in load_open_research_questions(
+            Path("examples/research_questions.json")
+        )
+        if question.id == "sequential_anytime_bernoulli"
+    )
+    review_execution_id = (
+        "generated_code_semantic_review_execution:dependency"
+    )
+    context = {
+        "environment_feedback": {
+            "feedback_type": "generated_code_semantic_review_feedback",
+            "semantic_review_execution_id": review_execution_id,
+            "source_manifest_id": "simulation_manifest:rejected-consumer",
+        },
+        "runtime_generated_code_semantic_review_replan": {
+            "repair_scope": "upstream_generated_dependency",
+            "source_subsystem": "SimulationEvaluator",
+            "source_manifest_id": "simulation_manifest:rejected-consumer",
+            "repair_target_subsystem": "AlgorithmEngineer",
+            "repair_target_source_manifest_id": (
+                "algorithm_sandbox_manifest:parent"
+            ),
+            "review_execution_id": review_execution_id,
+        },
+    }
+
+    resolved = runtime_module._runtime_retire_resolved_generated_code_semantic_review_replan(
+        architect_context=context,
+        accepted_review={
+            "overall_verdict": "ACCEPT",
+            "source_subsystem": "AlgorithmEngineer",
+            "source_manifest_id": "algorithm_sandbox_manifest:fresh",
+            "source_manifest_hash": "fresh-hash",
+            "review_packet_id": "algorithm-review:fresh",
+            "execution_id": "algorithm-review-execution:fresh",
+        },
+    )
+
+    assert "runtime_generated_code_semantic_review_replan" not in resolved
+    assert "environment_feedback" not in resolved
+    resolution = resolved[
+        "runtime_generated_code_semantic_review_replan_resolution"
+    ]
+    assert resolution["rejected_source_manifest_id"] == (
+        "algorithm_sandbox_manifest:parent"
+    )
+    assert resolution["rejected_descendant_source_manifest_id"] == (
+        "simulation_manifest:rejected-consumer"
+    )
+    assert resolution["accepted_source_manifest_id"] == (
+        "algorithm_sandbox_manifest:fresh"
+    )
+    assert resolution["descendant_rerun_required"] is True
+
+    old_simulation = {
+        "artifact_kind": "RuntimeSimulationManifest",
+        "manifest_id": "simulation_manifest:rejected-consumer",
+        "question": {"id": question.id},
+        "theory_packet_id": "theory:dependency",
+        "confirmatory_empirical_evidence_eligible": True,
+        "n_generated_simulation_sandbox_passed": 1,
+        "upstream_algorithm_handoff_receipt": {
+            "algorithm_sandbox_manifest_id": (
+                "algorithm_sandbox_manifest:parent"
+            ),
+            "algorithm_sandbox_manifest_hash": "algorithm-parent-hash",
+            "mechanical_estimator_invocation_verified": True,
+        },
+    }
+    blackboard = BlackboardState(
+        project_id="dependency-descendant-rerun",
+        artifacts={old_simulation["manifest_id"]: old_simulation},
+    )
+    rerun_required = (
+        runtime_module._runtime_generated_simulation_required_before_formalization(
+            context=context,
+            environment_feedback={},
+            blackboard=blackboard,
+            question=question,
+            theory_packet_id="theory:dependency",
+            algorithm_sandbox_manifest_id=(
+                "algorithm_sandbox_manifest:fresh"
+            ),
+            algorithm_sandbox_manifest_hash="fresh-hash",
+        )
+    )
+    assert rerun_required is True
+
+    fresh_simulation = {
+        **old_simulation,
+        "manifest_id": "simulation_manifest:fresh-descendant",
+        "upstream_algorithm_handoff_receipt": {
+            "algorithm_sandbox_manifest_id": (
+                "algorithm_sandbox_manifest:fresh"
+            ),
+            "algorithm_sandbox_manifest_hash": "fresh-hash",
+            "mechanical_estimator_invocation_verified": True,
+        },
+    }
+    blackboard.artifacts[fresh_simulation["manifest_id"]] = fresh_simulation
+    assert (
+        runtime_module._runtime_generated_simulation_required_before_formalization(
+            context=context,
+            environment_feedback={},
+            blackboard=blackboard,
+            question=question,
+            theory_packet_id="theory:dependency",
+            algorithm_sandbox_manifest_id=(
+                "algorithm_sandbox_manifest:fresh"
+            ),
+            algorithm_sandbox_manifest_hash="fresh-hash",
+        )
+        is False
+    )
+
+
 def test_architect_does_not_forward_mismatched_semantic_replan_feedback() -> None:
     feedback = {
         "feedback_type": "generated_code_semantic_review_feedback",

@@ -5,11 +5,13 @@ import json
 import pytest
 
 from ai_statistician.architect_metric_repair_ownership_router_llm import (
+    ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY,
     ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_POSTEXECUTION,
     ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_PREEXECUTION,
     ARCHITECT_METRIC_REPAIR_OWNERSHIP_JSON_SCHEMA,
     ArchitectMetricRepairOwnershipRouterConfig,
     LLMArchitectMetricRepairOwnershipRouterAgent,
+    _normalize_architect_metric_repair_ownership_packet,
     _postexecution_artifact_target_eligibility,
     apply_architect_metric_repair_ownership_routes,
     apply_generated_code_repair_ownership_routes,
@@ -500,6 +502,127 @@ def test_postexecution_eligibility_uses_typed_artifact_citations() -> None:
         "generated_source_artifact"
     ]
     assert eligibility[0]["expanded_review_dimensions"] == []
+
+
+def test_postexecution_dependency_citation_routes_only_dependency_owner() -> None:
+    eligibility = _postexecution_artifact_target_eligibility(
+        [
+            {
+                "evidence_refs": [
+                    (
+                        "upstream_generated_dependency#"
+                        "/exact_dependency_artifacts/0/exact_source_code"
+                    )
+                ],
+                "artifact_citations": ["upstream_generated_dependency"],
+            }
+        ],
+        semantic_review_dimensions=[],
+    )
+    decision = {
+        "finding_index": 0,
+        "required_artifact_changes": [
+            {"artifact_role": "upstream_generated_dependency"}
+        ],
+        "source_theory_can_remain_unchanged": True,
+        "ownership_certainty": "resolved",
+        "rationale": (
+            "The current consumer invokes immutable upstream code containing the "
+            "cited implementation defect."
+        ),
+    }
+
+    assert eligibility[0]["eligible_artifact_roles"] == [
+        "upstream_generated_dependency"
+    ]
+    assert generated_code_repair_scope_from_ownership_decision(decision) == (
+        ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
+    )
+    assert generated_code_recommended_scope_from_ownership_decisions(
+        [decision]
+    ) == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
+
+    routed = apply_generated_code_repair_ownership_routes(
+        findings=[
+            {
+                "severity": "high",
+                "category": "dependency implementation mismatch",
+                "summary": "The injected estimator computes a different quantity.",
+                "required_change": "Do not compensate inside the simulation.",
+                "repair_scope": "source_code",
+            }
+        ],
+        ownership_packet={
+            "packet_id": "metric_repair_ownership:dependency",
+            "decisions": [decision],
+        },
+    )
+    assert routed[0]["repair_scope"] == (
+        ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
+    )
+    assert routed[0]["deferred_repair_target_artifacts"] == []
+    assert "Reinspect upstream_generated_dependency" in routed[0][
+        "required_change"
+    ]
+    assert "simulation" not in routed[0]["required_change"].lower()
+
+
+def test_postexecution_ambiguous_dependency_owner_remains_unresolved() -> None:
+    packet = _normalize_architect_metric_repair_ownership_packet(
+        {
+            "decisions": [
+                {
+                    "finding_index": 0,
+                    "required_artifact_changes": [
+                        {"artifact_role": "upstream_generated_dependency"},
+                        {"artifact_role": "generated_source_artifact"},
+                    ],
+                    "ownership_certainty": "unresolved",
+                    "rationale": (
+                        "The available diagnostic cannot isolate the immutable "
+                        "dependency from its current consumer."
+                    ),
+                }
+            ]
+        },
+        question=OpenResearchQuestion(
+            id="q_ambiguous_dependency_owner",
+            title="Preserve unresolved dependency ownership",
+            description="Require fresh diagnostics before choosing a code owner.",
+        ),
+        routing_phase=ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_POSTEXECUTION,
+        routing_material={
+            "semantic_review_findings": [{"finding_index": 0}],
+            "artifact_target_eligibility": [
+                {
+                    "finding_index": 0,
+                    "eligible_artifact_roles": [
+                        "upstream_generated_dependency",
+                        "generated_source_artifact",
+                    ],
+                }
+            ],
+        },
+        semantic_review_packet={"packet_id": "review:ambiguous-dependency"},
+        trusted_lineage={
+            "work_order_id": "work-order:ambiguous-dependency",
+            "work_order_hash": "work-order-hash",
+            "source_manifest_id": "simulation:ambiguous-dependency",
+            "source_manifest_hash": "simulation-hash",
+            "theory_packet_id": "theory:ambiguous-dependency",
+            "theory_packet_hash": "theory-hash",
+        },
+        model="claude-haiku-4-5-20251001",
+        model_tier="haiku",
+        provider_name="anthropic",
+        raw_response="{}",
+    )
+
+    assert packet["decisions"][0]["ownership_certainty"] == "unresolved"
+    assert packet["decisions"][0]["required_artifact_changes"] == []
+    assert packet["decisions"][0]["derived_repair_scope"] == "unresolved"
+    assert packet["recommended_repair_scope"] == "unresolved"
+    assert validate_architect_metric_repair_ownership_packet(packet) == []
 
 
 def test_postexecution_metric_protocol_requires_outcome_independent_evidence() -> None:

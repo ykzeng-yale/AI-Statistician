@@ -412,15 +412,35 @@ def _generated_code_semantic_review_replan_is_resolved(
 ) -> bool:
     if not isinstance(resolution, Mapping):
         return False
-    rejected_manifest_id = str(replan.get("source_manifest_id", "") or "")
+    dependency_repair = (
+        str(replan.get("repair_scope", "") or "")
+        == "upstream_generated_dependency"
+    )
+    rejected_manifest_id = str(
+        replan.get(
+            (
+                "repair_target_source_manifest_id"
+                if dependency_repair
+                else "source_manifest_id"
+            ),
+            "",
+        )
+        or ""
+    )
+    rejected_subsystem = str(
+        replan.get(
+            "repair_target_subsystem" if dependency_repair else "source_subsystem",
+            "",
+        )
+        or ""
+    )
     return bool(
         resolution.get("resolution_status")
         == "SUPERSEDED_BY_FRESH_ACCEPTED_ARTIFACT"
         and rejected_manifest_id
         and resolution.get("rejected_source_manifest_id")
         == rejected_manifest_id
-        and resolution.get("source_subsystem")
-        == replan.get("source_subsystem")
+        and resolution.get("source_subsystem") == rejected_subsystem
         and str(resolution.get("accepted_source_manifest_id", "") or "")
         and resolution.get("accepted_source_manifest_id")
         != rejected_manifest_id
@@ -1018,6 +1038,11 @@ def build_architect_coordinator_prompt(
         "present, use its exact independent findings, repair_scope, immutable review "
         "lineage, and pending_artifact_ids as the current blocker. For source_code, "
         "route a better-context fresh generation to the reviewed source subsystem. "
+        "For upstream_generated_dependency, route the complete hash-bound dependency "
+        "to repair_target_subsystem, preserve the rejected consumer and every frozen "
+        "gate, require fresh independent review of the dependency, and rerun its "
+        "descendants; do not ask the consumer to compensate for immutable upstream "
+        "code. "
         "For upstream_theory, route the exact findings to TheoryDeveloper. For "
         "upstream_metric_contract, preserve the frozen requirement fingerprint and "
         "the failed artifact, record EVALUATION_PROTOCOL_REVISION_REQUIRED, and stop "

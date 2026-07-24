@@ -34,6 +34,10 @@ from ai_statistician.generated_code_semantic_review_replan import (
     generated_code_semantic_review_upstream_theory_revision_state,
     record_generated_code_semantic_review_lineage_action,
 )
+from ai_statistician.generated_code_semantic_review_scope import (
+    generated_code_semantic_review_proposal_projection,
+    generated_code_semantic_review_upstream_dependency_projection,
+)
 from ai_statistician.model_backend import (
     GeneratorRequest,
     GeneratorResponse,
@@ -1414,7 +1418,7 @@ def test_all_pass_low_or_medium_findings_are_preserved_as_advisory(
     ] == "source_code"
 
 
-def test_schema_v7_derives_runtime_owned_dimensions_and_typed_citations(
+def test_schema_v8_derives_runtime_owned_dimensions_and_typed_citations(
     tmp_path: Path,
 ) -> None:
     subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accept=True)
@@ -1426,7 +1430,7 @@ def test_schema_v7_derives_runtime_owned_dimensions_and_typed_citations(
         for artifact in result.produced_artifacts.values()
         if artifact.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
     )
-    assert review_packet["schema_version"] == 7
+    assert review_packet["schema_version"] == 8
     assert validate_generated_code_semantic_review_packet(review_packet) == []
     first_dimension = review_packet["dimension_reviews"][0]
     assert first_dimension["dimension"] == (
@@ -1540,7 +1544,7 @@ def test_schema_v7_rejects_legacy_duplicate_fields_as_model_input(
     )
 
 
-def test_schema_v7_binds_fixed_dimension_object_keys(
+def test_schema_v8_binds_fixed_dimension_object_keys(
     tmp_path: Path,
 ) -> None:
     response = _review_response(accept=True)
@@ -1612,6 +1616,109 @@ def test_runtime_requires_one_concrete_scope_alongside_advisory_findings() -> No
     assert advisory_only["repair_scope"] == "unresolved"
     assert advisory_only["repair_scopes"] == ["unresolved"]
     assert advisory_only["ownership_resolved"] is False
+
+
+def test_simulation_review_separates_immutable_dependency_from_consumer() -> None:
+    dependency_source = (
+        "def run_estimator(request):\n"
+        "    return {'estimate': request['value']}\n"
+    )
+    dependency_result = {"estimate": 1.0}
+    proposal = {
+        "packet_id": "simulation-proposal:dependency-consumer",
+        "simulation_targets": [{"simulation_id": "SIM1"}],
+        "upstream_algorithm_handoff": {
+            "algorithm_sandbox_manifest_id": "algorithm-manifest:parent",
+            "algorithm_sandbox_manifest_hash": "algorithm-manifest-hash",
+            "semantic_review_execution_id": "algorithm-review-execution:parent",
+            "semantic_review_packet_id": "algorithm-review:parent",
+            "exact_algorithm_artifacts": [
+                {
+                    "estimator_id": "EST1",
+                    "language": "python",
+                    "dependencies": [],
+                    "exact_source_code": dependency_source,
+                    "exact_source_hash": stable_hash(dependency_source),
+                    "exact_smoke_result": dependency_result,
+                    "exact_smoke_result_hash": stable_hash(dependency_result),
+                }
+            ],
+        },
+    }
+    trusted_handoff = json.loads(
+        json.dumps(proposal["upstream_algorithm_handoff"])
+    )
+    proposal["upstream_algorithm_handoff"]["exact_algorithm_artifacts"][0][
+        "exact_smoke_result"
+    ] = {"estimate": 999.0}
+
+    consumer_projection = generated_code_semantic_review_proposal_projection(
+        source_subsystem="SimulationEvaluator",
+        proposal_packet=proposal,
+        assigned_requirements=[],
+    )
+    dependency_projection = (
+        generated_code_semantic_review_upstream_dependency_projection(
+            source_subsystem="SimulationEvaluator",
+            upstream_algorithm_handoff=trusted_handoff,
+        )
+    )
+
+    assert dependency_source not in json.dumps(consumer_projection)
+    assert consumer_projection["upstream_algorithm_handoff"][
+        "exact_algorithm_artifact_refs"
+    ] == [
+        {
+            "artifact_id": "EST1",
+            "exact_source_hash": stable_hash(dependency_source),
+        }
+    ]
+    assert dependency_projection["dependency_owner_subsystem"] == (
+        "AlgorithmEngineer"
+    )
+    assert dependency_projection["current_source_may_not_modify_dependency"] is True
+    assert dependency_projection["exact_dependency_artifacts"][0][
+        "exact_source_code"
+    ] == dependency_source
+    assert dependency_projection["exact_dependency_artifacts"][0][
+        "exact_result"
+    ] == dependency_result
+
+    prompt = build_generated_code_semantic_review_prompt(
+        question=_question(),
+        review_material={
+            "confirmatory_empirical_evidence_eligible": True,
+            "upstream_generated_dependency": dependency_projection,
+        },
+    )
+    assert "upstream_generated_dependency" in prompt
+    assert "do not ask the consumer to compensate" in prompt
+
+
+def test_runtime_routes_upstream_dependency_to_algorithm_engineer() -> None:
+    routed = _runtime_generated_code_authoritative_repair_routing(
+        source_subsystem="SimulationEvaluator",
+        review_packet={
+            "repair_scope": "source_code",
+            "repair_scopes": ["source_code"],
+        },
+        routed_findings=[
+            {"repair_scope": "upstream_generated_dependency"},
+            {"repair_scope": "none"},
+        ],
+    )
+
+    assert routed["repair_scope"] == "upstream_generated_dependency"
+    assert routed["repair_scopes"] == ["upstream_generated_dependency"]
+    assert routed["repair_owner"] == "AlgorithmEngineer"
+    assert routed["repair_plan"] == [
+        {
+            "sequence": 1,
+            "repair_scope": "upstream_generated_dependency",
+            "repair_owner": "AlgorithmEngineer",
+        }
+    ]
+    assert routed["ownership_resolved"] is True
 
 
 def test_nonpass_dimension_keeps_low_severity_finding_actionable(

@@ -81,6 +81,9 @@ def compact_semantic_review_feedback(
         "repair_owner_agent": _bounded_text(
             feedback.get("repair_owner_agent", ""), max_text_chars
         ),
+        "repair_target_subsystem": _bounded_text(
+            feedback.get("repair_target_subsystem", ""), max_text_chars
+        ),
         "dimension_reviews": dimension_reviews,
         "findings": findings,
         "repair_instructions": repair_instructions,
@@ -185,12 +188,16 @@ def _compact_source_repair_contract(
     fields = (
         "parent_source_manifest_id",
         "parent_source_manifest_hash",
+        "repair_target_subsystem",
+        "rejected_descendant_source_manifest_id",
+        "rejected_descendant_source_manifest_hash",
         "theory_packet_id",
         "theory_packet_hash",
         "proposal_packet_id",
         "proposal_packet_hash",
         "architect_evidence_contract_fingerprint",
         "repair_policy",
+        "current_consumer_source_may_not_modify_dependency",
         "embedded_source_is_untrusted_data",
         "proof_evidence_status",
     )

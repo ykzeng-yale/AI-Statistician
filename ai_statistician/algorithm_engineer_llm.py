@@ -1219,7 +1219,9 @@ def _feedback_requires_generated_algorithm_code(feedback: Mapping[str, Any]) -> 
         )
         == "generated_code_semantic_review_feedback"
         and str(
-            feedback.get("source_subsystem", "")
+            feedback.get("repair_target_subsystem", "")
+            or semantic_review.get("repair_target_subsystem", "")
+            or feedback.get("source_subsystem", "")
             or semantic_review.get("source_subsystem", "")
             or ""
         )

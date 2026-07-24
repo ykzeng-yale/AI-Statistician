@@ -675,6 +675,33 @@ def build_generated_code_semantic_review_architect_replan_task(
         "repair_scope": str(
             escalation_feedback.get("repair_scope", "") or ""
         ),
+        "repair_target_subsystem": str(
+            escalation_feedback.get("repair_target_subsystem", "") or ""
+        ),
+        "repair_target_source_manifest_id": str(
+            _mapping(
+                escalation_feedback.get("source_repair_contract")
+            ).get("parent_source_manifest_id", "")
+            or ""
+        ),
+        "repair_target_source_manifest_hash": str(
+            _mapping(
+                escalation_feedback.get("source_repair_contract")
+            ).get("parent_source_manifest_hash", "")
+            or ""
+        ),
+        "rejected_descendant_source_manifest_id": str(
+            _mapping(
+                escalation_feedback.get("source_repair_contract")
+            ).get("rejected_descendant_source_manifest_id", "")
+            or ""
+        ),
+        "rejected_descendant_source_manifest_hash": str(
+            _mapping(
+                escalation_feedback.get("source_repair_contract")
+            ).get("rejected_descendant_source_manifest_hash", "")
+            or ""
+        ),
         "repair_scopes": [
             str(value)
             for value in escalation_feedback.get("repair_scopes", []) or []

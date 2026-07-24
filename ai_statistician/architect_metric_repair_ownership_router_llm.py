@@ -20,7 +20,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 
 
-ARCHITECT_METRIC_REPAIR_OWNERSHIP_SCHEMA_VERSION = 4
+ARCHITECT_METRIC_REPAIR_OWNERSHIP_SCHEMA_VERSION = 5
 ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_PREEXECUTION = (
     "pre_execution_metric_protocol"
 )
@@ -33,7 +33,13 @@ ARCHITECT_METRIC_REPAIR_ROUTING_PHASES = (
 )
 ARCHITECT_METRIC_REPAIR_TARGET_SOURCE_THEORY = "source_theory_packet"
 ARCHITECT_METRIC_REPAIR_TARGET_METRIC_PROTOCOL = "metric_protocol_candidate"
+ARCHITECT_METRIC_REPAIR_TARGET_UPSTREAM_GENERATED_DEPENDENCY = (
+    "upstream_generated_dependency"
+)
 ARCHITECT_METRIC_REPAIR_TARGET_GENERATED_SOURCE = "generated_source_artifact"
+ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY = (
+    "upstream_generated_dependency"
+)
 ARCHITECT_METRIC_REPAIR_TARGETS = (
     ARCHITECT_METRIC_REPAIR_TARGET_SOURCE_THEORY,
     ARCHITECT_METRIC_REPAIR_TARGET_METRIC_PROTOCOL,
@@ -41,6 +47,7 @@ ARCHITECT_METRIC_REPAIR_TARGETS = (
 ARCHITECT_GENERATED_CODE_REPAIR_TARGETS = (
     ARCHITECT_METRIC_REPAIR_TARGET_SOURCE_THEORY,
     ARCHITECT_METRIC_REPAIR_TARGET_METRIC_PROTOCOL,
+    ARCHITECT_METRIC_REPAIR_TARGET_UPSTREAM_GENERATED_DEPENDENCY,
     ARCHITECT_METRIC_REPAIR_TARGET_GENERATED_SOURCE,
 )
 ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED = "unresolved"
@@ -70,6 +77,11 @@ _POSTEXECUTION_EVIDENCE_PREFIXES_BY_ARTIFACT_ROLE = {
         "metric_protocol_candidate",
         "empirical_metric_requirement",
     ),
+    ARCHITECT_METRIC_REPAIR_TARGET_UPSTREAM_GENERATED_DEPENDENCY: (
+        "upstream_generated_dependency",
+        "exact_dependency_artifacts",
+        "algorithm_sandbox_manifest",
+    ),
     ARCHITECT_METRIC_REPAIR_TARGET_GENERATED_SOURCE: (
         "coding_agent_proposal_packet",
         "exact_executed_artifacts",
@@ -80,10 +92,10 @@ _POSTEXECUTION_EVIDENCE_PREFIXES_BY_ARTIFACT_ROLE = {
         "simulation_manifest",
         "source_manifest",
         "source_responsibility_contract",
-        "upstream_algorithm_handoff",
     ),
 }
 _POSTEXECUTION_OUTCOME_EVIDENCE_PREFIXES = (
+    "exact_dependency_artifacts",
     "exact_executed_artifacts",
     "exact_result",
     "execution",
@@ -91,6 +103,7 @@ _POSTEXECUTION_OUTCOME_EVIDENCE_PREFIXES = (
     "result",
     "simulation_manifest",
     "source_manifest",
+    "upstream_generated_dependency",
 )
 
 
@@ -162,8 +175,11 @@ class LLMArchitectMetricRepairOwnershipRouterAgent:
             semantic_review_packet,
             actionable_only=True,
         )
+        artifact_projection = _postexecution_router_artifact_projection(
+            review_material
+        )
         routing_material = {
-            **_postexecution_router_artifact_projection(review_material),
+            **artifact_projection,
             "semantic_review_artifact_assessments": _mapping_projection(
                 semantic_review_packet,
                 (
@@ -181,6 +197,11 @@ class LLMArchitectMetricRepairOwnershipRouterAgent:
                     semantic_review_findings,
                     semantic_review_dimensions=list(
                         semantic_review_packet.get("dimension_reviews", []) or []
+                    ),
+                    available_artifact_roles=(
+                        _postexecution_available_artifact_roles(
+                            artifact_projection
+                        )
                     ),
                 )
             ),
@@ -418,7 +439,6 @@ def _postexecution_router_artifact_projection(
                     "theory_trace_alignment",
                     "theory_trace_alignment_contract",
                     "theory_trace_consumption_contract",
-                    "upstream_algorithm_handoff",
                     "critic_findings",
                 ),
             ),
@@ -436,6 +456,9 @@ def _postexecution_router_artifact_projection(
             if isinstance(exact_artifacts, list)
             else [],
         },
+        "upstream_generated_dependency": deepcopy(
+            review_material.get("upstream_generated_dependency", {})
+        ),
     }
 
 
@@ -506,10 +529,46 @@ def _postexecution_exact_artifact_projection(
     }
 
 
+def _postexecution_available_artifact_roles(
+    artifact_projection: Mapping[str, Any],
+) -> set[str]:
+    available = {
+        role
+        for role in (
+            ARCHITECT_METRIC_REPAIR_TARGET_SOURCE_THEORY,
+            ARCHITECT_METRIC_REPAIR_TARGET_METRIC_PROTOCOL,
+        )
+        if isinstance(artifact_projection.get(role), Mapping)
+        and artifact_projection.get(role)
+    }
+    current_source = artifact_projection.get(
+        ARCHITECT_METRIC_REPAIR_TARGET_GENERATED_SOURCE,
+        {},
+    )
+    if (
+        isinstance(current_source, Mapping)
+        and current_source.get("exact_executed_artifacts")
+    ):
+        available.add(ARCHITECT_METRIC_REPAIR_TARGET_GENERATED_SOURCE)
+    dependency = artifact_projection.get(
+        ARCHITECT_METRIC_REPAIR_TARGET_UPSTREAM_GENERATED_DEPENDENCY,
+        {},
+    )
+    if (
+        isinstance(dependency, Mapping)
+        and dependency.get("exact_dependency_artifacts")
+    ):
+        available.add(
+            ARCHITECT_METRIC_REPAIR_TARGET_UPSTREAM_GENERATED_DEPENDENCY
+        )
+    return available
+
+
 def _postexecution_artifact_target_eligibility(
     findings: list[dict[str, Any]],
     *,
     semantic_review_dimensions: list[Any],
+    available_artifact_roles: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     dimension_evidence_refs = {
         str(row.get("dimension", "") or "").strip().lower(): [
@@ -592,6 +651,10 @@ def _postexecution_artifact_target_eligibility(
                 role
                 for role in ARCHITECT_GENERATED_CODE_REPAIR_TARGETS
                 if role in typed_artifact_citations
+                and (
+                    available_artifact_roles is None
+                    or role in available_artifact_roles
+                )
             ]
         else:
             # Compatibility for replaying schema-v3 reviewer packets. Fresh
@@ -606,6 +669,10 @@ def _postexecution_artifact_target_eligibility(
                     for evidence_ref in evidence_refs
                     for prefix in prefixes
                 )
+                and (
+                    available_artifact_roles is None
+                    or role in available_artifact_roles
+                )
             ]
         if ARCHITECT_METRIC_REPAIR_TARGET_METRIC_PROTOCOL in eligible_roles:
             fresh_rooted_evidence = bool(evidence_refs) and all(
@@ -618,8 +685,14 @@ def _postexecution_artifact_target_eligibility(
             metric_protocol_evidence_eligible = (
                 ARCHITECT_METRIC_REPAIR_TARGET_METRIC_PROTOCOL
                 in rooted_evidence_roles
-                and ARCHITECT_METRIC_REPAIR_TARGET_GENERATED_SOURCE
-                not in rooted_evidence_roles
+                and not rooted_evidence_roles.intersection(
+                    {
+                        ARCHITECT_METRIC_REPAIR_TARGET_GENERATED_SOURCE,
+                        (
+                            ARCHITECT_METRIC_REPAIR_TARGET_UPSTREAM_GENERATED_DEPENDENCY
+                        ),
+                    }
+                )
                 if fresh_rooted_evidence
                 else not any(
                     prefix in evidence_ref
@@ -664,6 +737,10 @@ def _ownership_artifact_role_descriptions(
         ARCHITECT_METRIC_REPAIR_TARGET_METRIC_PROTOCOL: (
             "the proposed or frozen measurement, evaluator encoding, aggregation, "
             "threshold, source anchors, or coverage rows"
+        ),
+        ARCHITECT_METRIC_REPAIR_TARGET_UPSTREAM_GENERATED_DEPENDENCY: (
+            "an exact immutable generated artifact injected into the current "
+            "consumer and owned by its upstream coding subsystem"
         ),
         ARCHITECT_METRIC_REPAIR_TARGET_GENERATED_SOURCE: (
             "the exact generated source, runtime argument binding, or returned "
@@ -716,7 +793,12 @@ def build_architect_metric_repair_ownership_prompt(
         "new independently reviewed protocol; never propose an in-place threshold "
         "relaxation. Target generated_source_artifact for an exact source, runtime-"
         "argument, measurement-path, or implementation mismatch under coherent "
-        "theory and protocol. Target source_theory_packet when a premise, formula, "
+        "theory and protocol. Target upstream_generated_dependency when the current "
+        "consumer invokes an immutable generated dependency and the defect is inside "
+        "that dependency rather than the consumer. The consumer cannot compensate "
+        "for such a defect; its owning coding subsystem must produce a fresh "
+        "independently reviewed dependency before descendants rerun. Target "
+        "source_theory_packet when a premise, formula, "
         "procedure, calibration, or feasibility claim is missing or contradictory. "
         "Use the minimum necessary owner under a downstream-repair counterfactual: "
         "first ask whether a correct generated-source repair can restore exact "
@@ -731,8 +813,10 @@ def build_architect_metric_repair_ownership_prompt(
         "semantics needed by every coherent implementation. In that case identify "
         "the exact field and explain why generated-source-only repair cannot restore "
         "conformance. If one post-execution finding genuinely supports both "
-        "generated_source_artifact and source_theory_packet, include both roles; the "
-        "runtime will make one bounded generated-source repair and independently "
+        "generated_source_artifact or upstream_generated_dependency and "
+        "source_theory_packet, include both supported roles; the runtime will make "
+        "one bounded generated-source repair to the earliest cited artifact and "
+        "independently "
         "re-review before changing theory. When separate findings require a concrete "
         "generated-source repair and a theory reassessment under the same coherent "
         "frozen protocol, repair and independently re-review the generated source "
@@ -798,7 +882,7 @@ ARCHITECT_METRIC_REPAIR_OWNERSHIP_OUTPUT_CONTRACT: dict[str, Any] = {
                 {
                     "artifact_role": (
                         "source_theory_packet|metric_protocol_candidate|"
-                        "generated_source_artifact"
+                        "upstream_generated_dependency|generated_source_artifact"
                     )
                 }
             ],
@@ -926,6 +1010,16 @@ def _repair_scope_from_ownership_decision(
     if (
         routing_phase
         == ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_POSTEXECUTION
+        and ARCHITECT_METRIC_REPAIR_TARGET_UPSTREAM_GENERATED_DEPENDENCY
+        in roles
+        and ARCHITECT_METRIC_REPAIR_TARGET_METRIC_PROTOCOL not in roles
+    ):
+        # Repair an immutable upstream implementation before asking its consumer
+        # or mathematical theory to compensate for the dependency defect.
+        return ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
+    if (
+        routing_phase
+        == ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_POSTEXECUTION
         and roles
         == {
             ARCHITECT_METRIC_REPAIR_TARGET_SOURCE_THEORY,
@@ -993,6 +1087,8 @@ def _recommended_scope_from_ownership_decisions(
     if routing_phase == ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_POSTEXECUTION:
         if "upstream_metric_contract" in scopes:
             return "upstream_metric_contract"
+        if ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY in scopes:
+            return ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
         if "source_code" in scopes:
             return "source_code"
         if ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY in scopes:
@@ -1089,11 +1185,21 @@ def _apply_repair_ownership_routes(
                 if str(row.get("artifact_role", "") or "").strip()
             ]
             immediate_target_roles = list(target_roles)
-            if finding["repair_scope"] == "source_code":
+            if finding["repair_scope"] in {
+                "source_code",
+                ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY,
+            }:
+                expected_immediate_role = (
+                    ARCHITECT_METRIC_REPAIR_TARGET_GENERATED_SOURCE
+                    if finding["repair_scope"] == "source_code"
+                    else (
+                        ARCHITECT_METRIC_REPAIR_TARGET_UPSTREAM_GENERATED_DEPENDENCY
+                    )
+                )
                 immediate_target_roles = [
                     role
                     for role in target_roles
-                    if role == ARCHITECT_METRIC_REPAIR_TARGET_GENERATED_SOURCE
+                    if role == expected_immediate_role
                 ]
             finding["deferred_repair_target_artifacts"] = [
                 dict(row)
@@ -1332,13 +1438,18 @@ def _normalize_architect_metric_repair_ownership_packet(
         requested_certainty = str(
             row.get("ownership_certainty", "") or ""
         ).strip()
+        if requested_certainty == "unresolved":
+            changes = []
         roles = {
             str(change.get("artifact_role", "") or "").strip()
             for change in changes
             if isinstance(change, Mapping)
         } if isinstance(changes, list) else set()
-        # Eligible target rows authorize repair only; they can never accept evidence.
-        if isinstance(changes, list) and changes:
+        # Eligible target rows authorize repair only; they can never accept
+        # evidence or turn an explicitly unresolved diagnosis into a repair.
+        if requested_certainty == "unresolved":
+            certainty = "unresolved"
+        elif isinstance(changes, list) and changes:
             certainty = "resolved"
         elif (
             routing_phase

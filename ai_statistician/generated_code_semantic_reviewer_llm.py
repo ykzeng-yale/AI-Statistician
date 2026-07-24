@@ -11,7 +11,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 
 
-GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 7
+GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 8
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -57,6 +57,7 @@ GENERATED_CODE_SEMANTIC_REVIEW_ACTIONABLE_REPAIR_SCOPES = (
 GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS = (
     "source_theory_packet",
     "metric_protocol_candidate",
+    "upstream_generated_dependency",
     "generated_source_artifact",
 )
 GENERATED_CODE_SEMANTIC_REVIEW_REPAIR_DEPENDENCY_ORDER = (
@@ -66,6 +67,7 @@ GENERATED_CODE_SEMANTIC_REVIEW_REPAIR_DEPENDENCY_ORDER = (
 )
 GENERATED_CODE_SEMANTIC_REVIEW_POSTEXECUTION_REPAIR_ORDER = (
     "upstream_metric_contract",
+    "upstream_generated_dependency",
     "source_code",
     "upstream_theory",
 )
@@ -763,15 +765,22 @@ def build_generated_code_semantic_review_prompt(
         "after REVISE; AgentRuntime derives aggregate routing from that decision. "
         "Populate evidence_citations on every dimension and finding. Each citation "
         "must contain artifact_role equal to source_theory_packet, "
-        "metric_protocol_candidate, or generated_source_artifact, plus a precise "
+        "metric_protocol_candidate, upstream_generated_dependency, or "
+        "generated_source_artifact, plus a precise "
         "non-empty locator inside that artifact. Runtime derives evidence_refs and "
         "artifact_citations from this single typed source; do not emit either duplicate "
-        "field. A source_code finding must cite generated_source_artifact; an "
+        "field. A source_code finding must cite generated_source_artifact when the "
+        "current executed consumer is defective, or upstream_generated_dependency "
+        "when an exact immutable generated dependency is defective; an "
         "upstream_metric_contract finding must cite metric_protocol_candidate; an "
         "upstream_theory finding must cite source_theory_packet. A result or exact "
-        "source locator belongs to generated_source_artifact even when it motivates "
-        "a claim about another artifact; do not hide observed-result evidence behind "
-        "a metric-protocol citation. Do not emit duplicate "
+        "source locator belongs to the generated artifact that actually contains it. "
+        "When current source invokes an immutable upstream dependency, do not ask the "
+        "consumer to compensate for a defect inside that dependency. Cite "
+        "upstream_generated_dependency, preserve the consumer and frozen protocol, "
+        "and let the independent owner router return the dependency to its coding "
+        "agent. Do not hide observed-result evidence behind a metric-protocol "
+        "citation. Do not emit duplicate "
         "aggregate decisions, and do not collapse a source implementation mismatch "
         "into a protocol or theory defect. A source_code finding needs a specific mismatch "
         "between exact executed source and an unambiguous current theory or frozen "
@@ -842,7 +851,7 @@ GENERATED_CODE_SEMANTIC_REVIEW_OUTPUT_CONTRACT: dict[str, Any] = {
                 {
                     "artifact_role": (
                         "source_theory_packet|metric_protocol_candidate|"
-                        "generated_source_artifact"
+                        "upstream_generated_dependency|generated_source_artifact"
                     ),
                     "locator": "/precise/path/inside/artifact",
                 }
@@ -863,7 +872,7 @@ GENERATED_CODE_SEMANTIC_REVIEW_OUTPUT_CONTRACT: dict[str, Any] = {
                 {
                     "artifact_role": (
                         "source_theory_packet|metric_protocol_candidate|"
-                        "generated_source_artifact"
+                        "upstream_generated_dependency|generated_source_artifact"
                     ),
                     "locator": "/precise/path/inside/artifact",
                 }

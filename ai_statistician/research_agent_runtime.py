@@ -42,6 +42,7 @@ from .architect_metric_contract_authoring import (
     ArchitectMetricSemanticReviewRejected,
 )
 from .architect_metric_repair_ownership_router_llm import (
+    ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY,
     ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED,
     LLMArchitectMetricRepairOwnershipRouterAgent,
     apply_generated_code_repair_ownership_routes,
@@ -90,7 +91,6 @@ from .generated_code_semantic_reviewer_llm import (
     GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE,
     GENERATED_CODE_SEMANTIC_REVIEW_POSTEXECUTION_REPAIR_ORDER,
     GENERATED_CODE_SEMANTIC_REVIEW_SOURCE_SUBSYSTEMS,
-    GENERATED_CODE_SEMANTIC_REVIEW_REPAIR_DEPENDENCY_ORDER,
     GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_REPAIR_SCOPES,
     LLMGeneratedCodeSemanticReviewerAgent,
     generated_code_semantic_review_active_pending_repair_plan,
@@ -112,6 +112,7 @@ from .generated_code_semantic_review_scope import (
     generated_code_semantic_review_proposal_projection,
     generated_code_semantic_review_scope_projection,
     generated_code_semantic_review_theory_projection,
+    generated_code_semantic_review_upstream_dependency_projection,
 )
 from .scientific_sandbox import (
     SCIENTIFIC_WASM_SANDBOX_PROFILE,
@@ -8411,7 +8412,11 @@ def _architect_identity_bound_repair_dispatch_result(
     if not isinstance(replan, Mapping):
         return None
     repair_scope = str(replan.get("repair_scope", "") or "")
-    if repair_scope not in {"source_code", "upstream_theory"}:
+    if repair_scope not in {
+        "source_code",
+        "upstream_theory",
+        ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY,
+    }:
         return None
     source_subsystem = _canonical_architect_subsystem(
         replan.get("source_subsystem")
@@ -8437,6 +8442,31 @@ def _architect_identity_bound_repair_dispatch_result(
         and str(replan.get("review_execution_id", "") or "")
     ):
         return None
+    if repair_scope == (
+        ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
+    ):
+        repair_contract = feedback.get("source_repair_contract", {})
+        if not (
+            _canonical_architect_subsystem(
+                replan.get("repair_target_subsystem")
+            )
+            == "AlgorithmEngineer"
+            and _canonical_architect_subsystem(
+                feedback.get("repair_target_subsystem")
+            )
+            == "AlgorithmEngineer"
+            and isinstance(repair_contract, Mapping)
+            and str(
+                repair_contract.get("parent_source_manifest_id", "") or ""
+            )
+            and str(
+                repair_contract.get("parent_source_manifest_id", "") or ""
+            )
+            == str(
+                replan.get("repair_target_source_manifest_id", "") or ""
+            )
+        ):
+            return None
     if repair_scope == "upstream_theory":
         budget_state = (
             generated_code_semantic_review_upstream_theory_revision_state(
@@ -8494,11 +8524,19 @@ def _architect_identity_bound_repair_dispatch_result(
         question_id=question.id,
     )
     target_subsystem = (
-        source_subsystem if repair_scope == "source_code" else "RetrievalMemory"
+        source_subsystem
+        if repair_scope == "source_code"
+        else "AlgorithmEngineer"
+        if repair_scope
+        == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
+        else "RetrievalMemory"
     )
     expected_route_source = (
         "generated_code_semantic_review_source_repair"
         if repair_scope == "source_code"
+        else "generated_code_semantic_review_upstream_dependency_repair"
+        if repair_scope
+        == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
         else "generated_code_semantic_review_upstream_theory_repair"
     )
     if not (
@@ -8537,6 +8575,13 @@ def _architect_identity_bound_repair_dispatch_result(
         dispatch_context["architect_typed_source_repair_dispatch"] = dict(
             dispatch_artifact
         )
+    elif (
+        repair_scope
+        == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
+    ):
+        dispatch_context[
+            "architect_typed_upstream_dependency_repair_dispatch"
+        ] = dict(dispatch_artifact)
     routing_decision = _architect_initial_routing_decision(
         question=question,
         packet=routing_packet,
@@ -8877,8 +8922,27 @@ def _runtime_retire_resolved_generated_code_semantic_review_replan(
     if not isinstance(replan, Mapping) or not replan:
         return context
 
-    rejected_subsystem = str(replan.get("source_subsystem", "") or "")
-    rejected_manifest_id = str(replan.get("source_manifest_id", "") or "")
+    repair_scope = str(replan.get("repair_scope", "") or "")
+    repairs_upstream_dependency = bool(
+        repair_scope
+        == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
+    )
+    rejected_descendant_subsystem = str(
+        replan.get("source_subsystem", "") or ""
+    )
+    rejected_descendant_manifest_id = str(
+        replan.get("source_manifest_id", "") or ""
+    )
+    rejected_subsystem = (
+        str(replan.get("repair_target_subsystem", "") or "")
+        if repairs_upstream_dependency
+        else rejected_descendant_subsystem
+    )
+    rejected_manifest_id = (
+        str(replan.get("repair_target_source_manifest_id", "") or "")
+        if repairs_upstream_dependency
+        else rejected_descendant_manifest_id
+    )
     accepted_subsystem = str(
         accepted_review.get("source_subsystem", "") or ""
     )
@@ -8900,7 +8964,18 @@ def _runtime_retire_resolved_generated_code_semantic_review_replan(
             "RuntimeGeneratedCodeSemanticReviewReplanResolution"
         ),
         "source_subsystem": accepted_subsystem,
+        "repair_scope": repair_scope,
         "rejected_source_manifest_id": rejected_manifest_id,
+        "rejected_descendant_source_subsystem": (
+            rejected_descendant_subsystem
+            if repairs_upstream_dependency
+            else ""
+        ),
+        "rejected_descendant_source_manifest_id": (
+            rejected_descendant_manifest_id
+            if repairs_upstream_dependency
+            else ""
+        ),
         "rejected_review_execution_id": str(
             replan.get("review_execution_id", "") or ""
         ),
@@ -8915,6 +8990,7 @@ def _runtime_retire_resolved_generated_code_semantic_review_replan(
             accepted_review.get("execution_id", "") or ""
         ),
         "resolution_status": "SUPERSEDED_BY_FRESH_ACCEPTED_ARTIFACT",
+        "descendant_rerun_required": repairs_upstream_dependency,
         "proof_evidence_status": (
             "GENERATED_CODE_SEMANTIC_REVIEW_REPLAN_RESOLUTION_NOT_PROOF_EVIDENCE"
         ),
@@ -9792,11 +9868,15 @@ def _architect_initial_routing_decision(
             "record": record,
             "rationale": (
                 "ArchitectCoordinator preserved the identity-bound semantic-review "
-                "feedback and returned the rejected source to AlgorithmEngineer "
-                "for the one authorized fresh revision."
+                "feedback and returned the rejected source or immutable dependency "
+                "to AlgorithmEngineer for the one authorized fresh revision."
                 if record["source"] in {
                     "generated_code_semantic_review_source_repair",
                     "generated_code_semantic_review_pending_source_repair",
+                    (
+                        "generated_code_semantic_review_upstream_"
+                        "dependency_repair"
+                    ),
                 }
                 else "ArchitectCoordinator recorded a top-level execution plan and "
                 "is routing directly to AlgorithmEngineer because the selected "
@@ -10226,6 +10306,37 @@ def _architect_select_initial_subsystem(
         selected={},
         architect_context=architect_context,
     )
+    if (
+        isinstance(semantic_replan, Mapping)
+        and semantic_replan.get("repair_scope")
+        == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
+        and semantic_feedback
+        and _canonical_architect_subsystem(
+            semantic_replan.get("repair_target_subsystem")
+        )
+        == "AlgorithmEngineer"
+        and _canonical_architect_subsystem(
+            semantic_feedback.get("repair_target_subsystem")
+        )
+        == "AlgorithmEngineer"
+    ):
+        selected_dependency_owner = _architect_feasible_initial_subsystem(
+            "AlgorithmEngineer",
+            architect_context=architect_context,
+            blackboard=blackboard,
+            question_id=question_id,
+        )
+        return {
+            "requested_subsystem": "AlgorithmEngineer",
+            "selected_subsystem": selected_dependency_owner,
+            "source": (
+                "generated_code_semantic_review_upstream_dependency_repair"
+            ),
+            "requires_prerequisite_theory": (
+                selected_dependency_owner != "AlgorithmEngineer"
+            ),
+            "environment_feedback": semantic_feedback,
+        }
     if (
         isinstance(semantic_replan, Mapping)
         and semantic_replan.get("repair_scope") == "source_code"
@@ -14030,6 +14141,73 @@ def _runtime_generated_code_semantic_review_material(
         for key, value in source_manifest.items()
         if key not in {"generated_simulation_sandbox_prototypes", "prototypes"}
     }
+    repair_task = work_order.get("repair_task", {})
+    repair_inputs = (
+        repair_task.get("inputs", {})
+        if isinstance(repair_task, Mapping)
+        else {}
+    )
+    repair_context = (
+        repair_inputs.get("architect_context", {})
+        if isinstance(repair_inputs, Mapping)
+        else {}
+    )
+    dependency_handoff = (
+        repair_inputs.get("upstream_algorithm_handoff", {})
+        if isinstance(repair_inputs, Mapping)
+        else {}
+    )
+    if not isinstance(dependency_handoff, Mapping) or not dependency_handoff:
+        dependency_handoff = (
+            repair_context.get("upstream_algorithm_handoff", {})
+            if isinstance(repair_context, Mapping)
+            else {}
+        )
+    if not isinstance(dependency_handoff, Mapping):
+        dependency_handoff = {}
+    upstream_generated_dependency = (
+        generated_code_semantic_review_upstream_dependency_projection(
+            source_subsystem=source_subsystem,
+            upstream_algorithm_handoff=dependency_handoff,
+        )
+    )
+    if upstream_generated_dependency and any(
+        not str(upstream_generated_dependency.get(field, "") or "")
+        for field in (
+            "algorithm_sandbox_manifest_id",
+            "algorithm_sandbox_manifest_hash",
+            "accepted_semantic_review_execution_id",
+            "accepted_semantic_review_packet_id",
+        )
+    ):
+        errors.append("upstream generated dependency lineage is incomplete")
+    for dependency in upstream_generated_dependency.get(
+        "exact_dependency_artifacts",
+        [],
+    ):
+        if not isinstance(dependency, Mapping):
+            errors.append("upstream generated dependency is not an object")
+            continue
+        dependency_id = str(dependency.get("artifact_id", "") or "")
+        dependency_source = str(
+            dependency.get("exact_source_code", "") or ""
+        )
+        dependency_result = dependency.get("exact_result", {})
+        if not dependency_id or not dependency_source:
+            errors.append("upstream generated dependency is incomplete")
+            continue
+        if str(dependency.get("exact_source_hash", "") or "") != stable_hash(
+            dependency_source
+        ):
+            errors.append(
+                f"upstream generated dependency source hash mismatch: {dependency_id}"
+            )
+        if not isinstance(dependency_result, Mapping) or str(
+            dependency.get("exact_result_hash", "") or ""
+        ) != stable_hash(dependency_result):
+            errors.append(
+                f"upstream generated dependency result hash mismatch: {dependency_id}"
+            )
     material = {
         "source_subsystem": source_subsystem,
         "empirical_evaluation_phase": str(
@@ -14071,6 +14249,7 @@ def _runtime_generated_code_semantic_review_material(
         "pending_repair_plan": dict(
             work_order.get("pending_repair_plan", {}) or {}
         ),
+        "upstream_generated_dependency": upstream_generated_dependency,
         "exact_executed_artifacts": exact_artifacts,
         "evidence_boundary": GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
     }
@@ -14089,7 +14268,7 @@ def _runtime_generated_code_authoritative_repair_routing(
         if isinstance(row, Mapping)
     }
     actionable_observed_scopes = observed_scopes.intersection(
-        GENERATED_CODE_SEMANTIC_REVIEW_REPAIR_DEPENDENCY_ORDER
+        GENERATED_CODE_SEMANTIC_REVIEW_POSTEXECUTION_REPAIR_ORDER
     )
     unresolved = bool(
         not actionable_observed_scopes
@@ -14108,6 +14287,9 @@ def _runtime_generated_code_authoritative_repair_routing(
     repair_owner = (
         source_subsystem
         if repair_scope == "source_code"
+        else "AlgorithmEngineer"
+        if repair_scope
+        == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
         else "ArchitectCoordinator"
     )
     repair_plan = [
@@ -14117,6 +14299,9 @@ def _runtime_generated_code_authoritative_repair_routing(
             "repair_owner": (
                 source_subsystem
                 if scope == "source_code"
+                else "AlgorithmEngineer"
+                if scope
+                == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
                 else "ArchitectCoordinator"
             ),
         }
@@ -14625,7 +14810,11 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             for row in routed_findings
             if isinstance(row, Mapping)
             and (
-                repair_scope != "source_code"
+                repair_scope
+                not in {
+                    "source_code",
+                    ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY,
+                }
                 or str(row.get("repair_scope", "") or "") == repair_scope
             )
         ]
@@ -14635,7 +14824,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         confirmatory_empirical_evidence_eligible = bool(
             work_order.get("confirmatory_empirical_evidence_eligible", True)
         )
-        reviewed_source_artifacts = [
+        current_reviewed_source_artifacts = [
             {
                 "artifact_id": str(row.get("artifact_id", "") or ""),
                 "exact_source_hash": str(
@@ -14656,13 +14845,88 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             for row in review_material.get("exact_executed_artifacts", []) or []
             if isinstance(row, Mapping)
         ]
+        upstream_dependency_material = review_material.get(
+            "upstream_generated_dependency",
+            {},
+        )
+        upstream_dependency_material = (
+            dict(upstream_dependency_material)
+            if isinstance(upstream_dependency_material, Mapping)
+            else {}
+        )
+        upstream_dependency_artifacts = [
+            {
+                "artifact_id": str(row.get("artifact_id", "") or ""),
+                "exact_source_hash": str(
+                    row.get("exact_source_hash", "") or ""
+                ),
+                "exact_source_code": str(
+                    row.get("exact_source_code", "") or ""
+                ),
+                "exact_source_code_complete": True,
+                "exact_result": dict(row.get("exact_result", {}) or {}),
+                "exact_result_hash": str(
+                    row.get("exact_result_hash", "") or ""
+                ),
+                "actual_runtime_arguments": {},
+            }
+            for row in upstream_dependency_material.get(
+                "exact_dependency_artifacts",
+                [],
+            )
+            or []
+            if isinstance(row, Mapping)
+        ]
+        repairing_upstream_dependency = bool(
+            repair_scope
+            == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
+        )
+        reviewed_source_artifacts = (
+            upstream_dependency_artifacts
+            if repairing_upstream_dependency
+            else current_reviewed_source_artifacts
+        )
+        repair_target_subsystem = (
+            "AlgorithmEngineer"
+            if repairing_upstream_dependency
+            else repair_owner_agent
+        )
+        parent_source_manifest_id = (
+            str(
+                upstream_dependency_material.get(
+                    "algorithm_sandbox_manifest_id",
+                    "",
+                )
+                or ""
+            )
+            if repairing_upstream_dependency
+            else str(work_order.get("source_manifest_id", "") or "")
+        )
+        parent_source_manifest_hash = (
+            str(
+                upstream_dependency_material.get(
+                    "algorithm_sandbox_manifest_hash",
+                    "",
+                )
+                or ""
+            )
+            if repairing_upstream_dependency
+            else str(work_order.get("source_manifest_hash", "") or "")
+        )
         source_repair_contract = {
-            "parent_source_manifest_id": str(
+            "parent_source_manifest_id": parent_source_manifest_id,
+            "parent_source_manifest_hash": parent_source_manifest_hash,
+            "repair_target_subsystem": repair_target_subsystem,
+            "rejected_descendant_source_manifest_id": str(
                 work_order.get("source_manifest_id", "") or ""
-            ),
-            "parent_source_manifest_hash": str(
+            )
+            if repairing_upstream_dependency
+            else "",
+            "rejected_descendant_source_manifest_hash": str(
                 work_order.get("source_manifest_hash", "") or ""
-            ),
+            )
+            if repairing_upstream_dependency
+            else "",
             "theory_packet_id": str(
                 work_order.get("theory_packet_id", "") or ""
             ),
@@ -14701,6 +14965,10 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 "GENERATED_CODE_SOURCE_REPAIR_CONTRACT_NOT_PROOF_EVIDENCE"
             ),
         }
+        if repairing_upstream_dependency:
+            source_repair_contract[
+                "current_consumer_source_may_not_modify_dependency"
+            ] = True
         execution_id = "generated_code_semantic_review_execution:" + stable_hash(
             [work_order_id, work_order_hash, review_packet_id, review_packet_hash]
         )[:20]
@@ -14767,6 +15035,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "repair_scopes": repair_scopes,
             "repair_plan": repair_plan,
             "repair_owner_agent": repair_owner_agent,
+            "repair_target_subsystem": repair_target_subsystem,
             "semantic_reviewer_repair_scope": str(
                 authoritative_routing.get(
                     "semantic_reviewer_repair_scope", ""
@@ -14870,6 +15139,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "repair_scopes": repair_scopes,
             "repair_plan": repair_plan,
             "repair_owner_agent": repair_owner_agent,
+            "repair_target_subsystem": repair_target_subsystem,
             "semantic_reviewer_repair_scope": str(
                 authoritative_routing.get(
                     "semantic_reviewer_repair_scope", ""
@@ -14913,6 +15183,11 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 "Stop this lineage because immutable artifact ownership remains "
                 "unresolved; do not guess, relax a gate, or reset the repair budget."
                 if repair_scope == ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED
+                else "Route the complete hash-bound upstream dependency to "
+                "AlgorithmEngineer for the smallest cited repair, independently "
+                "review the fresh dependency, and rerun every rejected descendant "
+                "under unchanged theory and empirical gates."
+                if repairing_upstream_dependency
                 else "Route the exact exploratory findings to ArchitectCoordinator or "
                 "TheoryDeveloper without promoting this diagnostic run."
                 if not confirmatory_empirical_evidence_eligible
@@ -15331,6 +15606,12 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             escalation_classification = (
                 "generated_code_semantic_review_metric_protocol_revision_required"
                 if repair_scope == "upstream_metric_contract"
+                else (
+                    "generated_code_semantic_review_upstream_generated_"
+                    "dependency_repair_escalated_to_architect"
+                )
+                if repair_scope
+                == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
                 else "generated_code_semantic_review_upstream_theory_repair_escalated_to_architect"
                 if repair_scope == "upstream_theory"
                 else "generated_code_semantic_review_upstream_repair_escalated_to_architect"
@@ -15396,9 +15677,15 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 )
                 status = "REROUTE"
                 rationale = (
-                    "Independent semantic review found an upstream protocol or theory "
-                    "blocker; exact findings and failed execution lineage are routed "
-                    "to ArchitectCoordinator without post-result gate changes."
+                    "Independent semantic review bound the defect to an immutable "
+                    "upstream generated dependency; its complete parent source and "
+                    "the rejected descendant lineage are routed through "
+                    "ArchitectCoordinator to AlgorithmEngineer under unchanged gates."
+                    if repair_scope
+                    == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
+                    else "Independent semantic review found an upstream protocol or "
+                    "theory blocker; exact findings and failed execution lineage are "
+                    "routed to ArchitectCoordinator without post-result gate changes."
                     if repair_scope
                     in GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_REPAIR_SCOPES
                     else "Generated code still failed independent semantic review "
@@ -17995,6 +18282,8 @@ class AlgorithmEngineerRuntimeSubsystem:
             blackboard=blackboard,
             question=question,
             theory_packet_id=packet_id,
+            algorithm_sandbox_manifest_id=manifest_id,
+            algorithm_sandbox_manifest_hash=stable_hash(manifest),
         ):
             next_task = _generated_simulation_required_before_formalization_task(
                 question=question,
@@ -65512,6 +65801,8 @@ def _runtime_generated_simulation_sandbox_passed_observed(
     *,
     question_id: str = "",
     theory_packet_id: str = "",
+    algorithm_sandbox_manifest_id: str = "",
+    algorithm_sandbox_manifest_hash: str = "",
 ) -> bool:
     for artifact in blackboard.artifacts.values():
         if not isinstance(artifact, Mapping):
@@ -65532,6 +65823,28 @@ def _runtime_generated_simulation_sandbox_passed_observed(
         artifact_packet_id = str(artifact.get("theory_packet_id", "") or "")
         if theory_packet_id and artifact_packet_id != theory_packet_id:
             continue
+        if algorithm_sandbox_manifest_id or algorithm_sandbox_manifest_hash:
+            receipt = artifact.get("upstream_algorithm_handoff_receipt", {})
+            if not (
+                isinstance(receipt, Mapping)
+                and (
+                    not algorithm_sandbox_manifest_id
+                    or str(
+                        receipt.get("algorithm_sandbox_manifest_id", "") or ""
+                    )
+                    == algorithm_sandbox_manifest_id
+                )
+                and (
+                    not algorithm_sandbox_manifest_hash
+                    or str(
+                        receipt.get("algorithm_sandbox_manifest_hash", "") or ""
+                    )
+                    == algorithm_sandbox_manifest_hash
+                )
+                and receipt.get("mechanical_estimator_invocation_verified")
+                is True
+            ):
+                continue
         if int(artifact.get("n_generated_simulation_sandbox_passed", 0) or 0) > 0:
             return True
         for row in artifact.get("generated_simulation_sandbox_prototypes", []) or []:
@@ -65615,13 +65928,57 @@ def _runtime_generated_simulation_required_before_formalization(
     blackboard: BlackboardState,
     question: OpenResearchQuestion,
     theory_packet_id: str,
+    algorithm_sandbox_manifest_id: str = "",
+    algorithm_sandbox_manifest_hash: str = "",
 ) -> bool:
-    if not _runtime_requires_generated_simulation_code(context, environment_feedback):
+    semantic_replan = context.get(
+        "runtime_generated_code_semantic_review_replan",
+        {},
+    )
+    dependency_descendant_rerun_required = bool(
+        isinstance(semantic_replan, Mapping)
+        and semantic_replan.get("repair_scope")
+        == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
+        and _canonical_architect_subsystem(
+            semantic_replan.get("repair_target_subsystem")
+        )
+        == "AlgorithmEngineer"
+        and _canonical_architect_subsystem(
+            semantic_replan.get("source_subsystem")
+        )
+        == "SimulationEvaluator"
+        and str(
+            semantic_replan.get("repair_target_source_manifest_id", "") or ""
+        )
+        and str(
+            semantic_replan.get("repair_target_source_manifest_id", "") or ""
+        )
+        != algorithm_sandbox_manifest_id
+        and str(algorithm_sandbox_manifest_id or "")
+        and str(algorithm_sandbox_manifest_hash or "")
+    )
+    if not (
+        dependency_descendant_rerun_required
+        or _runtime_requires_generated_simulation_code(
+            context,
+            environment_feedback,
+        )
+    ):
         return False
     return not _runtime_generated_simulation_sandbox_passed_observed(
         blackboard,
         question_id=question.id,
         theory_packet_id=theory_packet_id,
+        algorithm_sandbox_manifest_id=(
+            algorithm_sandbox_manifest_id
+            if dependency_descendant_rerun_required
+            else ""
+        ),
+        algorithm_sandbox_manifest_hash=(
+            algorithm_sandbox_manifest_hash
+            if dependency_descendant_rerun_required
+            else ""
+        ),
     )
 
 
