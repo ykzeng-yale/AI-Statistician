@@ -24249,9 +24249,9 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
             "target_subsystems": [target],
             "metric_semantics": "absolute deviation from the declared target",
             "measurement_protocol": (
-                "compute the deviation over exactly 17 runtime replicates"
+                "compute one deterministic calibration residual"
             ),
-            "required_runtime_replicates": 17,
+            "required_runtime_replicates": 1,
             "operator": "<=",
             "threshold": 0.25,
             "lower": None,
@@ -24273,6 +24273,7 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         for target in ("SimulationEngineer",)
     ]
     expected_metric_rows = copy.deepcopy(metric_rows)
+    expected_metric_rows[0]["required_runtime_replicates"] = 17
     expected_metric_rows[0]["acceptance_authority_kind"] = (
         "architect_preregistered_design"
     )
@@ -24481,6 +24482,12 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     requirement_item_schema = metric_request.schema["properties"][
         "empirical_metric_requirements"
     ]["items"]
+    assert "required_runtime_replicates" not in requirement_item_schema[
+        "required"
+    ]
+    assert "required_runtime_replicates" not in requirement_item_schema[
+        "properties"
+    ]
     assert {
         "acceptance_authority_kind",
         "acceptance_authority_rationale",
@@ -24498,6 +24505,21 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         "theory_derivation_contract"
     ]["n_equation_chain_steps"] == 2
     hard_requirements = " ".join(metric_prompt["hard_requirements"])
+    assert "required_runtime_replicates" not in metric_prompt[
+        "requirement_schema"
+    ]
+    assert all(
+        "required_runtime_replicates" not in row
+        for row in metric_prompt["required_target_rows"]
+    )
+    assert metric_prompt["runtime_owned_field_bindings"][
+        "required_runtime_replicates"
+    ] == {
+        "source": "runtime_contract.generated_sandbox_runtime_replicates",
+        "value": 17,
+        "model_authored": False,
+        "binding_stage": "before_hash_validation_and_review",
+    }
     assert "smallest nonredundant portfolio" in hard_requirements
     assert "delete that row instead of adding more gates" in hard_requirements
     assert "exactly one independently compared scalar quantity" in hard_requirements
@@ -24528,6 +24550,7 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert "recomputed from each replicate" in hard_requirements
     assert "upper versus lower limits" in hard_requirements
     assert "at-most versus at-least counts" in hard_requirements
+    assert "Do not emit required_runtime_replicates" in hard_requirements
     repair_payload = json.loads(
         patch_request.user_prompt.split("\n\n", 1)[1]
     )
@@ -24583,6 +24606,17 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert packet["metric_requirement_authoring"][
         "llm_json_repair_attempts"
     ] == 1
+    assert packet["metric_requirement_authoring"][
+        "runtime_owned_requirement_bindings"
+    ]["required_runtime_replicates"] == {
+        "source": "runtime_contract.generated_sandbox_runtime_replicates",
+        "value": 17,
+        "model_authored": False,
+        "binding_stage": "before_hash_validation_and_review",
+    }
+    assert packet["evidence_contract"]["empirical_metric_requirements"][0][
+        "measurement_protocol"
+    ] == "compute one deterministic calibration residual"
     assert packet["metric_requirement_authoring"][
         "semantic_review_status"
     ] == "ACCEPT"

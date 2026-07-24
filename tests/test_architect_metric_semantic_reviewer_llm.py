@@ -650,6 +650,60 @@ def test_metric_reviewer_materializes_current_theory_evidence_for_prior_finding(
     )
 
 
+@pytest.mark.parametrize(
+    ("evidence_ref", "expected_value"),
+    [
+        (
+            "empirical_metric_requirements/0/measurement_protocol",
+            "return one raw generic diagnostic value",
+        ),
+        (
+            "candidate#/empirical_metric_requirements/0/operator",
+            "<=",
+        ),
+        (
+            "metric_protocol_candidate#/empirical_metric_requirements/0/tolerance",
+            0.0,
+        ),
+    ],
+)
+def test_metric_reviewer_materializes_current_candidate_pointer_evidence(
+    evidence_ref: str,
+    expected_value: object,
+) -> None:
+    finding_id = "metric-finding:current-candidate-pointer"
+    material = {
+        "review_stage": "pre_execution_metric_contract_review",
+        "execution_results_available": False,
+        "active_prior_finding_ledger": [
+            {
+                "finding_id": finding_id,
+                "status": "UNRESOLVED",
+                "finding": {
+                    "category": "generic_candidate_defect",
+                    "summary": "The prior candidate field was defective.",
+                    "required_change": "Recheck the exact current candidate field.",
+                    "repair_scope": "metric_contract",
+                    "evidence_refs": [evidence_ref],
+                },
+            }
+        ],
+        "empirical_metric_requirements": [_generic_requirement()],
+    }
+
+    snapshot = architect_metric_active_prior_finding_current_evidence(
+        material
+    )[0]
+
+    assert snapshot["evidence_ref"] == evidence_ref
+    assert snapshot["artifact_role"] == "metric_protocol_candidate"
+    assert snapshot["exists"] is True
+    assert snapshot["current_value"] == expected_value
+    assert snapshot["current_value_fingerprint"] == stable_hash(
+        expected_value
+    )
+
+
 def test_metric_reviewer_rejects_unresolved_prior_without_existing_snapshot() -> None:
     finding_id = "metric-finding:missing-current-path"
     evidence_ref = (

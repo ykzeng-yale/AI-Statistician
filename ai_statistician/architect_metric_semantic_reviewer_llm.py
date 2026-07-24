@@ -4,7 +4,7 @@ import json
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
 from .generated_metric_contract import generated_metric_evaluator_certificate
@@ -240,6 +240,26 @@ def _active_prior_finding_ids(
     )
 
 
+def _resolve_metric_artifact_path(
+    root: Any,
+    encoded_segments: Sequence[str],
+) -> tuple[bool, Any]:
+    current = root
+    for encoded_segment in encoded_segments:
+        segment = encoded_segment.replace("~1", "/").replace("~0", "~")
+        if isinstance(current, Mapping) and segment in current:
+            current = current[segment]
+        elif (
+            isinstance(current, (list, tuple))
+            and segment.isdigit()
+            and int(segment) < len(current)
+        ):
+            current = current[int(segment)]
+        else:
+            return False, None
+    return True, deepcopy(current)
+
+
 def _current_metric_artifact_value(
     *,
     review_material: Mapping[str, Any],
@@ -283,29 +303,37 @@ def _current_metric_artifact_value(
                     True,
                     deepcopy(requirement),
                 )
-            path = (
+            path_segments = (
                 suffix[2:].split("/")
                 if suffix.startswith("#/")
                 else suffix[1:].split(".")
                 if suffix.startswith(".")
+                else suffix[1:].split("/")
+                if suffix.startswith("/")
                 else []
             )
-            current: Any = requirement
-            for encoded_segment in path:
-                segment = encoded_segment.replace("~1", "/").replace("~0", "~")
-                if isinstance(current, Mapping) and segment in current:
-                    current = current[segment]
-                elif (
-                    isinstance(current, (list, tuple))
-                    and segment.isdigit()
-                    and int(segment) < len(current)
-                ):
-                    current = current[int(segment)]
-                else:
-                    return "metric_protocol_candidate", False, None
-            if path:
-                return "metric_protocol_candidate", True, deepcopy(current)
+            if path_segments:
+                exists, current = _resolve_metric_artifact_path(
+                    requirement,
+                    path_segments,
+                )
+                return "metric_protocol_candidate", exists, current
             return "metric_protocol_candidate", False, None
+
+    candidate_root = {"empirical_metric_requirements": requirements}
+    candidate_path_segments: list[str] = []
+    for prefix in ("candidate#/", "metric_protocol_candidate#/"):
+        if reference.startswith(prefix):
+            candidate_path_segments = reference[len(prefix) :].split("/")
+            break
+    if reference.startswith("empirical_metric_requirements/"):
+        candidate_path_segments = reference.split("/")
+    if candidate_path_segments:
+        exists, current = _resolve_metric_artifact_path(
+            candidate_root,
+            candidate_path_segments,
+        )
+        return "metric_protocol_candidate", exists, current
 
     artifact_role = {
         "theory": "source_theory_packet",

@@ -344,10 +344,9 @@ def _metric_authoring_repair_priority_instructions(
                 "homogeneous collection, per row and split independent gates."
             ),
             (
-                "Retain at least one required SimulationEngineer row and copy the "
-                "runtime-owned replicate count exactly into its "
-                "required_runtime_replicates field and protocol. When validation "
-                "names that field, changing prose alone does not resolve the error."
+                "Retain at least one required SimulationEngineer row. Do not author "
+                "or repair required_runtime_replicates: AgentRuntime binds that field "
+                "from its own execution budget after generation and before review."
             ),
             (
                 "Use only pre-execution artifacts: do not cite observed results, "
@@ -697,6 +696,15 @@ def author_reviewed_architect_metric_requirements(
         require_acceptance_authority=True,
         authority_anchor_ids=acceptance_authority_anchor_ids,
     )
+    response_requirement_schema["required"] = [
+        field
+        for field in response_requirement_schema.get("required", [])
+        if field != "required_runtime_replicates"
+    ]
+    response_requirement_schema.get("properties", {}).pop(
+        "required_runtime_replicates",
+        None,
+    )
     if frozen_rebinding:
         source_requirement_ids = [
             str(row.get("requirement_id", "") or "")
@@ -754,6 +762,15 @@ def author_reviewed_architect_metric_requirements(
                 "maxItems": frozen_row_count,
             }
         )
+    requirement_prompt_schema = generated_metric_requirement_prompt_schema()
+    requirement_prompt_schema.pop("required_runtime_replicates", None)
+    required_target_rows = []
+    for target in GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS:
+        target_schema = generated_metric_requirement_prompt_schema(
+            target_subsystem=target
+        )
+        target_schema.pop("required_runtime_replicates", None)
+        required_target_rows.append(target_schema)
     prompt_payload = {
         "task": (
             "Rebind the exact frozen empirical acceptance requirements to the "
@@ -767,15 +784,22 @@ def author_reviewed_architect_metric_requirements(
         "acceptance_authority_catalog_id": acceptance_authority_catalog_id,
         "acceptance_authority_catalog": acceptance_authority_catalog,
         "runtime_owned_replicates": runtime_replicates,
+        "runtime_owned_field_bindings": {
+            "required_runtime_replicates": {
+                "source": (
+                    "runtime_contract.generated_sandbox_runtime_replicates"
+                ),
+                "value": runtime_replicates,
+                "model_authored": False,
+                "binding_stage": "before_hash_validation_and_review",
+            }
+        },
         "target_namespace": generated_metric_requirement_target_namespace_contract(),
         "metric_evaluation_semantics": (
             generated_metric_evaluation_semantics_contract()
         ),
-        "requirement_schema": generated_metric_requirement_prompt_schema(),
-        "required_target_rows": [
-            generated_metric_requirement_prompt_schema(target_subsystem=target)
-            for target in GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
-        ],
+        "requirement_schema": requirement_prompt_schema,
+        "required_target_rows": required_target_rows,
         "hard_requirements": [
             (
                 "Return at least one required empirical metric row for each "
@@ -935,7 +959,12 @@ def author_reviewed_architect_metric_requirements(
                 "itself. Use metric_value_kind=numeric for every measurable "
                 "quantity."
             ),
-            "Copy runtime_owned_replicates into every required_runtime_replicates field and state that exact count in each measurement_protocol.",
+            (
+                "Do not emit required_runtime_replicates. AgentRuntime injects its "
+                "runtime-owned execution budget into every row before hashing, "
+                "validation, and independent review. Describe the measurement "
+                "semantics without copying infrastructure-owned fields."
+            ),
             "Use null for comparison or quorum fields that do not apply to the selected operator or aggregation.",
             "Define measurable returned quantities, not prose-only success claims or task-specific runtime code.",
             "These rows are empirical controls and never theorem proof evidence.",
@@ -1242,11 +1271,15 @@ def author_reviewed_architect_metric_requirements(
                     rebinding_context=frozen_rebinding,
                 )
             else:
-                requirement_rows = [
-                    dict(row)
-                    for row in requirements
-                    if isinstance(row, Mapping)
-                ]
+                requirement_rows = []
+                for row in requirements:
+                    if not isinstance(row, Mapping):
+                        continue
+                    requirement = dict(row)
+                    requirement["required_runtime_replicates"] = (
+                        runtime_replicates
+                    )
+                    requirement_rows.append(requirement)
             parent_packet_id = str(
                 prior_authoring_packet.get("packet_id", "") or ""
             )
@@ -1290,6 +1323,19 @@ def author_reviewed_architect_metric_requirements(
                 "repair_target_finding_ledger_fingerprint": (
                     active_finding_ledger_fingerprint
                 ),
+                "runtime_owned_requirement_bindings": {
+                    "required_runtime_replicates": {
+                        "source": (
+                            "runtime_contract."
+                            "generated_sandbox_runtime_replicates"
+                        ),
+                        "value": runtime_replicates,
+                        "model_authored": False,
+                        "binding_stage": (
+                            "before_hash_validation_and_review"
+                        ),
+                    }
+                },
                 "empirical_metric_requirements": requirement_rows,
                 "empirical_metric_requirement_set_id": (
                     generated_metric_requirement_set_id(requirement_rows)

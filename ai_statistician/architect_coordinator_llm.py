@@ -602,6 +602,18 @@ def _architect_context_with_metric_requirement_authoring(
                 )
                 or ""
             ),
+            "runtime_owned_requirement_bindings": dict(
+                metric_authoring_packet.get(
+                    "runtime_owned_requirement_bindings", {}
+                )
+            )
+            if isinstance(
+                metric_authoring_packet.get(
+                    "runtime_owned_requirement_bindings"
+                ),
+                Mapping,
+            )
+            else {},
             "semantic_review_status": str(
                 metric_authoring_packet.get("semantic_review_status", "") or ""
             ),
@@ -704,6 +716,14 @@ def _architect_metric_requirement_authoring_summary(
         "empirical_metric_requirement_set_id": str(
             packet.get("empirical_metric_requirement_set_id", "") or ""
         ),
+        "runtime_owned_requirement_bindings": dict(
+            packet.get("runtime_owned_requirement_bindings", {})
+        )
+        if isinstance(
+            packet.get("runtime_owned_requirement_bindings"),
+            Mapping,
+        )
+        else {},
         "llm_json_repair_attempts": int(
             packet.get("llm_json_repair_attempts", 0) or 0
         ),
