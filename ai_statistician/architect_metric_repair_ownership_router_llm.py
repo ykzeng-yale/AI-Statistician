@@ -20,7 +20,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 
 
-ARCHITECT_METRIC_REPAIR_OWNERSHIP_SCHEMA_VERSION = 3
+ARCHITECT_METRIC_REPAIR_OWNERSHIP_SCHEMA_VERSION = 4
 ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_PREEXECUTION = (
     "pre_execution_metric_protocol"
 )
@@ -352,7 +352,6 @@ def _architect_metric_repair_ownership_repair_context(
                 for key in (
                     "finding_index",
                     "required_artifact_changes",
-                    "source_theory_can_remain_unchanged",
                     "ownership_certainty",
                 )
                 if key in row
@@ -741,9 +740,9 @@ def build_architect_metric_repair_ownership_prompt(
         "is an authority constraint, not a suggestion. If exact artifacts establish "
         "that a reviewer marked an advisory observation as mandatory even though no "
         "artifact must change, use ownership_certainty=resolved_no_change, no targets, "
-        "and source_theory_can_remain_unchanged=true. This disposition cannot accept "
-        "a lineage by itself; it is ignored only when another concrete repair forces "
-        "fresh generation and independent re-review. "
+        "and explain why in the rationale. This disposition cannot accept a lineage "
+        "by itself; it is ignored only when another concrete repair forces fresh "
+        "generation and independent re-review. "
     )
     return (
         "Route every semantic-review finding to the artifact or artifacts that must "
@@ -764,11 +763,13 @@ def build_architect_metric_repair_ownership_prompt(
         "your rationale must cite the conflicting exact artifact field and the "
         "downstream-repair counterfactual; do not escalate merely because theory "
         "could be supplemented with implementation advice. "
-        + "For a resolved decision, source_theory_can_remain_unchanged must be true "
-        "exactly when source_theory_packet is not a required target. "
-        "Set ownership_certainty=unresolved when the supplied artifacts do not let "
-        "you decide; do not guess. required_artifact_changes contains artifact roles "
-        "only: do not author a repair. Do not derive replacement formulas, "
+        + "The runtime derives resolved ownership and whether source theory can remain "
+        "unchanged from every nonempty eligible target list. Use "
+        "ownership_certainty=resolved_no_change only with no targets when no artifact "
+        "must change, or ownership_certainty=unresolved with no targets when the "
+        "supplied artifacts do not let you decide; do not guess. "
+        "required_artifact_changes contains artifact roles only: do not author a "
+        "repair. Do not derive replacement formulas, "
         "thresholds, task-family rules, code, results, or proof. Return exactly one decision "
         "for every index in required_finding_indices, use no other index, and do "
         "not omit or duplicate an index.\n\n"
@@ -797,7 +798,6 @@ ARCHITECT_METRIC_REPAIR_OWNERSHIP_OUTPUT_CONTRACT: dict[str, Any] = {
                     )
                 }
             ],
-            "source_theory_can_remain_unchanged": False,
             "ownership_certainty": (
                 "resolved|resolved_no_change(post-execution only)|unresolved"
             ),
@@ -826,7 +826,6 @@ _OWNERSHIP_DECISION_SCHEMA: dict[str, Any] = {
     "required": [
         "finding_index",
         "required_artifact_changes",
-        "source_theory_can_remain_unchanged",
         "ownership_certainty",
         "rationale",
     ],
@@ -837,7 +836,6 @@ _OWNERSHIP_DECISION_SCHEMA: dict[str, Any] = {
             "maxItems": len(ARCHITECT_METRIC_REPAIR_TARGETS),
             "items": _ARTIFACT_CHANGE_SCHEMA,
         },
-        "source_theory_can_remain_unchanged": {"type": "boolean"},
         "ownership_certainty": {
             "type": "string",
             "enum": list(ARCHITECT_METRIC_REPAIR_OWNERSHIP_CERTAINTIES),
@@ -1324,7 +1322,41 @@ def _normalize_architect_metric_repair_ownership_packet(
     for row in raw_decisions if isinstance(raw_decisions, list) else []:
         if not isinstance(row, Mapping):
             continue
-        decision = dict(row)
+        changes = deepcopy(row.get("required_artifact_changes", []))
+        requested_certainty = str(
+            row.get("ownership_certainty", "") or ""
+        ).strip()
+        roles = {
+            str(change.get("artifact_role", "") or "").strip()
+            for change in changes
+            if isinstance(change, Mapping)
+        } if isinstance(changes, list) else set()
+        # Eligible target rows authorize repair only; they can never accept evidence.
+        if isinstance(changes, list) and changes:
+            certainty = "resolved"
+        elif (
+            routing_phase
+            == ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_POSTEXECUTION
+            and requested_certainty == "resolved_no_change"
+        ):
+            certainty = "resolved_no_change"
+        else:
+            certainty = "unresolved"
+        decision = {
+            "finding_index": deepcopy(row.get("finding_index")),
+            "required_artifact_changes": changes,
+            "source_theory_can_remain_unchanged": (
+                ARCHITECT_METRIC_REPAIR_TARGET_SOURCE_THEORY not in roles
+                if certainty == "resolved"
+                else certainty == "resolved_no_change"
+            ),
+            "ownership_certainty": certainty,
+            "rationale": deepcopy(row.get("rationale", "")),
+        }
+        if requested_certainty != certainty:
+            decision["model_requested_ownership_certainty"] = (
+                requested_certainty
+            )
         decision["derived_repair_scope"] = (
             _repair_scope_from_ownership_decision(
                 decision,

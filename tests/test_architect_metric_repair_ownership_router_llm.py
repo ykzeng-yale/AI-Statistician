@@ -185,7 +185,7 @@ def test_repair_router_overrides_free_scope_with_artifact_bound_ownership() -> N
     assert '"required_finding_indices":[0,1]' in backend.requests[0].user_prompt
 
 
-def test_repair_router_retries_a_resolved_but_contradictory_decision() -> None:
+def test_repair_router_derives_redundant_preservation_flag_without_retry() -> None:
     contradictory = _routing_payload()
     first_decision = contradictory["decisions"][0]
     first_decision["required_artifact_changes"] = [
@@ -198,12 +198,12 @@ def test_repair_router_retries_a_resolved_but_contradictory_decision() -> None:
 
     packet = _route(backend, max_repair_attempts=1)
 
-    assert len(backend.requests) == 2
-    assert packet["recommended_repair_scope"] == "upstream_theory"
-    assert packet["llm_json_repair_attempts"] == 1
-    assert (
-        "source-theory preservation flag"
-        in backend.requests[1].user_prompt
+    assert len(backend.requests) == 1
+    assert packet["recommended_repair_scope"] == "metric_contract"
+    assert packet["decisions"][0]["source_theory_can_remain_unchanged"] is True
+    decision_schema = backend.requests[0].schema["properties"]["decisions"]["items"]
+    assert "source_theory_can_remain_unchanged" not in (
+        decision_schema["properties"]
     )
 
 
@@ -591,9 +591,96 @@ def test_postexecution_advisory_disposition_does_not_block_concrete_repair() -> 
     assert "No artifact change is authorized" in routed[1]["required_change"]
 
 
+def test_postexecution_router_canonicalizes_targeted_no_change_as_repair() -> None:
+    backend = _Backend(
+        {
+            "decisions": [
+                {
+                    "finding_index": 0,
+                    "required_artifact_changes": [
+                        {"artifact_role": "generated_source_artifact"}
+                    ],
+                    "source_theory_can_remain_unchanged": False,
+                    "ownership_certainty": "resolved_no_change",
+                    "rationale": (
+                        "The cited generated source must change and theory remains "
+                        "sufficient."
+                    ),
+                }
+            ]
+        }
+    )
+    router = LLMArchitectMetricRepairOwnershipRouterAgent(
+        provider=backend,
+        config=ArchitectMetricRepairOwnershipRouterConfig(
+            provider_name="anthropic",
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+            max_repair_attempts=1,
+        ),
+    )
+
+    packet = router.route_generated_code_review(
+        question=OpenResearchQuestion(
+            id="q_targeted_no_change",
+            title="Canonicalize a targeted repair",
+            description="Route an implementation defect from typed evidence.",
+        ),
+        review_material={
+            "theory_packet": {"packet_id": "theory:targeted-no-change"},
+            "architect_frozen_evidence_contract": {
+                "empirical_metric_requirements": [{"requirement_id": "gate:1"}]
+            },
+            "coding_agent_proposal_packet": {"packet_id": "code:proposal"},
+            "source_responsibility_contract": {"assigned_requirement_ids": []},
+            "exact_executed_artifacts": [
+                {
+                    "artifact_id": "code:exact",
+                    "exact_source_code": "def estimate(): return 1.0",
+                    "exact_result": {"summary": {"metric": 1.0}},
+                }
+            ],
+        },
+        semantic_review_packet={
+            "packet_id": "generated-review:targeted-no-change",
+            "dimension_reviews": [],
+            "findings": [
+                {
+                    "severity": "high",
+                    "category": "implementation mismatch",
+                    "summary": "The generated measurement path is incorrect.",
+                    "required_change": "Repair the generated source.",
+                    "repair_scope": "source_code",
+                    "evidence_refs": [
+                        "generated_source_artifact#/exact_source_code"
+                    ],
+                    "artifact_citations": ["generated_source_artifact"],
+                }
+            ],
+        },
+        trusted_lineage={
+            "work_order_id": "work-order:targeted-no-change",
+            "work_order_hash": "work-order-hash",
+            "source_manifest_id": "source-manifest:targeted-no-change",
+            "source_manifest_hash": "source-manifest-hash",
+            "theory_packet_id": "theory:targeted-no-change",
+            "theory_packet_hash": "theory-hash",
+        },
+    )
+
+    assert len(backend.requests) == 1
+    assert packet["recommended_repair_scope"] == "source_code"
+    assert packet["decisions"][0]["ownership_certainty"] == "resolved"
+    assert packet["decisions"][0][
+        "model_requested_ownership_certainty"
+    ] == "resolved_no_change"
+    assert packet["decisions"][0]["source_theory_can_remain_unchanged"] is True
+    assert validate_architect_metric_repair_ownership_packet(packet) == []
+
+
 def test_postexecution_advisory_disposition_packet_is_typed_and_fail_closed() -> None:
     packet = {
-        "schema_version": 3,
+        "schema_version": 4,
         "proof_evidence_status": (
             "ARCHITECT_METRIC_REPAIR_OWNERSHIP_NOT_PROOF_EVIDENCE"
         ),
@@ -737,3 +824,4 @@ def test_repair_ownership_schema_transforms_for_anthropic() -> None:
     assert transformed["type"] == "object"
     decision = transformed["properties"]["decisions"]["items"]
     assert decision["properties"]["finding_index"]["type"] == "integer"
+    assert "source_theory_can_remain_unchanged" not in decision["properties"]
