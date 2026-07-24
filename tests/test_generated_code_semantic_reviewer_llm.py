@@ -1574,6 +1574,32 @@ def test_runtime_requires_one_concrete_scope_alongside_advisory_findings() -> No
     assert advisory_only["ownership_resolved"] is False
 
 
+def test_runtime_uses_bounded_source_frontier_with_mixed_unresolved_ownership() -> None:
+    routed = _runtime_generated_code_authoritative_repair_routing(
+        source_subsystem="SimulationEvaluator",
+        review_packet={
+            "repair_scope": "upstream_theory",
+            "repair_scopes": ["upstream_theory", "source_code"],
+        },
+        routed_findings=[
+            {"repair_scope": "upstream_generated_dependency"},
+            {"repair_scope": "unresolved"},
+            {"repair_scope": "source_code"},
+        ],
+    )
+
+    assert routed["repair_scope"] == "source_code"
+    assert routed["repair_scopes"] == [
+        "source_code",
+        "upstream_generated_dependency",
+        "unresolved",
+    ]
+    assert routed["repair_owner"] == "SimulationEvaluator"
+    assert routed["ownership_resolved"] is False
+    assert routed["partial_repair_frontier"] is True
+    assert routed["deferred_unresolved_ownership"] is True
+
+
 def test_simulation_review_separates_immutable_dependency_from_consumer() -> None:
     dependency_source = (
         "def run_estimator(request):\n"
@@ -2814,6 +2840,111 @@ def test_postexecution_unresolved_ownership_stops_same_lineage(
     assert execution["repair_ownership_resolved"] is False
     assert execution["semantic_review_lineage_budget"]["selected_action"] == (
         "blocked_unresolved_ownership"
+    )
+
+
+def test_postexecution_mixed_ownership_routes_one_bounded_source_repair(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        accept=False,
+        capability_eval=True,
+    )
+    response = _review_response(accept=False, repair_scope="source_code")
+    response["findings"].append(
+        {
+            "severity": "high",
+            "category": "upstream_semantic_ambiguity",
+            "summary": (
+                "The current evidence does not yet isolate a theory premise from "
+                "the executable measurement defect."
+            ),
+            "required_change": (
+                "Reassess the theory premise after the concrete source repair."
+            ),
+            "repair_scope": "upstream_theory",
+            "evidence_citations": [
+                {
+                    "artifact_role": "source_theory_packet",
+                    "locator": "/derivation_steps/0",
+                }
+            ],
+        }
+    )
+    response["repair_instructions"].append(
+        "Keep the upstream ambiguity open for fresh independent review."
+    )
+    subsystem.reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=StaticJSONGeneratorBackend(response),
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="static",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            max_repair_attempts=0,
+        ),
+    )
+    subsystem.repair_ownership_router = (
+        LLMArchitectMetricRepairOwnershipRouterAgent(
+            provider=StaticJSONGeneratorBackend(
+                {
+                    "decisions": [
+                        {
+                            "finding_index": 0,
+                            "required_artifact_changes": [
+                                {
+                                    "artifact_role": (
+                                        "generated_source_artifact"
+                                    )
+                                }
+                            ],
+                            "source_theory_can_remain_unchanged": True,
+                            "ownership_certainty": "resolved",
+                            "rationale": (
+                                "The exact current source owns the concrete defect."
+                            ),
+                        },
+                        {
+                            "finding_index": 1,
+                            "required_artifact_changes": [],
+                            "source_theory_can_remain_unchanged": False,
+                            "ownership_certainty": "unresolved",
+                            "rationale": (
+                                "Fresh execution after source repair is required "
+                                "before assigning the remaining theory hypothesis."
+                            ),
+                        },
+                    ]
+                }
+            ),
+            config=ArchitectMetricRepairOwnershipRouterConfig(
+                provider_name="static",
+                model=LIVE_EVALUATION_CLAUDE_MODEL,
+                model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+                max_repair_attempts=0,
+            ),
+        )
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REVISE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "AlgorithmEngineer"
+    assert result.failure_classification == "generated_code_semantic_review_revise"
+    execution = next(
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
+    )
+    assert execution["repair_scope"] == "source_code"
+    assert execution["repair_scopes"] == ["source_code", "unresolved"]
+    assert execution["repair_ownership_resolved"] is False
+    assert execution["partial_repair_frontier"] is True
+    assert execution["deferred_unresolved_ownership"] is True
+    assert execution["semantic_review_lineage_budget"]["selected_action"] == (
+        "local_repair"
     )
 
 

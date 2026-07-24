@@ -14270,19 +14270,39 @@ def _runtime_generated_code_authoritative_repair_routing(
     actionable_observed_scopes = observed_scopes.intersection(
         GENERATED_CODE_SEMANTIC_REVIEW_POSTEXECUTION_REPAIR_ORDER
     )
-    unresolved = bool(
-        not actionable_observed_scopes
-        or ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED in observed_scopes
+    unresolved_ownership_observed = bool(
+        ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED in observed_scopes
     )
-    repair_scopes = (
-        [ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED]
-        if unresolved
-        else [
+    ordered_actionable_scopes = [
+        scope
+        for scope in GENERATED_CODE_SEMANTIC_REVIEW_POSTEXECUTION_REPAIR_ORDER
+        if scope in actionable_observed_scopes
+    ]
+    partial_source_repair_frontier = bool(
+        unresolved_ownership_observed
+        and "source_code" in actionable_observed_scopes
+    )
+    routing_unresolved = bool(
+        unresolved_ownership_observed or not actionable_observed_scopes
+    )
+    if partial_source_repair_frontier:
+        repair_scopes = [
+            "source_code",
+            *[
+                scope
+                for scope in ordered_actionable_scopes
+                if scope != "source_code"
+            ],
+            ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED,
+        ]
+    elif routing_unresolved:
+        repair_scopes = [ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED]
+    else:
+        repair_scopes = [
             scope
             for scope in GENERATED_CODE_SEMANTIC_REVIEW_POSTEXECUTION_REPAIR_ORDER
             if scope in actionable_observed_scopes
         ]
-    )
     repair_scope = repair_scopes[0] if repair_scopes else ""
     repair_owner = (
         source_subsystem
@@ -14318,7 +14338,12 @@ def _runtime_generated_code_authoritative_repair_routing(
         "repair_scopes": repair_scopes,
         "repair_owner": repair_owner,
         "repair_plan": repair_plan,
-        "ownership_resolved": not unresolved,
+        "ownership_resolved": not routing_unresolved,
+        "partial_repair_frontier": partial_source_repair_frontier,
+        "deferred_unresolved_ownership": bool(
+            unresolved_ownership_observed
+            and partial_source_repair_frontier
+        ),
     }
 
 
@@ -15059,6 +15084,15 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "repair_ownership_resolved": bool(
                 authoritative_routing.get("ownership_resolved", True)
             ),
+            "partial_repair_frontier": bool(
+                authoritative_routing.get("partial_repair_frontier", False)
+            ),
+            "deferred_unresolved_ownership": bool(
+                authoritative_routing.get(
+                    "deferred_unresolved_ownership",
+                    False,
+                )
+            ),
             "source_repair_budget": dict(
                 work_order.get("source_repair_budget", {}) or {}
             ),
@@ -15159,6 +15193,15 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 stable_hash(repair_ownership_packet)
                 if repair_ownership_packet
                 else ""
+            ),
+            "partial_repair_frontier": bool(
+                authoritative_routing.get("partial_repair_frontier", False)
+            ),
+            "deferred_unresolved_ownership": bool(
+                authoritative_routing.get(
+                    "deferred_unresolved_ownership",
+                    False,
+                )
             ),
             "empirical_evaluation_phase": empirical_evaluation_phase,
             "confirmatory_empirical_evidence_eligible": (
@@ -15587,8 +15630,12 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             )
             status = "REVISE"
             rationale = (
-                "Independent semantic review rejected runnable generated code and "
-                "is routing exact findings to the source coding agent for fresh "
+                "Independent ownership routing resolved a bounded current-source "
+                "repair while preserving other unresolved ownership for fresh "
+                "review; exact source findings are returning to the coding agent."
+                if authoritative_routing.get("partial_repair_frontier") is True
+                else "Independent semantic review rejected runnable generated code "
+                "and is routing exact findings to the source coding agent for fresh "
                 "generation and execution."
             )
             failure_classification = "generated_code_semantic_review_revise"
