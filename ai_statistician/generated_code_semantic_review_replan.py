@@ -20,6 +20,9 @@ GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY = (
 GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_THEORY_REVISION_LEDGER_KEY = (
     "runtime_generated_code_semantic_review_upstream_theory_revision_ledger"
 )
+GENERATED_CODE_SEMANTIC_REVIEW_PENDING_SOURCE_REPAIR_KEY = (
+    "runtime_generated_code_semantic_review_pending_source_repair"
+)
 
 
 def generated_code_semantic_review_upstream_theory_revision_state(
@@ -220,6 +223,61 @@ def consume_generated_code_semantic_review_upstream_theory_replan(
         GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_THEORY_REVISION_LEDGER_KEY
     ] = ledger
 
+    source_repair_findings = [
+        dict(row)
+        for row in replan.get("findings", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("repair_scope", "") or "") == "source_code"
+    ]
+    pending_source_repair: dict[str, Any] = {}
+    source_subsystem = str(replan.get("source_subsystem", "") or "")
+    if source_repair_findings and source_subsystem:
+        pending_source_repair = {
+            "schema_version": 1,
+            "artifact_kind": (
+                "RuntimeGeneratedCodeSemanticReviewPendingSourceRepair"
+            ),
+            "question_id": question_id,
+            "target_subsystem": source_subsystem,
+            "source_manifest_id": str(
+                replan.get("source_manifest_id", "") or ""
+            ),
+            "semantic_review_packet_id": str(
+                replan.get("review_packet_id", "") or ""
+            ),
+            "semantic_review_execution_id": review_execution_id,
+            "prior_theory_packet_id": prior_theory_packet_id,
+            "revised_theory_packet_id": revised_theory_packet_id,
+            "revised_theory_packet_hash": revised_theory_packet_hash,
+            "repair_scope": "source_code",
+            "findings": source_repair_findings,
+            "repair_instructions": [
+                str(row.get("required_change", "") or "")
+                for row in source_repair_findings
+                if str(row.get("required_change", "") or "").strip()
+            ],
+            "dispatch_status": "PENDING_AFTER_THEORY_REVISION",
+            "execution_results_observed": True,
+            "frozen_protocol_immutable_after_execution": True,
+            "proof_evidence_status": (
+                "PENDING_SOURCE_REPAIR_NOT_PROOF_EVIDENCE"
+            ),
+            "boundary": (
+                "These identity-bound source-code findings remain pending after "
+                "the upstream theory revision. They may guide one fresh generated "
+                "source artifact and independent review, but cannot change a frozen "
+                "metric gate or count as execution, statistical acceptance, or "
+                "proof evidence."
+            ),
+        }
+        pending_source_repair["pending_source_repair_id"] = (
+            "generated_code_semantic_review_pending_source_repair:"
+            + stable_hash(pending_source_repair)[:20]
+        )
+        context[
+            GENERATED_CODE_SEMANTIC_REVIEW_PENDING_SOURCE_REPAIR_KEY
+        ] = pending_source_repair
+
     resolution = {
         "artifact_kind": "RuntimeGeneratedCodeSemanticReviewReplanResolution",
         "source_subsystem": str(replan.get("source_subsystem", "") or ""),
@@ -237,6 +295,12 @@ def consume_generated_code_semantic_review_upstream_theory_replan(
         "max_upstream_theory_revisions": int(state["max_revisions"]),
         "resolution_status": "CONSUMED_BY_FRESH_THEORY_REVISION",
         "requires_fresh_metric_protocol_review": True,
+        "pending_source_repair_id": str(
+            pending_source_repair.get("pending_source_repair_id", "") or ""
+        ),
+        "pending_source_repair_target_subsystem": str(
+            pending_source_repair.get("target_subsystem", "") or ""
+        ),
         "proof_evidence_status": (
             "GENERATED_CODE_SEMANTIC_REVIEW_REPLAN_RESOLUTION_NOT_PROOF_EVIDENCE"
         ),

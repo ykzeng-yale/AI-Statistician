@@ -23426,6 +23426,305 @@ def test_metric_authoring_unmatched_numeric_gate_does_not_invent_source_authorit
     assert matrix_row["automatic_repair_applied"] is False
 
 
+def test_frozen_metric_protocol_rebinding_preserves_every_gate_field() -> None:
+    from ai_statistician.architect_metric_contract_authoring import (
+        _frozen_metric_protocol_rebinding_errors,
+        _reconstruct_frozen_metric_protocol_requirements,
+    )
+    from ai_statistician.architect_coordinator_llm import (
+        _architect_frozen_metric_protocol_rebinding_context,
+    )
+
+    parent_theory_packet_id = "theory_derivation:frozen-parent"
+    revised_theory_packet_id = "theory_derivation:frozen-revised"
+    revised_theory = _structured_theory_packet_fixture(
+        revised_theory_packet_id
+    )
+    revised_material = build_theory_informed_metric_protocol_material(
+        theory_packet=revised_theory,
+        theory_packet_id=revised_theory_packet_id,
+    )
+    frozen_rows = [
+        {
+            "requirement_id": "frozen:coverage",
+            "target_subsystems": ["SimulationEngineer"],
+            "metric_semantics": "coverage of the frozen confidence procedure",
+            "measurement_protocol": (
+                "compute coverage over exactly 17 independent replicates"
+            ),
+            "required_runtime_replicates": 17,
+            "operator": ">=",
+            "threshold": 0.9,
+            "lower": None,
+            "upper": None,
+            "tolerance": 0.02,
+            "aggregation": "identity",
+            "minimum_pass_count": None,
+            "minimum_pass_fraction": None,
+            "required": True,
+            "source_anchors": ["theory#/theorem_cards/0/conclusion"],
+            "acceptance_authority_kind": "architect_preregistered_design",
+            "acceptance_authority_rationale": (
+                "The Architect froze this finite-sample benchmark before execution."
+            ),
+            "boundary": "empirical control, not proof evidence",
+        }
+    ]
+    requirement_set_id = runtime_module.generated_metric_requirement_set_id(
+        frozen_rows
+    )
+    review_execution_id = (
+        "generated_code_semantic_review_execution:frozen-rebind"
+    )
+    context = {
+        "theory_packet_id": revised_theory_packet_id,
+        "architect_metric_protocol_theory_material": revised_material,
+        "architect_runtime_plan": {
+            "evidence_contract": {
+                "empirical_metric_requirements": frozen_rows,
+                "empirical_metric_requirement_set_id": requirement_set_id,
+                "empirical_metric_requirements_preexecution_review": {
+                    "overall_verdict": "ACCEPT",
+                    "review_packet_id": "architect_metric_semantic_review:parent",
+                    "reviewed_empirical_metric_requirement_set_id": (
+                        requirement_set_id
+                    ),
+                    "source_theory_packet_id": parent_theory_packet_id,
+                    "source_theory_packet_hash": "parent-theory-hash",
+                    "independent_agent": True,
+                    "independent_invocation": True,
+                    "execution_results_observed": False,
+                },
+            }
+        },
+        "runtime_generated_code_semantic_review_replan_resolution": {
+            "artifact_kind": (
+                "RuntimeGeneratedCodeSemanticReviewReplanResolution"
+            ),
+            "resolution_status": "CONSUMED_BY_FRESH_THEORY_REVISION",
+            "requires_fresh_metric_protocol_review": True,
+            "prior_theory_packet_id": parent_theory_packet_id,
+            "revised_theory_packet_id": revised_theory_packet_id,
+            "revised_theory_packet_hash": revised_material[
+                "source_theory_packet_hash"
+            ],
+            "rejected_review_execution_id": review_execution_id,
+        },
+        "architect_metric_protocol_authority_invalidation": {
+            "artifact_kind": "RuntimeMetricProtocolTheoryLineageInvalidation",
+            "current_source_theory_packet_id": revised_theory_packet_id,
+            "current_source_theory_packet_hash": revised_material[
+                "source_theory_packet_hash"
+            ],
+        },
+        "architect_typed_repair_dispatch": {
+            "artifact_kind": "RuntimeArchitectTypedRepairDispatch",
+            "repair_scope": "upstream_theory",
+            "review_execution_id": review_execution_id,
+        },
+    }
+
+    rebinding = _architect_frozen_metric_protocol_rebinding_context(context)
+
+    assert rebinding["source_requirement_set_id"] == requirement_set_id
+    assert rebinding["source_requirement_rows"] == frozen_rows
+    assert rebinding["post_result_gate_changes_allowed"] is False
+    assert rebinding["allowed_mutable_requirement_fields"] == [
+        "source_anchors",
+        "acceptance_authority_rationale",
+    ]
+    rebound_rows = copy.deepcopy(frozen_rows)
+    rebound_rows[0]["source_anchors"] = [
+        "theory#/theorem_cards/0/informal_statement"
+    ]
+    rebound_rows[0]["acceptance_authority_rationale"] = (
+        "The unchanged frozen benchmark is now cited against the revised theory."
+    )
+    reconstructed_rows, binding_errors = (
+        _reconstruct_frozen_metric_protocol_requirements(
+            binding_rows=[
+                {
+                    "requirement_id": "frozen:coverage",
+                    "source_anchors": rebound_rows[0]["source_anchors"],
+                    "acceptance_authority_rationale": rebound_rows[0][
+                        "acceptance_authority_rationale"
+                    ],
+                }
+            ],
+            rebinding_context=rebinding,
+        )
+    )
+    assert binding_errors == []
+    assert reconstructed_rows == rebound_rows
+    assert _frozen_metric_protocol_rebinding_errors(
+        candidate_requirements=rebound_rows,
+        rebinding_context=rebinding,
+    ) == []
+
+    rebound_rows[0]["threshold"] = 0.8
+    errors = _frozen_metric_protocol_rebinding_errors(
+        candidate_requirements=rebound_rows,
+        rebinding_context=rebinding,
+    )
+    assert errors == [
+        "frozen metric rebinding may not change frozen:coverage.threshold"
+    ]
+
+    immutable_override_rows, immutable_override_errors = (
+        _reconstruct_frozen_metric_protocol_requirements(
+            binding_rows=[
+                {
+                    "requirement_id": "frozen:coverage",
+                    "source_anchors": rebound_rows[0]["source_anchors"],
+                    "acceptance_authority_rationale": rebound_rows[0][
+                        "acceptance_authority_rationale"
+                    ],
+                    "threshold": 0.8,
+                }
+            ],
+            rebinding_context=rebinding,
+        )
+    )
+    assert immutable_override_rows[0]["threshold"] == 0.9
+    assert immutable_override_errors == [
+        "empirical_metric_requirements[0] contains runtime-owned frozen fields: "
+        "['threshold']"
+    ]
+
+
+def test_theory_revision_keeps_pending_source_repairs_for_fresh_code() -> None:
+    review_execution_id = (
+        "generated_code_semantic_review_execution:mixed-repair"
+    )
+    context = {
+        "theory_packet_id": "theory_derivation:parent",
+        "environment_feedback": {
+            "feedback_type": "generated_code_semantic_review_feedback",
+            "semantic_review_execution_id": review_execution_id,
+        },
+        "runtime_generated_code_semantic_review_replan": {
+            "artifact_kind": "RuntimeGeneratedCodeSemanticReviewReplanContext",
+            "source_subsystem": "AlgorithmEngineer",
+            "source_manifest_id": "algorithm_sandbox_manifest:rejected",
+            "review_packet_id": "generated_code_semantic_review:mixed",
+            "review_execution_id": review_execution_id,
+            "repair_scope": "upstream_theory",
+            "repair_scopes": ["upstream_theory", "source_code"],
+            "repair_plan": [
+                {
+                    "sequence": 1,
+                    "repair_scope": "upstream_theory",
+                    "repair_owner": "ArchitectCoordinator",
+                },
+                {
+                    "sequence": 2,
+                    "repair_scope": "source_code",
+                    "repair_owner": "AlgorithmEngineer",
+                },
+            ],
+            "findings": [
+                {
+                    "severity": "high",
+                    "summary": "The theorem premise is incomplete.",
+                    "required_change": "Revise the theory premise.",
+                    "repair_scope": "upstream_theory",
+                },
+                {
+                    "severity": "critical",
+                    "summary": "The executed statistic uses the wrong sign.",
+                    "required_change": "Generate corrected source code.",
+                    "repair_scope": "source_code",
+                },
+            ],
+            "pending_artifact_ids": {
+                "theory_packet_id": "theory_derivation:parent"
+            },
+        },
+    }
+
+    resolved = (
+        runtime_module.consume_generated_code_semantic_review_upstream_theory_replan(
+            architect_context=context,
+            question_id="mixed_repair_question",
+            revised_theory_packet_id="theory_derivation:revised",
+            revised_theory_packet_hash="revised-theory-hash",
+            max_revisions=1,
+        )
+    )
+
+    assert "runtime_generated_code_semantic_review_replan" not in resolved
+    assert "environment_feedback" not in resolved
+    pending = resolved[
+        "runtime_generated_code_semantic_review_pending_source_repair"
+    ]
+    assert pending["target_subsystem"] == "AlgorithmEngineer"
+    assert pending["dispatch_status"] == "PENDING_AFTER_THEORY_REVISION"
+    assert [row["repair_scope"] for row in pending["findings"]] == [
+        "source_code"
+    ]
+    routed_feedback = (
+        runtime_module._architect_selected_worker_environment_feedback(
+            selected={"selected_subsystem": "AlgorithmEngineer"},
+            architect_context={
+                **resolved,
+                "theory_packet_id": "theory_derivation:revised",
+            },
+        )
+    )
+    assert routed_feedback["feedback_type"] == (
+        "generated_code_semantic_review_pending_source_repair_feedback"
+    )
+    assert routed_feedback["semantic_review_execution_id"] == (
+        review_execution_id
+    )
+    assert [row["repair_scope"] for row in routed_feedback["findings"]] == [
+        "source_code"
+    ]
+    revised_context = {
+        **resolved,
+        "theory_packet_id": "theory_derivation:revised",
+    }
+    selected = runtime_module._architect_select_initial_subsystem(
+        packet={
+            "evidence_contract": {
+                "empirical_metric_protocol_phase": (
+                    "preexecution_review_accepted"
+                ),
+                "metric_protocol_execution_authorized": True,
+            }
+        },
+        architect_context=revised_context,
+        blackboard=BlackboardState(project_id="pending-source-repair"),
+        question_id="mixed_repair_question",
+    )
+    assert selected["selected_subsystem"] == "AlgorithmEngineer"
+    assert selected["source"] == (
+        "generated_code_semantic_review_pending_source_repair"
+    )
+    assert selected["environment_feedback"]["pending_source_repair_id"] == (
+        pending["pending_source_repair_id"]
+    )
+
+    gated_selection = runtime_module._architect_select_initial_subsystem(
+        packet={
+            "evidence_contract": {
+                "empirical_metric_protocol_phase": (
+                    "theory_informed_authoring_required"
+                ),
+                "metric_protocol_execution_authorized": False,
+            }
+        },
+        architect_context=revised_context,
+        blackboard=BlackboardState(
+            project_id="pending-source-repair-gated"
+        ),
+        question_id="mixed_repair_question",
+    )
+    assert gated_selection["source"] != (
+        "generated_code_semantic_review_pending_source_repair"
+    )
+
+
 def test_live_architect_preauthors_metric_contract_with_structured_substage() -> None:
     question = next(
         question

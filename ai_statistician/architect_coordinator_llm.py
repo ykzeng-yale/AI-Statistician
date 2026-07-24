@@ -303,6 +303,11 @@ class LLMArchitectCoordinatorAgent:
                     )
                     else {}
                 ),
+                frozen_requirement_rebinding_context=(
+                    _architect_frozen_metric_protocol_rebinding_context(
+                        architect_context
+                    )
+                ),
             )
         effective_architect_context = (
             _architect_context_with_metric_requirement_authoring(
@@ -423,6 +428,145 @@ def _generated_code_semantic_review_replan_is_resolved(
     )
 
 
+def _architect_frozen_metric_protocol_rebinding_context(
+    architect_context: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Carry a frozen gate portfolio across an upstream theory revision."""
+
+    theory_material = theory_informed_metric_protocol_material(
+        architect_context
+    )
+    if not theory_material:
+        return {}
+    current_theory_packet_id = str(
+        theory_material.get("source_theory_packet_id", "") or ""
+    )
+    current_theory_packet_hash = str(
+        theory_material.get("source_theory_packet_hash", "") or ""
+    )
+    resolution = architect_context.get(
+        "runtime_generated_code_semantic_review_replan_resolution", {}
+    )
+    invalidation = architect_context.get(
+        "architect_metric_protocol_authority_invalidation", {}
+    )
+    dispatch = architect_context.get("architect_typed_repair_dispatch", {})
+    if not (
+        isinstance(resolution, Mapping)
+        and resolution.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewReplanResolution"
+        and resolution.get("resolution_status")
+        == "CONSUMED_BY_FRESH_THEORY_REVISION"
+        and resolution.get("requires_fresh_metric_protocol_review") is True
+        and str(resolution.get("revised_theory_packet_id", "") or "")
+        == current_theory_packet_id
+        and str(resolution.get("revised_theory_packet_hash", "") or "")
+        == current_theory_packet_hash
+        and isinstance(invalidation, Mapping)
+        and invalidation.get("artifact_kind")
+        == "RuntimeMetricProtocolTheoryLineageInvalidation"
+        and str(
+            invalidation.get("current_source_theory_packet_id", "") or ""
+        )
+        == current_theory_packet_id
+        and str(
+            invalidation.get("current_source_theory_packet_hash", "") or ""
+        )
+        == current_theory_packet_hash
+        and isinstance(dispatch, Mapping)
+        and dispatch.get("artifact_kind")
+        == "RuntimeArchitectTypedRepairDispatch"
+        and dispatch.get("repair_scope") == "upstream_theory"
+        and str(dispatch.get("review_execution_id", "") or "")
+        == str(resolution.get("rejected_review_execution_id", "") or "")
+    ):
+        return {}
+
+    prior_plan = architect_context.get("architect_runtime_plan", {})
+    prior_contract = (
+        prior_plan.get("evidence_contract", {})
+        if isinstance(prior_plan, Mapping)
+        else {}
+    )
+    if not isinstance(prior_contract, Mapping):
+        return {}
+    requirements = prior_contract.get("empirical_metric_requirements", [])
+    prior_review = prior_contract.get(
+        "empirical_metric_requirements_preexecution_review", {}
+    )
+    source_requirement_set_id = str(
+        prior_contract.get("empirical_metric_requirement_set_id", "") or ""
+    )
+    prior_theory_packet_id = str(
+        resolution.get("prior_theory_packet_id", "") or ""
+    )
+    if not (
+        isinstance(requirements, list)
+        and requirements
+        and all(isinstance(row, Mapping) for row in requirements)
+        and isinstance(prior_review, Mapping)
+        and prior_review.get("overall_verdict") == "ACCEPT"
+        and prior_review.get("independent_agent") is True
+        and prior_review.get("independent_invocation") is True
+        and prior_review.get("execution_results_observed") is False
+        and str(prior_review.get("source_theory_packet_id", "") or "")
+        == prior_theory_packet_id
+        and str(
+            prior_review.get(
+                "reviewed_empirical_metric_requirement_set_id", ""
+            )
+            or ""
+        )
+        == source_requirement_set_id
+        and generated_metric_requirement_set_id(
+            [
+                dict(row)
+                for row in requirements
+                if isinstance(row, Mapping)
+            ]
+        )
+        == source_requirement_set_id
+        and source_requirement_set_id
+    ):
+        return {}
+
+    return {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeFrozenMetricProtocolTheoryRebindingContext",
+        "source_requirement_set_id": source_requirement_set_id,
+        "source_requirement_rows": [
+            dict(row) for row in requirements if isinstance(row, Mapping)
+        ],
+        "prior_review_packet_id": str(
+            prior_review.get("review_packet_id", "") or ""
+        ),
+        "prior_source_theory_packet_id": prior_theory_packet_id,
+        "prior_source_theory_packet_hash": str(
+            prior_review.get("source_theory_packet_hash", "") or ""
+        ),
+        "current_source_theory_packet_id": current_theory_packet_id,
+        "current_source_theory_packet_hash": current_theory_packet_hash,
+        "source_review_execution_id": str(
+            resolution.get("rejected_review_execution_id", "") or ""
+        ),
+        "raw_execution_artifacts_included": False,
+        "post_result_gate_changes_allowed": False,
+        "allowed_mutable_requirement_fields": [
+            "source_anchors",
+            "acceptance_authority_rationale",
+        ],
+        "proof_evidence_status": (
+            "FROZEN_METRIC_PROTOCOL_THEORY_REBINDING_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": (
+            "The exact accepted empirical gate portfolio remains frozen after "
+            "execution. A revised theory may only rebind exact source anchors and "
+            "their explanatory rationale before a fresh independent review; it "
+            "cannot add, remove, relax, or reinterpret a gate."
+        ),
+    }
+
+
 def _architect_context_with_metric_requirement_authoring(
     architect_context: Mapping[str, Any],
     metric_authoring_packet: Mapping[str, Any],
@@ -499,6 +643,22 @@ def _architect_context_with_metric_requirement_authoring(
                     "cumulative_finding_ledger_fingerprint", ""
                 )
                 or ""
+            ),
+            "frozen_metric_protocol_rebinding": bool(
+                metric_authoring_packet.get(
+                    "frozen_metric_protocol_rebinding"
+                )
+            ),
+            "frozen_source_requirement_set_id": str(
+                metric_authoring_packet.get(
+                    "frozen_source_requirement_set_id", ""
+                )
+                or ""
+            ),
+            "frozen_gate_semantics_preserved": bool(
+                metric_authoring_packet.get(
+                    "frozen_gate_semantics_preserved"
+                )
             ),
             "boundary": GENERATED_METRIC_REQUIREMENT_BOUNDARY,
         }
@@ -591,6 +751,15 @@ def _architect_metric_requirement_authoring_summary(
         ],
         "cumulative_finding_ledger_fingerprint": str(
             packet.get("cumulative_finding_ledger_fingerprint", "") or ""
+        ),
+        "frozen_metric_protocol_rebinding": bool(
+            packet.get("frozen_metric_protocol_rebinding")
+        ),
+        "frozen_source_requirement_set_id": str(
+            packet.get("frozen_source_requirement_set_id", "") or ""
+        ),
+        "frozen_gate_semantics_preserved": bool(
+            packet.get("frozen_gate_semantics_preserved")
         ),
         "semantic_review_boundary": str(
             packet.get("semantic_review_boundary", "") or ""

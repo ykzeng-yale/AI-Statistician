@@ -96,6 +96,7 @@ from .generated_code_semantic_reviewer_llm import (
 )
 from .generated_code_semantic_review_replan import (
     GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY,
+    GENERATED_CODE_SEMANTIC_REVIEW_PENDING_SOURCE_REPAIR_KEY,
     GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
     advance_generated_code_semantic_review_lineage_budget,
     build_generated_code_semantic_review_architect_replan_task,
@@ -9214,6 +9215,76 @@ def _architect_selected_worker_environment_feedback(
     if isinstance(explicit_feedback, Mapping) and explicit_feedback:
         return dict(explicit_feedback)
 
+    selected_subsystem = _canonical_architect_subsystem(
+        selected.get("selected_subsystem")
+    )
+    pending_source_repair = architect_context.get(
+        GENERATED_CODE_SEMANTIC_REVIEW_PENDING_SOURCE_REPAIR_KEY,
+        {},
+    )
+    if (
+        selected_subsystem in {"AlgorithmEngineer", "SimulationEvaluator"}
+        and isinstance(pending_source_repair, Mapping)
+        and pending_source_repair.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewPendingSourceRepair"
+        and pending_source_repair.get("dispatch_status")
+        == "PENDING_AFTER_THEORY_REVISION"
+        and _canonical_architect_subsystem(
+            pending_source_repair.get("target_subsystem")
+        )
+        == selected_subsystem
+        and str(
+            pending_source_repair.get("revised_theory_packet_id", "") or ""
+        )
+        == _architect_context_theory_packet_id(architect_context)
+        and pending_source_repair.get("findings")
+    ):
+        return {
+            "feedback_type": (
+                "generated_code_semantic_review_pending_source_repair_feedback"
+            ),
+            "pending_source_repair_id": str(
+                pending_source_repair.get("pending_source_repair_id", "")
+                or ""
+            ),
+            "semantic_review_packet_id": str(
+                pending_source_repair.get(
+                    "semantic_review_packet_id", ""
+                )
+                or ""
+            ),
+            "semantic_review_execution_id": str(
+                pending_source_repair.get(
+                    "semantic_review_execution_id", ""
+                )
+                or ""
+            ),
+            "source_subsystem": selected_subsystem,
+            "source_manifest_id": str(
+                pending_source_repair.get("source_manifest_id", "") or ""
+            ),
+            "repair_scope": "source_code",
+            "findings": [
+                dict(row)
+                for row in pending_source_repair.get("findings", []) or []
+                if isinstance(row, Mapping)
+            ],
+            "repair_instructions": [
+                str(value)
+                for value in pending_source_repair.get(
+                    "repair_instructions", []
+                )
+                or []
+                if str(value).strip()
+            ],
+            "execution_results_observed": True,
+            "frozen_protocol_immutable_after_execution": True,
+            "proof_evidence_status": "PENDING_SOURCE_REPAIR_NOT_PROOF_EVIDENCE",
+            "boundary": str(
+                pending_source_repair.get("boundary", "") or ""
+            ),
+        }
+
     replan = architect_context.get(
         "runtime_generated_code_semantic_review_replan",
         {},
@@ -9269,6 +9340,30 @@ def _architect_initial_routing_decision(
             architect_context=architect_context,
         )
     )
+    if (
+        routed_environment_feedback.get("feedback_type")
+        == "generated_code_semantic_review_pending_source_repair_feedback"
+    ):
+        pending_source_repair = context.get(
+            GENERATED_CODE_SEMANTIC_REVIEW_PENDING_SOURCE_REPAIR_KEY,
+            {},
+        )
+        if isinstance(pending_source_repair, Mapping):
+            dispatched_source_repair = dict(pending_source_repair)
+            dispatched_source_repair.update(
+                {
+                    "dispatch_status": "DISPATCHED_TO_REVISED_DESCENDANT",
+                    "dispatched_to_subsystem": selected[
+                        "selected_subsystem"
+                    ],
+                    "dispatched_theory_packet_id": (
+                        _architect_context_theory_packet_id(context)
+                    ),
+                }
+            )
+            context[
+                GENERATED_CODE_SEMANTIC_REVIEW_PENDING_SOURCE_REPAIR_KEY
+            ] = dispatched_source_repair
     record = {
         "artifact_kind": "ArchitectInitialRoutingDecision",
         "selected_subsystem": selected["selected_subsystem"],
@@ -9537,8 +9632,10 @@ def _architect_initial_routing_decision(
                 "ArchitectCoordinator preserved the identity-bound semantic-review "
                 "feedback and returned the rejected source to SimulationEvaluator "
                 "for the one authorized fresh revision."
-                if record["source"]
-                == "generated_code_semantic_review_source_repair"
+                if record["source"] in {
+                    "generated_code_semantic_review_source_repair",
+                    "generated_code_semantic_review_pending_source_repair",
+                }
                 else "ArchitectCoordinator recorded a top-level execution plan and "
                 "is routing directly to SimulationEvaluator because the selected "
                 "capability obligation is simulation-executable."
@@ -9608,8 +9705,10 @@ def _architect_initial_routing_decision(
                 "ArchitectCoordinator preserved the identity-bound semantic-review "
                 "feedback and returned the rejected source to AlgorithmEngineer "
                 "for the one authorized fresh revision."
-                if record["source"]
-                == "generated_code_semantic_review_source_repair"
+                if record["source"] in {
+                    "generated_code_semantic_review_source_repair",
+                    "generated_code_semantic_review_pending_source_repair",
+                }
                 else "ArchitectCoordinator recorded a top-level execution plan and "
                 "is routing directly to AlgorithmEngineer because the selected "
                 "capability obligation has theory, simulation, and implementation-gap "
@@ -9909,6 +10008,50 @@ def _architect_select_initial_subsystem(
     )
     requested_for_metric_gate = _architect_packet_requested_subsystem(packet)
     gap_selection = _architect_capability_gap_requested_subsystem(architect_context)
+    pending_source_repair = architect_context.get(
+        GENERATED_CODE_SEMANTIC_REVIEW_PENDING_SOURCE_REPAIR_KEY,
+        {},
+    )
+    pending_source_owner = (
+        _canonical_architect_subsystem(
+            pending_source_repair.get("target_subsystem")
+        )
+        if isinstance(pending_source_repair, Mapping)
+        else ""
+    )
+    if (
+        metric_protocol_phase
+        == METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED
+        and evidence_contract.get("metric_protocol_execution_authorized") is True
+        and isinstance(pending_source_repair, Mapping)
+        and pending_source_repair.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewPendingSourceRepair"
+        and pending_source_repair.get("dispatch_status")
+        == "PENDING_AFTER_THEORY_REVISION"
+        and pending_source_owner
+        in {"AlgorithmEngineer", "SimulationEvaluator"}
+        and str(
+            pending_source_repair.get("revised_theory_packet_id", "") or ""
+        )
+        == _architect_context_theory_packet_id(architect_context)
+        and pending_source_repair.get("findings")
+    ):
+        pending_source_feedback = (
+            _architect_selected_worker_environment_feedback(
+                selected={"selected_subsystem": pending_source_owner},
+                architect_context=architect_context,
+            )
+        )
+        if pending_source_feedback:
+            return {
+                "requested_subsystem": pending_source_owner,
+                "selected_subsystem": pending_source_owner,
+                "source": (
+                    "generated_code_semantic_review_pending_source_repair"
+                ),
+                "requires_prerequisite_theory": False,
+                "environment_feedback": pending_source_feedback,
+            }
     semantic_replan = architect_context.get(
         "runtime_generated_code_semantic_review_replan",
         {},
