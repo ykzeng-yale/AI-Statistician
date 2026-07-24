@@ -10,6 +10,7 @@ from ai_statistician.architect_metric_semantic_reviewer_llm import (
     ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA,
     ArchitectMetricSemanticReviewerConfig,
     LLMArchitectMetricSemanticReviewerAgent,
+    architect_metric_active_prior_finding_current_evidence,
     architect_metric_review_material_with_runtime_evaluator_certificate,
     architect_metric_semantic_review_json_schema,
     validate_architect_metric_semantic_review_packet,
@@ -562,6 +563,222 @@ def test_metric_reviewer_reuses_prior_identity_for_persistent_finding() -> None:
 
     assert packet["findings"][0]["finding_id"] == finding_id
     assert packet["findings"][0]["prior_finding_id"] == finding_id
+    assert validate_architect_metric_semantic_review_packet(packet) == []
+
+
+def test_metric_reviewer_materializes_current_theory_evidence_for_prior_finding() -> None:
+    finding_id = "metric-finding:revised-theory-value"
+    evidence_ref = (
+        "theory#/theory_derivation_packet/assumption_ledger/0/assumption"
+    )
+    material = {
+        "review_stage": "pre_execution_metric_contract_review",
+        "execution_results_available": False,
+        "active_prior_finding_ledger": [
+            {
+                "finding_id": finding_id,
+                "status": "UNRESOLVED",
+                "finding": {
+                    "category": "generic_bound",
+                    "summary": "The prior theory used old_limit.",
+                    "required_change": "Replace old_limit with a justified value.",
+                    "repair_scope": "upstream_theory",
+                    "evidence_refs": [evidence_ref],
+                },
+            }
+        ],
+        "theory_developer_protocol_material": {
+            "artifact_kind": "RuntimeTheoryInformedMetricProtocolMaterial",
+            "source_theory_packet_id": "theory:current",
+            "source_theory_packet_hash": "current-theory-hash",
+            "theory_semantic_material": {
+                "theory_derivation_packet": {
+                    "assumption_ledger": [
+                        {"assumption": "generic bound = new_limit"}
+                    ]
+                }
+            },
+            "execution_results_available": False,
+        },
+        "acceptance_authority_catalog": [
+            {
+                "anchor_id": evidence_ref,
+                "authority_kind": "theory_derived",
+                "content": "generic bound = new_limit",
+            }
+        ],
+        "empirical_metric_requirements": [_generic_requirement()],
+    }
+    snapshots = architect_metric_active_prior_finding_current_evidence(
+        material
+    )
+    assert len(snapshots) == 1
+    snapshot = snapshots[0]
+    assert snapshot["finding_id"] == finding_id
+    assert snapshot["evidence_ref"] == evidence_ref
+    assert snapshot["artifact_role"] == "source_theory_packet"
+    assert snapshot["exists"] is True
+    assert snapshot["current_value"] == "generic bound = new_limit"
+    assert snapshot["current_value_fingerprint"] == stable_hash(
+        "generic bound = new_limit"
+    )
+
+    payload = _review_payload(accept=True)
+    payload["prior_finding_reviews"] = [
+        {
+            "finding_id": finding_id,
+            "status": "RESOLVED_BY_CURRENT_THEORY",
+            "runtime_contract_evidence_id": "",
+            "rationale": (
+                "The exact current theory value replaces the old premise."
+            ),
+            "evidence_refs": [snapshot["snapshot_id"]],
+        }
+    ]
+    packet, backend, _ = _review(
+        accept=True,
+        payload=payload,
+        material=material,
+    )
+
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["active_prior_finding_current_evidence"] == snapshots
+    assert validate_architect_metric_semantic_review_packet(packet) == []
+    assert "generic bound = new_limit" in backend.requests[0].user_prompt
+    assert "Never retain an old finding because hidden" in (
+        backend.requests[0].user_prompt
+    )
+
+
+def test_metric_reviewer_rejects_unresolved_prior_without_existing_snapshot() -> None:
+    finding_id = "metric-finding:missing-current-path"
+    evidence_ref = (
+        "theory#/theory_derivation_packet/assumption_ledger/9/assumption"
+    )
+    material = {
+        "review_stage": "pre_execution_metric_contract_review",
+        "execution_results_available": False,
+        "active_prior_finding_ledger": [
+            {
+                "finding_id": finding_id,
+                "status": "UNRESOLVED",
+                "finding": {
+                    "category": "generic_bound",
+                    "summary": "The prior theory used an unsupported bound.",
+                    "required_change": "Ground the bound in current theory.",
+                    "repair_scope": "upstream_theory",
+                    "evidence_refs": [evidence_ref],
+                },
+            }
+        ],
+        "theory_developer_protocol_material": {
+            "artifact_kind": "RuntimeTheoryInformedMetricProtocolMaterial",
+            "source_theory_packet_id": "theory:current",
+            "source_theory_packet_hash": "current-theory-hash",
+            "theory_semantic_material": {
+                "theory_derivation_packet": {
+                    "assumption_ledger": [
+                        {"assumption": "a different current premise"}
+                    ]
+                }
+            },
+            "execution_results_available": False,
+        },
+        "empirical_metric_requirements": [_generic_requirement()],
+    }
+    snapshot = architect_metric_active_prior_finding_current_evidence(
+        material
+    )[0]
+    assert snapshot["exists"] is False
+    payload = _review_payload(accept=False)
+    payload["prior_finding_reviews"] = [
+        {
+            "finding_id": finding_id,
+            "status": "UNRESOLVED",
+            "runtime_contract_evidence_id": "",
+            "rationale": "The old defect may still exist somewhere.",
+            "evidence_refs": [snapshot["snapshot_id"]],
+        }
+    ]
+    payload["findings"][0]["prior_finding_id"] = finding_id
+    payload["findings"][0]["new_finding_rationale"] = ""
+    payload["findings"][0]["evidence_refs"] = [
+        snapshot["snapshot_id"],
+        evidence_ref,
+    ]
+
+    with pytest.raises(PacketValidationError) as exc_info:
+        _review(
+            accept=False,
+            payload=payload,
+            material=material,
+        )
+
+    assert "must cite an exists=true current evidence snapshot" in str(
+        exc_info.value
+    )
+
+
+def test_metric_reviewer_requires_snapshot_and_underlying_ref_for_persistent_issue() -> None:
+    finding_id = "metric-finding:current-candidate-defect"
+    evidence_ref = "requirement:generic_gate.operator"
+    material = {
+        "review_stage": "pre_execution_metric_contract_review",
+        "execution_results_available": False,
+        "active_prior_finding_ledger": [
+            {
+                "finding_id": finding_id,
+                "status": "UNRESOLVED",
+                "finding": {
+                    "category": "generic_operator",
+                    "summary": "The candidate operator is incorrect.",
+                    "required_change": "Repair the exact candidate operator.",
+                    "repair_scope": "metric_contract",
+                    "evidence_refs": [evidence_ref],
+                },
+            }
+        ],
+        "empirical_metric_requirements": [_generic_requirement()],
+    }
+    snapshot = architect_metric_active_prior_finding_current_evidence(
+        material
+    )[0]
+    payload = _review_payload(accept=False)
+    payload["prior_finding_reviews"] = [
+        {
+            "finding_id": finding_id,
+            "status": "UNRESOLVED",
+            "runtime_contract_evidence_id": "",
+            "rationale": "The exact current operator still exhibits the defect.",
+            "evidence_refs": [snapshot["snapshot_id"]],
+        }
+    ]
+    payload["findings"][0]["prior_finding_id"] = finding_id
+    payload["findings"][0]["new_finding_rationale"] = ""
+    payload["findings"][0]["evidence_refs"] = [snapshot["snapshot_id"]]
+
+    with pytest.raises(PacketValidationError) as exc_info:
+        _review(
+            accept=False,
+            payload=payload,
+            material=material,
+        )
+
+    assert "must preserve the exact underlying current artifact reference" in str(
+        exc_info.value
+    )
+
+    payload["findings"][0]["evidence_refs"] = [
+        snapshot["snapshot_id"],
+        evidence_ref,
+    ]
+    packet, _, _ = _review(
+        accept=False,
+        payload=payload,
+        material=material,
+    )
+    assert packet["overall_verdict"] == "REVISE"
+    assert packet["findings"][0]["finding_id"] == finding_id
     assert validate_architect_metric_semantic_review_packet(packet) == []
 
 

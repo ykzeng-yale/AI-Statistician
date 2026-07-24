@@ -1694,6 +1694,22 @@ def author_reviewed_architect_metric_requirements(
                     )
                     if isinstance(row, Mapping)
                 ],
+                "active_prior_finding_current_evidence": [
+                    dict(row)
+                    for row in semantic_review_packet.get(
+                        "active_prior_finding_current_evidence",
+                        [],
+                    )
+                    or []
+                    if isinstance(row, Mapping)
+                ],
+                "active_prior_finding_current_evidence_fingerprint": str(
+                    semantic_review_packet.get(
+                        "active_prior_finding_current_evidence_fingerprint",
+                        "",
+                    )
+                    or ""
+                ),
                 "cumulative_finding_ledger": [
                     dict(row) for row in cumulative_finding_ledger
                 ],

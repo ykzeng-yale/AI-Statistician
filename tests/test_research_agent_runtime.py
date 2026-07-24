@@ -25143,6 +25143,9 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
                 active_prior_findings = review_prompt["review_material"].get(
                     "active_prior_finding_ledger", []
                 )
+                current_evidence = review_prompt["review_material"].get(
+                    "active_prior_finding_current_evidence", []
+                )
                 payload = {
                     "prior_finding_reviews": [
                         {
@@ -25158,8 +25161,11 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
                                 "specific prior defect."
                             ),
                             "evidence_refs": [
-                                "current_theory_and_candidate:generic_gate"
-                            ],
+                                snapshot["snapshot_id"]
+                                for snapshot in current_evidence
+                                if snapshot["finding_id"] == row["finding_id"]
+                            ]
+                            or ["current_theory_and_candidate:generic_gate"],
                         }
                         for row in active_prior_findings
                     ],
@@ -25212,9 +25218,10 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
                         []
                         if accepted
                         else [
-                            {
-                                "severity": "high",
-                                "category": "finite_sample_calibration",
+                                {
+                                    "prior_finding_id": "",
+                                    "severity": "high",
+                                    "category": "finite_sample_calibration",
                                 "summary": (
                                     "The first candidate is not attainable under "
                                     "the fixed runtime budget."
@@ -25223,7 +25230,9 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
                                     "Re-derive and regenerate the complete metric contract."
                                 ),
                                     "repair_scope": "metric_contract",
-                                    "evidence_refs": ["requirement:generic_gate"],
+                                    "evidence_refs": [
+                                        "requirement:generic:simulationengineer:gate"
+                                    ],
                                     "new_finding_rationale": (
                                         "This finite-sample defect is newly observed "
                                         "for the current candidate and is not a "
@@ -25284,11 +25293,14 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
                     "severity": "high",
                     "category": "prior_theory_calibration",
                     "summary": "The prior threshold was not attainable.",
-                    "required_change": (
-                        "Repair the threshold using the revised theory."
-                    ),
-                    "repair_scope": "upstream_theory",
-                }
+                        "required_change": (
+                            "Repair the threshold using the revised theory."
+                        ),
+                        "repair_scope": "upstream_theory",
+                        "evidence_refs": [
+                            "theory#/theorem_cards/0/conclusion"
+                        ],
+                    }
             ],
             "repair_instructions": [
                 "Repair the threshold using the revised theory."
@@ -25302,8 +25314,8 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
         provider=backend,
         config=ArchitectCoordinatorConfig(
             provider_name="anthropic",
-            model="claude-sonnet-4-6",
-            model_tier="sonnet",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
             max_tokens=8000,
             metric_semantic_reviewer_max_revisions=1,
         ),
@@ -25375,6 +25387,12 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
     assert authoring["semantic_review_history"][1][
         "source_theory_packet_id"
     ] == "theory_derivation:structured"
+    assert authoring["semantic_review_history"][0][
+        "active_prior_finding_current_evidence"
+    ][0]["artifact_role"] == "source_theory_packet"
+    assert authoring["semantic_review_history"][1][
+        "active_prior_finding_current_evidence"
+    ][0]["artifact_role"] == "metric_protocol_candidate"
     final_ledger = authoring["cumulative_finding_ledger"]
     assert {row["status"] for row in final_ledger} == {
         "RESOLVED",

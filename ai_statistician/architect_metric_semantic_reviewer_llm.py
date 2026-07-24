@@ -11,6 +11,8 @@ from .generated_metric_contract import generated_metric_evaluator_certificate
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .metric_protocol_finding_ledger import (
     METRIC_PROTOCOL_FINDING_RETRACTED_RUNTIME_CONTRACT_CONFLICT,
+    METRIC_PROTOCOL_FINDING_RESOLVED,
+    METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
     METRIC_PROTOCOL_FINDING_UNRESOLVED,
     METRIC_PROTOCOL_PRIOR_FINDING_REVIEW_STATUSES,
     normalize_metric_protocol_findings,
@@ -19,7 +21,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 
 
-ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 8
+ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 9
 ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -52,6 +54,17 @@ ARCHITECT_METRIC_RUNTIME_CONTRACT_RETRACTION_EVIDENCE_IDS = (
     "metric_evaluation_semantics.elementwise_aggregations.evaluation_order",
     "metric_evaluation_semantics.quorum_rule",
     "metric_evaluation_semantics.boolean_predicate_rule",
+)
+ARCHITECT_METRIC_CURRENT_EVIDENCE_SNAPSHOT_PREFIX = (
+    "architect_metric_current_evidence_snapshot:"
+)
+_ARCHITECT_METRIC_CURRENT_EVIDENCE_SNAPSHOT_BODY_FIELDS = (
+    "finding_id",
+    "evidence_ref",
+    "artifact_role",
+    "exists",
+    "current_value",
+    "current_value_fingerprint",
 )
 
 
@@ -108,6 +121,13 @@ def architect_metric_review_material_with_runtime_evaluator_certificate(
     )
     body["runtime_contract_authority"] = authority
     body["runtime_evaluator_certificate"] = certificate
+    current_evidence = architect_metric_active_prior_finding_current_evidence(
+        body
+    )
+    body["active_prior_finding_current_evidence"] = current_evidence
+    body["active_prior_finding_current_evidence_fingerprint"] = (
+        stable_hash(current_evidence) if current_evidence else ""
+    )
     return body
 
 
@@ -220,6 +240,151 @@ def _active_prior_finding_ids(
     )
 
 
+def _current_metric_artifact_value(
+    *,
+    review_material: Mapping[str, Any],
+    evidence_ref: str,
+) -> tuple[str, bool, Any]:
+    reference = str(evidence_ref or "").strip()
+    for row in review_material.get("acceptance_authority_catalog", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        if str(row.get("anchor_id", "") or "").strip() != reference:
+            continue
+        root = reference.split("#", 1)[0]
+        artifact_role = {
+            "theory": "source_theory_packet",
+            "question": "research_question",
+            "runtime_contract": "runtime_contract",
+        }.get(root, "acceptance_authority")
+        return artifact_role, True, deepcopy(row.get("content"))
+
+    requirements = [
+        dict(row)
+        for row in review_material.get("empirical_metric_requirements", []) or []
+        if isinstance(row, Mapping)
+    ]
+    if reference.startswith("requirement:"):
+        for requirement in sorted(
+            requirements,
+            key=lambda row: len(str(row.get("requirement_id", "") or "")),
+            reverse=True,
+        ):
+            requirement_id = str(
+                requirement.get("requirement_id", "") or ""
+            ).strip()
+            prefix = f"requirement:{requirement_id}"
+            if not requirement_id or not reference.startswith(prefix):
+                continue
+            suffix = reference[len(prefix) :]
+            if not suffix:
+                return (
+                    "metric_protocol_candidate",
+                    True,
+                    deepcopy(requirement),
+                )
+            path = (
+                suffix[2:].split("/")
+                if suffix.startswith("#/")
+                else suffix[1:].split(".")
+                if suffix.startswith(".")
+                else []
+            )
+            current: Any = requirement
+            for encoded_segment in path:
+                segment = encoded_segment.replace("~1", "/").replace("~0", "~")
+                if isinstance(current, Mapping) and segment in current:
+                    current = current[segment]
+                elif (
+                    isinstance(current, (list, tuple))
+                    and segment.isdigit()
+                    and int(segment) < len(current)
+                ):
+                    current = current[int(segment)]
+                else:
+                    return "metric_protocol_candidate", False, None
+            if path:
+                return "metric_protocol_candidate", True, deepcopy(current)
+            return "metric_protocol_candidate", False, None
+
+    artifact_role = {
+        "theory": "source_theory_packet",
+        "question": "research_question",
+        "runtime_contract": "runtime_contract",
+        "candidate": "metric_protocol_candidate",
+        "metric_protocol_candidate": "metric_protocol_candidate",
+    }.get(reference.split("#", 1)[0], "unknown")
+    return artifact_role, False, None
+
+
+def architect_metric_active_prior_finding_current_evidence(
+    review_material: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Materialize old finding references against only the current artifacts."""
+
+    snapshots: list[dict[str, Any]] = []
+    for ledger_row in _active_prior_finding_ledger(review_material):
+        finding_id = str(ledger_row.get("finding_id", "") or "").strip()
+        finding = ledger_row.get("finding", {})
+        if not finding_id or not isinstance(finding, Mapping):
+            continue
+        evidence_refs = list(
+            dict.fromkeys(
+                str(value).strip()
+                for value in finding.get("evidence_refs", []) or []
+                if str(value).strip()
+                and not str(value).startswith(
+                    ARCHITECT_METRIC_CURRENT_EVIDENCE_SNAPSHOT_PREFIX
+                )
+            )
+        )
+        for evidence_ref in evidence_refs:
+            (
+                artifact_role,
+                exists,
+                current_value,
+            ) = _current_metric_artifact_value(
+                review_material=review_material,
+                evidence_ref=evidence_ref,
+            )
+            snapshot_body = {
+                "finding_id": finding_id,
+                "evidence_ref": evidence_ref,
+                "artifact_role": artifact_role,
+                "exists": bool(exists),
+                "current_value": current_value,
+                "current_value_fingerprint": (
+                    stable_hash(current_value) if exists else ""
+                ),
+            }
+            snapshots.append(
+                {
+                    "snapshot_id": (
+                        ARCHITECT_METRIC_CURRENT_EVIDENCE_SNAPSHOT_PREFIX
+                        + stable_hash(snapshot_body)[:20]
+                    ),
+                    **snapshot_body,
+                }
+            )
+    return snapshots
+
+
+def _active_prior_finding_current_evidence(
+    review_material: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    rows = review_material.get(
+        "active_prior_finding_current_evidence",
+        [],
+    )
+    if isinstance(rows, list):
+        snapshots = [dict(row) for row in rows if isinstance(row, Mapping)]
+        if snapshots or not _active_prior_finding_ledger(review_material):
+            return snapshots
+    return architect_metric_active_prior_finding_current_evidence(
+        review_material
+    )
+
+
 def _architect_metric_semantic_review_repair_context(
     review_material: Mapping[str, Any],
     *,
@@ -252,6 +417,9 @@ def _architect_metric_semantic_review_repair_context(
     return {
         "expected_prior_finding_ids": active_ids,
         "active_prior_finding_ledger": active_ledger,
+        "active_prior_finding_current_evidence": (
+            _active_prior_finding_current_evidence(review_material)
+        ),
         "review_input_fingerprint": stable_hash(review_material),
         "current_candidate": {
             "empirical_metric_requirements": candidate_requirements,
@@ -295,6 +463,14 @@ def _architect_metric_semantic_review_repair_context(
             (
                 "Use UNRESOLVED when the current candidate or current theory does "
                 "not explicitly close an active prior finding."
+            ),
+            (
+                "Treat each old finding as a hypothesis. For every non-retraction "
+                "disposition, cite its exact current-evidence snapshot ID. Use "
+                "UNRESOLVED only when an exists=true snapshot still exhibits the same "
+                "defect, and link one current finding that cites both that snapshot ID "
+                "and its underlying evidence_ref. Never retain a finding based on "
+                "speculation about hidden or outdated artifact text."
             ),
             (
                 "For a current finding that restates an unresolved prior defect, set "
@@ -529,6 +705,23 @@ def build_architect_metric_semantic_review_prompt(
         "TheoryDeveloper repeat or ratify the number. "
         "When review_material.active_prior_finding_ledger is nonempty, "
         "return exactly one prior_finding_reviews row for every listed finding_id. "
+        "Treat every old finding as a hypothesis, not as current evidence. Resolve "
+        "its cited evidence only through "
+        "review_material.active_prior_finding_current_evidence, whose snapshot IDs, "
+        "existence flags, exact current values, and value fingerprints are derived "
+        "from the existing current-artifact authority catalog and candidate rows. "
+        "For every non-retraction "
+        "prior disposition, cite at least one snapshot_id belonging to that finding. "
+        "Use UNRESOLVED only when an exists=true snapshot still exhibits the same "
+        "specific defect in the exact current value. In that case emit one linked "
+        "current finding with prior_finding_id set, and cite both the snapshot_id and "
+        "its underlying evidence_ref in that finding. Snapshot existence alone does "
+        "not establish persistence. Never retain an old finding because hidden, "
+        "earlier, or outdated text may still exist. If the exact old premise is "
+        "corrected, mark it RESOLVED_BY_CURRENT_THEORY; if a different gap remains, "
+        "resolve the old identity and create a distinct new finding grounded in exact "
+        "current evidence. A missing old pointer may support a resolution disposition "
+        "but does not alone prove that the broader issue is solved. "
         "Mark it RESOLVED only when the current candidate itself closes the issue, "
         "RESOLVED_BY_CURRENT_THEORY only when the current source theory now closes "
         "it, and UNRESOLVED otherwise. A reviewer finding is not infallible: use "
@@ -608,7 +801,9 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_OUTPUT_CONTRACT: dict[str, Any] = {
                 "one exact allowed runtime evidence ID for retraction; empty otherwise"
             ),
             "rationale": "current-artifact evidence for this disposition",
-            "evidence_refs": ["current theory/candidate field reference"],
+            "evidence_refs": [
+                "exact active_prior_finding_current_evidence snapshot_id"
+            ],
         }
     ],
     "claim_checks": [
@@ -846,6 +1041,23 @@ def architect_metric_semantic_review_json_schema(
     prior_reviews_schema["items"]["properties"][
         "runtime_contract_evidence_id"
     ]["enum"] = ["", *allowed_runtime_evidence_ids]
+    current_snapshot_ids = [
+        str(row.get("snapshot_id", "") or "").strip()
+        for row in _active_prior_finding_current_evidence(review_material)
+        if str(row.get("snapshot_id", "") or "").strip()
+    ]
+    allowed_prior_evidence_ids = list(
+        dict.fromkeys(
+            [
+                *current_snapshot_ids,
+                *allowed_runtime_evidence_ids,
+            ]
+        )
+    )
+    if allowed_prior_evidence_ids:
+        prior_reviews_schema["items"]["properties"]["evidence_refs"][
+            "items"
+        ]["enum"] = allowed_prior_evidence_ids
     return schema
 
 
@@ -865,6 +1077,84 @@ def validate_architect_metric_semantic_review_packet(
         errors.append(
             "Architect metric review requires a schema-valid deterministic "
             "runtime evaluator certificate"
+        )
+
+    current_evidence = packet.get(
+        "active_prior_finding_current_evidence",
+        [],
+    )
+    if not isinstance(current_evidence, list):
+        errors.append(
+            "active prior finding current evidence must be an array"
+        )
+        current_evidence = []
+    current_evidence_rows: list[dict[str, Any]] = []
+    current_evidence_by_id: dict[str, dict[str, Any]] = {}
+    current_evidence_by_finding_id: dict[str, list[dict[str, Any]]] = {}
+    for raw_row in current_evidence:
+        if not isinstance(raw_row, Mapping):
+            errors.append(
+                "active prior finding current evidence rows must be objects"
+            )
+            continue
+        row = dict(raw_row)
+        snapshot_id = str(row.get("snapshot_id", "") or "").strip()
+        finding_id = str(row.get("finding_id", "") or "").strip()
+        evidence_ref = str(row.get("evidence_ref", "") or "").strip()
+        if not snapshot_id or not finding_id or not evidence_ref:
+            errors.append(
+                "active prior finding current evidence row is missing identity"
+            )
+            continue
+        snapshot_body = {
+            field: deepcopy(row.get(field))
+            for field in (
+                _ARCHITECT_METRIC_CURRENT_EVIDENCE_SNAPSHOT_BODY_FIELDS
+            )
+        }
+        expected_snapshot_id = (
+            ARCHITECT_METRIC_CURRENT_EVIDENCE_SNAPSHOT_PREFIX
+            + stable_hash(snapshot_body)[:20]
+        )
+        if snapshot_id != expected_snapshot_id:
+            errors.append(
+                "active prior finding current evidence snapshot identity mismatch"
+            )
+        if snapshot_id in current_evidence_by_id:
+            errors.append(
+                "active prior finding current evidence snapshot IDs must be unique"
+            )
+        exists = row.get("exists")
+        if not isinstance(exists, bool):
+            errors.append(
+                "active prior finding current evidence exists flag must be boolean"
+            )
+        expected_value_fingerprint = (
+            stable_hash(row.get("current_value"))
+            if exists is True
+            else ""
+        )
+        if str(
+            row.get("current_value_fingerprint", "") or ""
+        ) != expected_value_fingerprint:
+            errors.append(
+                "active prior finding current evidence value fingerprint mismatch"
+            )
+        current_evidence_rows.append(row)
+        current_evidence_by_id[snapshot_id] = row
+        current_evidence_by_finding_id.setdefault(finding_id, []).append(row)
+    expected_current_evidence_fingerprint = (
+        stable_hash(current_evidence_rows) if current_evidence_rows else ""
+    )
+    if str(
+        packet.get(
+            "active_prior_finding_current_evidence_fingerprint",
+            "",
+        )
+        or ""
+    ) != expected_current_evidence_fingerprint:
+        errors.append(
+            "active prior finding current evidence fingerprint mismatch"
         )
 
     expected_prior_finding_ids = [
@@ -912,6 +1202,21 @@ def validate_architect_metric_semantic_review_packet(
             errors.append(
                 f"prior finding review {finding_id} missing evidence_refs"
             )
+        cited_evidence_refs = {
+            str(value).strip()
+            for value in evidence_refs
+            if str(value).strip()
+        } if isinstance(evidence_refs, list) else set()
+        finding_snapshot_rows = current_evidence_by_finding_id.get(
+            finding_id,
+            [],
+        )
+        cited_snapshot_rows = [
+            snapshot
+            for snapshot in finding_snapshot_rows
+            if str(snapshot.get("snapshot_id", "") or "")
+            in cited_evidence_refs
+        ]
         if status == METRIC_PROTOCOL_FINDING_RETRACTED_RUNTIME_CONTRACT_CONFLICT:
             if runtime_contract_evidence_id not in allowed_retraction_evidence_ids:
                 errors.append(
@@ -931,6 +1236,54 @@ def validate_architect_metric_semantic_review_packet(
             errors.append(
                 "non-retraction prior finding review must leave "
                 "runtime_contract_evidence_id empty"
+            )
+        elif finding_snapshot_rows and not cited_snapshot_rows:
+            errors.append(
+                f"prior finding review {finding_id} must cite an exact current "
+                "evidence snapshot"
+            )
+        if (
+            status == METRIC_PROTOCOL_FINDING_UNRESOLVED
+            and finding_snapshot_rows
+            and not any(snapshot.get("exists") is True for snapshot in cited_snapshot_rows)
+        ):
+            errors.append(
+                f"UNRESOLVED prior finding {finding_id} must cite an exists=true "
+                "current evidence snapshot"
+            )
+        if (
+            status == METRIC_PROTOCOL_FINDING_RESOLVED
+            and finding_snapshot_rows
+            and any(
+                str(snapshot.get("artifact_role", "") or "") != "unknown"
+                for snapshot in finding_snapshot_rows
+            )
+            and not any(
+                str(snapshot.get("artifact_role", "") or "")
+                == "metric_protocol_candidate"
+                for snapshot in cited_snapshot_rows
+            )
+        ):
+            errors.append(
+                f"RESOLVED prior finding {finding_id} must cite current candidate "
+                "evidence"
+            )
+        if (
+            status == METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY
+            and finding_snapshot_rows
+            and any(
+                str(snapshot.get("artifact_role", "") or "") != "unknown"
+                for snapshot in finding_snapshot_rows
+            )
+            and not any(
+                str(snapshot.get("artifact_role", "") or "")
+                == "source_theory_packet"
+                for snapshot in cited_snapshot_rows
+            )
+        ):
+            errors.append(
+                f"RESOLVED_BY_CURRENT_THEORY prior finding {finding_id} must cite "
+                "current theory evidence"
             )
     if sorted(reviewed_prior_finding_ids) != sorted(expected_prior_finding_ids):
         errors.append(
@@ -1058,6 +1411,37 @@ def validate_architect_metric_semantic_review_packet(
                 errors.append(
                     "a linked current finding must leave new_finding_rationale empty"
                 )
+            finding_snapshot_rows = current_evidence_by_finding_id.get(
+                prior_finding_id,
+                [],
+            )
+            if finding_snapshot_rows:
+                finding_evidence_refs = {
+                    str(value).strip()
+                    for value in evidence_refs
+                    if str(value).strip()
+                } if isinstance(evidence_refs, list) else set()
+                cited_snapshot_rows = [
+                    snapshot
+                    for snapshot in finding_snapshot_rows
+                    if str(snapshot.get("snapshot_id", "") or "")
+                    in finding_evidence_refs
+                    and snapshot.get("exists") is True
+                ]
+                if not cited_snapshot_rows:
+                    errors.append(
+                        "a linked unresolved finding must cite an exists=true "
+                        "current evidence snapshot"
+                    )
+                elif not any(
+                    str(snapshot.get("evidence_ref", "") or "")
+                    in finding_evidence_refs
+                    for snapshot in cited_snapshot_rows
+                ):
+                    errors.append(
+                        "a linked unresolved finding must preserve the exact "
+                        "underlying current artifact reference"
+                    )
         elif expected_prior_finding_ids and not new_finding_rationale:
             errors.append(
                 "a genuinely new current finding requires new_finding_rationale"
@@ -1065,6 +1449,21 @@ def validate_architect_metric_semantic_review_packet(
     if len(linked_prior_finding_ids) != len(set(linked_prior_finding_ids)):
         errors.append(
             "each active prior finding may be linked by at most one current finding"
+        )
+    snapshot_backed_unresolved_ids = {
+        finding_id
+        for finding_id, status in prior_review_status_by_id.items()
+        if status == METRIC_PROTOCOL_FINDING_UNRESOLVED
+        and current_evidence_by_finding_id.get(finding_id)
+    }
+    missing_linked_unresolved_ids = sorted(
+        snapshot_backed_unresolved_ids.difference(linked_prior_finding_ids)
+    )
+    if missing_linked_unresolved_ids:
+        errors.append(
+            "every snapshot-backed UNRESOLVED prior finding must be represented "
+            "by one linked current finding; missing="
+            + json.dumps(missing_linked_unresolved_ids)
         )
     if failed_claim_checks and high_findings == 0:
         errors.append(
@@ -1231,6 +1630,11 @@ def _normalize_architect_metric_semantic_review_packet(
     )
     body["expected_prior_finding_ids"] = _active_prior_finding_ids(
         review_material
+    )
+    current_evidence = _active_prior_finding_current_evidence(review_material)
+    body["active_prior_finding_current_evidence"] = current_evidence
+    body["active_prior_finding_current_evidence_fingerprint"] = (
+        stable_hash(current_evidence) if current_evidence else ""
     )
     runtime_contract_authority = review_material.get(
         "runtime_contract_authority",
