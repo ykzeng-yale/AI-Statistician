@@ -761,6 +761,70 @@ def _architect_metric_rejected_review_consistency_state(
     }
 
 
+def _architect_metric_protocol_expression_fidelity_repair_targets(
+    review_material: Mapping[str, Any],
+    invalid_packet: Mapping[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """Expose literal lineage repairs without deciding statistical semantics."""
+
+    if not isinstance(invalid_packet, Mapping):
+        return []
+    expression_options_by_requirement_id = {
+        str(row.get("requirement_id", "") or "").strip(): {
+            str(option.get("expression_ref", "") or "").strip(): str(
+                option.get("expression", "") or ""
+            )
+            for option in row.get("protocol_expression_options", []) or []
+            if isinstance(option, Mapping)
+            and str(option.get("expression_ref", "") or "").strip()
+        }
+        for row in _architect_metric_claim_check_contract(
+            review_material
+        ).get("normalization_expression_rows", [])
+        if isinstance(row, Mapping)
+        and str(row.get("requirement_id", "") or "").strip()
+    }
+    targets: list[dict[str, Any]] = []
+    for claim_check_index, raw_row in enumerate(
+        invalid_packet.get("claim_checks", []) or []
+    ):
+        if not isinstance(raw_row, Mapping):
+            continue
+        requirement_id = str(
+            raw_row.get("requirement_id", "") or ""
+        ).strip()
+        reconstruction = raw_row.get("normalization_reconstruction", {})
+        if not requirement_id or not isinstance(reconstruction, Mapping):
+            continue
+        expression_ref = str(
+            reconstruction.get("protocol_expression_ref", "") or ""
+        ).strip()
+        exact_expression = expression_options_by_requirement_id.get(
+            requirement_id,
+            {},
+        ).get(expression_ref)
+        current_expression = str(
+            reconstruction.get("protocol_expression", "") or ""
+        )
+        if exact_expression is None or current_expression == exact_expression:
+            continue
+        targets.append(
+            {
+                "claim_check_index_zero_based": claim_check_index,
+                "requirement_id": requirement_id,
+                "selected_protocol_expression_ref": expression_ref,
+                "exact_update_path": [
+                    "claim_checks",
+                    claim_check_index,
+                    "normalization_reconstruction",
+                    "protocol_expression",
+                ],
+                "exact_replacement": exact_expression,
+            }
+        )
+    return targets
+
+
 def _complete_unresolved_prior_finding_lineage(
     *,
     findings: Sequence[Mapping[str, Any]],
@@ -917,6 +981,12 @@ def _architect_metric_semantic_review_repair_context(
                 invalid_packet
             )
         ),
+        "protocol_expression_fidelity_repair_targets": (
+            _architect_metric_protocol_expression_fidelity_repair_targets(
+                review_material,
+                invalid_packet,
+            )
+        ),
         "local_validation_errors": [
             str(error) for error in errors if str(error).strip()
         ],
@@ -1027,6 +1097,14 @@ def _architect_metric_semantic_review_repair_context(
                 "convention_consistent value or any unresolved conflict requires "
                 "that claim_check to remain FAIL. Do not infer the statistical "
                 "verdict mechanically from any other runtime instruction."
+            ),
+            (
+                "For each protocol_expression_fidelity_repair_target, copy its "
+                "exact_update_path and exact_replacement literally. These paths use "
+                "zero-based array indices. Then independently reassess the affected "
+                "normalization audit and reconstruction, result, verdict, dimensions, "
+                "and findings. The literal repair does not decide any of those "
+                "semantic judgments."
             ),
         ],
     }
@@ -2180,7 +2258,10 @@ def validate_architect_metric_semantic_review_packet(
             ):
                 errors.append(
                     f"claim check {index} normalization_reconstruction must "
-                    "copy the exact protocol expression without rewriting it"
+                    "copy the exact protocol expression without rewriting it; "
+                    "exact JSON path="
+                    f"claim_checks[{index - 1}].normalization_reconstruction."
+                    "protocol_expression"
                 )
             convention_consistent = normalization_reconstruction.get(
                 "convention_consistent"

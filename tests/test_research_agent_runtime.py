@@ -48868,41 +48868,31 @@ def test_coding_packet_validation_feedback_preserves_role_boundaries() -> None:
         replan_after_attempts=1,
     )
 
-    assert result.status == "REROUTE"
+    assert result.status == "REVISE"
     assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
-    replan = result.next_task.inputs["architect_context"][
-        "runtime_packet_validation_replan"
-    ]
-    replan_context = result.next_task.inputs["architect_context"]
-    assert replan["source_subsystem"] == "SimulationEvaluator"
-    assert replan["validation_errors"] == [validation_error]
-    assert replan["pending_artifact_ids"] == {
-        "theory_packet_id": "theory:scoped",
-        "simulation_manifest_id": "simulation:accepted",
-    }
-    assert replan_context["theory_packet_id"] == "theory:scoped"
-    assert replan_context["simulation_manifest_id"] == "simulation:accepted"
-    assert replan_context["implementation_gaps"] == [
+    assert result.next_task.owner_subsystem == "SimulationEvaluator"
+    assert result.next_task.inputs["theory_packet_id"] == "theory:scoped"
+    assert result.next_task.inputs["simulation_manifest_id"] == (
+        "simulation:accepted"
+    )
+    assert result.next_task.inputs["implementation_gaps"] == [
         {
             "estimator_id": "candidate:accepted-lineage",
             "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
         }
     ]
-    lineage_blackboard = BlackboardState(
-        project_id="packet-replan-lineage",
-        artifacts={
-            "theory:scoped": {"packet_id": "theory:scoped"},
-            "simulation:accepted": {"manifest_id": "simulation:accepted"},
-        },
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["validation_errors"] == [validation_error]
+    assert feedback["packet_validation_replan_required"] is False
+    assert feedback["packet_validation_source_retry_escalated"] is True
+    assert feedback["packet_validation_repair_owner"] == (
+        "SimulationEvaluator"
     )
-    assert runtime_module._architect_feasible_initial_subsystem(
-        "AlgorithmEngineer",
-        architect_context=replan_context,
-        blackboard=lineage_blackboard,
-    ) == "AlgorithmEngineer"
-    assert replan["proof_evidence_status"] == (
-        "CODING_AGENT_PACKET_VALIDATION_REPLAN_NOT_PROOF_EVIDENCE"
+    assert (
+        result.next_task.inputs["architect_context"]["runtime_feedback_loop"][
+            "handoff"
+        ]
+        == "simulation_engineer_packet_validation_escalated_source_repair"
     )
 
 
@@ -109191,7 +109181,7 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     args.coding_agent_packet_validation_replan_after_attempts = 0
     assert (
         "capability eval preset full-live requires bounded coding-agent "
-        "packet-validation replanning; set "
+        "packet-validation source escalation; set "
         "--coding-agent-packet-validation-replan-after-attempts > 0"
     ) in _research_agent_runtime_capability_config_errors(args)
 

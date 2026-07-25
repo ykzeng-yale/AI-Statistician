@@ -432,7 +432,11 @@ def _typed_semantic_patch_prompt(
                 "top-level packet field, never a prompt-wrapper or excerpt-metadata "
                 "label."
             ),
-            "Use integer path components only for array indices.",
+            (
+                "Use integer path components only for array indices. Every array "
+                "index is zero-based; copy exact path arrays from "
+                "subsystem_repair_context when they are supplied."
+            ),
             (
                 "Use replacement directly for a string, number, boolean, null, or "
                 "array of strings; do not JSON-encode that direct value."

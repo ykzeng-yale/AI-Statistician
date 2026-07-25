@@ -651,6 +651,19 @@ def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict
         "packet_validation_replan_required": feedback.get(
             "packet_validation_replan_required"
         ),
+        "packet_validation_source_retry_escalated": feedback.get(
+            "packet_validation_source_retry_escalated"
+        ),
+        "packet_validation_repair_owner": _truncate_text(
+            feedback.get("packet_validation_repair_owner", ""),
+            limit=80,
+        ),
+        "lineage_packet_validation_round": feedback.get(
+            "lineage_packet_validation_round"
+        ),
+        "packet_validation_max_lineage_failures": feedback.get(
+            "packet_validation_max_lineage_failures"
+        ),
         "forbidden_generated_code_calls": _compact_string_list(
             feedback.get("forbidden_generated_code_calls", []),
             limit=6,

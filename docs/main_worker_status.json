@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-25T02:57:39Z",
+  "updated_at": "2026-07-25T07:48:05Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "keep one canonical loop: TheoryDeveloper -> theory/estimand/DGP preflight -> generated algorithm -> independent code review -> smallest frozen confirmatory protocol -> generated simulation -> independent review -> Critic, with the strict Formalizer/OpenProver/Lean lane remaining separately required for full capability evaluation. Current work improves shared loop efficiency and observability, not any task answer. Do not add agents, task formulas, Lean grammar/tactic rules, audit-score patches, or held-out fixes; PCA/extremes stay sealed.",
-  "latest_main_worker_patch": "Replace row-level numeric-gate provenance with a backward-compatible field-bound authority ABI. Every active threshold, bound, nonzero tolerance, and quorum now has its own authority kind, exact source anchors, and rationale; runtime computes only a conservative row summary, freezes the field map into artifact lineage, prevents coding-agent overrides, and keeps theory-owned fields visible to independent semantic review even when another field is Architect-owned. Legacy frozen v1 requirement hashes remain unchanged. No statistical answer, threshold, task-family branch, Lean grammar/tactic rule, agent, planner, or second orchestration plane was added.",
-  "latest_main_worker_live_probe": "The exact-Haiku v106 sequential development preflight authored a mixed-provenance field map, passed independent pre-execution semantic review, froze requirement set generated_metric_requirement_set:6123f8833db0cdfb3606, and stopped only at the explicit four-iteration budget with AlgorithmEngineer pending. The one-turn exact-Haiku v107 resume consumed that frozen map, generated and executed code in the real sandbox, recorded one algorithm and one live generated-code sandbox execution, and routed the exact artifact to GeneratedCodeSemanticReviewer. Both probes were mode-conformant and used claude-haiku-4-5-20251001 for every enabled live agent. They are bounded mechanism evidence, not a fresh full-loop completion, simulation acceptance, Lean proof, held-out result, or E2E readiness claim.",
-  "latest_main_worker_design_issue": "The field-authority transport blocker is closed, but the latest bounded run has not yet completed independent generated-code review, confirmatory simulation, Critic synthesis, or any strict formal lane. Its TheoryDeveloper proposal also retains unresolved semantic claims in its own critic ledger, so downstream acceptance must continue to depend on independent review and environment feedback rather than treating the theory packet as truth. The next shared gate is canonical-loop continuation and theory/reviewer consistency, followed by exact-target retention in the formal lane; exact source-theorem closure remains zero and held-out tasks remain sealed.",
+  "latest_main_worker_patch": "Keep local AlgorithmEngineer and SimulationEngineer packet/schema/ABI validation failures source-owned across coding retries and theory revisions; remove the Architect packet-validation detour, retain a persistent question/candidate/error lineage budget, expose exact escalation/owner telemetry to the source agents, and fail closed when that budget is exhausted. Separately, give the exact-Haiku metric reviewer zero-based typed-patch paths for literal protocol-expression fidelity repair while leaving every statistical verdict, normalization judgment, dimension review, and finding to the independent reviewer. No statistical answer, task-family branch, Lean grammar/tactic rule, agent, planner, validator relaxation, or second orchestration plane was added.",
+  "latest_main_worker_live_probe": "The fresh exact-Haiku v124 survival research-eval kept one original theory packet and its independently reviewed metric protocol authoritative through the generated-code loop. One invalid AlgorithmEngineer packet repaired directly in AlgorithmEngineer; repeated local SimulationEngineer packet failures remained in SimulationEvaluator and the escalated source retry produced an executable packet instead of consuming an Architect/Retrieval/Theory detour. Independent generated-code review then drove one upstream generated-dependency repair and one local SimulationEvaluator repair under the existing global lineage budget. The run stopped honestly after 18 iterations with status BLOCKED and terminal_classification=generated_code_semantic_review_lineage_budget_exhausted; research evaluation remained 0/1, mode-conformant=true, and no Critic acceptance or formal lane was reached. All 8 enabled live agents used claude-haiku-4-5-20251001, topology policy was OK, and no Sonnet/Opus call was permitted. This is shared control-loop evidence, not task success, Lean proof, held-out evidence, or E2E readiness.",
+  "latest_main_worker_design_issue": "The local coding-packet ownership defect is closed: packet/schema/ABI errors no longer authorize Architect, Retrieval, or Theory rewrites. The current v124 blocker is downstream semantic candidate quality under the deliberately bounded generated-code review lineage: after one upstream generated-dependency replan and one post-replan local source repair, a fresh review still found upstream dependency/theory defects, so the runtime correctly failed closed rather than resetting counters or weakening gates. The next shared gate is better context-preserving coding-agent repair and reviewer consistency across unrelated development families, followed separately by exact-target Formalizer/OpenProver/Lean closure. Exact source-theorem closure remains zero and PCA/extremes held-out tasks remain sealed.",
   "live_anthropic_model_policy": {
     "allowed_tiers": [
       "haiku",
@@ -22,13 +22,20 @@
     "provider_backed_tests_may_use_opus": false,
     "opus_live_requests_allowed": false,
     "enforcement": "Production requests above Sonnet are rejected before a live request can be accepted, requested Opus is rejected before Anthropic client construction, and capability/research evaluation policy pins every provider-backed test agent to the exact Haiku model.",
-    "live_api_calls_in_current_patch": 6
+    "provider_backed_evaluation_runs_in_current_patch": 4,
+    "provider_backed_evaluation_runs": [
+      "v122_metric_reviewer_index_diagnosis",
+      "v123_zero_based_metric_patch_and_packet_ownership_diagnosis",
+      "v123_pending_critic_bounded_resume",
+      "v124_source_owned_packet_validation"
+    ]
   },
   "latest_runtime_role_boundary_alignment": {
     "canonical_empirical_loop": "TheoryDeveloper -> AlgorithmEngineer execution -> independent algorithm semantic review -> Architect confirmatory protocol -> SimulationEngineer execution -> independent simulation semantic review -> owner-routed revision",
     "algorithm_acceptance": "sandbox execution plus independent semantic acceptance; no finite-sample empirical performance gate",
     "simulation_acceptance": "Architect-authored frozen typed metric requirements plus exact execution and independent semantic acceptance",
     "repair_policy": "first-pass correct is success; only an observed failure requires same-lineage repair closure",
+    "local_packet_validation_policy": "Packet/schema/ABI errors remain with the source coding agent across theory revisions; only an independent semantic reviewer may route a defect to upstream theory, metric-contract, or generated-dependency ownership.",
     "formal_policy": "Formalizer, ProofEngineer, and formal RAG run in parallel under claim-level required/optional/advisory policy; only Lean/AXLE/kernel evidence proves a theorem",
     "task_specific_rules_added": false,
     "lean_grammar_or_tactic_rules_added": false,
@@ -39,14 +46,15 @@
     "fresh_live_two_family_strict_completion_verified": false,
     "strict_e2e_capability_ready": false,
     "verification": {
-      "research_agent_runtime": "1183 passed in 1531.30 seconds on the field-bound metric-authority, frozen-lineage, resume, sandbox, review, and evidence-boundary patch",
-      "affected_supporting_tests": "148 passed and 3 skipped across generated metric contract, repair policy, JSON repair, metric semantic review, ownership routing, and generated-code semantic review",
+      "research_agent_runtime": "1184 passed in 1551.20 seconds on the source-owned packet-validation, persistent lineage, metric-review typed-patch, resume, sandbox, formal-routing, and evidence-boundary tree",
+      "affected_supporting_tests": "87 passed across the credential-free exact-Haiku environment, model policy, JSON repair, metric semantic review, and research-eval mode",
+      "exact_haiku_live_probe": "v124 enabled 8 Anthropic agents, all at claude-haiku-4-5-20251001; topology policy OK with zero tier, subsystem, contextual, or resolved-model violations",
       "focused_empirical_loop_tests": "the previously pushed TheoryDeveloper retry and metric-lineage regression remains covered by the complete runtime suite",
       "fresh_start_cross_task_e2e_tests": "fresh strict v39 completed theory/code/confirmatory-simulation for both development tasks, then blocked both at exact-target semantic review; frozen strict completion remains 0/2",
       "py_compile": "passed via compileall",
       "git_diff_check": "passed after final status update"
     },
-    "boundary": "Fresh v35 verifies advisory research-loop completion only. V34 artifact replay plus the v36 live review verifies review-first target routing only. Neither establishes theorem closure, held-out generalization, or proof evidence."
+    "boundary": "Fresh v124 verifies source-owned packet repair and immutable theory/metric lineage but ends BLOCKED at bounded semantic-review lineage exhaustion. It does not establish research-loop completion, theorem closure, held-out generalization, or proof evidence."
   },
   "latest_strict_formal_routing_probe": {
     "implementation": "reuse the existing FormalTargetSemanticReviewer, ProofEngineer, ExactSourceTheoremProver, OpenProver HLM, formal RAG, compiler feedback, and exact local Lean; keep all formal continuation inside typed AgentRuntime tasks",
@@ -4412,6 +4420,9 @@
     "PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_research_agent_runtime.py -k 'algorithm_engineer_prompt or algorithm_engineer_capability_eval or algorithm_engineer_exposes_and_requires_every_canonical_gap_id or coding_component_gate_memory_replays_to_algorithm_and_simulation_prompts or research_agent_runtime_records_theory_to_simulation_loop' # 12 passed, 1068 deselected after all-gap canonical coding-agent prompt/validator alignment",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_research_agent_runtime.py # final tree 1080 passed in 1571.15s",
     "PYTHONPATH=$PWD .venv/bin/python -m pytest -q tests/test_core.py::SystemTests::test_research_knowledge_audit_checks_sources_and_problem_retrieval # 1 passed in 8.43s; source inventory references_ok=33/33 local_ready=33/33 missing_required=0",
-    "PYTHONPATH=$PWD .venv/bin/python -m compileall -q ai_statistician tests/test_research_agent_runtime.py # passed"
+    "PYTHONPATH=$PWD .venv/bin/python -m compileall -q ai_statistician tests/test_research_agent_runtime.py # passed",
+    ".venv/bin/python -m pytest tests/test_test_environment_policy.py tests/test_model_backend.py tests/test_llm_json_repair.py tests/test_architect_metric_semantic_reviewer_llm.py tests/test_research_eval_mode.py -q # 87 passed in 21.02s; credentials stripped and exact test/evaluation model pinned to claude-haiku-4-5-20251001",
+    "runs/main_worker_survival_research_eval_fresh_20260724_v124_source_owned_packet_haiku # fresh exact-Haiku run, 8/8 enabled agents at Haiku, topology policy OK, local packet repairs stayed source-owned, status BLOCKED after 18 iterations at generated_code_semantic_review_lineage_budget_exhausted, research_eval=0/1 and mode_conformant=true",
+    ".venv/bin/python -m pytest tests/test_research_agent_runtime.py -q # 1184 passed in 1551.20s; compileall, jq empty docs/main_worker_status.json, and git diff --check also passed"
   ]
 }

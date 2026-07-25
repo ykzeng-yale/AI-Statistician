@@ -18878,15 +18878,22 @@ def _coding_agent_packet_validation_state(
     )
     if not isinstance(revision_cycle, Mapping):
         revision_cycle = {}
+    question_payload = task.inputs.get("question", {})
+    question_id = (
+        str(question_payload.get("id", "") or "").strip()
+        if isinstance(question_payload, Mapping)
+        else ""
+    )
+    current_theory_packet_id = str(
+        task.inputs.get("theory_packet_id", "")
+        or architect_context.get("theory_packet_id", "")
+        or architect_context.get("previous_theory_packet_id", "")
+        or ""
+    )
     lineage_key = stable_hash(
         {
+            "question_id": question_id,
             "source_subsystem": task.owner_subsystem,
-            "theory_packet_id": str(
-                task.inputs.get("theory_packet_id", "")
-                or architect_context.get("theory_packet_id", "")
-                or architect_context.get("previous_theory_packet_id", "")
-                or ""
-            ),
             "validation_label": validation_label,
             "validation_error_fingerprint": error_fingerprint,
             "fresh_candidate_id": str(
@@ -18904,16 +18911,29 @@ def _coding_agent_packet_validation_state(
     if not isinstance(prior_lineage_row, Mapping):
         prior_lineage_row = {}
     lineage_round = int(prior_lineage_row.get("attempt_count", 0) or 0) + 1
+    observed_theory_packet_ids = list(
+        dict.fromkeys(
+            [
+                *[
+                    str(value).strip()
+                    for value in prior_lineage_row.get(
+                        "observed_theory_packet_ids",
+                        [],
+                    )
+                    or []
+                    if str(value).strip()
+                ],
+                *([current_theory_packet_id] if current_theory_packet_id else []),
+            ]
+        )
+    )
     max_failures = max(0, int(max_lineage_failures or 0))
     lineage_row = {
         "lineage_key": lineage_key,
+        "question_id": question_id,
         "source_subsystem": task.owner_subsystem,
-        "theory_packet_id": str(
-            task.inputs.get("theory_packet_id", "")
-            or architect_context.get("theory_packet_id", "")
-            or architect_context.get("previous_theory_packet_id", "")
-            or ""
-        ),
+        "theory_packet_id": current_theory_packet_id,
+        "observed_theory_packet_ids": observed_theory_packet_ids,
         "validation_label": validation_label,
         "validation_error_fingerprint": error_fingerprint,
         "attempt_count": lineage_round,
@@ -18935,6 +18955,11 @@ def _coding_agent_packet_validation_state(
     lineage_budget_exhausted = bool(
         max_failures > 0 and lineage_round >= max_failures
     )
+    source_retry_escalated = bool(
+        not lineage_budget_exhausted
+        and threshold > 0
+        and lineage_round >= threshold
+    )
     return {
         "packet_validation_family_fingerprint": family_fingerprint,
         "validation_error_fingerprint": error_fingerprint,
@@ -18953,11 +18978,12 @@ def _coding_agent_packet_validation_state(
             lineage_budget_exhausted
         ),
         "packet_validation_attempt_ledger": attempt_ledger,
-        "packet_validation_replan_required": bool(
-            not lineage_budget_exhausted
-            and threshold > 0
-            and lineage_round >= threshold
+        "packet_validation_source_retry_escalated": (
+            source_retry_escalated
         ),
+        "packet_validation_repair_owner": task.owner_subsystem,
+        "packet_validation_repair_owner_basis": "local_packet_validator",
+        "packet_validation_replan_required": False,
     }
 
 
@@ -19021,117 +19047,6 @@ def _coding_agent_repair_budget_architect_task(
         ),
         stop_condition=(
             "amended route selects a theory, code, interface, or environment repair"
-        ),
-    )
-
-
-def _coding_agent_packet_validation_architect_task(
-    *,
-    task: AgentTask,
-    question: OpenResearchQuestion,
-    context: Mapping[str, Any],
-    repair_feedback: Mapping[str, Any],
-) -> AgentTask:
-    replan_context = dict(context)
-    replan_context["environment_feedback"] = dict(repair_feedback)
-    prior_replan = (
-        context.get("runtime_packet_validation_replan", {})
-        if isinstance(context.get("runtime_packet_validation_replan", {}), Mapping)
-        else {}
-    )
-    prior_pending_artifact_ids = prior_replan.get("pending_artifact_ids", {})
-    if not isinstance(prior_pending_artifact_ids, Mapping):
-        prior_pending_artifact_ids = {}
-    pending_artifact_ids: dict[str, str] = {
-        str(key): str(value)
-        for key, value in prior_pending_artifact_ids.items()
-        if str(key).endswith("_id")
-        and str(value).strip()
-    }
-    for source in (context, task.inputs):
-        pending_artifact_ids.update(
-            {
-                str(key): str(value)
-                for key, value in source.items()
-                if str(key).endswith("_id") and str(value).strip()
-            }
-        )
-    for key, value in pending_artifact_ids.items():
-        replan_context[key] = value
-    implementation_gaps = task.inputs.get(
-        "implementation_gaps",
-        context.get("implementation_gaps", []),
-    )
-    if isinstance(implementation_gaps, Sequence) and not isinstance(
-        implementation_gaps,
-        (str, bytes, bytearray),
-    ):
-        replan_context["implementation_gaps"] = [
-            dict(row) for row in implementation_gaps if isinstance(row, Mapping)
-        ]
-    replan_context["runtime_packet_validation_replan"] = {
-        "artifact_kind": "RuntimeCodingAgentPacketValidationReplanContext",
-        "source_task_id": task.task_id,
-        "source_subsystem": task.owner_subsystem,
-        "failure_classification": str(
-            repair_feedback.get("failure_classification", "") or ""
-        ),
-        "validation_label": str(
-            repair_feedback.get("validation_label", "") or ""
-        ),
-        "validation_errors": list(
-            repair_feedback.get("validation_errors", []) or []
-        ),
-        "packet_validation_family_fingerprint": str(
-            repair_feedback.get(
-                "packet_validation_family_fingerprint", ""
-            )
-            or ""
-        ),
-        "validation_error_fingerprint": str(
-            repair_feedback.get("validation_error_fingerprint", "") or ""
-        ),
-        "consecutive_packet_validation_round": int(
-            repair_feedback.get("consecutive_packet_validation_round", 0) or 0
-        ),
-        "pending_artifact_ids": pending_artifact_ids,
-        "routing_contract": (
-            "Accepted pending artifacts and implementation gaps remain immutable. "
-            "Packet-shape, foreign-key, and authority-binding failures default to a "
-            "better-context retry by the source coding subsystem. Upstream retrieval "
-            "or theory repair requires an explicit semantic blocker in the exact "
-            "validation errors. ArchitectCoordinator must not declare the invalid "
-            "packet executed or synthesize statistical, code, Lean, or proof evidence."
-        ),
-        "proof_evidence_status": (
-            "CODING_AGENT_PACKET_VALIDATION_REPLAN_NOT_PROOF_EVIDENCE"
-        ),
-    }
-    return AgentTask(
-        task_id=(
-            f"architect-packet-replan:{question.id}:"
-            f"{stable_hash([task.task_id, repair_feedback])[:8]}"
-        ),
-        owner_subsystem="ArchitectCoordinator",
-        objective=(
-            "Replan the research worker graph from exact repeated coding-agent "
-            "packet-validator feedback, selecting an upstream repair or a "
-            "better-context retry without weakening runtime evidence gates."
-        ),
-        inputs={
-            "question": _question_to_payload(question),
-            "architect_context": replan_context,
-            "environment_feedback": dict(repair_feedback),
-        },
-        allowed_tools=("model_backend", "evidence_ledger"),
-        expected_artifacts=("architect_coordinator_proposal",),
-        acceptance_gate=(
-            "validated Architect proposal explicitly routes the unresolved packet "
-            "validation blocker while preserving all evidence contracts"
-        ),
-        stop_condition=(
-            "amended route selects an upstream repair, a context-improved retry, "
-            "or records a typed blocker"
         ),
     )
 
@@ -19366,8 +19281,8 @@ def _simulation_engineer_packet_validation_failure_result(
         ),
         "source_subsystem": "SimulationEvaluator",
         "handoff": (
-            "simulation_engineer_packet_validation_architect_replan"
-            if validation_state["packet_validation_replan_required"]
+            "simulation_engineer_packet_validation_escalated_source_repair"
+            if validation_state["packet_validation_source_retry_escalated"]
             else "simulation_engineer_packet_validation_repair"
         ),
         "simulation_engineer_validation_failure_id": failure_id,
@@ -19408,16 +19323,9 @@ def _simulation_engineer_packet_validation_failure_result(
             "recorded"
         ),
     )
-    next_task = None if validation_state[
-        "packet_validation_lineage_budget_exhausted"
-    ] else (
-        _coding_agent_packet_validation_architect_task(
-            task=task,
-            question=question,
-            context=revision_context,
-            repair_feedback=repair_feedback,
-        )
-        if validation_state["packet_validation_replan_required"]
+    next_task = (
+        None
+        if validation_state["packet_validation_lineage_budget_exhausted"]
         else same_owner_next_task
     )
     evidence = EvidenceLedgerEntry(
@@ -19442,8 +19350,6 @@ def _simulation_engineer_packet_validation_failure_result(
         status=(
             "BLOCKED"
             if validation_state["packet_validation_lineage_budget_exhausted"]
-            else "REROUTE"
-            if validation_state["packet_validation_replan_required"]
             else "REVISE"
         ),
         rationale=(
@@ -19452,9 +19358,9 @@ def _simulation_engineer_packet_validation_failure_result(
             "before another model call or execution."
             if validation_state["packet_validation_lineage_budget_exhausted"]
             else "LLM SimulationEngineer packet repeatedly failed local validation; "
-            "exact validator feedback was routed to ArchitectCoordinator for "
-            "cross-subsystem replanning before execution."
-            if validation_state["packet_validation_replan_required"]
+            "the local packet-validator retained ownership in SimulationEvaluator "
+            "and escalated the exact lineage-bound feedback for a bounded source retry."
+            if validation_state["packet_validation_source_retry_escalated"]
             else "LLM SimulationEngineer packet failed local validation; exact "
             "validator feedback was recorded and routed back before execution."
         ),
@@ -19612,8 +19518,8 @@ def _algorithm_engineer_packet_validation_failure_result(
         ),
         "source_subsystem": "AlgorithmEngineer",
         "handoff": (
-            "algorithm_engineer_packet_validation_architect_replan"
-            if validation_state["packet_validation_replan_required"]
+            "algorithm_engineer_packet_validation_escalated_source_repair"
+            if validation_state["packet_validation_source_retry_escalated"]
             else "algorithm_engineer_packet_validation_repair"
         ),
         "algorithm_engineer_validation_failure_id": failure_id,
@@ -19642,16 +19548,9 @@ def _algorithm_engineer_packet_validation_failure_result(
         ),
         stop_condition="repaired algorithm packet or explicit implementation blocker recorded",
     )
-    next_task = None if validation_state[
-        "packet_validation_lineage_budget_exhausted"
-    ] else (
-        _coding_agent_packet_validation_architect_task(
-            task=task,
-            question=question,
-            context=revision_context,
-            repair_feedback=repair_feedback,
-        )
-        if validation_state["packet_validation_replan_required"]
+    next_task = (
+        None
+        if validation_state["packet_validation_lineage_budget_exhausted"]
         else same_owner_next_task
     )
     evidence = EvidenceLedgerEntry(
@@ -19676,8 +19575,6 @@ def _algorithm_engineer_packet_validation_failure_result(
         status=(
             "BLOCKED"
             if validation_state["packet_validation_lineage_budget_exhausted"]
-            else "REROUTE"
-            if validation_state["packet_validation_replan_required"]
             else "REVISE"
         ),
         rationale=(
@@ -19686,9 +19583,9 @@ def _algorithm_engineer_packet_validation_failure_result(
             "before another model call or execution."
             if validation_state["packet_validation_lineage_budget_exhausted"]
             else "LLM AlgorithmEngineer packet repeatedly failed local validation; "
-            "exact validator feedback was routed to ArchitectCoordinator for "
-            "cross-subsystem replanning before execution."
-            if validation_state["packet_validation_replan_required"]
+            "the local packet-validator retained ownership in AlgorithmEngineer "
+            "and escalated the exact lineage-bound feedback for a bounded source retry."
+            if validation_state["packet_validation_source_retry_escalated"]
             else "LLM AlgorithmEngineer packet failed local validation; structured "
             "feedback was recorded and routed back to AlgorithmEngineer."
         ),

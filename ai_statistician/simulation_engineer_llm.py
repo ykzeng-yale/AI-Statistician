@@ -765,6 +765,19 @@ def _compact_simulation_environment_feedback(feedback: Mapping[str, Any]) -> dic
         "packet_validation_replan_required": feedback.get(
             "packet_validation_replan_required"
         ),
+        "packet_validation_source_retry_escalated": feedback.get(
+            "packet_validation_source_retry_escalated"
+        ),
+        "packet_validation_repair_owner": _truncate_text(
+            feedback.get("packet_validation_repair_owner", ""),
+            limit=80,
+        ),
+        "lineage_packet_validation_round": feedback.get(
+            "lineage_packet_validation_round"
+        ),
+        "packet_validation_max_lineage_failures": feedback.get(
+            "packet_validation_max_lineage_failures"
+        ),
         "runtime_execution_contract": (
             _compact_simulation_runtime_execution_contract(
                 feedback.get("runtime_execution_contract", {})

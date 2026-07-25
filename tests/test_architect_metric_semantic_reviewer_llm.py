@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 
 import pytest
@@ -447,6 +448,136 @@ def test_metric_reviewer_cannot_rewrite_protocol_expression_during_review() -> N
         "claim check 1 normalization_reconstruction must copy the exact "
         "protocol expression without rewriting it"
     ) in str(exc_info.value)
+
+
+def test_metric_reviewer_literal_repair_exposes_zero_based_exact_paths() -> None:
+    requirements = [
+        _generic_requirement(
+            requirement_id=f"generic_gate_{index}",
+            metric_semantics=f"finite diagnostic {index}",
+            measurement_protocol=f"measure finite diagnostic {index}",
+            source_anchors=[f"theory:generic-gate-{index}"],
+        )
+        for index in range(5)
+    ]
+    invalid_payload = _review_payload(accept=True)
+    invalid_payload["claim_checks"] = []
+    for index, requirement in enumerate(requirements):
+        row = deepcopy(_review_payload(accept=True)["claim_checks"][0])
+        requirement_id = str(requirement["requirement_id"])
+        exact_protocol = str(requirement["measurement_protocol"])
+        row["requirement_id"] = requirement_id
+        row["claim_ref"] = (
+            f"requirement:{requirement_id}.measurement_protocol"
+        )
+        row["evidence_refs"] = [row["claim_ref"]]
+        row["normalization_reconstruction"] = {
+            **_normalization_reconstruction(),
+            "protocol_expression_ref": (
+                f"requirement:{requirement_id}.measurement_protocol"
+            ),
+            "protocol_expression": (
+                exact_protocol
+                if index == 0
+                else f"rewritten finite diagnostic {index}"
+            ),
+        }
+        invalid_payload["claim_checks"].append(row)
+
+    material = (
+        architect_metric_review_material_with_runtime_evaluator_certificate(
+            {
+                "review_stage": "pre_execution_metric_contract_review",
+                "execution_results_available": False,
+                "empirical_metric_requirements": requirements,
+            }
+        )
+    )
+
+    def typed_repair(request):
+        repair_request = json.loads(request.user_prompt.split("\n\n", 1)[1])
+        targets = repair_request["subsystem_repair_context"][
+            "protocol_expression_fidelity_repair_targets"
+        ]
+        assert [
+            row["claim_check_index_zero_based"] for row in targets
+        ] == [1, 2, 3, 4]
+        assert [
+            row["exact_update_path"] for row in targets
+        ] == [
+            [
+                "claim_checks",
+                index,
+                "normalization_reconstruction",
+                "protocol_expression",
+            ]
+            for index in range(1, 5)
+        ]
+        assert all(
+            target["exact_replacement"]
+            == requirements[index]["measurement_protocol"]
+            for index, target in zip(range(1, 5), targets)
+        )
+        assert "Every array index is zero-based" in request.user_prompt
+        assert all(
+            f"claim_checks[{index}]" in request.user_prompt
+            for index in range(1, 5)
+        )
+        return {
+            "base_payload_fingerprint": repair_request[
+                "base_payload_fingerprint"
+            ],
+            "updates": [
+                {
+                    "path": target["exact_update_path"],
+                    "replacement": target["exact_replacement"],
+                }
+                for target in targets
+            ],
+        }
+
+    backend = _SequenceBackend([invalid_payload, typed_repair])
+    packet = LLMArchitectMetricSemanticReviewerAgent(
+        provider=backend,
+        config=ArchitectMetricSemanticReviewerConfig(
+            provider_name="anthropic",
+            model=TEST_HAIKU_MODEL,
+            model_tier="haiku",
+            max_repair_attempts=1,
+        ),
+    ).review(
+        question=OpenResearchQuestion(
+            id="q_metric_literal_repair",
+            title="Repair literal metric lineage",
+            description="Review five generic pre-execution diagnostics.",
+        ),
+        review_material=material,
+        trusted_lineage={
+            "authoring_packet_id": "metric-authoring:literal-repair",
+            "authoring_packet_hash": stable_hash(
+                {"candidate": "literal-repair"}
+            ),
+            "empirical_metric_requirement_set_id": (
+                generated_metric_requirement_set_id(requirements)
+            ),
+            "source_agent": "ArchitectMetricContractPlanner",
+            "source_model": TEST_HAIKU_MODEL,
+            "source_model_tier": "haiku",
+        },
+    )
+
+    assert len(backend.requests) == 2
+    assert packet["llm_json_repair_attempts"] == 1
+    assert packet["llm_json_repair_history"][1]["patched_paths"] == [
+        [
+            "claim_checks",
+            index,
+            "normalization_reconstruction",
+            "protocol_expression",
+        ]
+        for index in range(1, 5)
+    ]
+    assert validate_architect_metric_semantic_review_packet(packet) == []
 
 
 def test_theory_bound_metric_review_requires_scope_consistency_check() -> None:

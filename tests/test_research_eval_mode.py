@@ -441,7 +441,7 @@ def test_fresh_candidate_must_change_the_rejected_requirement_set() -> None:
     ) == []
 
 
-def test_packet_validation_budget_survives_architect_replan_context() -> None:
+def test_packet_validation_budget_survives_theory_revision_and_stays_source_owned() -> None:
     base_inputs = {
         "question": {"id": "generic_packet_budget"},
         "theory_packet_id": "theory:stable",
@@ -463,6 +463,7 @@ def test_packet_validation_budget_survives_architect_replan_context() -> None:
     )
     assert first["lineage_packet_validation_round"] == 1
     assert first["packet_validation_replan_required"] is False
+    assert first["packet_validation_source_retry_escalated"] is False
 
     replanned_context = {
         "runtime_packet_validation_attempt_ledger": first[
@@ -473,7 +474,11 @@ def test_packet_validation_budget_survives_architect_replan_context() -> None:
         task_id="algorithm:after-architect",
         owner_subsystem="AlgorithmEngineer",
         objective="retry after Architect replan",
-        inputs={**base_inputs, "architect_context": replanned_context},
+        inputs={
+            **base_inputs,
+            "theory_packet_id": "theory:revised",
+            "architect_context": replanned_context,
+        },
     )
     second = _coding_agent_packet_validation_state(
         task=second_task,
@@ -484,7 +489,15 @@ def test_packet_validation_budget_survives_architect_replan_context() -> None:
         max_lineage_failures=3,
     )
     assert second["lineage_packet_validation_round"] == 2
-    assert second["packet_validation_replan_required"] is True
+    assert second["packet_validation_lineage_key"] == first[
+        "packet_validation_lineage_key"
+    ]
+    assert second["packet_validation_replan_required"] is False
+    assert second["packet_validation_source_retry_escalated"] is True
+    assert second["packet_validation_repair_owner"] == "AlgorithmEngineer"
+    assert second["packet_validation_repair_owner_basis"] == (
+        "local_packet_validator"
+    )
 
     third_task = AgentTask(
         task_id="algorithm:after-second-architect",
@@ -492,6 +505,7 @@ def test_packet_validation_budget_survives_architect_replan_context() -> None:
         objective="bounded final retry",
         inputs={
             **base_inputs,
+            "theory_packet_id": "theory:revised-again",
             "architect_context": {
                 "runtime_packet_validation_attempt_ledger": second[
                     "packet_validation_attempt_ledger"
@@ -510,6 +524,15 @@ def test_packet_validation_budget_survives_architect_replan_context() -> None:
     assert third["lineage_packet_validation_round"] == 3
     assert third["packet_validation_lineage_budget_exhausted"] is True
     assert third["packet_validation_replan_required"] is False
+    assert third["packet_validation_source_retry_escalated"] is False
+    lineage_row = third["packet_validation_attempt_ledger"][
+        third["packet_validation_lineage_key"]
+    ]
+    assert lineage_row["observed_theory_packet_ids"] == [
+        "theory:stable",
+        "theory:revised",
+        "theory:revised-again",
+    ]
 
 
 def test_simulation_guard_blocks_before_proposal_or_execution() -> None:

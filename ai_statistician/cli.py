@@ -15339,7 +15339,7 @@ def _research_agent_runtime_capability_config_errors(
         ):
             errors.append(
                 "capability eval preset full-live requires bounded coding-agent "
-                "packet-validation replanning; set "
+                "packet-validation source escalation; set "
                 "--coding-agent-packet-validation-replan-after-attempts > 0"
             )
         if (
@@ -23007,10 +23007,10 @@ def build_parser() -> argparse.ArgumentParser:
         default=0,
         help=(
             "after this many consecutive locally invalid AlgorithmEngineer or "
-            "SimulationEngineer packets, route exact validator feedback through "
-            "ArchitectCoordinator for cross-subsystem replanning; full-live "
-            "defaults to 1 because each packet already receives an internal JSON "
-            "repair attempt; 0 keeps same-owner retries"
+            "SimulationEngineer packets, mark exact validator feedback as an "
+            "escalated source-owned retry; local packet/ABI failures never authorize "
+            "an upstream theory rewrite. The legacy option name is retained for "
+            "command compatibility; 0 keeps unlabelled same-owner retries"
         ),
     )
     research_agent_runtime.add_argument(
@@ -23019,8 +23019,9 @@ def build_parser() -> argparse.ArgumentParser:
         default=0,
         help=(
             "hard cap on repeated identical packet-validator failures for one "
-            "theory/candidate lineage across Architect replans; research-eval "
-            "and full-live enable a bounded default, while 0 disables the cap"
+            "question/fresh-candidate lineage across coding retries and theory "
+            "revisions; research-eval and full-live enable a bounded default, "
+            "while 0 disables the cap"
         ),
     )
     research_agent_runtime.add_argument(
