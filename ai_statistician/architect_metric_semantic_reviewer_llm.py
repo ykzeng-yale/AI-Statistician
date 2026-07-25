@@ -21,7 +21,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 
 
-ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 10
+ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 11
 ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -487,6 +487,118 @@ def _active_prior_finding_current_evidence(
     )
 
 
+def _complete_unresolved_prior_finding_lineage(
+    *,
+    findings: Sequence[Mapping[str, Any]],
+    prior_finding_reviews: Sequence[Mapping[str, Any]],
+    active_prior_finding_ledger: Sequence[Mapping[str, Any]],
+    current_evidence: Sequence[Mapping[str, Any]],
+) -> tuple[list[dict[str, Any]], list[str], list[str]]:
+    """Keep persistent finding identity in the runtime-owned control plane."""
+
+    rows = [dict(row) for row in findings if isinstance(row, Mapping)]
+    snapshots_by_id = {
+        str(row.get("snapshot_id", "") or "").strip(): dict(row)
+        for row in current_evidence
+        if str(row.get("snapshot_id", "") or "").strip()
+    }
+    evidence_bound_ids: list[str] = []
+    for row in rows:
+        finding_id = str(row.get("prior_finding_id", "") or "").strip()
+        evidence_refs = [
+            str(value).strip()
+            for value in row.get("evidence_refs", []) or []
+            if str(value).strip()
+        ]
+        underlying_refs = [
+            str(snapshot.get("evidence_ref", "") or "").strip()
+            for snapshot_id in evidence_refs
+            if (snapshot := snapshots_by_id.get(snapshot_id))
+            and snapshot.get("exists") is True
+            and str(snapshot.get("finding_id", "") or "").strip()
+            == finding_id
+            and str(snapshot.get("evidence_ref", "") or "").strip()
+        ]
+        if finding_id and any(
+            underlying_ref not in evidence_refs
+            for underlying_ref in underlying_refs
+        ):
+            row["evidence_refs"] = list(
+                dict.fromkeys([*evidence_refs, *underlying_refs])
+            )
+            evidence_bound_ids.append(finding_id)
+    linked_ids = {
+        str(row.get("prior_finding_id", "") or "").strip()
+        for row in rows
+        if str(row.get("prior_finding_id", "") or "").strip()
+    }
+    prior_findings_by_id = {
+        str(row.get("finding_id", "") or "").strip(): dict(
+            row.get("finding", {})
+        )
+        for row in active_prior_finding_ledger
+        if str(row.get("finding_id", "") or "").strip()
+        and isinstance(row.get("finding", {}), Mapping)
+    }
+    carried_ids: list[str] = []
+    for review in prior_finding_reviews:
+        finding_id = str(review.get("finding_id", "") or "").strip()
+        if (
+            not finding_id
+            or finding_id in linked_ids
+            or str(review.get("status", "") or "").strip().upper()
+            != METRIC_PROTOCOL_FINDING_UNRESOLVED
+        ):
+            continue
+        cited_refs = list(
+            dict.fromkeys(
+                str(value).strip()
+                for value in review.get("evidence_refs", []) or []
+                if str(value).strip()
+            )
+        )
+        cited_snapshots = [
+            snapshots_by_id[snapshot_id]
+            for snapshot_id in cited_refs
+            if snapshot_id in snapshots_by_id
+            and snapshots_by_id[snapshot_id].get("exists") is True
+            and str(
+                snapshots_by_id[snapshot_id].get("finding_id", "") or ""
+            ).strip()
+            == finding_id
+            and str(
+                snapshots_by_id[snapshot_id].get("evidence_ref", "") or ""
+            ).strip()
+        ]
+        prior_finding = prior_findings_by_id.get(finding_id)
+        if not cited_snapshots or not prior_finding:
+            continue
+        evidence_refs: list[str] = []
+        for snapshot in cited_snapshots:
+            evidence_refs.extend(
+                [
+                    str(snapshot.get("snapshot_id", "") or "").strip(),
+                    str(snapshot.get("evidence_ref", "") or "").strip(),
+                ]
+            )
+        carried = deepcopy(prior_finding)
+        carried.pop("finding_id", None)
+        carried["prior_finding_id"] = finding_id
+        carried["new_finding_rationale"] = ""
+        carried["evidence_refs"] = list(
+            dict.fromkeys(value for value in evidence_refs if value)
+        )
+        rows.append(carried)
+        linked_ids.add(finding_id)
+        carried_ids.append(finding_id)
+        evidence_bound_ids.append(finding_id)
+    return (
+        rows,
+        carried_ids,
+        list(dict.fromkeys(evidence_bound_ids)),
+    )
+
+
 def _architect_metric_semantic_review_repair_context(
     review_material: Mapping[str, Any],
     *,
@@ -570,14 +682,17 @@ def _architect_metric_semantic_review_repair_context(
                 "Treat each old finding as a hypothesis. For every non-retraction "
                 "disposition, cite its exact current-evidence snapshot ID. Use "
                 "UNRESOLVED only when an exists=true snapshot still exhibits the same "
-                "defect, and link one current finding that cites both that snapshot ID "
-                "and its underlying evidence_ref. Never retain a finding based on "
-                "speculation about hidden or outdated artifact text."
+                "defect. The runtime carries the exact old finding identity and payload "
+                "forward from that disposition and snapshot; do not duplicate it in "
+                "findings unless its semantic description or repair scope must change. "
+                "Never retain a finding based on speculation about hidden or outdated "
+                "artifact text."
             ),
             (
                 "For a current finding that restates an unresolved prior defect, set "
                 "prior_finding_id to that exact active ID and leave "
-                "new_finding_rationale empty."
+                "new_finding_rationale empty. Cite its exact current snapshot; the "
+                "runtime binds that snapshot to its underlying artifact reference."
             ),
             (
                 "For a genuinely new current finding, leave prior_finding_id empty "
@@ -846,11 +961,13 @@ def build_architect_metric_semantic_review_prompt(
         "For every non-retraction "
         "prior disposition, cite at least one snapshot_id belonging to that finding. "
         "Use UNRESOLVED only when an exists=true snapshot still exhibits the same "
-        "specific defect in the exact current value. In that case emit one linked "
-        "current finding with prior_finding_id set, and cite both the snapshot_id and "
-        "its underlying evidence_ref in that finding. Snapshot existence alone does "
-        "not establish persistence. Never retain an old finding because hidden, "
-        "earlier, or outdated text may still exist. If the exact old premise is "
+        "specific defect in the exact current value. The runtime will carry the exact "
+        "prior finding identity and payload forward from an UNRESOLVED disposition "
+        "that cites such a snapshot, adding the snapshot's underlying evidence_ref. "
+        "Do not duplicate that finding unless its semantic description or repair "
+        "scope must change. Snapshot existence alone does not establish persistence. "
+        "Never retain an old finding because hidden, earlier, or outdated text may "
+        "still exist. If the exact old premise is "
         "corrected, mark it RESOLVED_BY_CURRENT_THEORY; if a different gap remains, "
         "resolve the old identity and create a distinct new finding grounded in exact "
         "current evidence. A missing old pointer may support a resolution disposition "
@@ -876,9 +993,11 @@ def build_architect_metric_semantic_review_prompt(
         "not infer resolution merely because a prior finding is absent from the new "
         "candidate. For each current finding, set prior_finding_id to the exact active "
         "finding ID when it is the same unresolved defect expressed with new wording; "
-        "do not create a new identity for a persistent issue. Leave prior_finding_id "
-        "empty only for a genuinely new defect and explain why it is distinct in "
-        "new_finding_rationale. Recheck the complete contract after those row-level "
+        "do not create a new identity for a persistent issue. Cite the exact current "
+        "snapshot for a linked finding; the runtime binds its underlying artifact "
+        "reference. Leave prior_finding_id empty only for a genuinely new defect and "
+        "explain why it is distinct in new_finding_rationale. Recheck the complete "
+        "contract after those row-level "
         "decisions "
         "so a repair does not introduce a different inconsistency. Assign every "
         "finding repair_scope=metric_contract only when the "
@@ -1844,11 +1963,30 @@ def _normalize_architect_metric_semantic_review_packet(
         for row in active_prior_finding_ledger
         if str(row.get("finding_id", "") or "").strip()
     }
+    prior_finding_reviews = [
+        dict(row)
+        for row in body.get("prior_finding_reviews", []) or []
+        if isinstance(row, Mapping)
+    ]
+    body["prior_finding_reviews"] = prior_finding_reviews
+    current_evidence = _active_prior_finding_current_evidence(review_material)
     raw_findings = [
         dict(row)
         for row in body.get("findings", []) or []
         if isinstance(row, Mapping)
     ]
+    (
+        raw_findings,
+        carried_prior_finding_ids,
+        evidence_bound_prior_finding_ids,
+    ) = (
+        _complete_unresolved_prior_finding_lineage(
+            findings=raw_findings,
+            prior_finding_reviews=prior_finding_reviews,
+            active_prior_finding_ledger=active_prior_finding_ledger,
+            current_evidence=current_evidence,
+        )
+    )
     for finding in raw_findings:
         finding.pop("finding_id", None)
         prior_finding_id = str(
@@ -1862,12 +2000,12 @@ def _normalize_architect_metric_semantic_review_packet(
         preserve_existing_ids=True,
     )
     body["findings"] = findings
-    prior_finding_reviews = [
-        dict(row)
-        for row in body.get("prior_finding_reviews", []) or []
-        if isinstance(row, Mapping)
-    ]
-    body["prior_finding_reviews"] = prior_finding_reviews
+    body["runtime_carried_forward_prior_finding_ids"] = (
+        carried_prior_finding_ids
+    )
+    body["runtime_bound_prior_finding_evidence_ids"] = (
+        evidence_bound_prior_finding_ids
+    )
     active_prior_findings_by_id = {
         str(row.get("finding_id", "") or "").strip(): dict(
             row.get("finding", {})
@@ -1905,7 +2043,6 @@ def _normalize_architect_metric_semantic_review_packet(
     body["expected_prior_finding_ids"] = _active_prior_finding_ids(
         review_material
     )
-    current_evidence = _active_prior_finding_current_evidence(review_material)
     body["active_prior_finding_current_evidence"] = current_evidence
     body["active_prior_finding_current_evidence_fingerprint"] = (
         stable_hash(current_evidence) if current_evidence else ""

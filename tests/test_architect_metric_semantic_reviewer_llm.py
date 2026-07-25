@@ -904,7 +904,7 @@ def test_metric_reviewer_rejects_unresolved_prior_without_existing_snapshot() ->
     )
 
 
-def test_metric_reviewer_requires_snapshot_and_underlying_ref_for_persistent_issue() -> None:
+def test_metric_reviewer_runtime_binds_snapshot_to_underlying_ref() -> None:
     finding_id = "metric-finding:current-candidate-defect"
     evidence_ref = "requirement:generic_gate.operator"
     material = {
@@ -942,28 +942,99 @@ def test_metric_reviewer_requires_snapshot_and_underlying_ref_for_persistent_iss
     payload["findings"][0]["new_finding_rationale"] = ""
     payload["findings"][0]["evidence_refs"] = [snapshot["snapshot_id"]]
 
+    packet, _, _ = _review(
+        accept=False,
+        payload=payload,
+        material=material,
+    )
+    assert packet["runtime_bound_prior_finding_evidence_ids"] == [
+        finding_id
+    ]
+    assert snapshot["snapshot_id"] in packet["findings"][0]["evidence_refs"]
+    assert evidence_ref in packet["findings"][0]["evidence_refs"]
+    assert packet["overall_verdict"] == "REVISE"
+    assert packet["findings"][0]["finding_id"] == finding_id
+    assert validate_architect_metric_semantic_review_packet(packet) == []
+
+    payload["findings"][0]["evidence_refs"] = [evidence_ref]
     with pytest.raises(PacketValidationError) as exc_info:
         _review(
             accept=False,
             payload=payload,
             material=material,
         )
-
-    assert "must preserve the exact underlying current artifact reference" in str(
+    assert "must cite an exists=true current evidence snapshot" in str(
         exc_info.value
     )
 
-    payload["findings"][0]["evidence_refs"] = [
-        snapshot["snapshot_id"],
-        evidence_ref,
+
+def test_metric_reviewer_runtime_carries_forward_unresolved_prior_finding() -> None:
+    finding_id = "metric-finding:runtime-owned-persistent-identity"
+    evidence_refs = [
+        "requirement:generic_gate.operator",
+        "requirement:generic_gate.threshold",
     ]
-    packet, _, _ = _review(
+    material = {
+        "review_stage": "pre_execution_metric_contract_review",
+        "execution_results_available": False,
+        "active_prior_finding_ledger": [
+            {
+                "finding_id": finding_id,
+                "status": "UNRESOLVED",
+                "finding": {
+                    "severity": "high",
+                    "category": "generic_operator",
+                    "summary": "The candidate operator is still incorrect.",
+                    "required_change": "Repair the exact candidate operator.",
+                    "repair_scope": "metric_contract",
+                    "evidence_refs": evidence_refs,
+                },
+            }
+        ],
+        "empirical_metric_requirements": [_generic_requirement()],
+    }
+    snapshots = architect_metric_active_prior_finding_current_evidence(
+        material
+    )
+    snapshots_by_ref = {
+        snapshot["evidence_ref"]: snapshot for snapshot in snapshots
+    }
+    cited_snapshots = [
+        snapshots_by_ref[evidence_ref]["snapshot_id"]
+        for evidence_ref in reversed(evidence_refs)
+    ]
+    payload = _review_payload(accept=False)
+    payload["prior_finding_reviews"] = [
+        {
+            "finding_id": finding_id,
+            "status": "UNRESOLVED",
+            "runtime_contract_evidence_id": "",
+            "rationale": "The exact current operator still exhibits the defect.",
+            "evidence_refs": cited_snapshots,
+        }
+    ]
+    payload["findings"] = []
+
+    packet, backend, _ = _review(
         accept=False,
         payload=payload,
         material=material,
     )
-    assert packet["overall_verdict"] == "REVISE"
-    assert packet["findings"][0]["finding_id"] == finding_id
+
+    assert len(backend.requests) == 1
+    assert packet["runtime_carried_forward_prior_finding_ids"] == [finding_id]
+    assert packet["runtime_bound_prior_finding_evidence_ids"] == [finding_id]
+    assert len(packet["findings"]) == 1
+    carried = packet["findings"][0]
+    assert carried["finding_id"] == finding_id
+    assert carried["prior_finding_id"] == finding_id
+    assert carried["new_finding_rationale"] == ""
+    assert carried["evidence_refs"] == [
+        cited_snapshots[0],
+        evidence_refs[1],
+        cited_snapshots[1],
+        evidence_refs[0],
+    ]
     assert validate_architect_metric_semantic_review_packet(packet) == []
 
 
