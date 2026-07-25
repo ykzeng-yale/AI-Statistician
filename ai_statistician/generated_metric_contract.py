@@ -56,6 +56,15 @@ GENERATED_METRIC_ACCEPTANCE_GATING_AUTHORITY_KINDS: tuple[str, ...] = (
     "evaluation_mandated",
     "architect_preregistered_design",
 )
+GENERATED_METRIC_GATE_FIELD_AUTHORITY_MODE = "field_bound_v1"
+GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS: tuple[str, ...] = (
+    "threshold",
+    "lower",
+    "upper",
+    "tolerance",
+    "minimum_pass_count",
+    "minimum_pass_fraction",
+)
 GENERATED_METRIC_THEORY_GATING_AUTHORITY_FIELDS: tuple[str, ...] = (
     "theorem_cards",
     "lemma_cards",
@@ -111,6 +120,8 @@ GENERATED_METRIC_AUTHORITY_COPY_FIELDS: tuple[str, ...] = (
     "source_anchors",
     "acceptance_authority_kind",
     "acceptance_authority_rationale",
+    "gate_field_authority_mode",
+    "gate_field_authorities",
 )
 GENERATED_METRIC_BINDING_FIELDS: tuple[str, ...] = (
     "contract_id",
@@ -521,6 +532,7 @@ def generated_metric_requirement_json_schema(
     *,
     require_acceptance_authority: bool = False,
     authority_anchor_ids: Sequence[str] = (),
+    require_gate_field_authorities: bool = False,
 ) -> dict[str, Any]:
     """Return the machine-readable domain-neutral requirement schema.
 
@@ -553,6 +565,13 @@ def generated_metric_requirement_json_schema(
             [
                 "acceptance_authority_kind",
                 "acceptance_authority_rationale",
+            ]
+        )
+    if require_gate_field_authorities:
+        required_fields.extend(
+            [
+                "gate_field_authority_mode",
+                "gate_field_authorities",
             ]
         )
     anchor_items: dict[str, Any] = {"type": "string", "minLength": 1}
@@ -683,12 +702,67 @@ def generated_metric_requirement_json_schema(
                     "design choice is statistically meaningful and feasible."
                 ),
             },
+            "gate_field_authority_mode": {
+                "type": "string",
+                "enum": [GENERATED_METRIC_GATE_FIELD_AUTHORITY_MODE],
+                "description": (
+                    "Runtime-owned marker for explicit field-level numeric-gate "
+                    "authority bindings."
+                ),
+            },
+            "gate_field_authorities": {
+                "type": "array",
+                "maxItems": len(GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS),
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": [
+                        "field",
+                        "authority_kind",
+                        "source_anchors",
+                        "rationale",
+                    ],
+                    "properties": {
+                        "field": {
+                            "type": "string",
+                            "enum": list(
+                                GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS
+                            ),
+                        },
+                        "authority_kind": {
+                            "type": "string",
+                            "enum": list(
+                                GENERATED_METRIC_ACCEPTANCE_AUTHORITY_KINDS
+                            ),
+                        },
+                        "source_anchors": {
+                            "type": "array",
+                            "minItems": 1,
+                            "uniqueItems": True,
+                            "items": anchor_items,
+                        },
+                        "rationale": {
+                            "type": "string",
+                            "minLength": 1,
+                        },
+                    },
+                },
+                "description": (
+                    "Exactly one entry for every substantive active numeric gate "
+                    "field, in evaluator-field order. Each entry independently owns "
+                    "that field's provenance; runtime computes the conservative "
+                    "row-level acceptance_authority_kind roll-up."
+                ),
+            },
             "boundary": {"type": "string", "minLength": 1},
         },
     }
     if not require_acceptance_authority:
         schema["properties"].pop("acceptance_authority_kind")
         schema["properties"].pop("acceptance_authority_rationale")
+    if not require_gate_field_authorities:
+        schema["properties"].pop("gate_field_authority_mode")
+        schema["properties"].pop("gate_field_authorities")
     return schema
 
 
@@ -750,6 +824,26 @@ def generated_metric_requirement_prompt_schema(
             "theory_parameter_instantiation needs both the symbolic theory node and "
             "the exact preregistered evaluation-design value"
         ),
+        "gate_field_authorities": [
+            {
+                "field": (
+                    "exactly one active substantive field: threshold|lower|upper|"
+                    "tolerance|minimum_pass_count|minimum_pass_fraction"
+                ),
+                "authority_kind": (
+                    "theory_derived|theory_parameter_instantiation|"
+                    "evaluation_mandated|architect_preregistered_design|"
+                    "diagnostic_only"
+                ),
+                "source_anchors": [
+                    "exact anchor_id copied from acceptance_authority_catalog",
+                ],
+                "rationale": (
+                    "field-specific provenance and justification; do not use one "
+                    "field's authority to launder another field"
+                ),
+            }
+        ],
         "boundary": GENERATED_METRIC_REQUIREMENT_BOUNDARY,
     }
 
@@ -978,6 +1072,7 @@ def validate_generated_metric_requirements(
     expected_runtime_replicates: int | None = None,
     require_acceptance_authority: bool = False,
     acceptance_authority_catalog: Sequence[Mapping[str, Any]] = (),
+    require_gate_field_authorities: bool = False,
 ) -> list[str]:
     """Validate upstream requirements without interpreting metric vocabulary."""
 
@@ -1057,11 +1152,21 @@ def validate_generated_metric_requirements(
         elif required:
             covered_required_targets.update(target_values)
         errors.extend(_metric_source_anchor_errors(raw_requirement, prefix=prefix))
+        gate_field_authorities_present = (
+            "gate_field_authorities" in raw_requirement
+            or "gate_field_authority_mode" in raw_requirement
+        )
+        if require_gate_field_authorities and not gate_field_authorities_present:
+            errors.append(
+                f"{prefix}.gate_field_authorities are required for fresh "
+                "field-bound metric authoring"
+            )
         authority_fields_present = any(
             field in raw_requirement
             for field in (
                 "acceptance_authority_kind",
                 "acceptance_authority_rationale",
+                "gate_field_authorities",
             )
         )
         if require_acceptance_authority or authority_fields_present:
@@ -1122,6 +1227,7 @@ def validate_generated_metric_requirements(
                     required is True
                     and authority_kind
                     in GENERATED_METRIC_ACCEPTANCE_GATING_AUTHORITY_KINDS
+                    and not gate_field_authorities_present
                 ):
                     numeric_catalog_kinds = set(
                         _generated_metric_numeric_catalog_authority_kinds(
@@ -1167,6 +1273,17 @@ def validate_generated_metric_requirements(
                                         + " authority node"
                                     )
                                 )
+                if gate_field_authorities_present:
+                    errors.extend(
+                        _generated_metric_gate_field_authority_errors(
+                            raw_requirement,
+                            prefix=prefix,
+                            required=required,
+                            authority_row_by_anchor_id=(
+                                authority_row_by_anchor_id
+                            ),
+                        )
+                    )
             if authority_kind == "diagnostic_only" and required is not False:
                 errors.append(
                     f"{prefix}.diagnostic_only rows must set required=false"
@@ -1266,9 +1383,335 @@ def _generated_metric_required_gate_numeric_fields(
     return rows
 
 
+def generated_metric_gate_field_authority_rollup(
+    gate_field_authorities: Sequence[Mapping[str, Any]],
+    *,
+    fallback: str = "",
+) -> str:
+    """Return a conservative row summary without erasing field provenance."""
+
+    kinds = {
+        str(row.get("authority_kind", "") or "").strip()
+        for row in gate_field_authorities
+        if isinstance(row, Mapping)
+        and str(row.get("authority_kind", "") or "").strip()
+    }
+    if not kinds:
+        return str(fallback or "").strip()
+    if len(kinds) == 1:
+        return next(iter(kinds))
+    if "architect_preregistered_design" in kinds:
+        return "architect_preregistered_design"
+    if "diagnostic_only" in kinds:
+        return "diagnostic_only"
+    if kinds <= {"theory_derived", "theory_parameter_instantiation"}:
+        return "theory_parameter_instantiation"
+    # Combining independently authorized source gates into one executable pass
+    # region is itself a preregistered design choice.
+    return "architect_preregistered_design"
+
+
+def materialize_generated_metric_gate_field_authorities(
+    requirement: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Expand legacy row authority into explicit field bindings losslessly."""
+
+    body = dict(requirement)
+    active_fields = [
+        field
+        for field, _value in _generated_metric_required_gate_numeric_fields(
+            body
+        )
+    ]
+    if "gate_field_authorities" in body:
+        raw_rows = body.get("gate_field_authorities")
+        if not isinstance(raw_rows, list):
+            body["gate_field_authority_mode"] = (
+                GENERATED_METRIC_GATE_FIELD_AUTHORITY_MODE
+            )
+            return body
+        rows = [
+            dict(row) if isinstance(row, Mapping) else row
+            for row in raw_rows
+        ]
+    else:
+        authority_kind = str(
+            body.get("acceptance_authority_kind", "") or ""
+        ).strip()
+        source_anchors = [
+            str(value).strip()
+            for value in body.get("source_anchors", []) or []
+            if str(value).strip()
+        ]
+        rationale = str(
+            body.get("acceptance_authority_rationale", "") or ""
+        ).strip()
+        rows = [
+            {
+                "field": field,
+                "authority_kind": authority_kind,
+                "source_anchors": source_anchors,
+                "rationale": rationale,
+            }
+            for field in active_fields
+        ]
+    body["gate_field_authority_mode"] = (
+        GENERATED_METRIC_GATE_FIELD_AUTHORITY_MODE
+    )
+    body["gate_field_authorities"] = rows
+    raw_source_anchors = body.get("source_anchors")
+    if isinstance(raw_source_anchors, list):
+        body["source_anchors"] = list(
+            dict.fromkeys(
+                [
+                    *[
+                        str(value).strip()
+                        for value in raw_source_anchors
+                        if str(value).strip()
+                    ],
+                    *[
+                        str(anchor_id).strip()
+                        for row in rows
+                        if isinstance(row, Mapping)
+                        and isinstance(
+                            row.get("source_anchors"), list
+                        )
+                        for anchor_id in row.get(
+                            "source_anchors", []
+                        )
+                        if str(anchor_id).strip()
+                    ],
+                ]
+            )
+        )
+    body["acceptance_authority_kind"] = (
+        generated_metric_gate_field_authority_rollup(
+            rows,
+            fallback=str(
+                body.get("acceptance_authority_kind", "") or ""
+            ),
+        )
+    )
+    return body
+
+
+def _generated_metric_gate_field_authority_errors(
+    requirement: Mapping[str, Any],
+    *,
+    prefix: str,
+    required: Any,
+    authority_row_by_anchor_id: Mapping[str, Mapping[str, Any]],
+) -> list[str]:
+    errors: list[str] = []
+    if requirement.get("gate_field_authority_mode") != (
+        GENERATED_METRIC_GATE_FIELD_AUTHORITY_MODE
+    ):
+        errors.append(
+            f"{prefix}.gate_field_authority_mode must equal "
+            f"{GENERATED_METRIC_GATE_FIELD_AUTHORITY_MODE}"
+        )
+    expected_fields = [
+        field
+        for field, _value in _generated_metric_required_gate_numeric_fields(
+            requirement
+        )
+    ]
+    expected_values = dict(
+        _generated_metric_required_gate_numeric_fields(requirement)
+    )
+    raw_rows = requirement.get("gate_field_authorities")
+    if not isinstance(raw_rows, list):
+        return [
+            *errors,
+            f"{prefix}.gate_field_authorities must be an array",
+        ]
+    rows = [row for row in raw_rows if isinstance(row, Mapping)]
+    if len(rows) != len(raw_rows):
+        errors.append(
+            f"{prefix}.gate_field_authorities entries must be objects"
+        )
+    observed_fields = [
+        str(row.get("field", "") or "").strip() for row in rows
+    ]
+    if observed_fields != expected_fields:
+        errors.append(
+            f"{prefix}.gate_field_authorities must bind each active substantive "
+            f"numeric field exactly once in order: expected={expected_fields!r} "
+            f"observed={observed_fields!r}"
+        )
+
+    top_level_anchors = {
+        str(value).strip()
+        for value in requirement.get("source_anchors", []) or []
+        if str(value).strip()
+    }
+    for index, row in enumerate(rows):
+        field = str(row.get("field", "") or "").strip()
+        row_prefix = f"{prefix}.gate_field_authorities[{index}]"
+        if field not in GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS:
+            errors.append(
+                f"{row_prefix}.field must be one of "
+                + ", ".join(GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS)
+            )
+            continue
+        authority_kind = str(
+            row.get("authority_kind", "") or ""
+        ).strip()
+        if authority_kind not in GENERATED_METRIC_ACCEPTANCE_AUTHORITY_KINDS:
+            errors.append(
+                f"{row_prefix}.authority_kind must be one of "
+                + ", ".join(GENERATED_METRIC_ACCEPTANCE_AUTHORITY_KINDS)
+            )
+        rationale = str(row.get("rationale", "") or "").strip()
+        if not rationale:
+            errors.append(f"{row_prefix}.rationale must be a nonempty string")
+        raw_anchors = row.get("source_anchors")
+        if not isinstance(raw_anchors, list) or not raw_anchors:
+            errors.append(
+                f"{row_prefix}.source_anchors must contain at least one id"
+            )
+            anchor_ids: list[str] = []
+        else:
+            anchor_ids = [
+                str(value).strip()
+                for value in raw_anchors
+                if isinstance(value, str) and str(value).strip()
+            ]
+            if len(anchor_ids) != len(raw_anchors):
+                errors.append(
+                    f"{row_prefix}.source_anchors entries must be nonempty strings"
+                )
+            if len(anchor_ids) != len(set(anchor_ids)):
+                errors.append(
+                    f"{row_prefix}.source_anchors entries must be unique"
+                )
+        unknown_anchor_ids = sorted(
+            set(anchor_ids) - set(authority_row_by_anchor_id)
+        )
+        if unknown_anchor_ids:
+            errors.append(
+                f"{row_prefix}.source_anchors must copy exact current authority "
+                "anchor IDs; unknown: " + ", ".join(unknown_anchor_ids)
+            )
+        anchors_outside_row = sorted(set(anchor_ids) - top_level_anchors)
+        if anchors_outside_row:
+            errors.append(
+                f"{row_prefix}.source_anchors must also occur in the row-level "
+                "source_anchors: " + ", ".join(anchors_outside_row)
+            )
+        for required_kind in _generated_metric_required_catalog_authority_kinds(
+            authority_kind
+        ):
+            if not any(
+                str(
+                    authority_row_by_anchor_id.get(anchor_id, {}).get(
+                        "authority_kind", ""
+                    )
+                    or ""
+                ).strip()
+                == required_kind
+                for anchor_id in anchor_ids
+            ):
+                errors.append(
+                    generated_metric_numeric_authority_error(
+                        f"{row_prefix}.source_anchors must include an exact "
+                        f"{required_kind} authority node"
+                    )
+                )
+        if (
+            required is True
+            and authority_kind
+            not in GENERATED_METRIC_ACCEPTANCE_GATING_AUTHORITY_KINDS
+        ):
+            errors.append(
+                f"{row_prefix}.required acceptance field needs one of: "
+                + ", ".join(
+                    GENERATED_METRIC_ACCEPTANCE_GATING_AUTHORITY_KINDS
+                )
+            )
+        if authority_kind == "diagnostic_only" and required is not False:
+            errors.append(
+                f"{row_prefix}.diagnostic_only authority requires required=false"
+            )
+        numeric_kinds = set(
+            _generated_metric_numeric_catalog_authority_kinds(
+                authority_kind
+            )
+        )
+        if field not in expected_values or not numeric_kinds:
+            continue
+        cited_values: list[int | float] = []
+        for anchor_id in anchor_ids:
+            authority_row = authority_row_by_anchor_id.get(anchor_id, {})
+            if str(
+                authority_row.get("authority_kind", "") or ""
+            ).strip() not in numeric_kinds:
+                continue
+            raw_values = authority_row.get(
+                "explicit_numeric_values",
+                _explicit_numeric_values(authority_row.get("content")),
+            )
+            cited_values.extend(
+                _normalized_finite_number(value)
+                for value in raw_values or []
+                if _finite_number(value)
+            )
+        field_value = expected_values[field]
+        if not any(
+            _same_finite_number(field_value, cited_value)
+            for cited_value in cited_values
+        ):
+            errors.append(
+                generated_metric_numeric_authority_error(
+                    f"{row_prefix}.{field}={field_value!r} must be explicitly "
+                    "present in a cited "
+                    + " or ".join(sorted(numeric_kinds))
+                    + " authority node"
+                )
+            )
+
+    expected_rollup = generated_metric_gate_field_authority_rollup(
+        rows,
+        fallback=str(
+            requirement.get("acceptance_authority_kind", "") or ""
+        ),
+    )
+    observed_rollup = str(
+        requirement.get("acceptance_authority_kind", "") or ""
+    ).strip()
+    if observed_rollup != expected_rollup:
+        errors.append(
+            f"{prefix}.acceptance_authority_kind must equal the runtime "
+            f"gate-field roll-up {expected_rollup!r}; observed={observed_rollup!r}"
+        )
+    return errors
+
+
 _GENERATED_METRIC_REQUIREMENT_INDEX_PATTERN = re.compile(
     r"empirical_metric_requirements\[(?P<index>\d+)\]"
 )
+
+
+def _generated_metric_authority_repair_node(
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    content = str(row.get("content", "") or "")
+    return {
+        "anchor_id": str(row.get("anchor_id", "") or ""),
+        "authority_kind": str(row.get("authority_kind", "") or ""),
+        "explicit_numeric_values": [
+            _normalized_finite_number(candidate)
+            for candidate in row.get(
+                "explicit_numeric_values",
+                _explicit_numeric_values(content),
+            )
+            or []
+            if _finite_number(candidate)
+        ],
+        "content_excerpt": (
+            content if len(content) <= 280 else content[:277] + "..."
+        ),
+    }
 
 
 def generated_metric_numeric_authority_repair_matrix(
@@ -1321,11 +1764,38 @@ def generated_metric_numeric_authority_repair_matrix(
         authority_kind = str(
             requirement.get("acceptance_authority_kind", "") or ""
         ).strip()
-        required_kinds = _generated_metric_required_catalog_authority_kinds(
-            authority_kind
+        raw_field_authorities = requirement.get(
+            "gate_field_authorities", []
         )
-        numeric_kinds = _generated_metric_numeric_catalog_authority_kinds(
-            authority_kind
+        field_authorities = [
+            dict(row)
+            for row in (
+                raw_field_authorities
+                if isinstance(raw_field_authorities, list)
+                else []
+            )
+            if isinstance(row, Mapping)
+        ]
+        field_authority_by_field = {
+            str(row.get("field", "") or "").strip(): (entry_index, row)
+            for entry_index, row in enumerate(field_authorities)
+            if str(row.get("field", "") or "").strip()
+        }
+        required_kinds = list(
+            dict.fromkeys(
+                kind
+                for current_kind in (
+                    [
+                        str(row.get("authority_kind", "") or "").strip()
+                        for row in field_authorities
+                    ]
+                    if field_authorities
+                    else [authority_kind]
+                )
+                for kind in _generated_metric_required_catalog_authority_kinds(
+                    current_kind
+                )
+            )
         )
         raw_source_anchors = requirement.get("source_anchors", [])
         source_anchors = [
@@ -1353,6 +1823,56 @@ def generated_metric_numeric_authority_repair_matrix(
         for field, value in _generated_metric_required_gate_numeric_fields(
             requirement
         ):
+            field_entry_index, field_authority = (
+                field_authority_by_field.get(field, (-1, {}))
+            )
+            field_authority_kind = str(
+                field_authority.get("authority_kind", "") or authority_kind
+            ).strip()
+            numeric_kinds = (
+                _generated_metric_numeric_catalog_authority_kinds(
+                    field_authority_kind
+                )
+            )
+            raw_field_source_anchors = field_authority.get(
+                "source_anchors", source_anchors
+            )
+            field_source_anchors = [
+                str(anchor_id).strip()
+                for anchor_id in (
+                    raw_field_source_anchors
+                    if isinstance(raw_field_source_anchors, list)
+                    else []
+                )
+                if str(anchor_id).strip()
+            ]
+            field_anchor_kinds = {
+                anchor_id: str(
+                    catalog_by_anchor_id.get(anchor_id, {}).get(
+                        "authority_kind", ""
+                    )
+                    or ""
+                ).strip()
+                for anchor_id in field_source_anchors
+            }
+            required_field_anchor_kinds = list(
+                _generated_metric_required_catalog_authority_kinds(
+                    field_authority_kind
+                )
+            )
+            missing_field_anchor_kinds = [
+                kind
+                for kind in required_field_anchor_kinds
+                if kind not in set(field_anchor_kinds.values())
+            ]
+            current_row_candidates_for_missing_kinds = [
+                _generated_metric_authority_repair_node(
+                    catalog_by_anchor_id.get(anchor_id, {})
+                )
+                for anchor_id in source_anchors
+                if current_anchor_kinds.get(anchor_id, "")
+                in missing_field_anchor_kinds
+            ]
             matching_nodes: list[dict[str, Any]] = []
             for catalog_row in catalog_rows:
                 catalog_kind = str(
@@ -1374,26 +1894,38 @@ def generated_metric_numeric_authority_repair_matrix(
                     for candidate in explicit_values
                 ):
                     continue
-                content = str(catalog_row.get("content", "") or "")
                 matching_nodes.append(
-                    {
-                        "anchor_id": str(catalog_row["anchor_id"]),
-                        "authority_kind": catalog_kind,
-                        "explicit_numeric_values": explicit_values,
-                        "content_excerpt": (
-                            content if len(content) <= 280 else content[:277] + "..."
-                        ),
-                    }
+                    _generated_metric_authority_repair_node(catalog_row)
                 )
-            if not matching_nodes:
+            if numeric_kinds and not matching_nodes:
                 missing_numeric_fields.append(field)
             numeric_gate_matches.append(
                 {
                     "field": field,
                     "value": value,
+                    "gate_field_authority_entry_index": (
+                        field_entry_index
+                    ),
+                    "current_field_authority_kind": (
+                        field_authority_kind
+                    ),
+                    "current_field_source_anchors": field_source_anchors,
+                    "current_field_anchor_kinds": field_anchor_kinds,
+                    "required_field_anchor_kinds": (
+                        required_field_anchor_kinds
+                    ),
+                    "missing_current_field_anchor_kinds": (
+                        missing_field_anchor_kinds
+                    ),
+                    "current_row_candidates_for_missing_field_anchor_kinds": (
+                        current_row_candidates_for_missing_kinds
+                    ),
                     "required_numeric_authority_kinds": list(numeric_kinds),
                     "matching_catalog_nodes": matching_nodes,
-                    "exact_match_found": bool(matching_nodes),
+                    "exact_match_required": bool(numeric_kinds),
+                    "exact_match_found": (
+                        bool(matching_nodes) if numeric_kinds else True
+                    ),
                 }
             )
 
@@ -1405,6 +1937,13 @@ def generated_metric_numeric_authority_repair_matrix(
                 ),
                 "current_requirement": requirement,
                 "current_acceptance_authority_kind": authority_kind,
+                "gate_field_authority_mode": str(
+                    requirement.get(
+                        "gate_field_authority_mode", ""
+                    )
+                    or ""
+                ),
+                "current_gate_field_authorities": field_authorities,
                 "current_source_anchors": source_anchors,
                 "current_anchor_kinds": current_anchor_kinds,
                 "required_anchor_kinds": list(required_kinds),
@@ -1816,6 +2355,14 @@ def _evaluate_generated_metric_contract(
         "acceptance_authority_rationale": str(
             contract.get("acceptance_authority_rationale", "") or ""
         ),
+        "gate_field_authority_mode": str(
+            contract.get("gate_field_authority_mode", "") or ""
+        ),
+        "gate_field_authorities": [
+            dict(row)
+            for row in contract.get("gate_field_authorities", []) or []
+            if isinstance(row, Mapping)
+        ],
         "requirement_id": str(contract.get("requirement_id", "") or ""),
         "authority_requirement_fingerprint": str(
             contract.get("authority_requirement_fingerprint", "") or ""
@@ -1942,6 +2489,8 @@ def _metric_authority_mismatches(
         "source_anchors",
         "acceptance_authority_kind",
         "acceptance_authority_rationale",
+        "gate_field_authority_mode",
+        "gate_field_authorities",
     ):
         if _normalized_authority_value(contract.get(field)) != (
             _normalized_authority_value(requirement.get(field))
@@ -1969,6 +2518,11 @@ def _normalized_authority_value(value: Any) -> Any:
         return value.strip()
     if isinstance(value, list):
         return [_normalized_authority_value(item) for item in value]
+    if isinstance(value, Mapping):
+        return {
+            str(key): _normalized_authority_value(item)
+            for key, item in value.items()
+        }
     return value
 
 

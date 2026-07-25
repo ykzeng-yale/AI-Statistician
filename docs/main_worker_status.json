@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-18T06:59:49Z",
+  "updated_at": "2026-07-25T02:57:39Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "keep one canonical loop: TheoryDeveloper -> theory/estimand/DGP preflight -> generated algorithm -> independent code review -> smallest frozen confirmatory protocol -> generated simulation -> independent review -> Critic, with the strict Formalizer/OpenProver/Lean lane remaining separately required for full capability evaluation. Current work improves shared loop efficiency and observability, not any task answer. Do not add agents, task formulas, Lean grammar/tactic rules, audit-score patches, or held-out fixes; PCA/extremes stay sealed.",
-  "latest_main_worker_patch": "Add a typed research-evaluation endpoint inside the existing AgentRuntime, require a non-vacuous final requirement-set-bound metric result, run theory/estimand/DGP review before generated execution, preserve repair budgets across Architect replans, and expose author/reviewer/router substage timing through the existing progress callback. Live Anthropic routing is hard-capped at Sonnet, with Haiku retained for cheaper helpers; Opus requests fail before provider-client construction. No statistical answer, threshold, task-family branch, Lean grammar/tactic rule, agent, planner, or second orchestration plane was added.",
-  "latest_main_worker_live_probe": "Fresh strict v39 ran survival and sequential from a clean start. Both completed TheoryDeveloper, hash-bound generated algorithm execution, independent algorithm review, independently reviewed frozen metric protocol, generated confirmatory simulation, and independent simulation review. The formal-target reviewer then rejected all three bounded Formalizer targets per task because they substituted generic or trivial support lemmas for the exact KM/Greenwood CLT and Bernoulli anytime-valid theorem. Status is BLOCKED 2/2, strict exact-theorem closure is 0/2, kernel-verified subclaims are 0, and proof search correctly stayed disabled. V39 used no Architect plan-repair detours; its post-runtime legacy fallback observation motivated the current fail-closed removal and is not completion evidence.",
-  "latest_main_worker_design_issue": "The immediate blocker is exact-target retention, not code execution, simulation, or Lean syntax repair. Under library pressure the Formalizer weakens a source theorem into a support lemma instead of preserving the exact assumptions, quantifiers, asymptotic regime, and conclusion or emitting an explicit FORMAL_GAP. The next shared mechanism must require exact target preservation or honest formal debt before the existing tactic-state/OpenProver path can run. The 92/121 v39 scorecard is a mixed diagnostic and must not drive work toward legacy bridge counters; exact source-theorem closure remains zero and held-out tasks remain sealed.",
+  "latest_main_worker_patch": "Replace row-level numeric-gate provenance with a backward-compatible field-bound authority ABI. Every active threshold, bound, nonzero tolerance, and quorum now has its own authority kind, exact source anchors, and rationale; runtime computes only a conservative row summary, freezes the field map into artifact lineage, prevents coding-agent overrides, and keeps theory-owned fields visible to independent semantic review even when another field is Architect-owned. Legacy frozen v1 requirement hashes remain unchanged. No statistical answer, threshold, task-family branch, Lean grammar/tactic rule, agent, planner, or second orchestration plane was added.",
+  "latest_main_worker_live_probe": "The exact-Haiku v106 sequential development preflight authored a mixed-provenance field map, passed independent pre-execution semantic review, froze requirement set generated_metric_requirement_set:6123f8833db0cdfb3606, and stopped only at the explicit four-iteration budget with AlgorithmEngineer pending. The one-turn exact-Haiku v107 resume consumed that frozen map, generated and executed code in the real sandbox, recorded one algorithm and one live generated-code sandbox execution, and routed the exact artifact to GeneratedCodeSemanticReviewer. Both probes were mode-conformant and used claude-haiku-4-5-20251001 for every enabled live agent. They are bounded mechanism evidence, not a fresh full-loop completion, simulation acceptance, Lean proof, held-out result, or E2E readiness claim.",
+  "latest_main_worker_design_issue": "The field-authority transport blocker is closed, but the latest bounded run has not yet completed independent generated-code review, confirmatory simulation, Critic synthesis, or any strict formal lane. Its TheoryDeveloper proposal also retains unresolved semantic claims in its own critic ledger, so downstream acceptance must continue to depend on independent review and environment feedback rather than treating the theory packet as truth. The next shared gate is canonical-loop continuation and theory/reviewer consistency, followed by exact-target retention in the formal lane; exact source-theorem closure remains zero and held-out tasks remain sealed.",
   "live_anthropic_model_policy": {
     "allowed_tiers": [
       "haiku",
@@ -16,9 +16,13 @@
     "maximum_tier": "sonnet",
     "serious_theory_tier": "sonnet",
     "independent_reviewer_tier": "sonnet",
+    "provider_backed_test_tier": "haiku",
+    "provider_backed_test_model": "claude-haiku-4-5-20251001",
+    "provider_backed_tests_may_use_sonnet": false,
+    "provider_backed_tests_may_use_opus": false,
     "opus_live_requests_allowed": false,
-    "enforcement": "requested and provider-reported models above Sonnet are rejected before a live request can be accepted; requested Opus is rejected before Anthropic client construction",
-    "live_api_calls_in_current_patch": 0
+    "enforcement": "Production requests above Sonnet are rejected before a live request can be accepted, requested Opus is rejected before Anthropic client construction, and capability/research evaluation policy pins every provider-backed test agent to the exact Haiku model.",
+    "live_api_calls_in_current_patch": 6
   },
   "latest_runtime_role_boundary_alignment": {
     "canonical_empirical_loop": "TheoryDeveloper -> AlgorithmEngineer execution -> independent algorithm semantic review -> Architect confirmatory protocol -> SimulationEngineer execution -> independent simulation semantic review -> owner-routed revision",
@@ -35,11 +39,11 @@
     "fresh_live_two_family_strict_completion_verified": false,
     "strict_e2e_capability_ready": false,
     "verification": {
-      "research_agent_runtime": "1146 passed in 1867.71 seconds on the current research-evaluation, preflight, lineage-budget, telemetry, and Sonnet-ceiling patch",
-      "affected_supporting_tests": "279 changed-surface tests passed in 18.33 seconds; 96 model/reviewer/provider tests passed in 5.24 seconds",
+      "research_agent_runtime": "1183 passed in 1531.30 seconds on the field-bound metric-authority, frozen-lineage, resume, sandbox, review, and evidence-boundary patch",
+      "affected_supporting_tests": "148 passed and 3 skipped across generated metric contract, repair policy, JSON repair, metric semantic review, ownership routing, and generated-code semantic review",
       "focused_empirical_loop_tests": "the previously pushed TheoryDeveloper retry and metric-lineage regression remains covered by the complete runtime suite",
       "fresh_start_cross_task_e2e_tests": "fresh strict v39 completed theory/code/confirmatory-simulation for both development tasks, then blocked both at exact-target semantic review; frozen strict completion remains 0/2",
-      "py_compile": "passed",
+      "py_compile": "passed via compileall",
       "git_diff_check": "passed after final status update"
     },
     "boundary": "Fresh v35 verifies advisory research-loop completion only. V34 artifact replay plus the v36 live review verifies review-first target routing only. Neither establishes theorem closure, held-out generalization, or proof evidence."

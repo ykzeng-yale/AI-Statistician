@@ -7,6 +7,7 @@ from ai_statistician.generated_metric_contract import (
     GENERATED_METRIC_CONTRACT_BOUNDARY,
     GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE,
     GENERATED_METRIC_CONTRACT_OPERATORS,
+    GENERATED_METRIC_GATE_FIELD_AUTHORITY_MODE,
     GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS,
     GENERATED_METRIC_VALUE_KINDS,
     bind_generated_metric_contract_authority,
@@ -25,6 +26,7 @@ from ai_statistician.generated_metric_contract import (
     generated_metric_requirement_target_namespace_contract,
     is_generated_metric_numeric_authority_error,
     materialize_generated_metric_contract_bindings,
+    materialize_generated_metric_gate_field_authorities,
     validate_generated_metric_requirements,
     validate_generated_metric_contracts,
 )
@@ -553,6 +555,73 @@ def test_numeric_authority_repair_matrix_retrieves_matches_and_honest_absence() 
     assert row["automatic_repair_applied"] is False
 
 
+def test_numeric_authority_repair_matrix_exposes_missing_field_anchor_kind() -> None:
+    catalog = generated_metric_acceptance_authority_catalog(
+        question={"title": "Generic", "description": "Evaluate error."},
+        runtime_contract={"simulation_targets": []},
+        theory_protocol_material={
+            "theory_semantic_material": {
+                "theorem_cards": [
+                    {"conclusion": "Finite-sample error is at most alpha."}
+                ],
+                "simulation_ademp_spec": {
+                    "methods": ["Run the procedure at alpha = 0.05."]
+                },
+            }
+        },
+    )
+    theorem_anchor = "theory#/theorem_cards/0/conclusion"
+    design_anchor = "theory#/simulation_ademp_spec/methods/0"
+    requirement = materialize_generated_metric_gate_field_authorities(
+        _requirement(
+            aggregation="mean",
+            minimum_pass_count=None,
+            threshold=0.05,
+            source_anchors=[theorem_anchor, design_anchor],
+            acceptance_authority_kind=(
+                "theory_parameter_instantiation"
+            ),
+            gate_field_authorities=[
+                {
+                    "field": "threshold",
+                    "authority_kind": (
+                        "theory_parameter_instantiation"
+                    ),
+                    "source_anchors": [design_anchor],
+                    "rationale": (
+                        "The design fixes alpha but omitted the theorem node."
+                    ),
+                }
+            ],
+        )
+    )
+    errors = validate_generated_metric_requirements(
+        [requirement],
+        require_acceptance_authority=True,
+        acceptance_authority_catalog=catalog,
+        require_gate_field_authorities=True,
+    )
+
+    matrix = generated_metric_numeric_authority_repair_matrix(
+        [requirement],
+        validation_errors=errors,
+        acceptance_authority_catalog=catalog,
+    )
+    gate = matrix[0]["numeric_gate_matches"][0]
+
+    assert gate["required_field_anchor_kinds"] == [
+        "theory_derived",
+        "evaluation_design",
+    ]
+    assert gate["missing_current_field_anchor_kinds"] == [
+        "theory_derived"
+    ]
+    assert gate[
+        "current_row_candidates_for_missing_field_anchor_kinds"
+    ][0]["anchor_id"] == theorem_anchor
+    assert gate["exact_match_found"] is True
+
+
 def test_strict_metric_gate_authority_accepts_preregistered_architect_design() -> None:
     catalog = generated_metric_acceptance_authority_catalog(
         question={
@@ -601,6 +670,212 @@ def test_strict_metric_gate_authority_accepts_preregistered_architect_design() -
     assert any("unknown" in error for error in unknown_anchor_errors)
 
 
+def test_field_bound_gate_authority_preserves_mixed_numeric_provenance() -> None:
+    catalog = generated_metric_acceptance_authority_catalog(
+        question={
+            "title": "Generic finite-sample evaluation",
+            "description": "Evaluate error under a preregistered tolerance.",
+        },
+        runtime_contract={"simulation_targets": []},
+        theory_protocol_material={
+            "theory_semantic_material": {
+                "theorem_cards": [
+                    {
+                        "conclusion": (
+                            "The finite-sample error is at most 0.05."
+                        )
+                    }
+                ]
+            }
+        },
+    )
+    theorem_anchor = "theory#/theorem_cards/0/conclusion"
+    question_anchor = "question#/description"
+    requirement = materialize_generated_metric_gate_field_authorities(
+        _requirement(
+            aggregation="mean",
+            minimum_pass_count=None,
+            threshold=0.05,
+            tolerance=0.02,
+            source_anchors=[theorem_anchor],
+            acceptance_authority_kind="architect_preregistered_design",
+            acceptance_authority_rationale=(
+                "The theorem owns the threshold; the Architect preregisters "
+                "the finite-budget comparison tolerance before execution."
+            ),
+            gate_field_authority_mode=(
+                GENERATED_METRIC_GATE_FIELD_AUTHORITY_MODE
+            ),
+            gate_field_authorities=[
+                {
+                    "field": "threshold",
+                    "authority_kind": "theory_derived",
+                    "source_anchors": [theorem_anchor],
+                    "rationale": (
+                        "The cited theorem explicitly supplies 0.05."
+                    ),
+                },
+                {
+                    "field": "tolerance",
+                    "authority_kind": (
+                        "architect_preregistered_design"
+                    ),
+                    "source_anchors": [question_anchor],
+                    "rationale": (
+                        "The Architect freezes 0.02 as a finite-budget "
+                        "comparison tolerance before execution."
+                    ),
+                },
+            ],
+        )
+    )
+    assert requirement["source_anchors"] == [
+        theorem_anchor,
+        question_anchor,
+    ]
+
+    assert validate_generated_metric_requirements(
+        [requirement],
+        required_target_subsystems=("SimulationEngineer",),
+        expected_runtime_replicates=80,
+        require_acceptance_authority=True,
+        acceptance_authority_catalog=catalog,
+        require_gate_field_authorities=True,
+    ) == []
+
+    laundering = {
+        **requirement,
+        "acceptance_authority_kind": "theory_derived",
+        "gate_field_authorities": [
+            requirement["gate_field_authorities"][0],
+            {
+                **requirement["gate_field_authorities"][1],
+                "authority_kind": "theory_derived",
+                "source_anchors": [theorem_anchor],
+            },
+        ],
+    }
+    laundering_errors = validate_generated_metric_requirements(
+        [laundering],
+        require_acceptance_authority=True,
+        acceptance_authority_catalog=catalog,
+        require_gate_field_authorities=True,
+    )
+    assert any(
+        "gate_field_authorities[1].tolerance=0.02 must be explicitly present"
+        in error
+        for error in laundering_errors
+    )
+
+
+def test_field_bound_gate_authority_requires_exact_active_field_coverage() -> None:
+    requirement = materialize_generated_metric_gate_field_authorities(
+        _requirement(
+            aggregation="mean",
+            minimum_pass_count=None,
+            threshold=0.05,
+            tolerance=0.02,
+            acceptance_authority_kind="architect_preregistered_design",
+        )
+    )
+    catalog = [
+        {
+            "anchor_id": "architect:acceptance:criterion-control",
+            "authority_kind": "question_mandate",
+            "content": "Generic evaluation context.",
+            "explicit_numeric_values": [],
+        }
+    ]
+    missing = {
+        **requirement,
+        "gate_field_authorities": requirement[
+            "gate_field_authorities"
+        ][:-1],
+    }
+    duplicate = {
+        **requirement,
+        "gate_field_authorities": [
+            requirement["gate_field_authorities"][0],
+            requirement["gate_field_authorities"][0],
+        ],
+    }
+
+    for invalid in (missing, duplicate):
+        errors = validate_generated_metric_requirements(
+            [invalid],
+            require_acceptance_authority=True,
+            acceptance_authority_catalog=catalog,
+            require_gate_field_authorities=True,
+        )
+        assert any(
+            "must bind each active substantive numeric field exactly once"
+            in error
+            for error in errors
+        )
+
+
+def test_field_bound_authority_survives_runtime_binding_and_evaluation() -> None:
+    requirement = materialize_generated_metric_gate_field_authorities(
+        _requirement(
+            aggregation="mean",
+            minimum_pass_count=None,
+            acceptance_authority_kind="architect_preregistered_design",
+        )
+    )
+    contracts = materialize_generated_metric_contract_bindings(
+        [
+            {
+                "contract_id": "field-bound-contract",
+                "requirement_id": requirement["requirement_id"],
+                "artifact_id": "artifact:field-bound",
+                "metric_path": ["error"],
+                "gate_field_authorities": [],
+            }
+        ],
+        authoritative_requirements=[requirement],
+        target_subsystem="SimulationEngineer",
+    )
+
+    assert contracts[0]["gate_field_authorities"] == requirement[
+        "gate_field_authorities"
+    ]
+    assert "gate_field_authorities" in contracts[0][
+        "discarded_authority_override_fields"
+    ]
+    evaluation = evaluate_generated_metric_contracts(
+        {"error": 0.01},
+        contracts=contracts,
+        artifact_id="artifact:field-bound",
+        runtime_replicates=80,
+        authoritative_requirements=[requirement],
+        target_subsystem="SimulationEngineer",
+        require_authoritative_requirements=True,
+    )
+    assert evaluation["evaluations"][0]["gate_field_authorities"] == (
+        requirement["gate_field_authorities"]
+    )
+
+
+def test_legacy_requirement_hash_and_validation_remain_unchanged() -> None:
+    legacy = _requirement(
+        aggregation="mean",
+        minimum_pass_count=None,
+        acceptance_authority_kind="architect_preregistered_design",
+    )
+    legacy_set_id = generated_metric_requirement_set_id([legacy])
+
+    materialized = materialize_generated_metric_gate_field_authorities(
+        legacy
+    )
+
+    assert "gate_field_authorities" not in legacy
+    assert generated_metric_requirement_set_id([legacy]) == legacy_set_id
+    assert validate_generated_metric_requirements([legacy]) == []
+    assert materialized["gate_field_authority_mode"] == (
+        GENERATED_METRIC_GATE_FIELD_AUTHORITY_MODE
+    )
+
+
 def test_strict_metric_requirement_schema_enumerates_current_authority_ids() -> None:
     anchor_id = "theory#/theorem_cards/0/conclusion"
     schema = generated_metric_requirement_json_schema(
@@ -615,6 +890,18 @@ def test_strict_metric_requirement_schema_enumerates_current_authority_ids() -> 
     assert schema["properties"]["source_anchors"]["items"]["enum"] == [
         anchor_id
     ]
+    field_schema = generated_metric_requirement_json_schema(
+        require_acceptance_authority=True,
+        authority_anchor_ids=[anchor_id],
+        require_gate_field_authorities=True,
+    )
+    assert {
+        "gate_field_authority_mode",
+        "gate_field_authorities",
+    } <= set(field_schema["required"])
+    assert field_schema["properties"]["gate_field_authority_mode"][
+        "enum"
+    ] == [GENERATED_METRIC_GATE_FIELD_AUTHORITY_MODE]
 
 
 def test_metric_evaluation_semantics_separates_comparison_from_quorum() -> None:

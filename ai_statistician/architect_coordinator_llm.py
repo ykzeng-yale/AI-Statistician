@@ -550,13 +550,26 @@ def _architect_frozen_metric_protocol_rebinding_context(
     ):
         return {}
 
+    source_requirement_rows = [
+        dict(row) for row in requirements if isinstance(row, Mapping)
+    ]
+    allowed_mutable_requirement_fields = [
+        "source_anchors",
+        "acceptance_authority_rationale",
+    ]
+    if any(
+        "gate_field_authorities" in row
+        for row in source_requirement_rows
+    ):
+        allowed_mutable_requirement_fields.append(
+            "gate_field_authorities"
+        )
+
     return {
         "schema_version": 1,
         "artifact_kind": "RuntimeFrozenMetricProtocolTheoryRebindingContext",
         "source_requirement_set_id": source_requirement_set_id,
-        "source_requirement_rows": [
-            dict(row) for row in requirements if isinstance(row, Mapping)
-        ],
+        "source_requirement_rows": source_requirement_rows,
         "prior_review_packet_id": str(
             prior_review.get("review_packet_id", "") or ""
         ),
@@ -571,18 +584,19 @@ def _architect_frozen_metric_protocol_rebinding_context(
         ),
         "raw_execution_artifacts_included": False,
         "post_result_gate_changes_allowed": False,
-        "allowed_mutable_requirement_fields": [
-            "source_anchors",
-            "acceptance_authority_rationale",
-        ],
+        "allowed_mutable_requirement_fields": (
+            allowed_mutable_requirement_fields
+        ),
         "proof_evidence_status": (
             "FROZEN_METRIC_PROTOCOL_THEORY_REBINDING_NOT_PROOF_EVIDENCE"
         ),
         "boundary": (
             "The exact accepted empirical gate portfolio remains frozen after "
             "execution. A revised theory may only rebind exact source anchors and "
-            "their explanatory rationale before a fresh independent review; it "
-            "cannot add, remove, relax, or reinterpret a gate."
+            "their explanatory rationale, including field-level gate authority "
+            "bindings when present, before a fresh independent review; it cannot "
+            "add, remove, relax, or reinterpret a gate or change any field's "
+            "authority kind."
         ),
     }
 

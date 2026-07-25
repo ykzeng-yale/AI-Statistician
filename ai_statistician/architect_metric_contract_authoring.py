@@ -21,6 +21,8 @@ from .architect_metric_semantic_reviewer_llm import (
 )
 from .fingerprint import stable_hash
 from .generated_metric_contract import (
+    GENERATED_METRIC_ACCEPTANCE_AUTHORITY_KINDS,
+    GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS,
     GENERATED_METRIC_REQUIREMENT_BOUNDARY,
     GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS,
     generated_metric_acceptance_authority_catalog,
@@ -31,6 +33,7 @@ from .generated_metric_contract import (
     generated_metric_requirement_set_id,
     generated_metric_requirement_target_namespace_contract,
     is_generated_metric_numeric_authority_error,
+    materialize_generated_metric_gate_field_authorities,
     validate_generated_metric_requirements,
 )
 from .llm_json_repair import (
@@ -51,19 +54,45 @@ from .metric_protocol_finding_ledger import (
 from .research_schema import OpenResearchQuestion
 
 
-ARCHITECT_METRIC_REQUIREMENT_AUTHORING_SCHEMA_VERSION = 2
+ARCHITECT_METRIC_REQUIREMENT_AUTHORING_SCHEMA_VERSION = 3
 FROZEN_METRIC_PROTOCOL_REBINDING_MUTABLE_FIELDS = frozenset(
     {
         "source_anchors",
         "acceptance_authority_rationale",
     }
 )
-FROZEN_METRIC_PROTOCOL_REBINDING_OUTPUT_FIELDS = frozenset(
-    {
-        "requirement_id",
-        *FROZEN_METRIC_PROTOCOL_REBINDING_MUTABLE_FIELDS,
-    }
+FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD = "gate_field_authorities"
+FROZEN_METRIC_PROTOCOL_REBINDING_GATE_MUTABLE_FIELDS = frozenset(
+    {"source_anchors", "rationale"}
 )
+
+
+def _frozen_metric_protocol_rebinding_mutable_fields(
+    source_rows: Any,
+) -> frozenset[str]:
+    fields = set(FROZEN_METRIC_PROTOCOL_REBINDING_MUTABLE_FIELDS)
+    if isinstance(source_rows, list) and any(
+        isinstance(row, Mapping)
+        and FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD in row
+        for row in source_rows
+    ):
+        fields.add(FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD)
+    return frozenset(fields)
+
+
+def _frozen_gate_field_authority_immutable_view(value: Any) -> Any:
+    if not isinstance(value, list):
+        return value
+    return [
+        {
+            str(key): item
+            for key, item in row.items()
+            if key not in FROZEN_METRIC_PROTOCOL_REBINDING_GATE_MUTABLE_FIELDS
+        }
+        if isinstance(row, Mapping)
+        else row
+        for row in value
+    ]
 
 
 class ArchitectMetricSemanticReviewRejected(PacketValidationError):
@@ -148,15 +177,41 @@ def _frozen_metric_protocol_rebinding_errors(
         candidate_row = candidate_by_id.get(requirement_id)
         if candidate_row is None:
             continue
+        mutable_fields = set(FROZEN_METRIC_PROTOCOL_REBINDING_MUTABLE_FIELDS)
+        source_has_gate_field_authorities = (
+            FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD in source_row
+        )
+        if source_has_gate_field_authorities:
+            mutable_fields.add(
+                FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD
+            )
         immutable_fields = (
             set(source_row) | set(candidate_row)
-        ) - FROZEN_METRIC_PROTOCOL_REBINDING_MUTABLE_FIELDS
+        ) - mutable_fields
         for field in sorted(immutable_fields):
             if candidate_row.get(field) != source_row.get(field):
                 errors.append(
                     "frozen metric rebinding may not change "
                     f"{requirement_id}.{field}"
                 )
+        if source_has_gate_field_authorities and (
+            _frozen_gate_field_authority_immutable_view(
+                candidate_row.get(
+                    FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD
+                )
+            )
+            != _frozen_gate_field_authority_immutable_view(
+                source_row.get(
+                    FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD
+                )
+            )
+        ):
+            errors.append(
+                "frozen metric rebinding may not change "
+                f"{requirement_id}."
+                f"{FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD} "
+                "field identities or authority kinds"
+            )
     return errors
 
 
@@ -191,20 +246,6 @@ def _reconstruct_frozen_metric_protocol_requirements(
             errors.append(f"{prefix} must be an object")
             continue
         binding = dict(raw_binding)
-        extra_fields = sorted(
-            set(binding) - FROZEN_METRIC_PROTOCOL_REBINDING_OUTPUT_FIELDS
-        )
-        if extra_fields:
-            errors.append(
-                f"{prefix} contains runtime-owned frozen fields: {extra_fields!r}"
-            )
-        missing_fields = sorted(
-            FROZEN_METRIC_PROTOCOL_REBINDING_OUTPUT_FIELDS - set(binding)
-        )
-        if missing_fields:
-            errors.append(
-                f"{prefix} is missing required binding fields: {missing_fields!r}"
-            )
         requirement_id = str(binding.get("requirement_id", "") or "")
         observed_ids.append(requirement_id)
         source_row = source_by_id.get(requirement_id)
@@ -214,10 +255,119 @@ def _reconstruct_frozen_metric_protocol_requirements(
             )
             reconstructed_rows.append(binding)
             continue
+        mutable_fields = set(FROZEN_METRIC_PROTOCOL_REBINDING_MUTABLE_FIELDS)
+        if FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD in source_row:
+            mutable_fields.add(
+                FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD
+            )
+        output_fields = {"requirement_id", *mutable_fields}
+        extra_fields = sorted(set(binding) - output_fields)
+        if extra_fields:
+            errors.append(
+                f"{prefix} contains runtime-owned frozen fields: "
+                f"{extra_fields!r}"
+            )
+        missing_fields = sorted(output_fields - set(binding))
+        if missing_fields:
+            errors.append(
+                f"{prefix} is missing required binding fields: "
+                f"{missing_fields!r}"
+            )
         reconstructed = dict(source_row)
         for field in FROZEN_METRIC_PROTOCOL_REBINDING_MUTABLE_FIELDS:
             if field in binding:
                 reconstructed[field] = binding[field]
+        if FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD in mutable_fields:
+            source_gate_rows = source_row.get(
+                FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD
+            )
+            binding_gate_rows = binding.get(
+                FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD
+            )
+            if not isinstance(source_gate_rows, list):
+                errors.append(
+                    f"{prefix}.{FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD} "
+                    "source rows must be an array"
+                )
+            elif not isinstance(binding_gate_rows, list):
+                errors.append(
+                    f"{prefix}.{FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD} "
+                    "must be an array"
+                )
+            else:
+                if len(binding_gate_rows) != len(source_gate_rows):
+                    errors.append(
+                        f"{prefix}."
+                        f"{FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD} "
+                        "must preserve the exact number of field bindings"
+                    )
+                rebound_gate_rows: list[dict[str, Any]] = []
+                for gate_index, source_gate_row in enumerate(
+                    source_gate_rows
+                ):
+                    gate_prefix = (
+                        f"{prefix}."
+                        f"{FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD}"
+                        f"[{gate_index}]"
+                    )
+                    if not isinstance(source_gate_row, Mapping):
+                        errors.append(
+                            f"{gate_prefix} source binding must be an object"
+                        )
+                        continue
+                    raw_gate_binding = (
+                        binding_gate_rows[gate_index]
+                        if gate_index < len(binding_gate_rows)
+                        else {}
+                    )
+                    if not isinstance(raw_gate_binding, Mapping):
+                        errors.append(f"{gate_prefix} must be an object")
+                        raw_gate_binding = {}
+                    gate_binding = dict(raw_gate_binding)
+                    expected_gate_fields = {
+                        "field",
+                        "authority_kind",
+                        *FROZEN_METRIC_PROTOCOL_REBINDING_GATE_MUTABLE_FIELDS,
+                    }
+                    extra_gate_fields = sorted(
+                        set(gate_binding) - expected_gate_fields
+                    )
+                    if extra_gate_fields:
+                        errors.append(
+                            f"{gate_prefix} contains runtime-owned fields: "
+                            f"{extra_gate_fields!r}"
+                        )
+                    missing_gate_fields = sorted(
+                        expected_gate_fields - set(gate_binding)
+                    )
+                    if missing_gate_fields:
+                        errors.append(
+                            f"{gate_prefix} is missing required fields: "
+                            f"{missing_gate_fields!r}"
+                        )
+                    for immutable_field in (
+                        "field",
+                        "authority_kind",
+                    ):
+                        if gate_binding.get(immutable_field) != (
+                            source_gate_row.get(immutable_field)
+                        ):
+                            errors.append(
+                                f"{gate_prefix}.{immutable_field} must "
+                                "preserve the frozen value"
+                            )
+                    rebound_gate_row = dict(source_gate_row)
+                    for mutable_field in (
+                        FROZEN_METRIC_PROTOCOL_REBINDING_GATE_MUTABLE_FIELDS
+                    ):
+                        if mutable_field in gate_binding:
+                            rebound_gate_row[mutable_field] = (
+                                gate_binding[mutable_field]
+                            )
+                    rebound_gate_rows.append(rebound_gate_row)
+                reconstructed[
+                    FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD
+                ] = rebound_gate_rows
         reconstructed_rows.append(reconstructed)
 
     if observed_ids != source_ids:
@@ -303,23 +453,30 @@ def _metric_authoring_repair_priority_instructions(
             "Use numeric_authority_repair_matrix as the local retrieval index. "
             "Each implicated row includes the exact current_requirement plus exact "
             "matching catalog nodes for each gate field, and marks values with no "
-            "upstream numeric match. Preserve unimplicated fields. For each error, "
+            "upstream numeric match. For every field, satisfy all "
+            "required_field_anchor_kinds as well as the numeric match. When a "
+            "required nonnumeric authority kind is missing, prefer an exact "
+            "current_row_candidates_for_missing_field_anchor_kinds node that truly "
+            "supports the field; do not replace a theory node with a merely topical "
+            "expectation. Preserve unimplicated fields. For each error, "
             "decide ownership "
             "from the current artifacts. If the value is explicitly source-derived "
             "or mandated, "
             "retain that authority kind and cite the exact catalog node containing "
             "it. If it is an Architect-chosen pre-execution empirical benchmark, "
-            "tolerance, or quorum absent upstream, set that row to "
-            "acceptance_authority_kind=architect_preregistered_design and rewrite "
-            "its rationale. A field listed under "
+            "tolerance, or quorum absent upstream, set that field's authority_kind "
+            "to architect_preregistered_design and rewrite its field rationale. A "
+            "field listed under "
             "numeric_gate_fields_without_exact_catalog_match cannot remain under a "
             "source-derived authority merely by repeating its value or rewriting "
-            "prose. Authority is row-level: if even one retained numeric gate lacks "
-            "an exact upstream match, the whole row cannot remain theory_derived, "
-            "theory_parameter_instantiation, or evaluation_mandated merely because "
-            "another field matches. Use architect_preregistered_design for the row "
-            "only when the unmatched choices are defensible pre-execution design "
-            "decisions. If and only if the returned quantity is intrinsically "
+            "prose. Authority is field-level: retain valid source authority for other "
+            "fields. If choosing architect_preregistered_design, emit every update in "
+            "that field's entry in "
+            "architect_preregistered_design_patch_contracts together; "
+            "changing only rationale cannot change field ownership. AgentRuntime "
+            "recomputes the conservative row-level authority roll-up. Use that "
+            "resolution only when the unmatched choice is a defensible pre-execution "
+            "design decision. If and only if the returned quantity is intrinsically "
             "true/false, set metric_value_kind=boolean and use the exact runtime "
             "truth representation == 1 with zero tolerance; the predicate still "
             "needs semantic source authority, but the representational 1 is not a "
@@ -417,8 +574,10 @@ def _metric_authoring_repair_context(
             )
             if str(field).strip()
         ]
-        matrix_row["source_derived_authority_allowed"] = not unmatched_fields
-        matrix_row["required_resolution_options"] = (
+        matrix_row[
+            "source_derived_authority_allowed_for_every_gate_field"
+        ] = not unmatched_fields
+        matrix_row["required_resolution_options_for_unmatched_fields"] = (
             [
                 "typed_boolean_predicate_if_intrinsically_boolean",
                 "architect_preregistered_design_with_preexecution_rationale",
@@ -435,8 +594,69 @@ def _metric_authoring_repair_context(
         matrix_row["forbidden_resolutions"] = [
             "copy_candidate_value_into_upstream_theory",
             "change_gate_only_to_match_an_anchor",
-            "retain_source_derived_authority_when_any_gate_field_is_unmatched",
+            "retain_source_derived_authority_for_an_unmatched_gate_field",
         ]
+        field_patch_contracts: list[dict[str, Any]] = []
+        for gate_match in matrix_row.get("numeric_gate_matches", []):
+            if not isinstance(gate_match, Mapping):
+                continue
+            field = str(gate_match.get("field", "") or "").strip()
+            raw_entry_index = gate_match.get(
+                "gate_field_authority_entry_index", -1
+            )
+            entry_index = (
+                int(raw_entry_index)
+                if isinstance(raw_entry_index, int)
+                and not isinstance(raw_entry_index, bool)
+                else -1
+            )
+            if field not in unmatched_fields or entry_index < 0:
+                continue
+            field_patch_contracts.append(
+                {
+                    "field": field,
+                    "llm_semantic_choice_required": True,
+                    "runtime_applies_automatically": False,
+                    "applicable_when": (
+                        "The LLM determines that this unmatched field is a "
+                        "defensible pre-execution empirical design choice."
+                    ),
+                    "required_updates_if_selected": [
+                        {
+                            "path": [
+                                "empirical_metric_requirements",
+                                int(matrix_row["requirement_index"]),
+                                "gate_field_authorities",
+                                entry_index,
+                                "authority_kind",
+                            ],
+                            "replacement": (
+                                "architect_preregistered_design"
+                            ),
+                        },
+                        {
+                            "path": [
+                                "empirical_metric_requirements",
+                                int(matrix_row["requirement_index"]),
+                                "gate_field_authorities",
+                                entry_index,
+                                "rationale",
+                            ],
+                            "replacement_requirement": (
+                                "Explain this field using pre-execution decision "
+                                "relevance, fixed-budget uncertainty, and attainable "
+                                "behavior without claiming theorem authority."
+                            ),
+                        },
+                    ],
+                    "all_required_updates_must_be_emitted_together": True,
+                    "rationale_only_update_resolves_ownership": False,
+                    "row_rollup_recomputed_by_runtime": True,
+                }
+            )
+        matrix_row[
+            "architect_preregistered_design_patch_contracts"
+        ] = field_patch_contracts
 
     repair_catalog = acceptance_authority_catalog
     repair_catalog_scope = "full_catalog"
@@ -488,19 +708,38 @@ def _metric_authoring_repair_context(
     if isinstance(frozen_requirement_rebinding, Mapping) and (
         frozen_requirement_rebinding
     ):
+        frozen_mutable_fields = (
+            _frozen_metric_protocol_rebinding_mutable_fields(
+                frozen_requirement_rebinding.get(
+                    "source_requirement_rows", []
+                )
+            )
+        )
+        frozen_output_fields = {
+            "requirement_id",
+            *frozen_mutable_fields,
+        }
         context["frozen_metric_protocol_theory_rebinding"] = dict(
             frozen_requirement_rebinding
         )
         context["allowed_output_fields"] = sorted(
-            FROZEN_METRIC_PROTOCOL_REBINDING_OUTPUT_FIELDS
+            frozen_output_fields
         )
         context["required_target_rows"] = []
         context["repair_prompt_priority_instructions"] = [
             (
                 "This is authority rebinding for an already frozen gate portfolio. "
                 "Return only requirement_id, source_anchors, and "
-                "acceptance_authority_rationale. Runtime reconstructs every frozen "
-                "gate field; never add, delete, relax, or reinterpret a gate."
+                "acceptance_authority_rationale"
+                + (
+                    ", plus gate_field_authorities with unchanged field and "
+                    "authority_kind values"
+                    if FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD
+                    in frozen_mutable_fields
+                    else ""
+                )
+                + ". Runtime reconstructs every frozen gate field; never add, "
+                "delete, relax, or reinterpret a gate."
             ),
             *context["repair_prompt_priority_instructions"],
         ][:6]
@@ -526,9 +765,7 @@ def _metric_authoring_repair_context(
     ):
         context["requirement_schema"] = {
             "type": "authority_binding_only",
-            "required_fields": sorted(
-                FROZEN_METRIC_PROTOCOL_REBINDING_OUTPUT_FIELDS
-            ),
+            "required_fields": sorted(frozen_output_fields),
             "runtime_reconstructs_immutable_gate_fields": True,
         }
         context["required_target_rows"] = []
@@ -662,7 +899,9 @@ def author_reviewed_architect_metric_requirements(
             )
             or []
         )
-        == FROZEN_METRIC_PROTOCOL_REBINDING_MUTABLE_FIELDS
+        == _frozen_metric_protocol_rebinding_mutable_fields(
+            frozen_rebinding.get("source_requirement_rows", [])
+        )
     ):
         raise ValueError(
             "frozen metric protocol rebinding requires sanitized, theory-bound "
@@ -695,50 +934,122 @@ def author_reviewed_architect_metric_requirements(
     response_requirement_schema = generated_metric_requirement_json_schema(
         require_acceptance_authority=True,
         authority_anchor_ids=acceptance_authority_anchor_ids,
+        require_gate_field_authorities=True,
     )
     response_requirement_schema["required"] = [
         field
         for field in response_requirement_schema.get("required", [])
-        if field != "required_runtime_replicates"
+        if field
+        not in {
+            "required_runtime_replicates",
+            "gate_field_authority_mode",
+        }
     ]
-    response_requirement_schema.get("properties", {}).pop(
+    for runtime_owned_field in (
         "required_runtime_replicates",
-        None,
-    )
+        "gate_field_authority_mode",
+    ):
+        response_requirement_schema.get("properties", {}).pop(
+            runtime_owned_field,
+            None,
+        )
     if frozen_rebinding:
-        source_requirement_ids = [
-            str(row.get("requirement_id", "") or "")
+        frozen_source_rows = [
+            dict(row)
             for row in frozen_rebinding.get(
                 "source_requirement_rows", []
             )
             if isinstance(row, Mapping)
         ]
+        source_requirement_ids = [
+            str(row.get("requirement_id", "") or "")
+            for row in frozen_source_rows
+        ]
+        frozen_field_bound = any(
+            FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD in row
+            for row in frozen_source_rows
+        )
+        all_frozen_rows_field_bound = bool(frozen_source_rows) and all(
+            FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD in row
+            for row in frozen_source_rows
+        )
+        frozen_required_fields = [
+            "requirement_id",
+            "source_anchors",
+            "acceptance_authority_rationale",
+        ]
+        if all_frozen_rows_field_bound:
+            frozen_required_fields.append(
+                FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD
+            )
+        frozen_properties: dict[str, Any] = {
+            "requirement_id": {
+                "type": "string",
+                "enum": source_requirement_ids,
+            },
+            "source_anchors": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "string",
+                    "enum": acceptance_authority_anchor_ids,
+                },
+            },
+            "acceptance_authority_rationale": {
+                "type": "string",
+                "minLength": 1,
+            },
+        }
+        if frozen_field_bound:
+            frozen_properties[
+                FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD
+            ] = {
+                "type": "array",
+                "maxItems": len(
+                    GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS
+                ),
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": [
+                        "field",
+                        "authority_kind",
+                        "source_anchors",
+                        "rationale",
+                    ],
+                    "properties": {
+                        "field": {
+                            "type": "string",
+                            "enum": list(
+                                GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS
+                            ),
+                        },
+                        "authority_kind": {
+                            "type": "string",
+                            "enum": list(
+                                GENERATED_METRIC_ACCEPTANCE_AUTHORITY_KINDS
+                            ),
+                        },
+                        "source_anchors": {
+                            "type": "array",
+                            "minItems": 1,
+                            "items": {
+                                "type": "string",
+                                "enum": acceptance_authority_anchor_ids,
+                            },
+                        },
+                        "rationale": {
+                            "type": "string",
+                            "minLength": 1,
+                        },
+                    },
+                },
+            }
         response_requirement_schema = {
             "type": "object",
             "additionalProperties": False,
-            "required": [
-                "requirement_id",
-                "source_anchors",
-                "acceptance_authority_rationale",
-            ],
-            "properties": {
-                "requirement_id": {
-                    "type": "string",
-                    "enum": source_requirement_ids,
-                },
-                "source_anchors": {
-                    "type": "array",
-                    "minItems": 1,
-                    "items": {
-                        "type": "string",
-                        "enum": acceptance_authority_anchor_ids,
-                    },
-                },
-                "acceptance_authority_rationale": {
-                    "type": "string",
-                    "minLength": 1,
-                },
-            },
+            "required": frozen_required_fields,
+            "properties": frozen_properties,
         }
     response_schema = {
         "type": "object",
@@ -792,7 +1103,28 @@ def author_reviewed_architect_metric_requirements(
                 "value": runtime_replicates,
                 "model_authored": False,
                 "binding_stage": "before_hash_validation_and_review",
-            }
+            },
+            "acceptance_authority_kind": {
+                "source": (
+                    "generated_metric_gate_field_authority_rollup"
+                ),
+                "model_authored": False,
+                "model_authored_predicate_fallback_allowed": True,
+                "binding_stage": "before_hash_validation_and_review",
+            },
+            "gate_field_authority_mode": {
+                "source": "runtime_field_authority_abi",
+                "model_authored": False,
+                "binding_stage": "before_hash_validation_and_review",
+            },
+            "source_anchors": {
+                "source": (
+                    "model_semantic_context_plus_gate_field_anchor_union"
+                ),
+                "model_authored": True,
+                "runtime_augmented": True,
+                "binding_stage": "before_hash_validation_and_review",
+            },
         },
         "target_namespace": generated_metric_requirement_target_namespace_contract(),
         "metric_evaluation_semantics": (
@@ -845,21 +1177,21 @@ def author_reviewed_architect_metric_requirements(
                 "minimum_pass_fraction describes how many comparisons must pass."
             ),
             (
-                "For theory_derived and evaluation_mandated rows, each threshold, "
-                "lower or upper bound, nonzero tolerance, and quorum must exactly "
-                "match explicit_numeric_values on a cited node of the same kind. A "
-                "theory_parameter_instantiation row must use the exact cited "
-                "evaluation-design value. In an architect_preregistered_design row, "
-                "those numbers are instead explicitly owned by this pre-execution "
-                "empirical design and must not be copied into or misrepresented as "
-                "theory."
+                "Emit exactly one gate_field_authorities entry for every active "
+                "substantive threshold, lower/upper bound, nonzero tolerance, or "
+                "quorum. A theory_derived or evaluation_mandated entry must exactly "
+                "match explicit_numeric_values on its own cited node. A "
+                "theory_parameter_instantiation entry must use the exact cited "
+                "evaluation-design value. An architect_preregistered_design entry "
+                "owns only its named pre-execution field and must not be copied into "
+                "or misrepresented as theory."
             ),
             (
-                "Acceptance authority is row-level. If any retained threshold, bound, "
-                "nonzero tolerance, or quorum is an Architect-owned design choice "
-                "without an exact upstream numeric match, the whole row cannot use a "
-                "source-derived authority kind merely because another numeric field "
-                "matches upstream."
+                "Numeric acceptance authority is field-level. Do not use one field's "
+                "source authority to launder another field. AgentRuntime computes the "
+                "row-level acceptance_authority_kind as a conservative roll-up from "
+                "gate_field_authorities, preserving every field binding in the frozen "
+                "requirement hash."
             ),
             (
                 "Every source_anchors entry must copy one exact anchor_id from "
@@ -867,14 +1199,14 @@ def author_reviewed_architect_metric_requirements(
                 "appended prose, and invented source labels are invalid."
             ),
             (
-                "Set acceptance_authority_kind=theory_derived only when the cited "
-                "theory nodes actually derive or bound every threshold, tolerance, "
-                "and quorum in the row. A topical mention, monotonicity statement, "
-                "asymptotic rate, or KL relationship does not by itself authorize a "
-                "finite-sample performance cutoff."
+                "Set a field authority_kind=theory_derived only when that entry's "
+                "cited theory nodes actually derive or bound the exact named numeric "
+                "field. A topical mention, monotonicity statement, asymptotic rate, "
+                "or KL relationship does not by itself authorize a finite-sample "
+                "performance cutoff."
             ),
             (
-                "Use acceptance_authority_kind=theory_parameter_instantiation only "
+                "Use field authority_kind=theory_parameter_instantiation only "
                 "when one cited theory_derived node gives the symbolic finite-sample "
                 "gate (for example error <= alpha) and a separate cited "
                 "evaluation_design node preregisters the exact parameter value. Every "
@@ -882,7 +1214,7 @@ def author_reviewed_architect_metric_requirements(
                 "or a performance wish in expected behavior, cannot authorize a gate."
             ),
             (
-                "Set acceptance_authority_kind=evaluation_mandated only when an exact "
+                "Set field authority_kind=evaluation_mandated only when an exact "
                 "catalog node explicitly mandates the numeric gate. A request to "
                 "evaluate power or stopping time, or a runtime simulation-planning "
                 "target, does not specify a minimum power or maximum stopping time."
@@ -890,9 +1222,9 @@ def author_reviewed_architect_metric_requirements(
             (
                 "Prefer theory_derived, theory_parameter_instantiation, or "
                 "evaluation_mandated whenever their requirements are genuinely met. "
-                "When a required finite-sample benchmark is an evaluation decision "
-                "not fixed upstream, use "
-                "acceptance_authority_kind=architect_preregistered_design. Cite the "
+                "When a required finite-sample field is an evaluation decision "
+                "not fixed upstream, use field "
+                "authority_kind=architect_preregistered_design. Cite the "
                 "exact current question or theory nodes that define the metric, DGP, "
                 "procedure, and estimand, then justify every chosen threshold, "
                 "nonzero tolerance, and quorum from decision relevance, Monte Carlo "
@@ -972,6 +1304,12 @@ def author_reviewed_architect_metric_requirements(
         "boundary": GENERATED_METRIC_REQUIREMENT_BOUNDARY,
     }
     if frozen_rebinding:
+        frozen_rebinding_includes_field_authorities = (
+            FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD
+            in _frozen_metric_protocol_rebinding_mutable_fields(
+                frozen_rebinding.get("source_requirement_rows", [])
+            )
+        )
         prompt_payload["frozen_metric_protocol_theory_rebinding"] = (
             frozen_rebinding
         )
@@ -980,14 +1318,28 @@ def author_reviewed_architect_metric_requirements(
                 "Return the exact same ordered requirement_id values from "
                 "frozen_metric_protocol_theory_rebinding.source_requirement_rows. "
                 "Each output row must contain only requirement_id, source_anchors, "
-                "and acceptance_authority_rationale."
+                "and acceptance_authority_rationale"
+                + (
+                    ", plus gate_field_authorities for field-bound source rows"
+                    if frozen_rebinding_includes_field_authorities
+                    else ""
+                )
+                + "."
             ),
             (
                 "Rebind source_anchors and acceptance_authority_rationale to the "
-                "current revised theory. Runtime owns and reconstructs every omitted "
-                "field from the frozen rows, including target_subsystems, semantics, "
-                "protocol, replicates, operator, thresholds, bounds, tolerance, "
-                "aggregation, quorum, required, authority kind, and boundary."
+                "current revised theory. "
+                + (
+                    "For each gate_field_authorities entry, preserve its exact "
+                    "ordered field and authority_kind and update only source_anchors "
+                    "and rationale. "
+                    if frozen_rebinding_includes_field_authorities
+                    else ""
+                )
+                + "Runtime owns and reconstructs every omitted field from the "
+                "frozen rows, including target_subsystems, semantics, protocol, "
+                "replicates, operator, thresholds, bounds, tolerance, aggregation, "
+                "quorum, required, authority kind, and boundary."
             ),
             (
                 "Use only exact current anchor IDs from "
@@ -1190,7 +1542,14 @@ def author_reviewed_architect_metric_requirements(
                 "revision_policy": (
                     (
                         "Return only requirement_id, source_anchors, and "
-                        "acceptance_authority_rationale for every exact frozen row. "
+                        "acceptance_authority_rationale"
+                        + (
+                            ", plus gate_field_authorities with unchanged field "
+                            "and authority_kind values"
+                            if frozen_rebinding_includes_field_authorities
+                            else ""
+                        )
+                        + " for every exact frozen row. "
                         "Repair rejected authority bindings against the current "
                         "theory without changing, adding, deleting, relaxing, or "
                         "reinterpreting any gate. Resolve every active prior finding."
@@ -1255,6 +1614,22 @@ def author_reviewed_architect_metric_requirements(
             },
         )
 
+        def extract_authoring_payload(raw_text: str) -> dict[str, Any]:
+            payload = extract_json_object(
+                raw_text,
+                label="LLM Architect metric-requirement packet",
+            )
+            if frozen_rebinding:
+                return payload
+            payload["empirical_metric_requirements"] = [
+                materialize_generated_metric_gate_field_authorities(row)
+                for row in payload.get(
+                    "empirical_metric_requirements", []
+                )
+                if isinstance(row, Mapping)
+            ]
+            return payload
+
         def build_packet(
             payload: Mapping[str, Any],
             response: Any,
@@ -1270,6 +1645,16 @@ def author_reviewed_architect_metric_requirements(
                     binding_rows=requirements,
                     rebinding_context=frozen_rebinding,
                 )
+                requirement_rows = [
+                    (
+                        materialize_generated_metric_gate_field_authorities(
+                            row
+                        )
+                        if "gate_field_authorities" in row
+                        else dict(row)
+                    )
+                    for row in requirement_rows
+                ]
             else:
                 requirement_rows = []
                 for row in requirements:
@@ -1279,7 +1664,11 @@ def author_reviewed_architect_metric_requirements(
                     requirement["required_runtime_replicates"] = (
                         runtime_replicates
                     )
-                    requirement_rows.append(requirement)
+                    requirement_rows.append(
+                        materialize_generated_metric_gate_field_authorities(
+                            requirement
+                        )
+                    )
             parent_packet_id = str(
                 prior_authoring_packet.get("packet_id", "") or ""
             )
@@ -1334,7 +1723,35 @@ def author_reviewed_architect_metric_requirements(
                         "binding_stage": (
                             "before_hash_validation_and_review"
                         ),
-                    }
+                    },
+                    "acceptance_authority_kind": {
+                        "source": (
+                            "generated_metric_gate_field_authority_rollup"
+                        ),
+                        "model_authored": False,
+                        "model_authored_predicate_fallback_allowed": True,
+                        "binding_stage": (
+                            "before_hash_validation_and_review"
+                        ),
+                    },
+                    "gate_field_authority_mode": {
+                        "source": "runtime_field_authority_abi",
+                        "model_authored": False,
+                        "binding_stage": (
+                            "before_hash_validation_and_review"
+                        ),
+                    },
+                    "source_anchors": {
+                        "source": (
+                            "model_semantic_context_plus_"
+                            "gate_field_anchor_union"
+                        ),
+                        "model_authored": True,
+                        "runtime_augmented": True,
+                        "binding_stage": (
+                            "before_hash_validation_and_review"
+                        ),
+                    },
                 },
                 "empirical_metric_requirements": requirement_rows,
                 "empirical_metric_requirement_set_id": (
@@ -1383,6 +1800,16 @@ def author_reviewed_architect_metric_requirements(
                     expected_runtime_replicates=runtime_replicates,
                     require_acceptance_authority=True,
                     acceptance_authority_catalog=acceptance_authority_catalog,
+                    require_gate_field_authorities=not bool(
+                        frozen_rebinding
+                    )
+                    or any(
+                        isinstance(row, Mapping)
+                        and "gate_field_authorities" in row
+                        for row in frozen_rebinding.get(
+                            "source_requirement_rows", []
+                        )
+                    ),
                 )
             )
             errors.extend(
@@ -1417,7 +1844,7 @@ def author_reviewed_architect_metric_requirements(
             authoring_packet = generate_validated_json_packet(
                 provider=provider,
                 request=request,
-                extract_payload=extract_json_object,
+                extract_payload=extract_authoring_payload,
                 build_packet=build_packet,
                 validate_packet=validate_packet,
                 validation_label="LLM Architect metric-requirement packet",

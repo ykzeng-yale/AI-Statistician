@@ -23609,6 +23609,15 @@ def test_metric_authoring_numeric_repair_context_uses_local_catalog_slice() -> N
         "source_anchors": [theory_anchor],
         "acceptance_authority_kind": "theory_parameter_instantiation",
         "acceptance_authority_rationale": "Bind the theory to the null DGP.",
+        "gate_field_authority_mode": "field_bound_v1",
+        "gate_field_authorities": [
+            {
+                "field": "threshold",
+                "authority_kind": "theory_parameter_instantiation",
+                "source_anchors": [theory_anchor],
+                "rationale": "Bind the theory to the null DGP.",
+            }
+        ],
         "boundary": "empirical control, not proof evidence",
     }
 
@@ -23648,16 +23657,26 @@ def test_metric_authoring_numeric_repair_context_uses_local_catalog_slice() -> N
     assert matrix[0]["numeric_gate_matches"][0]["matching_catalog_nodes"][0][
         "anchor_id"
     ] == matching_design_anchor
-    assert matrix[0]["source_derived_authority_allowed"] is True
+    assert matrix[0]["numeric_gate_matches"][0][
+        "required_field_anchor_kinds"
+    ] == ["theory_derived", "evaluation_design"]
+    assert matrix[0]["numeric_gate_matches"][0][
+        "missing_current_field_anchor_kinds"
+    ] == ["evaluation_design"]
+    assert matrix[0][
+        "source_derived_authority_allowed_for_every_gate_field"
+    ] is True
     assert "cite_exact_matching_catalog_nodes" in matrix[0][
-        "required_resolution_options"
+        "required_resolution_options_for_unmatched_fields"
     ]
     assert context["numeric_authority_repair_automatic_selection"] is False
     priority_instructions = " ".join(
         context["repair_prompt_priority_instructions"]
     )
-    assert "Authority is row-level" in priority_instructions
-    assert "whole row cannot remain" in priority_instructions
+    assert "Authority is field-level" in priority_instructions
+    assert "retain valid source authority for other fields" in (
+        priority_instructions
+    )
     assert context["repair_context_scope"] == (
         "numeric_authority_and_runtime_budget_local_slice"
     )
@@ -23693,6 +23712,19 @@ def test_metric_authoring_unmatched_numeric_gate_does_not_invent_source_authorit
         "source_anchors": ["theory#/theorem_cards/0/conclusion"],
         "acceptance_authority_kind": "theory_derived",
         "acceptance_authority_rationale": "Candidate incorrectly claimed theory authority.",
+        "gate_field_authority_mode": "field_bound_v1",
+        "gate_field_authorities": [
+            {
+                "field": "threshold",
+                "authority_kind": "theory_derived",
+                "source_anchors": [
+                    "theory#/theorem_cards/0/conclusion"
+                ],
+                "rationale": (
+                    "Candidate incorrectly claimed theory authority."
+                ),
+            }
+        ],
         "boundary": "empirical control, not proof evidence",
     }
 
@@ -23718,14 +23750,42 @@ def test_metric_authoring_unmatched_numeric_gate_does_not_invent_source_authorit
     )
 
     matrix_row = context["numeric_authority_repair_matrix"][0]
-    assert matrix_row["source_derived_authority_allowed"] is False
-    assert matrix_row["required_resolution_options"] == [
+    assert matrix_row[
+        "source_derived_authority_allowed_for_every_gate_field"
+    ] is False
+    assert matrix_row[
+        "required_resolution_options_for_unmatched_fields"
+    ] == [
         "typed_boolean_predicate_if_intrinsically_boolean",
         "architect_preregistered_design_with_preexecution_rationale",
         "diagnostic_only_or_remove",
     ]
     assert "copy_candidate_value_into_upstream_theory" in matrix_row[
         "forbidden_resolutions"
+    ]
+    patch_contract = matrix_row[
+        "architect_preregistered_design_patch_contracts"
+    ][0]
+    assert patch_contract["llm_semantic_choice_required"] is True
+    assert patch_contract["runtime_applies_automatically"] is False
+    assert patch_contract["all_required_updates_must_be_emitted_together"] is True
+    assert patch_contract["rationale_only_update_resolves_ownership"] is False
+    assert patch_contract["required_updates_if_selected"][0] == {
+        "path": [
+            "empirical_metric_requirements",
+            0,
+            "gate_field_authorities",
+            0,
+            "authority_kind",
+        ],
+        "replacement": "architect_preregistered_design",
+    }
+    assert patch_contract["required_updates_if_selected"][1]["path"] == [
+        "empirical_metric_requirements",
+        0,
+        "gate_field_authorities",
+        0,
+        "rationale",
     ]
     assert matrix_row["automatic_repair_applied"] is False
 
@@ -23893,6 +23953,106 @@ def test_frozen_metric_protocol_rebinding_preserves_every_gate_field() -> None:
     assert immutable_override_errors == [
         "empirical_metric_requirements[0] contains runtime-owned frozen fields: "
         "['threshold']"
+    ]
+
+    field_bound_rows = copy.deepcopy(frozen_rows)
+    field_bound_rows[0]["gate_field_authority_mode"] = "field_bound_v1"
+    field_bound_rows[0]["gate_field_authorities"] = [
+        {
+            "field": "threshold",
+            "authority_kind": "theory_derived",
+            "source_anchors": [
+                "theory#/theorem_cards/0/conclusion"
+            ],
+            "rationale": "The cited theory owns the frozen threshold.",
+        },
+        {
+            "field": "tolerance",
+            "authority_kind": "architect_preregistered_design",
+            "source_anchors": [
+                "theory#/theorem_cards/0/conclusion"
+            ],
+            "rationale": (
+                "The Architect froze the tolerance before execution."
+            ),
+        },
+    ]
+    field_bound_set_id = (
+        runtime_module.generated_metric_requirement_set_id(
+            field_bound_rows
+        )
+    )
+    field_context = copy.deepcopy(context)
+    field_contract = field_context["architect_runtime_plan"][
+        "evidence_contract"
+    ]
+    field_contract["empirical_metric_requirements"] = field_bound_rows
+    field_contract["empirical_metric_requirement_set_id"] = (
+        field_bound_set_id
+    )
+    field_contract[
+        "empirical_metric_requirements_preexecution_review"
+    ]["reviewed_empirical_metric_requirement_set_id"] = field_bound_set_id
+
+    field_rebinding = (
+        _architect_frozen_metric_protocol_rebinding_context(
+            field_context
+        )
+    )
+
+    assert field_rebinding["allowed_mutable_requirement_fields"] == [
+        "source_anchors",
+        "acceptance_authority_rationale",
+        "gate_field_authorities",
+    ]
+    rebound_gate_bindings = copy.deepcopy(
+        field_bound_rows[0]["gate_field_authorities"]
+    )
+    rebound_gate_bindings[0]["source_anchors"] = [
+        "theory#/theorem_cards/0/informal_statement"
+    ]
+    rebound_gate_bindings[0]["rationale"] = (
+        "The revised theory now owns the unchanged threshold."
+    )
+    field_reconstructed, field_binding_errors = (
+        _reconstruct_frozen_metric_protocol_requirements(
+            binding_rows=[
+                {
+                    "requirement_id": "frozen:coverage",
+                    "source_anchors": [
+                        "theory#/theorem_cards/0/informal_statement",
+                        "theory#/theorem_cards/0/conclusion",
+                    ],
+                    "acceptance_authority_rationale": (
+                        "Rebind the unchanged mixed-provenance row."
+                    ),
+                    "gate_field_authorities": rebound_gate_bindings,
+                }
+            ],
+            rebinding_context=field_rebinding,
+        )
+    )
+    assert field_binding_errors == []
+    assert field_reconstructed[0]["threshold"] == 0.9
+    assert field_reconstructed[0]["tolerance"] == 0.02
+    assert field_reconstructed[0]["gate_field_authorities"] == (
+        rebound_gate_bindings
+    )
+    assert _frozen_metric_protocol_rebinding_errors(
+        candidate_requirements=field_reconstructed,
+        rebinding_context=field_rebinding,
+    ) == []
+
+    changed_kind = copy.deepcopy(field_reconstructed)
+    changed_kind[0]["gate_field_authorities"][0][
+        "authority_kind"
+    ] = "architect_preregistered_design"
+    assert _frozen_metric_protocol_rebinding_errors(
+        candidate_requirements=changed_kind,
+        rebinding_context=field_rebinding,
+    ) == [
+        "frozen metric rebinding may not change frozen:coverage."
+        "gate_field_authorities field identities or authority kinds"
     ]
 
 
@@ -24556,10 +24716,23 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     expected_metric_rows[0]["acceptance_authority_kind"] = (
         "architect_preregistered_design"
     )
-    expected_metric_rows[0]["acceptance_authority_rationale"] = (
-        "The Architect preregisters this empirical decision before execution "
-        "under the fixed runtime budget; it is not a theorem claim."
+    expected_metric_rows[0]["gate_field_authority_mode"] = (
+        "field_bound_v1"
     )
+    expected_metric_rows[0]["gate_field_authorities"] = [
+        {
+            "field": "threshold",
+            "authority_kind": "architect_preregistered_design",
+            "source_anchors": [
+                "theory#/theorem_cards/0/conclusion"
+            ],
+            "rationale": (
+                "The Architect preregisters this empirical decision before "
+                "execution under the fixed runtime budget; it is not a "
+                "theorem claim."
+            ),
+        }
+    ]
 
     class SequencedAnthropicBackend:
         provider_name = "anthropic"
@@ -24576,36 +24749,52 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
                     repair_payload = json.loads(
                         request.user_prompt.split("\n\n", 1)[1]
                     )
+                    if request.metadata["json_repair_attempt"] == 1:
+                        updates = [
+                            {
+                                "path": [
+                                    "empirical_metric_requirements",
+                                    0,
+                                    "gate_field_authorities",
+                                    0,
+                                    "rationale",
+                                ],
+                                "replacement": (
+                                    "This rationale-only edit does not change "
+                                    "the field-level source-derived ownership."
+                                ),
+                            }
+                        ]
+                    else:
+                        patch_contract = repair_payload[
+                            "subsystem_repair_context"
+                        ]["numeric_authority_repair_matrix"][0][
+                            "architect_preregistered_design_patch_contracts"
+                        ][0]
+                        required_updates = patch_contract[
+                            "required_updates_if_selected"
+                        ]
+                        updates = [
+                            {
+                                "path": required_updates[0]["path"],
+                                "replacement": required_updates[0][
+                                    "replacement"
+                                ],
+                            },
+                            {
+                                "path": required_updates[1]["path"],
+                                "replacement": (
+                                    expected_metric_rows[0][
+                                        "gate_field_authorities"
+                                    ][0]["rationale"]
+                                ),
+                            },
+                        ]
                     payload = {
                         "base_payload_fingerprint": repair_payload[
                             "base_payload_fingerprint"
                         ],
-                        "updates": [
-                            {
-                                "path": [
-                                    "empirical_metric_requirements",
-                                    0,
-                                    "acceptance_authority_kind",
-                                ],
-                                "replacement_json": json.dumps(
-                                    expected_metric_rows[0][
-                                        "acceptance_authority_kind"
-                                    ]
-                                ),
-                            },
-                            {
-                                "path": [
-                                    "empirical_metric_requirements",
-                                    0,
-                                    "acceptance_authority_rationale",
-                                ],
-                                "replacement_json": json.dumps(
-                                    expected_metric_rows[0][
-                                        "acceptance_authority_rationale"
-                                    ]
-                                ),
-                            },
-                        ],
+                        "updates": updates,
                     }
                 else:
                     payload = {"empirical_metric_requirements": metric_rows}
@@ -24726,16 +24915,27 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         },
     )
 
-    assert len(backend.requests) == 4
-    metric_request, patch_request, review_request, architect_request = (
-        backend.requests
-    )
+    assert len(backend.requests) == 5
+    (
+        metric_request,
+        first_patch_request,
+        second_patch_request,
+        review_request,
+        architect_request,
+    ) = backend.requests
     assert metric_request.metadata["provider_structured_output"] is True
     assert metric_request.model == LIVE_EVALUATION_CLAUDE_MODEL
     assert metric_request.max_tokens == 8000
-    assert patch_request.model == LIVE_EVALUATION_CLAUDE_MODEL
-    assert patch_request.max_tokens == 5000
-    assert patch_request.metadata["json_repair_mode"] == "typed_semantic_patch"
+    assert first_patch_request.model == LIVE_EVALUATION_CLAUDE_MODEL
+    assert first_patch_request.max_tokens == 5000
+    assert first_patch_request.metadata["json_repair_mode"] == (
+        "typed_semantic_patch"
+    )
+    assert second_patch_request.model == LIVE_EVALUATION_CLAUDE_MODEL
+    assert second_patch_request.max_tokens == 5000
+    assert second_patch_request.metadata["json_repair_mode"] == (
+        "typed_semantic_patch"
+    )
     assert metric_request.schema["required"] == [
         "empirical_metric_requirements"
     ]
@@ -24770,7 +24970,11 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert {
         "acceptance_authority_kind",
         "acceptance_authority_rationale",
+        "gate_field_authorities",
     } <= set(requirement_item_schema["required"])
+    assert "gate_field_authority_mode" not in requirement_item_schema[
+        "required"
+    ]
     assert set(
         requirement_item_schema["properties"]["source_anchors"]["items"][
             "enum"
@@ -24813,8 +25017,8 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert "must not be copied into or misrepresented as theory" in (
         hard_requirements
     )
-    assert "Acceptance authority is row-level" in hard_requirements
-    assert "whole row cannot use a source-derived authority kind" in (
+    assert "Numeric acceptance authority is field-level" in hard_requirements
+    assert "Do not use one field's source authority to launder another" in (
         hard_requirements
     )
     assert "explicit uncertainty-scale calculation" in hard_requirements
@@ -24831,7 +25035,11 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert "at-most versus at-least counts" in hard_requirements
     assert "Do not emit required_runtime_replicates" in hard_requirements
     repair_payload = json.loads(
-        patch_request.user_prompt.split("\n\n", 1)[1]
+        second_patch_request.user_prompt.split("\n\n", 1)[1]
+    )
+    assert any(
+        "threshold=0.25 must be explicitly present" in error
+        for error in repair_payload["local_validation_errors"]
     )
     repair_instructions = " ".join(repair_payload["repair_instructions"])
     repair_context = repair_payload["subsystem_repair_context"]
@@ -24840,8 +25048,13 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert "architect_preregistered_design" in repair_instructions
     assert "do not copy the value into theory" in repair_instructions
     assert "numeric_authority_repair_matrix" in repair_instructions
-    assert "Authority is row-level" in repair_instructions
-    assert "whole row cannot remain" in repair_instructions
+    assert "Authority is field-level" in repair_instructions
+    assert "retain valid source authority for other fields" in (
+        repair_instructions
+    )
+    assert "changing only rationale cannot change field ownership" in (
+        repair_instructions
+    )
     assert repair_context["acceptance_authority_catalog_scope"] == (
         "numeric_authority_local_slice"
     )
@@ -24861,6 +25074,21 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         "numeric_gate_fields_without_exact_catalog_match"
     ] == ["threshold"]
     assert authority_matrix[0]["automatic_repair_applied"] is False
+    patch_contract = authority_matrix[0][
+        "architect_preregistered_design_patch_contracts"
+    ][0]
+    assert patch_contract["runtime_applies_automatically"] is False
+    assert patch_contract["rationale_only_update_resolves_ownership"] is False
+    assert patch_contract["required_updates_if_selected"][0] == {
+        "path": [
+            "empirical_metric_requirements",
+            0,
+            "gate_field_authorities",
+            0,
+            "authority_kind",
+        ],
+        "replacement": "architect_preregistered_design",
+    }
     assert metric_prompt["metric_evaluation_semantics"]["authoring_example"][
         "threshold"
     ] == 0.10
@@ -24884,7 +25112,7 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     ] is True
     assert packet["metric_requirement_authoring"][
         "llm_json_repair_attempts"
-    ] == 1
+    ] == 2
     assert packet["metric_requirement_authoring"][
         "runtime_owned_requirement_bindings"
     ]["required_runtime_replicates"] == {
@@ -25389,6 +25617,9 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
     from ai_statistician.architect_metric_semantic_reviewer_llm import (
         ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS,
     )
+    from ai_statistician.generated_metric_contract import (
+        materialize_generated_metric_gate_field_authorities,
+    )
 
     question = next(
         question
@@ -25432,6 +25663,14 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
     rejected_rows = metric_rows(1e-12)
     accepted_rows = metric_rows(0.1)
     prior_rows = metric_rows(0.9)
+    normalized_rejected_rows = [
+        materialize_generated_metric_gate_field_authorities(row)
+        for row in rejected_rows
+    ]
+    normalized_accepted_rows = [
+        materialize_generated_metric_gate_field_authorities(row)
+        for row in accepted_rows
+    ]
 
     class ReviewRepairBackend:
         provider_name = "anthropic"
@@ -25685,7 +25924,9 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
     ]
     repair_prompt = json.loads(backend.requests[2].user_prompt)
     repair = repair_prompt["independent_semantic_review_repair"]
-    assert repair["rejected_empirical_metric_requirements"] == rejected_rows
+    assert repair["rejected_empirical_metric_requirements"] == (
+        normalized_rejected_rows
+    )
     assert repair["findings"][0]["severity"] == "high"
     assert len(repair["active_prior_finding_ledger"]) == 1
     assert repair["active_prior_finding_ledger"][0]["finding"][
@@ -25695,7 +25936,7 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
         "before execution" in json.dumps(repair).lower()
     )
     assert packet["evidence_contract"]["empirical_metric_requirements"] == (
-        accepted_rows
+        normalized_accepted_rows
     )
     authoring = packet["metric_requirement_authoring"]
     assert authoring["semantic_review_revision_count"] == 1
@@ -25704,10 +25945,10 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
     ] == ["REVISE", "ACCEPT"]
     assert authoring["semantic_review_history"][0][
         "empirical_metric_requirements"
-    ] == rejected_rows
+    ] == normalized_rejected_rows
     assert authoring["semantic_review_history"][1][
         "empirical_metric_requirements"
-    ] == accepted_rows
+    ] == normalized_accepted_rows
     assert authoring["semantic_review_history"][1][
         "source_theory_packet_id"
     ] == "theory_derivation:structured"

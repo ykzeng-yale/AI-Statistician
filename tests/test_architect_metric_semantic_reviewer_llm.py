@@ -10,6 +10,7 @@ from ai_statistician.architect_metric_semantic_reviewer_llm import (
     ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA,
     ArchitectMetricSemanticReviewerConfig,
     LLMArchitectMetricSemanticReviewerAgent,
+    _architect_metric_theory_scope_check_contract,
     architect_metric_active_prior_finding_current_evidence,
     architect_metric_review_material_with_runtime_evaluator_certificate,
     architect_metric_semantic_review_json_schema,
@@ -434,6 +435,68 @@ def test_theory_bound_metric_review_requires_scope_consistency_check() -> None:
         "requires exact source theory lineage and semantic material"
         in str(context_exc.value)
     )
+
+
+def test_mixed_field_authority_keeps_theory_scope_review_visible() -> None:
+    mixed = _generic_requirement(
+        tolerance=0.02,
+        source_anchors=["theory:generic-gate", "question:generic"],
+        acceptance_authority_kind="architect_preregistered_design",
+        acceptance_authority_rationale=(
+            "The threshold is theory-derived and the tolerance is "
+            "preregistered."
+        ),
+        gate_field_authorities=[
+            {
+                "field": "threshold",
+                "authority_kind": "theory_derived",
+                "source_anchors": ["theory:generic-gate"],
+                "rationale": "The cited theory node supplies the threshold.",
+            },
+            {
+                "field": "tolerance",
+                "authority_kind": "architect_preregistered_design",
+                "source_anchors": ["question:generic"],
+                "rationale": (
+                    "The Architect freezes the comparison tolerance before "
+                    "execution."
+                ),
+            },
+        ],
+    )
+
+    contract = _architect_metric_theory_scope_check_contract([mixed])
+
+    assert contract["required"] is True
+    assert contract["rows"] == [
+        {
+            "requirement_id": "generic_gate",
+            "acceptance_authority_kind": (
+                "architect_preregistered_design"
+            ),
+            "source_anchors": ["theory:generic-gate"],
+            "theory_authority_fields": [
+                {
+                    "field": "threshold",
+                    "authority_kind": "theory_derived",
+                    "source_anchors": ["theory:generic-gate"],
+                }
+            ],
+        }
+    ]
+    architect_only = {
+        **mixed,
+        "gate_field_authorities": [
+            {
+                **row,
+                "authority_kind": "architect_preregistered_design",
+            }
+            for row in mixed["gate_field_authorities"]
+        ],
+    }
+    assert _architect_metric_theory_scope_check_contract(
+        [architect_only]
+    )["required"] is False
 
 
 def test_metric_reviewer_binds_certificate_to_authoring_requirement_set() -> None:

@@ -158,24 +158,71 @@ def _architect_metric_theory_scope_check_contract(
         authority_kind = str(
             requirement.get("acceptance_authority_kind", "") or ""
         ).strip()
-        if (
-            not requirement_id
-            or requirement.get("required") is not True
-            or authority_kind
-            not in ARCHITECT_METRIC_THEORY_SCOPE_AUTHORITY_KINDS
-        ):
+        if not requirement_id or requirement.get("required") is not True:
             continue
+        raw_gate_field_authorities = requirement.get(
+            "gate_field_authorities"
+        )
+        gate_field_authorities = [
+            dict(row)
+            for row in (
+                raw_gate_field_authorities
+                if isinstance(raw_gate_field_authorities, list)
+                else []
+            )
+            if isinstance(row, Mapping)
+        ]
+        theory_authority_fields = [
+            {
+                "field": str(row.get("field", "") or "").strip(),
+                "authority_kind": str(
+                    row.get("authority_kind", "") or ""
+                ).strip(),
+                "source_anchors": list(
+                    dict.fromkeys(
+                        str(value).strip()
+                        for value in row.get("source_anchors", []) or []
+                        if str(value).strip()
+                    )
+                ),
+            }
+            for row in gate_field_authorities
+            if str(row.get("field", "") or "").strip()
+            and str(row.get("authority_kind", "") or "").strip()
+            in ARCHITECT_METRIC_THEORY_SCOPE_AUTHORITY_KINDS
+        ]
+        if gate_field_authorities:
+            if not theory_authority_fields:
+                continue
+            source_anchors = list(
+                dict.fromkeys(
+                    anchor
+                    for row in theory_authority_fields
+                    for anchor in row["source_anchors"]
+                )
+            )
+        else:
+            if (
+                authority_kind
+                not in ARCHITECT_METRIC_THEORY_SCOPE_AUTHORITY_KINDS
+            ):
+                continue
+            source_anchors = list(
+                dict.fromkeys(
+                    str(value).strip()
+                    for value in requirement.get(
+                        "source_anchors", []
+                    )
+                    or []
+                    if str(value).strip()
+                )
+            )
         rows.append(
             {
                 "requirement_id": requirement_id,
                 "acceptance_authority_kind": authority_kind,
-                "source_anchors": list(
-                    dict.fromkeys(
-                        str(value).strip()
-                        for value in requirement.get("source_anchors", []) or []
-                        if str(value).strip()
-                    )
-                ),
+                "source_anchors": source_anchors,
+                "theory_authority_fields": theory_authority_fields,
             }
         )
     return {
@@ -184,7 +231,9 @@ def _architect_metric_theory_scope_check_contract(
         "rows": rows,
         "coverage_policy": (
             "Emit exactly one theory_scope_consistency claim check for every "
-            "listed requirement_id and cite every listed source anchor."
+            "listed requirement_id and cite every listed source anchor. When "
+            "theory_authority_fields is nonempty, audit every listed field even "
+            "when the conservative row-level authority roll-up is Architect-owned."
         ),
     }
 
@@ -893,22 +942,29 @@ def build_architect_metric_semantic_review_prompt(
         "upstream_theory instead of selecting one contradictory theory branch as a "
         "coding instruction. "
         "Resolve every requirement source_anchors entry against the exact "
-        "acceptance_authority_catalog. An ID resolving to a topically related node is "
-        "not enough: for acceptance_authority_kind=theory_derived, the cited content "
-        "must actually derive or bound every threshold, lower/upper bound, tolerance, "
-        "and quorum used by that row at the declared finite-sample regime. A direction "
+        "acceptance_authority_catalog. When gate_field_authorities is present, "
+        "resolve and audit each entry independently: its authority_kind applies only "
+        "to its named field, and the row-level acceptance_authority_kind is only a "
+        "conservative summary. Do not let an Architect-owned roll-up hide a "
+        "theory-derived field from theory-scope review, or use one field's source "
+        "authority to justify another field. For legacy rows without field bindings, "
+        "apply the row-level authority kind to every substantive numeric gate. An ID "
+        "resolving to a topically related node is not enough: for a theory_derived "
+        "field or legacy row, the cited content must actually derive or bound the "
+        "named threshold, lower/upper bound, tolerance, or quorum at the declared "
+        "finite-sample regime. A direction "
         "of change, asymptotic rate, KL identity, or general theorem without the needed "
         "finite-sample implication does not authorize a cutoff. For "
-        "acceptance_authority_kind=theory_parameter_instantiation, require both an "
+        "a theory_parameter_instantiation field or legacy row, require both an "
         "exact theory_derived node establishing the symbolic finite-sample relation "
         "and an exact evaluation_design node preregistering the parameter value. "
         "Verify that the number instantiates the same symbolic role; a DGP value, "
         "sample size, alternative parameter, or stress-test value cannot be relabeled "
-        "as a power, coverage, bias, or stopping-time acceptance cutoff. For "
-        "acceptance_authority_kind=evaluation_mandated, an exact eligible catalog "
+        "as a power, coverage, bias, or stopping-time acceptance cutoff. For an "
+        "evaluation_mandated field or legacy row, an exact eligible catalog "
         "node must explicitly impose the numeric gate; merely asking to evaluate a "
-        "quantity does not impose a pass threshold. For "
-        "acceptance_authority_kind=architect_preregistered_design, the numbers are "
+        "quantity does not impose a pass threshold. For an "
+        "architect_preregistered_design field or legacy row, the numbers are "
         "candidate-owned empirical design decisions and therefore need not occur in "
         "the cited source nodes. Require exact anchors that establish the metric, "
         "estimand, procedure, and DGP context, and independently assess whether every "
