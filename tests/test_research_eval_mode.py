@@ -373,6 +373,7 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
         formal_verification_policy="required",
         recommended_research_path="proof_first",
         architect_metric_repair_ownership_router=False,
+        architect_max_tokens=5000,
         serious_theory_model_tier="sonnet",
         serious_theory_max_tokens=1000,
         llm_timeout_seconds=120.0,
@@ -388,11 +389,14 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
     assert args.formal_verification_policy == "advisory"
     assert args.recommended_research_path == "simulation_first"
     assert args.architect_metric_repair_ownership_router is True
+    assert args.architect_max_tokens == 8000
+    assert args.architect_metric_semantic_reviewer_max_tokens == 12000
     assert args.serious_theory_model_tier == "haiku"
     assert args.evaluation_claude_model_tier == "haiku"
     assert args.evaluation_claude_model == "claude-haiku-4-5-20251001"
     assert args.serious_theory_max_tokens >= 10000
     assert args.llm_timeout_seconds == 240.0
+    assert args.max_iterations == 24
     assert args.architect_metric_protocol_max_fresh_candidate_revisions == 1
     assert args.coding_agent_packet_validation_max_lineage_failures == 4
 

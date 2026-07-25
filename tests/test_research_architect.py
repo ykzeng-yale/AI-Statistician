@@ -394,6 +394,13 @@ def test_capability_theory_mode_requires_deeper_equation_trace(
     assert request.metadata["theory_prompt_mode"] == (
         "serious_capability_theory_workspace"
     )
+    assert "finite-sample variance of the estimator" in request.user_prompt
+    assert "asymptotic variance of any sample-size-scaled limit" in (
+        request.user_prompt
+    )
+    assert "never insert or remove an n or sqrt(n) factor implicitly" in (
+        request.user_prompt
+    )
 
 
 def test_llm_theory_developer_repairs_invalid_json_packet_before_accepting() -> None:
@@ -889,6 +896,7 @@ def test_live_evaluation_builders_are_pinned_to_current_haiku(
     assert all(agent is not None for agent in agents)
     assert all(agent.config.model_tier == "haiku" for agent in agents)
     assert all(agent.config.model == expected_model for agent in agents)
+    assert agents[5].config.max_repair_attempts == 2
     architect = agents[0]
     assert architect.metric_semantic_reviewer.config.model_tier == "haiku"
     assert architect.metric_repair_ownership_router.config.model_tier == "haiku"

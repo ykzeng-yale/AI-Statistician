@@ -52,23 +52,58 @@ def _generic_requirement(**overrides: object) -> dict[str, object]:
     return row
 
 
+def _normalization_reconstruction(
+    *,
+    consistent: bool = True,
+    unresolved_conflicts: list[str] | None = None,
+) -> dict[str, object]:
+    return {
+        "source_expression": "source_value = theta",
+        "protocol_expression_ref": (
+            "requirement:generic_gate.metric_semantics"
+        ),
+        "protocol_expression": "one raw finite generic diagnostic",
+        "substitution_without_reinterpretation": "metric_value = theta",
+        "resulting_sample_size_order": "O(1)",
+        "required_sample_size_order": "O(1)",
+        "convention_consistent": consistent,
+        "unresolved_conflicts": list(unresolved_conflicts or []),
+    }
+
+
 def _review_payload(*, accept: bool) -> dict[str, object]:
     status = "PASS" if accept else "FAIL"
     return {
         "prior_finding_reviews": [],
         "claim_checks": [
             {
+                "requirement_id": "generic_gate",
                 "claim_ref": "requirement:generic_gate.metric_semantics",
                 "check_type": "direct_substitution",
                 "recomputation": "Substitute the declared scalar into its definition.",
+                "normalization_and_unit_audit": (
+                    "The scalar is dimensionless and has no sample-size or "
+                    "replicate normalization factor."
+                ),
+                "normalization_reconstruction": (
+                    _normalization_reconstruction()
+                ),
                 "result": "The declared metric is finite and scalar.",
                 "verdict": "PASS",
                 "evidence_refs": ["requirement:generic_gate.metric_semantics"],
             },
             {
+                "requirement_id": "generic_gate",
                 "claim_ref": "requirement:generic_gate.operator",
                 "check_type": "pass_set_translation",
                 "recomputation": "The executable pass set is value <= 0.1.",
+                "normalization_and_unit_audit": (
+                    "The raw value and threshold use the same dimensionless "
+                    "scale before the identity aggregation."
+                ),
+                "normalization_reconstruction": (
+                    _normalization_reconstruction()
+                ),
                 "result": (
                     "The pass set matches the protocol."
                     if accept
@@ -142,13 +177,20 @@ class _Backend:
 class _SequenceBackend:
     provider_name = "anthropic"
 
-    def __init__(self, payloads: list[dict[str, object]]) -> None:
+    def __init__(self, payloads: list[object]) -> None:
         self.payloads = payloads
         self.requests = []
 
     def generate(self, request):
         self.requests.append(request)
-        payload = self.payloads[min(len(self.requests) - 1, len(self.payloads) - 1)]
+        payload_or_factory = self.payloads[
+            min(len(self.requests) - 1, len(self.payloads) - 1)
+        ]
+        payload = (
+            payload_or_factory(request)
+            if callable(payload_or_factory)
+            else payload_or_factory
+        )
         return GeneratorResponse(
             text=json.dumps(payload),
             provider="anthropic",
@@ -250,7 +292,18 @@ def test_preexecution_metric_reviewer_accepts_only_with_independent_lineage() ->
     assert "finite-sample uncertainty as low-severity advisory" in (
         backend.requests[0].user_prompt
     )
-    assert "at least two claim_checks" in backend.requests[0].user_prompt
+    assert "cover every requirement_id" in backend.requests[0].user_prompt
+    assert "normalization_and_unit_audit" in backend.requests[0].user_prompt
+    assert "normalization_reconstruction" in backend.requests[0].user_prompt
+    assert "without adding, deleting, or reinterpreting" in (
+        backend.requests[0].user_prompt
+    )
+    assert "finite-sample variance or standard error" in (
+        backend.requests[0].user_prompt
+    )
+    assert "every explicit evaluation objective" in (
+        backend.requests[0].user_prompt
+    )
     assert "A citation without a displayed recomputation" in (
         backend.requests[0].user_prompt
     )
@@ -322,6 +375,80 @@ def test_preexecution_metric_reviewer_requires_explicit_claim_recomputation() ->
     )
 
 
+def test_metric_reviewer_requires_claim_check_for_every_proposed_metric() -> None:
+    payload = _review_payload(accept=True)
+    material = {
+        "review_stage": "pre_execution_metric_contract_review",
+        "execution_results_available": False,
+        "empirical_metric_requirements": [
+            _generic_requirement(),
+            _generic_requirement(
+                requirement_id="second_gate",
+                metric_semantics="a second finite generic diagnostic",
+            ),
+        ],
+    }
+
+    with pytest.raises(PacketValidationError) as exc_info:
+        _review(accept=True, payload=payload, material=material)
+
+    assert (
+        'general claim_checks are missing proposed metric requirement_ids: '
+        '["second_gate"]'
+    ) in str(exc_info.value)
+
+
+def test_metric_reviewer_requires_explicit_normalization_and_unit_audit() -> None:
+    payload = _review_payload(accept=True)
+    payload["claim_checks"][0].pop("normalization_and_unit_audit")
+
+    with pytest.raises(PacketValidationError) as exc_info:
+        _review(accept=True, payload=payload)
+
+    assert "claim check 1 missing normalization_and_unit_audit" in str(
+        exc_info.value
+    )
+
+
+def test_metric_reviewer_rejects_pass_with_unresolved_normalization_conflict() -> None:
+    payload = _review_payload(accept=True)
+    payload["claim_checks"][0]["normalization_reconstruction"] = (
+        _normalization_reconstruction(
+            consistent=False,
+            unresolved_conflicts=[
+                "Literal substitution produces a different sample-size order."
+            ],
+        )
+    )
+
+    with pytest.raises(PacketValidationError) as exc_info:
+        _review(accept=True, payload=payload)
+
+    error = str(exc_info.value)
+    assert (
+        "claim check 1 cannot PASS with an inconsistent normalization "
+        "reconstruction"
+    ) in error
+    assert (
+        "claim check 1 cannot PASS with unresolved normalization conflicts"
+    ) in error
+
+
+def test_metric_reviewer_cannot_rewrite_protocol_expression_during_review() -> None:
+    payload = _review_payload(accept=True)
+    payload["claim_checks"][0]["normalization_reconstruction"][
+        "protocol_expression"
+    ] = "one raw finite generic diagnostic divided by n"
+
+    with pytest.raises(PacketValidationError) as exc_info:
+        _review(accept=True, payload=payload)
+
+    assert (
+        "claim check 1 normalization_reconstruction must copy the exact "
+        "protocol expression without rewriting it"
+    ) in str(exc_info.value)
+
+
 def test_theory_bound_metric_review_requires_scope_consistency_check() -> None:
     material = {
         "review_stage": "pre_execution_metric_contract_review",
@@ -366,7 +493,7 @@ def test_theory_bound_metric_review_requires_scope_consistency_check() -> None:
     ) in str(exc_info.value)
 
     wrong_type_payload = _review_payload(accept=True)
-    wrong_type_payload["claim_checks"][0]["requirement_id"] = "generic_gate"
+    wrong_type_payload["claim_checks"][0]["requirement_id"] = "unknown_gate"
     with pytest.raises(PacketValidationError) as wrong_type_exc:
         _review(
             accept=True,
@@ -374,7 +501,7 @@ def test_theory_bound_metric_review_requires_scope_consistency_check() -> None:
             material=material,
         )
     assert (
-        "may set requirement_id only for theory_scope_consistency"
+        "references unknown metric requirement_id unknown_gate"
         in str(wrong_type_exc.value)
     )
 
@@ -591,26 +718,27 @@ def test_metric_reviewer_repair_preserves_exact_active_finding_context() -> None
     active_ledger = [
         {
             "finding_id": "metric-finding:calibration",
-            "finding": {"summary": "The calibration was unsupported."},
+            "finding": {
+                "summary": "The calibration was unsupported.",
+                "evidence_refs": ["requirement:generic_gate.operator"],
+            },
         },
         {
             "finding_id": "metric-finding:measurement",
-            "finding": {"summary": "The measurement was not identifiable."},
+            "finding": {
+                "summary": "The measurement was not identifiable.",
+                "evidence_refs": [
+                    "requirement:generic_gate.measurement_protocol"
+                ],
+            },
         },
     ]
     invalid_payload = _review_payload(accept=True)
+    invalid_payload["claim_checks"][1]["verdict"] = "FAIL"
+    invalid_payload["claim_checks"][1]["result"] = (
+        "The rejected packet retained a contradictory calculation."
+    )
     repaired_payload = _review_payload(accept=True)
-    repaired_payload["prior_finding_reviews"] = [
-        {
-            "finding_id": row["finding_id"],
-            "status": "RESOLVED",
-            "runtime_contract_evidence_id": "",
-            "rationale": "The current candidate explicitly implements the repair.",
-            "evidence_refs": ["requirement:generic_gate"],
-        }
-        for row in active_ledger
-    ]
-    backend = _SequenceBackend([invalid_payload, repaired_payload])
     material = {
         "review_stage": "pre_execution_metric_contract_review",
         "execution_results_available": False,
@@ -629,6 +757,50 @@ def test_metric_reviewer_repair_preserves_exact_active_finding_context() -> None
     material = architect_metric_review_material_with_runtime_evaluator_certificate(
         material
     )
+    snapshots_by_finding_id = {
+        str(row["finding_id"]): str(row["snapshot_id"])
+        for row in material["active_prior_finding_current_evidence"]
+    }
+    repaired_payload["prior_finding_reviews"] = [
+        {
+            "finding_id": row["finding_id"],
+            "status": "RESOLVED",
+            "runtime_contract_evidence_id": "",
+            "rationale": "The current candidate explicitly implements the repair.",
+            "evidence_refs": [
+                snapshots_by_finding_id[str(row["finding_id"])]
+            ],
+        }
+        for row in active_ledger
+    ]
+
+    def typed_repair(request):
+        repair_request = json.loads(request.user_prompt.split("\n\n", 1)[1])
+        return {
+            "base_payload_fingerprint": repair_request[
+                "base_payload_fingerprint"
+            ],
+            "updates": [
+                {
+                    "path": ["prior_finding_reviews"],
+                    "replacement_json": json.dumps(
+                        repaired_payload["prior_finding_reviews"]
+                    ),
+                },
+                {
+                    "path": ["claim_checks", 1, "result"],
+                    "replacement": repaired_payload["claim_checks"][1][
+                        "result"
+                    ],
+                },
+                {
+                    "path": ["claim_checks", 1, "verdict"],
+                    "replacement": "PASS",
+                },
+            ],
+        }
+
+    backend = _SequenceBackend([invalid_payload, typed_repair])
 
     packet = LLMArchitectMetricSemanticReviewerAgent(
         provider=backend,
@@ -686,6 +858,24 @@ def test_metric_reviewer_repair_preserves_exact_active_finding_context() -> None
     assert repair_context["rejected_review_packet"]["overall_verdict"] == (
         "ACCEPT"
     )
+    assert repair_context["rejected_review_consistency_state"][
+        "failed_claim_checks"
+    ][0]["claim_check_index"] == 1
+    citation_options = {
+        row["finding_id"]: row
+        for row in repair_context["prior_finding_citation_options"]
+    }
+    for finding_id in expected_ids:
+        assert citation_options[finding_id]["status_citation_contract"][
+            "RESOLVED"
+        ]["eligible_snapshot_ids"] == [
+            snapshots_by_finding_id[finding_id]
+        ]
+    assert repair_payload["local_validation_errors"]
+    assert backend.requests[1].metadata["json_repair_mode"] == (
+        "typed_semantic_patch"
+    )
+    assert backend.requests[1].model == TEST_HAIKU_MODEL
     assert packet["expected_prior_finding_ids"] == expected_ids
     assert [row["finding_id"] for row in packet["prior_finding_reviews"]] == (
         expected_ids
@@ -1180,6 +1370,9 @@ def test_metric_review_schema_transforms_for_anthropic_structured_output() -> No
 
     dynamic_schema = architect_metric_semantic_review_json_schema(
         {
+            "empirical_metric_requirements": [
+                _generic_requirement(requirement_id="gate:one")
+            ],
             "active_prior_finding_ledger": [
                 {"finding_id": "finding:one", "finding": {"summary": "one"}},
                 {"finding_id": "finding:two", "finding": {"summary": "two"}},
@@ -1225,9 +1418,25 @@ def test_metric_review_schema_transforms_for_anthropic_structured_output() -> No
     assert transformed_scope_schema["properties"]["gate:one"][
         "properties"
     ]["evidence_refs"]["minItems"] == 1
-    assert "requirement_id" not in transformed["properties"]["claim_checks"][
-        "items"
-    ]["properties"]
+    assert transformed["properties"]["claim_checks"]["items"]["properties"][
+        "requirement_id"
+    ]["enum"] == ["gate:one"]
+    assert "normalization_and_unit_audit" in transformed["properties"][
+        "claim_checks"
+    ]["items"]["properties"]
+    normalization_schema = transformed["properties"]["claim_checks"]["items"][
+        "properties"
+    ]["normalization_reconstruction"]
+    assert normalization_schema["required"] == [
+        "source_expression",
+        "protocol_expression_ref",
+        "protocol_expression",
+        "substitution_without_reinterpretation",
+        "resulting_sample_size_order",
+        "required_sample_size_order",
+        "convention_consistent",
+        "unresolved_conflicts",
+    ]
     assert "theory_scope_consistency" not in transformed["properties"][
         "claim_checks"
     ]["items"]["properties"]["check_type"]["enum"]

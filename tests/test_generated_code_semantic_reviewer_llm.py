@@ -15,6 +15,7 @@ from ai_statistician.fingerprint import stable_hash
 from ai_statistician.generated_code_semantic_reviewer_llm import (
     GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS,
     GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS,
+    GENERATED_CODE_SEMANTIC_REVIEW_FINDING_SEVERITIES,
     GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA,
     GeneratedCodeSemanticReviewerConfig,
     LLMGeneratedCodeSemanticReviewerAgent,
@@ -64,9 +65,7 @@ from ai_statistician.simulation_engineer_llm import (
 )
 
 
-STATIC_SOURCE_CLAUDE_MODEL = (
-    f"{LIVE_EVALUATION_CLAUDE_MODEL}:static-source-invocation"
-)
+STATIC_SOURCE_CLAUDE_MODEL = LIVE_EVALUATION_CLAUDE_MODEL
 
 
 def _question() -> OpenResearchQuestion:
@@ -265,6 +264,48 @@ def _repair_ownership_router(
                         ),
                         "ownership_certainty": "resolved",
                         "rationale": "Static fixture binds the defect to one owner.",
+                    }
+                ]
+            }
+        ),
+        config=ArchitectMetricRepairOwnershipRouterConfig(
+            provider_name="static",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            max_repair_attempts=0,
+        ),
+    )
+
+
+class _SequencedReviewBackend:
+    provider_name = "anthropic"
+
+    def __init__(self, responses: list[dict[str, object]]) -> None:
+        self.responses = list(responses)
+        self.requests: list[GeneratorRequest] = []
+
+    def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+        self.requests.append(request)
+        return GeneratorResponse(
+            text=json.dumps(self.responses.pop(0)),
+            provider=self.provider_name,
+            model=request.model,
+        )
+
+
+def _resolved_no_change_router() -> LLMArchitectMetricRepairOwnershipRouterAgent:
+    return LLMArchitectMetricRepairOwnershipRouterAgent(
+        provider=StaticJSONGeneratorBackend(
+            {
+                "decisions": [
+                    {
+                        "finding_index": 0,
+                        "required_artifact_changes": [],
+                        "ownership_certainty": "resolved_no_change",
+                        "rationale": (
+                            "The cited runtime gate passed and the finding does "
+                            "not establish an exact artifact mismatch."
+                        ),
                     }
                 ]
             }
@@ -831,6 +872,139 @@ def test_generated_code_semantic_reviewer_accepts_and_resumes_deferred_task(
     ] == stable_hash(work_order["architect_evidence_contract"])
 
 
+def test_no_change_ownership_feedback_gets_one_fresh_reviewer_decision(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        accept=False,
+        capability_eval=True,
+    )
+    backend = _SequencedReviewBackend(
+        [
+            _review_response(accept=False),
+            _review_response(accept=True),
+        ]
+    )
+    subsystem.reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=backend,
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="anthropic",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            max_repair_attempts=0,
+        ),
+    )
+    subsystem.repair_ownership_router = _resolved_no_change_router()
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
+    assert len(backend.requests) == 2
+    assert all(
+        request.model == LIVE_EVALUATION_CLAUDE_MODEL
+        and request.metadata["model_tier"]
+        == LIVE_EVALUATION_CLAUDE_MODEL_TIER
+        for request in backend.requests
+    )
+    assert "one bounded feedback revision" in backend.requests[1].user_prompt
+    review_packets = [
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
+    ]
+    assert sorted(
+        row["overall_verdict"] for row in review_packets
+    ) == ["ACCEPT", "REVISE"]
+    feedback_materialization = next(
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewMaterialization"
+        and "independent_repair_ownership_feedback"
+        in row.get("review_material", {})
+    )
+    ownership_feedback = feedback_materialization["review_material"][
+        "independent_repair_ownership_feedback"
+    ]
+    assert ownership_feedback[
+        "all_actionable_findings_resolved_no_change"
+    ] is True
+    execution = next(
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
+    )
+    assert execution["ownership_feedback_revision_used"] is True
+    assert execution["ownership_feedback_router_packet_id"] == (
+        ownership_feedback["ownership_packet_id"]
+    )
+    assert execution["semantic_review_accepted"] is True
+    assert execution["repair_routing_authority"] == (
+        "GeneratedCodeSemanticReviewerAfterOwnershipFeedback"
+    )
+    assert [call.tool_name for call in result.tool_calls] == [
+        "LLMGeneratedCodeSemanticReviewerAgent.review",
+        (
+            "LLMArchitectMetricRepairOwnershipRouterAgent."
+            "route_generated_code_review"
+        ),
+        "LLMGeneratedCodeSemanticReviewerAgent.review",
+    ]
+
+
+def test_no_change_ownership_disagreement_fails_closed_without_repair(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        accept=False,
+        capability_eval=True,
+    )
+    backend = _SequencedReviewBackend(
+        [
+            _review_response(accept=False),
+            _review_response(accept=False),
+        ]
+    )
+    subsystem.reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=backend,
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="anthropic",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            max_repair_attempts=0,
+        ),
+    )
+    subsystem.repair_ownership_router = _resolved_no_change_router()
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
+    assert result.failure_classification == (
+        "generated_code_semantic_review_ownership_disagreement"
+    )
+    assert len(backend.requests) == 2
+    assert not [
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
+    ]
+    assert len(
+        [
+            row
+            for row in result.produced_artifacts.values()
+            if row.get("artifact_kind")
+            == "GeneratedCodeSemanticReviewPacket"
+        ]
+    ) == 2
+
+
 def test_semantic_review_projection_excludes_advisory_coding_agent_work(
     tmp_path: Path,
 ) -> None:
@@ -1255,6 +1429,58 @@ def test_semantic_reviewer_prompt_keeps_sibling_metrics_out_of_artifact_gate() -
     assert "Numerical stability" in prompt
 
 
+def test_semantic_reviewer_prompt_surfaces_runtime_metric_gate_outcomes() -> None:
+    prompt = build_generated_code_semantic_review_prompt(
+        question=_question(),
+        review_material={
+            "exact_executed_artifacts": [
+                {
+                    "artifact_id": "simulation:one",
+                    "source_row": {
+                        "metric_contracts": [
+                            {
+                                "contract_id": "MC:one",
+                                "requirement_id": "requirement:one",
+                                "operator": "<=",
+                                "threshold": 0.05,
+                                "tolerance": 0.015,
+                                "required": True,
+                            }
+                        ],
+                        "metric_contract_evaluation": {
+                            "evaluations": [
+                                {
+                                    "contract_id": "MC:one",
+                                    "requirement_id": "requirement:one",
+                                    "artifact_id": "simulation:one",
+                                    "metric_path": ["error_rate"],
+                                    "operator": "<=",
+                                    "aggregate_value": 0.0625,
+                                    "required": True,
+                                    "passed": True,
+                                    "errors": [],
+                                }
+                            ]
+                        },
+                    },
+                }
+            ]
+        },
+    )
+    payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+    gate = payload["runtime_metric_gate_projection"][0]
+
+    assert gate["contract_id"] == "MC:one"
+    assert gate["aggregate_value"] == 0.0625
+    assert gate["threshold"] == 0.05
+    assert gate["tolerance"] == 0.015
+    assert gate["passed"] is True
+    assert gate["outcome_authority"] == (
+        "runtime_generated_metric_contract_evaluator"
+    )
+    assert "never describe a row with passed=true" in prompt
+
+
 def test_semantic_review_routes_valid_protocol_implementation_mismatch_to_source() -> None:
     assert generated_code_semantic_review_repair_scope(
         verdict="REVISE",
@@ -1320,7 +1546,7 @@ def test_reviewer_derives_aggregate_decisions_from_findings(
     assert review_packet["model_requested_overall_verdict"] == ""
 
 
-def test_all_pass_low_or_medium_findings_are_preserved_as_advisory(
+def test_all_pass_actionable_finding_requires_model_repair_not_normalization(
     tmp_path: Path,
 ) -> None:
     _, task, blackboard, _ = _runtime_fixture(tmp_path, accept=True)
@@ -1343,14 +1569,48 @@ def test_all_pass_low_or_medium_findings_are_preserved_as_advisory(
     response["repair_instructions"] = [
         "Use a more descriptive diagnostic name later."
     ]
+
+    class AdvisoryScopePatchBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+            self.repair_payload: dict[str, object] = {}
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                payload = response
+            else:
+                self.repair_payload = json.loads(
+                    request.user_prompt.split("\n\n", 1)[1]
+                )
+                payload = {
+                    "base_payload_fingerprint": self.repair_payload[
+                        "base_payload_fingerprint"
+                    ],
+                    "updates": [
+                        {
+                            "path": ["findings", 0, "repair_scope"],
+                            "replacement": "none",
+                        }
+                    ],
+                }
+            return GeneratorResponse(
+                text=json.dumps(payload),
+                provider=self.provider_name,
+                model=request.model,
+            )
+
+    backend = AdvisoryScopePatchBackend()
     subsystem = GeneratedCodeSemanticReviewerRuntimeSubsystem(
         reviewer=LLMGeneratedCodeSemanticReviewerAgent(
-            provider=StaticJSONGeneratorBackend(response),
+            provider=backend,
             config=GeneratedCodeSemanticReviewerConfig(
-                provider_name="static",
+                provider_name="anthropic",
                 model=LIVE_EVALUATION_CLAUDE_MODEL,
                 model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
-                max_repair_attempts=0,
+                max_repair_attempts=1,
             ),
         ),
         max_revisions=1,
@@ -1359,6 +1619,21 @@ def test_all_pass_low_or_medium_findings_are_preserved_as_advisory(
     result = subsystem.run(task, blackboard)
 
     assert result.status == "REROUTE"
+    assert len(backend.requests) == 2
+    assert backend.requests[1].metadata["json_repair_mode"] == (
+        "typed_semantic_patch"
+    )
+    assert any(
+        "actionable semantic-review findings require at least one relevant "
+        "dimension"
+        in error
+        for error in backend.repair_payload["local_validation_errors"]
+    )
+    closure = backend.repair_payload["subsystem_repair_context"][
+        "decision_closure_state"
+    ]
+    assert closure["accept_with_actionable_finding_indices"] == [0]
+    assert closure["decision_closed"] is False
     review_packet = next(
         artifact
         for artifact in result.produced_artifacts.values()
@@ -1371,7 +1646,7 @@ def test_all_pass_low_or_medium_findings_are_preserved_as_advisory(
     assert review_packet["findings"][0]["repair_scope"] == "none"
     assert review_packet["findings"][0][
         "model_requested_repair_scope"
-    ] == "source_code"
+    ] == "none"
 
 
 def test_schema_v8_derives_runtime_owned_dimensions_and_typed_citations(
@@ -1736,6 +2011,214 @@ def test_nonpass_dimension_keeps_low_severity_finding_actionable(
     assert review_packet["findings"][0][
         "model_requested_repair_scope"
     ] == "source_code"
+
+
+def test_semantic_repair_exposes_unclosed_decision_without_selecting_owner(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        accept=False,
+        repair_scope="source_code",
+    )
+    response = _review_response(accept=True)
+    response = {
+        "dimension_reviews": {
+            dimension: dict(row)
+            for dimension, row in zip(
+                GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS,
+                response["dimension_reviews"],
+                strict=True,
+            )
+        },
+        "findings": [
+            {
+                "severity": "high",
+                "category": "semantic_uncertainty",
+                "summary": "The current measurement judgment is unresolved.",
+                "required_change": (
+                    "Repair the artifact supported by the cited evidence."
+                ),
+                "repair_scope": "none",
+                "evidence_citations": [
+                    {
+                        "artifact_role": "generated_source_artifact",
+                        "locator": "/exact_executed_artifacts/0/exact_result",
+                    }
+                ],
+            }
+        ],
+        "repair_instructions": [
+            "Resolve the exact implementation mismatch before acceptance."
+        ],
+    }
+    response["dimension_reviews"]["metric_semantics_alignment"].update(
+        {
+            "status": "UNCERTAIN",
+            "rationale": (
+                "The cited result leaves a mandatory implementation question open."
+            ),
+        }
+    )
+
+    class DecisionClosurePatchBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+            self.repair_payload: dict[str, object] = {}
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                payload = response
+            else:
+                self.repair_payload = json.loads(
+                    request.user_prompt.split("\n\n", 1)[1]
+                )
+                payload = {
+                    "base_payload_fingerprint": self.repair_payload[
+                        "base_payload_fingerprint"
+                    ],
+                    "updates": [
+                        {
+                            "path": ["findings", 0, "repair_scope"],
+                            "replacement": "source_code",
+                        }
+                    ],
+                }
+            return GeneratorResponse(
+                text=json.dumps(payload),
+                provider=self.provider_name,
+                model=request.model,
+            )
+
+    backend = DecisionClosurePatchBackend()
+    subsystem.reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=backend,
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="anthropic",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            max_repair_attempts=1,
+        ),
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REVISE"
+    assert len(backend.requests) == 2
+    assert backend.requests[1].metadata["json_repair_mode"] == (
+        "typed_semantic_patch"
+    )
+    repair_context = backend.repair_payload["subsystem_repair_context"]
+    closure = repair_context["decision_closure_state"]
+    assert closure["runtime_derived_verdict"] == "REVISE"
+    assert closure["decision_closed"] is False
+    assert closure["runtime_selected_repair_scope"] is False
+    assert closure["actionable_finding_indices"] == []
+    assert closure["high_or_critical_advisory_finding_indices"] == [0]
+    assert closure["nonpass_dimensions"][0]["dimension"] == (
+        "metric_semantics_alignment"
+    )
+    assert any(
+        "Close the decision in one evidence-based direction" in instruction
+        for instruction in backend.repair_payload["repair_instructions"]
+    )
+    review_packet = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
+    )
+    assert review_packet["overall_verdict"] == "REVISE"
+    assert review_packet["repair_scope"] == "source_code"
+    assert review_packet["findings"][0]["repair_scope"] == "source_code"
+
+
+def test_semantic_repair_exposes_exact_severity_enum_for_bounded_patch(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        accept=False,
+        repair_scope="source_code",
+    )
+    response = _review_response(accept=False, repair_scope="source_code")
+    response["findings"][0]["severity"] = "major"
+
+    class SeverityPatchBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+            self.repair_payloads: list[dict[str, object]] = []
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                payload = response
+            else:
+                repair_payload = json.loads(
+                    request.user_prompt.split("\n\n", 1)[1]
+                )
+                self.repair_payloads.append(repair_payload)
+                payload = {
+                    "base_payload_fingerprint": repair_payload[
+                        "base_payload_fingerprint"
+                    ],
+                    "updates": [
+                        {
+                            "path": ["findings", 0, "severity"],
+                            "replacement": (
+                                "important"
+                                if len(self.requests) == 2
+                                else "high"
+                            ),
+                        }
+                    ],
+                }
+            return GeneratorResponse(
+                text=json.dumps(payload),
+                provider=self.provider_name,
+                model=request.model,
+            )
+
+    backend = SeverityPatchBackend()
+    subsystem.reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=backend,
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="anthropic",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            max_repair_attempts=2,
+        ),
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REVISE"
+    assert len(backend.requests) == 3
+    assert all(
+        request.model == LIVE_EVALUATION_CLAUDE_MODEL
+        for request in backend.requests
+    )
+    assert all(
+        request.metadata["json_repair_mode"] == "typed_semantic_patch"
+        for request in backend.requests[1:]
+    )
+    closure = backend.repair_payloads[-1]["subsystem_repair_context"][
+        "decision_closure_state"
+    ]
+    assert closure["allowed_finding_severities"] == list(
+        GENERATED_CODE_SEMANTIC_REVIEW_FINDING_SEVERITIES
+    )
+    assert closure["invalid_severity_finding_indices"] == [0]
+    assert closure["findings"][0]["severity"] == "important"
+    assert closure["findings"][0]["model_payload_severity_path"] == [
+        "findings",
+        0,
+        "severity",
+    ]
 
 
 def test_mixed_semantic_assessments_route_upstream_owner_before_source(
@@ -3327,7 +3810,8 @@ def test_runtime_audit_recomputes_semantic_review_lineage(tmp_path: Path) -> Non
         for key, artifact in tampered["blackboard"]["artifacts"].items()
         if key.startswith("generated_code_semantic_review_execution:")
     )
-    execution["source_model"] = execution["reviewer_model"]
+    execution["source_model"] = ""
+    execution["independent_model"] = True
     result_path.write_text(json.dumps(tampered), encoding="utf-8")
 
     tampered_row = _audit_result_path(result_path)

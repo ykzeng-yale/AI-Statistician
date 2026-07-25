@@ -23670,6 +23670,26 @@ def test_metric_authoring_numeric_repair_context_uses_local_catalog_slice() -> N
         "required_resolution_options_for_unmatched_fields"
     ]
     assert context["numeric_authority_repair_automatic_selection"] is False
+    namespace_contract = context["authority_kind_namespace_contract"]
+    assert namespace_contract["gate_owner_kinds"] == [
+        "theory_derived",
+        "theory_parameter_instantiation",
+        "evaluation_mandated",
+        "architect_preregistered_design",
+        "diagnostic_only",
+    ]
+    assert namespace_contract["catalog_node_kinds"] == [
+        "evaluation_design",
+        "theory_derived",
+    ]
+    assert namespace_contract["catalog_only_node_kinds"] == [
+        "evaluation_design"
+    ]
+    assert namespace_contract[
+        "catalog_node_kind_may_be_copied_to_gate_owner"
+    ] is False
+    assert namespace_contract["llm_semantic_owner_choice_required"] is True
+    assert namespace_contract["runtime_automatic_owner_mapping"] is False
     priority_instructions = " ".join(
         context["repair_prompt_priority_instructions"]
     )
@@ -23677,6 +23697,8 @@ def test_metric_authoring_numeric_repair_context_uses_local_catalog_slice() -> N
     assert "retain valid source authority for other fields" in (
         priority_instructions
     )
+    assert "evaluation_design is a catalog-node kind" in priority_instructions
+    assert "never a valid gate-owner value" in priority_instructions
     assert context["repair_context_scope"] == (
         "numeric_authority_and_runtime_budget_local_slice"
     )
@@ -24814,23 +24836,82 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
                     "prior_finding_reviews": [],
                     "claim_checks": [
                         {
-                            "claim_ref": "requirement:typed_gate.threshold",
+                            "requirement_id": (
+                                "sequential:simulationengineer:gate"
+                            ),
+                            "claim_ref": (
+                                "requirement:"
+                                "sequential:simulationengineer:gate.threshold"
+                            ),
                             "check_type": "direct_substitution",
                             "recomputation": "Substitute the frozen threshold.",
+                            "normalization_and_unit_audit": (
+                                "The compared scalar and threshold use the same "
+                                "declared units, and no sample-size or replicate "
+                                "normalization is implicit."
+                            ),
+                            "normalization_reconstruction": {
+                                "source_expression": "source_value = theta",
+                                "protocol_expression_ref": (
+                                    "requirement:"
+                                    "sequential:simulationengineer:gate."
+                                    "metric_semantics"
+                                ),
+                                "protocol_expression": (
+                                    "absolute deviation from the declared target"
+                                ),
+                                "substitution_without_reinterpretation": (
+                                    "metric_value = theta"
+                                ),
+                                "resulting_sample_size_order": "O(1)",
+                                "required_sample_size_order": "O(1)",
+                                "convention_consistent": True,
+                                "unresolved_conflicts": [],
+                            },
                             "result": "The scalar comparison is coherent.",
                             "verdict": "PASS",
                             "evidence_refs": [
-                                "requirement:typed_gate.threshold"
+                                "requirement:"
+                                "sequential:simulationengineer:gate.threshold"
                             ],
                         },
                         {
-                            "claim_ref": "requirement:typed_gate.operator",
+                            "requirement_id": (
+                                "sequential:simulationengineer:gate"
+                            ),
+                            "claim_ref": (
+                                "requirement:"
+                                "sequential:simulationengineer:gate.operator"
+                            ),
                             "check_type": "pass_set_translation",
                             "recomputation": "Translate the executable pass set.",
+                            "normalization_and_unit_audit": (
+                                "The aggregation preserves the declared scalar "
+                                "units across the fixed replicate count."
+                            ),
+                            "normalization_reconstruction": {
+                                "source_expression": "source_value = theta",
+                                "protocol_expression_ref": (
+                                    "requirement:"
+                                    "sequential:simulationengineer:gate."
+                                    "metric_semantics"
+                                ),
+                                "protocol_expression": (
+                                    "absolute deviation from the declared target"
+                                ),
+                                "substitution_without_reinterpretation": (
+                                    "aggregate = theta"
+                                ),
+                                "resulting_sample_size_order": "O(1)",
+                                "required_sample_size_order": "O(1)",
+                                "convention_consistent": True,
+                                "unresolved_conflicts": [],
+                            },
                             "result": "The pass set matches the protocol.",
                             "verdict": "PASS",
                             "evidence_refs": [
-                                "requirement:typed_gate.operator"
+                                "requirement:"
+                                "sequential:simulationengineer:gate.operator"
                             ],
                         },
                     ],
@@ -25742,18 +25823,50 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
                     },
                     "claim_checks": [
                         {
-                            "claim_ref": "requirement:generic_gate",
+                            "requirement_id": (
+                                "generic:simulationengineer:gate"
+                            ),
+                            "claim_ref": (
+                                "requirement:"
+                                "generic:simulationengineer:gate"
+                            ),
                             "check_type": "uncertainty_scale",
                             "recomputation": (
                                 "Compare the fixed threshold to its declared budget."
                             ),
+                            "normalization_and_unit_audit": (
+                                "The raw finite-sample error and threshold share "
+                                "the same units, and the replicate aggregation "
+                                "introduces no hidden sample-size factor."
+                            ),
+                            "normalization_reconstruction": {
+                                "source_expression": "source_error = theta",
+                                "protocol_expression_ref": (
+                                    "requirement:"
+                                    "generic:simulationengineer:gate."
+                                    "metric_semantics"
+                                ),
+                                "protocol_expression": (
+                                    "a directly measured finite-sample error"
+                                ),
+                                "substitution_without_reinterpretation": (
+                                    "metric_value = theta"
+                                ),
+                                "resulting_sample_size_order": "O(1)",
+                                "required_sample_size_order": "O(1)",
+                                "convention_consistent": True,
+                                "unresolved_conflicts": [],
+                            },
                             "result": (
                                 "The revised gate is attainable."
                                 if accepted
                                 else "The first gate is not attainable."
                             ),
                             "verdict": "PASS" if accepted else "FAIL",
-                            "evidence_refs": ["requirement:generic_gate"],
+                            "evidence_refs": [
+                                "requirement:"
+                                "generic:simulationengineer:gate"
+                            ],
                         },
                     ],
                     "dimension_reviews": [
@@ -26039,12 +26152,44 @@ def test_live_architect_stops_metric_rewrites_for_upstream_theory_gap() -> None:
                         },
                         "claim_checks": [
                             {
-                                "claim_ref": "requirement:generic_gate",
+                                "requirement_id": (
+                                    "generic:simulationengineer:gate"
+                                ),
+                                "claim_ref": (
+                                    "requirement:"
+                                    "generic:simulationengineer:gate"
+                                ),
                                 "check_type": "pass_set_translation",
                                 "recomputation": "Translate mean(value) <= 0.1.",
+                                "normalization_and_unit_audit": (
+                                    "The raw measurement and threshold use the "
+                                    "same units; the mean only aggregates the "
+                                    "declared replicate values."
+                                ),
+                                "normalization_reconstruction": {
+                                    "source_expression": "source_value = theta",
+                                    "protocol_expression_ref": (
+                                        "requirement:"
+                                        "generic:simulationengineer:gate."
+                                        "metric_semantics"
+                                    ),
+                                    "protocol_expression": (
+                                        "a raw finite-sample measurement"
+                                    ),
+                                    "substitution_without_reinterpretation": (
+                                        "metric_value = theta"
+                                    ),
+                                    "resulting_sample_size_order": "O(1)",
+                                    "required_sample_size_order": "O(1)",
+                                    "convention_consistent": True,
+                                    "unresolved_conflicts": [],
+                                },
                                 "result": "The pass set is typed but lacks authority.",
                                 "verdict": "PASS",
-                                "evidence_refs": ["requirement:generic_gate"],
+                                "evidence_refs": [
+                                    "requirement:"
+                                    "generic:simulationengineer:gate"
+                                ],
                             },
                         ],
                         "dimension_reviews": [
@@ -26204,12 +26349,44 @@ def test_live_architect_uses_artifact_router_to_correct_repair_owner() -> None:
                         },
                         "claim_checks": [
                             {
-                                "claim_ref": "requirement:owner-routing",
+                                "requirement_id": (
+                                    "generic:simulationengineer:owner-routing"
+                                ),
+                                "claim_ref": (
+                                    "requirement:"
+                                    "generic:simulationengineer:owner-routing"
+                                ),
                                 "check_type": "pass_set_translation",
                                 "recomputation": "Translate mean(value) <= 0.1.",
+                                "normalization_and_unit_audit": (
+                                    "The candidate value and threshold use the "
+                                    "same declared units, with replicate "
+                                    "aggregation stated explicitly."
+                                ),
+                                "normalization_reconstruction": {
+                                    "source_expression": "source_value = theta",
+                                    "protocol_expression_ref": (
+                                        "requirement:generic:"
+                                        "simulationengineer:owner-routing."
+                                        "metric_semantics"
+                                    ),
+                                    "protocol_expression": (
+                                        "a raw finite-sample measurement"
+                                    ),
+                                    "substitution_without_reinterpretation": (
+                                        "metric_value = theta"
+                                    ),
+                                    "resulting_sample_size_order": "O(1)",
+                                    "required_sample_size_order": "O(1)",
+                                    "convention_consistent": True,
+                                    "unresolved_conflicts": [],
+                                },
                                 "result": "The candidate evaluator pass set is typed.",
                                 "verdict": "PASS",
-                                "evidence_refs": ["requirement:owner-routing"],
+                                "evidence_refs": [
+                                    "requirement:"
+                                    "generic:simulationengineer:owner-routing"
+                                ],
                             },
                         ],
                         "dimension_reviews": [
@@ -27785,6 +27962,105 @@ def test_runtime_blackboard_normalizer_propagates_architect_control_seed() -> No
     assert summary["n_current_artifacts_missing_architect_control"] == 0
     assert "FormalizationGapPlanner" in summary["controlled_subsystems"]
     assert "ProofEngineer" in summary["controlled_subsystems"]
+
+
+def test_runtime_resume_preserves_transitive_hash_bound_artifact_metadata() -> None:
+    contract = {
+        "formal_verification_policy": "advisory",
+        "recommended_research_path": "simulation_first",
+        "formal_required_for_final": False,
+    }
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": "theory:resume-bound",
+        "claim": "proposal only",
+    }
+    proposal_packet = {
+        "artifact_kind": "AlgorithmEngineerProposalPacket",
+        "packet_id": "algorithm-proposal:resume-bound",
+        "source_agent": "LLMAlgorithmEngineerAgent",
+    }
+    source_manifest = {
+        "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+        "manifest_id": "algorithm-manifest:resume-bound",
+        "runtime_architect_control": {
+            "architect_coordinator_proposal_id": "architect:accepted",
+            "subsystem": "AlgorithmEngineer",
+            "evidence_contract": contract,
+        },
+    }
+    work_order = {
+        "artifact_kind": "RuntimeGeneratedCodeSemanticReviewWorkOrder",
+        "work_order_id": "semantic-work-order:resume-bound",
+        "source_manifest_id": source_manifest["manifest_id"],
+        "source_manifest_hash": runtime_module.stable_hash(source_manifest),
+        "theory_packet_id": theory_packet["packet_id"],
+        "theory_packet_hash": runtime_module.stable_hash(theory_packet),
+        "proposal_packet_id": proposal_packet["packet_id"],
+        "proposal_packet_hash": runtime_module.stable_hash(proposal_packet),
+    }
+    task = AgentTask(
+        task_id="semantic-review:resume-bound",
+        owner_subsystem="GeneratedCodeSemanticReviewer",
+        objective="Review the exact persisted generated-code lineage.",
+        inputs={
+            "work_order_id": work_order["work_order_id"],
+            "work_order_hash": runtime_module.stable_hash(work_order),
+        },
+    )
+    artifacts = {
+        "architect_coordinator_proposal:resume-seed": {
+            "artifact_kind": "ArchitectCoordinatorProposalPacket",
+            "packet_id": "architect_coordinator_proposal:resume-seed",
+            "evidence_contract": contract,
+        },
+        theory_packet["packet_id"]: theory_packet,
+        proposal_packet["packet_id"]: proposal_packet,
+        source_manifest["manifest_id"]: source_manifest,
+        work_order["work_order_id"]: work_order,
+        "historical-unbound:resume": {
+            "artifact_kind": "RuntimeRetrievalMemoryManifest",
+        },
+    }
+    original_artifacts = copy.deepcopy(artifacts)
+
+    protected = runtime_module._runtime_task_hash_bound_artifact_ids(
+        task,
+        artifacts,
+    )
+    normalized = runtime_module._normalize_runtime_blackboard_artifacts(
+        artifacts,
+        architect_control_exempt_artifact_ids=protected,
+    )
+
+    assert protected == frozenset(
+        {
+            work_order["work_order_id"],
+            source_manifest["manifest_id"],
+            theory_packet["packet_id"],
+            proposal_packet["packet_id"],
+        }
+    )
+    for artifact_id in protected:
+        assert normalized[artifact_id] == original_artifacts[artifact_id]
+    assert runtime_module.stable_hash(
+        normalized[work_order["work_order_id"]]
+    ) == task.inputs["work_order_hash"]
+    assert runtime_module.stable_hash(
+        normalized[source_manifest["manifest_id"]]
+    ) == work_order["source_manifest_hash"]
+    assert runtime_module.stable_hash(
+        normalized[theory_packet["packet_id"]]
+    ) == work_order["theory_packet_hash"]
+    assert runtime_module.stable_hash(
+        normalized[proposal_packet["packet_id"]]
+    ) == work_order["proposal_packet_hash"]
+    assert "runtime_architect_control" in normalized[
+        "historical-unbound:resume"
+    ]
+    assert "control_source" not in normalized[
+        source_manifest["manifest_id"]
+    ]["runtime_architect_control"]
 
 
 def test_architect_environment_feedback_string_false_formal_required_stays_false() -> None:

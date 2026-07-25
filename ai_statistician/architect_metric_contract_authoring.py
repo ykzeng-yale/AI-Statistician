@@ -485,6 +485,22 @@ def _metric_authoring_repair_priority_instructions(
             "the value into theory, change a gate merely to match an anchor, or treat "
             "the matrix as an automatic repair."
         )
+    if any(
+        is_generated_metric_numeric_authority_error(error)
+        or "authority_kind must be one of" in error
+        for error in error_rows
+    ):
+        instructions.append(
+            "Keep the two authority namespaces distinct. "
+            "acceptance_authority_catalog[*].authority_kind classifies a cited "
+            "source node; gate_field_authorities[*].authority_kind names who owns "
+            "the executable gate. In particular, evaluation_design is a catalog-node "
+            "kind and is never a valid gate-owner value. Do not copy it into a gate. "
+            "Choose one allowed gate_owner_kinds value from "
+            "authority_kind_namespace_contract based on the cited evidence; runtime "
+            "does not choose or map the owner automatically and only recomputes the "
+            "row-level roll-up."
+        )
     instructions.extend(
         [
             (
@@ -696,6 +712,37 @@ def _metric_authoring_repair_context(
         "acceptance_authority_catalog_repair_rows": len(repair_catalog),
         "numeric_authority_repair_matrix": numeric_authority_repair_matrix,
         "numeric_authority_repair_automatic_selection": False,
+        "authority_kind_namespace_contract": {
+            "gate_owner_field": "gate_field_authorities[*].authority_kind",
+            "gate_owner_kinds": list(
+                GENERATED_METRIC_ACCEPTANCE_AUTHORITY_KINDS
+            ),
+            "catalog_node_field": (
+                "acceptance_authority_catalog[*].authority_kind"
+            ),
+            "catalog_node_kinds": sorted(
+                {
+                    str(row.get("authority_kind", "") or "").strip()
+                    for row in acceptance_authority_catalog
+                    if str(row.get("authority_kind", "") or "").strip()
+                }
+            ),
+            "catalog_only_node_kinds": sorted(
+                {
+                    str(row.get("authority_kind", "") or "").strip()
+                    for row in acceptance_authority_catalog
+                    if str(row.get("authority_kind", "") or "").strip()
+                }
+                - set(GENERATED_METRIC_ACCEPTANCE_AUTHORITY_KINDS)
+            ),
+            "catalog_node_kind_may_be_copied_to_gate_owner": False,
+            "llm_semantic_owner_choice_required": True,
+            "runtime_automatic_owner_mapping": False,
+            "row_level_acceptance_authority_kind": (
+                "runtime recomputes the conservative roll-up from valid "
+                "field-level gate owners"
+            ),
+        },
         "repair_prompt_priority_instructions": (
             _metric_authoring_repair_priority_instructions(error_rows)
         ),

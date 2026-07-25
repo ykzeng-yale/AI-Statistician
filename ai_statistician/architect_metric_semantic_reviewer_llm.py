@@ -21,7 +21,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 
 
-ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 11
+ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 12
 ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -136,6 +136,9 @@ def architect_metric_review_material_with_runtime_evaluator_certificate(
     body["runtime_evaluator_certificate"] = certificate
     body["theory_scope_check_contract"] = (
         _architect_metric_theory_scope_check_contract(requirements)
+    )
+    body["metric_claim_check_contract"] = (
+        _architect_metric_claim_check_contract(body)
     )
     current_evidence = architect_metric_active_prior_finding_current_evidence(
         body
@@ -252,6 +255,87 @@ def _architect_metric_theory_scope_rows(
         if isinstance(row, Mapping)
         and str(row.get("requirement_id", "") or "").strip()
     ]
+
+
+def _architect_metric_claim_check_requirement_ids(
+    review_material: Mapping[str, Any],
+) -> list[str]:
+    return list(
+        dict.fromkeys(
+            str(row.get("requirement_id", "") or "").strip()
+            for row in review_material.get(
+                "empirical_metric_requirements",
+                [],
+            )
+            or []
+            if isinstance(row, Mapping)
+            and str(row.get("requirement_id", "") or "").strip()
+        )
+    )
+
+
+def _architect_metric_claim_check_contract(
+    review_material: Mapping[str, Any],
+) -> dict[str, Any]:
+    requirement_ids = _architect_metric_claim_check_requirement_ids(
+        review_material
+    )
+    normalization_expression_rows = []
+    for requirement in review_material.get(
+        "empirical_metric_requirements",
+        [],
+    ) or []:
+        if not isinstance(requirement, Mapping):
+            continue
+        requirement_id = str(
+            requirement.get("requirement_id", "") or ""
+        ).strip()
+        if not requirement_id:
+            continue
+        protocol_expression_options = [
+            {
+                "expression_ref": (
+                    f"requirement:{requirement_id}.{field}"
+                ),
+                "expression": str(requirement.get(field, "") or ""),
+            }
+            for field in (
+                "metric_semantics",
+                "measurement_protocol",
+            )
+            if str(requirement.get(field, "") or "").strip()
+        ]
+        normalization_expression_rows.append(
+            {
+                "requirement_id": requirement_id,
+                "protocol_expression_options": (
+                    protocol_expression_options
+                ),
+            }
+        )
+    return {
+        "requirement_ids": requirement_ids,
+        "normalization_expression_rows": normalization_expression_rows,
+        "coverage_policy": (
+            "Every proposed metric requirement_id must appear in at least one "
+            "general claim_check. Each check must independently recompute the "
+            "metric, record its normalization_and_unit_audit, and reconstruct the "
+            "source-to-protocol normalization without changing the source notation; "
+            "runtime verifies coverage and decision consistency but does not choose "
+            "the statistical conclusion."
+        ),
+        "normalization_and_unit_audit_policy": (
+            "For the named metric, distinguish finite-sample variance or standard "
+            "error from asymptotic variance, state the order in sample size of "
+            "every numerator and denominator quantity, and account for every n, "
+            "sqrt(n), replicate-count, aggregation, and unit conversion factor. "
+            "Copy the source and protocol expressions into normalization_reconstruction, "
+            "substitute them without silently inserting or deleting a factor, and "
+            "mark every unresolved convention or order conflict. Select one exact "
+            "protocol_expression_ref and copy its supplied expression byte-for-byte; "
+            "the reviewer cannot rewrite the candidate expression while auditing it."
+        ),
+    }
 
 
 def architect_metric_semantic_recommended_repair_scope(
@@ -536,6 +620,147 @@ def _active_prior_finding_current_evidence(
     )
 
 
+def _architect_metric_prior_finding_citation_options(
+    review_material: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    snapshots_by_finding_id: dict[str, list[dict[str, Any]]] = {}
+    for raw_snapshot in _active_prior_finding_current_evidence(
+        review_material
+    ):
+        finding_id = str(
+            raw_snapshot.get("finding_id", "") or ""
+        ).strip()
+        if finding_id:
+            snapshots_by_finding_id.setdefault(finding_id, []).append(
+                dict(raw_snapshot)
+            )
+    rows: list[dict[str, Any]] = []
+    for ledger_row in _active_prior_finding_ledger(review_material):
+        finding_id = str(
+            ledger_row.get("finding_id", "") or ""
+        ).strip()
+        snapshots = snapshots_by_finding_id.get(finding_id, [])
+
+        def snapshot_ids(
+            *,
+            artifact_role: str = "",
+            must_exist: bool = False,
+        ) -> list[str]:
+            return [
+                str(snapshot.get("snapshot_id", "") or "").strip()
+                for snapshot in snapshots
+                if str(snapshot.get("snapshot_id", "") or "").strip()
+                and (
+                    not artifact_role
+                    or str(snapshot.get("artifact_role", "") or "")
+                    == artifact_role
+                )
+                and (not must_exist or snapshot.get("exists") is True)
+            ]
+
+        rows.append(
+            {
+                "finding_id": finding_id,
+                "status_citation_contract": {
+                    METRIC_PROTOCOL_FINDING_UNRESOLVED: {
+                        "eligible_snapshot_ids": snapshot_ids(
+                            must_exist=True
+                        ),
+                    },
+                    METRIC_PROTOCOL_FINDING_RESOLVED: {
+                        "eligible_snapshot_ids": snapshot_ids(
+                            artifact_role="metric_protocol_candidate"
+                        ),
+                    },
+                    METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY: {
+                        "eligible_snapshot_ids": snapshot_ids(
+                            artifact_role="source_theory_packet"
+                        ),
+                    },
+                    METRIC_PROTOCOL_FINDING_RETRACTED_RUNTIME_CONTRACT_CONFLICT: {
+                        "eligible_runtime_contract_evidence_ids_from": (
+                            "runtime_contract_authority."
+                            "allowed_retraction_evidence_ids"
+                        ),
+                    },
+                },
+                "status_selection_authority": (
+                    "The reviewer must choose from current semantics; the runtime "
+                    "does not infer or rewrite the disposition."
+                ),
+            }
+        )
+    return rows
+
+
+def _architect_metric_rejected_review_consistency_state(
+    invalid_packet: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    packet = invalid_packet if isinstance(invalid_packet, Mapping) else {}
+    failed_claim_checks = [
+        {
+            "claim_check_index": index,
+            "requirement_id": str(
+                row.get("requirement_id", "") or ""
+            ).strip(),
+            "claim_ref": str(row.get("claim_ref", "") or "").strip(),
+            "check_type": str(row.get("check_type", "") or "").strip(),
+            "normalization_and_unit_audit": str(
+                row.get("normalization_and_unit_audit", "") or ""
+            ).strip(),
+            "normalization_reconstruction": deepcopy(
+                row.get("normalization_reconstruction", {})
+            ),
+            "result": str(row.get("result", "") or "").strip(),
+            "evidence_refs": [
+                str(value).strip()
+                for value in row.get("evidence_refs", []) or []
+                if str(value).strip()
+            ],
+        }
+        for index, row in enumerate(packet.get("claim_checks", []) or [])
+        if isinstance(row, Mapping)
+        and str(row.get("verdict", "") or "").strip().upper() == "FAIL"
+    ]
+    dimension_statuses = [
+        {
+            "dimension_index": index,
+            "dimension": str(row.get("dimension", "") or "").strip(),
+            "status": str(row.get("status", "") or "").strip().upper(),
+        }
+        for index, row in enumerate(packet.get("dimension_reviews", []) or [])
+        if isinstance(row, Mapping)
+    ]
+    high_finding_indices = [
+        index
+        for index, row in enumerate(packet.get("findings", []) or [])
+        if isinstance(row, Mapping)
+        and str(row.get("severity", "") or "").strip().lower()
+        in {"high", "critical"}
+    ]
+    return {
+        "failed_claim_checks": failed_claim_checks,
+        "dimension_statuses": dimension_statuses,
+        "high_or_critical_finding_indices": high_finding_indices,
+        "consistency_contract": [
+            (
+                "Every retained FAIL claim check requires at least one relevant "
+                "FAIL dimension and one high or critical typed finding."
+            ),
+            (
+                "If a recomputation shows the claim check was mistaken, repair its "
+                "calculation, result, and verdict together; never retain a FAIL while "
+                "marking every dimension PASS."
+            ),
+            (
+                "The reviewer must resolve mathematical contradictions from the "
+                "supplied current artifacts; the runtime does not choose which "
+                "claim, dimension, or finding is semantically correct."
+            ),
+        ],
+    }
+
+
 def _complete_unresolved_prior_finding_lineage(
     *,
     findings: Sequence[Mapping[str, Any]],
@@ -652,6 +877,7 @@ def _architect_metric_semantic_review_repair_context(
     review_material: Mapping[str, Any],
     *,
     invalid_packet: Mapping[str, Any] | None = None,
+    errors: Sequence[Any] = (),
 ) -> dict[str, Any]:
     active_ledger = _active_prior_finding_ledger(review_material)
     active_ids = _active_prior_finding_ids(review_material)
@@ -683,6 +909,17 @@ def _architect_metric_semantic_review_repair_context(
         "active_prior_finding_current_evidence": (
             _active_prior_finding_current_evidence(review_material)
         ),
+        "prior_finding_citation_options": (
+            _architect_metric_prior_finding_citation_options(review_material)
+        ),
+        "rejected_review_consistency_state": (
+            _architect_metric_rejected_review_consistency_state(
+                invalid_packet
+            )
+        ),
+        "local_validation_errors": [
+            str(error) for error in errors if str(error).strip()
+        ],
         "review_input_fingerprint": stable_hash(review_material),
         "current_candidate": {
             "empirical_metric_requirements": candidate_requirements,
@@ -716,6 +953,9 @@ def _architect_metric_semantic_review_repair_context(
         ),
         "runtime_evaluator_certificate": deepcopy(
             review_material.get("runtime_evaluator_certificate", {})
+        ),
+        "metric_claim_check_contract": (
+            _architect_metric_claim_check_contract(review_material)
         ),
         "rejected_review_packet": rejected_review,
         "repair_prompt_priority_instructions": [
@@ -762,6 +1002,31 @@ def _architect_metric_semantic_review_repair_context(
                 "Preserve valid judgments from rejected_review_packet while repairing "
                 "only the local validation failures; do not reconstruct the candidate "
                 "from the truncated original request."
+            ),
+            (
+                "For the chosen prior-finding status, cite an exact ID listed under "
+                "that finding's status_citation_contract. The list constrains citation "
+                "lineage only; independently decide whether the exact current value "
+                "semantically supports that status."
+            ),
+            (
+                "Close rejected_review_consistency_state as one judgment: either "
+                "retain each failed recomputation with a relevant FAIL dimension and "
+                "high/critical finding, or correct the recomputation, result, and "
+                "claim verdict together. Never hide a failed check behind all-PASS "
+                "dimensions."
+            ),
+            (
+                "Preserve one general claim_check for every requirement_id listed in "
+                "metric_claim_check_contract. For each row, repair or supply its "
+                "normalization_and_unit_audit by tracing finite-sample versus "
+                "asymptotic quantities, units, sample-size order, and every n, "
+                "sqrt(n), replicate-count, and aggregation factor. Rebuild "
+                "normalization_reconstruction from the exact source and protocol "
+                "expressions without reinterpreting either one. A false "
+                "convention_consistent value or any unresolved conflict requires "
+                "that claim_check to remain FAIL. Do not infer the statistical "
+                "verdict mechanically from any other runtime instruction."
             ),
         ],
     }
@@ -847,8 +1112,10 @@ class LLMArchitectMetricSemanticReviewerAgent:
                 _architect_metric_semantic_review_repair_context(
                     review_material,
                     invalid_packet=_kwargs.get("invalid_packet"),
+                    errors=_kwargs.get("errors", []),
                 )
             ),
+            semantic_patch_repair=True,
         )
 
 def build_architect_metric_semantic_review_prompt(
@@ -917,16 +1184,43 @@ def build_architect_metric_semantic_review_prompt(
         "undefined, contradictory, unidentifiable, or implausible. Never propose "
         "retuning a frozen gate from its own confirmatory result. "
         "Before assigning the mathematical/numeric and finite-sample dimensions, "
-        "emit at least two claim_checks with an explicit substitution, arithmetic "
+        "emit claim_checks that cover every requirement_id listed in "
+        "review_material.metric_claim_check_contract, with at least two total "
+        "general checks. Each check must include an explicit substitution, arithmetic "
         "recomputation, normalization check, boundary case, uncertainty-scale "
-        "calculation, inequality-direction check, or pass-set translation. Recompute "
-        "from supplied formulas and values instead of repeating a named distribution, "
-        "approximation, source claim, or prior LLM sentence. One check must audit a "
-        "theory or procedure claim used by the protocol and one must audit the "
-        "executable pass set or its fixed-budget calibration. A citation without a "
-        "displayed recomputation is not a claim check. Any failed claim check must "
+        "calculation, inequality-direction check, or pass-set translation. Its "
+        "normalization_and_unit_audit must distinguish finite-sample variance or "
+        "standard error from an asymptotic variance convention, state the order in "
+        "sample size and units of numerator and denominator quantities, and account "
+        "for every n, sqrt(n), replicate-count, aggregation, and unit-conversion "
+        "factor. In normalization_reconstruction, copy the exact relevant source "
+        "expression, select one exact protocol_expression_ref from "
+        "metric_claim_check_contract for the same requirement_id, copy that "
+        "protocol expression byte-for-byte, and substitute one into the other "
+        "without adding, deleting, or reinterpreting any normalization factor, and "
+        "state both the resulting and required sample-size order. If those orders "
+        "or conventions cannot be reconciled from the supplied artifacts, set "
+        "convention_consistent=false, list the unresolved conflict, and mark the "
+        "claim FAIL. Never repair an inconsistency inside the review by silently "
+        "changing what a source symbol denotes. Cross-check estimator definitions, "
+        "theorem limit laws, simulation "
+        "methods, and metric formulas rather than treating the same symbol as the "
+        "same scale in every artifact. Recompute from supplied formulas and values "
+        "instead of repeating a named distribution, approximation, source claim, or "
+        "prior LLM sentence. One check must audit a theory or procedure claim used by "
+        "the protocol and one must audit the executable pass set or its fixed-budget "
+        "calibration. A citation without a displayed recomputation is not a claim "
+        "check. Any failed claim check must "
         "produce a FAIL dimension and a high or critical finding; do not ask "
         "downstream code to work around an internally contradictory theory premise. "
+        "Before passing cross_requirement_coverage_and_consistency, enumerate in its "
+        "rationale every explicit evaluation objective in the research question and "
+        "every supplied simulation performance measure, and map each objective to "
+        "one or more exact requirement_ids or identify it as a missing diagnostic. "
+        "A required acceptance gate and a diagnostic measurement are different; do "
+        "not invent a pass threshold merely to cover a requested diagnostic. Mark "
+        "the dimension FAIL when an explicit objective is neither measured by a "
+        "requirement nor explicitly represented as a non-acceptance diagnostic. "
         "When review_material.theory_scope_check_contract.required is true, emit "
         "exactly one entry in theory_scope_checks for every listed row before "
         "accepting the contract. Use the exact requirement_id as the object key and "
@@ -1116,12 +1410,35 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_OUTPUT_CONTRACT: dict[str, Any] = {
     ],
     "claim_checks": [
         {
+            "requirement_id": "exact proposed metric requirement_id",
             "claim_ref": "exact theory/protocol/requirement field",
             "check_type": (
                 "direct_substitution|normalization|boundary_case|"
                 "uncertainty_scale|inequality_direction|pass_set_translation"
             ),
             "recomputation": "explicit substituted expression or calculation",
+            "normalization_and_unit_audit": (
+                "finite-sample versus asymptotic convention, order in sample "
+                "size, units, and every n/sqrt(n)/replicate factor"
+            ),
+            "normalization_reconstruction": {
+                "source_expression": "exact relevant expression from cited source",
+                "protocol_expression_ref": (
+                    "exact requirement field ref from metric_claim_check_contract"
+                ),
+                "protocol_expression": "exact expression used by the metric",
+                "substitution_without_reinterpretation": (
+                    "protocol expression after literal source substitution"
+                ),
+                "resulting_sample_size_order": (
+                    "sample-size order after literal substitution"
+                ),
+                "required_sample_size_order": (
+                    "sample-size order required by the claimed reference law"
+                ),
+                "convention_consistent": True,
+                "unresolved_conflicts": [],
+            },
             "result": "computed or logically reduced result",
             "verdict": "PASS|FAIL",
             "evidence_refs": ["exact source field"],
@@ -1245,20 +1562,67 @@ _CLAIM_CHECK_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
     "required": [
+        "requirement_id",
         "claim_ref",
         "check_type",
         "recomputation",
+        "normalization_and_unit_audit",
+        "normalization_reconstruction",
         "result",
         "verdict",
         "evidence_refs",
     ],
     "properties": {
+        "requirement_id": {"type": "string", "minLength": 1},
         "claim_ref": {"type": "string", "minLength": 1},
         "check_type": {
             "type": "string",
             "enum": list(ARCHITECT_METRIC_GENERAL_CLAIM_CHECK_TYPES),
         },
         "recomputation": {"type": "string", "minLength": 1},
+        "normalization_and_unit_audit": {
+            "type": "string",
+            "minLength": 1,
+        },
+        "normalization_reconstruction": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "source_expression",
+                "protocol_expression_ref",
+                "protocol_expression",
+                "substitution_without_reinterpretation",
+                "resulting_sample_size_order",
+                "required_sample_size_order",
+                "convention_consistent",
+                "unresolved_conflicts",
+            ],
+            "properties": {
+                "source_expression": {"type": "string", "minLength": 1},
+                "protocol_expression_ref": {
+                    "type": "string",
+                    "minLength": 1,
+                },
+                "protocol_expression": {"type": "string", "minLength": 1},
+                "substitution_without_reinterpretation": {
+                    "type": "string",
+                    "minLength": 1,
+                },
+                "resulting_sample_size_order": {
+                    "type": "string",
+                    "minLength": 1,
+                },
+                "required_sample_size_order": {
+                    "type": "string",
+                    "minLength": 1,
+                },
+                "convention_consistent": {"type": "boolean"},
+                "unresolved_conflicts": {
+                    "type": "array",
+                    "items": {"type": "string", "minLength": 1},
+                },
+            },
+        },
         "result": {"type": "string", "minLength": 1},
         "verdict": {"type": "string", "enum": ["PASS", "FAIL"]},
         "evidence_refs": {
@@ -1322,6 +1686,41 @@ def architect_metric_semantic_review_json_schema(
     schema["properties"]["findings"]["items"]["properties"][
         "prior_finding_id"
     ]["enum"] = ["", *active_ids]
+    metric_requirement_ids = _architect_metric_claim_check_requirement_ids(
+        review_material
+    )
+    general_claim_checks_schema = schema["properties"]["claim_checks"]
+    if metric_requirement_ids:
+        general_claim_checks_schema["items"]["properties"][
+            "requirement_id"
+        ]["enum"] = metric_requirement_ids
+        general_claim_checks_schema["minItems"] = max(
+            general_claim_checks_schema.get("minItems", 0),
+            len(metric_requirement_ids),
+        )
+    metric_claim_check_contract = _architect_metric_claim_check_contract(
+        review_material
+    )
+    protocol_expression_refs = list(
+        dict.fromkeys(
+            str(option.get("expression_ref", "") or "").strip()
+            for row in metric_claim_check_contract.get(
+                "normalization_expression_rows",
+                [],
+            )
+            or []
+            if isinstance(row, Mapping)
+            for option in row.get("protocol_expression_options", []) or []
+            if isinstance(option, Mapping)
+            and str(option.get("expression_ref", "") or "").strip()
+        )
+    )
+    if protocol_expression_refs:
+        general_claim_checks_schema["items"]["properties"][
+            "normalization_reconstruction"
+        ]["properties"]["protocol_expression_ref"]["enum"] = (
+            protocol_expression_refs
+        )
     runtime_contract_authority = review_material.get(
         "runtime_contract_authority",
         {},
@@ -1364,8 +1763,14 @@ def architect_metric_semantic_review_json_schema(
         for row in theory_scope_rows:
             requirement_id = str(row["requirement_id"])
             scope_check_schema = deepcopy(_CLAIM_CHECK_SCHEMA)
-            scope_check_schema["required"].remove("check_type")
-            scope_check_schema["properties"].pop("check_type")
+            for field in (
+                "requirement_id",
+                "check_type",
+                "normalization_and_unit_audit",
+                "normalization_reconstruction",
+            ):
+                scope_check_schema["required"].remove(field)
+                scope_check_schema["properties"].pop(field)
             source_anchors = list(
                 dict.fromkeys(
                     str(value).strip()
@@ -1389,11 +1794,6 @@ def architect_metric_semantic_review_json_schema(
             "required": list(theory_scope_check_properties),
             "properties": theory_scope_check_properties,
         }
-        schema["properties"]["claim_checks"]["minItems"] = max(
-            1,
-            ARCHITECT_METRIC_SEMANTIC_MIN_CLAIM_CHECKS
-            - len(theory_scope_rows),
-        )
     return schema
 
 
@@ -1642,6 +2042,51 @@ def validate_architect_metric_semantic_review_packet(
         *ARCHITECT_METRIC_GENERAL_CLAIM_CHECK_TYPES,
         ARCHITECT_METRIC_THEORY_SCOPE_CHECK_TYPE,
     }
+    expected_metric_requirement_ids = [
+        str(value).strip()
+        for value in packet.get(
+            "metric_claim_check_requirement_ids",
+            [],
+        )
+        or []
+        if str(value).strip()
+    ]
+    if len(expected_metric_requirement_ids) != len(
+        set(expected_metric_requirement_ids)
+    ):
+        errors.append(
+            "metric claim-check requirement IDs must be unique"
+        )
+    metric_claim_check_contract = packet.get(
+        "metric_claim_check_contract",
+        {},
+    )
+    normalization_expression_options_by_requirement_id = {
+        str(row.get("requirement_id", "") or "").strip(): {
+            str(option.get("expression_ref", "") or "").strip(): str(
+                option.get("expression", "") or ""
+            )
+            for option in row.get(
+                "protocol_expression_options",
+                [],
+            )
+            or []
+            if isinstance(option, Mapping)
+            and str(option.get("expression_ref", "") or "").strip()
+            and str(option.get("expression", "") or "").strip()
+        }
+        for row in (
+            metric_claim_check_contract.get(
+                "normalization_expression_rows",
+                [],
+            )
+            if isinstance(metric_claim_check_contract, Mapping)
+            else []
+        )
+        if isinstance(row, Mapping)
+        and str(row.get("requirement_id", "") or "").strip()
+    }
+    general_claim_checks: list[Mapping[str, Any]] = []
     for index, row in enumerate(claim_checks, start=1):
         if not isinstance(row, Mapping):
             errors.append("claim_checks entries must be objects")
@@ -1649,18 +2094,189 @@ def validate_architect_metric_semantic_review_packet(
         for field in ("claim_ref", "recomputation", "result"):
             if not str(row.get(field, "") or "").strip():
                 errors.append(f"claim check {index} missing {field}")
-        if str(row.get("check_type", "") or "") not in allowed_check_types:
+        check_type = str(row.get("check_type", "") or "")
+        if check_type not in allowed_check_types:
             errors.append(f"claim check {index} has invalid check_type")
+        if check_type != ARCHITECT_METRIC_THEORY_SCOPE_CHECK_TYPE:
+            general_claim_checks.append(row)
+            requirement_id = str(
+                row.get("requirement_id", "") or ""
+            ).strip()
+            if not requirement_id:
+                errors.append(
+                    f"claim check {index} missing requirement_id"
+                )
+            elif requirement_id not in expected_metric_requirement_ids:
+                errors.append(
+                    f"claim check {index} references unknown metric "
+                    f"requirement_id {requirement_id}"
+                )
+            if not str(
+                row.get("normalization_and_unit_audit", "") or ""
+            ).strip():
+                errors.append(
+                    f"claim check {index} missing "
+                    "normalization_and_unit_audit"
+                )
+            normalization_reconstruction = row.get(
+                "normalization_reconstruction"
+            )
+            if not isinstance(normalization_reconstruction, Mapping):
+                errors.append(
+                    f"claim check {index} missing "
+                    "normalization_reconstruction"
+                )
+                normalization_reconstruction = {}
+            for field in (
+                "source_expression",
+                "protocol_expression_ref",
+                "protocol_expression",
+                "substitution_without_reinterpretation",
+                "resulting_sample_size_order",
+                "required_sample_size_order",
+            ):
+                if not str(
+                    normalization_reconstruction.get(field, "") or ""
+                ).strip():
+                    errors.append(
+                        f"claim check {index} normalization_reconstruction "
+                        f"missing {field}"
+                    )
+            protocol_expression_ref = str(
+                normalization_reconstruction.get(
+                    "protocol_expression_ref",
+                    "",
+                )
+                or ""
+            ).strip()
+            allowed_protocol_expressions = (
+                normalization_expression_options_by_requirement_id.get(
+                    requirement_id,
+                    {},
+                )
+            )
+            if (
+                protocol_expression_ref
+                and protocol_expression_ref
+                not in allowed_protocol_expressions
+            ):
+                errors.append(
+                    f"claim check {index} normalization_reconstruction "
+                    "protocol_expression_ref is not bound to its requirement_id"
+                )
+            elif (
+                protocol_expression_ref
+                and str(
+                    normalization_reconstruction.get(
+                        "protocol_expression",
+                        "",
+                    )
+                    or ""
+                )
+                != allowed_protocol_expressions.get(
+                    protocol_expression_ref,
+                    "",
+                )
+            ):
+                errors.append(
+                    f"claim check {index} normalization_reconstruction must "
+                    "copy the exact protocol expression without rewriting it"
+                )
+            convention_consistent = normalization_reconstruction.get(
+                "convention_consistent"
+            )
+            if not isinstance(convention_consistent, bool):
+                errors.append(
+                    f"claim check {index} normalization_reconstruction "
+                    "requires boolean convention_consistent"
+                )
+            unresolved_conflicts = normalization_reconstruction.get(
+                "unresolved_conflicts"
+            )
+            if not isinstance(unresolved_conflicts, list):
+                errors.append(
+                    f"claim check {index} normalization_reconstruction "
+                    "requires unresolved_conflicts array"
+                )
+                unresolved_conflicts = []
+            elif any(
+                not str(value or "").strip()
+                for value in unresolved_conflicts
+            ):
+                errors.append(
+                    f"claim check {index} normalization_reconstruction "
+                    "contains empty unresolved_conflicts"
+                )
         claim_verdict = str(row.get("verdict", "") or "").upper()
         if claim_verdict not in {"PASS", "FAIL"}:
             errors.append(f"claim check {index} has invalid verdict")
         elif claim_verdict == "FAIL":
             failed_claim_checks += 1
+        if (
+            check_type != ARCHITECT_METRIC_THEORY_SCOPE_CHECK_TYPE
+            and isinstance(normalization_reconstruction, Mapping)
+        ):
+            convention_consistent = normalization_reconstruction.get(
+                "convention_consistent"
+            )
+            unresolved_conflicts = normalization_reconstruction.get(
+                "unresolved_conflicts", []
+            )
+            if (
+                claim_verdict == "PASS"
+                and convention_consistent is not True
+            ):
+                errors.append(
+                    f"claim check {index} cannot PASS with an inconsistent "
+                    "normalization reconstruction"
+                )
+            if (
+                claim_verdict == "PASS"
+                and isinstance(unresolved_conflicts, list)
+                and unresolved_conflicts
+            ):
+                errors.append(
+                    f"claim check {index} cannot PASS with unresolved "
+                    "normalization conflicts"
+                )
+            if (
+                convention_consistent is True
+                and isinstance(unresolved_conflicts, list)
+                and unresolved_conflicts
+            ):
+                errors.append(
+                    f"claim check {index} normalization reconstruction cannot "
+                    "be consistent while listing unresolved conflicts"
+                )
         evidence_refs = row.get("evidence_refs", [])
         if not isinstance(evidence_refs, list) or not any(
             str(value or "").strip() for value in evidence_refs
         ):
             errors.append(f"claim check {index} missing evidence_refs")
+    minimum_general_claim_checks = max(
+        1,
+        len(expected_metric_requirement_ids),
+    )
+    if len(general_claim_checks) < minimum_general_claim_checks:
+        errors.append(
+            "general claim_checks must cover every proposed metric "
+            "requirement_id"
+        )
+    observed_metric_requirement_ids = {
+        str(row.get("requirement_id", "") or "").strip()
+        for row in general_claim_checks
+        if str(row.get("requirement_id", "") or "").strip()
+    }
+    missing_metric_requirement_ids = sorted(
+        set(expected_metric_requirement_ids)
+        - observed_metric_requirement_ids
+    )
+    if missing_metric_requirement_ids:
+        errors.append(
+            "general claim_checks are missing proposed metric "
+            "requirement_ids: "
+            + json.dumps(missing_metric_requirement_ids)
+        )
     required_theory_scope_rows = [
         dict(row)
         for row in packet.get("required_theory_scope_check_rows", []) or []
@@ -1699,19 +2315,6 @@ def validate_architect_metric_semantic_review_packet(
             requirement_id,
             [],
         ).append(row)
-    for index, row in enumerate(claim_checks, start=1):
-        if not isinstance(row, Mapping):
-            continue
-        requirement_id = str(row.get("requirement_id", "") or "").strip()
-        check_type = str(row.get("check_type", "") or "").strip()
-        if (
-            requirement_id
-            and check_type != ARCHITECT_METRIC_THEORY_SCOPE_CHECK_TYPE
-        ):
-            errors.append(
-                f"claim check {index} may set requirement_id only for "
-                "theory_scope_consistency"
-            )
     for requirement_id, required_row in (
         required_theory_scope_rows_by_id.items()
     ):
@@ -2187,6 +2790,12 @@ def _normalize_architect_metric_semantic_review_packet(
     )
     body["required_theory_scope_check_rows"] = theory_scope_check_rows
     body["theory_scope_check_required"] = bool(theory_scope_check_rows)
+    body["metric_claim_check_requirement_ids"] = (
+        _architect_metric_claim_check_requirement_ids(review_material)
+    )
+    body["metric_claim_check_contract"] = deepcopy(
+        _architect_metric_claim_check_contract(review_material)
+    )
     body["theory_scope_check_context_available"] = bool(
         source_theory_packet_id
         and source_theory_packet_hash

@@ -383,6 +383,33 @@ def test_postexecution_router_replaces_result_driven_reviewer_instruction() -> N
                         "summary": {"metric": 0.5},
                         "cells": [{"large_replicate_payload": "omit-me"}],
                     },
+                    "source_row": {
+                        "metric_contracts": [
+                            {
+                                "contract_id": "MC:gate:1",
+                                "requirement_id": "gate:1",
+                                "operator": "<=",
+                                "threshold": 0.5,
+                                "tolerance": 0.1,
+                                "required": True,
+                            }
+                        ],
+                        "metric_contract_evaluation": {
+                            "evaluations": [
+                                {
+                                    "contract_id": "MC:gate:1",
+                                    "requirement_id": "gate:1",
+                                    "artifact_id": "code:exact",
+                                    "metric_path": ["metric"],
+                                    "operator": "<=",
+                                    "aggregate_value": 0.5,
+                                    "required": True,
+                                    "passed": True,
+                                    "errors": [],
+                                }
+                            ]
+                        },
+                    },
                 }
             ],
         },
@@ -438,6 +465,12 @@ def test_postexecution_router_replaces_result_driven_reviewer_instruction() -> N
     assert "omit-me" not in backend.requests[0].user_prompt
     assert '"metric":0.5' in backend.requests[0].user_prompt
     assert "not by itself a protocol defect" in backend.requests[0].user_prompt
+    assert "runtime_metric_gate_projection" in backend.requests[0].user_prompt
+    assert '"contract_id":"MC:gate:1"' in backend.requests[0].user_prompt
+    assert '"passed":true' in backend.requests[0].user_prompt
+    assert "do not call that numeric gate failed" in (
+        backend.requests[0].user_prompt
+    )
     assert "downstream-repair counterfactual" in backend.requests[0].user_prompt
     assert "Finite-precision arithmetic" in backend.requests[0].user_prompt
     assert "missing non-required diagnostic" in backend.requests[0].user_prompt
@@ -453,6 +486,7 @@ def test_postexecution_router_replaces_result_driven_reviewer_instruction() -> N
         backend.requests[0].user_prompt
     )
     assert "artifact_target_eligibility" in backend.requests[1].user_prompt
+    assert "runtime_metric_gate_projection" in backend.requests[1].user_prompt
     assert '"eligible_artifact_roles"' in (
         backend.requests[1].user_prompt
     )

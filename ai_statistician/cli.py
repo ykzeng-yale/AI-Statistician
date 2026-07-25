@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from copy import deepcopy
 import json
 import os
 from pathlib import Path
@@ -478,7 +479,6 @@ from .research_agent_runtime import (
     _runtime_pseudo_formal_block_verifier_component_gate_learning_rows,
     _runtime_proof_bank_memory_summary_from_learning_rows,
     _dedupe_runtime_next_action_agenda_rows,
-    _normalize_runtime_blackboard_artifacts,
     _run_runtime_source_theorem_promotion_proofengineer_bridge,
     _write_runtime_learning_rows_jsonl,
     _write_runtime_next_action_agenda_jsonl,
@@ -533,6 +533,7 @@ _OPERATOR_DOTENV_FILENAMES = (
     "api_keys_AI_statistician.md",
 )
 FULL_LIVE_MIN_AGENT_RUNTIME_ITERATIONS = 24
+RESEARCH_EVAL_MIN_AGENT_RUNTIME_ITERATIONS = 24
 MINIMAL_LIVE_FORMALIZER_LEAN_REPAIR_YIELD_AFTER_ATTEMPTS = 3
 SERIOUS_THEORY_MIN_LLM_TIMEOUT_SECONDS = (
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS * 2.0
@@ -875,10 +876,11 @@ def _runtime_resume_blackboard_artifacts(
         blackboard_artifacts = blackboard.get("artifacts", {})
         if not isinstance(blackboard_artifacts, Mapping):
             return {}
-        normalized_artifacts = _normalize_runtime_blackboard_artifacts(
-            blackboard_artifacts
-        )
-        normalized_artifacts.update(
+        rehydrated_artifacts = {
+            str(artifact_id): deepcopy(artifact)
+            for artifact_id, artifact in blackboard_artifacts.items()
+        }
+        rehydrated_artifacts.update(
             _runtime_resume_prior_ledger_artifacts(
                 result_payload,
                 question_id=question_id,
@@ -888,7 +890,7 @@ def _runtime_resume_blackboard_artifacts(
                 source_result_path=str(result_path),
             )
         )
-        return normalized_artifacts
+        return rehydrated_artifacts
     return {}
 
 
@@ -5176,6 +5178,11 @@ def _build_generated_code_semantic_reviewer_agent_from_args(
                 0.0,
             ),
             provider_name=provider_name,
+            max_repair_attempts=(
+                2
+                if _runtime_evaluation_model_tier(args)
+                else GeneratedCodeSemanticReviewerConfig().max_repair_attempts
+            ),
         ),
     )
 
@@ -14331,7 +14338,22 @@ def _apply_research_agent_runtime_research_eval_profile(
     args.formal_verification_policy = "advisory"
     args.recommended_research_path = "simulation_first"
     args.architect_metric_repair_ownership_router = True
-    args.serious_theory_model_tier = "sonnet"
+    args.architect_max_tokens = max(
+        8000,
+        int(getattr(args, "architect_max_tokens", 0) or 0),
+    )
+    args.serious_theory_model_tier = LIVE_EVALUATION_CLAUDE_MODEL_TIER
+    args.architect_metric_semantic_reviewer_max_tokens = max(
+        12000,
+        int(
+            getattr(
+                args,
+                "architect_metric_semantic_reviewer_max_tokens",
+                0,
+            )
+            or 0
+        ),
+    )
     args.architect_metric_protocol_max_fresh_candidate_revisions = max(
         1,
         int(
@@ -14342,6 +14364,10 @@ def _apply_research_agent_runtime_research_eval_profile(
             )
             or 0
         ),
+    )
+    args.max_iterations = max(
+        RESEARCH_EVAL_MIN_AGENT_RUNTIME_ITERATIONS,
+        int(getattr(args, "max_iterations", 0) or 0),
     )
     args.coding_agent_packet_validation_replan_after_attempts = max(
         2,

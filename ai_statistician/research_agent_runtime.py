@@ -14540,32 +14540,42 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 failure_classification="generated_code_semantic_review_input_invalid",
             )
 
-        materialization_id = (
-            "generated_code_semantic_review_materialization:"
-            + stable_hash([work_order_id, review_material])[:20]
+        def materialize_review(
+            material: Mapping[str, Any],
+        ) -> tuple[str, dict[str, Any]]:
+            materialization_id = (
+                "generated_code_semantic_review_materialization:"
+                + stable_hash([work_order_id, material])[:20]
+            )
+            return materialization_id, {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "artifact_kind": (
+                    "RuntimeGeneratedCodeSemanticReviewMaterialization"
+                ),
+                "materialization_id": materialization_id,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "question_id": question.id,
+                "work_order_id": work_order_id,
+                "work_order_hash": work_order_hash,
+                "review_input_fingerprint": stable_hash(material),
+                "source_responsibility_contract_fingerprint": str(
+                    work_order.get(
+                        "source_responsibility_contract_fingerprint",
+                        "",
+                    )
+                    or ""
+                ),
+                "review_material": dict(material),
+                "proof_evidence_status": (
+                    "GENERATED_CODE_SEMANTIC_REVIEW_INPUT_NOT_PROOF_EVIDENCE"
+                ),
+                "evidence_boundary": GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
+            }
+
+        materialization_id, materialization = materialize_review(
+            review_material
         )
-        materialization = {
-            "schema_version": RUNTIME_SCHEMA_VERSION,
-            "artifact_kind": "RuntimeGeneratedCodeSemanticReviewMaterialization",
-            "materialization_id": materialization_id,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "question_id": question.id,
-            "work_order_id": work_order_id,
-            "work_order_hash": work_order_hash,
-            "review_input_fingerprint": stable_hash(review_material),
-            "source_responsibility_contract_fingerprint": str(
-                work_order.get(
-                    "source_responsibility_contract_fingerprint",
-                    "",
-                )
-                or ""
-            ),
-            "review_material": review_material,
-            "proof_evidence_status": (
-                "GENERATED_CODE_SEMANTIC_REVIEW_INPUT_NOT_PROOF_EVIDENCE"
-            ),
-            "evidence_boundary": GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
-        }
+        review_audit_artifacts: dict[str, Any] = {}
         trusted_lineage = {
             key: work_order.get(key, "")
             for key in (
@@ -14587,6 +14597,54 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         trusted_lineage["reviewed_artifacts"] = list(
             work_order.get("reviewed_artifacts", []) or []
         )
+        capability_eval = bool(work_order.get("capability_eval", False))
+        source_agent = str(work_order.get("source_agent", "") or "")
+        source_model = str(work_order.get("source_model", "") or "")
+        source_tier = str(work_order.get("source_model_tier", "") or "")
+
+        def runtime_review_packet_errors(
+            packet: Mapping[str, Any],
+            material: Mapping[str, Any],
+        ) -> list[str]:
+            errors = validate_generated_code_semantic_review_packet(packet)
+            if str(
+                packet.get("review_input_fingerprint", "") or ""
+            ) != stable_hash(material):
+                errors.append("semantic review input fingerprint mismatch")
+            packet_agent = str(packet.get("source_agent", "") or "")
+            packet_model = str(packet.get("model", "") or "")
+            packet_tier = str(packet.get("model_tier", "") or "")
+            if capability_eval and not all(
+                (source_agent, source_model, source_tier)
+            ):
+                errors.append(
+                    "capability-eval semantic review requires complete "
+                    "source-agent provenance"
+                )
+            if capability_eval and source_agent and packet_agent == source_agent:
+                errors.append(
+                    "capability-eval reviewer agent must differ from source "
+                    "generator agent"
+                )
+            if (
+                capability_eval
+                and packet_tier != LIVE_EVALUATION_CLAUDE_MODEL_TIER
+            ):
+                errors.append(
+                    "research-evaluation semantic reviewer must use the "
+                    "configured evaluation tier "
+                    f"{LIVE_EVALUATION_CLAUDE_MODEL_TIER}"
+                )
+            if (
+                capability_eval
+                and packet_model != LIVE_EVALUATION_CLAUDE_MODEL
+            ):
+                errors.append(
+                    "research-evaluation semantic reviewer must use the exact "
+                    f"evaluation model {LIVE_EVALUATION_CLAUDE_MODEL}"
+                )
+            return errors
+
         try:
             review_packet = self.reviewer.review(
                 question=question,
@@ -14615,36 +14673,10 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 failure_classification="generated_code_semantic_review_packet_invalid",
             )
 
-        runtime_review_errors = validate_generated_code_semantic_review_packet(
-            review_packet
+        runtime_review_errors = runtime_review_packet_errors(
+            review_packet,
+            review_material,
         )
-        if str(review_packet.get("review_input_fingerprint", "") or "") != stable_hash(
-            review_material
-        ):
-            runtime_review_errors.append("semantic review input fingerprint mismatch")
-        capability_eval = bool(work_order.get("capability_eval", False))
-        source_agent = str(work_order.get("source_agent", "") or "")
-        reviewer_model = str(review_packet.get("model", "") or "")
-        reviewer_tier = str(review_packet.get("model_tier", "") or "")
-        reviewer_agent = str(review_packet.get("source_agent", "") or "")
-        source_model = str(work_order.get("source_model", "") or "")
-        source_tier = str(work_order.get("source_model_tier", "") or "")
-        if capability_eval and not all((source_agent, source_model, source_tier)):
-            runtime_review_errors.append(
-                "capability-eval semantic review requires complete source-agent provenance"
-            )
-        if capability_eval and source_agent and reviewer_agent == source_agent:
-            runtime_review_errors.append(
-                "capability-eval reviewer agent must differ from source generator agent"
-            )
-        if (
-            capability_eval
-            and reviewer_tier != LIVE_EVALUATION_CLAUDE_MODEL_TIER
-        ):
-            runtime_review_errors.append(
-                "research-evaluation semantic reviewer must use the configured "
-                f"evaluation tier {LIVE_EVALUATION_CLAUDE_MODEL_TIER}"
-            )
         if runtime_review_errors:
             return AgentStepResult(
                 status="BLOCKED",
@@ -14672,12 +14704,16 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         reviewer_verdict = str(
             review_packet.get("overall_verdict", "") or ""
         )
+        initial_materialization_id = materialization_id
+        initial_review_packet_id = review_packet_id
         routed_findings = [
             dict(row)
             for row in review_packet.get("findings", []) or []
             if isinstance(row, Mapping)
         ]
         repair_ownership_packet: dict[str, Any] = {}
+        ownership_feedback_router_packet: dict[str, Any] = {}
+        ownership_feedback_revision_used = False
         if (
             reviewer_verdict == "REVISE"
             and self.repair_ownership_router is not None
@@ -14711,10 +14747,196 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                         trusted_lineage=trusted_lineage,
                     )
                 )
+            if capability_eval and (
+                str(repair_ownership_packet.get("model_tier", "") or "")
+                != LIVE_EVALUATION_CLAUDE_MODEL_TIER
+                or str(repair_ownership_packet.get("model", "") or "")
+                != LIVE_EVALUATION_CLAUDE_MODEL
+            ):
+                return AgentStepResult(
+                    status="BLOCKED",
+                    rationale=(
+                        "Research-evaluation ownership routing did not use the "
+                        "exact configured Haiku model."
+                    ),
+                    produced_artifacts={
+                        materialization_id: materialization,
+                        review_packet_id: review_packet,
+                        str(
+                            repair_ownership_packet.get("packet_id", "")
+                            or "invalid_repair_ownership_packet"
+                        ): repair_ownership_packet,
+                    },
+                    failure_classification=(
+                        "generated_code_repair_ownership_model_invalid"
+                    ),
+                )
             routed_findings = apply_generated_code_repair_ownership_routes(
                 findings=routed_findings,
                 ownership_packet=repair_ownership_packet,
             )
+            ownership_decisions = [
+                dict(row)
+                for row in repair_ownership_packet.get("decisions", []) or []
+                if isinstance(row, Mapping)
+            ]
+            pending_plan_for_feedback = (
+                generated_code_semantic_review_active_pending_repair_plan(
+                    review_material
+                )
+            )
+            all_findings_resolved_no_change = bool(ownership_decisions) and all(
+                str(row.get("ownership_certainty", "") or "")
+                == "resolved_no_change"
+                for row in ownership_decisions
+            )
+            if (
+                all_findings_resolved_no_change
+                and not pending_plan_for_feedback.get(
+                    "active_repair_scopes",
+                    [],
+                )
+            ):
+                ownership_feedback_router_packet = repair_ownership_packet
+                ownership_feedback = {
+                    "initial_review_packet_id": review_packet_id,
+                    "initial_review_packet_hash": review_packet_hash,
+                    "ownership_packet_id": str(
+                        repair_ownership_packet.get("packet_id", "") or ""
+                    ),
+                    "ownership_packet_hash": stable_hash(
+                        repair_ownership_packet
+                    ),
+                    "decisions": ownership_decisions,
+                    "all_actionable_findings_resolved_no_change": True,
+                    "router_cannot_accept_generated_code": True,
+                    "evidence_boundary": (
+                        "Independent ownership feedback can challenge an "
+                        "unsupported mandatory finding, but only a fresh closed "
+                        "semantic-review packet can accept the generated artifact."
+                    ),
+                }
+                review_audit_artifacts.update(
+                    {
+                        materialization_id: materialization,
+                        review_packet_id: review_packet,
+                        str(
+                            repair_ownership_packet.get("packet_id", "") or ""
+                        ): repair_ownership_packet,
+                    }
+                )
+                review_material = deepcopy(review_material)
+                review_material[
+                    "independent_repair_ownership_feedback"
+                ] = ownership_feedback
+                materialization_id, materialization = materialize_review(
+                    review_material
+                )
+                with agent_runtime_substage(
+                    "generated_code_semantic_reviewer_ownership_feedback",
+                    metadata={
+                        "source_subsystem": source_subsystem,
+                        "revision_limit": 1,
+                        "model_tier": str(
+                            getattr(
+                                getattr(self.reviewer, "config", None),
+                                "model_tier",
+                                "",
+                            )
+                            or ""
+                        ),
+                    },
+                ):
+                    try:
+                        revised_review_packet = self.reviewer.review(
+                            question=question,
+                            review_material=review_material,
+                            trusted_lineage=trusted_lineage,
+                        )
+                    except PacketValidationError as exc:
+                        revised_review_packet = {}
+                        revised_review_errors = list(exc.errors)
+                    else:
+                        revised_review_errors = runtime_review_packet_errors(
+                            revised_review_packet,
+                            review_material,
+                        )
+                revised_review_packet_id = str(
+                    revised_review_packet.get("packet_id", "") or ""
+                )
+                revised_verdict = str(
+                    revised_review_packet.get("overall_verdict", "") or ""
+                )
+                if revised_review_errors or revised_verdict != "ACCEPT":
+                    blocked_artifacts = {
+                        **review_audit_artifacts,
+                        materialization_id: materialization,
+                    }
+                    if revised_review_packet_id:
+                        blocked_artifacts[
+                            revised_review_packet_id
+                        ] = revised_review_packet
+                    return AgentStepResult(
+                        status="BLOCKED",
+                        rationale=(
+                            "The semantic reviewer and independent ownership "
+                            "router remained inconsistent after one bounded "
+                            "feedback revision. The runtime stopped without "
+                            "guessing an artifact owner or mutating either packet."
+                        ),
+                        produced_artifacts=blocked_artifacts,
+                        observations=(
+                            EnvironmentObservation(
+                                observation_type=(
+                                    "generated_code_semantic_review_"
+                                    "ownership_disagreement"
+                                ),
+                                summary=(
+                                    "; ".join(
+                                        sorted(set(revised_review_errors))
+                                    )[:500]
+                                    or "reviewer retained REVISE after every "
+                                    "ownership decision resolved no change"
+                                ),
+                                payload={
+                                    "initial_review_packet_id": (
+                                        initial_review_packet_id
+                                    ),
+                                    "revised_review_packet_id": (
+                                        revised_review_packet_id
+                                    ),
+                                    "ownership_packet_id": str(
+                                        repair_ownership_packet.get(
+                                            "packet_id",
+                                            "",
+                                        )
+                                        or ""
+                                    ),
+                                    "validation_errors": sorted(
+                                        set(revised_review_errors)
+                                    ),
+                                    "proof_evidence_status": (
+                                        "NOT_PROOF_EVIDENCE"
+                                    ),
+                                },
+                            ),
+                        ),
+                        failure_classification=(
+                            "generated_code_semantic_review_ownership_"
+                            "disagreement"
+                        ),
+                    )
+                review_packet = revised_review_packet
+                review_packet_id = revised_review_packet_id
+                review_packet_hash = stable_hash(review_packet)
+                reviewer_verdict = revised_verdict
+                routed_findings = [
+                    dict(row)
+                    for row in review_packet.get("findings", []) or []
+                    if isinstance(row, Mapping)
+                ]
+                repair_ownership_packet = {}
+                ownership_feedback_revision_used = True
         elif reviewer_verdict == "REVISE" and capability_eval:
             return AgentStepResult(
                 status="BLOCKED",
@@ -14730,6 +14952,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     "generated_code_repair_ownership_router_missing"
                 ),
             )
+        reviewer_model = str(review_packet.get("model", "") or "")
+        reviewer_tier = str(review_packet.get("model_tier", "") or "")
+        reviewer_agent = str(review_packet.get("source_agent", "") or "")
         active_pending_plan = (
             generated_code_semantic_review_active_pending_repair_plan(
                 review_material
@@ -15016,8 +15241,10 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             ),
             "materialization_id": materialization_id,
             "materialization_hash": stable_hash(materialization),
+            "initial_materialization_id": initial_materialization_id,
             "review_packet_id": review_packet_id,
             "review_packet_hash": review_packet_hash,
+            "initial_review_packet_id": initial_review_packet_id,
             "review_input_fingerprint": stable_hash(review_material),
             "source_responsibility_contract_fingerprint": str(
                 work_order.get(
@@ -15082,6 +15309,17 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 if repair_ownership_packet
                 else ""
             ),
+            "ownership_feedback_revision_used": (
+                ownership_feedback_revision_used
+            ),
+            "ownership_feedback_router_packet_id": str(
+                ownership_feedback_router_packet.get("packet_id", "") or ""
+            ),
+            "ownership_feedback_router_packet_hash": (
+                stable_hash(ownership_feedback_router_packet)
+                if ownership_feedback_router_packet
+                else ""
+            ),
             "repair_ownership_resolved": bool(
                 authoritative_routing.get("ownership_resolved", True)
             ),
@@ -15112,6 +15350,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 source_repair_contract
             ),
             "repair_routing_authority": (
+                "GeneratedCodeSemanticReviewerAfterOwnershipFeedback"
+                if ownership_feedback_revision_used
+                else
                 (
                     "ArchitectMetricRepairOwnershipRouter"
                     "+RuntimePendingRepairPlan"
@@ -15138,6 +15379,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "evidence_boundary": GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
         }
         produced_artifacts = {
+            **review_audit_artifacts,
             materialization_id: materialization,
             review_packet_id: review_packet,
             execution_id: execution_manifest,
@@ -15792,6 +16034,108 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 "kernel_verified": False,
             },
         )
+        initial_review_artifact = review_audit_artifacts.get(
+            initial_review_packet_id,
+            review_packet,
+        )
+        initial_materialization = review_audit_artifacts.get(
+            initial_materialization_id,
+            materialization,
+        )
+        initial_review_material = (
+            initial_materialization.get("review_material", {})
+            if isinstance(initial_materialization, Mapping)
+            else {}
+        )
+
+        def review_call_record(
+            *,
+            tool_name: str,
+            inputs: Mapping[str, Any],
+            output: Mapping[str, Any],
+            summary: str,
+        ) -> ToolCallRecord:
+            return ToolCallRecord(
+                tool_name=tool_name,
+                inputs=dict(inputs),
+                input_hash=stable_hash(inputs),
+                output_hash=stable_hash(output),
+                exit_status="0",
+                stdout_summary=summary,
+                safety_boundary=GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
+            )
+
+        review_tool_calls = [
+            review_call_record(
+                tool_name="LLMGeneratedCodeSemanticReviewerAgent.review",
+                inputs={
+                    "work_order_id": work_order_id,
+                    "review_input_fingerprint": stable_hash(
+                        initial_review_material
+                    ),
+                    "source_subsystem": source_subsystem,
+                    "feedback_revision": False,
+                },
+                output=initial_review_artifact,
+                summary=(
+                    "initial_verdict="
+                    + str(
+                        initial_review_artifact.get(
+                            "overall_verdict",
+                            "",
+                        )
+                        or ""
+                    )
+                ),
+            )
+        ]
+        routed_ownership_artifact = (
+            ownership_feedback_router_packet or repair_ownership_packet
+        )
+        if routed_ownership_artifact:
+            review_tool_calls.append(
+                review_call_record(
+                    tool_name=(
+                        "LLMArchitectMetricRepairOwnershipRouterAgent."
+                        "route_generated_code_review"
+                    ),
+                    inputs={
+                        "work_order_id": work_order_id,
+                        "initial_review_packet_id": initial_review_packet_id,
+                        "source_subsystem": source_subsystem,
+                    },
+                    output=routed_ownership_artifact,
+                    summary=(
+                        "recommended_repair_scope="
+                        + str(
+                            routed_ownership_artifact.get(
+                                "recommended_repair_scope",
+                                "",
+                            )
+                            or ""
+                        )
+                    ),
+                )
+            )
+        if ownership_feedback_revision_used:
+            review_tool_calls.append(
+                review_call_record(
+                    tool_name="LLMGeneratedCodeSemanticReviewerAgent.review",
+                    inputs={
+                        "work_order_id": work_order_id,
+                        "review_input_fingerprint": stable_hash(
+                            review_material
+                        ),
+                        "source_subsystem": source_subsystem,
+                        "feedback_revision": True,
+                    },
+                    output=review_packet,
+                    summary=(
+                        f"revised_verdict={verdict} "
+                        f"reviewer_model={reviewer_model}"
+                    ),
+                )
+            )
         return AgentStepResult(
             status=status,
             rationale=rationale,
@@ -15821,23 +16165,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     },
                 ),
             ),
-            tool_calls=(
-                ToolCallRecord(
-                    tool_name="LLMGeneratedCodeSemanticReviewerAgent.review",
-                    inputs={
-                        "work_order_id": work_order_id,
-                        "review_input_fingerprint": stable_hash(review_material),
-                        "source_subsystem": source_subsystem,
-                    },
-                    input_hash=stable_hash(review_material),
-                    output_hash=review_packet_hash,
-                    exit_status="0",
-                    stdout_summary=(
-                        f"verdict={verdict} reviewer_model={reviewer_model}"
-                    ),
-                    safety_boundary=GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
-                ),
-            ),
+            tool_calls=tuple(review_tool_calls),
             evidence_entries=(evidence,),
             next_task=next_task,
             failure_classification=failure_classification,
@@ -30439,11 +30767,66 @@ def _normalize_formalizer_lean_candidate_materialization_artifact(
     return normalized
 
 
+def _runtime_task_hash_bound_artifact_ids(
+    task: AgentTask | Mapping[str, Any] | None,
+    artifacts: Mapping[str, Any],
+) -> frozenset[str]:
+    """Return the transitive artifact closure protected by persisted hashes."""
+
+    if isinstance(task, AgentTask):
+        task_payload: Any = asdict(task)
+    elif isinstance(task, Mapping):
+        task_payload = task
+    else:
+        task_payload = {}
+
+    def bound_references(value: Any) -> list[str]:
+        references: list[str] = []
+        if isinstance(value, Mapping):
+            for raw_key, raw_id in value.items():
+                key = str(raw_key)
+                if not key.endswith("_id"):
+                    continue
+                hash_key = key[:-3] + "_hash"
+                if not str(value.get(hash_key, "") or "").strip():
+                    continue
+                artifact_id = str(raw_id or "").strip()
+                if artifact_id and artifact_id in artifacts:
+                    references.append(artifact_id)
+            for child in value.values():
+                references.extend(bound_references(child))
+        elif isinstance(value, (list, tuple)):
+            for child in value:
+                references.extend(bound_references(child))
+        return references
+
+    pending = list(dict.fromkeys(bound_references(task_payload)))
+    protected: set[str] = set()
+    while pending:
+        artifact_id = pending.pop(0)
+        if artifact_id in protected or artifact_id not in artifacts:
+            continue
+        protected.add(artifact_id)
+        pending.extend(
+            reference
+            for reference in bound_references(artifacts[artifact_id])
+            if reference not in protected
+        )
+    return frozenset(protected)
+
+
 def _normalize_runtime_blackboard_artifacts(
     artifacts: Mapping[str, Any],
+    *,
+    architect_control_exempt_artifact_ids: Sequence[str] = (),
 ) -> dict[str, Any]:
-    """Migrate rehydrated artifacts before use, never fresh published artifacts."""
+    """Migrate rehydrated artifacts without mutating hash-bound metadata."""
 
+    control_exempt_ids = {
+        str(artifact_id)
+        for artifact_id in architect_control_exempt_artifact_ids
+        if str(artifact_id).strip()
+    }
     normalized: dict[str, Any] = {}
     for artifact_id, artifact in artifacts.items():
         if (
@@ -30457,15 +30840,19 @@ def _normalize_runtime_blackboard_artifacts(
                 )
             )
         else:
-            normalized[str(artifact_id)] = artifact
+            normalized[str(artifact_id)] = deepcopy(artifact)
     control_seed = _runtime_architect_control_seed_from_artifacts(normalized)
     if not control_seed:
         return normalized
     return {
-        artifact_id: _runtime_artifact_with_architect_control(
-            artifact_id,
-            artifact,
-            control_seed,
+        artifact_id: (
+            artifact
+            if artifact_id in control_exempt_ids
+            else _runtime_artifact_with_architect_control(
+                artifact_id,
+                artifact,
+                control_seed,
+            )
         )
         for artifact_id, artifact in normalized.items()
     }
@@ -40249,6 +40636,22 @@ def run_research_agent_runtime(
         )
     initial_task_overrides = dict(initial_task_overrides or {})
     initial_blackboard_artifacts = dict(initial_blackboard_artifacts or {})
+    resume_hash_bound_artifact_ids_by_question = {
+        str(question_id): sorted(
+            _runtime_task_hash_bound_artifact_ids(
+                task,
+                (
+                    initial_blackboard_artifacts.get(question_id, {})
+                    if isinstance(
+                        initial_blackboard_artifacts.get(question_id, {}),
+                        Mapping,
+                    )
+                    else {}
+                ),
+            )
+        )
+        for question_id, task in initial_task_overrides.items()
+    }
     resume_context = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "RuntimeResumeContext",
@@ -40261,17 +40664,38 @@ def run_research_agent_runtime(
         ),
         "question_ids": sorted(str(key) for key in initial_task_overrides),
         "resumed_from_pending_task": bool(initial_task_overrides),
+        "n_hash_bound_resume_artifacts_preserved": sum(
+            len(artifact_ids)
+            for artifact_ids in (
+                resume_hash_bound_artifact_ids_by_question.values()
+            )
+        ),
+        "hash_bound_resume_artifact_ids_by_question": (
+            resume_hash_bound_artifact_ids_by_question
+        ),
         "boundary": (
             "Resume context preserves orchestration state across iteration budgets. "
-            "It is not proof evidence and does not imply that any theorem gap is closed."
+            "Artifacts transitively bound by the pending task's persisted hashes "
+            "are exempt from Architect-control metadata backfill, while proof-safety "
+            "schema migrations remain fail-closed. Resume state is not proof "
+            "evidence and does not imply that any theorem gap is closed."
         ),
     }
     for question in questions:
+        resume_pending_task = initial_task_overrides.get(question.id)
         blackboard = BlackboardState(project_id=f"ai_statistician:{question.id}")
         rehydrated_artifacts = initial_blackboard_artifacts.get(question.id, {})
         if isinstance(rehydrated_artifacts, Mapping):
             blackboard.artifacts.update(
-                _normalize_runtime_blackboard_artifacts(rehydrated_artifacts)
+                _normalize_runtime_blackboard_artifacts(
+                    rehydrated_artifacts,
+                    architect_control_exempt_artifact_ids=(
+                        resume_hash_bound_artifact_ids_by_question.get(
+                            question.id,
+                            [],
+                        )
+                    ),
+                )
             )
         question_metadata = {
             "artifact_kind": "RuntimeQuestionMetadata",
@@ -40652,7 +41076,6 @@ def run_research_agent_runtime(
                 },
             )
 
-        resume_pending_task = initial_task_overrides.get(question.id)
         if (
             resume_pending_task is not None
             and config.resume_through_architect

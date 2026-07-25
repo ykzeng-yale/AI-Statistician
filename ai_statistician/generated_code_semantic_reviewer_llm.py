@@ -54,6 +54,12 @@ GENERATED_CODE_SEMANTIC_REVIEW_ACTIONABLE_REPAIR_SCOPES = (
     "upstream_metric_contract",
     "upstream_theory",
 )
+GENERATED_CODE_SEMANTIC_REVIEW_FINDING_SEVERITIES = (
+    "low",
+    "medium",
+    "high",
+    "critical",
+)
 GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS = (
     "source_theory_packet",
     "metric_protocol_candidate",
@@ -166,7 +172,7 @@ def _generated_code_semantic_review_derived_verdict(
     )
     has_high_finding = any(
         str(row.get("severity", "") or "").strip().lower()
-        in {"high", "critical"}
+        in GENERATED_CODE_SEMANTIC_REVIEW_FINDING_SEVERITIES[-2:]
         for row in findings or []
         if isinstance(row, Mapping)
     )
@@ -175,6 +181,130 @@ def _generated_code_semantic_review_derived_verdict(
         if all_dimensions_pass and not has_high_finding
         else "REVISE"
     )
+
+
+def _generated_code_semantic_review_decision_closure_state(
+    packet: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Expose a failed decision shape without choosing its repair owner."""
+
+    if not isinstance(packet, Mapping):
+        return {}
+    dimension_rows = [
+        row
+        for row in packet.get("dimension_reviews", []) or []
+        if isinstance(row, Mapping)
+    ]
+    findings = [
+        row
+        for row in packet.get("findings", []) or []
+        if isinstance(row, Mapping)
+    ]
+    nonpass_dimensions = [
+        {
+            "dimension": str(row.get("dimension", "") or "").strip(),
+            "status": str(row.get("status", "") or "").strip().upper(),
+            "rationale": str(row.get("rationale", "") or "").strip(),
+            "model_payload_status_path": [
+                "dimension_reviews",
+                str(row.get("dimension", "") or "").strip(),
+                "status",
+            ],
+        }
+        for row in dimension_rows
+        if str(row.get("status", "") or "").strip().upper()
+        in {"FAIL", "UNCERTAIN"}
+    ]
+    finding_rows = [
+        {
+            "finding_index": index,
+            "severity": str(row.get("severity", "") or "").strip().lower(),
+            "severity_valid": (
+                str(row.get("severity", "") or "").strip().lower()
+                in GENERATED_CODE_SEMANTIC_REVIEW_FINDING_SEVERITIES
+            ),
+            "summary": str(row.get("summary", "") or "").strip(),
+            "repair_scope": str(row.get("repair_scope", "") or "").strip(),
+            "model_payload_severity_path": [
+                "findings",
+                index,
+                "severity",
+            ],
+            "model_payload_repair_scope_path": [
+                "findings",
+                index,
+                "repair_scope",
+            ],
+        }
+        for index, row in enumerate(findings)
+    ]
+    actionable_indices = [
+        row["finding_index"]
+        for row in finding_rows
+        if row["repair_scope"]
+        in GENERATED_CODE_SEMANTIC_REVIEW_ACTIONABLE_REPAIR_SCOPES
+    ]
+    high_advisory_indices = [
+        row["finding_index"]
+        for row in finding_rows
+        if row["severity"] in {"high", "critical"}
+        and row["repair_scope"] == "none"
+    ]
+    invalid_severity_indices = [
+        row["finding_index"]
+        for row in finding_rows
+        if not row["severity_valid"]
+    ]
+    derived_verdict = _generated_code_semantic_review_derived_verdict(
+        dimension_reviews=dimension_rows,
+        findings=findings,
+    )
+    return {
+        "runtime_derived_verdict": derived_verdict,
+        "nonpass_dimensions": nonpass_dimensions,
+        "findings": finding_rows,
+        "actionable_finding_indices": actionable_indices,
+        "accept_with_actionable_finding_indices": (
+            actionable_indices if derived_verdict == "ACCEPT" else []
+        ),
+        "high_or_critical_advisory_finding_indices": high_advisory_indices,
+        "invalid_severity_finding_indices": invalid_severity_indices,
+        "allowed_finding_severities": list(
+            GENERATED_CODE_SEMANTIC_REVIEW_FINDING_SEVERITIES
+        ),
+        "decision_closed": (
+            (
+                derived_verdict == "ACCEPT"
+                and not actionable_indices
+            )
+            or (
+                derived_verdict == "REVISE"
+                and bool(nonpass_dimensions)
+                and bool(actionable_indices)
+            )
+        ),
+        "runtime_selected_repair_scope": False,
+        "allowed_actionable_repair_scopes": list(
+            GENERATED_CODE_SEMANTIC_REVIEW_ACTIONABLE_REPAIR_SCOPES
+        ),
+        "evidence_based_resolution_paths": [
+            (
+                "No mandatory defect: change each non-PASS dimension to PASS only "
+                "when its cited evidence supports that judgment, keep advisory "
+                "findings low or medium, and use repair_scope=none."
+            ),
+            (
+                "Mandatory defect: retain the supported FAIL or UNCERTAIN judgment "
+                "and add or update at least one concrete finding with an actionable "
+                "repair_scope, owner-matching evidence citation, and repair "
+                "instruction."
+            ),
+        ],
+        "forbidden_resolution": (
+            "Do not change a semantic judgment merely to satisfy the schema, and "
+            "do not retain REVISE with only repair_scope=none findings."
+        ),
+    }
 
 
 def _artifact_rooted_evidence_errors(
@@ -334,6 +464,226 @@ def _generated_code_semantic_review_repair_plan(
     ]
 
 
+def _compact_generated_code_review_value(
+    value: Any,
+    *,
+    depth: int = 0,
+) -> Any:
+    if isinstance(value, str):
+        if len(value) <= 1800:
+            return value
+        return value[:900] + "\n...[truncated]...\n" + value[-900:]
+    if isinstance(value, Mapping):
+        if depth >= 4:
+            return {"value_kind": "object", "truncated": True}
+        return {
+            str(key): _compact_generated_code_review_value(
+                child,
+                depth=depth + 1,
+            )
+            for key, child in list(value.items())[:24]
+        }
+    if isinstance(value, (list, tuple)):
+        if depth >= 4:
+            return {
+                "value_kind": "array",
+                "length": len(value),
+                "truncated": True,
+            }
+        rows = [
+            _compact_generated_code_review_value(child, depth=depth + 1)
+            for child in list(value)[:8]
+        ]
+        if len(value) > len(rows):
+            rows.append(
+                {
+                    "remaining_items": len(value) - len(rows),
+                    "truncated": True,
+                }
+            )
+        return rows
+    return value
+
+
+def _json_pointer_value(root: Any, locator: str) -> tuple[bool, Any]:
+    if locator in {"", "/"}:
+        return True, root
+    current = root
+    for raw_component in locator.lstrip("/").split("/"):
+        component = raw_component.replace("~1", "/").replace("~0", "~")
+        if isinstance(current, Mapping):
+            if component not in current:
+                return False, None
+            current = current[component]
+            continue
+        if isinstance(current, (list, tuple)):
+            try:
+                index = int(component)
+            except (TypeError, ValueError):
+                return False, None
+            if index < 0 or index >= len(current):
+                return False, None
+            current = current[index]
+            continue
+        return False, None
+    return True, current
+
+
+def _generated_code_semantic_review_cited_values(
+    *,
+    review_material: Mapping[str, Any],
+    review_packet: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    role_roots = {
+        "source_theory_packet": review_material.get("theory_packet", {}),
+        "metric_protocol_candidate": review_material.get(
+            "architect_frozen_evidence_contract",
+            {},
+        ),
+        "upstream_generated_dependency": review_material.get(
+            "upstream_generated_dependency",
+            {},
+        ),
+        "generated_source_artifact": review_material,
+    }
+    removable_prefixes = {
+        "source_theory_packet": (
+            "/source_theory_packet",
+            "/theory_packet",
+        ),
+        "metric_protocol_candidate": (
+            "/metric_protocol_candidate",
+            "/architect_frozen_evidence_contract",
+        ),
+        "upstream_generated_dependency": (
+            "/upstream_generated_dependency",
+        ),
+        "generated_source_artifact": (
+            "/generated_source_artifact",
+            "/review_material",
+        ),
+    }
+    rows: list[dict[str, Any]] = []
+    for finding_index, finding in enumerate(
+        review_packet.get("findings", []) or []
+    ):
+        if not isinstance(finding, Mapping):
+            continue
+        if str(finding.get("repair_scope", "") or "") not in (
+            GENERATED_CODE_SEMANTIC_REVIEW_ACTIONABLE_REPAIR_SCOPES
+        ):
+            continue
+        for citation in finding.get("evidence_citations", []) or []:
+            if not isinstance(citation, Mapping):
+                continue
+            role = str(citation.get("artifact_role", "") or "").strip()
+            locator = _normalize_evidence_locator(
+                citation.get("locator", "")
+            )
+            root = role_roots.get(role)
+            effective_locator = locator
+            for prefix in removable_prefixes.get(role, ()):
+                if effective_locator == prefix:
+                    effective_locator = "/"
+                    break
+                if effective_locator.startswith(prefix + "/"):
+                    effective_locator = effective_locator[len(prefix):]
+                    break
+            resolved, value = _json_pointer_value(root, effective_locator)
+            if (
+                not resolved
+                and role == "generated_source_artifact"
+                and effective_locator
+                in {
+                    "/actual_runtime_arguments",
+                    "/exact_result",
+                    "/exact_source_code",
+                    "/source_row",
+                }
+            ):
+                resolved_values = []
+                for artifact in (
+                    review_material.get("exact_executed_artifacts", []) or []
+                ):
+                    if not isinstance(artifact, Mapping):
+                        continue
+                    child_resolved, child_value = _json_pointer_value(
+                        artifact,
+                        effective_locator,
+                    )
+                    if child_resolved:
+                        resolved_values.append(
+                            {
+                                "artifact_id": str(
+                                    artifact.get("artifact_id", "") or ""
+                                ),
+                                "value": child_value,
+                            }
+                        )
+                if resolved_values:
+                    resolved = True
+                    value = resolved_values
+            rows.append(
+                {
+                    "finding_index": finding_index,
+                    "artifact_role": role,
+                    "locator": locator,
+                    "resolved": resolved,
+                    "value": (
+                        _compact_generated_code_review_value(value)
+                        if resolved
+                        else None
+                    ),
+                }
+            )
+    return rows
+
+
+def _generated_code_semantic_review_runtime_facts(
+    review_material: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for artifact in review_material.get("exact_executed_artifacts", []) or []:
+        if not isinstance(artifact, Mapping):
+            continue
+        source_row = artifact.get("source_row", {})
+        if not isinstance(source_row, Mapping):
+            source_row = {}
+        rows.append(
+            {
+                "artifact_id": str(
+                    artifact.get("artifact_id")
+                    or source_row.get("estimator_id")
+                    or ""
+                ),
+                "actual_runtime_arguments": _compact_generated_code_review_value(
+                    artifact.get("actual_runtime_arguments", {})
+                ),
+                "returncode": source_row.get("returncode"),
+                "execution_attempted": source_row.get("execution_attempted"),
+                "execution_smoke_passed": source_row.get(
+                    "execution_smoke_passed"
+                ),
+                "mechanical_estimator_invocation_verified": source_row.get(
+                    "mechanical_estimator_invocation_verified"
+                ),
+                "runtime_errors": list(
+                    source_row.get("runtime_errors", []) or []
+                ),
+                "estimator_binding_errors": list(
+                    source_row.get("estimator_binding_errors", []) or []
+                ),
+                "estimator_runtime_errors": list(
+                    source_row.get("estimator_runtime_errors", []) or []
+                ),
+                "safety_errors": list(
+                    source_row.get("safety_errors", []) or []
+                ),
+            }
+        )
+    return rows
+
+
 @dataclass(frozen=True)
 class GeneratedCodeSemanticReviewerConfig:
     model: str = ""
@@ -428,6 +778,14 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             return errors
 
         def build_repair_context(**kwargs: Any) -> dict[str, Any]:
+            invalid_packet = kwargs.get("invalid_packet")
+            decision_closure_state = (
+                _generated_code_semantic_review_decision_closure_state(
+                    invalid_packet
+                    if isinstance(invalid_packet, Mapping)
+                    else None
+                )
+            )
             phase_repair_instruction = (
                 "This is a confirmatory review, even when the current source's "
                 "least-authority projection has no metric rows assigned to that "
@@ -462,6 +820,38 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                         "rows contradicted by the supplied evidence."
                     ),
                     (
+                        "Close the decision in one evidence-based direction. If no "
+                        "mandatory defect remains, every required dimension must be "
+                        "PASS and high or critical advisory findings must be lowered "
+                        "or removed. If a mandatory defect remains, retain the "
+                        "supported FAIL or UNCERTAIN judgment in at least one relevant "
+                        "dimension and give at least one concrete finding an "
+                        "actionable repair_scope with matching evidence. "
+                        "Do not change a judgment merely to pass validation; runtime "
+                        "will not select a repair scope for you."
+                    ),
+                    (
+                        "If you change an actionable finding to repair_scope=none, "
+                        "also make its severity, summary, required_change, and cited "
+                        "gate outcome consistent with an advisory finding. Do not "
+                        "repair only the scope label while preserving a contradictory "
+                        "mandatory claim."
+                    ),
+                    (
+                        "Each finding severity must be exactly one of "
+                        "decision_closure_state.allowed_finding_severities. Repair "
+                        "every index in invalid_severity_finding_indices at its exact "
+                        "model_payload_severity_path, choosing the level from the "
+                        "current evidence rather than translating it mechanically."
+                    ),
+                    (
+                        "Before marking a dimension PASS, compare every quantitative "
+                        "and logical statement in its rationale against the exact "
+                        "cited values, operators, runtime arguments, and assumptions. "
+                        "A rationale that states a violation or unresolved "
+                        "contradiction cannot support PASS."
+                    ),
+                    (
                         "Preserve typed evidence_citations on every dimension and "
                         "finding. Each citation has one artifact_role enum and one "
                         "non-empty locator. Runtime derives evidence_refs and "
@@ -488,6 +878,12 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                         "dimension rows, and unrelated valid fields unchanged."
                     ),
                 ],
+                "decision_closure_state": decision_closure_state,
+                "runtime_metric_gate_projection": (
+                    _generated_code_semantic_review_metric_gate_projection(
+                        review_material
+                    )
+                ),
             }
 
         return generate_validated_json_packet(
@@ -501,7 +897,6 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             repair_context_builder=build_repair_context,
             semantic_patch_repair=True,
         )
-
 
 def generated_code_semantic_review_pending_plan_errors(
     *,
@@ -675,6 +1070,81 @@ def generated_code_semantic_review_active_pending_repair_plan(
     }
 
 
+def _generated_code_semantic_review_metric_gate_projection(
+    review_material: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Project exact runtime gate decisions into compact reviewer context."""
+
+    projection: list[dict[str, Any]] = []
+    for artifact_index, artifact in enumerate(
+        review_material.get("exact_executed_artifacts", []) or []
+    ):
+        if not isinstance(artifact, Mapping):
+            continue
+        source_row_value = artifact.get("source_row", artifact)
+        if not isinstance(source_row_value, Mapping):
+            continue
+        source_row = source_row_value
+        contracts = {
+            str(contract.get("contract_id", "") or "").strip(): contract
+            for contract in source_row.get("metric_contracts", []) or []
+            if isinstance(contract, Mapping)
+            and str(contract.get("contract_id", "") or "").strip()
+        }
+        evaluation = source_row.get("metric_contract_evaluation", {})
+        if not isinstance(evaluation, Mapping):
+            continue
+        for evaluation_index, row in enumerate(
+            evaluation.get("evaluations", []) or []
+        ):
+            if not isinstance(row, Mapping):
+                continue
+            contract_id = str(row.get("contract_id", "") or "").strip()
+            contract = contracts.get(contract_id, {})
+            projection.append(
+                {
+                    "artifact_id": str(
+                        row.get("artifact_id")
+                        or artifact.get("artifact_id")
+                        or source_row.get("estimator_id")
+                        or ""
+                    ),
+                    "contract_id": contract_id,
+                    "requirement_id": str(
+                        row.get("requirement_id")
+                        or contract.get("requirement_id")
+                        or ""
+                    ),
+                    "metric_path": list(row.get("metric_path", []) or []),
+                    "aggregate_value": row.get("aggregate_value"),
+                    "operator": str(
+                        row.get("operator")
+                        or contract.get("operator")
+                        or ""
+                    ),
+                    "threshold": contract.get("threshold"),
+                    "lower": contract.get("lower"),
+                    "upper": contract.get("upper"),
+                    "tolerance": contract.get("tolerance"),
+                    "required": bool(
+                        row.get("required", contract.get("required", False))
+                    ),
+                    "passed": row.get("passed"),
+                    "errors": list(row.get("errors", []) or []),
+                    "runtime_evaluation_locator": (
+                        "/exact_executed_artifacts/"
+                        f"{artifact_index}/source_row/"
+                        "metric_contract_evaluation/evaluations/"
+                        f"{evaluation_index}"
+                    ),
+                    "outcome_authority": (
+                        "runtime_generated_metric_contract_evaluator"
+                    ),
+                }
+            )
+    return projection
+
+
 def build_generated_code_semantic_review_prompt(
     *,
     question: OpenResearchQuestion,
@@ -694,10 +1164,32 @@ def build_generated_code_semantic_review_prompt(
         "confirmatory_empirical_evidence_eligible": (
             confirmatory_empirical_evidence_eligible
         ),
+        "runtime_metric_gate_projection": (
+            _generated_code_semantic_review_metric_gate_projection(
+                review_material
+            )
+        ),
         "dimension_review_order": list(
             GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
         ),
         "required_output_contract": GENERATED_CODE_SEMANTIC_REVIEW_OUTPUT_CONTRACT,
+        "decision_closure_contract": {
+            "runtime_derives_overall_verdict": True,
+            "accept": (
+                "Every required dimension is PASS and no high or critical finding "
+                "exists; advisory findings use repair_scope=none."
+            ),
+            "revise": (
+                "At least one required dimension is FAIL or UNCERTAIN, and at least "
+                "one concrete finding uses an actionable repair_scope supported by "
+                "owner-matching evidence."
+            ),
+            "forbidden": (
+                "Never return a non-PASS dimension or high or critical finding while "
+                "all findings use repair_scope=none."
+            ),
+            "runtime_does_not_select_repair_scope": True,
+        },
         "evidence_boundary": GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
     }
     phase_instruction = (
@@ -728,12 +1220,45 @@ def build_generated_code_semantic_review_prompt(
         "defects to upstream_theory. Do not use upstream_metric_contract because no "
         "protocol is frozen. "
     )
+    ownership_feedback = review_material.get(
+        "independent_repair_ownership_feedback",
+        {},
+    )
+    ownership_feedback_instruction = (
+        "This is one bounded feedback revision after the independent ownership "
+        "router found that every prior mandatory finding lacked an exact artifact "
+        "change. The router cannot accept code and its conclusion is not proof, so "
+        "reassess the original finding against the exact cited values. If no concrete "
+        "mismatch remains, return a closed ACCEPT decision with every dimension PASS "
+        "and only low/medium advisory findings using repair_scope=none. If you "
+        "disagree, retain REVISE only by citing the exact conflicting artifact values "
+        "that establish a required change; possibility, finite Monte Carlo variation, "
+        "a passed runtime gate, or a missing non-required diagnostic is insufficient. "
+        if isinstance(ownership_feedback, Mapping) and ownership_feedback
+        else ""
+    )
     return (
         "Independently review the statistical and experimental semantics of the "
         "executed generated code below. Return ONLY JSON matching the required "
         "output contract. Review the exact source, exact runtime arguments, exact "
         "returned values, and rigorous theory packet together. "
+        "Your decision must be closed: either every required dimension is PASS "
+        "with no high or critical finding, or at least one relevant dimension is "
+        "FAIL or UNCERTAIN and at least one concrete finding names an actionable "
+        "repair_scope supported by owner-matching evidence. Never emit a mandatory "
+        "repair while every dimension is PASS, and never emit a non-PASS dimension "
+        "while every finding uses repair_scope=none. Runtime validates this contract "
+        "but does not infer which artifact is defective. Treat "
+        "runtime_metric_gate_projection as the authority for already-computed gate "
+        "outcomes: never describe a row with passed=true as outside its runtime "
+        "tolerance or failed. You may still reject its measurement semantics, but "
+        "must explicitly distinguish that structural defect from the passed numeric "
+        "gate. Before marking PASS, check every numerical and logical statement in "
+        "your rationale against the exact cited values, operators, runtime arguments, "
+        "and assumptions; a stated violation or unresolved contradiction cannot "
+        "support PASS. "
         + phase_instruction
+        + ownership_feedback_instruction
         + "Apply the supplied source_responsibility_contract: "
         "a generated artifact may own one bounded part of the system, so judge it "
         "against requirements assigned to its author subsystem and against every "
@@ -861,7 +1386,9 @@ GENERATED_CODE_SEMANTIC_REVIEW_OUTPUT_CONTRACT: dict[str, Any] = {
     },
     "findings": [
         {
-            "severity": "low|medium|high|critical",
+            "severity": "|".join(
+                GENERATED_CODE_SEMANTIC_REVIEW_FINDING_SEVERITIES
+            ),
             "category": "short domain-neutral category",
             "summary": "specific finding",
             "required_change": "concrete coding-agent change",
@@ -924,6 +1451,11 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
                         "status": {
                             "type": "string",
                             "enum": ["PASS", "FAIL", "UNCERTAIN"],
+                            "description": (
+                                "PASS means no mandatory repair remains for this "
+                                "dimension. FAIL or UNCERTAIN requires at least one "
+                                "concrete actionable finding in the packet."
+                            ),
                         },
                         "rationale": {"type": "string"},
                         "evidence_citations": {
@@ -952,7 +1484,9 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
                 "properties": {
                     "severity": {
                         "type": "string",
-                        "enum": ["low", "medium", "high", "critical"]
+                        "enum": list(
+                            GENERATED_CODE_SEMANTIC_REVIEW_FINDING_SEVERITIES
+                        ),
                     },
                     "category": {"type": "string"},
                     "summary": {"type": "string"},
@@ -962,7 +1496,12 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
                         "enum": [
                             "none",
                             *GENERATED_CODE_SEMANTIC_REVIEW_ACTIONABLE_REPAIR_SCOPES,
-                        ]
+                        ],
+                        "description": (
+                            "Use none only for advisory findings. A mandatory defect "
+                            "must use the artifact hypothesis supported by its exact "
+                            "evidence; runtime independently verifies final ownership."
+                        ),
                     },
                     "evidence_citations": {
                         "type": "array",
@@ -1072,7 +1611,7 @@ def validate_generated_code_semantic_review_packet(
             errors.append("findings entries must be objects")
             continue
         severity = str(row.get("severity", "") or "").strip().lower()
-        if severity not in {"low", "medium", "high", "critical"}:
+        if severity not in GENERATED_CODE_SEMANTIC_REVIEW_FINDING_SEVERITIES:
             errors.append("semantic review finding has invalid severity")
         for field in ("category", "summary", "required_change"):
             if not str(row.get(field, "") or "").strip():
@@ -1226,6 +1765,25 @@ def validate_generated_code_semantic_review_packet(
     elif repair_scope == "none":
         errors.append("REVISE semantic review cannot use repair_scope=none")
     expected_finding_scopes = set(expected_repair_scopes) - {"none"}
+    actionable_finding_scopes = finding_repair_scopes - {"none"}
+    has_nonpass_dimension = any(
+        str(row.get("status", "") or "").strip().upper()
+        in {"FAIL", "UNCERTAIN"}
+        for row in dimension_rows
+        if isinstance(row, Mapping)
+    )
+    if actionable_finding_scopes and not has_nonpass_dimension:
+        errors.append(
+            "actionable semantic-review findings require at least one relevant "
+            "dimension to be FAIL or UNCERTAIN; runtime will not infer a failed "
+            "dimension from finding severity"
+        )
+    if verdict == "ACCEPT" and actionable_finding_scopes:
+        errors.append(
+            "ACCEPT semantic review cannot contain actionable findings; either "
+            "make the evidence-supported finding advisory with repair_scope=none "
+            "or retain the repair and mark a relevant dimension non-PASS"
+        )
     if verdict == "REVISE" and not expected_finding_scopes.issubset(
         finding_repair_scopes
     ):
@@ -1335,12 +1893,6 @@ def _normalize_generated_code_semantic_review_packet(
         finding = _normalize_review_row_evidence(row)
         requested_scope = str(finding.get("repair_scope", "") or "").strip()
         finding["model_requested_repair_scope"] = requested_scope
-        if (
-            overall_verdict == "ACCEPT"
-            and str(finding.get("severity", "") or "").strip().lower()
-            in {"low", "medium"}
-        ):
-            finding["repair_scope"] = "none"
         normalized_findings.append(finding)
     body["findings"] = normalized_findings
     finding_scopes = _generated_code_semantic_review_finding_scopes(

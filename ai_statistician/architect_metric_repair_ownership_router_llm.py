@@ -11,6 +11,12 @@ from .architect_metric_semantic_reviewer_llm import (
     ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY,
 )
 from .fingerprint import stable_hash
+from .generated_code_semantic_reviewer_llm import (
+    _compact_generated_code_review_value,
+    _generated_code_semantic_review_cited_values,
+    _generated_code_semantic_review_metric_gate_projection,
+    _generated_code_semantic_review_runtime_facts,
+)
 from .llm_json_repair import (
     PacketValidationError,
     extract_json_object,
@@ -178,8 +184,34 @@ class LLMArchitectMetricRepairOwnershipRouterAgent:
         artifact_projection = _postexecution_router_artifact_projection(
             review_material
         )
+        compact_artifact_projection = (
+            _postexecution_router_compact_artifact_projection(
+                artifact_projection
+            )
+        )
         routing_material = {
-            **artifact_projection,
+            **compact_artifact_projection,
+            "runtime_metric_gate_projection": (
+                _generated_code_semantic_review_metric_gate_projection(
+                    review_material
+                )
+            ),
+            "runtime_execution_facts": (
+                _generated_code_semantic_review_runtime_facts(
+                    review_material
+                )
+            ),
+            "cited_evidence_values": (
+                _generated_code_semantic_review_cited_values(
+                    review_material=review_material,
+                    review_packet=semantic_review_packet,
+                )
+            ),
+            "source_responsibility_contract": (
+                _compact_generated_code_review_value(
+                    review_material.get("source_responsibility_contract", {})
+                )
+            ),
             "semantic_review_artifact_assessments": _mapping_projection(
                 semantic_review_packet,
                 (
@@ -367,6 +399,9 @@ def _architect_metric_repair_ownership_repair_context(
         "artifact_target_eligibility": deepcopy(
             routing_material.get("artifact_target_eligibility", [])
         ),
+        "runtime_metric_gate_projection": deepcopy(
+            routing_material.get("runtime_metric_gate_projection", [])
+        ),
         "invalid_decisions": [
             {
                 key: deepcopy(row[key])
@@ -459,6 +494,65 @@ def _postexecution_router_artifact_projection(
         "upstream_generated_dependency": deepcopy(
             review_material.get("upstream_generated_dependency", {})
         ),
+    }
+
+
+def _postexecution_router_compact_artifact_projection(
+    artifact_projection: Mapping[str, Any],
+) -> dict[str, Any]:
+    theory = artifact_projection.get(
+        ARCHITECT_METRIC_REPAIR_TARGET_SOURCE_THEORY,
+        {},
+    )
+    protocol = artifact_projection.get(
+        ARCHITECT_METRIC_REPAIR_TARGET_METRIC_PROTOCOL,
+        {},
+    )
+    dependency = artifact_projection.get(
+        ARCHITECT_METRIC_REPAIR_TARGET_UPSTREAM_GENERATED_DEPENDENCY,
+        {},
+    )
+    current_source = artifact_projection.get(
+        ARCHITECT_METRIC_REPAIR_TARGET_GENERATED_SOURCE,
+        {},
+    )
+    return {
+        ARCHITECT_METRIC_REPAIR_TARGET_SOURCE_THEORY: _mapping_projection(
+            theory,
+            ("packet_id", "theory_review_projection"),
+        ),
+        ARCHITECT_METRIC_REPAIR_TARGET_METRIC_PROTOCOL: _mapping_projection(
+            protocol,
+            (
+                "evaluation_mode",
+                "metric_protocol_candidate_id",
+                "metric_requirement_set_id",
+                "metric_contract_set_id",
+            ),
+        ),
+        ARCHITECT_METRIC_REPAIR_TARGET_UPSTREAM_GENERATED_DEPENDENCY: (
+            _mapping_projection(
+                dependency,
+                (
+                    "algorithm_sandbox_manifest_id",
+                    "algorithm_sandbox_manifest_hash",
+                    "accepted_semantic_review_execution_id",
+                    "accepted_semantic_review_packet_id",
+                ),
+            )
+        ),
+        ARCHITECT_METRIC_REPAIR_TARGET_GENERATED_SOURCE: deepcopy(
+            current_source
+        ),
+        "projection_contract": {
+            "content_policy": (
+                "Route from compact runtime facts and exact cited values. Full "
+                "theory, protocol, and dependency artifacts are withheld unless "
+                "the reviewer cited their exact fields."
+            ),
+            "uncited_possible_defect_must_not_select_owner": True,
+            "owner_router_does_not_accept_generated_code": True,
+        },
     }
 
 
@@ -791,7 +885,14 @@ def build_architect_metric_repair_ownership_prompt(
         "undefined, unidentifiable, or infeasible independently of the observed "
         "outcome. Such a decision terminates the current candidate and requires a "
         "new independently reviewed protocol; never propose an in-place threshold "
-        "relaxation. Target generated_source_artifact for an exact source, runtime-"
+        "relaxation. runtime_metric_gate_projection is the deterministic evaluator's "
+        "outcome authority. If a referenced row has passed=true, do not call that "
+        "numeric gate failed, outside tolerance, or evidence that a theorem, theory, "
+        "or implementation is false. Use resolved_no_change when the finding has no "
+        "independent exact artifact mismatch. A structural measurement-semantics "
+        "defect may still require repair, but its rationale must distinguish that "
+        "defect from the passed gate and identify the exact conflicting fields. "
+        "Target generated_source_artifact for an exact source, runtime-"
         "argument, measurement-path, or implementation mismatch under coherent "
         "theory and protocol. Target upstream_generated_dependency when the current "
         "consumer invokes an immutable generated dependency and the defect is inside "
