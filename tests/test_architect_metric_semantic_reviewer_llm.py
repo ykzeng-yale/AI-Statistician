@@ -1165,6 +1165,58 @@ def test_metric_reviewer_materializes_current_theory_evidence_for_prior_finding(
     )
 
 
+def test_metric_reviewer_runtime_binds_candidate_evidence_for_resolved_status() -> None:
+    finding_id = "metric-finding:repaired-candidate-threshold"
+    evidence_ref = "requirement:generic_gate.threshold"
+    material = {
+        "review_stage": "pre_execution_metric_contract_review",
+        "execution_results_available": False,
+        "active_prior_finding_ledger": [
+            {
+                "finding_id": finding_id,
+                "status": "UNRESOLVED",
+                "finding": {
+                    "category": "generic_threshold",
+                    "summary": "The prior candidate used the wrong threshold.",
+                    "required_change": "Replace the candidate threshold.",
+                    "repair_scope": "metric_contract",
+                    "evidence_refs": [evidence_ref],
+                },
+            }
+        ],
+        "empirical_metric_requirements": [_generic_requirement()],
+    }
+    snapshots = architect_metric_active_prior_finding_current_evidence(
+        material
+    )
+    candidate_snapshot = next(
+        row
+        for row in snapshots
+        if row["artifact_role"] == "metric_protocol_candidate"
+    )
+    payload = _review_payload(accept=True)
+    payload["prior_finding_reviews"] = [
+        {
+            "finding_id": finding_id,
+            "status": "RESOLVED",
+            "runtime_contract_evidence_id": "",
+            "rationale": "The current candidate replaces the defective value.",
+            "evidence_refs": ["theory#/theorem_cards/0/conclusion"],
+        }
+    ]
+
+    packet, _, _ = _review(
+        accept=True,
+        payload=payload,
+        material=material,
+    )
+
+    assert candidate_snapshot["snapshot_id"] in packet[
+        "prior_finding_reviews"
+    ][0]["evidence_refs"]
+    assert validate_architect_metric_semantic_review_packet(packet) == []
+
+
 @pytest.mark.parametrize(
     ("evidence_ref", "expected_value"),
     [

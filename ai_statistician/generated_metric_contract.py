@@ -1414,7 +1414,7 @@ def generated_metric_gate_field_authority_rollup(
 def materialize_generated_metric_gate_field_authorities(
     requirement: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Expand legacy row authority into explicit field bindings losslessly."""
+    """Expand and canonicalize explicit field-authority bindings."""
 
     body = dict(requirement)
     active_fields = [
@@ -1434,6 +1434,19 @@ def materialize_generated_metric_gate_field_authorities(
             dict(row) if isinstance(row, Mapping) else row
             for row in raw_rows
         ]
+        if _generated_metric_value_kind(body) == "boolean":
+            runtime_truth_fields = {"operator", "threshold", "tolerance"}
+            rows = [
+                row
+                for row in rows
+                if not (
+                    isinstance(row, Mapping)
+                    and str(row.get("field", "") or "").strip()
+                    in runtime_truth_fields
+                    and str(row.get("field", "") or "").strip()
+                    not in active_fields
+                )
+            ]
     else:
         authority_kind = str(
             body.get("acceptance_authority_kind", "") or ""

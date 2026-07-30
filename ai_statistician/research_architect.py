@@ -1622,7 +1622,7 @@ THEORY_DEVELOPER_OUTPUT_CONTRACT: dict[str, Any] = {
         "assumption_ledger": [
             {
                 "assumption": "string",
-                "role": "identification|regularity|algorithmic|simulation|formalization",
+                "role": "optional short semantic label, such as identification or regularity",
                 "used_in": ["derivation/equation/theorem ids"],
                 "risk_if_dropped": "string",
             }
@@ -1767,6 +1767,22 @@ def validate_theory_packet(packet: Mapping[str, Any]) -> list[str]:
     ):
         if packet.get(field) in (None, "", [], {}):
             errors.append(f"missing or empty field: {field}")
+    problem_card = packet.get("problem_card", {})
+    if isinstance(problem_card, Mapping):
+        for field in (
+            "observed_data",
+            "dgp",
+            "estimand",
+            "asymptotic_regime",
+            "desired_theorem_type",
+        ):
+            if not str(problem_card.get(field, "") or "").strip():
+                errors.append(f"problem_card.{field} must be non-empty")
+        assumptions = problem_card.get("assumptions", [])
+        if not isinstance(assumptions, list) or not assumptions:
+            errors.append("problem_card.assumptions must be a non-empty list")
+    elif problem_card not in (None, "", [], {}):
+        errors.append("problem_card must be an object")
     derivation = packet.get("theory_derivation_packet", {})
     if not isinstance(derivation, Mapping):
         errors.append("theory_derivation_packet must be an object")
@@ -1865,6 +1881,35 @@ def validate_theory_packet(packet: Mapping[str, Any]) -> list[str]:
     for list_field in ("estimator_specs", "theorem_cards", "lemma_cards", "formalization_requests"):
         if not isinstance(packet.get(list_field), list) or not packet.get(list_field):
             errors.append(f"{list_field} must be a non-empty list")
+    for idx, row in enumerate(packet.get("estimator_specs", []) or []):
+        if not isinstance(row, Mapping):
+            errors.append("estimator_specs entries must be objects")
+            continue
+        for field in ("id", "name", "formula", "algorithm_sketch"):
+            if not str(row.get(field, "") or "").strip():
+                errors.append(f"estimator_specs[{idx}].{field} must be non-empty")
+        required_assumptions = row.get("required_assumptions", [])
+        if not isinstance(required_assumptions, list) or not required_assumptions:
+            errors.append(
+                f"estimator_specs[{idx}].required_assumptions must be non-empty"
+            )
+    simulation_ademp_spec = packet.get("simulation_ademp_spec", {})
+    if isinstance(simulation_ademp_spec, Mapping):
+        if not str(simulation_ademp_spec.get("aim", "") or "").strip():
+            errors.append("simulation_ademp_spec.aim must be non-empty")
+        for field in (
+            "dgps",
+            "methods",
+            "performance_measures",
+            "expected_theoretical_behavior",
+        ):
+            value = simulation_ademp_spec.get(field, [])
+            if not isinstance(value, list) or not value:
+                errors.append(
+                    f"simulation_ademp_spec.{field} must be a non-empty list"
+                )
+    elif simulation_ademp_spec not in (None, "", [], {}):
+        errors.append("simulation_ademp_spec must be an object")
     for row in packet.get("theorem_cards", []) or []:
         if not isinstance(row, Mapping):
             errors.append("theorem_cards entries must be objects")

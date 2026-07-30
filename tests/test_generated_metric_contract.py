@@ -194,6 +194,7 @@ def test_typed_boolean_metric_uses_runtime_truth_representation() -> None:
         authoritative_requirements=[requirement],
         target_subsystem="SimulationEngineer",
     )
+
     passed = evaluate_generated_metric_contracts(
         {"is_non_anticipating": True},
         contracts=contracts,
@@ -226,6 +227,35 @@ def test_typed_boolean_metric_uses_runtime_truth_representation() -> None:
         and "explicitly present in a cited theory_derived authority node" in error
         for error in numeric_errors
     )
+
+
+def test_boolean_truth_encoding_drops_redundant_field_authorities() -> None:
+    requirement = materialize_generated_metric_gate_field_authorities(
+        _requirement(
+            requirement_id="architect:boolean-predicate",
+            metric_semantics="whether a generic invariant holds",
+            metric_value_kind="boolean",
+            measurement_protocol="return one boolean invariant check",
+            operator="==",
+            threshold=1,
+            tolerance=0,
+            aggregation="identity",
+            minimum_pass_count=None,
+            gate_field_authorities=[
+                {
+                    "field": field,
+                    "authority_kind": "theory_derived",
+                    "source_anchors": [
+                        "architect:acceptance:criterion-control"
+                    ],
+                    "rationale": "Redundant runtime truth representation.",
+                }
+                for field in ("threshold", "operator", "tolerance")
+            ],
+        )
+    )
+
+    assert requirement["gate_field_authorities"] == []
 
 
 def test_metric_acceptance_authority_catalog_exposes_exact_current_artifact_leaves() -> None:

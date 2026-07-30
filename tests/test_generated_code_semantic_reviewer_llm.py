@@ -22,6 +22,7 @@ from ai_statistician.generated_code_semantic_reviewer_llm import (
     build_generated_code_semantic_review_prompt,
     generated_code_semantic_review_active_pending_repair_plan,
     generated_code_semantic_review_pending_plan_errors,
+    generated_code_semantic_review_prompt_projection,
     generated_code_semantic_review_repair_scope,
     generated_code_semantic_review_repair_scopes,
     validate_generated_code_semantic_review_packet,
@@ -75,6 +76,79 @@ def _question() -> OpenResearchQuestion:
         description="Determine whether the generated experiment measures its claim.",
         tags=("semantic-review",),
     )
+
+
+def test_large_generated_results_use_hash_bound_prompt_projection() -> None:
+    trajectory = [float(index) / 10.0 for index in range(80_000)]
+    exact_result = {
+        "rejection_rate": 0.05,
+        "trajectory": trajectory,
+    }
+    result_hash = stable_hash(exact_result)
+    exact_source = "def run_sandbox(seed, replicates):\n    return {'ok': True}\n"
+    review_material = {
+        "confirmatory_empirical_evidence_eligible": True,
+        "exact_executed_artifacts": [
+            {
+                "artifact_id": "large-result",
+                "source_row": {
+                    "result_path": "/tmp/large-result.json",
+                    "metrics": exact_result,
+                    "runtime_replicates": 80,
+                },
+                "exact_source_code": exact_source,
+                "exact_source_hash": stable_hash(exact_source),
+                "exact_result": exact_result,
+                "exact_result_hash": result_hash,
+                "actual_runtime_arguments": {"seed": 7, "replicates": 80},
+            }
+        ],
+    }
+
+    projection = generated_code_semantic_review_prompt_projection(
+        review_material
+    )
+    projected_artifact = projection["exact_executed_artifacts"][0]
+    projected_result = projected_artifact["exact_result"]
+    prompt = build_generated_code_semantic_review_prompt(
+        question=_question(),
+        review_material=review_material,
+    )
+
+    assert review_material["exact_executed_artifacts"][0]["exact_result"] is exact_result
+    assert projected_artifact["exact_source_code"] == exact_source
+    assert "metrics" not in projected_artifact["source_row"]
+    assert projected_result["full_result_in_prompt"] is False
+    assert projected_result["full_result_hash"] == result_hash
+    assert projected_result["projection"]["trajectory"]["length"] == 80_000
+    assert projected_result["projection"]["trajectory"]["numeric_summary"][
+        "count"
+    ] == 80_000
+    assert "lineage only" in projected_result["boundary"]
+    assert len(prompt) < 100_000
+    assert "def run_sandbox" in prompt
+    assert "Do not treat omitted values as inspected" in prompt
+
+
+def test_large_integer_projection_does_not_overflow_numeric_summary() -> None:
+    exact_result = {"values": [10**1000] * 80}
+    projection = generated_code_semantic_review_prompt_projection(
+        {
+            "exact_executed_artifacts": [
+                {
+                    "source_row": {"result_path": "/tmp/huge-integers.json"},
+                    "exact_result": exact_result,
+                    "exact_result_hash": stable_hash(exact_result),
+                }
+            ]
+        }
+    )
+
+    values = projection["exact_executed_artifacts"][0]["exact_result"][
+        "projection"
+    ]["values"]
+    assert values["length"] == 80
+    assert "numeric_summary" not in values
 
 
 def _model_evidence_citations(

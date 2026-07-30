@@ -693,6 +693,53 @@ def _architect_metric_prior_finding_citation_options(
     return rows
 
 
+def _bind_resolved_prior_finding_status_evidence(
+    *,
+    prior_finding_reviews: Sequence[Mapping[str, Any]],
+    current_evidence: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Bind opaque current-artifact lineage after the reviewer chooses semantics."""
+
+    artifact_role_by_status = {
+        METRIC_PROTOCOL_FINDING_RESOLVED: "metric_protocol_candidate",
+        METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY: (
+            "source_theory_packet"
+        ),
+    }
+    snapshots_by_finding_and_role: dict[tuple[str, str], list[str]] = {}
+    for snapshot in current_evidence:
+        finding_id = str(snapshot.get("finding_id", "") or "").strip()
+        artifact_role = str(
+            snapshot.get("artifact_role", "") or ""
+        ).strip()
+        snapshot_id = str(snapshot.get("snapshot_id", "") or "").strip()
+        if finding_id and artifact_role and snapshot_id:
+            snapshots_by_finding_and_role.setdefault(
+                (finding_id, artifact_role), []
+            ).append(snapshot_id)
+
+    bound_reviews: list[dict[str, Any]] = []
+    for raw_review in prior_finding_reviews:
+        review = dict(raw_review)
+        finding_id = str(review.get("finding_id", "") or "").strip()
+        status = str(review.get("status", "") or "").strip().upper()
+        artifact_role = artifact_role_by_status.get(status, "")
+        evidence_refs = [
+            str(value).strip()
+            for value in review.get("evidence_refs", []) or []
+            if str(value).strip()
+        ]
+        if artifact_role:
+            evidence_refs.extend(
+                snapshots_by_finding_and_role.get(
+                    (finding_id, artifact_role), []
+                )
+            )
+        review["evidence_refs"] = list(dict.fromkeys(evidence_refs))
+        bound_reviews.append(review)
+    return bound_reviews
+
+
 def _architect_metric_rejected_review_consistency_state(
     invalid_packet: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
@@ -1386,6 +1433,10 @@ def build_architect_metric_semantic_review_prompt(
         "review_material.active_prior_finding_current_evidence, whose snapshot IDs, "
         "existence flags, exact current values, and value fingerprints are derived "
         "from the existing current-artifact authority catalog and candidate rows. "
+        "Choose the semantic disposition and justify it from current values; after "
+        "that choice, AgentRuntime binds the matching current candidate snapshots "
+        "for RESOLVED and current theory snapshots for "
+        "RESOLVED_BY_CURRENT_THEORY so the model does not own opaque lineage IDs. "
         "For every non-retraction "
         "prior disposition, cite at least one snapshot_id belonging to that finding. "
         "Use UNRESOLVED only when an exists=true snapshot still exhibits the same "
@@ -2708,8 +2759,12 @@ def _normalize_architect_metric_semantic_review_packet(
         for row in body.get("prior_finding_reviews", []) or []
         if isinstance(row, Mapping)
     ]
-    body["prior_finding_reviews"] = prior_finding_reviews
     current_evidence = _active_prior_finding_current_evidence(review_material)
+    prior_finding_reviews = _bind_resolved_prior_finding_status_evidence(
+        prior_finding_reviews=prior_finding_reviews,
+        current_evidence=current_evidence,
+    )
+    body["prior_finding_reviews"] = prior_finding_reviews
     raw_findings = [
         dict(row)
         for row in body.get("findings", []) or []

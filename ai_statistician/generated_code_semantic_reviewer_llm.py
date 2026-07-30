@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping
@@ -503,6 +504,198 @@ def _compact_generated_code_review_value(
             )
         return rows
     return value
+
+
+GENERATED_CODE_SEMANTIC_REVIEW_INLINE_RESULT_CHARS = 60_000
+
+
+def _generated_result_value_projection(
+    value: Any,
+    *,
+    depth: int = 0,
+) -> Any:
+    """Bound large result arrays without inventing domain-specific summaries."""
+
+    if isinstance(value, str):
+        if len(value) <= 4000:
+            return value
+        return {
+            "value_kind": "string",
+            "length": len(value),
+            "head": value[:1600],
+            "tail": value[-1600:],
+            "truncated": True,
+        }
+    if isinstance(value, Mapping):
+        if depth >= 6:
+            return {
+                "value_kind": "object",
+                "key_count": len(value),
+                "keys": [str(key) for key in list(value)[:32]],
+                "truncated": True,
+            }
+        rows = {
+            str(key): _generated_result_value_projection(
+                child,
+                depth=depth + 1,
+            )
+            for key, child in list(value.items())[:64]
+        }
+        if len(value) > len(rows):
+            rows["__projection__"] = {
+                "remaining_keys": len(value) - len(rows),
+                "truncated": True,
+            }
+        return rows
+    if isinstance(value, (list, tuple)):
+        values = list(value)
+        if len(values) <= 16 and depth < 6:
+            return [
+                _generated_result_value_projection(child, depth=depth + 1)
+                for child in values
+            ]
+        head = [
+            _generated_result_value_projection(child, depth=depth + 1)
+            for child in values[:4]
+        ]
+        tail = [
+            _generated_result_value_projection(child, depth=depth + 1)
+            for child in values[-4:]
+        ]
+        projection: dict[str, Any] = {
+            "value_kind": "array",
+            "length": len(values),
+            "head": head,
+            "tail": tail,
+            "omitted_items": max(len(values) - len(head) - len(tail), 0),
+            "truncated": True,
+        }
+        numeric_values: list[float] = []
+        for child in values:
+            if not isinstance(child, (int, float)) or isinstance(child, bool):
+                numeric_values = []
+                break
+            try:
+                numeric_value = float(child)
+            except (OverflowError, TypeError, ValueError):
+                numeric_values = []
+                break
+            if not math.isfinite(numeric_value):
+                numeric_values = []
+                break
+            numeric_values.append(numeric_value)
+        if len(numeric_values) == len(values) and numeric_values:
+            projection["numeric_summary"] = {
+                "count": len(numeric_values),
+                "min": min(numeric_values),
+                "max": max(numeric_values),
+                "mean": math.fsum(
+                    value / len(numeric_values) for value in numeric_values
+                ),
+            }
+        return projection
+    return value
+
+
+def generated_code_semantic_review_prompt_projection(
+    review_material: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Build a bounded prompt view while retaining full material for lineage."""
+
+    projected = dict(review_material)
+
+    def project_artifact(
+        raw_artifact: Mapping[str, Any],
+        *,
+        result_path: str,
+    ) -> dict[str, Any]:
+        artifact = dict(raw_artifact)
+        source_row = artifact.get("source_row", {})
+        if isinstance(source_row, Mapping):
+            artifact["source_row"] = {
+                key: value
+                for key, value in source_row.items()
+                if key not in {"code_excerpt", "metrics"}
+            }
+        result = artifact.get("exact_result", {})
+        try:
+            serialized_result = json.dumps(
+                result,
+                separators=(",", ":"),
+                ensure_ascii=False,
+                default=str,
+            )
+        except (TypeError, ValueError):
+            serialized_result = str(result)
+        if len(serialized_result) <= GENERATED_CODE_SEMANTIC_REVIEW_INLINE_RESULT_CHARS:
+            return artifact
+        result_projection = _generated_result_value_projection(result)
+        projection_text = json.dumps(
+            result_projection,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            default=str,
+        )
+        if len(projection_text) > GENERATED_CODE_SEMANTIC_REVIEW_INLINE_RESULT_CHARS:
+            result_projection = _compact_generated_code_review_value(
+                result_projection
+            )
+        artifact["exact_result"] = {
+            "artifact_kind": "HashBoundGeneratedResultPromptProjection",
+            "full_result_in_prompt": False,
+            "full_result_path": result_path,
+            "full_result_hash": str(
+                artifact.get("exact_result_hash", "") or ""
+            ),
+            "full_result_json_chars": len(serialized_result),
+            "projection": result_projection,
+            "boundary": (
+                "The full exact result remains immutable at full_result_path and is "
+                "bound by full_result_hash for lineage only. The reviewer cannot inspect "
+                "omitted items from that path. This prompt view preserves scalar values "
+                "and generic array summaries without claiming to expose every item."
+            ),
+        }
+        return artifact
+
+    exact_artifacts: list[dict[str, Any]] = []
+    for raw_artifact in review_material.get("exact_executed_artifacts", []) or []:
+        if not isinstance(raw_artifact, Mapping):
+            continue
+        source_row = raw_artifact.get("source_row", {})
+        result_path = (
+            str(source_row.get("result_path", "") or "")
+            if isinstance(source_row, Mapping)
+            else ""
+        )
+        exact_artifacts.append(
+            project_artifact(raw_artifact, result_path=result_path)
+        )
+    projected["exact_executed_artifacts"] = exact_artifacts
+
+    upstream = review_material.get("upstream_generated_dependency", {})
+    if isinstance(upstream, Mapping) and upstream:
+        projected_upstream = dict(upstream)
+        dependency_artifacts: list[dict[str, Any]] = []
+        for raw_artifact in upstream.get("exact_dependency_artifacts", []) or []:
+            if not isinstance(raw_artifact, Mapping):
+                continue
+            dependency_artifacts.append(
+                project_artifact(
+                    raw_artifact,
+                    result_path=str(raw_artifact.get("result_path", "") or ""),
+                )
+            )
+        projected_upstream["exact_dependency_artifacts"] = dependency_artifacts
+        projected["upstream_generated_dependency"] = projected_upstream
+    projected["prompt_projection_boundary"] = (
+        "This is a context-bounded view of immutable review material. Full result "
+        "artifacts remain lineage-bound by path and hash, but omitted values are not "
+        "semantically visible to this reviewer. Any verdict that depends on omitted "
+        "items must be UNCERTAIN or request a hash-bound bounded summary. Review "
+        "acceptance remains bound to the fingerprint of the full unprojected material."
+    )
+    return projected
 
 
 def _json_pointer_value(root: Any, locator: str) -> tuple[bool, Any]:
@@ -1153,6 +1346,9 @@ def build_generated_code_semantic_review_prompt(
     confirmatory_empirical_evidence_eligible = bool(
         review_material.get("confirmatory_empirical_evidence_eligible", True)
     )
+    prompt_review_material = generated_code_semantic_review_prompt_projection(
+        review_material
+    )
     payload = {
         "question": {
             "id": question.id,
@@ -1160,7 +1356,7 @@ def build_generated_code_semantic_review_prompt(
             "description": question.description,
             "tags": list(question.tags),
         },
-        "review_material": dict(review_material),
+        "review_material": prompt_review_material,
         "confirmatory_empirical_evidence_eligible": (
             confirmatory_empirical_evidence_eligible
         ),
@@ -1240,8 +1436,12 @@ def build_generated_code_semantic_review_prompt(
     return (
         "Independently review the statistical and experimental semantics of the "
         "executed generated code below. Return ONLY JSON matching the required "
-        "output contract. Review the exact source, exact runtime arguments, exact "
-        "returned values, and rigorous theory packet together. "
+        "output contract. Review the exact source, exact runtime arguments, hash-bound "
+        "returned-result view, and rigorous theory packet together. Large arrays may "
+        "be represented by a generic bounded projection while their full artifact path "
+        "and hash preserve lineage only. Do not treat omitted values as inspected: if a "
+        "verdict depends on them, return UNCERTAIN or request a hash-bound scalar or "
+        "bounded summary from the source agent. "
         "Your decision must be closed: either every required dimension is PASS "
         "with no high or critical finding, or at least one relevant dimension is "
         "FAIL or UNCERTAIN and at least one concrete finding names an actionable "

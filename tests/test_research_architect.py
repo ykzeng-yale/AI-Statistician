@@ -333,6 +333,35 @@ def test_llm_theory_developer_validation_rejects_shallow_derivation_contract() -
     assert any("formalization_handoff" in error for error in errors)
 
 
+def test_theory_validation_requires_operational_precode_semantics() -> None:
+    bad = _sample_response()
+    problem_card = dict(bad["problem_card"])
+    problem_card["dgp"] = ""
+    bad["problem_card"] = problem_card
+    derivation = dict(bad["theory_derivation_packet"])
+    assumption_ledger = [
+        dict(row) for row in derivation["assumption_ledger"]
+    ]
+    assumption_ledger[0]["role"] = "martingale measurability"
+    derivation["assumption_ledger"] = assumption_ledger
+    bad["theory_derivation_packet"] = derivation
+    estimator_specs = [dict(row) for row in bad["estimator_specs"]]
+    estimator_specs[0]["formula"] = ""
+    bad["estimator_specs"] = estimator_specs
+    ademp = dict(bad["simulation_ademp_spec"])
+    ademp["dgps"] = []
+    bad["simulation_ademp_spec"] = ademp
+    bad["proof_evidence_status"] = THEORY_DERIVATION_NOT_PROOF_EVIDENCE
+    bad["kernel_verified"] = False
+
+    errors = validate_theory_packet(bad)
+
+    assert "problem_card.dgp must be non-empty" in errors
+    assert not any("role" in error for error in errors)
+    assert "estimator_specs[0].formula must be non-empty" in errors
+    assert "simulation_ademp_spec.dgps must be a non-empty list" in errors
+
+
 def test_serious_theory_validation_requires_explicit_sanity_recomputations() -> None:
     packet = _sample_response()
     derivation = dict(packet["theory_derivation_packet"])

@@ -7,6 +7,7 @@ import pytest
 from ai_statistician.llm_json_repair import (
     PacketValidationError,
     _apply_typed_semantic_patch,
+    _compact_response_metadata,
     _format_generation_error,
     _repair_attempt_max_tokens,
     _repair_prompt,
@@ -39,6 +40,27 @@ def test_truncation_repair_never_reduces_a_large_output_budget() -> None:
         20000,
         truncation_repair_mode=True,
     ) == 20000
+
+
+def test_compact_response_metadata_preserves_structured_output_fallback() -> None:
+    compact = _compact_response_metadata(
+        {
+            "provider_structured_output_requested": True,
+            "provider_structured_output_applied": False,
+            "provider_structured_output_fallback_count": 1,
+            "provider_structured_output_fallback_reason": "schema_not_supported",
+            "provider_structured_output_cached_fallback": True,
+            "unrelated_large_metadata": "x" * 1000,
+        }
+    )
+
+    assert compact == {
+        "provider_structured_output_requested": True,
+        "provider_structured_output_applied": False,
+        "provider_structured_output_fallback_count": 1,
+        "provider_structured_output_fallback_reason": "schema_not_supported",
+        "provider_structured_output_cached_fallback": True,
+    }
 
 
 def test_extract_json_object_uses_first_balanced_object_not_greedy_tail() -> None:
