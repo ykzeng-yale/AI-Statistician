@@ -3208,7 +3208,7 @@ def test_runtime_repairs_coupled_source_and_theory_finding_at_source_first(
     assert result.next_task.owner_subsystem == "AlgorithmEngineer"
     feedback = result.next_task.inputs["environment_feedback"]
     assert feedback["repair_scope"] == "source_code"
-    assert feedback["repair_scopes"] == ["source_code"]
+    assert feedback["repair_scopes"] == ["source_code", "upstream_theory"]
     assert "Reinspect generated_source_artifact" in feedback[
         "repair_instructions"
     ][0]
@@ -3220,6 +3220,56 @@ def test_runtime_repairs_coupled_source_and_theory_finding_at_source_first(
     )
     assert ownership["recommended_repair_scope"] == "source_code"
     assert ownership["decisions"][0]["derived_repair_scope"] == "source_code"
+    first_context = result.next_task.inputs["architect_context"]
+    pending = first_context[
+        "runtime_generated_code_semantic_review_pending_repair_plan"
+    ]
+    assert pending["pending_repair_scopes"] == ["upstream_theory"]
+    assert pending["pending_findings"][0]["repair_scope"] == "upstream_theory"
+    assert pending["pending_findings"][0][
+        "runtime_deferred_repair_target"
+    ] is True
+
+    work_order = blackboard.artifacts[str(task.inputs["work_order_id"])]
+    work_order["pending_repair_plan"] = pending
+    work_order["review_revision_count"] = 1
+    for task_field in ("repair_task", "deferred_next_task"):
+        task_payload = dict(work_order[task_field])
+        task_inputs = dict(task_payload["inputs"])
+        task_inputs["architect_context"] = first_context
+        task_payload["inputs"] = task_inputs
+        work_order[task_field] = task_payload
+    second = subsystem.run(
+        AgentTask(
+            task_id="semantic-review:coupled-after-source-repair",
+            owner_subsystem=task.owner_subsystem,
+            objective=task.objective,
+            inputs={
+                **task.inputs,
+                "architect_context": first_context,
+                "work_order_hash": stable_hash(work_order),
+            },
+        ),
+        blackboard,
+    )
+
+    assert second.status == "REROUTE"
+    assert second.next_task is not None
+    assert second.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert second.failure_classification == (
+        "generated_code_semantic_review_upstream_theory_repair_"
+        "escalated_to_architect"
+    )
+    second_execution = next(
+        row
+        for row in second.produced_artifacts.values()
+        if row.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
+    )
+    assert second_execution["repair_scope"] == "upstream_theory"
+    assert second_execution["semantic_review_lineage_budget"][
+        "selected_action"
+    ] == "architect_replan"
 
 
 def test_runtime_defers_separate_theory_finding_behind_required_source_repair(

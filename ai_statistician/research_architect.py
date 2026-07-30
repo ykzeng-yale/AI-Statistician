@@ -227,6 +227,7 @@ class LLMTheoryDeveloperAgent:
             max_repair_attempts=effective_max_repair_attempts,
             repair_context_builder=_theory_developer_json_repair_context,
             semantic_patch_repair=True,
+            allow_progress_repair_extension=True,
         )
 
 

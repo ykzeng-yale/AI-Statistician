@@ -2951,18 +2951,37 @@ def test_theory_developer_non_truncation_second_failure_fails_closed() -> None:
             raise PacketValidationError(
                 validation_label="LLM TheoryDeveloper packet",
                 attempts=2,
-                errors=["missing theorem_cards"],
+                errors=[
+                    "estimator_specs[0].required_assumptions must be non-empty"
+                ],
                 history=[
+                    {
+                        "attempt_index": 1,
+                        "provider": "anthropic",
+                        "model": LIVE_EVALUATION_CLAUDE_MODEL,
+                        "ok": False,
+                        "errors": [
+                            "JSONDecodeError: response ended inside estimator_specs"
+                        ],
+                        "request_max_tokens": 8000,
+                        "response_metadata": {
+                            "provider_stop_reason": "max_tokens",
+                            "provider_usage": {"output_tokens": 8000},
+                        },
+                    },
                     {
                         "attempt_index": 2,
                         "provider": "anthropic",
-                        "model": "claude-sonnet-4-6",
+                        "model": LIVE_EVALUATION_CLAUDE_MODEL,
                         "ok": False,
-                        "errors": ["missing theorem_cards"],
-                        "request_max_tokens": 3000,
+                        "errors": [
+                            "estimator_specs[0].required_assumptions must be "
+                            "non-empty"
+                        ],
+                        "request_max_tokens": 8000,
                         "response_metadata": {
                             "provider_stop_reason": "end_turn",
-                            "provider_usage": {"output_tokens": 1200},
+                            "provider_usage": {"output_tokens": 4100},
                         },
                     }
                 ],

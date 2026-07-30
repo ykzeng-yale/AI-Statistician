@@ -44,6 +44,10 @@ from .architect_metric_contract_authoring import (
 from .architect_metric_repair_ownership_router_llm import (
     ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY,
     ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED,
+    ARCHITECT_METRIC_REPAIR_TARGET_GENERATED_SOURCE,
+    ARCHITECT_METRIC_REPAIR_TARGET_METRIC_PROTOCOL,
+    ARCHITECT_METRIC_REPAIR_TARGET_SOURCE_THEORY,
+    ARCHITECT_METRIC_REPAIR_TARGET_UPSTREAM_GENERATED_DEPENDENCY,
     LLMArchitectMetricRepairOwnershipRouterAgent,
     apply_generated_code_repair_ownership_routes,
 )
@@ -13114,25 +13118,35 @@ def _theory_developer_compact_runtime_feedback_summary(
 def _packet_validation_error_truncation_detected(
     exc: PacketValidationError,
 ) -> bool:
-    for row in exc.history:
-        metadata = row.get("response_metadata", {})
-        if not isinstance(metadata, Mapping):
-            continue
-        haystack = " ".join(
-            str(metadata.get(key, "") or "").lower()
-            for key in ("provider_stop_reason", "provider_incomplete_details")
-        )
-        if any(marker in haystack for marker in ("max_tokens", "length", "output_limit")):
+    final_row = next(
+        (
+            row
+            for row in reversed(exc.history)
+            if isinstance(row, Mapping)
+        ),
+        {},
+    )
+    metadata = final_row.get("response_metadata", {})
+    if not isinstance(metadata, Mapping):
+        return False
+    haystack = " ".join(
+        str(metadata.get(key, "") or "").lower()
+        for key in ("provider_stop_reason", "provider_incomplete_details")
+    )
+    if any(
+        marker in haystack
+        for marker in ("max_tokens", "length", "output_limit")
+    ):
+        return True
+    usage = metadata.get("provider_usage", {})
+    if isinstance(usage, Mapping):
+        try:
+            output_tokens = int(usage.get("output_tokens", 0) or 0)
+            request_tokens = int(final_row.get("request_max_tokens", 0) or 0)
+        except (TypeError, ValueError):
+            return False
+        if request_tokens > 0 and output_tokens >= request_tokens:
             return True
-        usage = metadata.get("provider_usage", {})
-        if isinstance(usage, Mapping):
-            try:
-                output_tokens = int(usage.get("output_tokens", 0) or 0)
-                request_tokens = int(row.get("request_max_tokens", 0) or 0)
-            except (TypeError, ValueError):
-                continue
-            if request_tokens > 0 and output_tokens >= request_tokens:
-                return True
     return False
 
 
@@ -14341,12 +14355,70 @@ def _runtime_generated_code_authoritative_repair_routing(
     source_subsystem: str,
     review_packet: Mapping[str, Any],
     routed_findings: Sequence[Mapping[str, Any]],
+    prioritized_repair_scopes: Sequence[str] = (),
 ) -> dict[str, Any]:
+    target_scope_by_role = {
+        ARCHITECT_METRIC_REPAIR_TARGET_SOURCE_THEORY: "upstream_theory",
+        ARCHITECT_METRIC_REPAIR_TARGET_METRIC_PROTOCOL: (
+            "upstream_metric_contract"
+        ),
+        ARCHITECT_METRIC_REPAIR_TARGET_UPSTREAM_GENERATED_DEPENDENCY: (
+            ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
+        ),
+        ARCHITECT_METRIC_REPAIR_TARGET_GENERATED_SOURCE: "source_code",
+    }
+    deferred_routed_findings: list[dict[str, Any]] = []
+    deferred_fingerprints: set[str] = set()
+    for row in routed_findings:
+        if not isinstance(row, Mapping):
+            continue
+        for target in row.get("deferred_repair_target_artifacts", []) or []:
+            if not isinstance(target, Mapping):
+                continue
+            artifact_role = str(target.get("artifact_role", "") or "").strip()
+            deferred_scope = target_scope_by_role.get(artifact_role, "")
+            if not deferred_scope:
+                continue
+            semantic_required_change = str(
+                row.get(
+                    "semantic_reviewer_required_change",
+                    row.get("required_change", ""),
+                )
+                or ""
+            )
+            deferred_fingerprint = stable_hash(
+                [
+                    deferred_scope,
+                    artifact_role,
+                    str(row.get("category", "") or ""),
+                    str(row.get("summary", "") or ""),
+                    semantic_required_change,
+                ]
+            )
+            if deferred_fingerprint in deferred_fingerprints:
+                continue
+            deferred_fingerprints.add(deferred_fingerprint)
+            deferred_finding = dict(row)
+            deferred_finding.update(
+                {
+                    "repair_scope": deferred_scope,
+                    "repair_target_artifacts": [dict(target)],
+                    "deferred_repair_target_artifacts": [],
+                    "required_change": semantic_required_change,
+                    "runtime_deferred_repair_target": True,
+                    "runtime_deferred_target_artifact_role": artifact_role,
+                }
+            )
+            deferred_routed_findings.append(deferred_finding)
     observed_scopes = {
         str(row.get("repair_scope", "") or "").strip()
         for row in routed_findings
         if isinstance(row, Mapping)
     }
+    observed_scopes.update(
+        str(row.get("repair_scope", "") or "").strip()
+        for row in deferred_routed_findings
+    )
     actionable_observed_scopes = observed_scopes.intersection(
         GENERATED_CODE_SEMANTIC_REVIEW_POSTEXECUTION_REPAIR_ORDER
     )
@@ -14383,6 +14455,17 @@ def _runtime_generated_code_authoritative_repair_routing(
             for scope in GENERATED_CODE_SEMANTIC_REVIEW_POSTEXECUTION_REPAIR_ORDER
             if scope in actionable_observed_scopes
         ]
+    prioritized_scopes = [
+        scope
+        for scope in dict.fromkeys(
+            str(value).strip() for value in prioritized_repair_scopes
+        )
+        if scope in repair_scopes
+    ]
+    repair_scopes = [
+        *prioritized_scopes,
+        *[scope for scope in repair_scopes if scope not in prioritized_scopes],
+    ]
     repair_scope = repair_scopes[0] if repair_scopes else ""
     repair_owner = (
         source_subsystem
@@ -14424,6 +14507,8 @@ def _runtime_generated_code_authoritative_repair_routing(
             unresolved_ownership_observed
             and partial_source_repair_frontier
         ),
+        "deferred_routed_findings": deferred_routed_findings,
+        "prioritized_repair_scopes": prioritized_scopes,
     }
 
 
@@ -15094,6 +15179,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 source_subsystem=source_subsystem,
                 review_packet=review_packet,
                 routed_findings=routed_findings,
+                prioritized_repair_scopes=active_pending_scopes,
             )
             if verdict == "REVISE"
             and (repair_ownership_packet or active_pending_scopes)
@@ -15858,6 +15944,18 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 if scope in GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_REPAIR_SCOPES
             ]
             if pending_upstream_scopes:
+                pending_finding_candidates = [
+                    *routed_findings,
+                    *[
+                        dict(row)
+                        for row in authoritative_routing.get(
+                            "deferred_routed_findings",
+                            [],
+                        )
+                        or []
+                        if isinstance(row, Mapping)
+                    ],
+                ]
                 pending_plan = {
                     "artifact_kind": (
                         "RuntimeGeneratedCodeSemanticReviewPendingRepairPlan"
@@ -15879,7 +15977,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     ),
                     "pending_findings": [
                         dict(row)
-                        for row in routed_findings
+                        for row in pending_finding_candidates
                         if isinstance(row, Mapping)
                         and str(row.get("repair_scope", "") or "")
                         in pending_upstream_scopes

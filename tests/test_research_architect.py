@@ -470,6 +470,41 @@ def test_theory_developer_anthropic_request_uses_structured_output() -> None:
     assert provider.requests[0].schema is not None
 
 
+def test_theory_developer_opts_into_one_strict_progress_patch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def capture_validated_packet(**kwargs: object) -> dict[str, object]:
+        captured.update(kwargs)
+        return {"ok": True}
+
+    monkeypatch.setattr(
+        "ai_statistician.research_architect.generate_validated_json_packet",
+        capture_validated_packet,
+    )
+    developer = LLMTheoryDeveloperAgent(
+        provider=SequentialGeneratorBackend([]),
+        config=ResearchArchitectConfig(
+            provider_name="sequential_test",
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+            max_repair_attempts=2,
+        ),
+    )
+
+    packet = developer.derive(
+        OpenResearchQuestion(
+            id="strict_progress_patch",
+            title="Strict progress patch",
+            description="Exercise the bounded TheoryDeveloper repair policy.",
+        )
+    )
+
+    assert packet == {"ok": True}
+    assert captured["allow_progress_repair_extension"] is True
+
+
 def test_theory_developer_truncation_recovery_is_serious_and_bounded() -> None:
     provider = SequentialGeneratorBackend(
         [
