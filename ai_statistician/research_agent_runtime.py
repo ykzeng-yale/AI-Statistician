@@ -12412,8 +12412,40 @@ class TheoryDeveloperRuntimeSubsystem:
                     theory_packet_id=parent_theory_packet_id,
                 )
             )
+        validation_retry_attempt = _runtime_safe_int(
+            task.inputs.get("theory_developer_validation_retry_attempt", 0)
+        )
+        theory_config = getattr(self.theory_developer, "config", None)
+        theory_provider = getattr(self.theory_developer, "provider", None)
         try:
-            packet = self.theory_developer.derive(question, architect_context=context)
+            with agent_runtime_substage(
+                "theory_packet_generation",
+                metadata={
+                    "model_tier": str(
+                        getattr(theory_config, "serious_model_tier", "")
+                        or getattr(theory_config, "model_tier", "")
+                        or ""
+                    ),
+                    "provider": str(
+                        getattr(theory_provider, "provider_name", "")
+                        or getattr(theory_config, "provider_name", "")
+                        or ""
+                    ),
+                    "validation_retry_attempt": validation_retry_attempt,
+                    "provider_structured_output_expected": bool(
+                        str(
+                            getattr(theory_provider, "provider_name", "")
+                            or getattr(theory_config, "provider_name", "")
+                            or ""
+                        ).strip().lower()
+                        == "anthropic"
+                    ),
+                },
+            ):
+                packet = self.theory_developer.derive(
+                    question,
+                    architect_context=context,
+                )
         except PacketValidationError as exc:
             return _theory_developer_packet_validation_failure_result(
                 task=task,
@@ -12756,11 +12788,40 @@ def _theory_developer_packet_validation_failure_result(
         task.inputs.get("theory_developer_validation_retry_attempt", 0)
     )
     truncation_detected = _packet_validation_error_truncation_detected(exc)
-    max_runtime_validation_retries = 2 if truncation_detected else 1
+    max_runtime_validation_retries = 1
     failure_classification = (
         "theory_developer_packet_truncated_json"
         if truncation_detected
         else "theory_developer_packet_validation_failed"
+    )
+    validation_lineage_id = str(
+        task.inputs.get("theory_developer_validation_lineage_id", "") or ""
+    ).strip() or (
+        "theory_developer_validation_lineage:"
+        + stable_hash(
+            [
+                question.id,
+                task.task_id,
+                failure_classification,
+            ]
+        )[:20]
+    )
+    parent_failure_id = str(
+        task.inputs.get("theory_developer_parent_validation_failure_id", "")
+        or ""
+    ).strip()
+    failure_fingerprint = stable_hash(
+        [
+            question.id,
+            failure_classification,
+            exc.validation_label,
+            validation_errors,
+            [
+                str(row.get("raw_response_fingerprint", "") or "")
+                for row in exc.history
+                if isinstance(row, Mapping)
+            ],
+        ]
     )
     failure_id = (
         "theory_developer_validation_failure:"
@@ -12779,6 +12840,9 @@ def _theory_developer_packet_validation_failure_result(
             "validation_errors": validation_errors,
             "attempts": exc.attempts,
             "retry_attempt": retry_attempt,
+            "validation_lineage_id": validation_lineage_id,
+            "parent_failure_id": parent_failure_id,
+            "failure_fingerprint": failure_fingerprint,
             "last_attempt_summary": exc.history[-1] if exc.history else {},
             "truncation_detected": truncation_detected,
             "max_runtime_validation_retries": max_runtime_validation_retries,
@@ -12802,6 +12866,9 @@ def _theory_developer_packet_validation_failure_result(
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "RuntimeTheoryDeveloperValidationFailure",
         "failure_id": failure_id,
+        "validation_lineage_id": validation_lineage_id,
+        "parent_failure_id": parent_failure_id,
+        "failure_fingerprint": failure_fingerprint,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "question": _question_to_payload(question),
         "task_id": task.task_id,
@@ -12830,6 +12897,9 @@ def _theory_developer_packet_validation_failure_result(
                 "failure_classification": failure_classification,
                 "validation_errors": validation_errors,
                 "retry_attempt": retry_attempt,
+                "validation_lineage_id": validation_lineage_id,
+                "parent_failure_id": parent_failure_id,
+                "failure_fingerprint": failure_fingerprint,
                 "truncation_detected": truncation_detected,
                 "max_runtime_validation_retries": max_runtime_validation_retries,
                 "proof_evidence_status": (
@@ -12854,22 +12924,21 @@ def _theory_developer_packet_validation_failure_result(
                 source_environment_feedback
             )
         retry_mode = (
-            "ultra_compact_truncation_retry"
-            if truncation_detected and retry_attempt >= 1
+            "compact_truncation_transport_recovery"
+            if truncation_detected
             else "compact_validation_retry"
         )
         source_feedback_summary = (
             _theory_developer_compact_runtime_feedback_summary(context)
         )
         required_revision = (
-            "Return one complete ultra-compact JSON object satisfying the "
-            "TheoryDeveloper output contract. Use exactly the minimum "
-            "prompt-declared validator-satisfying structure: one problem card, "
-            "one theorem card, the required derivation and equation-chain rows, one "
-            "assumption-ledger row, and one formalization_handoff. Use short "
-            "symbolic strings and preserve the upstream formal/proof feedback "
-            "summarized in source_runtime_feedback_summary."
-            if retry_mode == "ultra_compact_truncation_retry"
+            "Return one complete compact JSON object satisfying the serious "
+            "TheoryDeveloper output contract. Use exactly the minimum required "
+            "derivation, equation-chain, and independent sanity-check rows, one "
+            "primary theorem card, and a complete formalization_handoff. Preserve "
+            "the upstream mathematical obligations summarized in "
+            "source_runtime_feedback_summary."
+            if truncation_detected
             else (
                 "Return one complete compact JSON object satisfying the "
                 "TheoryDeveloper output contract. Use minimum row counts, short "
@@ -12886,6 +12955,9 @@ def _theory_developer_packet_validation_failure_result(
             "validation_errors": validation_errors,
             "attempts": exc.attempts,
             "retry_attempt": retry_attempt + 1,
+            "validation_lineage_id": validation_lineage_id,
+            "parent_failure_id": failure_id,
+            "failure_fingerprint": failure_fingerprint,
             "max_runtime_validation_retries": max_runtime_validation_retries,
             "retry_mode": retry_mode,
             "truncation_detected": truncation_detected,
@@ -12916,6 +12988,8 @@ def _theory_developer_packet_validation_failure_result(
                 "architect_context": retry_context,
                 "environment_feedback": retry_feedback,
                 "theory_developer_validation_retry_attempt": retry_attempt + 1,
+                "theory_developer_validation_lineage_id": validation_lineage_id,
+                "theory_developer_parent_validation_failure_id": failure_id,
             },
             allowed_tools=task.allowed_tools,
             expected_artifacts=task.expected_artifacts

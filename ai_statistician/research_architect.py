@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -140,6 +141,7 @@ class LLMTheoryDeveloperAgent:
         context = dict(architect_context or {})
         theory_prompt_mode = _theory_developer_prompt_mode(context)
         serious_theory_mode = theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
+        transport_recovery = _theory_developer_transport_recovery(context)
         effective_model_tier = (
             self.config.serious_model_tier
             if serious_theory_mode
@@ -163,13 +165,26 @@ class LLMTheoryDeveloperAgent:
             ),
             model_tier=effective_model_tier,
         )
+        backend_provider_name = str(
+            getattr(self.provider, "provider_name", self.config.provider_name)
+            or self.config.provider_name
+        ).strip().lower()
+        use_provider_structured_output = backend_provider_name == "anthropic"
+        effective_max_repair_attempts = (
+            min(self.config.max_repair_attempts, 1)
+            if transport_recovery
+            else self.config.max_repair_attempts
+        )
         request = GeneratorRequest(
             system_prompt=THEORY_DEVELOPER_SYSTEM_PROMPT,
             user_prompt=user_prompt,
             model=request_model,
             max_tokens=effective_max_tokens,
             temperature=self.config.temperature,
-            schema=THEORY_DEVELOPER_JSON_SCHEMA,
+            schema=_theory_developer_json_schema(
+                theory_prompt_mode=theory_prompt_mode,
+                transport_recovery=transport_recovery,
+            ),
             metadata={
                 "subsystem": "TheoryDeveloper",
                 "agent": "LLMTheoryDeveloperAgent",
@@ -180,7 +195,14 @@ class LLMTheoryDeveloperAgent:
                 "serious_model_tier": self.config.serious_model_tier,
                 "theory_prompt_mode": theory_prompt_mode,
                 "serious_theory_mode": serious_theory_mode,
+                "transport_recovery": transport_recovery,
+                "effective_max_repair_attempts": effective_max_repair_attempts,
                 "resolved_model": request_model,
+                **(
+                    {"provider_structured_output": True}
+                    if use_provider_structured_output
+                    else {}
+                ),
             },
         )
 
@@ -202,7 +224,7 @@ class LLMTheoryDeveloperAgent:
             build_packet=build_packet,
             validate_packet=validate_theory_packet,
             validation_label="LLM TheoryDeveloper packet",
-            max_repair_attempts=self.config.max_repair_attempts,
+            max_repair_attempts=effective_max_repair_attempts,
             repair_context_builder=_theory_developer_json_repair_context,
             semantic_patch_repair=True,
         )
@@ -323,6 +345,7 @@ def build_theory_developer_prompt(
     compact_context = _compact_architect_context_for_prompt(architect_context)
     theory_prompt_mode = _theory_developer_prompt_mode(architect_context)
     serious_theory_mode = theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
+    transport_recovery = _theory_developer_transport_recovery(architect_context)
     source_environment_feedback = theory_developer_source_environment_feedback(
         compact_context
     )
@@ -342,19 +365,41 @@ def build_theory_developer_prompt(
         output_budget_key = "serious_theory_output_budget"
         output_budget = {
             "min_derivation_steps": THEORY_SERIOUS_MIN_DERIVATION_STEPS,
-            "max_derivation_steps": 8,
+            "max_derivation_steps": (
+                THEORY_SERIOUS_MIN_DERIVATION_STEPS
+                if transport_recovery
+                else 8
+            ),
             "min_equation_chain_steps": THEORY_SERIOUS_MIN_EQUATION_CHAIN_STEPS,
+            "max_equation_chain_steps": (
+                THEORY_SERIOUS_MIN_EQUATION_CHAIN_STEPS
+                if transport_recovery
+                else 8
+            ),
             "min_sanity_checks": THEORY_SERIOUS_MIN_SANITY_CHECKS,
-            "max_sanity_checks": 6,
-            "max_candidate_procedures": 2,
-            "max_theorem_goals": 2,
-            "max_lemma_cards": 4,
-            "max_formalization_requests": 2,
-            "max_critic_findings": 4,
-            "max_simulation_predictions": 4,
-            "max_next_actions": 3,
-            "max_string_chars": 600,
+            "max_sanity_checks": (
+                THEORY_SERIOUS_MIN_SANITY_CHECKS
+                if transport_recovery
+                else 6
+            ),
+            "max_candidate_procedures": 1 if transport_recovery else 2,
+            "max_theorem_goals": 1 if transport_recovery else 2,
+            "max_lemma_cards": 2 if transport_recovery else 4,
+            "max_formalization_requests": 1 if transport_recovery else 2,
+            "max_critic_findings": 2 if transport_recovery else 4,
+            "max_simulation_predictions": 2 if transport_recovery else 4,
+            "max_next_actions": 1 if transport_recovery else 3,
+            "max_string_chars": 320 if transport_recovery else 600,
+            "transport_recovery": transport_recovery,
             "instruction": (
+                (
+                    "This is a transport recovery after a truncated response. "
+                    "Return the minimum complete serious-theory handoff while "
+                    "preserving every active mathematical obligation. "
+                )
+                if transport_recovery
+                else ""
+            ) + (
                 "Return a complete valid JSON object within this budget. Develop the "
                 "primary procedure through five to eight dependency-linked derivation "
                 "steps and at least four equation-chain rows. Explicitly audit every "
@@ -539,6 +584,18 @@ def _theory_developer_prompt_mode(
     ):
         return THEORY_PROMPT_MODE_SERIOUS_CAPABILITY
     return THEORY_PROMPT_MODE_COMPACT
+
+
+def _theory_developer_transport_recovery(
+    architect_context: Mapping[str, Any],
+) -> bool:
+    feedback = architect_context.get("environment_feedback", {})
+    return bool(
+        isinstance(feedback, Mapping)
+        and feedback.get("artifact_kind")
+        == "RuntimeTheoryDeveloperValidationFeedback"
+        and feedback.get("truncation_detected") is True
+    )
 
 
 def theory_developer_source_environment_feedback(
@@ -1738,6 +1795,122 @@ THEORY_DEVELOPER_JSON_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     **_json_schema_from_output_contract(THEORY_DEVELOPER_OUTPUT_CONTRACT),
 }
+
+
+def _theory_developer_json_schema(
+    *,
+    theory_prompt_mode: str,
+    transport_recovery: bool = False,
+) -> dict[str, Any]:
+    """Return the output contract with the prompt's size budget made explicit."""
+
+    serious_theory_mode = theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
+    max_string_chars = (
+        320 if serious_theory_mode and transport_recovery
+        else 600 if serious_theory_mode
+        else 180
+    )
+    schema = _bounded_theory_schema_value(
+        THEORY_DEVELOPER_JSON_SCHEMA,
+        max_string_chars=max_string_chars,
+        default_max_items=12,
+    )
+    properties = schema["properties"]
+    derivation = properties["theory_derivation_packet"]["properties"]
+
+    if serious_theory_mode:
+        derivation_step_bounds = (
+            THEORY_SERIOUS_MIN_DERIVATION_STEPS,
+            THEORY_SERIOUS_MIN_DERIVATION_STEPS if transport_recovery else 8,
+        )
+        equation_chain_bounds = (
+            THEORY_SERIOUS_MIN_EQUATION_CHAIN_STEPS,
+            THEORY_SERIOUS_MIN_EQUATION_CHAIN_STEPS if transport_recovery else 8,
+        )
+        sanity_check_bounds = (
+            THEORY_SERIOUS_MIN_SANITY_CHECKS,
+            THEORY_SERIOUS_MIN_SANITY_CHECKS if transport_recovery else 6,
+        )
+        top_level_maxima = {
+            "estimator_specs": 1 if transport_recovery else 2,
+            "theorem_cards": 1 if transport_recovery else 2,
+            "lemma_cards": 2 if transport_recovery else 4,
+            "formalization_requests": 1 if transport_recovery else 2,
+            "critic_findings": 2 if transport_recovery else 4,
+            "next_actions": 1 if transport_recovery else 3,
+        }
+    else:
+        derivation_step_bounds = (THEORY_MIN_DERIVATION_STEPS, 5)
+        equation_chain_bounds = (THEORY_MIN_EQUATION_CHAIN_STEPS, 5)
+        sanity_check_bounds = (1, 3)
+        top_level_maxima = {
+            "estimator_specs": 1,
+            "theorem_cards": 1,
+            "lemma_cards": 1,
+            "formalization_requests": 1,
+            "critic_findings": 1,
+            "next_actions": 1,
+        }
+
+    _set_theory_schema_array_bounds(
+        derivation["derivation_steps"], *derivation_step_bounds
+    )
+    _set_theory_schema_array_bounds(
+        derivation["equation_chain"], *equation_chain_bounds
+    )
+    _set_theory_schema_array_bounds(
+        derivation["assumption_ledger"], 1, 10
+    )
+    _set_theory_schema_array_bounds(
+        derivation["sanity_checks"], *sanity_check_bounds
+    )
+    _set_theory_schema_array_bounds(derivation["self_critique"], 1, 4)
+    _set_theory_schema_array_bounds(derivation["rejected_alternatives"], 0, 3)
+    for field, maximum in top_level_maxima.items():
+        _set_theory_schema_array_bounds(properties[field], 1, maximum)
+    return schema
+
+
+def _bounded_theory_schema_value(
+    value: Any,
+    *,
+    max_string_chars: int,
+    default_max_items: int,
+) -> Any:
+    if isinstance(value, Mapping):
+        bounded = {
+            str(key): _bounded_theory_schema_value(
+                child,
+                max_string_chars=max_string_chars,
+                default_max_items=default_max_items,
+            )
+            for key, child in value.items()
+        }
+        if bounded.get("type") == "string":
+            bounded["minLength"] = 1
+            bounded["maxLength"] = max_string_chars
+        elif bounded.get("type") == "array":
+            bounded.setdefault("maxItems", default_max_items)
+        return bounded
+    if isinstance(value, list):
+        return [
+            _bounded_theory_schema_value(
+                child,
+                max_string_chars=max_string_chars,
+                default_max_items=default_max_items,
+            )
+            for child in value
+        ]
+    return deepcopy(value)
+
+
+def _set_theory_schema_array_bounds(
+    schema: dict[str, Any],
+    minimum: int,
+    maximum: int,
+) -> None:
+    schema["minItems"] = max(0, int(minimum))
+    schema["maxItems"] = max(schema["minItems"], int(maximum))
 
 
 def validate_theory_packet(packet: Mapping[str, Any]) -> list[str]:

@@ -1430,7 +1430,19 @@ def test_theory_developer_validation_failure_routes_compact_retry() -> None:
         "theory_developer_packet_truncated_json"
     )
     assert retry_feedback["truncation_detected"] is True
-    assert "minimum row counts" in retry_feedback["required_revision"]
+    assert retry_feedback["retry_mode"] == (
+        "compact_truncation_transport_recovery"
+    )
+    assert "minimum required" in retry_feedback["required_revision"]
+    assert retry_feedback["validation_lineage_id"].startswith(
+        "theory_developer_validation_lineage:"
+    )
+    assert result.next_task.inputs[
+        "theory_developer_validation_lineage_id"
+    ] == retry_feedback["validation_lineage_id"]
+    assert result.next_task.inputs[
+        "theory_developer_parent_validation_failure_id"
+    ] == retry_feedback["parent_failure_id"]
     assert result.produced_artifacts
     failure_artifact = next(iter(result.produced_artifacts.values()))
     assert failure_artifact["artifact_kind"] == (
@@ -2819,7 +2831,7 @@ def test_theory_developer_fails_closed_before_model_on_invalid_revision_lineage(
     )
 
 
-def test_theory_developer_second_truncation_routes_ultra_compact_retry() -> None:
+def test_theory_developer_second_truncation_fails_closed_with_lineage() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[0]
     question_payload = runtime_module._question_to_payload(question)
 
@@ -2859,6 +2871,12 @@ def test_theory_developer_second_truncation_routes_ultra_compact_retry() -> None
         inputs={
             "question": question_payload,
             "theory_developer_validation_retry_attempt": 1,
+            "theory_developer_validation_lineage_id": (
+                "theory_developer_validation_lineage:test"
+            ),
+            "theory_developer_parent_validation_failure_id": (
+                "theory_developer_validation_failure:parent"
+            ),
             "architect_context": {
                 "runtime_feedback_loop": {
                     "source_subsystem": "CriticEvaluator",
@@ -2910,31 +2928,18 @@ def test_theory_developer_second_truncation_routes_ultra_compact_retry() -> None
 
     result = subsystem.run(task, BlackboardState(project_id="theory-retry-test"))
 
-    assert result.status == "REVISE"
-    assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "TheoryDeveloper"
-    assert result.next_task.inputs["theory_developer_validation_retry_attempt"] == 2
-    retry_feedback = result.next_task.inputs["environment_feedback"]
-    assert retry_feedback["retry_mode"] == "ultra_compact_truncation_retry"
-    assert retry_feedback["max_runtime_validation_retries"] == 2
-    assert "one theorem card" in retry_feedback["required_revision"]
-    assert "source_runtime_feedback_summary" in retry_feedback
-    summary = retry_feedback["source_runtime_feedback_summary"]
-    assert summary["environment_feedback"]["failure_classification"] == (
-        "critic_requested_theory_revision"
+    assert result.status == "FAILED"
+    assert result.next_task is None
+    assert result.failure_classification == "theory_developer_packet_truncated_json"
+    failure = next(iter(result.produced_artifacts.values()))
+    assert failure["validation_lineage_id"] == (
+        "theory_developer_validation_lineage:test"
     )
-    assert summary["environment_feedback"]["target_ids"] == [
-        "split_conformal_finite_sample_coverage"
-    ]
-    assert summary["runtime_feedback_loop"]["source_subsystem"] == (
-        "CriticEvaluator"
+    assert failure["parent_failure_id"] == (
+        "theory_developer_validation_failure:parent"
     )
-    assert summary["capability_gap_routing"]["n_rows_summarized"] == 1
-    assert summary["capability_gap_routing"]["rows"][0]["requirement_id"] == (
-        "source_theorem_exact_proof_body_candidate_materialized"
-    )
-    assert "not theory proof" in summary["boundary"]
-    assert result.observations[0].payload["max_runtime_validation_retries"] == 2
+    assert failure["failure_fingerprint"]
+    assert result.observations[0].payload["max_runtime_validation_retries"] == 1
 
 
 def test_theory_developer_non_truncation_second_failure_fails_closed() -> None:

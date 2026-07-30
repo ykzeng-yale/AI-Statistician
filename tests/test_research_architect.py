@@ -21,6 +21,7 @@ from ai_statistician.cli import (
     build_parser,
     main,
 )
+from ai_statistician.llm_json_repair import PacketValidationError
 from ai_statistician.model_backend import (
     DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
     GeneratorRequest,
@@ -382,8 +383,6 @@ def test_serious_theory_validation_requires_explicit_sanity_recomputations() -> 
 def test_capability_theory_mode_requires_deeper_equation_trace(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from ai_statistician.llm_json_repair import PacketValidationError
-
     monkeypatch.setenv(
         "AI_STATISTICIAN_CLAUDE_SONNET_MODEL",
         "claude-sonnet-serious-theory-test",
@@ -423,6 +422,17 @@ def test_capability_theory_mode_requires_deeper_equation_trace(
     assert request.metadata["theory_prompt_mode"] == (
         "serious_capability_theory_workspace"
     )
+    derivation_schema = request.schema["properties"][
+        "theory_derivation_packet"
+    ]["properties"]
+    assert derivation_schema["derivation_steps"]["minItems"] == 5
+    assert derivation_schema["derivation_steps"]["maxItems"] == 8
+    assert derivation_schema["equation_chain"]["minItems"] == 4
+    assert derivation_schema["sanity_checks"]["minItems"] == 3
+    assert request.schema["properties"]["theorem_cards"]["maxItems"] == 2
+    assert request.schema["properties"]["problem_card"]["properties"][
+        "observed_data"
+    ]["maxLength"] == 600
     assert "finite-sample variance of the estimator" in request.user_prompt
     assert "asymptotic variance of any sample-size-scaled limit" in (
         request.user_prompt
@@ -430,6 +440,90 @@ def test_capability_theory_mode_requires_deeper_equation_trace(
     assert "never insert or remove an n or sqrt(n) factor implicitly" in (
         request.user_prompt
     )
+
+
+def test_theory_developer_anthropic_request_uses_structured_output() -> None:
+    class AnthropicReplayBackend(SequentialGeneratorBackend):
+        provider_name = "anthropic"
+
+    provider = AnthropicReplayBackend([_sample_response()])
+    developer = LLMTheoryDeveloperAgent(
+        provider=provider,
+        config=ResearchArchitectConfig(
+            provider_name="anthropic",
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+            max_repair_attempts=0,
+        ),
+    )
+
+    packet = developer.derive(
+        OpenResearchQuestion(
+            id="structured_output",
+            title="Structured output",
+            description="Exercise the provider-native theory packet contract.",
+        )
+    )
+
+    assert packet["ok"] is True
+    assert provider.requests[0].metadata["provider_structured_output"] is True
+    assert provider.requests[0].schema is not None
+
+
+def test_theory_developer_truncation_recovery_is_serious_and_bounded() -> None:
+    provider = SequentialGeneratorBackend(
+        [
+            '{"problem_card":{"observed_data":"truncated"',
+            '{"problem_card":{"observed_data":"still truncated"',
+        ]
+    )
+    developer = LLMTheoryDeveloperAgent(
+        provider=provider,
+        config=ResearchArchitectConfig(
+            provider_name="sequential_test",
+            model="repair-test-model",
+            max_repair_attempts=2,
+        ),
+    )
+    context = {
+        "architect_runtime_plan": {
+            "evidence_contract": {"evaluation_mode": "capability_eval"}
+        },
+        "environment_feedback": {
+            "artifact_kind": "RuntimeTheoryDeveloperValidationFeedback",
+            "failure_classification": "theory_developer_packet_truncated_json",
+            "truncation_detected": True,
+            "required_revision": "Return a complete serious-theory handoff.",
+        },
+    }
+
+    with pytest.raises(PacketValidationError):
+        developer.derive(
+            OpenResearchQuestion(
+                id="transport_recovery",
+                title="Transport recovery",
+                description="Recover a serious theory packet after truncation.",
+            ),
+            architect_context=context,
+        )
+
+    assert len(provider.requests) == 2
+    request = provider.requests[0]
+    assert request.metadata["transport_recovery"] is True
+    assert request.metadata["effective_max_repair_attempts"] == 1
+    derivation_schema = request.schema["properties"][
+        "theory_derivation_packet"
+    ]["properties"]
+    assert derivation_schema["derivation_steps"]["minItems"] == 5
+    assert derivation_schema["derivation_steps"]["maxItems"] == 5
+    assert derivation_schema["equation_chain"]["minItems"] == 4
+    assert derivation_schema["equation_chain"]["maxItems"] == 4
+    assert derivation_schema["sanity_checks"]["minItems"] == 3
+    assert derivation_schema["sanity_checks"]["maxItems"] == 3
+    assert request.schema["properties"]["problem_card"]["properties"][
+        "observed_data"
+    ]["maxLength"] == 320
+    assert '"transport_recovery":true' in request.user_prompt
 
 
 def test_llm_theory_developer_repairs_invalid_json_packet_before_accepting() -> None:
