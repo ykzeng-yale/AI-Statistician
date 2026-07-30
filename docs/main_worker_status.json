@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-30T16:49:44Z",
+  "updated_at": "2026-07-30T23:30:23Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "keep one canonical research loop and one strict proof boundary. TheoryDeveloper -> typed theory completeness -> independent pre-execution estimand/DGP/identifiability and metric-protocol review -> generated algorithm -> independent code review -> generated confirmatory simulation -> independent review -> Critic. Formalizer/ProofEngineer receive compact task-bound retrieval candidates and iterative Lean feedback; only active-project Lean/kernel evidence closes proof. Current work improves shared agent context, feedback, and retrieval rather than any task answer. Do not add agents, task formulas, Lean grammar/tactic rules, audit-score patches, or held-out fixes; PCA/extremes stay sealed.",
-  "latest_main_worker_patch": "Integrate YuanheZ/lean-stat-learning-theory as a candidate-only formal RAG source without importing its orchestrator or hardcoding its mathematics. The index generically parses declaration/reference tables, preserves Unicode-qualified name, namespace, imports, bounded signature outline, and source reference, stops before proof bodies, binds short-name references only when globally unambiguous, and diversifies exact-name/semantic hits across sources. SQLite candidate generation is Unicode-safe and bounded to 24 ordered query tokens while full-query tokens remain authoritative for deterministic reranking. The Formalizer receives a generic semantic-lemma-DAG and compiler-feedback strategy rather than Lean grammar or tactic rules. The same patch strengthens typed theory completeness, projects very large execution results without mutating accepted source or lineage, preserves structured-output fallback telemetry, and prevents repeated reviewer findings or redundant boolean authority rows from creating false repair loops. The experimental post-code protocol authoring path and unrelated Opus catalog refresh were removed. No statistical answer, book-specific runtime branch, task-family rule, validator relaxation, new agent, extra scheduler, or proof-evidence promotion was added.",
-  "latest_main_worker_live_probe": "Fresh exact-Haiku v128 ran both development families with all 8 enabled agents pinned to claude-haiku-4-5-20251001 and topology policy OK. Six generated algorithm executions passed, but both questions ended BLOCKED with research_eval=0/2, simulations=0, kernel subclaims=0, and exact theorem closures=0. The run also showed that delaying full protocol authoring until after code wastes generation before upstream statistical-authority defects are found; that ordering is not retained. V128 remains negative design evidence and does not establish current-loop completion, proof, or E2E readiness.",
-  "latest_main_worker_design_issue": "The canonical loop again performs independent estimand/DGP/identifiability and protocol review before generated code. TheoryDeveloper's full serious schema is not forced through Anthropic strict structured output after live evidence showed deterministic grammar fallback and truncated 10000-token responses; JSON repair remains active, while the durable design should separate an artifact-backed equation/lemma workspace from a bounded handoff packet. Next gates are a fresh exact-Haiku two-family run under this restored ordering, then exact-target Formalizer/OpenProver/Lean closure. Held-out PCA/extremes remain sealed and source-theorem closure remains zero.",
+  "latest_main_worker_patch": "Extend the existing AI4SLT formal RAG path with bounded same-file declaration signatures, imports, source references, and optional source-derived dependency neighbors for only the top hit in each task-bound query group; proof bodies remain excluded and every hit remains candidate-only until active-project Lean/kernel checking. Audit every indexed source-reference crosswalk rather than only three representative book queries, and register the upstream structured premise corpus without claiming it is already a live proof-state retriever. Bind the metric reviewer's immutable protocol expression from its selected ref instead of asking Haiku to copy long literals, give OpenProver task normalization one bounded schema-validated JSON repair, reject impossible source-owned numeric gate authority with an LLM-owned resolution choice, and prevent an exhausted rejected AlgorithmEngineer artifact from being sent back to SimulationEvaluator. No task answer, book-specific runtime branch, Lean grammar/tactic rule, new agent, scheduler, validator relaxation, or proof-evidence promotion was added.",
+  "latest_main_worker_live_probe": "Fresh exact-Haiku v133 ran both development families with all 10 enabled LLM lanes pinned to claude-haiku-4-5-20251001 and topology policy OK. Both questions ended BLOCKED; the aggregate recorded 13 algorithm/generated-code executions, 4 generated-simulation executions, 2 formal gaps, 0 kernel-verified subclaims, formally_verified_level=none, and 0 exact theorem closures. Survival reached formal target review and one bounded theory revision before metric re-authoring selected an unsupported source owner for an unmatched numeric gate. Sequential exposed a control-plane loop in which exhausted rejected algorithm artifacts were handed to SimulationEvaluator and regenerated. V133 is negative design evidence, not E2E success.",
+  "latest_main_worker_design_issue": "V133 isolated two shared blockers and this patch addresses their mechanisms without task-specific rules: numeric-authority feedback now states when the model's chosen source owner is impossible while leaving design/diagnostic/removal ownership to Haiku, and exhausted rejected algorithm lineages yield to the independent formal lane with the empirical blocker still open instead of re-entering SimulationEvaluator. OpenProver's bounded task-normalization repair is unit-tested but not yet integrated-live verified because the sequential run never reached it. The next gate is a fresh exact-Haiku v134 two-family run, followed by exact-target Formalizer/OpenProver/Lean closure. Held-out PCA/extremes remain sealed and source-theorem closure remains zero.",
   "live_anthropic_model_policy": {
     "model_catalog_source_checked_date": "2026-07-19",
     "policy_rechecked_date": "2026-07-30",
@@ -24,14 +24,15 @@
     "provider_backed_tests_may_use_opus": false,
     "opus_live_requests_allowed": false,
     "enforcement": "Production requests above Sonnet are rejected before a live request can be accepted, requested Opus is rejected before Anthropic client construction, and capability/research evaluation policy pins every provider-backed test agent to the exact Haiku model.",
-    "provider_backed_evaluation_runs_in_current_patch": 6,
+    "provider_backed_evaluation_runs_in_current_patch": 7,
     "provider_backed_evaluation_runs": [
       "v122_metric_reviewer_index_diagnosis",
       "v123_zero_based_metric_patch_and_packet_ownership_diagnosis",
       "v123_pending_critic_bounded_resume",
       "v124_source_owned_packet_validation",
       "v127_slt_rag_two_family_development",
-      "v128_structured_theory_slt_rag_two_family_development"
+      "v128_structured_theory_slt_rag_two_family_development",
+      "v133_ai4slt_context_openprover_repair_two_family_development"
     ]
   },
   "latest_slt_formal_rag": {
@@ -42,6 +43,7 @@
     "indexed_unique_declaration_names": 2012,
     "unicode_identifier_false_duplicates": 0,
     "indexed_book_reference_rows": 21,
+    "indexed_reference_bound_declarations": 47,
     "indexed_unambiguous_readme_reference_rows": 46,
     "book_crosswalks": [
       "Vershynin (2018)",
@@ -53,16 +55,20 @@
       "Wainwright (2019)": 6,
       "Boucheron-Lugosi-Massart (2013)": 11
     },
-    "benchmark": "runs/main_worker_slt_formal_rag_20260730_v7/formal_source_retrieval_benchmark_manifest.json",
-    "benchmark_result": "17/17 recall@8=1.0, MRR=0.722549; all three representative book-reference cases rank 1",
-    "all_book_crosswalk_reference_audit": "21/21 recall@8=1.0, MRR=1.0, and all 21 upstream README crosswalk rows rank 1",
+    "benchmark": "runs/main_worker_slt_formal_rag_20260730_v8_reference_crosswalk/formal_source_retrieval_benchmark_manifest.json",
+    "benchmark_result": "17/17 recall@8=1.0, MRR=0.745098; all three representative book-reference cases rank 1",
+    "all_reference_crosswalk_audit": "47 reference-bound declarations form 46 distinct source/reference queries; 46/46 recall@8=1.0, MRR=0.978261, and 44/46 rank 1",
+    "all_book_crosswalk_reference_audit": "The three paper-core books account for 21/46 queries; all 21 retrieve at rank 1 with counts 4/6/11. The remaining 25 queries cover other or post-paper library references.",
+    "prompt_context_policy": "For only the top hit per task-bound query group, expose at most three nearest same-file declaration signatures, module/import metadata, and at most six source-derived dependency neighbors. Never expose proof bodies; all context remains non-proof candidate evidence.",
+    "structured_corpus": "yuanhezhang/lean4-stat-learning-theory-corpus",
+    "structured_corpus_runtime_status": "registered as an auditable retrieval source candidate; not yet downloaded or promoted as the live proof-state retriever",
     "shared_rag_main_commit": "390cc6bc",
     "shared_rag_feature_commits": [
       "7f954358",
       "1262b04d"
     ],
     "version_boundary": "external HEAD uses Lean 4.32.0 with Mathlib 81a5d257; upstream tag v4.31.0 at 148db35c uses Mathlib fabf563a; the active proof target uses Lean 4.31.0 with Mathlib 3cd5cf90. Matching Lean major/minor is insufficient, so every hit remains an untrusted candidate until exact active-project compilation and kernel verification",
-    "coverage_boundary": "The 21 rows are every declaration crosswalked by the upstream README to these three books, not a claim that all three books are formalized.",
+    "coverage_boundary": "The 46 queries are every distinct explicit source/reference crosswalk currently indexed from the upstream README; 21 belong to the three paper-core books. This is not a claim that any whole book or theorem family is formalized.",
     "evidence_boundary": "Indexing, source retrieval, README reference matching, benchmark rank, and external compilation are not active-project proof evidence and cannot close a theorem."
   },
   "latest_runtime_role_boundary_alignment": {
@@ -81,16 +87,16 @@
     "fresh_live_two_family_strict_completion_verified": false,
     "strict_e2e_capability_ready": false,
     "verification": {
-      "research_agent_runtime": "1185 passed in 2401.16 seconds after updating the bounded-RAG hit-count fixture",
-      "affected_supporting_tests": "291 passed, 3 skipped, and 6 subtests passed in the complete core suite; 175 focused support tests and 48 model/evaluation policy tests also passed credential-free",
-      "exact_haiku_live_probe": "v128 enabled 8 Anthropic agents, all at claude-haiku-4-5-20251001; topology policy OK, 6/6 generated-code executions passed, research_eval=0/2, and both failures remained typed and fail-closed",
-      "formal_source_retrieval": "17/17 recall@8=1.0 with MRR=0.722549 after Unicode names, namespace/section, long-outline, unambiguous-reference, and bounded-FTS correction; all 21 upstream three-book crosswalk rows retrieved their exact declaration at rank 1",
+      "research_agent_runtime": "1185 tests passed and one stale expected-error-text assertion failed in 2251.78 seconds; after updating only that assertion, --last-failed passed the remaining test, giving 1186/1186 on the same production snapshot without rerunning 37 minutes of unchanged work",
+      "affected_supporting_tests": "115 passed and 1 skipped across the changed formal-source, Lean-provider, metric-reviewer, metric-contract, repair-policy, model-policy, and focused runtime surfaces",
+      "exact_haiku_live_probe": "v133 enabled 10 Anthropic LLM lanes, all at claude-haiku-4-5-20251001; topology policy OK, both development tasks BLOCKED, 13 generated-code executions, 4 generated-simulation executions, 2 formal gaps, 0 kernel subclaims, and 0 exact theorem closures",
+      "formal_source_retrieval": "17/17 gold recall@8=1.0 with MRR=0.745098; all 46 distinct explicit source/reference crosswalks retrieve within 8, with 44 rank 1 and the three paper-core books 21/21 rank 1",
       "focused_empirical_loop_tests": "the previously pushed TheoryDeveloper retry and metric-lineage regression remains covered by the complete runtime suite",
       "fresh_start_cross_task_e2e_tests": "fresh strict v39 completed theory/code/confirmatory-simulation for both development tasks, then blocked both at exact-target semantic review; frozen strict completion remains 0/2",
       "py_compile": "passed for every changed Python production module",
       "git_diff_check": "passed after final status update"
     },
-    "boundary": "Fresh v128 is negative exact-Haiku design evidence for the removed delayed-protocol ordering and completes neither research loop. SLT retrieval is candidate context only. Neither result establishes current-loop completion, simulation acceptance, theorem closure, held-out generalization, proof evidence, or full AI-Statistician readiness."
+    "boundary": "Fresh v133 is negative exact-Haiku design evidence and completes neither development task. AI4SLT retrieval, source outlines, dependency neighbors, and citation recall are candidate context only. None establishes current-loop completion, simulation acceptance, theorem closure, held-out generalization, proof evidence, or full AI-Statistician readiness."
   },
   "latest_strict_formal_routing_probe": {
     "implementation": "reuse the existing FormalTargetSemanticReviewer, ProofEngineer, ExactSourceTheoremProver, OpenProver HLM, formal RAG, compiler feedback, and exact local Lean; keep all formal continuation inside typed AgentRuntime tasks",
@@ -456,10 +462,10 @@
   },
   "latest_local_regression": {
     "runtime_test_file": "tests/test_research_agent_runtime.py",
-    "result": "1146 passed in 1867.71s (0:31:07) across the complete runtime file. An additional 279 changed-surface tests and 96 model/reviewer/provider tests passed.",
+    "result": "1185 passed with one stale error-text assertion in 2251.78s; the assertion was updated to the new owner-impossibility diagnostic and --last-failed then passed, for 1186/1186 on the same production snapshot. An additional 115 changed-surface tests passed and 1 was skipped.",
     "failed": 0,
-    "validated_at": "2026-07-18T06:59:49Z",
-    "boundary": "Local regression validates runtime contracts and orchestration behavior. This patch made no live API call and provides no new theorem-proof or cross-task generalization evidence; exact source-theorem closure remains zero."
+    "validated_at": "2026-07-30T23:30:23Z",
+    "boundary": "Local regression validates runtime contracts and orchestration behavior. The fresh v133 live probe used exact Haiku but remained 2/2 BLOCKED and provides no theorem-proof or cross-task closure evidence; exact source-theorem closure remains zero."
   },
   "latest_four_stage_route_planner_live_probe": {
     "run": "runs/main_worker_s14_v5_fdr_route_feedback_live_replay_20260713_v9_four_stage_split",

@@ -792,8 +792,8 @@ def test_field_bound_gate_authority_preserves_mixed_numeric_provenance() -> None
         require_gate_field_authorities=True,
     )
     assert any(
-        "gate_field_authorities[1].tolerance=0.02 must be explicitly present"
-        in error
+        "gate_field_authorities[1].authority_kind='theory_derived' cannot "
+        "authorize tolerance=0.02" in error
         for error in laundering_errors
     )
 

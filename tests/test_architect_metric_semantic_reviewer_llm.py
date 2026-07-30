@@ -435,22 +435,22 @@ def test_metric_reviewer_rejects_pass_with_unresolved_normalization_conflict() -
     ) in error
 
 
-def test_metric_reviewer_cannot_rewrite_protocol_expression_during_review() -> None:
+def test_metric_reviewer_protocol_expression_is_runtime_bound_from_ref() -> None:
     payload = _review_payload(accept=True)
     payload["claim_checks"][0]["normalization_reconstruction"][
         "protocol_expression"
     ] = "one raw finite generic diagnostic divided by n"
 
-    with pytest.raises(PacketValidationError) as exc_info:
-        _review(accept=True, payload=payload)
+    packet, backend, _ = _review(accept=True, payload=payload)
 
-    assert (
-        "claim check 1 normalization_reconstruction must copy the exact "
-        "protocol expression without rewriting it"
-    ) in str(exc_info.value)
+    assert len(backend.requests) == 1
+    assert packet["claim_checks"][0]["normalization_reconstruction"][
+        "protocol_expression"
+    ] == "one raw finite generic diagnostic"
+    assert validate_architect_metric_semantic_review_packet(packet) == []
 
 
-def test_metric_reviewer_literal_repair_exposes_zero_based_exact_paths() -> None:
+def test_metric_reviewer_binds_omitted_protocol_expressions_without_retry() -> None:
     requirements = [
         _generic_requirement(
             requirement_id=f"generic_gate_{index}",
@@ -460,12 +460,11 @@ def test_metric_reviewer_literal_repair_exposes_zero_based_exact_paths() -> None
         )
         for index in range(5)
     ]
-    invalid_payload = _review_payload(accept=True)
-    invalid_payload["claim_checks"] = []
+    payload = _review_payload(accept=True)
+    payload["claim_checks"] = []
     for index, requirement in enumerate(requirements):
         row = deepcopy(_review_payload(accept=True)["claim_checks"][0])
         requirement_id = str(requirement["requirement_id"])
-        exact_protocol = str(requirement["measurement_protocol"])
         row["requirement_id"] = requirement_id
         row["claim_ref"] = (
             f"requirement:{requirement_id}.measurement_protocol"
@@ -476,13 +475,9 @@ def test_metric_reviewer_literal_repair_exposes_zero_based_exact_paths() -> None
             "protocol_expression_ref": (
                 f"requirement:{requirement_id}.measurement_protocol"
             ),
-            "protocol_expression": (
-                exact_protocol
-                if index == 0
-                else f"rewritten finite diagnostic {index}"
-            ),
         }
-        invalid_payload["claim_checks"].append(row)
+        row["normalization_reconstruction"].pop("protocol_expression")
+        payload["claim_checks"].append(row)
 
     material = (
         architect_metric_review_material_with_runtime_evaluator_certificate(
@@ -494,56 +489,14 @@ def test_metric_reviewer_literal_repair_exposes_zero_based_exact_paths() -> None
         )
     )
 
-    def typed_repair(request):
-        repair_request = json.loads(request.user_prompt.split("\n\n", 1)[1])
-        targets = repair_request["subsystem_repair_context"][
-            "protocol_expression_fidelity_repair_targets"
-        ]
-        assert [
-            row["claim_check_index_zero_based"] for row in targets
-        ] == [1, 2, 3, 4]
-        assert [
-            row["exact_update_path"] for row in targets
-        ] == [
-            [
-                "claim_checks",
-                index,
-                "normalization_reconstruction",
-                "protocol_expression",
-            ]
-            for index in range(1, 5)
-        ]
-        assert all(
-            target["exact_replacement"]
-            == requirements[index]["measurement_protocol"]
-            for index, target in zip(range(1, 5), targets)
-        )
-        assert "Every array index is zero-based" in request.user_prompt
-        assert all(
-            f"claim_checks[{index}]" in request.user_prompt
-            for index in range(1, 5)
-        )
-        return {
-            "base_payload_fingerprint": repair_request[
-                "base_payload_fingerprint"
-            ],
-            "updates": [
-                {
-                    "path": target["exact_update_path"],
-                    "replacement": target["exact_replacement"],
-                }
-                for target in targets
-            ],
-        }
-
-    backend = _SequenceBackend([invalid_payload, typed_repair])
+    backend = _SequenceBackend([payload])
     packet = LLMArchitectMetricSemanticReviewerAgent(
         provider=backend,
         config=ArchitectMetricSemanticReviewerConfig(
             provider_name="anthropic",
             model=TEST_HAIKU_MODEL,
             model_tier="haiku",
-            max_repair_attempts=1,
+            max_repair_attempts=0,
         ),
     ).review(
         question=OpenResearchQuestion(
@@ -566,16 +519,14 @@ def test_metric_reviewer_literal_repair_exposes_zero_based_exact_paths() -> None
         },
     )
 
-    assert len(backend.requests) == 2
-    assert packet["llm_json_repair_attempts"] == 1
-    assert packet["llm_json_repair_history"][1]["patched_paths"] == [
-        [
-            "claim_checks",
-            index,
-            "normalization_reconstruction",
-            "protocol_expression",
-        ]
-        for index in range(1, 5)
+    assert len(backend.requests) == 1
+    assert packet["llm_json_repair_attempts"] == 0
+    assert [
+        row["normalization_reconstruction"]["protocol_expression"]
+        for row in packet["claim_checks"]
+    ] == [
+        str(requirement["measurement_protocol"])
+        for requirement in requirements
     ]
     assert validate_architect_metric_semantic_review_packet(packet) == []
 
@@ -1613,7 +1564,6 @@ def test_metric_review_schema_transforms_for_anthropic_structured_output() -> No
     assert normalization_schema["required"] == [
         "source_expression",
         "protocol_expression_ref",
-        "protocol_expression",
         "substitution_without_reinterpretation",
         "resulting_sample_size_order",
         "required_sample_size_order",

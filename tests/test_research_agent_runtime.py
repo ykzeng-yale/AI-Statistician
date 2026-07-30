@@ -23750,6 +23750,9 @@ def test_metric_authoring_unmatched_numeric_gate_does_not_invent_source_authorit
     from ai_statistician.architect_metric_contract_authoring import (
         _metric_authoring_repair_context,
     )
+    from ai_statistician.generated_metric_contract import (
+        validate_generated_metric_requirements,
+    )
 
     requirement = {
         "requirement_id": "candidate_owned_gate",
@@ -23845,6 +23848,33 @@ def test_metric_authoring_unmatched_numeric_gate_does_not_invent_source_authorit
         "rationale",
     ]
     assert matrix_row["automatic_repair_applied"] is False
+    assert matrix_row["numeric_gate_matches"][0][
+        "current_source_authority_must_change"
+    ] is True
+
+    validation_errors = validate_generated_metric_requirements(
+        [requirement],
+        expected_runtime_replicates=17,
+        require_acceptance_authority=True,
+        acceptance_authority_catalog=[
+            {
+                "anchor_id": "theory#/theorem_cards/0/conclusion",
+                "authority_kind": "theory_derived",
+                "content": "The diagnostic is finite.",
+                "explicit_numeric_values": [],
+            }
+        ],
+        require_gate_field_authorities=True,
+    )
+    numeric_errors = [
+        error
+        for error in validation_errors
+        if error.startswith("[generated_metric_numeric_authority_missing]")
+    ]
+    assert len(numeric_errors) == 1
+    assert "cannot authorize threshold=0.0175" in numeric_errors[0]
+    assert "runtime will not infer or map the owner" in numeric_errors[0]
+    assert "source_anchors must include" not in numeric_errors[0]
 
 
 def test_frozen_metric_protocol_rebinding_preserves_every_gate_field() -> None:
@@ -24692,6 +24722,162 @@ def test_semantic_review_honors_exhausted_source_repair_budget(
     assert yield_state["source_artifact_remains_unaccepted"] is True
 
 
+def test_semantic_review_does_not_send_rejected_algorithm_to_simulation(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    theory_packet = {
+        "packet_id": "theory_derivation:algorithm-source-budget",
+        "theorem_cards": [],
+    }
+    context = {
+        "runtime_requested_evidence_contract": {
+            "capability_eval_requires_generated_algorithm_code": True,
+            "capability_eval_algorithm_engineer_generated_code_repair_yield_after_attempts": 1,
+        },
+        "runtime_feedback_loop": {
+            "source_subsystem": "AlgorithmEngineer",
+            "algorithm_engineer_generated_code_repair_attempts_used": 1,
+            "algorithm_engineer_generated_code_repair_yield_after_attempts": 1,
+            "algorithm_engineer_generated_code_repair_theory_packet_id": (
+                theory_packet["packet_id"]
+            ),
+        },
+        "architect_runtime_plan": {
+            "evidence_contract": {"empirical_metric_requirements": []}
+        },
+    }
+    repair_task = AgentTask(
+        task_id="algorithm:source-budget-exhausted",
+        owner_subsystem="AlgorithmEngineer",
+        objective="Review an exhausted generated algorithm lineage.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet["packet_id"],
+            "architect_context": context,
+            "environment_feedback": {
+                "feedback_type": "generated_algorithm_sandbox_feedback"
+            },
+        },
+    )
+    source = (
+        "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+        "    return {'estimate': 0.5, 'replicates': int(replicates)}\n"
+    )
+    result_payload = {"estimate": 0.5, "replicates": 17}
+    script_path = tmp_path / "algorithm-source-budget.py"
+    result_path = tmp_path / "algorithm-source-budget.json"
+    script_path.write_text(source, encoding="utf-8")
+    result_path.write_text(json.dumps(result_payload), encoding="utf-8")
+    source_manifest = {
+        "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+        "manifest_id": "algorithm_sandbox_manifest:source-budget",
+        "prototypes": [
+            {
+                "estimator_id": "source-budget-estimator",
+                "smoke_passed": True,
+                "script_path": str(script_path),
+                "script_hash": runtime_module.stable_hash(source),
+                "result_path": str(result_path),
+                "result_hash": runtime_module.stable_hash(result_payload),
+                "metrics": result_payload,
+            }
+        ],
+    }
+    proposal_packet = {
+        "artifact_kind": "AlgorithmEngineerProposalPacket",
+        "packet_id": "algorithm_engineer_proposal:source-budget",
+        "source_agent": "LLMAlgorithmEngineerAgent",
+        "model": "static-source-model",
+        "model_tier": "haiku",
+        "sandbox_code_drafts": [
+            {
+                "estimator_id": "source-budget-estimator",
+                "language": "python",
+                "entrypoint": "run_sandbox",
+                "code": source,
+            }
+        ],
+    }
+    deferred_task = AgentTask(
+        task_id="simulation-rejected-algorithm:source-budget",
+        owner_subsystem="SimulationEvaluator",
+        objective="Consume only an independently accepted algorithm artifact.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet["packet_id"],
+            "algorithm_sandbox_manifest_id": source_manifest["manifest_id"],
+            "architect_context": context,
+        },
+    )
+
+    dispatch = runtime_module._runtime_generated_code_semantic_review_dispatch(
+        task=repair_task,
+        question=question,
+        source_subsystem="AlgorithmEngineer",
+        source_manifest=source_manifest,
+        theory_packet=theory_packet,
+        proposal_packet=proposal_packet,
+        architect_context=context,
+        deferred_next_task=deferred_task,
+        max_revisions=1,
+    )
+
+    assert dispatch is not None
+    work_order = dispatch["work_order"]
+    assert work_order["source_repair_budget"]["budget_exhausted"] is True
+    assert work_order["deferred_next_task"]["owner_subsystem"] == (
+        "SimulationEvaluator"
+    )
+    reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=StaticArchitectLLMProvider(
+            _source_code_revise_semantic_review_payload()
+        ),
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="anthropic",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        ),
+    )
+    blackboard = BlackboardState(
+        project_id="semantic-review-algorithm-source-budget",
+        artifacts={
+            theory_packet["packet_id"]: theory_packet,
+            source_manifest["manifest_id"]: source_manifest,
+            proposal_packet["packet_id"]: proposal_packet,
+            work_order["work_order_id"]: work_order,
+        },
+    )
+    review_result = (
+        runtime_module.GeneratedCodeSemanticReviewerRuntimeSubsystem(
+            reviewer=reviewer,
+            max_revisions=1,
+        ).run(dispatch["next_task"], blackboard)
+    )
+
+    assert review_result.status == "REROUTE", review_result.rationale
+    assert review_result.failure_classification == (
+        "generated_code_semantic_review_source_repair_budget_yield"
+    )
+    assert review_result.next_task is not None
+    assert review_result.next_task.owner_subsystem == "FormalizationEvaluator"
+    assert review_result.next_task.inputs["algorithm_sandbox_manifest_id"] == (
+        source_manifest["manifest_id"]
+    )
+    next_feedback = review_result.next_task.inputs["environment_feedback"]
+    assert next_feedback["source_artifact_remains_unaccepted"] is True
+    assert next_feedback["execution_evidence_status"] == (
+        "ALGORITHM_REPAIR_YIELD_DOES_NOT_SATISFY_GENERATED_CODE_GATE"
+    )
+    assert review_result.next_task.inputs["architect_context"][
+        "runtime_feedback_loop"
+    ]["handoff"] == (
+        "algorithm_engineer_repair_budget_yield_to_formalization"
+    )
+
+
 def test_semantic_review_selects_source_planned_repair_task() -> None:
     source_execution_task = AgentTask(
         task_id="simulation:source-execution",
@@ -25163,7 +25349,8 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         second_patch_request.user_prompt.split("\n\n", 1)[1]
     )
     assert any(
-        "threshold=0.25 must be explicitly present" in error
+        "cannot authorize threshold=0.25" in error
+        and "runtime will not infer or map the owner" in error
         for error in repair_payload["local_validation_errors"]
     )
     repair_instructions = " ".join(repair_payload["repair_instructions"])

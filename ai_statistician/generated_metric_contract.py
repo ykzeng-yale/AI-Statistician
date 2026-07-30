@@ -1156,6 +1156,13 @@ def validate_generated_metric_requirements(
             "gate_field_authorities" in raw_requirement
             or "gate_field_authority_mode" in raw_requirement
         )
+        raw_gate_field_authorities = raw_requirement.get(
+            "gate_field_authorities"
+        )
+        gate_field_authority_rows_present = bool(
+            isinstance(raw_gate_field_authorities, list)
+            and raw_gate_field_authorities
+        )
         if require_gate_field_authorities and not gate_field_authorities_present:
             errors.append(
                 f"{prefix}.gate_field_authorities are required for fresh "
@@ -1206,23 +1213,24 @@ def validate_generated_metric_requirements(
                     )
                 if len(anchor_ids) != len(set(anchor_ids)):
                     errors.append(f"{prefix}.source_anchors entries must be unique")
-                required_catalog_kinds = (
-                    _generated_metric_required_catalog_authority_kinds(
-                        authority_kind
-                    )
-                )
-                for required_catalog_kind in required_catalog_kinds:
-                    if not any(
-                        authority_kind_by_anchor_id.get(anchor_id)
-                        == required_catalog_kind
-                        for anchor_id in anchor_ids
-                    ):
-                        errors.append(
-                            generated_metric_numeric_authority_error(
-                                f"{prefix}.source_anchors must include an exact "
-                                f"{required_catalog_kind} authority node"
-                            )
+                if not gate_field_authority_rows_present:
+                    required_catalog_kinds = (
+                        _generated_metric_required_catalog_authority_kinds(
+                            authority_kind
                         )
+                    )
+                    for required_catalog_kind in required_catalog_kinds:
+                        if not any(
+                            authority_kind_by_anchor_id.get(anchor_id)
+                            == required_catalog_kind
+                            for anchor_id in anchor_ids
+                        ):
+                            errors.append(
+                                generated_metric_numeric_authority_error(
+                                    f"{prefix}.source_anchors must include an exact "
+                                    f"{required_catalog_kind} authority node"
+                                )
+                            )
                 if (
                     required is True
                     and authority_kind
@@ -1612,25 +1620,70 @@ def _generated_metric_gate_field_authority_errors(
                 f"{row_prefix}.source_anchors must also occur in the row-level "
                 "source_anchors: " + ", ".join(anchors_outside_row)
             )
-        for required_kind in _generated_metric_required_catalog_authority_kinds(
-            authority_kind
-        ):
-            if not any(
-                str(
-                    authority_row_by_anchor_id.get(anchor_id, {}).get(
-                        "authority_kind", ""
+        numeric_kinds = set(
+            _generated_metric_numeric_catalog_authority_kinds(
+                authority_kind
+            )
+        )
+        field_value = expected_values.get(field)
+        exact_catalog_match_available = bool(
+            field in expected_values
+            and numeric_kinds
+            and any(
+                str(authority_row.get("authority_kind", "") or "").strip()
+                in numeric_kinds
+                and any(
+                    _same_finite_number(field_value, candidate)
+                    for candidate in authority_row.get(
+                        "explicit_numeric_values",
+                        _explicit_numeric_values(authority_row.get("content")),
                     )
-                    or ""
-                ).strip()
-                == required_kind
-                for anchor_id in anchor_ids
-            ):
-                errors.append(
-                    generated_metric_numeric_authority_error(
-                        f"{row_prefix}.source_anchors must include an exact "
-                        f"{required_kind} authority node"
-                    )
+                    or []
+                    if _finite_number(candidate)
                 )
+                for authority_row in authority_row_by_anchor_id.values()
+            )
+        )
+        source_owner_unavailable = bool(
+            field in expected_values
+            and numeric_kinds
+            and not exact_catalog_match_available
+        )
+        if source_owner_unavailable:
+            errors.append(
+                generated_metric_numeric_authority_error(
+                    f"{row_prefix}.authority_kind={authority_kind!r} cannot "
+                    f"authorize {field}={field_value!r}: no exact "
+                    + " or ".join(sorted(numeric_kinds))
+                    + " catalog node contains that value. The LLM must choose "
+                    "a supported source owner, architect_preregistered_design "
+                    "with a pre-execution rationale, diagnostic_only with "
+                    "required=false, or remove the row; runtime will not infer "
+                    "or map the owner."
+                )
+            )
+        else:
+            for required_kind in (
+                _generated_metric_required_catalog_authority_kinds(
+                    authority_kind
+                )
+            ):
+                if not any(
+                    str(
+                        authority_row_by_anchor_id.get(anchor_id, {}).get(
+                            "authority_kind", ""
+                        )
+                        or ""
+                    ).strip()
+                    == required_kind
+                    for anchor_id in anchor_ids
+                ):
+                    errors.append(
+                        generated_metric_numeric_authority_error(
+                            f"{row_prefix}.source_anchors must include an exact "
+                            f"{required_kind} authority node"
+                        )
+                    )
         if (
             required is True
             and authority_kind
@@ -1646,12 +1699,11 @@ def _generated_metric_gate_field_authority_errors(
             errors.append(
                 f"{row_prefix}.diagnostic_only authority requires required=false"
             )
-        numeric_kinds = set(
-            _generated_metric_numeric_catalog_authority_kinds(
-                authority_kind
-            )
-        )
-        if field not in expected_values or not numeric_kinds:
+        if (
+            field not in expected_values
+            or not numeric_kinds
+            or source_owner_unavailable
+        ):
             continue
         cited_values: list[int | float] = []
         for anchor_id in anchor_ids:
@@ -1938,6 +1990,9 @@ def generated_metric_numeric_authority_repair_matrix(
                     "exact_match_required": bool(numeric_kinds),
                     "exact_match_found": (
                         bool(matching_nodes) if numeric_kinds else True
+                    ),
+                    "current_source_authority_must_change": bool(
+                        numeric_kinds and not matching_nodes
                     ),
                 }
             )

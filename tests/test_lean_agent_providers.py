@@ -17,6 +17,9 @@ from ai_statistician.lean_agent_providers import (
 from ai_statistician.model_backend import GeneratorResponse
 
 
+TEST_HAIKU_MODEL = "claude-haiku-4-5-20251001"
+
+
 def _declaration(name: str, *, source_id: str = "local") -> FormalDeclaration:
     return FormalDeclaration(
         source_id=source_id,
@@ -343,7 +346,7 @@ def test_generator_backend_candidate_policy_reuses_negotiated_backend() -> None:
     backend = Backend()
     policy = GeneratorBackendCandidatePolicy(
         provider=backend,  # type: ignore[arg-type]
-        model="claude-sonnet-4-6",
+        model=TEST_HAIKU_MODEL,
         max_tokens=800,
         temperature=0.1,
         proof_generation_prompt=lambda _task, n: f"return {n}",
@@ -371,7 +374,7 @@ def test_generator_backend_candidate_policy_keeps_valid_siblings() -> None:
 
     policy = GeneratorBackendCandidatePolicy(
         provider=Backend(),  # type: ignore[arg-type]
-        model="claude-sonnet-4-6",
+        model=TEST_HAIKU_MODEL,
         max_tokens=800,
         temperature=0.1,
         proof_generation_prompt=lambda _task, n: f"return {n}",
@@ -401,13 +404,21 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
     class Backend:
         provider_name = "anthropic"
 
+        def __init__(self) -> None:
+            self.normalization_calls = 0
+
         def generate(self, request):
             if request.metadata.get("agent") == "StructuredLeanTaskNormalizer":
+                self.normalization_calls += 1
                 text = (
-                    '{"context":['
-                    '{"name":"p","typ":"Prop","kind":"explicit"},'
-                    '{"name":"hp","typ":"p","kind":"explicit"}'
-                    '],"target":"p"}'
+                    ""
+                    if self.normalization_calls == 1
+                    else (
+                        '{"context":['
+                        '{"name":"p","typ":"Prop","kind":"explicit"},'
+                        '{"name":"hp","typ":"p","kind":"explicit"}'
+                        '],"target":"p"}'
+                    )
                 )
             else:
                 text = '{"candidates":["exact hp"]}'
@@ -490,13 +501,14 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
         "LakeLeanBackend": LakeLeanBackend,
         "LocalLeanBackend": LocalLeanBackend,
     }
+    backend = Backend()
     provider = OpenProverHLMProofSearchProvider(
-        generator_backend=Backend(),  # type: ignore[arg-type]
+        generator_backend=backend,  # type: ignore[arg-type]
         config=OpenProverHLMConfig(
             root=root,
             out_dir=tmp_path / "runs",
             lean_project=lean_project,
-            model="claude-sonnet-4-6",
+            model=TEST_HAIKU_MODEL,
             max_rounds=1,
             branches_per_round=1,
         ),
@@ -547,4 +559,11 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
     assert result["initial_failure_feedback_items"] == 2
     assert result["task_normalization"]["source"] == "llm_structured_json"
     assert result["task_normalization"]["context_binding_count"] == 2
+    assert backend.normalization_calls == 2
+    assert result["task_normalization"]["response"][
+        "llm_json_repair_attempts"
+    ] == 1
+    assert result["task_normalization"]["response"][
+        "llm_json_repair_history"
+    ][0]["ok"] is False
     assert Path(result["report_path"]).exists()

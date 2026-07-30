@@ -6,6 +6,13 @@ from .fingerprint import stable_hash
 from .research_schema import OpenResearchQuestion
 
 
+FORMAL_SOURCE_OUTLINE_PROMPT_POLICY = (
+    "Bounded same-file declaration signatures and imported module names only; "
+    "proof bodies are omitted. Retrieved declarations remain candidate context "
+    "until the exact target artifact passes active-project Lean/kernel checking."
+)
+
+
 def task_bound_formal_source_query_seeds(
     *,
     question: OpenResearchQuestion,
@@ -145,6 +152,181 @@ def prompt_safe_formal_source_provenance(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [prompt_safe_formal_source_provenance(child) for child in value]
     return value
+
+
+def formal_source_context_for_hit(
+    *,
+    retriever: Any,
+    hit: Any,
+    max_outline_declarations: int = 3,
+    max_outline_chars: int = 2600,
+    max_dependency_neighbors: int = 6,
+) -> dict[str, Any]:
+    """Build context-efficient source outlines around one retrieved declaration."""
+
+    declaration = getattr(hit, "declaration", None)
+    if declaration is None:
+        return {}
+    path = str(getattr(declaration, "path", "") or "")
+    source_id = str(getattr(declaration, "source_id", "") or "")
+    target_line = int(getattr(declaration, "line", 0) or 0)
+    imports = [
+        str(value)
+        for value in getattr(declaration, "imports", ()) or ()
+        if str(value).strip()
+    ]
+    same_file = list(
+        _formal_source_outline_rows_by_file(retriever).get((source_id, path), ())
+    )
+    same_file = [
+        row
+        for row in same_file
+        if not (
+            int(getattr(row, "line", 0) or 0) == target_line
+            and str(getattr(row, "name", "") or "")
+            == str(getattr(declaration, "name", "") or "")
+        )
+    ]
+    same_file.sort(
+        key=lambda row: (
+            abs(int(getattr(row, "line", 0) or 0) - target_line),
+            0 if int(getattr(row, "line", 0) or 0) <= target_line else 1,
+            int(getattr(row, "line", 0) or 0),
+            str(getattr(row, "name", "") or ""),
+        )
+    )
+    outline_rows: list[dict[str, Any]] = []
+    outline_chars = 0
+    for row in same_file:
+        if len(outline_rows) >= max(0, int(max_outline_declarations)):
+            break
+        signature = str(getattr(row, "signature", "") or "")[:1800]
+        if not signature:
+            continue
+        remaining = max(0, int(max_outline_chars) - outline_chars)
+        if remaining <= 0:
+            break
+        signature = signature[:remaining]
+        outline_rows.append(
+            {
+                "line": int(getattr(row, "line", 0) or 0),
+                "kind": str(getattr(row, "kind", "") or ""),
+                "name": str(getattr(row, "name", "") or ""),
+                "namespace": str(getattr(row, "namespace", "") or ""),
+                "signature": signature,
+                "reference": str(getattr(row, "reference", "") or ""),
+            }
+        )
+        outline_chars += len(signature)
+    outline_rows.sort(key=lambda row: (int(row["line"]), str(row["name"])))
+
+    dependency_context = _formal_source_dependency_context(
+        retriever,
+        str(getattr(declaration, "name", "") or ""),
+        limit=max_dependency_neighbors,
+    )
+    if not outline_rows and not dependency_context:
+        return {}
+    payload: dict[str, Any] = {
+        "module": _formal_source_module_name(path, imports),
+        "path": path,
+        "imports": imports[:12],
+        "nearby_declaration_outlines": outline_rows,
+        "n_same_file_declarations": len(same_file) + 1,
+        "outline_selection": "nearest_same_file_declarations_by_source_line",
+        "prompt_policy": FORMAL_SOURCE_OUTLINE_PROMPT_POLICY,
+    }
+    if dependency_context:
+        payload["dependency_context"] = dependency_context
+    return payload
+
+
+def _formal_source_retriever_declarations(retriever: Any) -> tuple[Any, ...]:
+    cached = getattr(retriever, "_prompt_outline_declarations", None)
+    if isinstance(cached, tuple):
+        return cached
+    rows = getattr(retriever, "declarations", None)
+    if rows is None:
+        loader = getattr(retriever, "load_declarations", None)
+        if callable(loader):
+            try:
+                rows = loader()
+            except Exception:
+                rows = ()
+    declarations = tuple(rows or ())
+    try:
+        setattr(retriever, "_prompt_outline_declarations", declarations)
+    except Exception:
+        pass
+    return declarations
+
+
+def _formal_source_outline_rows_by_file(
+    retriever: Any,
+) -> dict[tuple[str, str], tuple[Any, ...]]:
+    cached = getattr(retriever, "_prompt_outline_rows_by_file", None)
+    if isinstance(cached, dict):
+        return cached
+    grouped: dict[tuple[str, str], list[Any]] = {}
+    for row in _formal_source_retriever_declarations(retriever):
+        key = (
+            str(getattr(row, "source_id", "") or ""),
+            str(getattr(row, "path", "") or ""),
+        )
+        grouped.setdefault(key, []).append(row)
+    index = {key: tuple(rows) for key, rows in grouped.items()}
+    try:
+        setattr(retriever, "_prompt_outline_rows_by_file", index)
+    except Exception:
+        pass
+    return index
+
+
+def _formal_source_dependency_context(
+    retriever: Any,
+    declaration_name: str,
+    *,
+    limit: int,
+) -> dict[str, Any]:
+    provider = getattr(retriever, "dependency_retriever", None)
+    if provider is None and callable(getattr(retriever, "dependency_context", None)):
+        provider = retriever
+    context_loader = getattr(provider, "dependency_context", None)
+    if not declaration_name or not callable(context_loader):
+        return {}
+    try:
+        context = context_loader(declaration_name, limit=max(0, int(limit)))
+    except Exception:
+        return {}
+    if context is None:
+        return {}
+    return {
+        "provider": str(getattr(provider, "source", provider.__class__.__name__)),
+        "fan_in": int(getattr(context, "fan_in", 0) or 0),
+        "fan_out": int(getattr(context, "fan_out", 0) or 0),
+        "uses": [str(value) for value in getattr(context, "uses", ()) or ()],
+        "used_by": [
+            str(value) for value in getattr(context, "used_by", ()) or ()
+        ],
+        "evidence_status": "SOURCE_DERIVED_DEPENDENCY_CONTEXT_NOT_PROOF_EVIDENCE",
+    }
+
+
+def _formal_source_module_name(path: str, imports: Sequence[str]) -> str:
+    normalized = path.replace("\\", "/").strip("/")
+    if normalized.endswith(".lean"):
+        normalized = normalized[:-5]
+    module = normalized.replace("/", ".")
+    import_roots = {
+        value.split(".", 1)[0]
+        for value in imports
+        if "." in value and value.split(".", 1)[0]
+    }
+    if len(import_roots) == 1:
+        root = next(iter(import_roots))
+        if module != root and not module.startswith(root + "."):
+            module = root + "." + module
+    return module
 
 
 def unique_formal_source_hit_payloads(

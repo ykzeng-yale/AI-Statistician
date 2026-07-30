@@ -716,8 +716,9 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
             "the formal-source index exposes those references with compact declaration "
             "outlines. The checkout targets Lean/Mathlib v4.32, so every retrieved "
             "candidate must still compile in the active pinned project before reuse. "
-            "A v4.31.0 release exists, but its Mathlib revision differs from the "
-            "active project's pinned revision and is not assumed ABI-compatible."
+            "The structured companion corpus exposes per-file imports and premise "
+            "declarations for RAG, but neither source nor corpus rows are assumed "
+            "ABI-compatible or promoted to proof evidence without that local rerun."
         ),
         tags=(
             "statistical_learning",

@@ -329,11 +329,11 @@ def _architect_metric_claim_check_contract(
             "error from asymptotic variance, state the order in sample size of "
             "every numerator and denominator quantity, and account for every n, "
             "sqrt(n), replicate-count, aggregation, and unit conversion factor. "
-            "Copy the source and protocol expressions into normalization_reconstruction, "
-            "substitute them without silently inserting or deleting a factor, and "
-            "mark every unresolved convention or order conflict. Select one exact "
-            "protocol_expression_ref and copy its supplied expression byte-for-byte; "
-            "the reviewer cannot rewrite the candidate expression while auditing it."
+            "Copy the source expression into normalization_reconstruction, select one "
+            "exact protocol_expression_ref, substitute the referenced protocol expression "
+            "without silently inserting or deleting a factor, and mark every unresolved "
+            "convention or order conflict. Runtime binds the immutable protocol expression "
+            "from that ref; the reviewer owns the semantic audit, not literal transport."
         ),
     }
 
@@ -808,70 +808,6 @@ def _architect_metric_rejected_review_consistency_state(
     }
 
 
-def _architect_metric_protocol_expression_fidelity_repair_targets(
-    review_material: Mapping[str, Any],
-    invalid_packet: Mapping[str, Any] | None,
-) -> list[dict[str, Any]]:
-    """Expose literal lineage repairs without deciding statistical semantics."""
-
-    if not isinstance(invalid_packet, Mapping):
-        return []
-    expression_options_by_requirement_id = {
-        str(row.get("requirement_id", "") or "").strip(): {
-            str(option.get("expression_ref", "") or "").strip(): str(
-                option.get("expression", "") or ""
-            )
-            for option in row.get("protocol_expression_options", []) or []
-            if isinstance(option, Mapping)
-            and str(option.get("expression_ref", "") or "").strip()
-        }
-        for row in _architect_metric_claim_check_contract(
-            review_material
-        ).get("normalization_expression_rows", [])
-        if isinstance(row, Mapping)
-        and str(row.get("requirement_id", "") or "").strip()
-    }
-    targets: list[dict[str, Any]] = []
-    for claim_check_index, raw_row in enumerate(
-        invalid_packet.get("claim_checks", []) or []
-    ):
-        if not isinstance(raw_row, Mapping):
-            continue
-        requirement_id = str(
-            raw_row.get("requirement_id", "") or ""
-        ).strip()
-        reconstruction = raw_row.get("normalization_reconstruction", {})
-        if not requirement_id or not isinstance(reconstruction, Mapping):
-            continue
-        expression_ref = str(
-            reconstruction.get("protocol_expression_ref", "") or ""
-        ).strip()
-        exact_expression = expression_options_by_requirement_id.get(
-            requirement_id,
-            {},
-        ).get(expression_ref)
-        current_expression = str(
-            reconstruction.get("protocol_expression", "") or ""
-        )
-        if exact_expression is None or current_expression == exact_expression:
-            continue
-        targets.append(
-            {
-                "claim_check_index_zero_based": claim_check_index,
-                "requirement_id": requirement_id,
-                "selected_protocol_expression_ref": expression_ref,
-                "exact_update_path": [
-                    "claim_checks",
-                    claim_check_index,
-                    "normalization_reconstruction",
-                    "protocol_expression",
-                ],
-                "exact_replacement": exact_expression,
-            }
-        )
-    return targets
-
-
 def _complete_unresolved_prior_finding_lineage(
     *,
     findings: Sequence[Mapping[str, Any]],
@@ -1028,12 +964,6 @@ def _architect_metric_semantic_review_repair_context(
                 invalid_packet
             )
         ),
-        "protocol_expression_fidelity_repair_targets": (
-            _architect_metric_protocol_expression_fidelity_repair_targets(
-                review_material,
-                invalid_packet,
-            )
-        ),
         "local_validation_errors": [
             str(error) for error in errors if str(error).strip()
         ],
@@ -1144,14 +1074,6 @@ def _architect_metric_semantic_review_repair_context(
                 "convention_consistent value or any unresolved conflict requires "
                 "that claim_check to remain FAIL. Do not infer the statistical "
                 "verdict mechanically from any other runtime instruction."
-            ),
-            (
-                "For each protocol_expression_fidelity_repair_target, copy its "
-                "exact_update_path and exact_replacement literally. These paths use "
-                "zero-based array indices. Then independently reassess the affected "
-                "normalization audit and reconstruction, result, verdict, dimensions, "
-                "and findings. The literal repair does not decide any of those "
-                "semantic judgments."
             ),
         ],
     }
@@ -1320,8 +1242,8 @@ def build_architect_metric_semantic_review_prompt(
         "for every n, sqrt(n), replicate-count, aggregation, and unit-conversion "
         "factor. In normalization_reconstruction, copy the exact relevant source "
         "expression, select one exact protocol_expression_ref from "
-        "metric_claim_check_contract for the same requirement_id, copy that "
-        "protocol expression byte-for-byte, and substitute one into the other "
+        "metric_claim_check_contract for the same requirement_id, and substitute "
+        "the referenced protocol expression into the source expression "
         "without adding, deleting, or reinterpreting any normalization factor, and "
         "state both the resulting and required sample-size order. If those orders "
         "or conventions cannot be reconciled from the supplied artifacts, set "
@@ -1555,7 +1477,6 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_OUTPUT_CONTRACT: dict[str, Any] = {
                 "protocol_expression_ref": (
                     "exact requirement field ref from metric_claim_check_contract"
                 ),
-                "protocol_expression": "exact expression used by the metric",
                 "substitution_without_reinterpretation": (
                     "protocol expression after literal source substitution"
                 ),
@@ -1719,7 +1640,6 @@ _CLAIM_CHECK_SCHEMA: dict[str, Any] = {
             "required": [
                 "source_expression",
                 "protocol_expression_ref",
-                "protocol_expression",
                 "substitution_without_reinterpretation",
                 "resulting_sample_size_order",
                 "required_sample_size_order",
@@ -2739,11 +2659,44 @@ def _normalize_architect_metric_semantic_review_packet(
         )
         if str(requirement_id).strip() and isinstance(raw_check, Mapping)
     ]
-    general_claim_checks = [
-        dict(row)
-        for row in body.get("claim_checks", []) or []
+    protocol_expressions_by_requirement_id = {
+        str(row.get("requirement_id", "") or "").strip(): {
+            str(option.get("expression_ref", "") or "").strip(): str(
+                option.get("expression", "") or ""
+            )
+            for option in row.get("protocol_expression_options", []) or []
+            if isinstance(option, Mapping)
+            and str(option.get("expression_ref", "") or "").strip()
+        }
+        for row in _architect_metric_claim_check_contract(review_material).get(
+            "normalization_expression_rows",
+            [],
+        )
         if isinstance(row, Mapping)
-    ]
+        and str(row.get("requirement_id", "") or "").strip()
+    }
+    general_claim_checks = []
+    for raw_row in body.get("claim_checks", []) or []:
+        if not isinstance(raw_row, Mapping):
+            continue
+        row = dict(raw_row)
+        reconstruction = row.get("normalization_reconstruction", {})
+        if isinstance(reconstruction, Mapping):
+            reconstruction = dict(reconstruction)
+            requirement_id = str(row.get("requirement_id", "") or "").strip()
+            expression_ref = str(
+                reconstruction.get("protocol_expression_ref", "") or ""
+            ).strip()
+            exact_expression = protocol_expressions_by_requirement_id.get(
+                requirement_id,
+                {},
+            ).get(expression_ref)
+            if exact_expression is None:
+                reconstruction.pop("protocol_expression", None)
+            else:
+                reconstruction["protocol_expression"] = exact_expression
+            row["normalization_reconstruction"] = reconstruction
+        general_claim_checks.append(row)
     body["claim_checks"] = [
         *theory_scope_claim_checks,
         *general_claim_checks,

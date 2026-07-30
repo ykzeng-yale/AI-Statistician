@@ -15,6 +15,7 @@ from typing import Any, Callable, Mapping, Protocol, Sequence
 from .fingerprint import stable_hash
 from .formal_source_index import FormalDeclaration, FormalSourceHit
 from .lean_proof_agent_contract import llm_proof_body_generation_contract
+from .llm_json_repair import generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest
 
 
@@ -557,6 +558,7 @@ class OpenProverHLMConfig:
     verifier_timeout_s: int = 120
     require_lake_project: bool = True
     task_normalization_max_tokens: int = 1800
+    task_normalization_max_repair_attempts: int = 1
 
 
 class GeneratorBackendCandidatePolicy:
@@ -953,23 +955,73 @@ class OpenProverHLMProofSearchProvider:
                     "generation_contract": llm_proof_body_generation_contract(),
                 },
             )
+
+            def build_packet(payload, response, _raw_text):
+                return {
+                    **dict(payload),
+                    "normalization_response": {
+                        "provider": response.provider,
+                        "model": response.model,
+                        "metadata": (
+                            dict(response.metadata)
+                            if isinstance(response.metadata, Mapping)
+                            else {}
+                        ),
+                    },
+                }
+
+            def validate_packet(packet):
+                errors: list[str] = []
+                raw_context = packet.get("context")
+                target = str(packet.get("target", "") or "").strip()
+                if not isinstance(raw_context, list):
+                    return ["normalizer response requires context[]"]
+                if len(raw_context) > 80:
+                    errors.append("normalizer context exceeds 80 bindings")
+                if not target:
+                    errors.append("normalizer response requires a nonempty target")
+                seen_names: set[str] = set()
+                for index, row in enumerate(raw_context):
+                    if not isinstance(row, Mapping):
+                        errors.append(f"context[{index}] must be an object")
+                        continue
+                    name = str(row.get("name", "") or "").strip()
+                    typ = str(row.get("typ", "") or "").strip()
+                    kind = str(row.get("kind", "") or "").strip()
+                    if not name or not typ or kind not in {"explicit", "instance"}:
+                        errors.append(
+                            f"context[{index}] requires name, typ, and explicit/instance kind"
+                        )
+                    elif name in seen_names:
+                        errors.append(f"context[{index}] duplicates binding name {name}")
+                    seen_names.add(name)
+                return errors
+
             try:
-                response = self.generator_backend.generate(normalization_request)
+                packet = generate_validated_json_packet(
+                    provider=self.generator_backend,
+                    request=normalization_request,
+                    extract_payload=_strict_json_object,
+                    build_packet=build_packet,
+                    validate_packet=validate_packet,
+                    validation_label="OpenProver structured task normalization",
+                    max_repair_attempts=(
+                        self.config.task_normalization_max_repair_attempts
+                    ),
+                )
             except Exception as exc:
                 raise LeanProviderUnavailable(
                     f"LLM task normalizer failed: {type(exc).__name__}: {exc}"
                 ) from exc
-            payload = _strict_json_object(response.text)
+            payload = dict(packet)
             source = "llm_structured_json"
-            response_metadata = {
-                "provider": response.provider,
-                "model": response.model,
-                "metadata": (
-                    dict(response.metadata)
-                    if isinstance(response.metadata, Mapping)
-                    else {}
-                ),
-            }
+            response_metadata = dict(packet.get("normalization_response", {}) or {})
+            response_metadata["llm_json_repair_attempts"] = int(
+                packet.get("llm_json_repair_attempts", 0) or 0
+            )
+            response_metadata["llm_json_repair_history"] = list(
+                packet.get("llm_json_repair_history", []) or []
+            )
         raw_context = payload.get("context", [])
         target = str(payload.get("target", "") or "").strip()
         if not isinstance(raw_context, list) or not target:

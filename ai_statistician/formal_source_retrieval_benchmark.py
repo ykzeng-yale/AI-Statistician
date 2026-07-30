@@ -9,7 +9,7 @@ from .fingerprint import stable_hash
 from .formal_source_index import FormalSourceHit, build_formal_source_search_backend
 
 
-FORMAL_SOURCE_RETRIEVAL_BENCHMARK_SCHEMA_VERSION = 1
+FORMAL_SOURCE_RETRIEVAL_BENCHMARK_SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -32,6 +32,17 @@ class FormalSourceRetrievalBenchmarkRow:
     top1_source_id: str
     ok: bool
     top_hits: tuple[dict[str, object], ...]
+
+
+@dataclass(frozen=True)
+class FormalSourceReferenceCrosswalkRow:
+    source_id: str
+    reference: str
+    citation_family: str
+    expected_declaration_names: tuple[str, ...]
+    hit_rank: int | None
+    top_hit_names: tuple[str, ...]
+    ok: bool
 
 
 DEFAULT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK: tuple[FormalSourceRetrievalBenchmarkCase, ...] = (
@@ -185,6 +196,97 @@ ALL_FORMAL_SOURCE_RETRIEVAL_BENCHMARKS: tuple[FormalSourceRetrievalBenchmarkCase
 )
 
 
+def audit_formal_source_reference_crosswalk(
+    retriever: object,
+    *,
+    k: int = 8,
+    source_ids: tuple[str, ...] = (),
+) -> dict[str, object]:
+    """Verify every indexed source citation is retrievable without theorem-name hints."""
+
+    declarations = _retriever_declarations(retriever)
+    allowed_source_ids = set(source_ids)
+    grouped: dict[tuple[str, str], list[object]] = {}
+    for declaration in declarations:
+        source_id = str(getattr(declaration, "source_id", "") or "")
+        reference = str(getattr(declaration, "reference", "") or "").strip()
+        if not reference or (allowed_source_ids and source_id not in allowed_source_ids):
+            continue
+        grouped.setdefault((source_id, reference), []).append(declaration)
+
+    rows: list[FormalSourceReferenceCrosswalkRow] = []
+    for (source_id, reference), expected in sorted(grouped.items()):
+        hits = (
+            list(retriever.search(reference, k=k))
+            if hasattr(retriever, "search")
+            else []
+        )
+        hit_rank = next(
+            (
+                rank
+                for rank, hit in enumerate(hits, start=1)
+                if str(getattr(hit.declaration, "source_id", "") or "")
+                == source_id
+                and str(getattr(hit.declaration, "reference", "") or "").strip()
+                == reference
+            ),
+            None,
+        )
+        rows.append(
+            FormalSourceReferenceCrosswalkRow(
+                source_id=source_id,
+                reference=reference,
+                citation_family=_citation_family(reference),
+                expected_declaration_names=tuple(
+                    sorted(
+                        str(getattr(declaration, "name", "") or "")
+                        for declaration in expected
+                    )
+                ),
+                hit_rank=hit_rank,
+                top_hit_names=tuple(
+                    str(getattr(hit.declaration, "name", "") or "")
+                    for hit in hits[:3]
+                ),
+                ok=hit_rank is not None and hit_rank <= k,
+            )
+        )
+
+    family_counts: dict[str, dict[str, int]] = {}
+    for row in rows:
+        counts = family_counts.setdefault(
+            row.citation_family,
+            {"n_queries": 0, "n_ok": 0},
+        )
+        counts["n_queries"] += 1
+        counts["n_ok"] += int(row.ok)
+    n_ok = sum(int(row.ok) for row in rows)
+    return {
+        "query_policy": "exact_source_citation_only_without_declaration_name",
+        "k": int(k),
+        "source_ids": tuple(sorted({row.source_id for row in rows})),
+        "n_reference_bound_declarations": sum(len(value) for value in grouped.values()),
+        "n_reference_queries": len(rows),
+        "n_ok": n_ok,
+        "all_ok": n_ok == len(rows),
+        "recall_at_k": n_ok / len(rows) if rows else 1.0,
+        "citation_families": [
+            {
+                "citation_family": family,
+                **counts,
+                "all_ok": counts["n_ok"] == counts["n_queries"],
+            }
+            for family, counts in sorted(family_counts.items())
+        ],
+        "rows": [asdict(row) for row in rows],
+        "coverage_boundary": (
+            "This audits only declarations explicitly bound to source citations in "
+            "the indexed repositories. It does not claim that an entire cited book, "
+            "paper, or theorem family has been formalized, and retrieval is not proof."
+        ),
+    }
+
+
 def run_formal_source_retrieval_benchmark(
     out_dir: Path | None = None,
     *,
@@ -207,6 +309,10 @@ def run_formal_source_retrieval_benchmark(
     rows = [_run_case(active_retriever, case, k=k) for case in active_cases]
     n_ok = sum(1 for row in rows if row.ok)
     reciprocal_ranks = [1.0 / row.hit_rank for row in rows if row.hit_rank]
+    reference_crosswalk = audit_formal_source_reference_crosswalk(
+        active_retriever,
+        k=k,
+    )
     payload: dict[str, object] = {
         "schema_version": FORMAL_SOURCE_RETRIEVAL_BENCHMARK_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -230,18 +336,28 @@ def run_formal_source_retrieval_benchmark(
         "n_configured_cases": len(cases),
         "n_skipped_cases": len(skipped_cases),
         "n_ok": n_ok,
-        "all_ok": n_ok == len(rows),
+        "all_ok": (
+            n_ok == len(rows)
+            and bool(reference_crosswalk.get("all_ok", False))
+        ),
         "recall_at_k": n_ok / len(rows) if rows else 1.0,
         "mean_reciprocal_rank": sum(reciprocal_ranks) / len(rows) if rows else 1.0,
         "available_source_ids": tuple(sorted(available_source_ids)),
         "skipped_cases": [asdict(case) for case in skipped_cases],
         "rows": [asdict(row) for row in rows],
-        "dataset_fingerprint": stable_hash([asdict(row) for row in rows]),
+        "reference_crosswalk": reference_crosswalk,
+        "dataset_fingerprint": stable_hash(
+            {
+                "gold_rows": [asdict(row) for row in rows],
+                "reference_crosswalk_rows": reference_crosswalk.get("rows", []),
+            }
+        ),
         "limitations": [
             "gold-family recall is a retrieval-quality benchmark, not a proof-success theorem",
             "cases whose expected source families are absent from the local formal index are skipped and must be routed to source acquisition",
             "Atlas rows are retrieval-only context and are not exported as training data",
             "the benchmark complements AXLE proof audits; Lean remains the final verifier",
+            "source-reference coverage is limited to explicitly indexed crosswalk rows and never implies full-book formalization",
         ],
     }
     if out_dir is not None:
@@ -258,14 +374,7 @@ def run_formal_source_retrieval_benchmark(
 
 
 def _retriever_source_ids(retriever: object) -> set[str]:
-    declarations = []
-    if hasattr(retriever, "load_declarations"):
-        try:
-            declarations = list(retriever.load_declarations())  # type: ignore[attr-defined]
-        except Exception:
-            declarations = []
-    if not declarations:
-        declarations = list(getattr(retriever, "declarations", []) or [])
+    declarations = _retriever_declarations(retriever)
     source_ids = {
         str(getattr(declaration, "source_id", ""))
         for declaration in declarations
@@ -274,6 +383,23 @@ def _retriever_source_ids(retriever: object) -> set[str]:
     if getattr(retriever, "lean_rag_dependency_graph_enabled", False):
         source_ids.add("lean_rag_dependency_graph")
     return source_ids
+
+
+def _retriever_declarations(retriever: object) -> list[object]:
+    declarations: list[object] = []
+    if hasattr(retriever, "load_declarations"):
+        try:
+            declarations = list(retriever.load_declarations())  # type: ignore[attr-defined]
+        except Exception:
+            declarations = []
+    if not declarations:
+        declarations = list(getattr(retriever, "declarations", []) or [])
+    return declarations
+
+
+def _citation_family(reference: str) -> str:
+    family = reference.split("(", 1)[0].strip().rstrip(",")
+    return family or reference.split(",", 1)[0].strip() or "unspecified"
 
 
 def _split_available_cases(
@@ -362,6 +488,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Skipped unavailable source cases: {payload.get('n_skipped_cases', 0)}/{payload.get('n_configured_cases', payload.get('n_cases'))}",
         f"- MRR: {float(payload.get('mean_reciprocal_rank', 0.0)):.3f}",
         f"- Fingerprint: `{payload.get('dataset_fingerprint')}`",
+        f"- Source-reference recall@{payload.get('k')}: "
+        f"{dict(payload.get('reference_crosswalk', {}) or {}).get('n_ok', 0)}/"
+        f"{dict(payload.get('reference_crosswalk', {}) or {}).get('n_reference_queries', 0)}",
         "",
         "## Gold Queries",
         "",

@@ -285,6 +285,7 @@ from .model_backend import (
 )
 from .formal_source_index import FormalSourceHit, FormalSourceRetriever
 from .formal_source_prompt_context import (
+    formal_source_context_for_hit,
     formalizer_feedback_with_task_bound_formal_source_queries,
     prompt_safe_formal_source_provenance,
     unique_formal_source_hit_payloads,
@@ -13836,6 +13837,55 @@ def _runtime_generated_code_semantic_review_source_repair_task_payload(
     return dict(source_execution_task)
 
 
+def _runtime_generated_code_semantic_review_source_budget_yield_task(
+    *,
+    question: OpenResearchQuestion,
+    source_subsystem: str,
+    source_manifest_id: str,
+    theory_packet_id: str,
+    deferred_task: AgentTask,
+    architect_context: Mapping[str, Any],
+    feedback: Mapping[str, Any],
+    source_repair_budget: Mapping[str, Any],
+) -> AgentTask:
+    """Keep a rejected source artifact away from its downstream consumer."""
+
+    if not (
+        source_subsystem == "AlgorithmEngineer"
+        and _canonical_architect_subsystem(deferred_task.owner_subsystem)
+        == "SimulationEvaluator"
+    ):
+        return deferred_task
+    deferred_context = deferred_task.inputs.get("architect_context", {})
+    effective_context = (
+        dict(deferred_context)
+        if isinstance(deferred_context, Mapping)
+        else dict(architect_context)
+    )
+    simulation_manifest_id = str(
+        deferred_task.inputs.get("simulation_manifest_id", "")
+        or effective_context.get("previous_simulation_manifest_id", "")
+        or ""
+    ).strip()
+    return _algorithm_engineer_repair_budget_yield_to_formalization_task(
+        question=question,
+        theory_packet_id=theory_packet_id,
+        simulation_manifest_id=simulation_manifest_id,
+        algorithm_sandbox_manifest_id=source_manifest_id,
+        architect_context=effective_context,
+        algorithm_feedback=feedback,
+        failure_classification=(
+            "generated_code_semantic_review_source_repair_budget_yield"
+        ),
+        repair_attempts_used=int(
+            source_repair_budget.get("attempts_used", 0) or 0
+        ),
+        yield_after_attempts=int(
+            source_repair_budget.get("yield_after_attempts", 0) or 0
+        ),
+    )
+
+
 def _runtime_generated_code_semantic_review_dispatch(
     *,
     task: AgentTask,
@@ -15843,6 +15893,32 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             deferred_task = _agent_task_from_runtime_payload(
                 deferred_task_payload
             )
+            source_repair_budget = dict(
+                work_order.get("source_repair_budget", {}) or {}
+            )
+            deferred_task = (
+                _runtime_generated_code_semantic_review_source_budget_yield_task(
+                    question=question,
+                    source_subsystem=source_subsystem,
+                    source_manifest_id=str(
+                        work_order.get("source_manifest_id", "") or ""
+                    ),
+                    theory_packet_id=str(
+                        work_order.get("theory_packet_id", "") or ""
+                    ),
+                    deferred_task=deferred_task,
+                    architect_context=(
+                        task.inputs.get("architect_context", {})
+                        if isinstance(
+                            task.inputs.get("architect_context", {}),
+                            Mapping,
+                        )
+                        else {}
+                    ),
+                    feedback=feedback,
+                    source_repair_budget=source_repair_budget,
+                )
+            )
             next_inputs = dict(deferred_task.inputs)
             prior_feedback = next_inputs.get("environment_feedback", {})
             next_inputs["environment_feedback"] = {
@@ -15868,7 +15944,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 ),
                 "review_execution_id": execution_id,
                 "source_repair_budget": dict(
-                    work_order.get("source_repair_budget", {}) or {}
+                    source_repair_budget
                 ),
                 "source_artifact_remains_unaccepted": True,
                 "proof_evidence_status": (
@@ -34081,7 +34157,15 @@ def _proofengineer_formal_source_grounding_hit_groups(
             group["retrieval_error"] = type(exc).__name__ + ": " + str(exc)[:240]
         else:
             unique_hits, duplicate_hit_count = unique_formal_source_hit_payloads(
-                [_formal_source_hit_to_json(hit) for hit in hits],
+                [
+                    _formal_source_hit_to_json(
+                        hit,
+                        formal_source_retriever=(
+                            formal_source_retriever if index == 0 else None
+                        ),
+                    )
+                    for index, hit in enumerate(hits)
+                ],
                 seen_hit_keys=seen_hit_keys,
             )
             group["hits"] = unique_hits
@@ -105293,7 +105377,13 @@ def _runtime_formal_source_hits(
             {
                 "theorem_goal_id": goal.id,
                 "query_fingerprint": stable_hash(query),
-                "hits": [_formal_source_hit_to_json(row) for row in hits],
+                "hits": [
+                    _formal_source_hit_to_json(
+                        row,
+                        formal_source_retriever=(retriever if index == 0 else None),
+                    )
+                    for index, row in enumerate(hits)
+                ],
             }
         )
     return groups
@@ -105307,7 +105397,11 @@ def _paper_source_to_json(source: PaperSourceHit) -> dict[str, Any]:
     return asdict(source)
 
 
-def _formal_source_hit_to_json(hit: FormalSourceHit) -> dict[str, Any]:
+def _formal_source_hit_to_json(
+    hit: FormalSourceHit,
+    *,
+    formal_source_retriever: Any | None = None,
+) -> dict[str, Any]:
     declaration = hit.declaration
     row = {
         "source_id": declaration.source_id,
@@ -105326,6 +105420,13 @@ def _formal_source_hit_to_json(hit: FormalSourceHit) -> dict[str, Any]:
     provenance = getattr(hit, "provenance", {})
     if isinstance(provenance, Mapping) and provenance:
         row["provenance"] = prompt_safe_formal_source_provenance(provenance)
+    if formal_source_retriever is not None:
+        source_context = formal_source_context_for_hit(
+            retriever=formal_source_retriever,
+            hit=hit,
+        )
+        if source_context:
+            row["declaration_source_context"] = source_context
     return row
 
 

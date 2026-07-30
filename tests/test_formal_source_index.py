@@ -7,11 +7,15 @@ from types import SimpleNamespace
 from ai_statistician.formal_source_index import (
     FormalDeclaration,
     FormalSourceHit,
+    FormalSourceRetriever,
     FormalSourceRoot,
     FormalSourceSqliteIndex,
     build_formal_source_index,
     diversify_formal_source_hits,
     search_formal_sources,
+)
+from ai_statistician.formal_source_retrieval_benchmark import (
+    audit_formal_source_reference_crosswalk,
 )
 from ai_statistician.formalizer_llm import (
     build_formalizer_prompt,
@@ -66,6 +70,16 @@ def test_readme_reference_is_searchable_and_persists_in_sqlite(
     sqlite_hits = sqlite_index.search("Boucheron Corollary 13.2", k=3)
     assert sqlite_hits[0].declaration.name == "SLT.dudley"
     assert sqlite_hits[0].declaration.reference == dudley.reference
+
+    crosswalk = audit_formal_source_reference_crosswalk(
+        FormalSourceRetriever(declarations),
+        k=3,
+    )
+    assert crosswalk["n_reference_bound_declarations"] == 1
+    assert crosswalk["n_reference_queries"] == 1
+    assert crosswalk["all_ok"] is True
+    assert crosswalk["rows"][0]["hit_rank"] == 1
+    assert crosswalk["rows"][0]["reference"] == dudley.reference
 
 
 def test_readme_reference_does_not_spill_across_duplicate_short_names(
@@ -243,6 +257,73 @@ def test_formal_source_hit_context_keeps_outline_and_nonproof_boundary() -> None
     assert "kernel_verified" not in payload
 
 
+def test_formal_source_hit_context_adds_bounded_outline_and_dependency_neighbors() -> None:
+    declarations = [
+        FormalDeclaration(
+            source_id="lean_stat_learning_theory",
+            source_type="lean_library",
+            path="SLT/LeastSquares/MasterErrorBound.lean",
+            line=line,
+            kind=kind,
+            name=name,
+            namespace="LeastSquares",
+            signature=signature,
+            imports=("SLT.LeastSquares.Localization", "SLT.GaussianLipConcen"),
+        )
+        for line, kind, name, signature in (
+            (640, "theorem", "LeastSquares.bad_event_probability_bound", "theorem bad_event_probability_bound : True"),
+            (858, "def", "LeastSquares.goodEvent", "def goodEvent : Set Unit"),
+            (878, "theorem", "LeastSquares.master_error_bound", "theorem master_error_bound : True"),
+            (930, "lemma", "LeastSquares.master_error_bound_corollary", "lemma master_error_bound_corollary : True"),
+        )
+    ]
+    retriever = FormalSourceRetriever(declarations)
+
+    class DependencyProvider:
+        source = "fixture_dependency_graph"
+
+        def dependency_context(self, declaration_name: str, *, limit: int):
+            assert declaration_name == "LeastSquares.master_error_bound"
+            assert limit == 6
+            return SimpleNamespace(
+                fan_in=8,
+                fan_out=3,
+                uses=("LeastSquares.bad_event_probability_bound",),
+                used_by=("LeastSquares.linear_minimax_rate_rank",),
+            )
+
+    retriever.dependency_retriever = DependencyProvider()
+    hit = FormalSourceHit(declarations[2], 9.0, ("master", "error"))
+
+    payload = _formal_source_hit_to_json(
+        hit,
+        formal_source_retriever=retriever,
+    )
+
+    context = payload["declaration_source_context"]
+    assert context["module"] == "SLT.LeastSquares.MasterErrorBound"
+    assert context["imports"] == [
+        "SLT.LeastSquares.Localization",
+        "SLT.GaussianLipConcen",
+    ]
+    assert [row["name"] for row in context["nearby_declaration_outlines"]] == [
+        "LeastSquares.bad_event_probability_bound",
+        "LeastSquares.goodEvent",
+        "LeastSquares.master_error_bound_corollary",
+    ]
+    assert context["dependency_context"]["uses"] == [
+        "LeastSquares.bad_event_probability_bound"
+    ]
+    assert context["dependency_context"]["used_by"] == [
+        "LeastSquares.linear_minimax_rate_rank"
+    ]
+    assert "candidate_proof_body" not in str(context)
+    assert all(
+        ":= by" not in row["signature"]
+        for row in context["nearby_declaration_outlines"]
+    )
+
+
 def test_formal_source_prompt_payload_omits_full_candidate_proof_body() -> None:
     body = "by\n  exact hp\n"
     declaration = FormalDeclaration(
@@ -288,6 +369,8 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     contract = formalizer_proof_construction_strategy_contract()
     assert "smallest diagnostic" in contract["repair_cycle"]
     assert "name/namespace/signature/import/reference" in contract["specification"]
+    assert "compact declaration outlines" in contract["specification"]
+    assert "small lemma DAG" in contract["specification"]
     assert "counterexamples" in contract["persistent_failure_route"]
     assert "quantifiers" in contract["persistent_failure_route"]
     assert "exact active-project artifact" in contract["post_compile_hygiene"]

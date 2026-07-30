@@ -106,11 +106,11 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
     """Context-efficient, feedback-driven policy for Lean proof construction."""
 
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "specification": (
-            "Exact target + math meaning; compact declaration outlines "
-            "(name/namespace/signature/import/reference); semantic lemma DAG; "
-            "assumptions; no weakening."
+            "Exact target/math meaning; compact declaration outlines only "
+            "(name/namespace/signature/import/reference; no proof "
+            "bodies); small lemma DAG; assumptions; no weakening."
         ),
         "repair_cycle": (
             "Lean/LSP -> fix the smallest diagnostic -> rerun before restructuring."
