@@ -161,6 +161,7 @@ from ai_statistician.formal_source_hybrid import FormalSourceHybridRetriever
 from ai_statistician.formal_source_index import (
     FormalDeclaration,
     FormalSourceHit,
+    FormalSourceRetriever,
     FormalSourceRoot,
     FormalSourceSqliteIndex,
     _auto_lean_rag_db_candidates,
@@ -1459,6 +1460,9 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
         self.assertIn("brownian_kolmogorov_chentsov", optional_query_ids)
         self.assertIn("kolmogorov_extension_projective_family", optional_query_ids)
         self.assertIn("scilean_gaussian_calculus", optional_query_ids)
+        self.assertIn("slt_vershynin_euclidean_covering", optional_query_ids)
+        self.assertIn("slt_wainwright_master_error_bound", optional_query_ids)
+        self.assertIn("slt_boucheron_gaussian_concentration", optional_query_ids)
         source_ids = {
             source_id
             for case in EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK
@@ -1470,6 +1474,7 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
         self.assertIn("brownian_motion_lean", source_ids)
         self.assertIn("kolmogorov_extension_lean", source_ids)
         self.assertIn("scilean_calculus", source_ids)
+        self.assertIn("lean_stat_learning_theory", source_ids)
 
     def test_formal_source_retrieval_ablation_measures_lean_rag_new_hit(self) -> None:
         fixture = Path("runs/test_formal_source_retrieval_ablation_fixture")
@@ -1686,6 +1691,7 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
             FormalSourceRoot("atlas_lean_projection_theory", str(atlas_projection)),
         )
         declarations = build_formal_source_index(roots=roots)
+        retriever = FormalSourceRetriever(declarations)
         source_ids = {decl.source_id for decl in declarations}
         self.assertIn("atlas_lean_theory_of_probability", source_ids)
         self.assertIn("atlas_lean_high_dimensional_statistics", source_ids)
@@ -1693,27 +1699,30 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
         self.assertIn("atlas_lean_functional_analysis", source_ids)
         self.assertIn("atlas_lean_differential_analysis", source_ids)
         self.assertIn("atlas_lean_projection_theory", source_ids)
-        hits = search_formal_sources("subGaussian mgf bound high dimensional statistics", declarations=declarations, k=10)
+        hits = retriever.search(
+            "subGaussian mgf bound high dimensional statistics",
+            k=10,
+        )
         self.assertTrue(hits)
         self.assertEqual(hits[0].declaration.source_id, "atlas_lean_high_dimensional_statistics")
-        probability_hits = search_formal_sources("Borel Cantelli CLT weak convergence probability", declarations=declarations, k=10)
+        probability_hits = retriever.search(
+            "Borel Cantelli CLT weak convergence probability",
+            k=10,
+        )
         self.assertTrue(probability_hits)
         self.assertTrue(any(hit.declaration.source_id == "atlas_lean_theory_of_probability" for hit in probability_hits))
-        fourier_hits = search_formal_sources(
+        fourier_hits = retriever.search(
             "Fourier characteristic function weak convergence finite measures",
-            declarations=declarations,
             k=10,
         )
         self.assertTrue(any(hit.declaration.source_id == "atlas_lean_fourier_analysis" for hit in fourier_hits))
-        functional_hits = search_formal_sources(
+        functional_hits = retriever.search(
             "Hilbert space orthogonal projection Cauchy Schwarz",
-            declarations=declarations,
             k=10,
         )
         self.assertTrue(any(hit.declaration.source_id == "atlas_lean_functional_analysis" for hit in functional_hits))
-        projection_hits = search_formal_sources(
+        projection_hits = retriever.search(
             "ProjectionTheory large sieve grid projection geometric incidence",
-            declarations=declarations,
             k=10,
         )
         self.assertTrue(any(hit.declaration.source_id == "atlas_lean_projection_theory" for hit in projection_hits))
@@ -1736,6 +1745,7 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
         if not all(Path(root.location).exists() for root in roots):
             self.skipTest("external statistics/analysis Lean source checkouts are not available")
         declarations = build_formal_source_index(roots=roots, max_files_per_root=800)
+        retriever = FormalSourceRetriever(declarations)
         source_ids = {decl.source_id for decl in declarations}
         for expected in (
             "formal_slt",
@@ -1756,7 +1766,7 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
             ("scilean_calculus", "SciLean derivative gradient jacobian optimization Gaussian"),
         )
         for source_id, query in retrieval_cases:
-            hits = search_formal_sources(query, declarations=declarations, k=10)
+            hits = retriever.search(query, k=10)
             self.assertTrue(hits, source_id)
             self.assertTrue(
                 any(hit.declaration.source_id == source_id for hit in hits),
@@ -9603,6 +9613,16 @@ class SystemTests(unittest.TestCase):
         self.assertIn("brownian_motion_lean", source_inventory_ids)
         self.assertIn("kolmogorov_extension_lean", source_inventory_ids)
         self.assertIn("scilean_calculus", source_inventory_ids)
+        slt = next(
+            row
+            for row in source_inventory["rows"]
+            if row["source_id"] == "lean_stat_learning_theory"
+        )
+        self.assertEqual(slt["license_policy"], "Apache-2.0")
+        self.assertEqual(
+            slt["usage_policy"],
+            "retrieval_only_no_training_export",
+        )
         self.assertGreater(source_inventory["n_local_ready"], 0)
         self.assertEqual(source_inventory["n_missing_required"], 0)
         self.assertTrue(source_inventory["all_required_local_ok"])

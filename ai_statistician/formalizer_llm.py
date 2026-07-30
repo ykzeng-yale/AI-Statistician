@@ -102,6 +102,32 @@ class FormalizerConfig:
     max_repair_attempts: int = 1
 
 
+def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
+    """Context-efficient, feedback-driven policy for Lean proof construction."""
+
+    return {
+        "schema_version": 1,
+        "specification": (
+            "Exact target + math meaning; compact declaration outlines "
+            "(name/namespace/signature/import/reference); semantic lemma DAG; "
+            "assumptions; no weakening."
+        ),
+        "repair_cycle": (
+            "Lean/LSP -> fix the smallest diagnostic -> rerun before restructuring."
+        ),
+        "persistent_failure_route": (
+            "On repeated failure, recheck quantifiers/domains/assumptions/"
+            "inequalities/counterexamples; do not weaken."
+        ),
+        "post_compile_hygiene": (
+            "Remove warnings/dead facts; rerun the exact active-project artifact."
+        ),
+        "evidence_boundary": (
+            "RAG/candidates are not proof until active Lean/kernel verification."
+        ),
+    }
+
+
 class LLMFormalizerProofEngineerAgent:
     """Generator-backed Formalizer/ProofEngineer proposal worker."""
 
@@ -1214,6 +1240,9 @@ def build_formalizer_prompt(
         "registered_theorem_goals": theorem_goal_rows,
         "registered_theorem_goals_total": _safe_len(theorem_goals),
         "task_bound_formal_target_contract": task_bound_formal_target_contract,
+        "proof_construction_strategy_contract": (
+            formalizer_proof_construction_strategy_contract()
+        ),
         "registered_proof_bank_obligation_catalog": catalog_rows,
         "registered_proof_bank_obligation_catalog_total": _safe_len(
             proof_bank_obligation_catalog or theorem_goals
@@ -2509,7 +2538,16 @@ def _feedback_suggests_pseudo_formalization(
     for source in sources:
         if not isinstance(source, Mapping) or not source:
             continue
-        text = json.dumps(_compact_value(source), default=str).lower()
+        marker_source: Mapping[str, Any] = source
+        if str(source.get("feedback_type", "") or "") == (
+            "formalizer_task_bound_formal_source_context"
+        ):
+            marker_source = {
+                key: value
+                for key, value in source.items()
+                if key != "proofengineer_repair_context"
+            }
+        text = json.dumps(_compact_value(marker_source), default=str).lower()
         if any(
             marker in text
             for marker in (

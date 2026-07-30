@@ -152,6 +152,9 @@ from ai_statistician.pseudo_formalization import (
     pseudo_formal_routable_work_order_rows,
 )
 from ai_statistician.formal_source_index import FormalDeclaration, FormalSourceHit
+from ai_statistician.formal_source_prompt_context import (
+    formalizer_feedback_with_task_bound_formal_source_queries,
+)
 from ai_statistician.lean_agent_providers import ExternalFormalSourceHit
 from ai_statistician.formalization_gap_planner_standalone import (
     validate_standalone_input_payload,
@@ -1448,7 +1451,9 @@ def test_theory_developer_routes_protocol_preflight_before_generated_code() -> N
         {
             "id": "theory_estimator",
             "name": "Theory-derived estimator",
+            "formula": "T(P_n)",
             "algorithm_sketch": "Implement the estimator defined by the equation chain.",
+            "required_assumptions": ["problem-card assumptions"],
         }
     ]
 
@@ -1527,7 +1532,9 @@ def test_theory_revision_rebuilds_descendants_through_exploratory_simulation() -
         {
             "id": "revised_estimator",
             "name": "Revised estimator",
+            "formula": "T_revised(P_n)",
             "algorithm_sketch": "Implement the revised theory-defined estimator.",
+            "required_assumptions": ["revised problem-card assumptions"],
         }
     ]
 
@@ -19785,10 +19792,12 @@ def test_runtime_executes_architect_routed_generated_algorithm_gap(
         {
             "id": "custom_estimator",
             "name": "Custom conformal prediction interval",
+            "formula": "T(P_n)",
             "algorithm_sketch": (
                 "Generated sandbox adapter should estimate empirical coverage "
                 "using seed-controlled stress cases."
             ),
+            "required_assumptions": ["problem-card assumptions"],
         }
     ]
     architect_context = {
@@ -19997,7 +20006,9 @@ def test_runtime_preserves_combined_coding_gap_simulation_gate_after_algorithm(
         {
             "id": "custom_estimator",
             "name": "Custom combined coding estimator",
+            "formula": "T(P_n)",
             "algorithm_sketch": "Generated sandbox adapter for capability routing.",
+            "required_assumptions": ["problem-card assumptions"],
         }
     ]
     simulation_manifest = {
@@ -24962,7 +24973,9 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         {
             "id": "theory-owned-candidate",
             "name": "Theory-owned candidate",
+            "formula": "T(P_n)",
             "algorithm_sketch": "Implement the estimator from the accepted theory.",
+            "required_assumptions": ["problem-card assumptions"],
         }
     ]
     metric_context = _theory_informed_metric_context_fixture()
@@ -38628,7 +38641,7 @@ def test_formalizer_lean_candidate_repair_feedback_uses_formal_source_grounding(
     )
 
     assert feedback is not None
-    assert retriever.queries[0] == ("Nat.ceil Lean declaration identifier", 3)
+    assert retriever.queries[0] == ("Nat.ceil Lean declaration identifier", 2)
     repair_contract = feedback["local_lean_repair_contract"]
     assert repair_contract["unknown_identifiers"] == ["Nat.ceil"]
     proofengineer_context = feedback["proofengineer_repair_context"]
@@ -39302,12 +39315,126 @@ def test_carried_proofengineer_feedback_is_enriched_with_formal_source_grounding
         )
     )
     assert summary["n_formal_source_grounding_query_groups"] == 3
-    assert summary["n_formal_source_grounding_hits"] == 3
+    assert summary["n_formal_source_grounding_hits"] == 1
+    assert summary["n_duplicate_formal_source_grounding_hits_omitted"] == 2
     assert summary["unknown_identifiers"] == ["Nat.ceil"]
     assert "rank_threshold_bridge" in summary["top_hit_names"]
     assert summary["proof_evidence_status"] == (
         "FORMAL_SOURCE_RETRIEVAL_GROUNDING_NOT_PROOF_EVIDENCE"
     )
+
+
+def test_first_formalizer_proposal_receives_task_bound_formal_source_grounding() -> None:
+    class DummyFormalSourceRetriever:
+        def __init__(self) -> None:
+            self.queries: list[str] = []
+
+        def search(self, query: str, *, k: int = 10) -> list[FormalSourceHit]:
+            self.queries.append(query)
+            return [
+                FormalSourceHit(
+                    declaration=FormalDeclaration(
+                        source_id="fixture_slt",
+                        source_type="lean_library",
+                        path="SLT/LeastSquares/MasterErrorBound.lean",
+                        line=88,
+                        kind="theorem",
+                        name="LeastSquares.master_error_bound",
+                        namespace="LeastSquares",
+                        signature=(
+                            "theorem master_error_bound : "
+                            "semantic_definition_library_support"
+                        ),
+                        imports=("SLT.LeastSquares.Localization",),
+                        reference="Wainwright (2019), Theorem 13.5",
+                    ),
+                    score=1.0,
+                    matched_terms=("least", "squares"),
+                )
+            ]
+
+    question = OpenResearchQuestion(
+        "generic_formal_retrieval",
+        "Generic formal retrieval",
+        "Retrieve local declarations before the first proof proposal.",
+        (),
+    )
+    theory_packet = {
+        "formalization_requests": [
+            {
+                "target": "source_theorem",
+                "claim": "A localized estimator obeys its stated error bound.",
+            }
+        ],
+        "theory_derivation_packet": {
+            "formalization_handoff": {
+                "candidate_lean_targets": [
+                    "LeastSquares.master_error_bound"
+                ],
+                "required_definitions": ["localized estimator"],
+                "lemma_dependencies": [],
+            }
+        },
+    }
+    feedback = (
+        formalizer_feedback_with_task_bound_formal_source_queries(
+            {},
+            question=question,
+            theory_packet=theory_packet,
+            theorem_goals=[
+                {
+                    "title": "Localized error bound",
+                    "claim": "Control the estimator by localized complexity.",
+                }
+            ],
+        )
+    )
+    retriever = DummyFormalSourceRetriever()
+    grounded = runtime_module._formalizer_environment_feedback_with_formal_source_grounding(
+        feedback,
+        formal_source_retriever=retriever,
+    )
+
+    assert grounded["feedback_type"] == (
+        "formalizer_task_bound_formal_source_context"
+    )
+    assert retriever.queries[0] == (
+        "Localized error bound Control the estimator by localized complexity."
+    )
+    hit = grounded["proofengineer_repair_context"][
+        "formal_source_grounding_hits"
+    ][0]["hits"][0]
+    assert hit["name"] == "LeastSquares.master_error_bound"
+    assert hit["namespace"] == "LeastSquares"
+    assert hit["imports"] == ["SLT.LeastSquares.Localization"]
+    assert hit["reference"] == "Wainwright (2019), Theorem 13.5"
+    assert "kernel_verified" not in hit
+    duplicate_groups = grounded["proofengineer_repair_context"][
+        "formal_source_grounding_hits"
+    ][1:]
+    assert all(group["duplicate_hits_omitted"] == 1 for group in duplicate_groups)
+    assert not formalizer_module._feedback_suggests_pseudo_formalization(
+        grounded,
+        {},
+    )
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=theory_packet,
+        simulation_manifest={},
+        algorithm_manifest={},
+        registered_problem={},
+        theorem_goals=[
+            {
+                "id": "localized_error_bound",
+                "title": "Localized error bound",
+                "claim": "Control the estimator by localized complexity.",
+            }
+        ],
+        environment_feedback=grounded,
+    )
+    assert "LeastSquares.master_error_bound" in prompt
+    assert "Wainwright (2019), Theorem 13.5" in prompt
+    assert len(prompt) < 16000
 
 
 def test_planner_action_search_requests_drive_formal_source_grounding() -> None:

@@ -2358,6 +2358,23 @@ Bonferroni/finite union bounds, Chebyshev tails, CLT skeletons, Borel-Cantelli,
 conditional expectation, sub-Gaussian learning, empirical-process tools, and
 Godambe/bootstrap algebra. The intended workflow is: index first, reuse or adapt
 existing declarations second, and only then add a new AXLE proof-bank obligation.
+Declaration outlines stop before `:=`, so proof bodies, tactics, and placeholders
+do not enter prompt context. Root README tables with declaration and reference
+columns are parsed generically; this makes the AI4SLT crosswalk to Vershynin,
+Wainwright, and Boucheron-Lugosi-Massart searchable without encoding book-specific
+runtime rules. Retrieval emits namespace, imports, a bounded signature outline, and reference,
+uses exact-name/source-diverse ranking, and remains candidate-only until the exact
+artifact compiles in the active pinned Lean project. In particular, the external
+SLT v4.32 checkout is not assumed compatible with the current v4.31 proof target.
+The upstream `v4.31.0` tag is a useful promotion candidate, but its pinned Mathlib
+revision also differs from the active project's revision, so version number alone
+does not authorize an import.
+Before the first Formalizer proposal, the exact theorem goal and theory
+formalization handoff seed at most three task-bound queries with at most two
+compact hits each. This follows AI4SLT's structured-specification discipline:
+exact target and mathematical meaning, local declaration pointers, a semantic
+lemma plan, and explicit boundaries. It reuses the existing Formalizer feedback
+and RAG channel; it does not add a scheduler, tactic templates, or proof status.
 Research benchmark traces also attach the top local declaration hits to every
 `FORMAL_GAP` subclaim and copy them into the generated Lean skeleton comments,
 so a gap is always accompanied by concrete local source candidates rather than

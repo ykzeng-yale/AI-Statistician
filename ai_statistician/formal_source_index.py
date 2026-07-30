@@ -5,8 +5,9 @@ import os
 import re
 import shutil
 import sqlite3
+from collections import Counter
 from contextlib import closing
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -14,11 +15,13 @@ from .fingerprint import stable_hash
 from .research_source_inventory import SOURCE_INVENTORY_TARGETS
 
 
+LEAN_IDENTIFIER_PATTERN = r"[^\W\d][\w'.]*"
+LEAN_IDENTIFIER_END = r"(?![\w'.])"
 DECL_RE = re.compile(
     r"^\s*(?:@[^\n]*\s*)*"
     r"(?:(?:private|protected|nonrec|noncomputable|unsafe)\s+)*"
-    r"(theorem|lemma|def|abbrev|structure|class|inductive)\s+"
-    r"([A-Za-z_][A-Za-z0-9_'.]*)"
+    r"(theorem|lemma|def|abbrev|structure|class|inductive|opaque|instance)\s+"
+    rf"({LEAN_IDENTIFIER_PATTERN}){LEAN_IDENTIFIER_END}"
 )
 ROCQ_DECL_RE = re.compile(
     r"^\s*"
@@ -32,8 +35,16 @@ ISABELLE_DECL_RE = re.compile(
     r"([A-Za-z_][A-Za-z0-9_']*)\b"
 )
 AGDA_DECL_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_'.-]*)\s*:")
-NAMESPACE_RE = re.compile(r"^\s*namespace\s+([A-Za-z_][A-Za-z0-9_'.]*)\b")
-END_RE = re.compile(r"^\s*end(?:\s+([A-Za-z_][A-Za-z0-9_'.]*))?\b")
+NAMESPACE_RE = re.compile(
+    rf"^\s*namespace\s+({LEAN_IDENTIFIER_PATTERN}){LEAN_IDENTIFIER_END}"
+)
+SECTION_RE = re.compile(
+    rf"^\s*(?:noncomputable\s+)?section"
+    rf"(?:\s+({LEAN_IDENTIFIER_PATTERN}){LEAN_IDENTIFIER_END})?"
+)
+END_RE = re.compile(
+    rf"^\s*end(?:\s+({LEAN_IDENTIFIER_PATTERN}){LEAN_IDENTIFIER_END})?"
+)
 IMPORT_RE = re.compile(r"^\s*import\s+(.+)$")
 ROCQ_NAMESPACE_RE = re.compile(
     r"^\s*(?:Module|Section)\s+([A-Za-z_][A-Za-z0-9_']*)\b"
@@ -64,6 +75,8 @@ STOP_TOKENS = {
     "/",
     "=",
 }
+_EMPTY_SEARCH_TOKENS: frozenset[str] = frozenset()
+MAX_SQLITE_FTS_QUERY_TOKENS = 24
 SKIPPED_PATH_PARTS = {
     ".git",
     ".lake",
@@ -123,6 +136,7 @@ class FormalDeclaration:
     rhs_head: str = ""
     major_symbols: tuple[str, ...] = ()
     imports: tuple[str, ...] = ()
+    reference: str = ""
 
 
 @dataclass(frozen=True)
@@ -154,6 +168,7 @@ class FormalSourceRetriever:
                             " ".join(decl.premise_heads),
                             " ".join(decl.major_symbols),
                             " ".join(decl.imports),
+                            decl.reference,
                         ]
                     )
                 ),
@@ -162,6 +177,11 @@ class FormalSourceRetriever:
                     " ".join([decl.conclusion_head, decl.lhs_head, decl.rhs_head, " ".join(decl.premise_heads)])
                 ),
                 _search_tokens(" ".join(decl.imports)),
+                (
+                    _search_tokens(decl.reference)
+                    if decl.reference
+                    else _EMPTY_SEARCH_TOKENS
+                ),
             )
             for decl in self.declarations
         ]
@@ -169,18 +189,35 @@ class FormalSourceRetriever:
     def search(self, query: str, *, k: int = 10) -> list[FormalSourceHit]:
         q_tokens = _search_tokens(query)
         hits: list[FormalSourceHit] = []
-        for decl, d_tokens, name_tokens, shape_tokens, import_tokens in self._rows:
+        for (
+            decl,
+            d_tokens,
+            name_tokens,
+            shape_tokens,
+            import_tokens,
+            reference_tokens,
+        ) in self._rows:
             hit = _score_declaration(
                 decl,
                 q_tokens,
+                query_text=query,
                 declaration_tokens=d_tokens,
                 name_tokens=name_tokens,
                 shape_tokens=shape_tokens,
                 import_tokens=import_tokens,
+                reference_tokens=reference_tokens,
             )
             if hit is not None:
                 hits.append(hit)
-        return sorted(hits, key=lambda hit: (-hit.score, hit.declaration.source_id, hit.declaration.name))[:k]
+        ordered = sorted(
+            hits,
+            key=lambda hit: (
+                -hit.score,
+                hit.declaration.source_id,
+                hit.declaration.name,
+            ),
+        )
+        return diversify_formal_source_hits(ordered, k=k)
 
 
 class FormalSourceSqliteIndex:
@@ -220,6 +257,20 @@ class FormalSourceSqliteIndex:
                 }
                 if "declarations" not in tables or "declarations_fts" not in tables:
                     return False
+                declaration_columns = {
+                    row[1]
+                    for row in conn.execute(
+                        "PRAGMA table_info(declarations)"
+                    ).fetchall()
+                }
+                fts_columns = {
+                    row[1]
+                    for row in conn.execute(
+                        "PRAGMA table_info(declarations_fts)"
+                    ).fetchall()
+                }
+                if "reference" not in declaration_columns or "reference" not in fts_columns:
+                    return False
                 conn.execute("SELECT COUNT(*) FROM declarations").fetchone()
                 conn.execute("SELECT COUNT(*) FROM declarations_fts").fetchone()
             return True
@@ -249,7 +300,8 @@ class FormalSourceSqliteIndex:
                     lhs_head TEXT NOT NULL,
                     rhs_head TEXT NOT NULL,
                     major_symbols TEXT NOT NULL,
-                    imports TEXT NOT NULL
+                    imports TEXT NOT NULL,
+                    reference TEXT NOT NULL
                 )
                 """
             )
@@ -262,14 +314,15 @@ class FormalSourceSqliteIndex:
                     shape,
                     path,
                     source_id,
-                    imports
+                    imports,
+                    reference
                 )
                 """
             )
             for idx, decl in enumerate(declarations, start=1):
                 conn.execute(
                     """
-                    INSERT INTO declarations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO declarations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         idx,
@@ -288,12 +341,14 @@ class FormalSourceSqliteIndex:
                         decl.rhs_head,
                         json.dumps(decl.major_symbols),
                         json.dumps(decl.imports),
+                        decl.reference,
                     ),
                 )
                 conn.execute(
                     """
-                    INSERT INTO declarations_fts (decl_id, name, signature, shape, path, source_id, imports)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO declarations_fts (
+                        decl_id, name, signature, shape, path, source_id, imports, reference
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         idx,
@@ -313,6 +368,7 @@ class FormalSourceSqliteIndex:
                         _fts_text(decl.path),
                         _fts_text(decl.source_id),
                         _fts_text(" ".join(decl.imports)),
+                        _fts_text(decl.reference),
                     ),
                 )
             conn.execute("CREATE INDEX declarations_name_idx ON declarations(name)")
@@ -339,10 +395,18 @@ class FormalSourceSqliteIndex:
         hits: list[FormalSourceHit] = []
         for row in rows:
             decl = _decl_from_sqlite_row(row)
-            hit = _score_declaration(decl, q_tokens)
+            hit = _score_declaration(decl, q_tokens, query_text=query)
             if hit is not None:
                 hits.append(hit)
-        return sorted(hits, key=lambda hit: (-hit.score, hit.declaration.source_id, hit.declaration.name))[:k]
+        ordered = sorted(
+            hits,
+            key=lambda hit: (
+                -hit.score,
+                hit.declaration.source_id,
+                hit.declaration.name,
+            ),
+        )
+        return diversify_formal_source_hits(ordered, k=k)
 
     def load_declarations(self) -> list[FormalDeclaration]:
         """Read all declarations back from the persisted index.
@@ -432,13 +496,21 @@ def build_formal_source_index(
         if resolved in seen_roots:
             continue
         seen_roots.add(resolved)
+        declaration_references = _declaration_references_from_markdown(location)
+        root_rows: list[FormalDeclaration] = []
         for path in _iter_formal_source_files(
             root,
             location,
             max_file_bytes=max_file_bytes,
             max_files=max_files_per_root,
         ):
-            rows.extend(_declarations_in_file(root, path, location))
+            root_rows.extend(_declarations_in_file(root, path, location))
+        rows.extend(
+            _bind_declaration_references(
+                root_rows,
+                declaration_references,
+            )
+        )
     return rows
 
 
@@ -739,34 +811,48 @@ def formal_source_index_fingerprint(declarations: list[FormalDeclaration] | None
             "rhs_head": decl.rhs_head,
             "major_symbols": decl.major_symbols,
             "imports": decl.imports,
+            "reference": decl.reference,
         }
         for decl in decls
     ]
     return stable_hash(stable_rows)
 
 
+def _ordered_search_tokens(text: str) -> list[str]:
+    split_text = re.sub(r"[_'.]", " ", text)
+    camel_split = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", split_text)
+    tokens: list[str] = []
+    seen: set[str] = set()
+    for token in TOKEN_RE.findall(" ".join([split_text, camel_split, text])):
+        normalized = token.lower()
+        if (
+            not normalized.strip()
+            or normalized in STOP_TOKENS
+            or not any(ch.isalnum() for ch in normalized)
+            or normalized in seen
+        ):
+            continue
+        seen.add(normalized)
+        tokens.append(normalized)
+    return tokens
+
+
 def _search_tokens(text: str) -> set[str]:
     """Tokenize formal names plus natural-language queries for declaration search."""
 
-    split_text = re.sub(r"[_'.]", " ", text)
-    camel_split = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", split_text)
-    return {
-        token.lower()
-        for token in TOKEN_RE.findall(" ".join([text, split_text, camel_split]))
-        if token.strip()
-        and token.lower() not in STOP_TOKENS
-        and any(ch.isalnum() for ch in token)
-    }
+    return set(_ordered_search_tokens(text))
 
 
 def _score_declaration(
     decl: FormalDeclaration,
     q_tokens: set[str],
     *,
+    query_text: str = "",
     declaration_tokens: set[str] | None = None,
     name_tokens: set[str] | None = None,
     shape_tokens: set[str] | None = None,
     import_tokens: set[str] | None = None,
+    reference_tokens: set[str] | None = None,
 ) -> FormalSourceHit | None:
     d_tokens = declaration_tokens if declaration_tokens is not None else _search_tokens(_decl_search_text(decl))
     n_tokens = name_tokens if name_tokens is not None else _search_tokens(decl.name)
@@ -776,15 +862,113 @@ def _score_declaration(
         else _search_tokens(" ".join([decl.conclusion_head, decl.lhs_head, decl.rhs_head, " ".join(decl.premise_heads)]))
     )
     i_tokens = import_tokens if import_tokens is not None else _search_tokens(" ".join(decl.imports))
+    r_tokens = (
+        reference_tokens
+        if reference_tokens is not None
+        else (
+            _search_tokens(decl.reference)
+            if decl.reference
+            else _EMPTY_SEARCH_TOKENS
+        )
+    )
     overlap = q_tokens & d_tokens
     if not overlap:
         return None
     name_bonus = 2.0 * len(q_tokens & n_tokens)
     shape_bonus = 1.5 * len(q_tokens & s_tokens)
     import_bonus = 0.75 * len(q_tokens & i_tokens)
+    reference_bonus = 2.5 * len(q_tokens & r_tokens)
+    exact_name_bonus = _exact_declaration_name_bonus(decl.name, query_text)
+    short_name = decl.name.rsplit(".", 1)[-1].lower()
+    short_name_anchor_bonus = 8.0 if short_name in q_tokens else 0.0
     source_bonus = 1.0 if decl.source_id.startswith("mathlib") else 1.5
-    score = len(overlap) + name_bonus + shape_bonus + import_bonus + source_bonus
+    score = (
+        len(overlap)
+        + name_bonus
+        + shape_bonus
+        + import_bonus
+        + reference_bonus
+        + exact_name_bonus
+        + short_name_anchor_bonus
+        + source_bonus
+    )
     return FormalSourceHit(decl, score, tuple(sorted(overlap)[:16]))
+
+
+def _exact_declaration_name_bonus(name: str, query: str) -> float:
+    query_key = _declaration_lookup_key(query)
+    if not query_key:
+        return 0.0
+    full_key = _declaration_lookup_key(name)
+    short_key = _declaration_lookup_key(name.rsplit(".", 1)[-1])
+    return 16.0 if query_key in {full_key, short_key} else 0.0
+
+
+def _declaration_lookup_key(value: str) -> str:
+    return "".join(
+        character
+        for character in str(value or "").strip(" `").casefold()
+        if character.isalnum()
+    )
+
+
+def diversify_formal_source_hits(
+    hits: list[FormalSourceHit],
+    *,
+    k: int,
+    max_sources: int = 3,
+    min_relative_score: float = 0.5,
+) -> list[FormalSourceHit]:
+    """Keep the strongest hit while preventing one corpus from flooding context."""
+
+    limit = max(int(k), 0)
+    if limit == 0 or not hits:
+        return []
+    if limit == 1:
+        return hits[:1]
+
+    def hit_key(hit: FormalSourceHit) -> tuple[str, str, int, str]:
+        declaration = hit.declaration
+        return (
+            declaration.source_id,
+            declaration.path,
+            declaration.line,
+            declaration.name,
+        )
+
+    top_score = max(float(hits[0].score), 0.0)
+    relevance_floor = top_score * min_relative_score
+    selected: list[FormalSourceHit] = [hits[0]]
+    selected_keys = {hit_key(hits[0])}
+    selected_sources = {hits[0].declaration.source_id}
+    source_candidates: dict[str, tuple[float, int, FormalSourceHit]] = {}
+    for rank, hit in enumerate(hits[1:], start=1):
+        source_id = hit.declaration.source_id
+        if source_id in selected_sources or float(hit.score) < relevance_floor:
+            continue
+        name_anchor_count = len(
+            set(hit.matched_terms) & _search_tokens(hit.declaration.name)
+        )
+        priority = float(hit.score) + 1.5 * name_anchor_count
+        if source_id not in source_candidates:
+            source_candidates[source_id] = (priority, rank, hit)
+    diverse_candidates = sorted(
+        source_candidates.values(),
+        key=lambda row: (-row[0], row[1], row[2].declaration.source_id),
+    )
+    for _, _, hit in diverse_candidates[: max(0, min(max_sources, limit) - 1)]:
+        selected.append(hit)
+        selected_keys.add(hit_key(hit))
+        selected_sources.add(hit.declaration.source_id)
+    for hit in hits[1:]:
+        if len(selected) >= limit:
+            break
+        key = hit_key(hit)
+        if key in selected_keys:
+            continue
+        selected.append(hit)
+        selected_keys.add(key)
+    return selected[:limit]
 
 
 def _decl_search_text(decl: FormalDeclaration) -> str:
@@ -801,12 +985,18 @@ def _decl_search_text(decl: FormalDeclaration) -> str:
             " ".join(decl.premise_heads),
             " ".join(decl.major_symbols),
             " ".join(decl.imports),
+            decl.reference,
         ]
     )
 
 
 def _fts_tokens(text: str) -> list[str]:
-    return sorted(token for token in _search_tokens(text) if re.match(r"^[a-z0-9_]+$", token))
+    return [
+        token
+        for token in _ordered_search_tokens(text)
+        if len(token) > 1
+        and all(character == "_" or character.isalnum() for character in token)
+    ]
 
 
 def _fts_text(text: str) -> str:
@@ -814,7 +1004,9 @@ def _fts_text(text: str) -> str:
 
 
 def _fts_query(text: str) -> str:
-    tokens = _fts_tokens(text)
+    # FTS only generates a bounded candidate set; the full query token set is
+    # still used by _score_declaration for deterministic reranking.
+    tokens = _fts_tokens(text)[:MAX_SQLITE_FTS_QUERY_TOKENS]
     return " OR ".join(tokens)
 
 
@@ -835,10 +1027,18 @@ def _decl_from_sqlite_row(row) -> FormalDeclaration:
         rhs_head=row[13],
         major_symbols=tuple(json.loads(row[14])),
         imports=tuple(json.loads(row[15])) if len(row) > 15 else (),
+        reference=str(row[16]) if len(row) > 16 else "",
     )
 
 
-def _declaration_signature(lines: list[str], start_idx: int, *, max_lines: int = 8) -> str:
+def _declaration_signature(
+    lines: list[str],
+    start_idx: int,
+    *,
+    language: str = "lean",
+    max_lines: int = 64,
+    max_chars: int = 900,
+) -> str:
     """Return a compact multi-line declaration header for retrieval.
 
     The index is intentionally parser-light, but single-line signatures lose
@@ -854,16 +1054,49 @@ def _declaration_signature(lines: list[str], start_idx: int, *, max_lines: int =
         line = lines[pos]
         if offset > 0 and _line_starts_new_formal_item(line):
             break
-        chunks.append(line.strip())
-        stripped = line.strip()
-        if (
-            ":=" in line
-            or stripped.endswith("where")
-            or stripped.endswith(".")
-            or stripped.endswith("by")
+        code_line = line.split("--", 1)[0] if language == "lean" else line
+        body_delimiter = (
+            _lean_body_delimiter(code_line)
+            if language == "lean"
+            else code_line.find(":=")
+        )
+        body_starts = body_delimiter >= 0
+        if body_starts:
+            code_line = code_line[:body_delimiter]
+        code_line = code_line.strip()
+        if language == "lean" and code_line.endswith((" by", " where")):
+            code_line = code_line.rsplit(" ", 1)[0].rstrip()
+            body_starts = True
+        if code_line and code_line not in {"by", "where"}:
+            chunks.append(code_line)
+        stripped = code_line.strip()
+        if body_starts or (
+            language != "lean" and stripped.endswith(".")
         ):
             break
-    return " ".join(chunk for chunk in chunks if chunk)
+    signature = " ".join(chunk for chunk in chunks if chunk)
+    signature = re.sub(r"\s+", " ", signature).strip()
+    return _bounded_outline(signature, max_chars=max_chars)
+
+
+def _lean_body_delimiter(code_line: str) -> int:
+    proof_match = re.search(r":=\s*by\b", code_line)
+    if proof_match:
+        return proof_match.start()
+    stripped = code_line.lstrip()
+    if stripped.startswith(("let ", "letI ")):
+        return -1
+    return code_line.rfind(":=")
+
+
+def _bounded_outline(value: str, *, max_chars: int) -> str:
+    if len(value) <= max_chars:
+        return value
+    marker = " ... "
+    available = max(max_chars - len(marker), 2)
+    head_chars = available // 2
+    tail_chars = available - head_chars
+    return value[:head_chars].rstrip() + marker + value[-tail_chars:].lstrip()
 
 
 def _compress_signature(signature: str) -> dict[str, object]:
@@ -912,13 +1145,19 @@ def _split_conclusion_eq(conclusion: str) -> tuple[str, str]:
 
 def _premise_heads(signature: str) -> list[str]:
     heads: list[str] = []
-    for match in re.finditer(r"[\(\{\[][^:\]\)\}]+:\s*([A-Za-z_][A-Za-z0-9_'.]*)", signature):
+    for match in re.finditer(
+        rf"[\(\{{\[][^:\]\)\}}]+:\s*({LEAN_IDENTIFIER_PATTERN})",
+        signature,
+    ):
         heads.append(match.group(1).split(".")[-1])
     return heads
 
 
 def _head_symbol(text: str) -> str:
-    match = re.search(r"[A-Za-z_][A-Za-z0-9_'.]*|[∀∃∧∨→↔=≤≥<>+*/^]+", text)
+    match = re.search(
+        rf"{LEAN_IDENTIFIER_PATTERN}|[∀∃∧∨→↔=≤≥<>+*/^]+",
+        text,
+    )
     if not match:
         return ""
     return match.group(0).split(".")[-1]
@@ -926,14 +1165,130 @@ def _head_symbol(text: str) -> str:
 
 def _name_like_symbols(text: str) -> list[str]:
     symbols = []
-    for token in re.findall(r"[A-Za-z_][A-Za-z0-9_'.]*", text):
+    for token in re.findall(LEAN_IDENTIFIER_PATTERN, text):
         tail = token.split(".")[-1]
         if len(tail) >= 3 and tail.lower() not in STOP_TOKENS:
             symbols.append(tail)
     return symbols
 
 
-def _declarations_in_file(root: FormalSourceRoot, path: Path, base: Path) -> list[FormalDeclaration]:
+def _declaration_references_from_markdown(root: Path) -> dict[str, str]:
+    """Extract declaration/source crosswalks from root README tables."""
+
+    readmes = sorted(
+        {
+            path
+            for candidate_root in (root, root.parent)
+            for path in candidate_root.glob("README*")
+            if path.is_file()
+            and path.suffix.lower() in {".md", ".markdown"}
+        }
+    )
+    references: dict[str, str] = {}
+    for path in readmes:
+        try:
+            lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except OSError:
+            continue
+        for idx in range(len(lines) - 2):
+            headers = _markdown_table_cells(lines[idx])
+            separator = _markdown_table_cells(lines[idx + 1])
+            if not headers or not _markdown_table_separator(separator, len(headers)):
+                continue
+            normalized_headers = [
+                re.sub(r"[^a-z0-9]+", "", header.lower())
+                for header in headers
+            ]
+            name_index = next(
+                (
+                    pos
+                    for pos, value in enumerate(normalized_headers)
+                    if value
+                    in {
+                        "name",
+                        "leanname",
+                        "declaration",
+                        "leandeclaration",
+                    }
+                ),
+                None,
+            )
+            reference_index = next(
+                (
+                    pos
+                    for pos, value in enumerate(normalized_headers)
+                    if value.startswith("reference")
+                ),
+                None,
+            )
+            if name_index is None or reference_index is None:
+                continue
+            row_index = idx + 2
+            while row_index < len(lines):
+                cells = _markdown_table_cells(lines[row_index])
+                if len(cells) != len(headers):
+                    break
+                name = _markdown_declaration_name(cells[name_index])
+                reference = _markdown_cell_text(cells[reference_index])
+                if name and reference:
+                    references.setdefault(name, reference)
+                row_index += 1
+    return references
+
+
+def _bind_declaration_references(
+    declarations: list[FormalDeclaration],
+    references: dict[str, str],
+) -> list[FormalDeclaration]:
+    """Bind exact names and globally unique short names to source references."""
+
+    short_name_counts = Counter(
+        declaration.name.rsplit(".", 1)[-1] for declaration in declarations
+    )
+    bound: list[FormalDeclaration] = []
+    for declaration in declarations:
+        short_name = declaration.name.rsplit(".", 1)[-1]
+        reference = references.get(declaration.name, "")
+        if not reference and short_name_counts[short_name] == 1:
+            reference = references.get(short_name, "")
+        bound.append(
+            replace(declaration, reference=reference)
+            if reference
+            else declaration
+        )
+    return bound
+
+
+def _markdown_table_cells(line: str) -> list[str]:
+    if "|" not in line:
+        return []
+    return [cell.strip() for cell in line.strip().strip("|").split("|")]
+
+
+def _markdown_table_separator(cells: list[str], width: int) -> bool:
+    return len(cells) == width and all(
+        re.fullmatch(r":?-{3,}:?", cell.replace(" ", ""))
+        for cell in cells
+    )
+
+
+def _markdown_cell_text(cell: str) -> str:
+    text = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", cell)
+    text = re.sub(r"<br\s*/?>", " ", text, flags=re.IGNORECASE)
+    return re.sub(r"\s+", " ", text.replace("`", "")).strip()
+
+
+def _markdown_declaration_name(cell: str) -> str:
+    code_name = re.search(r"`([^`]+)`", cell)
+    text = _markdown_cell_text(code_name.group(1) if code_name else cell)
+    return text.split()[0] if text else ""
+
+
+def _declarations_in_file(
+    root: FormalSourceRoot,
+    path: Path,
+    base: Path,
+) -> list[FormalDeclaration]:
     try:
         lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
     except OSError:
@@ -941,6 +1296,7 @@ def _declarations_in_file(root: FormalSourceRoot, path: Path, base: Path) -> lis
     rel = str(path.relative_to(base))
     language = _formal_source_language(root, path)
     namespace_stack: list[str] = []
+    lean_scope_stack: list[tuple[str, str, tuple[str, ...]]] = []
     imports: list[str] = []
     rows: list[FormalDeclaration] = []
     for idx, line in enumerate(lines, start=1):
@@ -950,11 +1306,30 @@ def _declarations_in_file(root: FormalSourceRoot, path: Path, base: Path) -> lis
             continue
         namespace_name = _namespace_open_from_line(line, language)
         if namespace_name:
-            namespace_stack.extend(namespace_name.split("."))
+            namespace_parts = tuple(namespace_name.split("."))
+            namespace_stack.extend(namespace_parts)
+            if language == "lean":
+                lean_scope_stack.append(
+                    ("namespace", namespace_name, namespace_parts)
+                )
             continue
+        if language == "lean":
+            section_match = SECTION_RE.match(line)
+            if section_match:
+                lean_scope_stack.append(
+                    ("section", section_match.group(1) or "", ())
+                )
+                continue
         end_name = _namespace_close_from_line(line, language)
-        if end_name is not None and namespace_stack:
-            _pop_namespace(namespace_stack, end_name)
+        if end_name is not None:
+            if language == "lean":
+                _close_lean_scope(
+                    lean_scope_stack,
+                    namespace_stack,
+                    end_name=end_name,
+                )
+            elif namespace_stack:
+                _pop_namespace(namespace_stack, end_name)
             continue
         decl = _declaration_from_line(line, language)
         if decl is None:
@@ -962,7 +1337,11 @@ def _declarations_in_file(root: FormalSourceRoot, path: Path, base: Path) -> lis
         kind, raw_name = decl
         namespace = ".".join(namespace_stack)
         name = raw_name if "." in raw_name or not namespace else f"{namespace}.{raw_name}"
-        signature = _declaration_signature(lines, idx - 1)
+        signature = _declaration_signature(
+            lines,
+            idx - 1,
+            language=language,
+        )
         compressed = _compress_signature(signature)
         rows.append(
             FormalDeclaration(
@@ -995,6 +1374,7 @@ def _line_starts_new_formal_item(line: str) -> bool:
             ISABELLE_DECL_RE,
             AGDA_DECL_RE,
             NAMESPACE_RE,
+            SECTION_RE,
             END_RE,
             ROCQ_NAMESPACE_RE,
             ROCQ_END_RE,
@@ -1047,7 +1427,7 @@ def _namespace_close_from_line(line: str, language: str) -> str | None:
     if language == "agda":
         return None
     match = END_RE.match(line)
-    return match.group(1) if match else None
+    return (match.group(1) or "") if match else None
 
 
 def _pop_namespace(namespace_stack: list[str], end_name: str | None) -> None:
@@ -1057,6 +1437,37 @@ def _pop_namespace(namespace_stack: list[str], end_name: str | None) -> None:
             del namespace_stack[-len(parts) :]
             return
     namespace_stack.pop()
+
+
+def _close_lean_scope(
+    scope_stack: list[tuple[str, str, tuple[str, ...]]],
+    namespace_stack: list[str],
+    *,
+    end_name: str,
+) -> None:
+    if not scope_stack:
+        return
+    close_from = len(scope_stack) - 1
+    if end_name:
+        close_from = next(
+            (
+                idx
+                for idx in range(len(scope_stack) - 1, -1, -1)
+                if scope_stack[idx][1] == end_name
+                or scope_stack[idx][1].rsplit(".", 1)[-1] == end_name
+            ),
+            -1,
+        )
+        if close_from < 0:
+            return
+    closing = scope_stack[close_from:]
+    del scope_stack[close_from:]
+    for kind, _, namespace_parts in reversed(closing):
+        if kind != "namespace" or not namespace_parts:
+            continue
+        width = len(namespace_parts)
+        if tuple(namespace_stack[-width:]) == namespace_parts:
+            del namespace_stack[-width:]
 
 
 def _declaration_from_line(line: str, language: str) -> tuple[str, str] | None:
@@ -1179,6 +1590,9 @@ def _hit_payload(hit: FormalSourceHit) -> dict[str, object]:
         "line": hit.declaration.line,
         "kind": hit.declaration.kind,
         "name": hit.declaration.name,
+        "namespace": hit.declaration.namespace,
+        "signature": hit.declaration.signature,
+        "reference": hit.declaration.reference,
         "score": hit.score,
         "matched_terms": hit.matched_terms,
         "binder_count": hit.declaration.binder_count,

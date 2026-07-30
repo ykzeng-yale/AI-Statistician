@@ -10,6 +10,7 @@ from .formal_source_index import (
     FormalSourceHit,
     FormalSourceRetriever,
     FormalSourceSqliteIndex,
+    diversify_formal_source_hits,
 )
 
 
@@ -141,10 +142,18 @@ class FormalSourceHybridRetriever:
             for key, decl in by_key.items()
         ]
         rows.sort(key=lambda row: (-row.score, row.declaration.source_id, row.declaration.name))
-        return [
+        hits = [
             FormalSourceHit(row.declaration, row.score, row.matched_terms)
-            for row in rows[:k]
+            for row in rows
         ]
+        # Symbol-graph support can multiply a declaration's fused score. Use a
+        # wider relevance window so an independently strong source is not hidden
+        # solely because one corpus received several graph-support legs.
+        return diversify_formal_source_hits(
+            hits,
+            k=k,
+            min_relative_score=0.35,
+        )
 
 
 class FormalSourceDependencyHybridRetriever:
@@ -228,10 +237,11 @@ class FormalSourceDependencyHybridRetriever:
             for key, decl in by_key.items()
         ]
         rows.sort(key=lambda row: (-row.score, row.declaration.source_id, row.declaration.name))
-        return [
+        hits = [
             FormalSourceHit(row.declaration, row.score, row.matched_terms)
-            for row in rows[:k]
+            for row in rows
         ]
+        return diversify_formal_source_hits(hits, k=k)
 
 
 def _decl_key(decl: FormalDeclaration) -> tuple[str, str, int, str]:

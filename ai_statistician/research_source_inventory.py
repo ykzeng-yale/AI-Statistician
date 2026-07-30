@@ -347,9 +347,11 @@ SOURCE_INVENTORY_TARGETS: tuple[SourceInventoryTarget, ...] = (
     SourceInventoryTarget(
         id="lean_stat_learning_theory",
         source_type="lean_library",
-        location=str(LEAN_STAT_LEARNING_THEORY_ROOT),
+        location=str(LEAN_STAT_LEARNING_THEORY_ROOT / "SLT"),
         required_extensions=(".lean",),
         keywords=("Covering", "SubGaussian", "LeastSquares", "Gaussian", "Concentration", "Poincare"),
+        license_policy="Apache-2.0",
+        usage_policy="retrieval_only_no_training_export",
         remote_url=LEAN_STAT_LEARNING_THEORY_URL,
         local_required=False,
     ),

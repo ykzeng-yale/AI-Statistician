@@ -88,6 +88,30 @@ EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK: tuple[
     FormalSourceRetrievalBenchmarkCase, ...
 ] = (
     FormalSourceRetrievalBenchmarkCase(
+        query_id="slt_vershynin_euclidean_covering",
+        query="Vershynin 2018 Corollary 4.2.13 Euclidean ball covering number",
+        expected_name_fragments=("coveringNumber_euclideanBall_le",),
+        expected_source_ids=("lean_stat_learning_theory",),
+        rationale=(
+            "book-number retrieval should resolve the exact SLT declaration rather "
+            "than relying on a hand-authored theorem-name query"
+        ),
+    ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="slt_wainwright_master_error_bound",
+        query="Wainwright 2019 Theorem 13.5 localized least squares master error bound",
+        expected_name_fragments=("master_error_bound",),
+        expected_source_ids=("lean_stat_learning_theory",),
+        rationale="the Wainwright source crosswalk should be searchable formal RAG metadata",
+    ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="slt_boucheron_gaussian_concentration",
+        query="Boucheron Lugosi Massart 2013 Theorem 5.6 Gaussian Lipschitz concentration",
+        expected_name_fragments=("gaussian_lipschitz_concentration",),
+        expected_source_ids=("lean_stat_learning_theory",),
+        rationale="the BLM source crosswalk should retrieve the corresponding checked theorem",
+    ),
+    FormalSourceRetrievalBenchmarkCase(
         query_id="formal_slt_stability_generalization",
         query="turn uniform stability into expected generalization gap for a finite product sample ERM learner",
         expected_name_fragments=("expectedFiniteGeneralizationGap", "uniformStability", "finiteProduct"),
@@ -315,6 +339,9 @@ def _hit_payload(hit: FormalSourceHit, *, rank: int) -> dict[str, object]:
         "line": decl.line,
         "kind": decl.kind,
         "name": decl.name,
+        "namespace": decl.namespace,
+        "signature": decl.signature,
+        "reference": decl.reference,
         "score": hit.score,
         "matched_terms": hit.matched_terms,
         "binder_count": decl.binder_count,

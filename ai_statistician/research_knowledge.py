@@ -709,10 +709,15 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
         source_type="local_repo",
         location=_source_location(LEAN_STAT_LEARNING_THEORY_ROOT, LEAN_STAT_LEARNING_THEORY_URL),
         summary=(
-            "Local copy of the statistical learning theory formalization with "
-            "covering numbers, sub-Gaussian lemmas, Gaussian process tools, and "
-            "least-squares error-bound infrastructure to reuse before inventing "
-            "new empirical-process primitives."
+            "Local AI4SLT/ICML 2026 formalization organized as layered foundations, "
+            "metric entropy, empirical-process chaining, Gaussian concentration, "
+            "and localized least-squares modules. Its README maps exact Lean names "
+            "to Vershynin, Wainwright, and Boucheron-Lugosi-Massart theorem numbers; "
+            "the formal-source index exposes those references with compact declaration "
+            "outlines. The checkout targets Lean/Mathlib v4.32, so every retrieved "
+            "candidate must still compile in the active pinned project before reuse. "
+            "A v4.31.0 release exists, but its Mathlib revision differs from the "
+            "active project's pinned revision and is not assumed ABI-compatible."
         ),
         tags=(
             "statistical_learning",
@@ -722,6 +727,10 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
             "subgaussian",
             "least_squares",
             "empirical_process",
+            "vershynin",
+            "wainwright",
+            "boucheron_lugosi_massart",
+            "ai4slt",
         ),
     ),
     KnowledgeCard(

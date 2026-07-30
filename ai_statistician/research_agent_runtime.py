@@ -280,6 +280,11 @@ from .model_backend import (
     resolve_generator_model,
 )
 from .formal_source_index import FormalSourceHit, FormalSourceRetriever
+from .formal_source_prompt_context import (
+    formalizer_feedback_with_task_bound_formal_source_queries,
+    prompt_safe_formal_source_provenance,
+    unique_formal_source_hit_payloads,
+)
 from .lean_agent_providers import (
     LEAN_PROVIDER_BOUNDARY,
     LeanProofSearchProvider,
@@ -23617,6 +23622,18 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     )
                 )
                 environment_feedback = (
+                    formalizer_feedback_with_task_bound_formal_source_queries(
+                        environment_feedback,
+                        question=question,
+                        theory_packet=(
+                            packet if isinstance(packet, Mapping) else {}
+                        ),
+                        theorem_goals=[
+                            _theorem_goal_to_json(row) for row in theorem_goals
+                        ],
+                    )
+                )
+                environment_feedback = (
                     _formalizer_environment_feedback_with_formal_source_grounding(
                         environment_feedback,
                         formal_source_retriever=self.formal_source_retriever,
@@ -33719,6 +33736,10 @@ def _formalizer_environment_feedback_formal_source_grounding_summary(
     return {
         "n_formal_source_grounding_query_groups": len(groups),
         "n_formal_source_grounding_hits": n_hits,
+        "n_duplicate_formal_source_grounding_hits_omitted": sum(
+            int(group.get("duplicate_hits_omitted", 0) or 0)
+            for group in groups
+        ),
         "query_roles": [
             str(group.get("query_role", "") or "")
             for group in groups[:5]
@@ -33842,8 +33863,8 @@ def _proofengineer_formal_source_grounding_hit_groups(
     *,
     query_seeds: Sequence[str],
     unknown_identifiers: Sequence[str],
-    k: int = 3,
-    max_groups: int = 5,
+    k: int = 2,
+    max_groups: int = 3,
 ) -> list[dict[str, Any]]:
     query_rows: list[dict[str, str]] = []
     for identifier in unknown_identifiers:
@@ -33864,6 +33885,7 @@ def _proofengineer_formal_source_grounding_hit_groups(
         )
     groups: list[dict[str, Any]] = []
     seen_queries: set[str] = set()
+    seen_hit_keys: set[tuple[str, str, str, str]] = set()
     for row in query_rows:
         query = str(row.get("query", "") or "").strip()
         if not query or query in seen_queries:
@@ -33886,7 +33908,13 @@ def _proofengineer_formal_source_grounding_hit_groups(
             group["hits"] = []
             group["retrieval_error"] = type(exc).__name__ + ": " + str(exc)[:240]
         else:
-            group["hits"] = [_formal_source_hit_to_json(hit) for hit in hits]
+            unique_hits, duplicate_hit_count = unique_formal_source_hit_payloads(
+                [_formal_source_hit_to_json(hit) for hit in hits],
+                seen_hit_keys=seen_hit_keys,
+            )
+            group["hits"] = unique_hits
+            if duplicate_hit_count:
+                group["duplicate_hits_omitted"] = duplicate_hit_count
         groups.append(group)
         if len(groups) >= max_groups:
             break
@@ -105116,13 +105144,16 @@ def _formal_source_hit_to_json(hit: FormalSourceHit) -> dict[str, Any]:
         "line": declaration.line,
         "kind": declaration.kind,
         "name": declaration.name,
+        "namespace": declaration.namespace,
         "signature": declaration.signature,
+        "imports": list(declaration.imports),
+        "reference": declaration.reference,
         "score": round(hit.score, 4),
         "matched_terms": list(hit.matched_terms),
     }
     provenance = getattr(hit, "provenance", {})
     if isinstance(provenance, Mapping) and provenance:
-        row["provenance"] = dict(provenance)
+        row["provenance"] = prompt_safe_formal_source_provenance(provenance)
     return row
 
 

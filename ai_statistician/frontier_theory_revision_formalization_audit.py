@@ -264,9 +264,12 @@ def _source_hit_payload(hit: FormalSourceHit) -> dict[str, object]:
         "source_id": decl.source_id,
         "path": decl.path,
         "line": decl.line,
+        "namespace": decl.namespace,
         "score": hit.score,
         "matched_terms": list(hit.matched_terms),
         "signature": decl.signature[:500],
+        "imports": decl.imports,
+        "reference": decl.reference,
     }
 
 

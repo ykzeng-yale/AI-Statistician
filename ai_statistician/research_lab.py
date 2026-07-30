@@ -9538,7 +9538,10 @@ def _formal_source_hit_payload(hit: FormalSourceHit) -> dict[str, Any]:
         "line": decl.line,
         "kind": decl.kind,
         "name": decl.name,
+        "namespace": decl.namespace,
         "signature": decl.signature,
+        "imports": list(decl.imports),
+        "reference": decl.reference,
         "score": round(hit.score, 4),
         "matched_terms": list(hit.matched_terms),
     }

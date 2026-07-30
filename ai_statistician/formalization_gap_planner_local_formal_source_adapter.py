@@ -404,6 +404,8 @@ def _hit_payload(
         "line": declaration.line,
         "namespace": declaration.namespace,
         "signature": declaration.signature,
+        "imports": declaration.imports,
+        "reference": declaration.reference,
         "target_prover_family": _hit_target_prover_family(hit),
         "score": hit.score,
         "matched_terms": hit.matched_terms,

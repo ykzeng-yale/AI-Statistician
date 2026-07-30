@@ -1,14 +1,16 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-25T07:48:05Z",
+  "updated_at": "2026-07-30T16:49:44Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
-  "current_lane": "keep one canonical loop: TheoryDeveloper -> theory/estimand/DGP preflight -> generated algorithm -> independent code review -> smallest frozen confirmatory protocol -> generated simulation -> independent review -> Critic, with the strict Formalizer/OpenProver/Lean lane remaining separately required for full capability evaluation. Current work improves shared loop efficiency and observability, not any task answer. Do not add agents, task formulas, Lean grammar/tactic rules, audit-score patches, or held-out fixes; PCA/extremes stay sealed.",
-  "latest_main_worker_patch": "Keep local AlgorithmEngineer and SimulationEngineer packet/schema/ABI validation failures source-owned across coding retries and theory revisions; remove the Architect packet-validation detour, retain a persistent question/candidate/error lineage budget, expose exact escalation/owner telemetry to the source agents, and fail closed when that budget is exhausted. Separately, give the exact-Haiku metric reviewer zero-based typed-patch paths for literal protocol-expression fidelity repair while leaving every statistical verdict, normalization judgment, dimension review, and finding to the independent reviewer. No statistical answer, task-family branch, Lean grammar/tactic rule, agent, planner, validator relaxation, or second orchestration plane was added.",
-  "latest_main_worker_live_probe": "The fresh exact-Haiku v124 survival research-eval kept one original theory packet and its independently reviewed metric protocol authoritative through the generated-code loop. One invalid AlgorithmEngineer packet repaired directly in AlgorithmEngineer; repeated local SimulationEngineer packet failures remained in SimulationEvaluator and the escalated source retry produced an executable packet instead of consuming an Architect/Retrieval/Theory detour. Independent generated-code review then drove one upstream generated-dependency repair and one local SimulationEvaluator repair under the existing global lineage budget. The run stopped honestly after 18 iterations with status BLOCKED and terminal_classification=generated_code_semantic_review_lineage_budget_exhausted; research evaluation remained 0/1, mode-conformant=true, and no Critic acceptance or formal lane was reached. All 8 enabled live agents used claude-haiku-4-5-20251001, topology policy was OK, and no Sonnet/Opus call was permitted. This is shared control-loop evidence, not task success, Lean proof, held-out evidence, or E2E readiness.",
-  "latest_main_worker_design_issue": "The local coding-packet ownership defect is closed: packet/schema/ABI errors no longer authorize Architect, Retrieval, or Theory rewrites. The current v124 blocker is downstream semantic candidate quality under the deliberately bounded generated-code review lineage: after one upstream generated-dependency replan and one post-replan local source repair, a fresh review still found upstream dependency/theory defects, so the runtime correctly failed closed rather than resetting counters or weakening gates. The next shared gate is better context-preserving coding-agent repair and reviewer consistency across unrelated development families, followed separately by exact-target Formalizer/OpenProver/Lean closure. Exact source-theorem closure remains zero and PCA/extremes held-out tasks remain sealed.",
+  "current_lane": "keep one canonical research loop and one strict proof boundary. TheoryDeveloper -> typed theory completeness -> independent pre-execution estimand/DGP/identifiability and metric-protocol review -> generated algorithm -> independent code review -> generated confirmatory simulation -> independent review -> Critic. Formalizer/ProofEngineer receive compact task-bound retrieval candidates and iterative Lean feedback; only active-project Lean/kernel evidence closes proof. Current work improves shared agent context, feedback, and retrieval rather than any task answer. Do not add agents, task formulas, Lean grammar/tactic rules, audit-score patches, or held-out fixes; PCA/extremes stay sealed.",
+  "latest_main_worker_patch": "Integrate YuanheZ/lean-stat-learning-theory as a candidate-only formal RAG source without importing its orchestrator or hardcoding its mathematics. The index generically parses declaration/reference tables, preserves Unicode-qualified name, namespace, imports, bounded signature outline, and source reference, stops before proof bodies, binds short-name references only when globally unambiguous, and diversifies exact-name/semantic hits across sources. SQLite candidate generation is Unicode-safe and bounded to 24 ordered query tokens while full-query tokens remain authoritative for deterministic reranking. The Formalizer receives a generic semantic-lemma-DAG and compiler-feedback strategy rather than Lean grammar or tactic rules. The same patch strengthens typed theory completeness, projects very large execution results without mutating accepted source or lineage, preserves structured-output fallback telemetry, and prevents repeated reviewer findings or redundant boolean authority rows from creating false repair loops. The experimental post-code protocol authoring path and unrelated Opus catalog refresh were removed. No statistical answer, book-specific runtime branch, task-family rule, validator relaxation, new agent, extra scheduler, or proof-evidence promotion was added.",
+  "latest_main_worker_live_probe": "Fresh exact-Haiku v128 ran both development families with all 8 enabled agents pinned to claude-haiku-4-5-20251001 and topology policy OK. Six generated algorithm executions passed, but both questions ended BLOCKED with research_eval=0/2, simulations=0, kernel subclaims=0, and exact theorem closures=0. The run also showed that delaying full protocol authoring until after code wastes generation before upstream statistical-authority defects are found; that ordering is not retained. V128 remains negative design evidence and does not establish current-loop completion, proof, or E2E readiness.",
+  "latest_main_worker_design_issue": "The canonical loop again performs independent estimand/DGP/identifiability and protocol review before generated code. TheoryDeveloper's full serious schema is not forced through Anthropic strict structured output after live evidence showed deterministic grammar fallback and truncated 10000-token responses; JSON repair remains active, while the durable design should separate an artifact-backed equation/lemma workspace from a bounded handoff packet. Next gates are a fresh exact-Haiku two-family run under this restored ordering, then exact-target Formalizer/OpenProver/Lean closure. Held-out PCA/extremes remain sealed and source-theorem closure remains zero.",
   "live_anthropic_model_policy": {
+    "model_catalog_source_checked_date": "2026-07-19",
+    "policy_rechecked_date": "2026-07-30",
     "allowed_tiers": [
       "haiku",
       "sonnet"
@@ -22,16 +24,49 @@
     "provider_backed_tests_may_use_opus": false,
     "opus_live_requests_allowed": false,
     "enforcement": "Production requests above Sonnet are rejected before a live request can be accepted, requested Opus is rejected before Anthropic client construction, and capability/research evaluation policy pins every provider-backed test agent to the exact Haiku model.",
-    "provider_backed_evaluation_runs_in_current_patch": 4,
+    "provider_backed_evaluation_runs_in_current_patch": 6,
     "provider_backed_evaluation_runs": [
       "v122_metric_reviewer_index_diagnosis",
       "v123_zero_based_metric_patch_and_packet_ownership_diagnosis",
       "v123_pending_critic_bounded_resume",
-      "v124_source_owned_packet_validation"
+      "v124_source_owned_packet_validation",
+      "v127_slt_rag_two_family_development",
+      "v128_structured_theory_slt_rag_two_family_development"
     ]
   },
+  "latest_slt_formal_rag": {
+    "source": "https://github.com/YuanheZ/lean-stat-learning-theory",
+    "pinned_commit": "d0f506f0a695018265dccb33bcb05e2f5ca1c876",
+    "paper": "ICML 2026 AI4SLT",
+    "indexed_declarations": 2012,
+    "indexed_unique_declaration_names": 2012,
+    "unicode_identifier_false_duplicates": 0,
+    "indexed_book_reference_rows": 21,
+    "indexed_unambiguous_readme_reference_rows": 46,
+    "book_crosswalks": [
+      "Vershynin (2018)",
+      "Wainwright (2019)",
+      "Boucheron-Lugosi-Massart (2013)"
+    ],
+    "book_crosswalk_row_counts": {
+      "Vershynin (2018)": 4,
+      "Wainwright (2019)": 6,
+      "Boucheron-Lugosi-Massart (2013)": 11
+    },
+    "benchmark": "runs/main_worker_slt_formal_rag_20260730_v7/formal_source_retrieval_benchmark_manifest.json",
+    "benchmark_result": "17/17 recall@8=1.0, MRR=0.722549; all three representative book-reference cases rank 1",
+    "all_book_crosswalk_reference_audit": "21/21 recall@8=1.0, MRR=1.0, and all 21 upstream README crosswalk rows rank 1",
+    "shared_rag_main_commit": "390cc6bc",
+    "shared_rag_feature_commits": [
+      "7f954358",
+      "1262b04d"
+    ],
+    "version_boundary": "external HEAD uses Lean 4.32.0 with Mathlib 81a5d257; upstream tag v4.31.0 at 148db35c uses Mathlib fabf563a; the active proof target uses Lean 4.31.0 with Mathlib 3cd5cf90. Matching Lean major/minor is insufficient, so every hit remains an untrusted candidate until exact active-project compilation and kernel verification",
+    "coverage_boundary": "The 21 rows are every declaration crosswalked by the upstream README to these three books, not a claim that all three books are formalized.",
+    "evidence_boundary": "Indexing, source retrieval, README reference matching, benchmark rank, and external compilation are not active-project proof evidence and cannot close a theorem."
+  },
   "latest_runtime_role_boundary_alignment": {
-    "canonical_empirical_loop": "TheoryDeveloper -> AlgorithmEngineer execution -> independent algorithm semantic review -> Architect confirmatory protocol -> SimulationEngineer execution -> independent simulation semantic review -> owner-routed revision",
+    "canonical_empirical_loop": "TheoryDeveloper -> independent pre-execution theory-bound metric protocol review -> AlgorithmEngineer execution -> independent algorithm semantic review -> SimulationEngineer confirmatory execution -> independent simulation semantic review -> owner-routed revision",
     "algorithm_acceptance": "sandbox execution plus independent semantic acceptance; no finite-sample empirical performance gate",
     "simulation_acceptance": "Architect-authored frozen typed metric requirements plus exact execution and independent semantic acceptance",
     "repair_policy": "first-pass correct is success; only an observed failure requires same-lineage repair closure",
@@ -46,15 +81,16 @@
     "fresh_live_two_family_strict_completion_verified": false,
     "strict_e2e_capability_ready": false,
     "verification": {
-      "research_agent_runtime": "1184 passed in 1551.20 seconds on the source-owned packet-validation, persistent lineage, metric-review typed-patch, resume, sandbox, formal-routing, and evidence-boundary tree",
-      "affected_supporting_tests": "87 passed across the credential-free exact-Haiku environment, model policy, JSON repair, metric semantic review, and research-eval mode",
-      "exact_haiku_live_probe": "v124 enabled 8 Anthropic agents, all at claude-haiku-4-5-20251001; topology policy OK with zero tier, subsystem, contextual, or resolved-model violations",
+      "research_agent_runtime": "1185 passed in 2401.16 seconds after updating the bounded-RAG hit-count fixture",
+      "affected_supporting_tests": "291 passed, 3 skipped, and 6 subtests passed in the complete core suite; 175 focused support tests and 48 model/evaluation policy tests also passed credential-free",
+      "exact_haiku_live_probe": "v128 enabled 8 Anthropic agents, all at claude-haiku-4-5-20251001; topology policy OK, 6/6 generated-code executions passed, research_eval=0/2, and both failures remained typed and fail-closed",
+      "formal_source_retrieval": "17/17 recall@8=1.0 with MRR=0.722549 after Unicode names, namespace/section, long-outline, unambiguous-reference, and bounded-FTS correction; all 21 upstream three-book crosswalk rows retrieved their exact declaration at rank 1",
       "focused_empirical_loop_tests": "the previously pushed TheoryDeveloper retry and metric-lineage regression remains covered by the complete runtime suite",
       "fresh_start_cross_task_e2e_tests": "fresh strict v39 completed theory/code/confirmatory-simulation for both development tasks, then blocked both at exact-target semantic review; frozen strict completion remains 0/2",
-      "py_compile": "passed via compileall",
+      "py_compile": "passed for every changed Python production module",
       "git_diff_check": "passed after final status update"
     },
-    "boundary": "Fresh v124 verifies source-owned packet repair and immutable theory/metric lineage but ends BLOCKED at bounded semantic-review lineage exhaustion. It does not establish research-loop completion, theorem closure, held-out generalization, or proof evidence."
+    "boundary": "Fresh v128 is negative exact-Haiku design evidence for the removed delayed-protocol ordering and completes neither research loop. SLT retrieval is candidate context only. Neither result establishes current-loop completion, simulation acceptance, theorem closure, held-out generalization, proof evidence, or full AI-Statistician readiness."
   },
   "latest_strict_formal_routing_probe": {
     "implementation": "reuse the existing FormalTargetSemanticReviewer, ProofEngineer, ExactSourceTheoremProver, OpenProver HLM, formal RAG, compiler feedback, and exact local Lean; keep all formal continuation inside typed AgentRuntime tasks",
