@@ -1885,6 +1885,7 @@ def author_reviewed_architect_metric_requirements(
                 "revision_index": revision_index,
                 "model_tier": config.model_tier,
                 "max_packet_repair_attempts": config.max_repair_attempts,
+                "progress_repair_extension_allowed": True,
                 "active_prior_finding_count": len(active_finding_ids),
             },
         ):
@@ -1927,6 +1928,7 @@ def author_reviewed_architect_metric_requirements(
                     )
                 ),
                 semantic_patch_repair=True,
+                allow_progress_repair_extension=True,
             )
         authoring_packet_hash = stable_hash(authoring_packet)
         review_material = {

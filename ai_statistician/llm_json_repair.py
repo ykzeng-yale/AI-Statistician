@@ -161,6 +161,7 @@ def generate_validated_json_packet(
     max_repair_attempts: int = 1,
     repair_context_builder: RepairContextBuilder | None = None,
     semantic_patch_repair: bool = False,
+    allow_progress_repair_extension: bool = False,
 ) -> dict[str, Any]:
     """Generate, locally validate, and retry a structured LLM packet.
 
@@ -177,8 +178,14 @@ def generate_validated_json_packet(
     semantic_patch_base_payload: dict[str, Any] | None = None
     semantic_patch_base_fingerprint = ""
     last_invalid_packet: dict[str, Any] | None = None
-    attempts = max(0, max_repair_attempts) + 1
+    base_attempts = max(0, max_repair_attempts) + 1
+    progress_repair_extensions = int(bool(allow_progress_repair_extension))
+    attempts = base_attempts + progress_repair_extensions
     for attempt_index in range(attempts):
+        progress_extension_attempt = max(
+            0,
+            attempt_index - base_attempts + 1,
+        )
         typed_semantic_patch_mode = bool(
             semantic_patch_repair and semantic_patch_base_payload is not None
         )
@@ -215,6 +222,12 @@ def generate_validated_json_packet(
                     **dict(request.metadata),
                     "json_repair_attempt": attempt_index,
                     "json_repair_max_attempts": max_repair_attempts,
+                    "json_repair_progress_extension_attempt": (
+                        progress_extension_attempt
+                    ),
+                    "json_repair_progress_extension_allowed": bool(
+                        allow_progress_repair_extension
+                    ),
                     "json_repair_previous_attempt_truncated": truncation_repair_mode,
                     "json_repair_truncation_repair_mode": truncation_repair_mode,
                     "json_repair_request_max_tokens": request_max_tokens,
@@ -303,6 +316,7 @@ def generate_validated_json_packet(
             "raw_response_fingerprint": _stable_text_fingerprint(raw_text),
             "response_text_chars": len(raw_text),
             "request_max_tokens": request_max_tokens,
+            "progress_extension_attempt": progress_extension_attempt,
             "response_metadata": _compact_response_metadata(response.metadata),
         }
         if typed_semantic_patch_mode:
@@ -321,6 +335,12 @@ def generate_validated_json_packet(
             packet["llm_json_repair_attempts"] = attempt_index
             packet["llm_json_repair_history"] = history
             return packet
+        if (
+            attempt_index >= base_attempts - 1
+            and attempt_index < attempts - 1
+            and not _typed_semantic_patch_history_made_strict_progress(history)
+        ):
+            break
         if attempt_index < attempts - 1:
             repair_context = (
                 repair_context_builder(
@@ -373,10 +393,36 @@ def generate_validated_json_packet(
                 )
     raise PacketValidationError(
         validation_label=validation_label,
-        attempts=attempts,
+        attempts=len(history),
         errors=last_errors,
         history=history,
         last_invalid_packet=last_invalid_packet,
+    )
+
+
+def _typed_semantic_patch_history_made_strict_progress(
+    history: list[dict[str, Any]],
+) -> bool:
+    """Allow one opt-in extension only after a smaller valid patch residual."""
+
+    if len(history) < 2:
+        return False
+    previous = history[-2]
+    current = history[-1]
+    previous_errors = previous.get("errors", [])
+    current_errors = current.get("errors", [])
+    return bool(
+        current.get("repair_mode") == "typed_semantic_patch"
+        and isinstance(previous_errors, list)
+        and isinstance(current_errors, list)
+        and current_errors
+        and len(current_errors) < len(previous_errors)
+        and current.get("patched_paths")
+        and not any(
+            str(error).startswith("typed semantic patch repair failed:")
+            for error in current_errors
+        )
+        and not _history_row_indicates_truncation(current)
     )
 
 

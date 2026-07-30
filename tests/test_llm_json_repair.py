@@ -478,6 +478,153 @@ def test_semantic_patch_repair_preserves_unaffected_large_payload() -> None:
     assert patch_history["patched_payload_fingerprint"]
 
 
+def test_progress_extension_allows_one_strictly_smaller_patch_residual() -> None:
+    class ProgressivePatchBackend:
+        provider_name = "test"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                response = {"first": False, "second": False}
+            else:
+                repair_payload = json.loads(
+                    request.user_prompt.split("\n\n", 1)[1]
+                )
+                field = "first" if len(self.requests) == 2 else "second"
+                response = {
+                    "base_payload_fingerprint": repair_payload[
+                        "base_payload_fingerprint"
+                    ],
+                    "updates": [
+                        {
+                            "path": [field],
+                            "replacement": True,
+                        }
+                    ],
+                }
+            return GeneratorResponse(
+                text=json.dumps(response),
+                provider=self.provider_name,
+                model=request.model,
+            )
+
+    def validate(candidate: dict[str, object]) -> list[str]:
+        return [
+            f"{field} must be true"
+            for field in ("first", "second")
+            if candidate.get(field) is not True
+        ]
+
+    backend = ProgressivePatchBackend()
+    packet = generate_validated_json_packet(
+        provider=backend,
+        request=GeneratorRequest(
+            system_prompt="Return JSON.",
+            user_prompt="Produce a two-field packet.",
+            model="test-haiku",
+            max_tokens=5000,
+            schema={"type": "object"},
+        ),
+        extract_payload=lambda text: extract_json_object(
+            text,
+            label="progressive packet",
+        ),
+        build_packet=lambda payload, response, raw_text: dict(payload),
+        validate_packet=validate,
+        validation_label="progressive packet",
+        max_repair_attempts=1,
+        semantic_patch_repair=True,
+        allow_progress_repair_extension=True,
+    )
+
+    assert packet["first"] is True
+    assert packet["second"] is True
+    assert len(backend.requests) == 3
+    assert [
+        request.metadata["json_repair_progress_extension_attempt"]
+        for request in backend.requests
+    ] == [0, 0, 1]
+    assert [
+        row["progress_extension_attempt"]
+        for row in packet["llm_json_repair_history"]
+    ] == [0, 0, 1]
+    assert [
+        len(row["errors"])
+        for row in packet["llm_json_repair_history"]
+    ] == [2, 1, 0]
+
+
+def test_progress_extension_stops_when_patch_makes_no_progress() -> None:
+    class StalledPatchBackend:
+        provider_name = "test"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                response = {"first": False, "second": False}
+            else:
+                repair_payload = json.loads(
+                    request.user_prompt.split("\n\n", 1)[1]
+                )
+                response = {
+                    "base_payload_fingerprint": repair_payload[
+                        "base_payload_fingerprint"
+                    ],
+                    "updates": [
+                        {
+                            "path": ["first"],
+                            "replacement": False,
+                        }
+                    ],
+                }
+            return GeneratorResponse(
+                text=json.dumps(response),
+                provider=self.provider_name,
+                model=request.model,
+            )
+
+    backend = StalledPatchBackend()
+    with pytest.raises(PacketValidationError) as caught:
+        generate_validated_json_packet(
+            provider=backend,
+            request=GeneratorRequest(
+                system_prompt="Return JSON.",
+                user_prompt="Produce a two-field packet.",
+                model="test-haiku",
+                max_tokens=5000,
+                schema={"type": "object"},
+            ),
+            extract_payload=lambda text: extract_json_object(
+                text,
+                label="stalled packet",
+            ),
+            build_packet=lambda payload, response, raw_text: dict(payload),
+            validate_packet=lambda candidate: [
+                f"{field} must be true"
+                for field in ("first", "second")
+                if candidate.get(field) is not True
+            ],
+            validation_label="stalled packet",
+            max_repair_attempts=1,
+            semantic_patch_repair=True,
+            allow_progress_repair_extension=True,
+        )
+
+    assert caught.value.attempts == 2
+    assert len(backend.requests) == 2
+    assert [len(row["errors"]) for row in caught.value.history] == [2, 2]
+    assert all(
+        row["progress_extension_attempt"] == 0
+        for row in caught.value.history
+    )
+
+
 def test_semantic_patch_focuses_validator_named_rows_at_original_indices() -> None:
     class FocusedRowBackend:
         provider_name = "test"

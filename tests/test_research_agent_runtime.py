@@ -25023,6 +25023,7 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         architect_request,
     ) = backend.requests
     assert metric_request.metadata["provider_structured_output"] is True
+    assert metric_request.metadata["json_repair_progress_extension_allowed"] is True
     assert metric_request.model == LIVE_EVALUATION_CLAUDE_MODEL
     assert metric_request.max_tokens == 8000
     assert first_patch_request.model == LIVE_EVALUATION_CLAUDE_MODEL
@@ -25030,11 +25031,17 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert first_patch_request.metadata["json_repair_mode"] == (
         "typed_semantic_patch"
     )
+    assert first_patch_request.metadata[
+        "json_repair_progress_extension_attempt"
+    ] == 0
     assert second_patch_request.model == LIVE_EVALUATION_CLAUDE_MODEL
     assert second_patch_request.max_tokens == 5000
     assert second_patch_request.metadata["json_repair_mode"] == (
         "typed_semantic_patch"
     )
+    assert second_patch_request.metadata[
+        "json_repair_progress_extension_attempt"
+    ] == 0
     assert metric_request.schema["required"] == [
         "empirical_metric_requirements"
     ]
