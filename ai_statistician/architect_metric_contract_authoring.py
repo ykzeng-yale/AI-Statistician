@@ -18,6 +18,7 @@ from .architect_metric_semantic_reviewer_llm import (
     LLMArchitectMetricSemanticReviewerAgent,
     architect_metric_review_material_with_runtime_evaluator_certificate,
     architect_metric_semantic_recommended_repair_scope,
+    bind_architect_metric_finding_evidence_identities,
 )
 from .fingerprint import stable_hash
 from .generated_metric_contract import (
@@ -2123,6 +2124,13 @@ def author_reviewed_architect_metric_requirements(
                 findings=semantic_review_packet.get("findings", []),
                 ownership_packet=repair_ownership_packet,
             )
+        routed_current_findings = (
+            bind_architect_metric_finding_evidence_identities(
+                findings=routed_current_findings,
+                review_material=review_material,
+                prior_ledger=cumulative_finding_ledger,
+            )
+        )
         cumulative_finding_ledger = update_metric_protocol_finding_ledger(
             question_id=question.id,
             prior_ledger=cumulative_finding_ledger,

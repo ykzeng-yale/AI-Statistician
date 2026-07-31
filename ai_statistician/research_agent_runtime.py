@@ -92,6 +92,7 @@ from .generated_metric_contract import (
 )
 from .generated_code_semantic_reviewer_llm import (
     GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
+    GENERATED_CODE_SEMANTIC_REVIEW_DEPENDENCY_VERIFICATION_MODE,
     GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE,
     GENERATED_CODE_SEMANTIC_REVIEW_POSTEXECUTION_REPAIR_ORDER,
     GENERATED_CODE_SEMANTIC_REVIEW_SOURCE_SUBSYSTEMS,
@@ -103,14 +104,17 @@ from .generated_code_semantic_reviewer_llm import (
 )
 from .generated_code_semantic_review_replan import (
     GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY,
+    GENERATED_CODE_SEMANTIC_REVIEW_PENDING_REPAIR_PLAN_KEY,
     GENERATED_CODE_SEMANTIC_REVIEW_PENDING_SOURCE_REPAIR_KEY,
     GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
     advance_generated_code_semantic_review_lineage_budget,
     build_generated_code_semantic_review_architect_replan_task,
     consume_generated_code_semantic_review_upstream_theory_replan,
+    generated_code_dependency_verification_plan_after_repair,
     generated_code_semantic_review_upstream_theory_budget_exhausted_result,
     generated_code_semantic_review_upstream_theory_revision_state,
     record_generated_code_semantic_review_lineage_action,
+    retire_generated_code_dependency_verification_obligation,
 )
 from .generated_code_semantic_review_scope import (
     generated_code_semantic_review_proposal_projection,
@@ -8973,6 +8977,18 @@ def _runtime_retire_resolved_generated_code_semantic_review_replan(
     ):
         return context
 
+    dependency_verification_plan: dict[str, Any] = {}
+    if repairs_upstream_dependency:
+        dependency_verification_plan = (
+            generated_code_dependency_verification_plan_after_repair(
+                architect_context=context,
+                replan=replan,
+                accepted_review=accepted_review,
+            )
+        )
+        if not dependency_verification_plan:
+            return context
+
     resolution = {
         "artifact_kind": (
             "RuntimeGeneratedCodeSemanticReviewReplanResolution"
@@ -8980,6 +8996,11 @@ def _runtime_retire_resolved_generated_code_semantic_review_replan(
         "source_subsystem": accepted_subsystem,
         "repair_scope": repair_scope,
         "rejected_source_manifest_id": rejected_manifest_id,
+        "rejected_source_manifest_hash": str(
+            replan.get("repair_target_source_manifest_hash", "") or ""
+        )
+        if repairs_upstream_dependency
+        else "",
         "rejected_descendant_source_subsystem": (
             rejected_descendant_subsystem
             if repairs_upstream_dependency
@@ -8987,6 +9008,17 @@ def _runtime_retire_resolved_generated_code_semantic_review_replan(
         ),
         "rejected_descendant_source_manifest_id": (
             rejected_descendant_manifest_id
+            if repairs_upstream_dependency
+            else ""
+        ),
+        "rejected_descendant_source_manifest_hash": (
+            str(
+                replan.get(
+                    "rejected_descendant_source_manifest_hash",
+                    "",
+                )
+                or ""
+            )
             if repairs_upstream_dependency
             else ""
         ),
@@ -9003,8 +9035,20 @@ def _runtime_retire_resolved_generated_code_semantic_review_replan(
         "accepted_review_execution_id": str(
             accepted_review.get("execution_id", "") or ""
         ),
-        "resolution_status": "SUPERSEDED_BY_FRESH_ACCEPTED_ARTIFACT",
+        "resolution_status": (
+            "DEPENDENCY_ACCEPTED_AWAITING_DESCENDANT_REVIEW"
+            if repairs_upstream_dependency
+            else "SUPERSEDED_BY_FRESH_ACCEPTED_ARTIFACT"
+        ),
         "descendant_rerun_required": repairs_upstream_dependency,
+        "repair_obligation_id": str(
+            dependency_verification_plan.get("repair_obligation_id", "")
+            or ""
+        ),
+        "pending_repair_plan_id": str(
+            dependency_verification_plan.get("pending_repair_plan_id", "")
+            or ""
+        ),
         "proof_evidence_status": (
             "GENERATED_CODE_SEMANTIC_REVIEW_REPLAN_RESOLUTION_NOT_PROOF_EVIDENCE"
         ),
@@ -9016,6 +9060,10 @@ def _runtime_retire_resolved_generated_code_semantic_review_replan(
     context["runtime_generated_code_semantic_review_replan_resolution"] = (
         resolution
     )
+    if dependency_verification_plan:
+        context[
+            GENERATED_CODE_SEMANTIC_REVIEW_PENDING_REPAIR_PLAN_KEY
+        ] = dependency_verification_plan
     context.pop("runtime_generated_code_semantic_review_replan", None)
 
     stale_execution_id = str(replan.get("review_execution_id", "") or "")
@@ -13972,7 +14020,7 @@ def _runtime_generated_code_semantic_review_dispatch(
         )
     )
     pending_repair_plan = architect_context.get(
-        "runtime_generated_code_semantic_review_pending_repair_plan",
+        GENERATED_CODE_SEMANTIC_REVIEW_PENDING_REPAIR_PLAN_KEY,
         {},
     )
     pending_repair_plan = (
@@ -15727,6 +15775,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 "repair_scopes": repair_scopes,
                 "repair_owner": repair_owner_agent,
                 "repair_plan": repair_plan,
+                "source_repair_contract": source_repair_contract,
             }
             lineage_budget_state = (
                 advance_generated_code_semantic_review_lineage_budget(
@@ -15844,6 +15893,13 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 _runtime_retire_resolved_generated_code_semantic_review_replan(
                     architect_context=next_context,
                     accepted_review=accepted_review,
+                )
+            )
+            next_context = (
+                retire_generated_code_dependency_verification_obligation(
+                    architect_context=next_context,
+                    accepted_review=accepted_review,
+                    review_material=review_material,
                 )
             )
             if algorithm_handoff:
@@ -16071,7 +16127,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     + stable_hash(pending_plan)[:20]
                 )
                 next_context[
-                    "runtime_generated_code_semantic_review_pending_repair_plan"
+                    GENERATED_CODE_SEMANTIC_REVIEW_PENDING_REPAIR_PLAN_KEY
                 ] = pending_plan
             lineage_ledger = record_generated_code_semantic_review_lineage_action(
                 lineage_budget_state,
@@ -66705,27 +66761,72 @@ def _runtime_generated_simulation_required_before_formalization(
         "runtime_generated_code_semantic_review_replan",
         {},
     )
+    pending_dependency_verification = context.get(
+        GENERATED_CODE_SEMANTIC_REVIEW_PENDING_REPAIR_PLAN_KEY,
+        {},
+    )
+    pending_dependency_verification = (
+        pending_dependency_verification
+        if isinstance(pending_dependency_verification, Mapping)
+        else {}
+    )
     dependency_descendant_rerun_required = bool(
-        isinstance(semantic_replan, Mapping)
-        and semantic_replan.get("repair_scope")
-        == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
-        and _canonical_architect_subsystem(
-            semantic_replan.get("repair_target_subsystem")
+        (
+            isinstance(semantic_replan, Mapping)
+            and semantic_replan.get("repair_scope")
+            == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
+            and _canonical_architect_subsystem(
+                semantic_replan.get("repair_target_subsystem")
+            )
+            == "AlgorithmEngineer"
+            and _canonical_architect_subsystem(
+                semantic_replan.get("source_subsystem")
+            )
+            == "SimulationEvaluator"
+            and str(
+                semantic_replan.get(
+                    "repair_target_source_manifest_id",
+                    "",
+                )
+                or ""
+            )
+            and str(
+                semantic_replan.get(
+                    "repair_target_source_manifest_id",
+                    "",
+                )
+                or ""
+            )
+            != algorithm_sandbox_manifest_id
+            and str(algorithm_sandbox_manifest_id or "")
+            and str(algorithm_sandbox_manifest_hash or "")
         )
-        == "AlgorithmEngineer"
-        and _canonical_architect_subsystem(
-            semantic_replan.get("source_subsystem")
+        or (
+            pending_dependency_verification.get("pending_mode")
+            == GENERATED_CODE_SEMANTIC_REVIEW_DEPENDENCY_VERIFICATION_MODE
+            and _canonical_architect_subsystem(
+                pending_dependency_verification.get("source_subsystem")
+            )
+            == "SimulationEvaluator"
+            and str(
+                pending_dependency_verification.get(
+                    "accepted_upstream_dependency_manifest_id",
+                    "",
+                )
+                or ""
+            )
+            == str(algorithm_sandbox_manifest_id or "")
+            and str(
+                pending_dependency_verification.get(
+                    "accepted_upstream_dependency_manifest_hash",
+                    "",
+                )
+                or ""
+            )
+            == str(algorithm_sandbox_manifest_hash or "")
+            and str(algorithm_sandbox_manifest_id or "")
+            and str(algorithm_sandbox_manifest_hash or "")
         )
-        == "SimulationEvaluator"
-        and str(
-            semantic_replan.get("repair_target_source_manifest_id", "") or ""
-        )
-        and str(
-            semantic_replan.get("repair_target_source_manifest_id", "") or ""
-        )
-        != algorithm_sandbox_manifest_id
-        and str(algorithm_sandbox_manifest_id or "")
-        and str(algorithm_sandbox_manifest_hash or "")
     )
     if not (
         dependency_descendant_rerun_required

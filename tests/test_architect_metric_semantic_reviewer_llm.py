@@ -16,10 +16,12 @@ from ai_statistician.architect_metric_semantic_reviewer_llm import (
     architect_metric_active_prior_finding_current_evidence,
     architect_metric_review_material_with_runtime_evaluator_certificate,
     architect_metric_semantic_review_json_schema,
+    bind_architect_metric_finding_evidence_identities,
     validate_architect_metric_semantic_review_packet,
 )
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.generated_metric_contract import (
+    generated_metric_acceptance_authority_catalog,
     generated_metric_evaluation_semantics_contract,
     generated_metric_requirement_set_id,
 )
@@ -1344,6 +1346,164 @@ def test_metric_reviewer_materializes_current_candidate_pointer_evidence(
     assert snapshot["current_value_fingerprint"] == stable_hash(
         expected_value
     )
+
+
+def test_metric_finding_tracks_named_row_across_list_reordering() -> None:
+    evidence_ref = (
+        "theory#/theory_derivation_packet/sanity_checks/1/result"
+    )
+
+    def material(sanity_checks: list[dict[str, str]]) -> dict[str, object]:
+        theory_protocol_material = {
+            "theory_semantic_material": {
+                "theory_derivation_packet": {
+                    "sanity_checks": sanity_checks,
+                }
+            }
+        }
+        return {
+            "acceptance_authority_catalog": (
+                generated_metric_acceptance_authority_catalog(
+                    question={
+                        "title": "Generic",
+                        "description": "Generic review",
+                    },
+                    runtime_contract={"simulation_targets": []},
+                    theory_protocol_material=theory_protocol_material,
+                )
+            ),
+            "theory_developer_protocol_material": theory_protocol_material,
+        }
+
+    original_material = material(
+        [
+            {"claim_ref": "ROW_A", "result": "unrelated"},
+            {"claim_ref": "ROW_TARGET", "result": "old defective value"},
+        ]
+    )
+    finding_id = "metric-finding:named-row"
+    bound_finding = bind_architect_metric_finding_evidence_identities(
+        findings=[
+            {
+                "finding_id": finding_id,
+                "category": "generic_identity",
+                "summary": "The named row is defective.",
+                "required_change": "Repair that exact named row.",
+                "repair_scope": "upstream_theory",
+                "evidence_refs": [evidence_ref],
+            }
+        ],
+        review_material=original_material,
+    )[0]
+    revised_material = material(
+        [
+            {"claim_ref": "ROW_TARGET", "result": "corrected current value"},
+            {"claim_ref": "ROW_A", "result": "unrelated"},
+        ]
+    )
+
+    snapshot = architect_metric_active_prior_finding_current_evidence(
+        {
+            **revised_material,
+            "active_prior_finding_ledger": [
+                {
+                    "finding_id": finding_id,
+                    "status": "UNRESOLVED",
+                    "finding": bound_finding,
+                }
+            ],
+        }
+    )[0]
+
+    assert snapshot["evidence_ref"] == evidence_ref
+    assert snapshot["exists"] is True
+    assert snapshot["current_value"] == "corrected current value"
+    assert snapshot["semantic_binding"]["identity_status"] == (
+        "SEMANTIC_IDENTITY_MATCH"
+    )
+    assert snapshot["semantic_binding"]["resolved_evidence_ref"] == (
+        "theory#/theory_derivation_packet/sanity_checks/0/result"
+    )
+
+
+def test_metric_finding_rejects_stale_positional_row_rebinding() -> None:
+    evidence_ref = (
+        "theory#/theory_derivation_packet/sanity_checks/1/result"
+    )
+
+    def material(sanity_checks: list[dict[str, str]]) -> dict[str, object]:
+        theory_protocol_material = {
+            "theory_semantic_material": {
+                "theory_derivation_packet": {
+                    "sanity_checks": sanity_checks,
+                }
+            }
+        }
+        return {
+            "acceptance_authority_catalog": (
+                generated_metric_acceptance_authority_catalog(
+                    question={
+                        "title": "Generic",
+                        "description": "Generic review",
+                    },
+                    runtime_contract={"simulation_targets": []},
+                    theory_protocol_material=theory_protocol_material,
+                )
+            ),
+            "theory_developer_protocol_material": theory_protocol_material,
+        }
+
+    original_material = material(
+        [
+            {"claim_ref": "ROW_A", "result": "unrelated"},
+            {"claim_ref": "ROW_TARGET", "result": "old defective value"},
+        ]
+    )
+    finding_id = "metric-finding:removed-row"
+    bound_finding = bind_architect_metric_finding_evidence_identities(
+        findings=[
+            {
+                "finding_id": finding_id,
+                "category": "generic_identity",
+                "summary": "The named row is defective.",
+                "required_change": "Repair that exact named row.",
+                "repair_scope": "upstream_theory",
+                "evidence_refs": [evidence_ref],
+            }
+        ],
+        review_material=original_material,
+    )[0]
+    revised_material = material(
+        [
+            {"claim_ref": "ROW_A", "result": "unrelated"},
+            {
+                "claim_ref": "ROW_DIFFERENT",
+                "result": "semantically different current row",
+            },
+        ]
+    )
+
+    snapshot = architect_metric_active_prior_finding_current_evidence(
+        {
+            **revised_material,
+            "active_prior_finding_ledger": [
+                {
+                    "finding_id": finding_id,
+                    "status": "UNRESOLVED",
+                    "finding": bound_finding,
+                }
+            ],
+        }
+    )[0]
+
+    assert snapshot["exists"] is False
+    assert snapshot["current_value"] is None
+    semantic_binding = snapshot["semantic_binding"]
+    assert semantic_binding["identity_status"] == (
+        "SEMANTIC_IDENTITY_MISSING_AFTER_REVISION"
+    )
+    assert semantic_binding["positional_path_exists"] is True
+    assert semantic_binding["semantic_identity_match"] is False
 
 
 def test_metric_reviewer_rejects_unresolved_prior_without_existing_snapshot() -> None:

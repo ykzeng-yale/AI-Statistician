@@ -9,6 +9,10 @@ from .agent_runtime import (
     EvidenceLedgerEntry,
 )
 from .fingerprint import stable_hash
+from .generated_code_semantic_reviewer_llm import (
+    GENERATED_CODE_SEMANTIC_REVIEW_DEPENDENCY_VERIFICATION_MODE,
+    GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_DEPENDENCY_SCOPE,
+)
 from .research_schema import OpenResearchQuestion
 from .typed_repair_handoff import build_typed_repair_handoff_contract
 
@@ -22,6 +26,9 @@ GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_THEORY_REVISION_LEDGER_KEY = (
 )
 GENERATED_CODE_SEMANTIC_REVIEW_PENDING_SOURCE_REPAIR_KEY = (
     "runtime_generated_code_semantic_review_pending_source_repair"
+)
+GENERATED_CODE_SEMANTIC_REVIEW_PENDING_REPAIR_PLAN_KEY = (
+    "runtime_generated_code_semantic_review_pending_repair_plan"
 )
 
 
@@ -423,6 +430,335 @@ def generated_code_semantic_review_upstream_theory_budget_exhausted_result(
     )
 
 
+def generated_code_dependency_verification_plan_after_repair(
+    *,
+    architect_context: Mapping[str, Any],
+    replan: Mapping[str, Any],
+    accepted_review: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Keep an upstream repair open until its rejected descendant is re-reviewed."""
+
+    if str(replan.get("repair_scope", "") or "") != (
+        GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_DEPENDENCY_SCOPE
+    ):
+        return {}
+    accepted_manifest_id = str(
+        accepted_review.get("source_manifest_id", "") or ""
+    )
+    accepted_manifest_hash = str(
+        accepted_review.get("source_manifest_hash", "") or ""
+    )
+    rejected_dependency_id = str(
+        replan.get("repair_target_source_manifest_id", "") or ""
+    )
+    rejected_dependency_hash = str(
+        replan.get("repair_target_source_manifest_hash", "") or ""
+    )
+    rejected_descendant_id = str(
+        replan.get("rejected_descendant_source_manifest_id", "")
+        or replan.get("source_manifest_id", "")
+        or ""
+    )
+    rejected_descendant_hash = str(
+        replan.get("rejected_descendant_source_manifest_hash", "") or ""
+    )
+    descendant_subsystem = str(replan.get("source_subsystem", "") or "")
+    if not all(
+        (
+            accepted_manifest_id,
+            accepted_manifest_hash,
+            rejected_dependency_id,
+            rejected_dependency_hash,
+            rejected_descendant_id,
+            rejected_descendant_hash,
+            descendant_subsystem,
+        )
+    ):
+        return {}
+
+    previous = _mapping(
+        architect_context.get(
+            GENERATED_CODE_SEMANTIC_REVIEW_PENDING_REPAIR_PLAN_KEY
+        )
+    )
+    same_obligation = bool(
+        previous.get("pending_mode")
+        == GENERATED_CODE_SEMANTIC_REVIEW_DEPENDENCY_VERIFICATION_MODE
+        and previous.get("source_subsystem") == descendant_subsystem
+        and previous.get("rejected_descendant_source_manifest_id")
+        == rejected_descendant_id
+    )
+    prior_attempts = (
+        max(0, int(previous.get("repair_attempt_count", 0) or 0))
+        if same_obligation
+        else 0
+    )
+    semantic_budget = _mapping(
+        replan.get("semantic_review_revision_budget")
+    )
+    configured_local_revisions = max(
+        0,
+        int(semantic_budget.get("max_revisions", 0) or 0),
+    )
+    max_repair_attempts = (
+        max(1, int(previous.get("max_repair_attempts", 0) or 0))
+        if same_obligation
+        else max(1, min(3, configured_local_revisions + 1))
+    )
+    repair_attempt_count = prior_attempts + 1
+    if repair_attempt_count > max_repair_attempts:
+        return {}
+
+    pending_findings = [
+        dict(row)
+        for row in replan.get("findings", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("repair_scope", "") or "")
+        == GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_DEPENDENCY_SCOPE
+    ]
+    if not pending_findings:
+        pending_findings = [
+            {
+                "severity": "critical",
+                "category": "upstream_dependency_descendant_verification",
+                "summary": (
+                    "The fresh upstream dependency must be checked in the exact "
+                    "descendant execution that exposed the rejected lineage."
+                ),
+                "required_change": (
+                    "Rerun and independently review a fresh descendant bound to "
+                    "the exact accepted upstream dependency."
+                ),
+                "repair_scope": (
+                    GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_DEPENDENCY_SCOPE
+                ),
+                "runtime_generated_obligation": True,
+            }
+        ]
+    repair_obligation_id = (
+        str(previous.get("repair_obligation_id", "") or "")
+        if same_obligation
+        else "generated_code_repair_obligation:"
+        + stable_hash(
+            [
+                str(replan.get("question_id", "") or ""),
+                str(replan.get("review_execution_id", "") or ""),
+                rejected_dependency_id,
+                rejected_dependency_hash,
+                rejected_descendant_id,
+                rejected_descendant_hash,
+            ]
+        )[:20]
+    )
+    plan = {
+        "schema_version": 1,
+        "artifact_kind": (
+            "RuntimeGeneratedCodeSemanticReviewPendingRepairPlan"
+        ),
+        "pending_mode": (
+            GENERATED_CODE_SEMANTIC_REVIEW_DEPENDENCY_VERIFICATION_MODE
+        ),
+        "repair_obligation_id": repair_obligation_id,
+        "question_id": str(replan.get("question_id", "") or ""),
+        "source_subsystem": descendant_subsystem,
+        "pending_repair_scopes": [
+            GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_DEPENDENCY_SCOPE
+        ],
+        "origin_review_packet_id": str(
+            replan.get("review_packet_id", "") or ""
+        ),
+        "origin_review_execution_id": str(
+            replan.get("review_execution_id", "") or ""
+        ),
+        "rejected_upstream_dependency_manifest_id": rejected_dependency_id,
+        "rejected_upstream_dependency_manifest_hash": (
+            rejected_dependency_hash
+        ),
+        "accepted_upstream_dependency_manifest_id": accepted_manifest_id,
+        "accepted_upstream_dependency_manifest_hash": accepted_manifest_hash,
+        "accepted_upstream_dependency_review_packet_id": str(
+            accepted_review.get("review_packet_id", "") or ""
+        ),
+        "accepted_upstream_dependency_review_execution_id": str(
+            accepted_review.get("execution_id", "") or ""
+        ),
+        "rejected_descendant_source_manifest_id": rejected_descendant_id,
+        "rejected_descendant_source_manifest_hash": rejected_descendant_hash,
+        "theory_packet_hash": str(
+            replan.get("theory_packet_hash", "") or ""
+        ),
+        "architect_evidence_contract_hash": str(
+            replan.get("architect_evidence_contract_hash", "") or ""
+        ),
+        "repair_attempt_count": repair_attempt_count,
+        "max_repair_attempts": max_repair_attempts,
+        "pending_findings": pending_findings,
+        "verification_status": "AWAITING_FRESH_DESCENDANT_REVIEW",
+        "proof_evidence_status": (
+            "GENERATED_CODE_DEPENDENCY_VERIFICATION_PENDING_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": (
+            "Acceptance of a repaired dependency does not close a defect first "
+            "observed in its descendant. Only a fresh descendant execution and "
+            "independent semantic review bound to the accepted dependency may "
+            "close this obligation; neither artifact is theorem proof evidence."
+        ),
+    }
+    plan["pending_repair_plan_id"] = (
+        "generated_code_semantic_review_pending_repair_plan:"
+        + stable_hash(plan)[:20]
+    )
+    return plan
+
+
+def retire_generated_code_dependency_verification_obligation(
+    *,
+    architect_context: Mapping[str, Any],
+    accepted_review: Mapping[str, Any],
+    review_material: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Close a dependency obligation only at the fresh descendant review gate."""
+
+    context = dict(architect_context)
+    plan = _mapping(
+        context.get(GENERATED_CODE_SEMANTIC_REVIEW_PENDING_REPAIR_PLAN_KEY)
+    )
+    if plan.get("pending_mode") != (
+        GENERATED_CODE_SEMANTIC_REVIEW_DEPENDENCY_VERIFICATION_MODE
+    ):
+        return context
+    upstream_dependency = _mapping(
+        review_material.get("upstream_generated_dependency")
+    )
+    accepted_dependency_id = str(
+        upstream_dependency.get("algorithm_sandbox_manifest_id", "") or ""
+    )
+    accepted_dependency_hash = str(
+        upstream_dependency.get("algorithm_sandbox_manifest_hash", "") or ""
+    )
+    descendant_manifest_id = str(
+        accepted_review.get("source_manifest_id", "") or ""
+    )
+    descendant_manifest_hash = str(
+        accepted_review.get("source_manifest_hash", "") or ""
+    )
+    if not (
+        accepted_review.get("overall_verdict") == "ACCEPT"
+        and str(accepted_review.get("source_subsystem", "") or "")
+        == str(plan.get("source_subsystem", "") or "")
+        and accepted_dependency_id
+        == str(
+            plan.get("accepted_upstream_dependency_manifest_id", "") or ""
+        )
+        and accepted_dependency_hash
+        == str(
+            plan.get("accepted_upstream_dependency_manifest_hash", "") or ""
+        )
+        and descendant_manifest_id
+        and descendant_manifest_hash
+        and descendant_manifest_id
+        != str(plan.get("rejected_descendant_source_manifest_id", "") or "")
+        and descendant_manifest_hash
+        != str(plan.get("rejected_descendant_source_manifest_hash", "") or "")
+    ):
+        return context
+
+    prior_resolution = _mapping(
+        context.get("runtime_generated_code_semantic_review_replan_resolution")
+    )
+    resolution = {
+        **prior_resolution,
+        "artifact_kind": (
+            "RuntimeGeneratedCodeSemanticReviewReplanResolution"
+        ),
+        "resolution_status": (
+            "VERIFIED_BY_FRESH_DESCENDANT_SEMANTIC_REVIEW"
+        ),
+        "repair_obligation_id": str(
+            plan.get("repair_obligation_id", "") or ""
+        ),
+        "pending_repair_plan_id": str(
+            plan.get("pending_repair_plan_id", "") or ""
+        ),
+        "accepted_upstream_dependency_manifest_id": accepted_dependency_id,
+        "accepted_upstream_dependency_manifest_hash": (
+            accepted_dependency_hash
+        ),
+        "accepted_descendant_source_manifest_id": descendant_manifest_id,
+        "accepted_descendant_source_manifest_hash": descendant_manifest_hash,
+        "accepted_descendant_review_packet_id": str(
+            accepted_review.get("review_packet_id", "") or ""
+        ),
+        "accepted_descendant_review_execution_id": str(
+            accepted_review.get("execution_id", "") or ""
+        ),
+        "descendant_rerun_required": False,
+        "proof_evidence_status": (
+            "GENERATED_CODE_SEMANTIC_REVIEW_REPLAN_RESOLUTION_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    resolution["resolution_id"] = (
+        "generated_code_semantic_review_replan_resolution:"
+        + stable_hash(resolution)[:20]
+    )
+    context["runtime_generated_code_semantic_review_replan_resolution"] = (
+        resolution
+    )
+    context.pop(GENERATED_CODE_SEMANTIC_REVIEW_PENDING_REPAIR_PLAN_KEY, None)
+    return context
+
+
+def _generated_code_dependency_retry_state(
+    *,
+    architect_context: Mapping[str, Any],
+    review_packet: Mapping[str, Any],
+) -> dict[str, Any]:
+    plan = _mapping(
+        architect_context.get(
+            GENERATED_CODE_SEMANTIC_REVIEW_PENDING_REPAIR_PLAN_KEY
+        )
+    )
+    source_repair_contract = _mapping(
+        review_packet.get("source_repair_contract")
+    )
+    active = bool(
+        plan.get("pending_mode")
+        == GENERATED_CODE_SEMANTIC_REVIEW_DEPENDENCY_VERIFICATION_MODE
+        and str(review_packet.get("repair_scope", "") or "")
+        == GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_DEPENDENCY_SCOPE
+        and str(
+            source_repair_contract.get("parent_source_manifest_hash", "")
+            or ""
+        )
+        == str(
+            plan.get("accepted_upstream_dependency_manifest_hash", "") or ""
+        )
+        and str(
+            source_repair_contract.get("parent_source_manifest_hash", "")
+            or ""
+        )
+    )
+    attempts_used = max(
+        0,
+        int(plan.get("repair_attempt_count", 0) or 0),
+    )
+    max_attempts = max(
+        0,
+        int(plan.get("max_repair_attempts", 0) or 0),
+    )
+    return {
+        "active": active,
+        "repair_obligation_id": str(
+            plan.get("repair_obligation_id", "") or ""
+        ),
+        "repair_attempt_count": attempts_used,
+        "max_repair_attempts": max_attempts,
+        "retry_available": bool(
+            active and max_attempts > 0 and attempts_used < max_attempts
+        ),
+    }
+
+
 def advance_generated_code_semantic_review_lineage_budget(
     *,
     architect_context: Mapping[str, Any],
@@ -433,6 +769,10 @@ def advance_generated_code_semantic_review_lineage_budget(
 ) -> dict[str, Any]:
     """Advance finding diagnostics under a theory/source lineage budget."""
 
+    dependency_retry_state = _generated_code_dependency_retry_state(
+        architect_context=architect_context,
+        review_packet=review_packet,
+    )
     finding_signature = {
         "failed_dimensions": sorted(
             (
@@ -510,6 +850,15 @@ def advance_generated_code_semantic_review_lineage_budget(
         "proof_evidence_status": (
             "GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_BUDGET_NOT_PROOF_EVIDENCE"
         ),
+        "repair_obligation_id": str(
+            dependency_retry_state.get("repair_obligation_id", "") or ""
+        ),
+        "dependency_repair_attempt_count": int(
+            dependency_retry_state.get("repair_attempt_count", 0) or 0
+        ),
+        "dependency_max_repair_attempts": int(
+            dependency_retry_state.get("max_repair_attempts", 0) or 0
+        ),
     }
     ledger[lineage_key] = row
     source_lineage_rows = [
@@ -565,7 +914,10 @@ def advance_generated_code_semantic_review_lineage_budget(
     )
     architect_replan_available = bool(
         row["repair_scope"] != "source_code"
-        and source_architect_replan_count == 0
+        and (
+            source_architect_replan_count == 0
+            or dependency_retry_state.get("retry_available") is True
+        )
     )
     return {
         "lineage_key": lineage_key,
@@ -583,8 +935,10 @@ def advance_generated_code_semantic_review_lineage_budget(
                 row["repair_scope"] != "source_code"
                 and source_architect_replan_count > 0
                 and not post_replan_local_repair_available
+                and dependency_retry_state.get("retry_available") is not True
             )
         ),
+        "dependency_retry_state": dependency_retry_state,
     }
 
 
@@ -675,6 +1029,7 @@ def build_generated_code_semantic_review_architect_replan_task(
     )
     replan_context["runtime_generated_code_semantic_review_replan"] = {
         "artifact_kind": "RuntimeGeneratedCodeSemanticReviewReplanContext",
+        "question_id": question.id,
         "source_review_task_id": review_task_id,
         "source_task_id": str(work_order.get("source_task_id", "") or ""),
         "source_subsystem": str(work_order.get("source_subsystem", "") or ""),
@@ -700,6 +1055,19 @@ def build_generated_code_semantic_review_architect_replan_task(
             _mapping(
                 escalation_feedback.get("source_repair_contract")
             ).get("parent_source_manifest_hash", "")
+            or ""
+        ),
+        "theory_packet_hash": str(
+            _mapping(
+                escalation_feedback.get("source_repair_contract")
+            ).get("theory_packet_hash", "")
+            or work_order.get("theory_packet_hash", "")
+            or ""
+        ),
+        "architect_evidence_contract_hash": str(
+            _mapping(
+                escalation_feedback.get("source_repair_contract")
+            ).get("architect_evidence_contract_fingerprint", "")
             or ""
         ),
         "rejected_descendant_source_manifest_id": str(

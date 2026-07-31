@@ -23473,14 +23473,33 @@ def test_fresh_dependency_acceptance_requires_descendant_rerun() -> None:
             "source_manifest_id": "simulation_manifest:rejected-consumer",
         },
         "runtime_generated_code_semantic_review_replan": {
+            "question_id": question.id,
             "repair_scope": "upstream_generated_dependency",
             "source_subsystem": "SimulationEvaluator",
             "source_manifest_id": "simulation_manifest:rejected-consumer",
+            "rejected_descendant_source_manifest_hash": (
+                "rejected-consumer-hash"
+            ),
             "repair_target_subsystem": "AlgorithmEngineer",
             "repair_target_source_manifest_id": (
                 "algorithm_sandbox_manifest:parent"
             ),
+            "repair_target_source_manifest_hash": "algorithm-parent-hash",
+            "review_packet_id": "generated-code-review:dependency",
             "review_execution_id": review_execution_id,
+            "semantic_review_revision_budget": {
+                "revisions_used": 0,
+                "max_revisions": 1,
+            },
+            "findings": [
+                {
+                    "severity": "critical",
+                    "category": "dependency_semantics",
+                    "summary": "The dependency computes the wrong quantity.",
+                    "required_change": "Repair and recheck the exact dependency.",
+                    "repair_scope": "upstream_generated_dependency",
+                }
+            ],
         },
     }
 
@@ -23511,6 +23530,17 @@ def test_fresh_dependency_acceptance_requires_descendant_rerun() -> None:
         "algorithm_sandbox_manifest:fresh"
     )
     assert resolution["descendant_rerun_required"] is True
+    assert resolution["resolution_status"] == (
+        "DEPENDENCY_ACCEPTED_AWAITING_DESCENDANT_REVIEW"
+    )
+    pending_plan = resolved[
+        "runtime_generated_code_semantic_review_pending_repair_plan"
+    ]
+    assert pending_plan["repair_attempt_count"] == 1
+    assert pending_plan["max_repair_attempts"] == 2
+    assert pending_plan["accepted_upstream_dependency_manifest_hash"] == (
+        "fresh-hash"
+    )
 
     old_simulation = {
         "artifact_kind": "RuntimeSimulationManifest",
@@ -23533,7 +23563,7 @@ def test_fresh_dependency_acceptance_requires_descendant_rerun() -> None:
     )
     rerun_required = (
         runtime_module._runtime_generated_simulation_required_before_formalization(
-            context=context,
+            context=resolved,
             environment_feedback={},
             blackboard=blackboard,
             question=question,
@@ -23560,7 +23590,7 @@ def test_fresh_dependency_acceptance_requires_descendant_rerun() -> None:
     blackboard.artifacts[fresh_simulation["manifest_id"]] = fresh_simulation
     assert (
         runtime_module._runtime_generated_simulation_required_before_formalization(
-            context=context,
+            context=resolved,
             environment_feedback={},
             blackboard=blackboard,
             question=question,
@@ -23572,6 +23602,65 @@ def test_fresh_dependency_acceptance_requires_descendant_rerun() -> None:
         )
         is False
     )
+
+    still_pending = (
+        runtime_module.retire_generated_code_dependency_verification_obligation(
+            architect_context=resolved,
+            accepted_review={
+                "overall_verdict": "ACCEPT",
+                "source_subsystem": "SimulationEvaluator",
+                "source_manifest_id": "simulation_manifest:fresh-descendant",
+                "source_manifest_hash": "fresh-descendant-hash",
+                "review_packet_id": "simulation-review:fresh",
+                "execution_id": "simulation-review-execution:fresh",
+            },
+            review_material={
+                "upstream_generated_dependency": {
+                    "algorithm_sandbox_manifest_id": (
+                        "algorithm_sandbox_manifest:other"
+                    ),
+                    "algorithm_sandbox_manifest_hash": "other-hash",
+                }
+            },
+        )
+    )
+    assert (
+        "runtime_generated_code_semantic_review_pending_repair_plan"
+        in still_pending
+    )
+
+    verified = (
+        runtime_module.retire_generated_code_dependency_verification_obligation(
+            architect_context=resolved,
+            accepted_review={
+                "overall_verdict": "ACCEPT",
+                "source_subsystem": "SimulationEvaluator",
+                "source_manifest_id": "simulation_manifest:fresh-descendant",
+                "source_manifest_hash": "fresh-descendant-hash",
+                "review_packet_id": "simulation-review:fresh",
+                "execution_id": "simulation-review-execution:fresh",
+            },
+            review_material={
+                "upstream_generated_dependency": {
+                    "algorithm_sandbox_manifest_id": (
+                        "algorithm_sandbox_manifest:fresh"
+                    ),
+                    "algorithm_sandbox_manifest_hash": "fresh-hash",
+                }
+            },
+        )
+    )
+    assert (
+        "runtime_generated_code_semantic_review_pending_repair_plan"
+        not in verified
+    )
+    verified_resolution = verified[
+        "runtime_generated_code_semantic_review_replan_resolution"
+    ]
+    assert verified_resolution["resolution_status"] == (
+        "VERIFIED_BY_FRESH_DESCENDANT_SEMANTIC_REVIEW"
+    )
+    assert verified_resolution["descendant_rerun_required"] is False
 
 
 def test_architect_does_not_forward_mismatched_semantic_replan_feedback() -> None:

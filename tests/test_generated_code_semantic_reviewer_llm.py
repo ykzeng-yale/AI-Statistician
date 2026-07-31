@@ -29,9 +29,11 @@ from ai_statistician.generated_code_semantic_reviewer_llm import (
 )
 from ai_statistician.generated_code_semantic_review_replan import (
     GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY,
+    GENERATED_CODE_SEMANTIC_REVIEW_PENDING_REPAIR_PLAN_KEY,
     GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_THEORY_REVISION_LEDGER_KEY,
     advance_generated_code_semantic_review_lineage_budget,
     consume_generated_code_semantic_review_upstream_theory_replan,
+    generated_code_dependency_verification_plan_after_repair,
     generated_code_semantic_review_upstream_theory_budget_exhausted_result,
     generated_code_semantic_review_upstream_theory_revision_state,
     record_generated_code_semantic_review_lineage_action,
@@ -826,6 +828,152 @@ def test_semantic_review_allows_only_one_post_replan_local_repair() -> None:
     assert second_post_replan["row"][
         "source_post_replan_local_repair_count"
     ] == 1
+
+
+def test_dependency_obligation_allows_one_hash_bound_descendant_retry() -> None:
+    work_order = {
+        "question_id": "generic-question",
+        "theory_packet_id": "theory:one",
+        "theory_packet_hash": "theory-hash-one",
+        "source_subsystem": "SimulationEvaluator",
+    }
+    first_packet = _review_response(
+        accept=False,
+        repair_scope="upstream_metric_contract",
+    )
+    first_packet["repair_scope"] = "upstream_generated_dependency"
+    first_packet["repair_owner"] = "AlgorithmEngineer"
+    first_packet["source_repair_contract"] = {
+        "parent_source_manifest_hash": "dependency-parent-hash",
+    }
+    initial = advance_generated_code_semantic_review_lineage_budget(
+        architect_context={},
+        work_order=work_order,
+        review_packet=first_packet,
+        max_local_revisions=1,
+    )
+    first_replan_ledger = record_generated_code_semantic_review_lineage_action(
+        initial,
+        action="architect_replan",
+    )
+    replan = {
+        "question_id": "generic-question",
+        "repair_scope": "upstream_generated_dependency",
+        "source_subsystem": "SimulationEvaluator",
+        "source_manifest_id": "simulation:rejected",
+        "rejected_descendant_source_manifest_id": "simulation:rejected",
+        "rejected_descendant_source_manifest_hash": "simulation-rejected-hash",
+        "repair_target_source_manifest_id": "algorithm:parent",
+        "repair_target_source_manifest_hash": "dependency-parent-hash",
+        "review_packet_id": "review:origin",
+        "review_execution_id": "review-execution:origin",
+        "semantic_review_revision_budget": {
+            "revisions_used": 0,
+            "max_revisions": 1,
+        },
+        "findings": [
+            {
+                "severity": "critical",
+                "category": "dependency_contract",
+                "summary": "The dependency violates the consumer contract.",
+                "required_change": "Repair the exact dependency.",
+                "repair_scope": "upstream_generated_dependency",
+            }
+        ],
+    }
+    plan_one = generated_code_dependency_verification_plan_after_repair(
+        architect_context={},
+        replan=replan,
+        accepted_review={
+            "source_manifest_id": "algorithm:fresh-one",
+            "source_manifest_hash": "dependency-fresh-one-hash",
+            "review_packet_id": "algorithm-review:one",
+            "execution_id": "algorithm-review-execution:one",
+        },
+    )
+    assert plan_one["repair_attempt_count"] == 1
+    assert plan_one["max_repair_attempts"] == 2
+    verification_material = {
+        "pending_repair_plan": plan_one,
+        "upstream_generated_dependency": {
+            "algorithm_sandbox_manifest_hash": "dependency-fresh-one-hash",
+        },
+    }
+    assert generated_code_semantic_review_pending_plan_errors(
+        packet={},
+        review_material=verification_material,
+    ) == []
+    active_verification = (
+        generated_code_semantic_review_active_pending_repair_plan(
+            verification_material
+        )
+    )
+    assert active_verification["active_repair_scopes"] == []
+    assert active_verification["dependency_verification_active"] is True
+
+    retry_packet = json.loads(json.dumps(first_packet))
+    retry_packet["findings"][0]["category"] = "fresh_dependency_contract"
+    retry_packet["source_repair_contract"] = {
+        "parent_source_manifest_hash": "dependency-fresh-one-hash",
+    }
+    retry = advance_generated_code_semantic_review_lineage_budget(
+        architect_context={
+            GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY: (
+                first_replan_ledger
+            ),
+            GENERATED_CODE_SEMANTIC_REVIEW_PENDING_REPAIR_PLAN_KEY: plan_one,
+        },
+        work_order=work_order,
+        review_packet=retry_packet,
+        max_local_revisions=1,
+    )
+    assert retry["architect_replan_available"] is True
+    assert retry["lineage_budget_exhausted"] is False
+    assert retry["dependency_retry_state"]["retry_available"] is True
+    second_replan_ledger = (
+        record_generated_code_semantic_review_lineage_action(
+            retry,
+            action="architect_replan",
+        )
+    )
+
+    plan_two = generated_code_dependency_verification_plan_after_repair(
+        architect_context={
+            GENERATED_CODE_SEMANTIC_REVIEW_PENDING_REPAIR_PLAN_KEY: plan_one,
+        },
+        replan={
+            **replan,
+            "repair_target_source_manifest_id": "algorithm:fresh-one",
+            "repair_target_source_manifest_hash": (
+                "dependency-fresh-one-hash"
+            ),
+        },
+        accepted_review={
+            "source_manifest_id": "algorithm:fresh-two",
+            "source_manifest_hash": "dependency-fresh-two-hash",
+            "review_packet_id": "algorithm-review:two",
+            "execution_id": "algorithm-review-execution:two",
+        },
+    )
+    assert plan_two["repair_attempt_count"] == 2
+    exhausted_packet = json.loads(json.dumps(retry_packet))
+    exhausted_packet["source_repair_contract"] = {
+        "parent_source_manifest_hash": "dependency-fresh-two-hash",
+    }
+    exhausted = advance_generated_code_semantic_review_lineage_budget(
+        architect_context={
+            GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY: (
+                second_replan_ledger
+            ),
+            GENERATED_CODE_SEMANTIC_REVIEW_PENDING_REPAIR_PLAN_KEY: plan_two,
+        },
+        work_order=work_order,
+        review_packet=exhausted_packet,
+        max_local_revisions=1,
+    )
+    assert exhausted["architect_replan_available"] is False
+    assert exhausted["dependency_retry_state"]["retry_available"] is False
+    assert exhausted["lineage_budget_exhausted"] is True
 
 
 def _runtime_fixture(

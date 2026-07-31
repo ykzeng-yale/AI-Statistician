@@ -7,7 +7,10 @@ from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
-from .generated_metric_contract import generated_metric_evaluator_certificate
+from .generated_metric_contract import (
+    generated_metric_evaluator_certificate,
+    generated_metric_semantic_pointer_locator_id,
+)
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .metric_protocol_finding_ledger import (
     METRIC_PROTOCOL_FINDING_RETRACTED_RUNTIME_CONTRACT_CONFLICT,
@@ -602,6 +605,341 @@ def _current_metric_artifact_value(
     return artifact_role, False, None
 
 
+def bind_architect_metric_finding_evidence_identities(
+    *,
+    findings: Any,
+    review_material: Mapping[str, Any],
+    prior_ledger: Sequence[Mapping[str, Any]] = (),
+) -> list[dict[str, Any]]:
+    """Bind finding citations to semantic rows before a revised artifact can reorder."""
+
+    prior_bindings_by_finding_id: dict[str, list[dict[str, Any]]] = {}
+    for raw_ledger_row in prior_ledger:
+        if not isinstance(raw_ledger_row, Mapping):
+            continue
+        finding_id = str(
+            raw_ledger_row.get("finding_id", "") or ""
+        ).strip()
+        prior_finding = raw_ledger_row.get("finding", {})
+        if not finding_id or not isinstance(prior_finding, Mapping):
+            continue
+        prior_bindings_by_finding_id[finding_id] = [
+            dict(row)
+            for row in prior_finding.get(
+                "evidence_identity_bindings",
+                [],
+            )
+            or []
+            if isinstance(row, Mapping)
+        ]
+
+    bound_findings: list[dict[str, Any]] = []
+    for raw_finding in findings if isinstance(findings, list) else []:
+        if not isinstance(raw_finding, Mapping):
+            continue
+        finding = deepcopy(dict(raw_finding))
+        finding_id = str(
+            finding.get("finding_id", "")
+            or finding.get("prior_finding_id", "")
+            or ""
+        ).strip()
+        bindings = [
+            dict(row)
+            for row in prior_bindings_by_finding_id.get(finding_id, [])
+        ]
+        bound_refs = {
+            str(row.get("evidence_ref", "") or "").strip()
+            for row in bindings
+            if str(row.get("evidence_ref", "") or "").strip()
+        }
+        for raw_ref in finding.get("evidence_refs", []) or []:
+            evidence_ref = str(raw_ref or "").strip()
+            if (
+                not evidence_ref
+                or evidence_ref in bound_refs
+                or evidence_ref.startswith(
+                    ARCHITECT_METRIC_CURRENT_EVIDENCE_SNAPSHOT_PREFIX
+                )
+            ):
+                continue
+            binding = _architect_metric_evidence_identity_binding(
+                review_material=review_material,
+                evidence_ref=evidence_ref,
+            )
+            bindings.append(binding)
+            bound_refs.add(evidence_ref)
+        if bindings:
+            finding["evidence_identity_bindings"] = bindings
+        bound_findings.append(finding)
+    return bound_findings
+
+
+def _architect_metric_evidence_identity_binding(
+    *,
+    review_material: Mapping[str, Any],
+    evidence_ref: str,
+) -> dict[str, Any]:
+    reference = str(evidence_ref or "").strip()
+    for raw_row in review_material.get(
+        "acceptance_authority_catalog",
+        [],
+    ) or []:
+        if not isinstance(raw_row, Mapping) or str(
+            raw_row.get("anchor_id", "") or ""
+        ).strip() != reference:
+            continue
+        row = dict(raw_row)
+        root = reference.split("#", 1)[0]
+        artifact_role = {
+            "theory": "source_theory_packet",
+            "question": "research_question",
+            "runtime_contract": "runtime_contract",
+        }.get(root, "acceptance_authority")
+        semantic_locator_id = (
+            _architect_metric_authority_semantic_locator_id(
+                review_material=review_material,
+                evidence_ref=reference,
+            )
+        )
+        binding_body = {
+            "evidence_ref": reference,
+            "artifact_role": artifact_role,
+            "semantic_locator_id": semantic_locator_id,
+            "semantic_identity_bound": bool(semantic_locator_id),
+            "origin_value_fingerprint": stable_hash(row.get("content")),
+            "requirement_id": "",
+            "relative_path_segments": [],
+        }
+        return {
+            "binding_id": "architect_metric_evidence_binding:"
+            + stable_hash(binding_body)[:20],
+            **binding_body,
+        }
+
+    requirement_binding = _architect_metric_requirement_evidence_binding(
+        review_material=review_material,
+        evidence_ref=reference,
+    )
+    if requirement_binding:
+        return requirement_binding
+
+    artifact_role, exists, current_value = _current_metric_artifact_value(
+        review_material=review_material,
+        evidence_ref=reference,
+    )
+    binding_body = {
+        "evidence_ref": reference,
+        "artifact_role": artifact_role,
+        "semantic_locator_id": "",
+        "semantic_identity_bound": False,
+        "origin_value_fingerprint": (
+            stable_hash(current_value) if exists else ""
+        ),
+        "requirement_id": "",
+        "relative_path_segments": [],
+    }
+    return {
+        "binding_id": "architect_metric_evidence_binding:"
+        + stable_hash(binding_body)[:20],
+        **binding_body,
+    }
+
+
+def _architect_metric_authority_semantic_locator_id(
+    *,
+    review_material: Mapping[str, Any],
+    evidence_ref: str,
+) -> str:
+    reference = str(evidence_ref or "").strip()
+    if "#/" not in reference:
+        return ""
+    namespace, encoded_pointer = reference.split("#/", 1)
+    encoded_segments = encoded_pointer.split("/") if encoded_pointer else []
+    if namespace == "theory":
+        theory_material = review_material.get(
+            "theory_developer_protocol_material",
+            {},
+        )
+        theory_material = (
+            theory_material if isinstance(theory_material, Mapping) else {}
+        )
+        root = theory_material.get("theory_semantic_material", {})
+        root = root if isinstance(root, Mapping) else {}
+        if not root:
+            return ""
+        return generated_metric_semantic_pointer_locator_id(
+            root=root,
+            encoded_segments=encoded_segments,
+            namespace=namespace,
+        )
+    if any(segment.isdigit() for segment in encoded_segments):
+        return ""
+    return (
+        "generated_metric_semantic_anchor:"
+        + stable_hash([namespace, encoded_segments])[:24]
+    )
+
+
+def _architect_metric_requirement_evidence_binding(
+    *,
+    review_material: Mapping[str, Any],
+    evidence_ref: str,
+) -> dict[str, Any]:
+    requirements = [
+        dict(row)
+        for row in review_material.get("empirical_metric_requirements", []) or []
+        if isinstance(row, Mapping)
+    ]
+    reference = str(evidence_ref or "").strip()
+    requirement: dict[str, Any] = {}
+    relative_segments: list[str] = []
+    for candidate in sorted(
+        requirements,
+        key=lambda row: len(str(row.get("requirement_id", "") or "")),
+        reverse=True,
+    ):
+        requirement_id = str(
+            candidate.get("requirement_id", "") or ""
+        ).strip()
+        prefix = f"requirement:{requirement_id}"
+        if not requirement_id or not reference.startswith(prefix):
+            continue
+        suffix = reference[len(prefix) :]
+        relative_segments = (
+            suffix[2:].split("/")
+            if suffix.startswith("#/")
+            else suffix[1:].split(".")
+            if suffix.startswith(".")
+            else suffix[1:].split("/")
+            if suffix.startswith("/")
+            else []
+        )
+        requirement = candidate
+        break
+    if not requirement:
+        path_segments: list[str] = []
+        for prefix in ("candidate#/", "metric_protocol_candidate#/"):
+            if reference.startswith(prefix):
+                path_segments = reference[len(prefix) :].split("/")
+                break
+        if reference.startswith("empirical_metric_requirements/"):
+            path_segments = reference.split("/")
+        if (
+            len(path_segments) >= 2
+            and path_segments[0] == "empirical_metric_requirements"
+            and path_segments[1].isdigit()
+            and int(path_segments[1]) < len(requirements)
+        ):
+            requirement = requirements[int(path_segments[1])]
+            relative_segments = path_segments[2:]
+    requirement_id = str(
+        requirement.get("requirement_id", "") or ""
+    ).strip()
+    if not requirement_id:
+        return {}
+    exists, current_value = _resolve_metric_artifact_path(
+        requirement,
+        relative_segments,
+    ) if relative_segments else (True, deepcopy(requirement))
+    semantic_locator_id = (
+        "architect_metric_requirement_anchor:"
+        + stable_hash([requirement_id, relative_segments])[:24]
+    )
+    binding_body = {
+        "evidence_ref": reference,
+        "artifact_role": "metric_protocol_candidate",
+        "semantic_locator_id": semantic_locator_id,
+        "semantic_identity_bound": True,
+        "origin_value_fingerprint": (
+            stable_hash(current_value) if exists else ""
+        ),
+        "requirement_id": requirement_id,
+        "relative_path_segments": relative_segments,
+    }
+    return {
+        "binding_id": "architect_metric_evidence_binding:"
+        + stable_hash(binding_body)[:20],
+        **binding_body,
+    }
+
+
+def _current_metric_artifact_value_by_identity(
+    *,
+    review_material: Mapping[str, Any],
+    binding: Mapping[str, Any],
+) -> tuple[str, bool, Any, str]:
+    artifact_role = str(binding.get("artifact_role", "") or "unknown")
+    semantic_locator_id = str(
+        binding.get("semantic_locator_id", "") or ""
+    ).strip()
+    requirement_id = str(binding.get("requirement_id", "") or "").strip()
+    if requirement_id:
+        for raw_requirement in review_material.get(
+            "empirical_metric_requirements",
+            [],
+        ) or []:
+            if not isinstance(raw_requirement, Mapping) or str(
+                raw_requirement.get("requirement_id", "") or ""
+            ).strip() != requirement_id:
+                continue
+            relative_segments = [
+                str(value)
+                for value in binding.get("relative_path_segments", []) or []
+            ]
+            exists, current_value = (
+                _resolve_metric_artifact_path(
+                    raw_requirement,
+                    relative_segments,
+                )
+                if relative_segments
+                else (True, deepcopy(dict(raw_requirement)))
+            )
+            suffix = (
+                "#/" + "/".join(relative_segments)
+                if relative_segments
+                else ""
+            )
+            return (
+                "metric_protocol_candidate",
+                exists,
+                current_value,
+                f"requirement:{requirement_id}{suffix}",
+            )
+        return "metric_protocol_candidate", False, None, ""
+    if semantic_locator_id:
+        for raw_row in review_material.get(
+            "acceptance_authority_catalog",
+            [],
+        ) or []:
+            if not isinstance(raw_row, Mapping) or (
+                _architect_metric_authority_semantic_locator_id(
+                    review_material=review_material,
+                    evidence_ref=str(raw_row.get("anchor_id", "") or ""),
+                )
+                != semantic_locator_id
+            ):
+                continue
+            return (
+                artifact_role,
+                True,
+                deepcopy(raw_row.get("content")),
+                str(raw_row.get("anchor_id", "") or ""),
+            )
+    return artifact_role, False, None, ""
+
+
+def _architect_metric_current_evidence_snapshot_body(
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    body = {
+        field: deepcopy(row.get(field))
+        for field in _ARCHITECT_METRIC_CURRENT_EVIDENCE_SNAPSHOT_BODY_FIELDS
+    }
+    if isinstance(row.get("semantic_binding"), Mapping):
+        body["semantic_binding"] = deepcopy(dict(row["semantic_binding"]))
+    return body
+
+
 def architect_metric_active_prior_finding_current_evidence(
     review_material: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
@@ -623,15 +961,73 @@ def architect_metric_active_prior_finding_current_evidence(
                 )
             )
         )
+        identity_bindings = {
+            str(row.get("evidence_ref", "") or "").strip(): dict(row)
+            for row in finding.get("evidence_identity_bindings", []) or []
+            if isinstance(row, Mapping)
+            and str(row.get("evidence_ref", "") or "").strip()
+        }
         for evidence_ref in evidence_refs:
-            (
-                artifact_role,
-                exists,
-                current_value,
-            ) = _current_metric_artifact_value(
-                review_material=review_material,
-                evidence_ref=evidence_ref,
+            binding = identity_bindings.get(evidence_ref, {})
+            positional_role, positional_exists, positional_value = (
+                _current_metric_artifact_value(
+                    review_material=review_material,
+                    evidence_ref=evidence_ref,
+                )
             )
+            identity_bound = bool(
+                binding.get("semantic_identity_bound")
+                and binding.get("semantic_locator_id")
+            )
+            if identity_bound:
+                (
+                    artifact_role,
+                    exists,
+                    current_value,
+                    resolved_evidence_ref,
+                ) = _current_metric_artifact_value_by_identity(
+                    review_material=review_material,
+                    binding=binding,
+                )
+                identity_match = bool(exists)
+                identity_status = (
+                    "SEMANTIC_IDENTITY_MATCH"
+                    if identity_match
+                    else "SEMANTIC_IDENTITY_MISSING_AFTER_REVISION"
+                )
+            elif binding:
+                artifact_role = str(
+                    binding.get("artifact_role", "") or positional_role
+                )
+                exists = False
+                current_value = None
+                resolved_evidence_ref = ""
+                identity_match = False
+                identity_status = "SEMANTIC_IDENTITY_UNBOUND_FAIL_CLOSED"
+            else:
+                artifact_role = positional_role
+                exists = positional_exists
+                current_value = positional_value
+                resolved_evidence_ref = evidence_ref if exists else ""
+                identity_match = False
+                identity_status = "LEGACY_POSITIONAL_REFERENCE"
+            semantic_binding = {
+                "binding_id": str(binding.get("binding_id", "") or ""),
+                "semantic_locator_id": str(
+                    binding.get("semantic_locator_id", "") or ""
+                ),
+                "origin_value_fingerprint": str(
+                    binding.get("origin_value_fingerprint", "") or ""
+                ),
+                "semantic_identity_bound": identity_bound,
+                "semantic_identity_match": identity_match,
+                "identity_status": identity_status,
+                "resolved_evidence_ref": resolved_evidence_ref,
+                "positional_path_exists": bool(positional_exists),
+                "positional_value_fingerprint": (
+                    stable_hash(positional_value) if positional_exists else ""
+                ),
+            }
             snapshot_body = {
                 "finding_id": finding_id,
                 "evidence_ref": evidence_ref,
@@ -641,12 +1037,17 @@ def architect_metric_active_prior_finding_current_evidence(
                 "current_value_fingerprint": (
                     stable_hash(current_value) if exists else ""
                 ),
+                "semantic_binding": semantic_binding,
             }
             snapshots.append(
                 {
                     "snapshot_id": (
                         ARCHITECT_METRIC_CURRENT_EVIDENCE_SNAPSHOT_PREFIX
-                        + stable_hash(snapshot_body)[:20]
+                        + stable_hash(
+                            _architect_metric_current_evidence_snapshot_body(
+                                snapshot_body
+                            )
+                        )[:20]
                     ),
                     **snapshot_body,
                 }
@@ -1441,6 +1842,15 @@ def build_architect_metric_semantic_review_prompt(
         "review_material.active_prior_finding_current_evidence, whose snapshot IDs, "
         "existence flags, exact current values, and value fingerprints are derived "
         "from the existing current-artifact authority catalog and candidate rows. "
+        "Read semantic_binding.identity_status before interpreting a list-backed "
+        "snapshot. SEMANTIC_IDENTITY_MATCH means the same named or ID-bound row was "
+        "found even if its array index changed. "
+        "SEMANTIC_IDENTITY_MISSING_AFTER_REVISION and "
+        "SEMANTIC_IDENTITY_UNBOUND_FAIL_CLOSED mean the old positional pointer may "
+        "now address a different row; never use positional_path_exists or its "
+        "fingerprint as evidence that the old finding persists. Resolve that old "
+        "identity and create a new finding only when an exact current anchor "
+        "independently establishes a current defect. "
         "Choose the semantic disposition and justify it from current values; after "
         "that choice, AgentRuntime binds the matching current candidate snapshots "
         "for RESOLVED and current theory snapshots for "
@@ -2009,12 +2419,7 @@ def validate_architect_metric_semantic_review_packet(
                 "active prior finding current evidence row is missing identity"
             )
             continue
-        snapshot_body = {
-            field: deepcopy(row.get(field))
-            for field in (
-                _ARCHITECT_METRIC_CURRENT_EVIDENCE_SNAPSHOT_BODY_FIELDS
-            )
-        }
+        snapshot_body = _architect_metric_current_evidence_snapshot_body(row)
         expected_snapshot_id = (
             ARCHITECT_METRIC_CURRENT_EVIDENCE_SNAPSHOT_PREFIX
             + stable_hash(snapshot_body)[:20]
@@ -2043,6 +2448,36 @@ def validate_architect_metric_semantic_review_packet(
             errors.append(
                 "active prior finding current evidence value fingerprint mismatch"
             )
+        semantic_binding = row.get("semantic_binding")
+        if semantic_binding is not None and not isinstance(
+            semantic_binding,
+            Mapping,
+        ):
+            errors.append(
+                "active prior finding semantic binding must be an object"
+            )
+        elif isinstance(semantic_binding, Mapping):
+            identity_bound = semantic_binding.get(
+                "semantic_identity_bound"
+            )
+            identity_match = semantic_binding.get(
+                "semantic_identity_match"
+            )
+            if not isinstance(identity_bound, bool) or not isinstance(
+                identity_match,
+                bool,
+            ):
+                errors.append(
+                    "active prior finding semantic identity flags must be boolean"
+                )
+            if identity_bound is True and identity_match is True and exists is not True:
+                errors.append(
+                    "matched semantic identity must materialize an existing value"
+                )
+            if identity_bound is True and identity_match is False and exists is not False:
+                errors.append(
+                    "missing semantic identity cannot reuse a positional value"
+                )
         current_evidence_rows.append(row)
         current_evidence_by_id[snapshot_id] = row
         current_evidence_by_finding_id.setdefault(finding_id, []).append(row)
