@@ -878,6 +878,229 @@ def test_metric_review_requires_primitive_identity_audit_before_coding() -> None
     assert len(json.dumps(repair_context, separators=(",", ":"))) < 12_000
 
 
+def test_metric_review_audits_every_estimator_response_semantic_independently() -> None:
+    formula_ref = "theory#/estimator_specs/0/formula"
+    material = {
+        "review_stage": "pre_execution_metric_contract_review",
+        "execution_results_available": False,
+        "empirical_metric_requirements": [_generic_requirement()],
+        "theory_developer_protocol_material": {
+            "artifact_kind": "RuntimeTheoryInformedMetricProtocolMaterial",
+            "source_theory_packet_id": "theory:response-identity",
+            "source_theory_packet_hash": stable_hash(
+                {"theory": "response-identity"}
+            ),
+            "theory_semantic_material": {
+                "estimator_specs": [
+                    {
+                        "id": "generic_estimator",
+                        "formula": "T_n = sum_i X_i / n",
+                        "estimator_interface_contract_id": "interface:generic",
+                        "estimator_interface_contract": {
+                            "request_fields": [
+                                {
+                                    "name": "sample",
+                                    "meaning": "n observations",
+                                    "binding": "per_replicate_data",
+                                }
+                            ],
+                            "response_fields": [
+                                {
+                                    "name": "estimate",
+                                    "meaning": "T_n = sum_i X_i / n",
+                                    "normalization": "finite-sample sample mean",
+                                    "sample_size_order": "O_p(1)",
+                                    "sample_size_rate": {
+                                        "scale": "constant",
+                                        "index_symbol": "n",
+                                        "polynomial_exponent": 0.0,
+                                        "log_exponent": 0.0,
+                                        "contributions": [
+                                            {
+                                                "quantity": "sum_i X_i over n terms",
+                                                "polynomial_exponent": 1.0,
+                                                "log_exponent": 0.0,
+                                                "justification_ref": "D1",
+                                            },
+                                            {
+                                                "quantity": "division by n",
+                                                "polynomial_exponent": -1.0,
+                                                "log_exponent": 0.0,
+                                                "justification_ref": "D1",
+                                            },
+                                        ],
+                                    },
+                                    "derivation_ref": "D1",
+                                }
+                            ],
+                        },
+                    }
+                ]
+            },
+            "execution_results_available": False,
+        },
+    }
+    enriched = architect_metric_review_material_with_runtime_evaluator_certificate(
+        material
+    )
+    response_row = enriched["metric_claim_check_contract"][
+        "response_identity_rows"
+    ][0]
+    audit_id = response_row["response_identity_audit_id"]
+    payload = _review_payload(accept=True)
+    payload["claim_checks"] = [
+        {
+            "requirement_id": "generic_gate",
+            "claim_ref": "requirement:generic_gate.metric_semantics",
+            "check_type": "direct_substitution",
+            "recomputation": "Substitute the finite diagnostic into the gate.",
+            "normalization_reconciliation": (
+                "The diagnostic and threshold are on the same unitless scale."
+            ),
+            "sample_size_order_reconciliation": (
+                "The gate compares two O_p(1) quantities."
+            ),
+            "normalization_consistent": True,
+            "sample_size_order_consistent": True,
+            "unresolved_conflicts": [],
+            "result": "The declared metric is finite and scalar.",
+            "verdict": "PASS",
+            "evidence_refs": ["requirement:generic_gate.metric_semantics"],
+        },
+        {
+            "requirement_id": "generic_gate",
+            "claim_ref": "requirement:generic_gate.operator",
+            "check_type": "pass_set_translation",
+            "recomputation": "Translate the pass set as value <= 0.1.",
+            "normalization_reconciliation": (
+                "The scalar value and threshold use the same units."
+            ),
+            "sample_size_order_reconciliation": (
+                "Identity aggregation preserves the O_p(1) scale."
+            ),
+            "normalization_consistent": True,
+            "sample_size_order_consistent": True,
+            "unresolved_conflicts": [],
+            "result": "The pass set matches the frozen protocol.",
+            "verdict": "PASS",
+            "evidence_refs": ["requirement:generic_gate.operator"],
+        },
+    ]
+    payload["response_identity_checks"] = [
+        {
+            "response_identity_audit_id": audit_id,
+            "primitive_reconstruction": (
+                "sum_i X_i has order n and division by n yields order one."
+            ),
+            "independently_derived_sample_size_order": "O_p(1)",
+            "derived_polynomial_exponent": 0.0,
+            "derived_log_exponent": 0.0,
+            "convention_consistent": True,
+            "unresolved_conflicts": [],
+            "verdict": "PASS",
+        }
+    ]
+
+    packet, backend, _ = _review(
+        accept=True,
+        payload=payload,
+        material=material,
+    )
+
+    response_check = next(
+        row
+        for row in packet["response_identity_checks"]
+        if row["response_identity_audit_id"] == audit_id
+    )
+    assert response_check["claim_ref"] == response_row["meaning_ref"]
+    assert response_check["bound_response_semantics"] == response_row
+    assert response_check["declared_normalization"] == response_row[
+        "normalization"
+    ]
+    assert response_check["declared_sample_size_order"] == response_row[
+        "sample_size_order"
+    ]
+    assert response_check["declared_sample_size_rate"] == response_row[
+        "sample_size_rate"
+    ]
+    assert response_check["derived_rate_matches_declared"] is True
+    assert {
+        response_row["meaning_ref"],
+        response_row["normalization_ref"],
+        response_row["sample_size_order_ref"],
+        response_row["sample_size_rate_ref"],
+        response_row["derivation_ref_ref"],
+        response_row["estimator_formula_ref"],
+    }.issubset(set(response_check["evidence_refs"]))
+    assert backend.requests[0].metadata["review_response_identity_count"] == 1
+    compact_schema = backend.requests[0].schema["properties"]["claim_checks"][
+        "items"
+    ]["properties"]
+    assert "normalization_reconciliation" in compact_schema
+    assert "normalization_reconstruction" not in compact_schema
+    assert validate_architect_metric_semantic_review_packet(packet) == []
+
+    inconsistent_material = deepcopy(material)
+    inconsistent_rate = inconsistent_material[
+        "theory_developer_protocol_material"
+    ]["theory_semantic_material"]["estimator_specs"][0][
+        "estimator_interface_contract"
+    ]["response_fields"][0]["sample_size_rate"]
+    inconsistent_rate["polynomial_exponent"] = -1.0
+    inconsistent_enriched = (
+        architect_metric_review_material_with_runtime_evaluator_certificate(
+            inconsistent_material
+        )
+    )
+    inconsistent_audit_id = inconsistent_enriched["metric_claim_check_contract"][
+        "response_identity_rows"
+    ][0]["response_identity_audit_id"]
+    inconsistent_payload = deepcopy(payload)
+    inconsistent_payload["response_identity_checks"][0][
+        "response_identity_audit_id"
+    ] = inconsistent_audit_id
+    with pytest.raises(PacketValidationError) as inconsistent_exc:
+        _review(
+            accept=True,
+            payload=inconsistent_payload,
+            material=inconsistent_material,
+        )
+    assert "cannot PASS with an invalid TheoryDeveloper sample-size rate" in str(
+        inconsistent_exc.value
+    )
+
+    mismatched_review = deepcopy(payload)
+    mismatched_review["response_identity_checks"][0][
+        "derived_polynomial_exponent"
+    ] = -1.0
+    with pytest.raises(PacketValidationError) as mismatched_exc:
+        _review(
+            accept=True,
+            payload=mismatched_review,
+            material=material,
+        )
+    assert "independently derived exponents disagree" in str(
+        mismatched_exc.value
+    )
+
+    missing_mapping = deepcopy(payload)
+    missing_mapping.pop("response_identity_checks")
+    with pytest.raises(PacketValidationError) as missing_exc:
+        _review(
+            accept=True,
+            payload=missing_mapping,
+            material=material,
+        )
+    assert "exactly one independent response identity audit" in str(
+        missing_exc.value
+    )
+
+    assert packet["metric_claim_check_contract"][
+        "foundational_identity_rows"
+    ] == []
+    assert formula_ref == response_row["estimator_formula_ref"]
+
+
 def test_mixed_field_authority_keeps_theory_scope_review_visible() -> None:
     mixed = _generic_requirement(
         tolerance=0.02,

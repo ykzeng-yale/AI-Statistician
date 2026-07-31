@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import sqlite3
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass
+from typing import Any, Mapping
 
 from .formal_source_graph import FormalSourceGraphRetriever
 from .formal_source_index import (
@@ -73,6 +74,9 @@ class FormalSourceHybridRetriever:
 
     def load_declarations(self) -> list[FormalDeclaration]:
         return list(self.declarations)
+
+    def descriptor(self) -> dict[str, object]:
+        return _formal_source_hybrid_descriptor(self)
 
     def search(self, query: str, *, k: int = 10) -> list[FormalSourceHit]:
         return self._search(query, k=k, source_scope_ids=())
@@ -265,6 +269,9 @@ class FormalSourceDependencyHybridRetriever:
     def load_declarations(self) -> list[FormalDeclaration]:
         return list(self.declarations)
 
+    def descriptor(self) -> dict[str, object]:
+        return _formal_source_hybrid_descriptor(self)
+
     def search(self, query: str, *, k: int = 10) -> list[FormalSourceHit]:
         return self._search(query, k=k, source_scope_ids=())
 
@@ -366,6 +373,218 @@ class FormalSourceDependencyHybridRetriever:
 
 def _decl_key(decl: FormalDeclaration) -> tuple[str, str, int, str]:
     return (decl.source_id, decl.path, decl.line, decl.name)
+
+
+def _formal_source_hybrid_descriptor(retriever: object) -> dict[str, object]:
+    """Expose the real declaration, graph, and scoped-corpus topology."""
+
+    declarations = tuple(getattr(retriever, "declarations", ()) or ())
+    source_counts = Counter(
+        str(row.source_id)
+        for row in declarations
+        if str(getattr(row, "source_id", "") or "")
+    )
+    dependency_provider = getattr(retriever, "dependency_retriever", None)
+    dependency_source_ids = tuple(
+        str(value)
+        for value in (
+            getattr(
+                retriever,
+                "lean_rag_dependency_graph_source_ids",
+                (),
+            )
+            or getattr(dependency_provider, "source_ids", ())
+            or ()
+        )
+        if str(value)
+    )
+    dependency_health = dict(
+        getattr(retriever, "lean_rag_dependency_graph_health", {}) or {}
+    )
+    dependency_health_loader = getattr(
+        dependency_provider,
+        "health_report",
+        None,
+    )
+    if not dependency_health and callable(dependency_health_loader):
+        try:
+            dependency_health = dict(dependency_health_loader() or {})
+        except Exception:
+            dependency_health = {}
+    dependency_health = _compact_dependency_health(dependency_health)
+    scoped_providers = tuple(
+        getattr(retriever, "scoped_premise_retrievers", ()) or ()
+    )
+    scoped_health = tuple(
+        _compact_scoped_corpus_health(row)
+        for row in (
+            getattr(retriever, "scoped_premise_corpus_health", ()) or ()
+        )
+        if isinstance(row, Mapping)
+    )
+    if not scoped_health:
+        health_rows: list[dict[str, object]] = []
+        for provider in scoped_providers:
+            health_loader = getattr(provider, "health_report", None)
+            if not callable(health_loader):
+                continue
+            try:
+                health_rows.append(
+                    _compact_scoped_corpus_health(health_loader() or {})
+                )
+            except Exception:
+                continue
+        scoped_health = tuple(health_rows)
+    scoped_source_ids = tuple(
+        str(value)
+        for value in (
+            getattr(retriever, "scoped_premise_corpus_source_ids", ())
+            or tuple(
+                getattr(provider, "source_id", "")
+                for provider in scoped_providers
+            )
+        )
+        if str(value)
+    )
+    scoped_anchor_source_ids = tuple(
+        dict.fromkeys(
+            str(value)
+            for value in (
+                getattr(
+                    retriever,
+                    "scoped_premise_corpus_anchor_source_ids",
+                    (),
+                )
+                or tuple(
+                    source_id
+                    for provider in scoped_providers
+                    for source_id in (
+                        getattr(provider, "anchor_source_ids", ()) or ()
+                    )
+                )
+            )
+            if str(value)
+        )
+    )
+    return {
+        "name": type(retriever).__name__,
+        "type": f"{type(retriever).__module__}.{type(retriever).__name__}",
+        "retrieval_backend": str(getattr(retriever, "source", "") or ""),
+        "n_declarations": len(declarations),
+        "declarations_by_source_id": dict(sorted(source_counts.items())),
+        "source_scoped_search": callable(
+            getattr(retriever, "search_with_source_scope", None)
+        ),
+        "declaration_outline_context": True,
+        "dependency_context": callable(
+            getattr(
+                getattr(retriever, "dependency_retriever", None),
+                "dependency_context",
+                None,
+            )
+        ),
+        "lean_rag_dependency_graph": {
+            "enabled": bool(
+                getattr(
+                    retriever,
+                    "lean_rag_dependency_graph_enabled",
+                    False,
+                )
+            ),
+            "provider_count": int(
+                dependency_health.get("n_providers", 0) or 0
+            )
+            or len(dependency_health.get("providers", []) or [])
+            or int(dependency_provider is not None),
+            "source_ids": dependency_source_ids,
+            "auto_discovered": bool(
+                getattr(
+                    retriever,
+                    "lean_rag_dependency_graph_auto_discovered",
+                    False,
+                )
+            ),
+            "health": dependency_health,
+        },
+        "source_scoped_premise_corpora": {
+            "enabled": bool(
+                getattr(retriever, "scoped_premise_corpus_enabled", False)
+                or scoped_providers
+            ),
+            "source_ids": scoped_source_ids,
+            "anchor_source_ids": scoped_anchor_source_ids,
+            "health": scoped_health,
+        },
+        "prompt_content_policy": (
+            "qualified declaration signatures and dependency-first outlines; "
+            "generic RAG omits proof bodies"
+        ),
+        "proof_evidence_status": (
+            "FORMAL_SOURCE_RETRIEVAL_TOPOLOGY_NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+
+def _compact_dependency_health(value: Mapping[str, Any]) -> dict[str, Any]:
+    fields = (
+        "all_ok",
+        "n_providers",
+        "source_id",
+        "source_aliases",
+        "n_declarations",
+        "integrity_check_ok",
+        "source_snapshot_status",
+        "source_snapshot_bound",
+        "source_snapshot_match",
+        "graph_schema_version",
+    )
+    compact = {field: value[field] for field in fields if field in value}
+    metadata = value.get("source_snapshot_metadata", {})
+    if isinstance(metadata, Mapping):
+        metadata_fields = (
+            "schema_version",
+            "source_git_commit",
+            "source_git_tree",
+            "source_git_dirty",
+            "source_git_remote",
+            "lean_toolchain",
+            "mathlib_revision",
+        )
+        compact_metadata = {
+            field: metadata[field] for field in metadata_fields if field in metadata
+        }
+        if compact_metadata:
+            compact["source_snapshot_metadata"] = compact_metadata
+    providers = value.get("providers", [])
+    if isinstance(providers, (list, tuple)):
+        compact_providers = [
+            _compact_dependency_health(row)
+            for row in providers
+            if isinstance(row, Mapping)
+        ]
+        if compact_providers:
+            compact["providers"] = compact_providers
+    return compact
+
+
+def _compact_scoped_corpus_health(value: Mapping[str, Any]) -> dict[str, Any]:
+    fields = (
+        "source_id",
+        "anchor_source_ids",
+        "dataset_id",
+        "dataset_revision",
+        "corpus_sha256",
+        "expected_sha256",
+        "checksum_ok",
+        "toolchain",
+        "mathlib_revision",
+        "n_files",
+        "n_declarations",
+        "all_ok",
+        "prompt_content_policy",
+        "proof_evidence_status",
+    )
+    return {field: value[field] for field in fields if field in value}
 
 
 def _local_declarations_for_dependency_hit(

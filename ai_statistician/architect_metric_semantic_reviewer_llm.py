@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import json
+import math
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
+from .estimator_interface_contract import (
+    sample_size_rate_errors,
+)
 from .generated_metric_contract import (
     generated_metric_evaluator_certificate,
     generated_metric_semantic_pointer_locator_id,
@@ -24,7 +28,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 
 
-ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 12
+ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 13
 ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -73,6 +77,9 @@ ARCHITECT_METRIC_RUNTIME_CONTRACT_RETRACTION_EVIDENCE_IDS = (
 )
 ARCHITECT_METRIC_CURRENT_EVIDENCE_SNAPSHOT_PREFIX = (
     "architect_metric_current_evidence_snapshot:"
+)
+ARCHITECT_METRIC_RESPONSE_IDENTITY_AUDIT_PREFIX = (
+    "architect_metric_response_identity_audit:"
 )
 _ARCHITECT_METRIC_CURRENT_EVIDENCE_SNAPSHOT_BODY_FIELDS = (
     "finding_id",
@@ -322,6 +329,9 @@ def _architect_metric_claim_check_contract(
         "foundational_identity_rows": (
             _architect_metric_foundational_identity_rows(review_material)
         ),
+        "response_identity_rows": (
+            _architect_metric_response_identity_rows(review_material)
+        ),
         "coverage_policy": (
             "Every proposed metric requirement_id must appear in at least one "
             "general claim_check. Each check must independently recompute the "
@@ -332,7 +342,9 @@ def _architect_metric_claim_check_contract(
             "every foundational_identity_rows entry must also have a claim_check "
             "whose claim_ref exactly matches its required_claim_ref and which "
             "reconstructs the identity from primitives rather than citing a prior "
-            "sanity check; "
+            "sanity check; every response_identity_rows entry must have one "
+            "response_identity_check that independently reconstructs its exact meaning, "
+            "normalization, and sample-size order instead of trusting those labels; "
             "runtime verifies coverage and decision consistency but does not choose "
             "the statistical conclusion."
         ),
@@ -383,29 +395,15 @@ def _architect_metric_foundational_identity_rows(
             if raw_spec.get("formula") not in (None, "", [], {})
             else ""
         )
+        interface = raw_spec.get("estimator_interface_contract", {})
+        response_fields = (
+            interface.get("response_fields", []) or []
+            if isinstance(interface, Mapping)
+            else []
+        )
+        if response_fields:
+            continue
         if required_claim_ref:
-            interface = raw_spec.get("estimator_interface_contract", {})
-            response_fields = (
-                interface.get("response_fields", []) or []
-                if isinstance(interface, Mapping)
-                else []
-            )
-            response_semantics = [
-                {
-                    "field_ref": (
-                        f"theory#/estimator_specs/{index}/"
-                        f"estimator_interface_contract/response_fields/{field_index}"
-                    ),
-                    "name": str(field.get("name", "") or ""),
-                    "normalization": str(field.get("normalization", "") or ""),
-                    "sample_size_order": str(
-                        field.get("sample_size_order", "") or ""
-                    ),
-                    "derivation_ref": str(field.get("derivation_ref", "") or ""),
-                }
-                for field_index, field in enumerate(response_fields)
-                if isinstance(field, Mapping)
-            ]
             rows.append(
                 {
                     "estimator_id": estimator_id,
@@ -413,7 +411,104 @@ def _architect_metric_foundational_identity_rows(
                     "estimator_interface_contract_id": str(
                         raw_spec.get("estimator_interface_contract_id", "") or ""
                     ),
-                    "response_semantics": response_semantics,
+                }
+            )
+    return rows
+
+
+def _architect_metric_response_identity_rows(
+    review_material: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Expose every estimator response convention as an independent review target."""
+
+    theory_material = review_material.get(
+        "theory_developer_protocol_material",
+        {},
+    )
+    semantic_material = (
+        theory_material.get("theory_semantic_material", {})
+        if isinstance(theory_material, Mapping)
+        else {}
+    )
+    estimator_specs = (
+        semantic_material.get("estimator_specs", [])
+        if isinstance(semantic_material, Mapping)
+        else []
+    )
+    rows: list[dict[str, Any]] = []
+    for estimator_index, raw_spec in enumerate(estimator_specs or []):
+        if not isinstance(raw_spec, Mapping):
+            continue
+        estimator_id = str(raw_spec.get("id", "") or "").strip()
+        estimator_formula = str(raw_spec.get("formula", "") or "").strip()
+        estimator_formula_ref = (
+            f"theory#/estimator_specs/{estimator_index}/formula"
+            if estimator_formula
+            else ""
+        )
+        interface = raw_spec.get("estimator_interface_contract", {})
+        response_fields = (
+            interface.get("response_fields", []) or []
+            if isinstance(interface, Mapping)
+            else []
+        )
+        if not estimator_id:
+            continue
+        for field_index, raw_field in enumerate(response_fields):
+            if not isinstance(raw_field, Mapping):
+                continue
+            field_name = str(raw_field.get("name", "") or "").strip()
+            meaning = str(raw_field.get("meaning", "") or "").strip()
+            normalization = str(
+                raw_field.get("normalization", "") or ""
+            ).strip()
+            sample_size_order = str(
+                raw_field.get("sample_size_order", "") or ""
+            ).strip()
+            sample_size_rate = raw_field.get("sample_size_rate", {})
+            if not isinstance(sample_size_rate, Mapping):
+                sample_size_rate = {}
+            derivation_ref = str(
+                raw_field.get("derivation_ref", "") or ""
+            ).strip()
+            if not all(
+                (
+                    field_name,
+                    meaning,
+                    normalization,
+                    sample_size_order,
+                    derivation_ref,
+                )
+            ):
+                continue
+            field_ref = (
+                f"theory#/estimator_specs/{estimator_index}/"
+                f"estimator_interface_contract/response_fields/{field_index}"
+            )
+            audit_body = {
+                "estimator_id": estimator_id,
+                "field_name": field_name,
+                "field_ref": field_ref,
+                "meaning_ref": f"{field_ref}/meaning",
+                "normalization_ref": f"{field_ref}/normalization",
+                "sample_size_order_ref": f"{field_ref}/sample_size_order",
+                "sample_size_rate_ref": f"{field_ref}/sample_size_rate",
+                "derivation_ref_ref": f"{field_ref}/derivation_ref",
+                "estimator_formula_ref": estimator_formula_ref,
+                "estimator_formula": estimator_formula,
+                "meaning": meaning,
+                "normalization": normalization,
+                "sample_size_order": sample_size_order,
+                "sample_size_rate": deepcopy(dict(sample_size_rate)),
+                "derivation_ref": derivation_ref,
+            }
+            rows.append(
+                {
+                    "response_identity_audit_id": (
+                        ARCHITECT_METRIC_RESPONSE_IDENTITY_AUDIT_PREFIX
+                        + stable_hash(audit_body)[:20]
+                    ),
+                    **audit_body,
                 }
             )
     return rows
@@ -1499,9 +1594,11 @@ def _architect_metric_semantic_review_repair_context(
             ),
             (
                 "Preserve one general claim check per requirement_id and every "
-                "foundational identity mapping. Use distinct zero-based indices, the "
-                "exact required_claim_ref, and complete normalization and order "
-                "derivations; unresolved disagreement requires FAIL."
+                "foundational identity mapping and every response_identity_check. "
+                "Use distinct zero-based indices only for foundational mappings; "
+                "preserve the exact required_claim_ref, runtime-bound response "
+                "semantics, and complete normalization/order reconciliation. "
+                "Unresolved disagreement requires FAIL."
             ),
             (
                 "Resolve each expected prior finding exactly once from its current "
@@ -1586,6 +1683,11 @@ class LLMArchitectMetricSemanticReviewerAgent:
                 "review_theory_scope_check_count": len(
                     _architect_metric_theory_scope_rows(review_material)
                 ),
+                "review_response_identity_count": len(
+                    _architect_metric_claim_check_contract(
+                        review_material
+                    ).get("response_identity_rows", [])
+                ),
             },
         )
 
@@ -1623,7 +1725,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
             semantic_patch_repair=True,
         )
 
-ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 2
+ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 5
 ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
     (
         "Review only pre-execution artifacts. Do not use observed results, invent "
@@ -1633,15 +1735,24 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
     (
         "Cover every metric_claim_check_contract.requirement_id and emit at least "
         "two independent general claim checks. Map every foundational_identity_row "
-        "to a distinct zero-based claim_checks index and reconstruct its exact "
-        "required_claim_ref from primitive definitions, including a non-degenerate "
-        "boundary or defining-invariant calculation."
+        "to a distinct zero-based claim_checks index. Emit exactly one "
+        "response_identity_check per response_identity_row and reconstruct its "
+        "meaning, normalization, and sample-size order from primitive definitions, "
+        "including a non-degenerate boundary or defining-invariant calculation. "
+        "Audit the supplied signed primary-index/log(index) projection, including "
+        "aggregation cardinality and transformations; name any omitted or mis-signed term in "
+        "primitive_reconstruction and FAIL rather than emitting a second rate table."
     ),
     (
         "Each general claim check must cite exact current fields, display a real "
         "substitution, arithmetic, normalization, boundary, uncertainty, direction, "
-        "or pass-set calculation, and complete normalization_reconstruction plus "
-        "sample_size_order_derivation without changing source notation."
+        "or pass-set calculation, and complete the schema's compact normalization "
+        "and sample-size reconciliation without changing source notation. When the "
+        "full legacy schema is supplied, complete normalization_reconstruction and "
+        "sample_size_order_derivation instead. Treat a "
+        "declared normalization or sample_size_order as a claim to test, never as "
+        "authority: expose primitive terms, denominators, summation cardinality, "
+        "square roots, and outer aggregation used in the conclusion."
     ),
     (
         "PASS is allowed only when convention_consistent and orders_agree are true "
@@ -1959,6 +2070,83 @@ _CLAIM_CHECK_SCHEMA: dict[str, Any] = {
     },
 }
 
+_COMPACT_CLAIM_CHECK_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "requirement_id",
+        "claim_ref",
+        "check_type",
+        "recomputation",
+        "normalization_reconciliation",
+        "sample_size_order_reconciliation",
+        "normalization_consistent",
+        "sample_size_order_consistent",
+        "unresolved_conflicts",
+        "result",
+        "verdict",
+        "evidence_refs",
+    ],
+    "properties": {
+        "requirement_id": {"type": "string", "minLength": 1},
+        "claim_ref": {"type": "string", "minLength": 1},
+        "check_type": {
+            "type": "string",
+            "enum": list(ARCHITECT_METRIC_GENERAL_CLAIM_CHECK_TYPES),
+        },
+        "recomputation": {"type": "string", "minLength": 1},
+        "normalization_reconciliation": {"type": "string", "minLength": 1},
+        "sample_size_order_reconciliation": {
+            "type": "string",
+            "minLength": 1,
+        },
+        "normalization_consistent": {"type": "boolean"},
+        "sample_size_order_consistent": {"type": "boolean"},
+        "unresolved_conflicts": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+        },
+        "result": {"type": "string", "minLength": 1},
+        "verdict": {"type": "string", "enum": ["PASS", "FAIL"]},
+        "evidence_refs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "minLength": 1},
+        },
+    },
+}
+
+_RESPONSE_IDENTITY_CHECK_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "response_identity_audit_id",
+        "primitive_reconstruction",
+        "independently_derived_sample_size_order",
+        "derived_polynomial_exponent",
+        "derived_log_exponent",
+        "convention_consistent",
+        "unresolved_conflicts",
+        "verdict",
+    ],
+    "properties": {
+        "response_identity_audit_id": {"type": "string", "minLength": 1},
+        "primitive_reconstruction": {"type": "string", "minLength": 1},
+        "independently_derived_sample_size_order": {
+            "type": "string",
+            "minLength": 1,
+        },
+        "derived_polynomial_exponent": {"type": "number"},
+        "derived_log_exponent": {"type": "number"},
+        "convention_consistent": {"type": "boolean"},
+        "unresolved_conflicts": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+        },
+        "verdict": {"type": "string", "enum": ["PASS", "FAIL"]},
+    },
+}
+
 _THEORY_SCOPE_CHECK_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
@@ -2020,6 +2208,7 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
 _ARCHITECT_METRIC_REVIEW_MAX_STRING_CHARS = 240
 _ARCHITECT_METRIC_REVIEW_ARRAY_LIMITS = {
     "claim_checks": 12,
+    "response_identity_checks": 12,
     "primitive_orders": 6,
     "unresolved_assumptions": 4,
     "unresolved_conflicts": 4,
@@ -2078,6 +2267,16 @@ def architect_metric_semantic_review_json_schema(
     metric_claim_check_contract = _architect_metric_claim_check_contract(
         review_material
     )
+    response_identity_rows = [
+        dict(row)
+        for row in metric_claim_check_contract.get(
+            "response_identity_rows",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+        and str(row.get("response_identity_audit_id", "") or "").strip()
+    ]
     foundational_identity_rows = [
         dict(row)
         for row in metric_claim_check_contract.get(
@@ -2089,6 +2288,10 @@ def architect_metric_semantic_review_json_schema(
         and str(row.get("estimator_id", "") or "").strip()
     ]
     general_claim_checks_schema = schema["properties"]["claim_checks"]
+    if response_identity_rows:
+        general_claim_checks_schema["items"] = deepcopy(
+            _COMPACT_CLAIM_CHECK_SCHEMA
+        )
     if metric_requirement_ids:
         general_claim_checks_schema["items"]["properties"][
             "requirement_id"
@@ -2119,6 +2322,22 @@ def architect_metric_semantic_review_json_schema(
                 for row in foundational_identity_rows
             },
         }
+    if response_identity_rows:
+        audit_ids = [
+            str(row["response_identity_audit_id"])
+            for row in response_identity_rows
+        ]
+        schema["required"].append("response_identity_checks")
+        response_schema = deepcopy(_RESPONSE_IDENTITY_CHECK_SCHEMA)
+        response_schema["properties"]["response_identity_audit_id"][
+            "enum"
+        ] = audit_ids
+        schema["properties"]["response_identity_checks"] = {
+            "type": "array",
+            "minItems": len(audit_ids),
+            "maxItems": len(audit_ids),
+            "items": response_schema,
+        }
     protocol_expression_refs = list(
         dict.fromkeys(
             str(option.get("expression_ref", "") or "").strip()
@@ -2133,7 +2352,7 @@ def architect_metric_semantic_review_json_schema(
             and str(option.get("expression_ref", "") or "").strip()
         )
     )
-    if protocol_expression_refs:
+    if protocol_expression_refs and not response_identity_rows:
         general_claim_checks_schema["items"]["properties"][
             "normalization_reconstruction"
         ]["properties"]["protocol_expression_ref"]["enum"] = (
@@ -2497,6 +2716,12 @@ def validate_architect_metric_semantic_review_packet(
         "metric_claim_check_contract",
         {},
     )
+    response_identity_rows = (
+        metric_claim_check_contract.get("response_identity_rows", [])
+        if isinstance(metric_claim_check_contract, Mapping)
+        else []
+    )
+    compact_metric_claim_checks = bool(response_identity_rows)
     normalization_expression_options_by_requirement_id = {
         str(row.get("requirement_id", "") or "").strip(): {
             str(option.get("expression_ref", "") or "").strip(): str(
@@ -2550,159 +2775,203 @@ def validate_architect_metric_semantic_review_packet(
                     f"claim check {index} references unknown metric "
                     f"requirement_id {requirement_id}"
                 )
-            if not str(
-                row.get("normalization_and_unit_audit", "") or ""
-            ).strip():
-                errors.append(
-                    f"claim check {index} missing "
-                    "normalization_and_unit_audit"
-                )
-            normalization_reconstruction = row.get(
-                "normalization_reconstruction"
-            )
-            if not isinstance(normalization_reconstruction, Mapping):
-                errors.append(
-                    f"claim check {index} missing "
-                    "normalization_reconstruction"
-                )
-                normalization_reconstruction = {}
-            for field in (
-                "source_expression",
-                "protocol_expression_ref",
-                "protocol_expression",
-                "substitution_without_reinterpretation",
-                "resulting_sample_size_order",
-                "required_sample_size_order",
-            ):
+            if compact_metric_claim_checks:
+                for field in (
+                    "normalization_reconciliation",
+                    "sample_size_order_reconciliation",
+                ):
+                    if not str(row.get(field, "") or "").strip():
+                        errors.append(f"claim check {index} missing {field}")
+                convention_consistent = row.get("normalization_consistent")
+                order_agreement = row.get("sample_size_order_consistent")
+                if not isinstance(convention_consistent, bool):
+                    errors.append(
+                        f"claim check {index} requires boolean "
+                        "normalization_consistent"
+                    )
+                if not isinstance(order_agreement, bool):
+                    errors.append(
+                        f"claim check {index} requires boolean "
+                        "sample_size_order_consistent"
+                    )
+                unresolved_conflicts = row.get("unresolved_conflicts")
+                if not isinstance(unresolved_conflicts, list):
+                    errors.append(
+                        f"claim check {index} requires unresolved_conflicts array"
+                    )
+                    unresolved_conflicts = []
+                elif any(
+                    not str(value or "").strip()
+                    for value in unresolved_conflicts
+                ):
+                    errors.append(
+                        f"claim check {index} contains empty unresolved_conflicts"
+                    )
+                normalization_reconstruction = {
+                    "convention_consistent": convention_consistent,
+                    "unresolved_conflicts": unresolved_conflicts,
+                }
+            else:
                 if not str(
-                    normalization_reconstruction.get(field, "") or ""
+                    row.get("normalization_and_unit_audit", "") or ""
                 ).strip():
                     errors.append(
-                        f"claim check {index} normalization_reconstruction "
-                        f"missing {field}"
+                        f"claim check {index} missing "
+                        "normalization_and_unit_audit"
                     )
-            protocol_expression_ref = str(
-                normalization_reconstruction.get(
+                normalization_reconstruction = row.get(
+                    "normalization_reconstruction"
+                )
+                if not isinstance(normalization_reconstruction, Mapping):
+                    errors.append(
+                        f"claim check {index} missing "
+                        "normalization_reconstruction"
+                    )
+                    normalization_reconstruction = {}
+                for field in (
+                    "source_expression",
                     "protocol_expression_ref",
-                    "",
-                )
-                or ""
-            ).strip()
-            allowed_protocol_expressions = (
-                normalization_expression_options_by_requirement_id.get(
-                    requirement_id,
-                    {},
-                )
-            )
-            if (
-                protocol_expression_ref
-                and protocol_expression_ref
-                not in allowed_protocol_expressions
-            ):
-                errors.append(
-                    f"claim check {index} normalization_reconstruction "
-                    "protocol_expression_ref is not bound to its requirement_id"
-                )
-            elif (
-                protocol_expression_ref
-                and str(
+                    "protocol_expression",
+                    "substitution_without_reinterpretation",
+                    "resulting_sample_size_order",
+                    "required_sample_size_order",
+                ):
+                    if not str(
+                        normalization_reconstruction.get(field, "") or ""
+                    ).strip():
+                        errors.append(
+                            f"claim check {index} normalization_reconstruction "
+                            f"missing {field}"
+                        )
+                protocol_expression_ref = str(
                     normalization_reconstruction.get(
-                        "protocol_expression",
+                        "protocol_expression_ref",
                         "",
                     )
                     or ""
+                ).strip()
+                allowed_protocol_expressions = (
+                    normalization_expression_options_by_requirement_id.get(
+                        requirement_id,
+                        {},
+                    )
                 )
-                != allowed_protocol_expressions.get(
-                    protocol_expression_ref,
-                    "",
+                if (
+                    protocol_expression_ref
+                    and protocol_expression_ref
+                    not in allowed_protocol_expressions
+                ):
+                    errors.append(
+                        f"claim check {index} normalization_reconstruction "
+                        "protocol_expression_ref is not bound to its requirement_id"
+                    )
+                elif (
+                    protocol_expression_ref
+                    and str(
+                        normalization_reconstruction.get(
+                            "protocol_expression",
+                            "",
+                        )
+                        or ""
+                    )
+                    != allowed_protocol_expressions.get(
+                        protocol_expression_ref,
+                        "",
+                    )
+                ):
+                    errors.append(
+                        f"claim check {index} normalization_reconstruction must "
+                        "copy the exact protocol expression without rewriting it; "
+                        "exact JSON path="
+                        f"claim_checks[{index - 1}].normalization_reconstruction."
+                        "protocol_expression"
+                    )
+                convention_consistent = normalization_reconstruction.get(
+                    "convention_consistent"
                 )
-            ):
-                errors.append(
-                    f"claim check {index} normalization_reconstruction must "
-                    "copy the exact protocol expression without rewriting it; "
-                    "exact JSON path="
-                    f"claim_checks[{index - 1}].normalization_reconstruction."
-                    "protocol_expression"
+                if not isinstance(convention_consistent, bool):
+                    errors.append(
+                        f"claim check {index} normalization_reconstruction "
+                        "requires boolean convention_consistent"
+                    )
+                unresolved_conflicts = normalization_reconstruction.get(
+                    "unresolved_conflicts"
                 )
-            convention_consistent = normalization_reconstruction.get(
-                "convention_consistent"
-            )
-            if not isinstance(convention_consistent, bool):
-                errors.append(
-                    f"claim check {index} normalization_reconstruction "
-                    "requires boolean convention_consistent"
-                )
-            unresolved_conflicts = normalization_reconstruction.get(
-                "unresolved_conflicts"
-            )
-            if not isinstance(unresolved_conflicts, list):
-                errors.append(
-                    f"claim check {index} normalization_reconstruction "
-                    "requires unresolved_conflicts array"
-                )
-                unresolved_conflicts = []
-            elif any(
-                not str(value or "").strip()
-                for value in unresolved_conflicts
-            ):
-                errors.append(
-                    f"claim check {index} normalization_reconstruction "
-                    "contains empty unresolved_conflicts"
-                )
-            order_derivation = row.get("sample_size_order_derivation")
-            if not isinstance(order_derivation, Mapping):
-                errors.append(
-                    f"claim check {index} missing sample_size_order_derivation"
-                )
-                order_derivation = {}
-            primitive_orders = order_derivation.get("primitive_orders", [])
-            if not isinstance(primitive_orders, list) or not primitive_orders:
-                errors.append(
-                    f"claim check {index} sample_size_order_derivation "
-                    "requires primitive_orders"
-                )
-                primitive_orders = []
-            for primitive_index, primitive in enumerate(primitive_orders):
-                if not isinstance(primitive, Mapping):
+                if not isinstance(unresolved_conflicts, list):
+                    errors.append(
+                        f"claim check {index} normalization_reconstruction "
+                        "requires unresolved_conflicts array"
+                    )
+                    unresolved_conflicts = []
+                elif any(
+                    not str(value or "").strip()
+                    for value in unresolved_conflicts
+                ):
+                    errors.append(
+                        f"claim check {index} normalization_reconstruction "
+                        "contains empty unresolved_conflicts"
+                    )
+                order_derivation = row.get("sample_size_order_derivation")
+                if not isinstance(order_derivation, Mapping):
+                    errors.append(
+                        f"claim check {index} missing sample_size_order_derivation"
+                    )
+                    order_derivation = {}
+                primitive_orders = order_derivation.get("primitive_orders", [])
+                if not isinstance(primitive_orders, list) or not primitive_orders:
                     errors.append(
                         f"claim check {index} sample_size_order_derivation "
-                        "primitive_orders entries must be objects"
+                        "requires primitive_orders"
                     )
-                    continue
-                for field in ("quantity", "order", "justification", "evidence_ref"):
-                    if not str(primitive.get(field, "") or "").strip():
+                    primitive_orders = []
+                for primitive_index, primitive in enumerate(primitive_orders):
+                    if not isinstance(primitive, Mapping):
                         errors.append(
                             f"claim check {index} sample_size_order_derivation "
-                            f"primitive {primitive_index} missing {field}"
+                            "primitive_orders entries must be objects"
                         )
-            if not str(order_derivation.get("composition", "") or "").strip():
-                errors.append(
-                    f"claim check {index} sample_size_order_derivation missing "
-                    "composition"
+                        continue
+                    for field in (
+                        "quantity",
+                        "order",
+                        "justification",
+                        "evidence_ref",
+                    ):
+                        if not str(primitive.get(field, "") or "").strip():
+                            errors.append(
+                                f"claim check {index} sample_size_order_derivation "
+                                f"primitive {primitive_index} missing {field}"
+                            )
+                if not str(
+                    order_derivation.get("composition", "") or ""
+                ).strip():
+                    errors.append(
+                        f"claim check {index} sample_size_order_derivation missing "
+                        "composition"
+                    )
+                order_agreement = order_derivation.get("orders_agree")
+                if not isinstance(order_agreement, bool):
+                    errors.append(
+                        f"claim check {index} sample_size_order_derivation requires "
+                        "boolean orders_agree"
+                    )
+                unresolved_order_assumptions = order_derivation.get(
+                    "unresolved_assumptions"
                 )
-            order_agreement = order_derivation.get("orders_agree")
-            if not isinstance(order_agreement, bool):
-                errors.append(
-                    f"claim check {index} sample_size_order_derivation requires "
-                    "boolean orders_agree"
-                )
-            unresolved_order_assumptions = order_derivation.get(
-                "unresolved_assumptions"
-            )
-            if not isinstance(unresolved_order_assumptions, list):
-                errors.append(
-                    f"claim check {index} sample_size_order_derivation requires "
-                    "unresolved_assumptions array"
-                )
-                unresolved_order_assumptions = []
-            elif any(
-                not str(value or "").strip()
-                for value in unresolved_order_assumptions
-            ):
-                errors.append(
-                    f"claim check {index} sample_size_order_derivation contains "
-                    "empty unresolved_assumptions"
-                )
+                if not isinstance(unresolved_order_assumptions, list):
+                    errors.append(
+                        f"claim check {index} sample_size_order_derivation requires "
+                        "unresolved_assumptions array"
+                    )
+                    unresolved_order_assumptions = []
+                elif any(
+                    not str(value or "").strip()
+                    for value in unresolved_order_assumptions
+                ):
+                    errors.append(
+                        f"claim check {index} sample_size_order_derivation contains "
+                        "empty unresolved_assumptions"
+                    )
         claim_verdict = str(row.get("verdict", "") or "").upper()
         if claim_verdict not in {"PASS", "FAIL"}:
             errors.append(f"claim check {index} has invalid verdict")
@@ -2836,6 +3105,233 @@ def validate_architect_metric_semantic_review_packet(
             for check in matching_checks
         ):
             failed_foundational_claim_checks += 1
+    failed_response_identity_claim_checks = 0
+    response_identity_checks = packet.get("response_identity_checks", [])
+    if not isinstance(response_identity_checks, list):
+        errors.append("response_identity_checks must be an array")
+        response_identity_checks = []
+    observed_response_audit_ids = [
+        str(row.get("response_identity_audit_id", "") or "").strip()
+        for row in response_identity_checks
+        if isinstance(row, Mapping)
+        if str(row.get("response_identity_audit_id", "") or "").strip()
+    ]
+    if len(observed_response_audit_ids) != len(
+        set(observed_response_audit_ids)
+    ):
+        errors.append(
+            "response identity audit IDs must be unique"
+        )
+    for required_row in response_identity_rows or []:
+        if not isinstance(required_row, Mapping):
+            continue
+        audit_id = str(
+            required_row.get("response_identity_audit_id", "") or ""
+        ).strip()
+        matching_checks = [
+            row
+            for row in response_identity_checks
+            if isinstance(row, Mapping)
+            if str(row.get("response_identity_audit_id", "") or "").strip()
+            == audit_id
+        ]
+        if len(matching_checks) != 1:
+            errors.append(
+                "response_identity_checks must include exactly one independent "
+                "response "
+                f"identity audit for {audit_id}"
+            )
+            continue
+        check = matching_checks[0]
+        meaning_ref = str(required_row.get("meaning_ref", "") or "").strip()
+        if str(check.get("claim_ref", "") or "").strip() != meaning_ref:
+            errors.append(
+                f"response identity audit {audit_id} must bind its exact meaning_ref"
+            )
+        if check.get("bound_response_semantics") != dict(required_row):
+            errors.append(
+                f"response identity audit {audit_id} has mismatched bound semantics"
+            )
+        required_refs = {
+            str(required_row.get(field, "") or "").strip()
+            for field in (
+                "meaning_ref",
+                "normalization_ref",
+                "sample_size_order_ref",
+                "sample_size_rate_ref",
+                "derivation_ref_ref",
+                "estimator_formula_ref",
+            )
+            if str(required_row.get(field, "") or "").strip()
+        }
+        evidence_refs = {
+            str(value).strip()
+            for value in check.get("evidence_refs", []) or []
+            if str(value).strip()
+        }
+        if not required_refs.issubset(evidence_refs):
+            errors.append(
+                f"response identity audit {audit_id} must cite every exact "
+                "response semantic field"
+            )
+        if str(check.get("declared_normalization", "") or "") != str(
+            required_row.get("normalization", "") or ""
+        ):
+            errors.append(
+                f"response identity audit {audit_id} must use the runtime-bound "
+                "declared normalization"
+            )
+        if str(check.get("declared_sample_size_order", "") or "") != str(
+            required_row.get("sample_size_order", "") or ""
+        ):
+            errors.append(
+                f"response identity audit {audit_id} must use the runtime-bound "
+                "declared sample-size order"
+            )
+        declared_sample_size_rate = check.get("declared_sample_size_rate", {})
+        required_sample_size_rate = required_row.get("sample_size_rate", {})
+        if declared_sample_size_rate != required_sample_size_rate:
+            errors.append(
+                f"response identity audit {audit_id} must use the runtime-bound "
+                "declared sample-size rate"
+            )
+        primitive_reconstruction = str(
+            check.get("primitive_reconstruction", "") or ""
+        ).strip()
+        derived_order = str(
+            check.get("independently_derived_sample_size_order", "") or ""
+        ).strip()
+        if not primitive_reconstruction:
+            errors.append(
+                f"response identity audit {audit_id} missing primitive reconstruction"
+            )
+        if not derived_order:
+            errors.append(
+                f"response identity audit {audit_id} missing independently "
+                "derived sample-size order"
+            )
+        derived_rate: dict[str, float] = {}
+        for field in (
+            "derived_polynomial_exponent",
+            "derived_log_exponent",
+        ):
+            raw_value = check.get(field)
+            if (
+                isinstance(raw_value, bool)
+                or not isinstance(raw_value, (int, float))
+                or not math.isfinite(float(raw_value))
+            ):
+                errors.append(
+                    f"response identity audit {audit_id} {field} must be a "
+                    "finite number"
+                )
+                continue
+            derived_rate[field] = float(raw_value)
+        if primitive_reconstruction in {
+            str(required_row.get("meaning", "") or "").strip(),
+            str(required_row.get("normalization", "") or "").strip(),
+            str(required_row.get("sample_size_order", "") or "").strip(),
+        }:
+            errors.append(
+                f"response identity audit {audit_id} must reconstruct primitives "
+                "instead of copying one declared field"
+            )
+        declared_rate_errors = sample_size_rate_errors(
+            required_sample_size_rate,
+            label=f"response identity audit {audit_id} declared sample_size_rate",
+            required=True,
+        )
+        declared_rate = {
+            "derived_polynomial_exponent": required_sample_size_rate.get(
+                "polynomial_exponent"
+            ),
+            "derived_log_exponent": required_sample_size_rate.get(
+                "log_exponent"
+            ),
+        }
+        rate_matches = len(derived_rate) == 2 and all(
+            isinstance(declared_rate[field], (int, float))
+            and not isinstance(declared_rate[field], bool)
+            and math.isfinite(float(declared_rate[field]))
+            and abs(derived_rate[field] - float(declared_rate[field])) <= 1e-9
+            for field in derived_rate
+        )
+        if check.get("derived_rate_matches_declared") is not rate_matches:
+            errors.append(
+                f"response identity audit {audit_id} has an invalid runtime-bound "
+                "derived-rate comparison"
+            )
+        convention_consistent = check.get("convention_consistent")
+        if not isinstance(convention_consistent, bool):
+            errors.append(
+                f"response identity audit {audit_id} requires boolean "
+                "convention_consistent"
+            )
+        unresolved_conflicts = check.get("unresolved_conflicts", [])
+        if not isinstance(unresolved_conflicts, list):
+            errors.append(
+                f"response identity audit {audit_id} requires unresolved_conflicts"
+            )
+            unresolved_conflicts = []
+        elif any(not str(value or "").strip() for value in unresolved_conflicts):
+            errors.append(
+                f"response identity audit {audit_id} contains empty conflicts"
+            )
+        verdict = str(check.get("verdict", "") or "").upper()
+        if verdict not in {"PASS", "FAIL"}:
+            errors.append(
+                f"response identity audit {audit_id} has invalid verdict"
+            )
+        if verdict == "PASS" and convention_consistent is not True:
+            errors.append(
+                f"response identity audit {audit_id} cannot PASS with an "
+                "inconsistent convention"
+            )
+        if verdict == "PASS" and unresolved_conflicts:
+            errors.append(
+                f"response identity audit {audit_id} cannot PASS with unresolved "
+                "conflicts"
+            )
+        if verdict == "PASS" and declared_rate_errors:
+            errors.append(
+                f"response identity audit {audit_id} cannot PASS with an invalid "
+                "TheoryDeveloper sample-size rate contract: "
+                + "; ".join(declared_rate_errors)
+            )
+        if verdict == "PASS" and not rate_matches:
+            errors.append(
+                f"response identity audit {audit_id} cannot PASS when its "
+                "independently derived exponents disagree with TheoryDeveloper"
+            )
+        if (
+            convention_consistent is True
+            and declared_rate_errors
+        ):
+            errors.append(
+                f"response identity audit {audit_id} cannot mark conventions "
+                "consistent when the bound rate contract is invalid"
+            )
+        if convention_consistent is True and unresolved_conflicts:
+            errors.append(
+                f"response identity audit {audit_id} cannot be consistent while "
+                "listing conflicts"
+            )
+        if verdict == "FAIL":
+            failed_response_identity_claim_checks += 1
+    expected_response_audit_ids = {
+        str(row.get("response_identity_audit_id", "") or "").strip()
+        for row in response_identity_rows or []
+        if isinstance(row, Mapping)
+        and str(row.get("response_identity_audit_id", "") or "").strip()
+    }
+    unexpected_response_audit_ids = sorted(
+        set(observed_response_audit_ids) - expected_response_audit_ids
+    )
+    if unexpected_response_audit_ids:
+        errors.append(
+            "response_identity_checks reference unknown audit IDs: "
+            + json.dumps(unexpected_response_audit_ids)
+        )
     required_theory_scope_rows = [
         dict(row)
         for row in packet.get("required_theory_scope_check_rows", []) or []
@@ -3072,6 +3568,24 @@ def validate_architect_metric_semantic_review_packet(
                 "a failed foundational identity check requires "
                 "mathematical_and_numeric_internal_consistency=FAIL"
             )
+    if failed_response_identity_claim_checks:
+        if high_findings == 0:
+            errors.append(
+                "a failed response identity audit requires a high or critical "
+                "typed finding"
+            )
+        math_dimension_statuses = [
+            str(row.get("status", "") or "").strip().upper()
+            for row in dimension_rows
+            if isinstance(row, Mapping)
+            and str(row.get("dimension", "") or "").strip()
+            == "mathematical_and_numeric_internal_consistency"
+        ]
+        if math_dimension_statuses != ["FAIL"]:
+            errors.append(
+                "a failed response identity audit requires "
+                "mathematical_and_numeric_internal_consistency=FAIL"
+            )
 
     expected_verdict = _architect_metric_semantic_review_derived_verdict(
         dimension_reviews=dimension_rows,
@@ -3268,6 +3782,74 @@ def _normalize_architect_metric_semantic_review_packet(
                 ]
             )
         )
+    response_identity_rows = _architect_metric_claim_check_contract(
+        review_material
+    ).get("response_identity_rows", [])
+    response_identity_rows_by_id = {
+        str(row.get("response_identity_audit_id", "") or "").strip(): dict(row)
+        for row in response_identity_rows or []
+        if isinstance(row, Mapping)
+        and str(row.get("response_identity_audit_id", "") or "").strip()
+    }
+    bound_response_identity_checks = []
+    for raw_check in body.get("response_identity_checks", []) or []:
+        if not isinstance(raw_check, Mapping):
+            continue
+        check = dict(raw_check)
+        audit_id = str(
+            check.get("response_identity_audit_id", "") or ""
+        ).strip()
+        required_row = response_identity_rows_by_id.get(audit_id)
+        if required_row is None:
+            bound_response_identity_checks.append(check)
+            continue
+        required_refs = [
+            str(required_row.get(field, "") or "").strip()
+            for field in (
+                "meaning_ref",
+                "normalization_ref",
+                "sample_size_order_ref",
+                "sample_size_rate_ref",
+                "derivation_ref_ref",
+                "estimator_formula_ref",
+            )
+            if str(required_row.get(field, "") or "").strip()
+        ]
+        check["claim_ref"] = str(required_row.get("meaning_ref", "") or "")
+        check["bound_response_semantics"] = deepcopy(dict(required_row))
+        check["evidence_refs"] = list(dict.fromkeys(required_refs))
+        check["declared_normalization"] = str(
+            required_row.get("normalization", "") or ""
+        )
+        check["declared_sample_size_order"] = str(
+            required_row.get("sample_size_order", "") or ""
+        )
+        check["declared_sample_size_rate"] = deepcopy(
+            required_row.get("sample_size_rate", {})
+            if isinstance(required_row.get("sample_size_rate", {}), Mapping)
+            else {}
+        )
+        declared_rate = check["declared_sample_size_rate"]
+        derived_values = {
+            "polynomial_exponent": check.get("derived_polynomial_exponent"),
+            "log_exponent": check.get("derived_log_exponent"),
+        }
+        check["derived_rate_matches_declared"] = all(
+            isinstance(derived_values[field], (int, float))
+            and not isinstance(derived_values[field], bool)
+            and math.isfinite(float(derived_values[field]))
+            and isinstance(declared_rate.get(field), (int, float))
+            and not isinstance(declared_rate.get(field), bool)
+            and math.isfinite(float(declared_rate[field]))
+            and abs(
+                float(derived_values[field]) - float(declared_rate[field])
+            )
+            <= 1e-9
+            for field in ("polynomial_exponent", "log_exponent")
+        )
+        bound_response_identity_checks.append(check)
+    body.pop("response_identity_claim_check_indices", None)
+    body["response_identity_checks"] = bound_response_identity_checks
     body["claim_checks"] = [
         *theory_scope_claim_checks,
         *general_claim_checks,

@@ -601,6 +601,72 @@ def discover_ai4slt_proof_state_trace_retriever(
         return None
 
 
+def ai4slt_proof_state_trace_rag_descriptor(
+    *,
+    trace_retriever: LeanProofStateTraceRetriever | None = None,
+) -> dict[str, Any]:
+    """Describe whether the AI4SLT state-action corpus is prover-accessible."""
+
+    enabled = _ai4slt_proof_state_trace_rag_enabled()
+    provider = trace_retriever
+    if provider is None and enabled:
+        provider = discover_ai4slt_proof_state_trace_retriever()
+    if provider is None:
+        return {
+            "name": "ai4slt_proof_state_trace_rag",
+            "enabled": enabled,
+            "available": False,
+            "activation_policy": (
+                "requires a current Lean goal, residual goal, or compiler/LSP "
+                "diagnostic"
+            ),
+            "proof_evidence_status": (
+                "PROOF_STATE_TRACE_RETRIEVAL_TOPOLOGY_NOT_PROOF_EVIDENCE"
+            ),
+        }
+    health = provider.health_report()
+    return {
+        "name": provider.source,
+        "enabled": enabled,
+        "available": bool(health.get("all_ok", False)),
+        "source_id": provider.source_id,
+        "anchor_source_ids": tuple(provider.anchor_source_ids),
+        "dataset_id": provider.dataset_id,
+        "dataset_revision": provider.dataset_revision,
+        "split": provider.split,
+        "toolchain": provider.toolchain,
+        "mathlib_revision": provider.mathlib_revision,
+        "trace_sha256": provider.trace_sha256,
+        "health": {
+            field: health[field]
+            for field in (
+                "checksum_ok",
+                "index_exists",
+                "index_schema_version",
+                "n_theorems",
+                "n_trace_steps",
+                "n_steps_with_premise_provenance",
+                "integrity_check",
+                "all_ok",
+            )
+            if field in health
+        },
+        "activation_policy": (
+            "requires a current Lean goal, residual goal, or compiler/LSP "
+            "diagnostic; semantic-only queries cannot activate state-action RAG"
+        ),
+        "selection_policy": (
+            "proof-state similarity with at most one transition per source theorem"
+        ),
+        "version_boundary": (
+            "retrieved actions and premises require active-project re-elaboration"
+        ),
+        "proof_evidence_status": (
+            "PROOF_STATE_TRACE_RETRIEVAL_TOPOLOGY_NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+
 def _ai4slt_proof_state_trace_rag_enabled() -> bool:
     enabled = str(
         os.environ.get(

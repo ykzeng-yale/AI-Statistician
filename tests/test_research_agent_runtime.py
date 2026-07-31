@@ -13471,6 +13471,20 @@ def _estimator_interface_contract_fixture() -> dict[str, object]:
                     "finite-sample estimate with no additional sample-size scaling"
                 ),
                 "sample_size_order": "O(1)",
+                "sample_size_rate": {
+                    "scale": "constant",
+                    "index_symbol": "n",
+                    "polynomial_exponent": 0.0,
+                    "log_exponent": 0.0,
+                    "contributions": [
+                        {
+                            "quantity": "finite estimate scale",
+                            "polynomial_exponent": 0.0,
+                            "log_exponent": 0.0,
+                            "justification_ref": "expansion",
+                        }
+                    ],
+                },
                 "derivation_ref": "expansion",
             }
         ],
@@ -23720,6 +23734,190 @@ def test_fresh_dependency_acceptance_requires_descendant_rerun() -> None:
     assert verified_resolution["descendant_rerun_required"] is False
 
 
+def test_dependency_repair_budget_survives_fresh_descendant_artifact_ids() -> None:
+    def replan(
+        *,
+        descendant_id: str,
+        dependency_id: str,
+        theory_hash: str = "theory-family-hash",
+    ) -> dict[str, object]:
+        return {
+            "question_id": "generic-question",
+            "repair_scope": "upstream_generated_dependency",
+            "source_subsystem": "SimulationEvaluator",
+            "repair_target_subsystem": "AlgorithmEngineer",
+            "repair_target_source_manifest_id": dependency_id,
+            "repair_target_source_manifest_hash": f"{dependency_id}:hash",
+            "rejected_descendant_source_manifest_id": descendant_id,
+            "rejected_descendant_source_manifest_hash": f"{descendant_id}:hash",
+            "review_packet_id": f"review:{descendant_id}",
+            "review_execution_id": f"review-execution:{descendant_id}",
+            "theory_packet_hash": theory_hash,
+            "architect_evidence_contract_hash": "frozen-contract-hash",
+            "semantic_review_revision_budget": {
+                "revisions_used": 0,
+                "max_revisions": 1,
+            },
+            "findings": [
+                {
+                    "severity": "critical",
+                    "category": "dependency_semantics",
+                    "summary": "The dependency violates the frozen contract.",
+                    "required_change": "Repair and rerun the exact dependency.",
+                    "repair_scope": "upstream_generated_dependency",
+                }
+            ],
+        }
+
+    first_plan = (
+        runtime_module.generated_code_dependency_verification_plan_after_repair(
+            architect_context={},
+            replan=replan(
+                descendant_id="simulation:first",
+                dependency_id="algorithm:first",
+            ),
+            accepted_review={
+                "source_manifest_id": "algorithm:fresh-1",
+                "source_manifest_hash": "algorithm:fresh-1:hash",
+                "review_packet_id": "algorithm-review:fresh-1",
+                "execution_id": "algorithm-review-execution:fresh-1",
+            },
+        )
+    )
+    assert first_plan["repair_attempt_count"] == 1
+    assert first_plan["max_repair_attempts"] == 2
+
+    second_plan = (
+        runtime_module.generated_code_dependency_verification_plan_after_repair(
+            architect_context={
+                "runtime_generated_code_semantic_review_pending_repair_plan": (
+                    first_plan
+                )
+            },
+            replan=replan(
+                descendant_id="simulation:fresh-descendant-1",
+                dependency_id="algorithm:fresh-1",
+            ),
+            accepted_review={
+                "source_manifest_id": "algorithm:fresh-2",
+                "source_manifest_hash": "algorithm:fresh-2:hash",
+                "review_packet_id": "algorithm-review:fresh-2",
+                "execution_id": "algorithm-review-execution:fresh-2",
+            },
+        )
+    )
+    assert second_plan["repair_attempt_count"] == 2
+    assert second_plan["dependency_repair_family_id"] == first_plan[
+        "dependency_repair_family_id"
+    ]
+    assert second_plan["repair_obligation_id"] == first_plan[
+        "repair_obligation_id"
+    ]
+
+    exhausted = (
+        runtime_module.generated_code_dependency_verification_plan_after_repair(
+            architect_context={
+                "runtime_generated_code_semantic_review_pending_repair_plan": (
+                    second_plan
+                )
+            },
+            replan=replan(
+                descendant_id="simulation:fresh-descendant-2",
+                dependency_id="algorithm:fresh-2",
+            ),
+            accepted_review={
+                "source_manifest_id": "algorithm:fresh-3",
+                "source_manifest_hash": "algorithm:fresh-3:hash",
+                "review_packet_id": "algorithm-review:fresh-3",
+                "execution_id": "algorithm-review-execution:fresh-3",
+            },
+        )
+    )
+    assert exhausted == {}
+
+    work_order = {
+        "question_id": "generic-question",
+        "theory_packet_id": "theory:family",
+        "theory_packet_hash": "theory-family-hash",
+        "source_subsystem": "SimulationEvaluator",
+    }
+    review_packet = {
+        "repair_scope": "upstream_generated_dependency",
+        "repair_owner": "AlgorithmEngineer",
+        "dimension_reviews": [
+            {"dimension": "dependency_semantics", "status": "FAIL"}
+        ],
+        "findings": [
+            {
+                "severity": "critical",
+                "category": "dependency_semantics",
+            }
+        ],
+        "source_repair_contract": {
+            "parent_source_manifest_hash": "algorithm:fresh-2:hash"
+        },
+    }
+    first_rejection_state = (
+        runtime_module.advance_generated_code_semantic_review_lineage_budget(
+            architect_context={},
+            work_order=work_order,
+            review_packet=review_packet,
+            max_local_revisions=1,
+        )
+    )
+    lineage_ledger = (
+        runtime_module.record_generated_code_semantic_review_lineage_action(
+            first_rejection_state,
+            action="architect_replan",
+        )
+    )
+    repeated_rejection_state = (
+        runtime_module.advance_generated_code_semantic_review_lineage_budget(
+            architect_context={
+                "runtime_generated_code_semantic_review_pending_repair_plan": (
+                    second_plan
+                ),
+                "runtime_generated_code_semantic_review_lineage_ledger": (
+                    lineage_ledger
+                ),
+            },
+            work_order=work_order,
+            review_packet=review_packet,
+            max_local_revisions=1,
+        )
+    )
+    assert repeated_rejection_state["dependency_retry_state"][
+        "dependency_repair_family_id"
+    ] == second_plan["dependency_repair_family_id"]
+    assert repeated_rejection_state["architect_replan_available"] is False
+    assert repeated_rejection_state["lineage_budget_exhausted"] is True
+
+    new_theory_plan = (
+        runtime_module.generated_code_dependency_verification_plan_after_repair(
+            architect_context={
+                "runtime_generated_code_semantic_review_pending_repair_plan": (
+                    second_plan
+                )
+            },
+            replan=replan(
+                descendant_id="simulation:new-theory",
+                dependency_id="algorithm:new-theory",
+                theory_hash="new-theory-family-hash",
+            ),
+            accepted_review={
+                "source_manifest_id": "algorithm:new-theory-fresh",
+                "source_manifest_hash": "algorithm:new-theory-fresh:hash",
+                "review_packet_id": "algorithm-review:new-theory",
+                "execution_id": "algorithm-review-execution:new-theory",
+            },
+        )
+    )
+    assert new_theory_plan["repair_attempt_count"] == 1
+    assert new_theory_plan["dependency_repair_family_id"] != second_plan[
+        "dependency_repair_family_id"
+    ]
+
+
 def test_architect_does_not_forward_mismatched_semantic_replan_feedback() -> None:
     feedback = {
         "feedback_type": "generated_code_semantic_review_feedback",
@@ -31387,6 +31585,31 @@ def test_formalizer_repair_policy_covers_scaffolding_and_adapter_binders() -> No
     assert "source_to_bridge_adapter_objects_not_binders" in rule_ids
 
 
+def test_formalizer_lemma_plan_allows_direct_proof_and_rejects_fake_edges() -> None:
+    packet = {
+        "formal_targets": [{"id": "target", "expected_status": "FORMAL_GAP"}],
+        "lemma_dependency_plan": [],
+        "retrieval_queries": [{"query": "target"}],
+        "proof_search_plan": {"known_blockers": ["open"]},
+        "gap_taxonomy": [{"gap": "open"}],
+        "critic_findings": [{"finding": "open"}],
+        "next_actions": [{"action": "search"}],
+        "proof_evidence_status": "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
+        "kernel_verified": False,
+        "full_frontier_theorem_proved": False,
+    }
+
+    direct_errors = validate_formalizer_packet(packet)
+    assert not [
+        error for error in direct_errors if "lemma_dependency_plan" in error
+    ]
+
+    packet["lemma_dependency_plan"] = [{"role": "invented placeholder"}]
+    malformed_errors = validate_formalizer_packet(packet)
+    assert "lemma_dependency_plan[0] missing from" in malformed_errors
+    assert "lemma_dependency_plan[0] missing to" in malformed_errors
+
+
 def test_formalizer_normalizer_quarantines_bad_optional_bridge_candidate() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[0]
     packet = _normalize_formalizer_packet(
@@ -31450,6 +31673,7 @@ def test_formalizer_normalizer_quarantines_bad_optional_bridge_candidate() -> No
         "critic_findings",
         "next_actions",
     ]
+    assert packet["lemma_dependency_plan"] == []
     assert packet["source_to_bridge_premise_derivation_candidates"] == []
     dropped = packet["dropped_source_to_bridge_premise_derivation_candidates"]
     assert dropped[0]["failure_classification"] == (
@@ -41138,13 +41362,14 @@ def test_diagnostic_helper_bridge_mode_normalizer_records_metadata_blocker() -> 
                 },
             },
         ],
-        "lemma_dependency_plan": [
-            {
-                "lemma": "source_binding_request_needed",
-                "depends_on": [],
-                "purpose": "obtain source-to-bridge metadata",
-            }
-        ],
+            "lemma_dependency_plan": [
+                {
+                    "from": "source_binding_request_needed",
+                    "to": "split_conformal_source_theorem_coverage",
+                    "role": "obtain source-to-bridge metadata",
+                    "risk": "source-binding metadata unavailable",
+                }
+            ],
         "retrieval_queries": [
             {
                 "query": "split conformal source theorem binder metadata",
@@ -91403,6 +91628,20 @@ def _runtime_sample_response() -> dict[str, object]:
                                 "finite-sample point estimate, not root-n scaled"
                             ),
                             "sample_size_order": "O(1)",
+                            "sample_size_rate": {
+                                "scale": "constant",
+                                "index_symbol": "n",
+                                "polynomial_exponent": 0.0,
+                                "log_exponent": 0.0,
+                                "contributions": [
+                                    {
+                                        "quantity": "finite point-estimate scale",
+                                        "polynomial_exponent": 0.0,
+                                        "log_exponent": 0.0,
+                                        "justification_ref": "orthogonal_expansion",
+                                    }
+                                ],
+                            },
                             "derivation_ref": "orthogonal_expansion",
                         }
                     ],
@@ -91434,6 +91673,20 @@ def _runtime_sample_response() -> dict[str, object]:
                             "meaning": "unscaled deterministic probe mean",
                             "normalization": "finite average over runtime replicates",
                             "sample_size_order": "not sample-size indexed",
+                            "sample_size_rate": {
+                                "scale": "not_indexed",
+                                "index_symbol": "n",
+                                "polynomial_exponent": 0.0,
+                                "log_exponent": 0.0,
+                                "contributions": [
+                                    {
+                                        "quantity": "runtime-only probe mean",
+                                        "polynomial_exponent": 0.0,
+                                        "log_exponent": 0.0,
+                                        "justification_ref": "generated_probe_interface",
+                                    }
+                                ],
+                            },
                             "derivation_ref": "generated_probe_interface",
                         },
                         {
@@ -91441,6 +91694,20 @@ def _runtime_sample_response() -> dict[str, object]:
                             "meaning": "unscaled root mean squared probe value",
                             "normalization": "finite root mean square over replicates",
                             "sample_size_order": "not sample-size indexed",
+                            "sample_size_rate": {
+                                "scale": "not_indexed",
+                                "index_symbol": "n",
+                                "polynomial_exponent": 0.0,
+                                "log_exponent": 0.0,
+                                "contributions": [
+                                    {
+                                        "quantity": "runtime-only root mean square",
+                                        "polynomial_exponent": 0.0,
+                                        "log_exponent": 0.0,
+                                        "justification_ref": "generated_probe_interface",
+                                    }
+                                ],
+                            },
                             "derivation_ref": "generated_probe_interface",
                         },
                         {
@@ -91448,6 +91715,20 @@ def _runtime_sample_response() -> dict[str, object]:
                             "meaning": "consumed runtime replicate count",
                             "normalization": "unscaled integer runtime diagnostic",
                             "sample_size_order": "not sample-size indexed",
+                            "sample_size_rate": {
+                                "scale": "not_indexed",
+                                "index_symbol": "n",
+                                "polynomial_exponent": 0.0,
+                                "log_exponent": 0.0,
+                                "contributions": [
+                                    {
+                                        "quantity": "runtime replicate count",
+                                        "polynomial_exponent": 0.0,
+                                        "log_exponent": 0.0,
+                                        "justification_ref": "generated_probe_interface",
+                                    }
+                                ],
+                            },
                             "derivation_ref": "generated_probe_interface",
                         },
                     ],

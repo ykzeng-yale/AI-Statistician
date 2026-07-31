@@ -295,6 +295,7 @@ from .formal_source_prompt_context import (
     unique_formal_source_hit_payloads,
 )
 from .lean_proof_state_trace_rag import (
+    ai4slt_proof_state_trace_rag_descriptor,
     attach_ai4slt_proof_state_trace_rag,
 )
 from .lean_agent_providers import (
@@ -40947,26 +40948,31 @@ def run_research_agent_runtime(
     shared_formal_source_retriever = (
         formal_source_retriever or build_default_formal_source_retriever()
     )
+    formal_source_provider_descriptor = provider_descriptor(
+        shared_formal_source_retriever
+    )
+    proof_search_provider_descriptor = (
+        provider_descriptor(proof_search_provider)
+        if proof_search_provider is not None
+        else {"configured": False}
+    )
+    proof_state_retrieval_descriptor = (
+        ai4slt_proof_state_trace_rag_descriptor()
+    )
     lean_provider_topology = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "RuntimeLeanProviderTopology",
         "manifest_id": "runtime_lean_provider_topology:"
         + stable_hash(
             [
-                provider_descriptor(shared_formal_source_retriever),
-                provider_descriptor(proof_search_provider)
-                if proof_search_provider is not None
-                else {},
+                formal_source_provider_descriptor,
+                proof_search_provider_descriptor,
+                proof_state_retrieval_descriptor,
             ]
         )[:20],
-        "formal_source_retriever": provider_descriptor(
-            shared_formal_source_retriever
-        ),
-        "proof_search_provider": (
-            provider_descriptor(proof_search_provider)
-            if proof_search_provider is not None
-            else {"configured": False}
-        ),
+        "formal_source_retriever": formal_source_provider_descriptor,
+        "proof_search_provider": proof_search_provider_descriptor,
+        "proof_state_retrieval": proof_state_retrieval_descriptor,
         "proof_evidence_status": "LEAN_PROVIDER_TOPOLOGY_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": LEAN_PROVIDER_BOUNDARY,
     }

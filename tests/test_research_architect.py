@@ -230,6 +230,20 @@ def _sample_response() -> dict[str, object]:
                             "meaning": "cross-fitted AIPW estimate of psi",
                             "normalization": "finite-sample point estimate, not root-n scaled",
                             "sample_size_order": "O(1)",
+                            "sample_size_rate": {
+                                "scale": "constant",
+                                "index_symbol": "n",
+                                "polynomial_exponent": 0.0,
+                                "log_exponent": 0.0,
+                                "contributions": [
+                                    {
+                                        "quantity": "finite point-estimate scale",
+                                        "polynomial_exponent": 0.0,
+                                        "log_exponent": 0.0,
+                                        "justification_ref": "orthogonal_expansion",
+                                    }
+                                ],
+                            },
                             "derivation_ref": "orthogonal_expansion",
                         }
                     ],
@@ -411,6 +425,31 @@ def test_theory_validation_rejects_unresolved_estimator_semantic_reference() -> 
     assert "orthogonal_expansion" in unresolved
 
 
+def test_theory_validation_rejects_inconsistent_signed_rate_sum() -> None:
+    packet = _sample_response()
+    estimator = dict(packet["estimator_specs"][0])
+    contract = dict(estimator["estimator_interface_contract"])
+    response_fields = [dict(row) for row in contract["response_fields"]]
+    rate = dict(response_fields[0]["sample_size_rate"])
+    rate["polynomial_exponent"] = -1.0
+    response_fields[0]["sample_size_rate"] = rate
+    contract["response_fields"] = response_fields
+    estimator["estimator_interface_contract"] = contract
+    estimator["estimator_interface_contract_id"] = (
+        estimator_interface_contract_id(contract)
+    )
+    packet["estimator_specs"] = [estimator]
+    packet["proof_evidence_status"] = THEORY_DERIVATION_NOT_PROOF_EVIDENCE
+    packet["kernel_verified"] = False
+
+    errors = validate_theory_packet(packet)
+
+    assert any(
+        "exponents must equal the sum of signed contributions" in error
+        for error in errors
+    )
+
+
 def test_serious_theory_validation_requires_explicit_sanity_recomputations() -> None:
     packet = _sample_response()
     derivation = dict(packet["theory_derivation_packet"])
@@ -527,6 +566,8 @@ def test_theory_developer_anthropic_request_uses_structured_output() -> None:
     ]["items"]["properties"]["estimator_interface_contract"]
     assert interface_schema["properties"]["request_fields"]["minItems"] == 1
     assert interface_schema["properties"]["response_fields"]["minItems"] == 1
+    response_schema = interface_schema["properties"]["response_fields"]["items"]
+    assert "sample_size_rate" in response_schema["required"]
     assert interface_schema["properties"]["request_fields"]["items"][
         "properties"
     ]["binding"]["enum"] == list(ESTIMATOR_REQUEST_BINDINGS)
@@ -755,6 +796,11 @@ def test_llm_theory_developer_canonicalizes_common_schema_variants() -> None:
     interface = dict(estimator["estimator_interface_contract"])
     response_fields = [dict(row) for row in interface["response_fields"]]
     response_fields[0]["derivation_ref"] = "E2"
+    rate = dict(response_fields[0]["sample_size_rate"])
+    contributions = [dict(row) for row in rate["contributions"]]
+    contributions[0]["justification_ref"] = "E2"
+    rate["contributions"] = contributions
+    response_fields[0]["sample_size_rate"] = rate
     interface["response_fields"] = response_fields
     estimator["estimator_interface_contract"] = interface
     response["estimator_specs"] = [estimator]

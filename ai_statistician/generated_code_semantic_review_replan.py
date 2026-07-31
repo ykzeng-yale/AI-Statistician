@@ -481,12 +481,38 @@ def generated_code_dependency_verification_plan_after_repair(
             GENERATED_CODE_SEMANTIC_REVIEW_PENDING_REPAIR_PLAN_KEY
         )
     )
+    repair_family_body = {
+        "question_id": str(replan.get("question_id", "") or ""),
+        "source_subsystem": descendant_subsystem,
+        "repair_target_subsystem": str(
+            replan.get("repair_target_subsystem", "") or ""
+        ),
+        "theory_packet_hash": str(
+            replan.get("theory_packet_hash", "") or ""
+        ),
+        "architect_evidence_contract_hash": str(
+            replan.get("architect_evidence_contract_hash", "") or ""
+        ),
+    }
+    dependency_repair_family_id = (
+        "generated_code_dependency_repair_family:"
+        + stable_hash(repair_family_body)[:20]
+    )
+    previous_family_id = str(
+        previous.get("dependency_repair_family_id", "") or ""
+    )
     same_obligation = bool(
         previous.get("pending_mode")
         == GENERATED_CODE_SEMANTIC_REVIEW_DEPENDENCY_VERIFICATION_MODE
-        and previous.get("source_subsystem") == descendant_subsystem
-        and previous.get("rejected_descendant_source_manifest_id")
-        == rejected_descendant_id
+        and (
+            previous_family_id == dependency_repair_family_id
+            or (
+                not previous_family_id
+                and previous.get("source_subsystem") == descendant_subsystem
+                and previous.get("rejected_descendant_source_manifest_id")
+                == rejected_descendant_id
+            )
+        )
     )
     prior_attempts = (
         max(0, int(previous.get("repair_attempt_count", 0) or 0))
@@ -559,8 +585,16 @@ def generated_code_dependency_verification_plan_after_repair(
             GENERATED_CODE_SEMANTIC_REVIEW_DEPENDENCY_VERIFICATION_MODE
         ),
         "repair_obligation_id": repair_obligation_id,
+        "dependency_repair_family_id": dependency_repair_family_id,
+        "dependency_repair_family": repair_family_body,
+        "dependency_repair_budget_scope": (
+            "question_theory_frozen_contract_and_descendant_subsystem"
+        ),
         "question_id": str(replan.get("question_id", "") or ""),
         "source_subsystem": descendant_subsystem,
+        "repair_target_subsystem": str(
+            replan.get("repair_target_subsystem", "") or ""
+        ),
         "pending_repair_scopes": [
             GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_DEPENDENCY_SCOPE
         ],
@@ -751,6 +785,9 @@ def _generated_code_dependency_retry_state(
         "repair_obligation_id": str(
             plan.get("repair_obligation_id", "") or ""
         ),
+        "dependency_repair_family_id": str(
+            plan.get("dependency_repair_family_id", "") or ""
+        ),
         "repair_attempt_count": attempts_used,
         "max_repair_attempts": max_attempts,
         "retry_available": bool(
@@ -852,6 +889,10 @@ def advance_generated_code_semantic_review_lineage_budget(
         ),
         "repair_obligation_id": str(
             dependency_retry_state.get("repair_obligation_id", "") or ""
+        ),
+        "dependency_repair_family_id": str(
+            dependency_retry_state.get("dependency_repair_family_id", "")
+            or ""
         ),
         "dependency_repair_attempt_count": int(
             dependency_retry_state.get("repair_attempt_count", 0) or 0

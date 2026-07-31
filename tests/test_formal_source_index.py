@@ -543,7 +543,8 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     ]
     assert "direct premise outlines first" in contract["specification"]
     assert "bounded prior fallback" in contract["specification"]
-    assert "small lemma DAG" in contract["specification"]
+    assert "minimal explicit support-dependency plan" in contract["specification"]
+    assert "[] for a direct proof" in contract["specification"]
     assert "no unchanged retry" in contract["repair_cycle"]
     assert "Independently recheck target fidelity" in contract[
         "persistent_failure_route"
@@ -551,6 +552,10 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     assert "counterexamples" in contract["persistent_failure_route"]
     assert "quantifiers" in contract["persistent_failure_route"]
     assert "exact active-project artifact" in contract["post_compile_hygiene"]
+    assert "stable semantic Lean names" in contract["library_design"]
+    assert "source metadata" in contract["library_design"]
+    assert "exact compatible imported declaration" in contract["reuse_policy"]
+    assert "revalidate every selected declaration" in contract["reuse_policy"]
 
     question = load_open_research_questions(
         Path("examples/research_questions.json")
@@ -568,3 +573,5 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     assert "direct premise outlines first" in prompt
     assert "no unchanged retry" in prompt
     assert "fix the smallest diagnostic" in prompt
+    assert "stable semantic Lean names" in prompt
+    assert "exact compatible imported declaration" in prompt

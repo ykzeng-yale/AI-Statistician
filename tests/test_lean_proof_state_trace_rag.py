@@ -15,6 +15,7 @@ from ai_statistician.huggingface_lean_source_audit import (
 )
 from ai_statistician.lean_proof_state_trace_rag import (
     LeanProofStateTraceRetriever,
+    ai4slt_proof_state_trace_rag_descriptor,
     attach_ai4slt_proof_state_trace_rag,
     discover_ai4slt_proof_state_trace_retriever,
 )
@@ -150,6 +151,20 @@ def test_trace_index_searches_states_and_preserves_provenance(
     assert health["n_theorems"] == 2
     assert health["n_trace_steps"] == 3
     assert health["n_steps_with_premise_provenance"] == 1
+
+    descriptor = ai4slt_proof_state_trace_rag_descriptor(
+        trace_retriever=provider
+    )
+    assert descriptor["available"] is True
+    assert descriptor["dataset_id"] == "fixture/dataset"
+    assert descriptor["split"] == "novel/train"
+    assert descriptor["health"]["n_trace_steps"] == 3
+    assert "trace_path" not in descriptor["health"]
+    assert "index_path" not in descriptor["health"]
+    assert "current Lean goal" in descriptor["activation_policy"]
+    assert descriptor["proof_evidence_status"] == (
+        "PROOF_STATE_TRACE_RETRIEVAL_TOPOLOGY_NOT_PROOF_EVIDENCE"
+    )
 
 
 def test_trace_retrieval_is_source_scoped_and_checksum_guarded(

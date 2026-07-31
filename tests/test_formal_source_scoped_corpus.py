@@ -10,6 +10,7 @@ from ai_statistician.formal_source_hybrid import (
 from ai_statistician.formal_source_index import (
     FormalDeclaration,
     FormalSourceHit,
+    FormalSourceRetriever,
 )
 from ai_statistician.formal_source_scoped_corpus import (
     LeanJsonlScopedPremiseRetriever,
@@ -97,6 +98,73 @@ def test_scoped_corpus_loads_signatures_without_proof_bodies(
     )
     assert provider.health_report()["prompt_content_policy"] == (
         "declaration_signatures_only_proof_bodies_removed_at_load"
+    )
+
+
+def test_hybrid_descriptor_exposes_graph_and_scoped_corpus_health(
+    tmp_path: Path,
+) -> None:
+    scoped = _provider(_write_corpus(tmp_path / "corpus.jsonl"))
+    declaration = FormalDeclaration(
+        source_id="lean_stat_learning_theory",
+        source_type="lean_library",
+        path="SLT/Main.lean",
+        line=1,
+        kind="theorem",
+        name="SLT.target_result",
+        namespace="SLT",
+        signature="theorem target_result (h : True) : True",
+    )
+
+    class DependencyProvider:
+        db_path = tmp_path / "ai4slt.sqlite"
+        source_ids = ("lean_stat_learning_theory", "ai4slt")
+        auto_discovered = True
+
+        @staticmethod
+        def health_report():
+            return {"all_ok": True, "source_snapshot_status": "BOUND_MATCH"}
+
+        @staticmethod
+        def search(_query: str, *, k: int = 10):
+            del k
+            return []
+
+        @staticmethod
+        def dependency_context(*_args, **_kwargs):
+            return None
+
+    retriever = FormalSourceDependencyHybridRetriever(
+        [declaration],
+        FormalSourceRetriever([declaration]),
+        DependencyProvider(),
+        scoped_premise_retrievers=(scoped,),
+    )
+
+    descriptor = retriever.descriptor()
+
+    assert descriptor["declarations_by_source_id"] == {
+        "lean_stat_learning_theory": 1
+    }
+    graph = descriptor["lean_rag_dependency_graph"]
+    assert graph["enabled"] is True
+    assert graph["source_ids"] == (
+        "lean_stat_learning_theory",
+        "ai4slt",
+    )
+    assert graph["provider_count"] == 1
+    assert "paths" not in graph
+    assert graph["health"]["source_snapshot_status"] == "BOUND_MATCH"
+    corpora = descriptor["source_scoped_premise_corpora"]
+    assert corpora["enabled"] is True
+    assert corpora["source_ids"] == ("fixture_premise_corpus",)
+    assert corpora["anchor_source_ids"] == (
+        "lean_stat_learning_theory",
+    )
+    assert corpora["health"][0]["all_ok"] is True
+    assert "corpus_path" not in corpora["health"][0]
+    assert descriptor["proof_evidence_status"] == (
+        "FORMAL_SOURCE_RETRIEVAL_TOPOLOGY_NOT_PROOF_EVIDENCE"
     )
 
 

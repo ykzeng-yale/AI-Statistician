@@ -570,7 +570,14 @@ def build_theory_developer_prompt(
         "another estimator slot. Treat estimator_interface_contract as an immutable "
         "TheoryDeveloper specification: request binding describes when a value is "
         "fixed or recomputed, while every response normalization and sample_size_order "
-        "must cite a real derivation, equation, or sanity-check id. Resolve any "
+        "must cite a real derivation, equation, or sanity-check id. Encode an "
+        "auditable primary-index polynomial/log projection in sample_size_rate: "
+        "index_symbol^polynomial_exponent times log(index_symbol)^log_exponent. "
+        "This projection supplements rather than replaces the full sample_size_order; "
+        "keep additional dimensions, bandwidths, and non-polynomial factors there, "
+        "using scale=other when necessary. List signed projection contributions from "
+        "every numerator, denominator, aggregation cardinality, outer factor, and "
+        "transformation; their exponents must sum to the declared projection. Resolve any "
         "interface contradiction here instead of delegating semantic choices to code. "
         "Before returning, check required_output_contract exactly, including "
         "theorem_cards[0].informal_statement, theorem_cards[0].proof_strategy, "
@@ -1753,6 +1760,26 @@ THEORY_DEVELOPER_OUTPUT_CONTRACT: dict[str, Any] = {
                         "meaning": "statistical meaning",
                         "normalization": "exact finite-sample or asymptotic convention",
                         "sample_size_order": "explicit order in sample size",
+                        "sample_size_rate": {
+                            "scale": "polynomial_log_n|constant|not_indexed|other",
+                            "index_symbol": "n or the actual asymptotic index",
+                            "polynomial_exponent": (
+                                "numeric exponent of index_symbol"
+                            ),
+                            "log_exponent": (
+                                "numeric exponent of log(index_symbol)"
+                            ),
+                            "contributions": [
+                                {
+                                    "quantity": "factor or aggregation cardinality",
+                                    "polynomial_exponent": "signed numeric contribution",
+                                    "log_exponent": "signed numeric contribution",
+                                    "justification_ref": (
+                                        "derivation, equation, or sanity-check id"
+                                    ),
+                                }
+                            ],
+                        },
                         "derivation_ref": (
                             "derivation step, equation step, or sanity-check id"
                         ),
@@ -1840,7 +1867,9 @@ THEORY_DEVELOPER_JSON_SCHEMA: dict[str, Any] = {
 }
 THEORY_DEVELOPER_JSON_SCHEMA["properties"]["estimator_specs"]["items"][
     "properties"
-]["estimator_interface_contract"] = estimator_interface_contract_json_schema()
+]["estimator_interface_contract"] = estimator_interface_contract_json_schema(
+    require_typed_rate=True
+)
 
 
 def _theory_developer_json_schema(
@@ -2120,6 +2149,7 @@ def validate_theory_packet(packet: Mapping[str, Any]) -> list[str]:
                 label=f"estimator_specs[{idx}]",
                 required=True,
                 allowed_derivation_refs=allowed_derivation_refs,
+                require_typed_rate=True,
             )
         )
         if isinstance(contract, Mapping):

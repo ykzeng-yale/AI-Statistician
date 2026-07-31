@@ -102,7 +102,12 @@ The canonical product loop is deliberately small:
 TheoryDeveloper owns one immutable Python/R estimator ABI per proposed
 procedure: request fields state their replicate lifecycle, while response fields
 state their meaning, normalization, sample-size order, and theory derivation
-anchor. AgentRuntime hash-binds that ABI into the AlgorithmEngineer artifact;
+anchor. Each response also carries one signed primary-index/log(index) rate
+projection; the declared exponents must equal the sum of its factor and
+aggregation contributions before metric authoring or code generation can
+proceed. The full `sample_size_order` remains authoritative for dimensions,
+bandwidths, or non-polynomial factors outside that projection. AgentRuntime
+hash-binds that ABI into the AlgorithmEngineer artifact;
 the coding agent may implement it or report an upstream inconsistency but cannot
 silently rename or rescale it. Independent code review checks the exact source
 against the ABI, and SimulationEngineer consumes the same accepted artifact in
@@ -2388,7 +2393,8 @@ Before the first Formalizer proposal, the exact theorem goal and theory
 formalization handoff seed at most three task-bound queries with at most two
 compact hits each. This follows AI4SLT's structured-specification discipline:
 exact target and mathematical meaning, local declaration pointers, a semantic
-lemma plan, and explicit boundaries. Each failed Lean/LSP attempt must evolve
+support-dependency plan when decomposition is needed (empty for a direct proof),
+and explicit boundaries. Each failed Lean/LSP attempt must evolve
 that specification using the new diagnostic, dependency, semantic, or
 proof-state evidence; an unchanged retry is not a repair. Persistent failure
 routes back to independent target-fidelity and counterexample review before any
@@ -2437,6 +2443,9 @@ as equivalent to a semantic declaration match.
 
 The default AgentRuntime factory uses this rich backend, and its outer composite
 preserves source-scoped search, declaration loading, and dependency context.
+`RuntimeLeanProviderTopology` records the declaration counts, bound graph health,
+scoped premise-corpus health, and proof-state trace availability in the runtime
+manifest; each row is explicitly non-proof context.
 Dedicated retrieval benchmarks are not evidence of runtime integration unless
 the same capabilities reach the Formalizer packet. Source scopes activate
 companion providers; they are not global source allowlists, so ordinary

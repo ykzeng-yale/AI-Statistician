@@ -135,6 +135,20 @@ def run_algorithm_engineer_generated_code_repair_eval(
                                     "meaning": "whether bounded execution failed",
                                     "normalization": "boolean execution diagnostic",
                                     "sample_size_order": "not sample-size indexed",
+                                    "sample_size_rate": {
+                                        "scale": "not_indexed",
+                                        "index_symbol": "n",
+                                        "polynomial_exponent": 0.0,
+                                        "log_exponent": 0.0,
+                                        "contributions": [
+                                            {
+                                                "quantity": "runtime execution status",
+                                                "polynomial_exponent": 0.0,
+                                                "log_exponent": 0.0,
+                                                "justification_ref": "component_eval_contract",
+                                            }
+                                        ],
+                                    },
                                     "derivation_ref": "component_eval_contract",
                                 },
                                 {
@@ -142,6 +156,20 @@ def run_algorithm_engineer_generated_code_repair_eval(
                                     "meaning": "consumed runtime replicate count",
                                     "normalization": "unscaled integer runtime control",
                                     "sample_size_order": "not sample-size indexed",
+                                    "sample_size_rate": {
+                                        "scale": "not_indexed",
+                                        "index_symbol": "n",
+                                        "polynomial_exponent": 0.0,
+                                        "log_exponent": 0.0,
+                                        "contributions": [
+                                            {
+                                                "quantity": "runtime replicate count",
+                                                "polynomial_exponent": 0.0,
+                                                "log_exponent": 0.0,
+                                                "justification_ref": "component_eval_contract",
+                                            }
+                                        ],
+                                    },
                                     "derivation_ref": "component_eval_contract",
                                 },
                             ],

@@ -382,6 +382,20 @@ def _theory_response() -> dict[str, Any]:
                                 "finite-sample point estimate, not root-n scaled"
                             ),
                             "sample_size_order": "O(1)",
+                            "sample_size_rate": {
+                                "scale": "constant",
+                                "index_symbol": "n",
+                                "polynomial_exponent": 0.0,
+                                "log_exponent": 0.0,
+                                "contributions": [
+                                    {
+                                        "quantity": "finite point-estimate scale",
+                                        "polynomial_exponent": 0.0,
+                                        "log_exponent": 0.0,
+                                        "justification_ref": "orthogonal_expansion",
+                                    }
+                                ],
+                            },
                             "derivation_ref": "orthogonal_expansion",
                         }
                     ],
@@ -413,6 +427,20 @@ def _theory_response() -> dict[str, Any]:
                             "meaning": "unscaled deterministic probe mean",
                             "normalization": "finite average over runtime replicates",
                             "sample_size_order": "not sample-size indexed",
+                            "sample_size_rate": {
+                                "scale": "not_indexed",
+                                "index_symbol": "n",
+                                "polynomial_exponent": 0.0,
+                                "log_exponent": 0.0,
+                                "contributions": [
+                                    {
+                                        "quantity": "runtime-only probe mean",
+                                        "polynomial_exponent": 0.0,
+                                        "log_exponent": 0.0,
+                                        "justification_ref": "generated_probe_interface",
+                                    }
+                                ],
+                            },
                             "derivation_ref": "generated_probe_interface",
                         },
                         {
@@ -420,6 +448,20 @@ def _theory_response() -> dict[str, Any]:
                             "meaning": "unscaled root mean squared probe value",
                             "normalization": "finite root mean square over replicates",
                             "sample_size_order": "not sample-size indexed",
+                            "sample_size_rate": {
+                                "scale": "not_indexed",
+                                "index_symbol": "n",
+                                "polynomial_exponent": 0.0,
+                                "log_exponent": 0.0,
+                                "contributions": [
+                                    {
+                                        "quantity": "runtime-only root mean square",
+                                        "polynomial_exponent": 0.0,
+                                        "log_exponent": 0.0,
+                                        "justification_ref": "generated_probe_interface",
+                                    }
+                                ],
+                            },
                             "derivation_ref": "generated_probe_interface",
                         },
                         {
@@ -427,6 +469,20 @@ def _theory_response() -> dict[str, Any]:
                             "meaning": "consumed runtime replicate count",
                             "normalization": "unscaled integer runtime diagnostic",
                             "sample_size_order": "not sample-size indexed",
+                            "sample_size_rate": {
+                                "scale": "not_indexed",
+                                "index_symbol": "n",
+                                "polynomial_exponent": 0.0,
+                                "log_exponent": 0.0,
+                                "contributions": [
+                                    {
+                                        "quantity": "runtime replicate count",
+                                        "polynomial_exponent": 0.0,
+                                        "log_exponent": 0.0,
+                                        "justification_ref": "generated_probe_interface",
+                                    }
+                                ],
+                            },
                             "derivation_ref": "generated_probe_interface",
                         },
                     ],

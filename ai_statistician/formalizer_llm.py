@@ -106,16 +106,25 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
     """Context-efficient, feedback-driven policy for Lean proof construction."""
 
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "specification": (
-            "Exact Lean plus self-contained mathematical target; direct premise "
-            "outlines first (qualified name/namespace/module/signature/import/"
-            "reference), bounded prior fallback, no proof bodies; small lemma DAG; "
-            "assumptions/boundaries; no weakening."
+            "Exact self-contained Lean target; direct premise outlines first (qualified "
+            "name/namespace/module/signature/import/reference), bounded prior fallback, "
+            "no proof bodies; minimal explicit support-dependency plan when needed "
+            "([] for a direct proof); explicit assumptions/boundaries; no weakening."
         ),
         "repair_cycle": (
             "Lean/LSP -> preserve valid structure -> fix the smallest diagnostic -> "
             "refine the spec with new evidence -> rerun; no unchanged retry."
+        ),
+        "library_design": (
+            "Use the narrowest mathematical module/namespace and stable semantic "
+            "Lean names; keep textbook numbers/citations as source metadata."
+        ),
+        "reuse_policy": (
+            "Prefer an exact compatible imported declaration. Across toolchains, "
+            "retrieve signature/module/import/premise DAG only; revalidate every "
+            "selected declaration in the active project."
         ),
         "persistent_failure_route": (
             "Independently recheck target fidelity, quantifiers/domains/assumptions/"
@@ -1464,38 +1473,30 @@ def build_formalizer_prompt(
     else:
         pseudo_formalization_instruction = ""
     return (
-        "Design formalization and proof-search artifacts for the Formalizer/ProofEngineer subsystem. "
-        "Return ONLY compact JSON matching required_output_contract. Keep each list to at most 3 items. "
-        "Prefer one minimal Lean target plus one or two registered proof-bank obligations over a broad "
-        "formalization essay. You may propose Lean statement sketches, lemma dependency plans, source "
-        "retrieval queries, and kernel-check work orders, but do not claim theorem proof, kernel "
-        "verification, or source-theorem faithfulness. Use mode_specific_instructions only when "
-        "their triggering memory fields are present. For proof_bank_obligation_requests, choose "
-        "obligation_id values from registered_proof_bank_obligation_catalog when possible; these "
-        "requests only prioritize AgentRuntime kernel-smoke work and may be filtered or rejected. "
-        "Populate theory_trace_alignment with exact trace anchor ids/names. "
-        "Treat task_bound_formal_target_contract as the semantic source of truth for "
-        "this task. Retrieved Lean declarations are API or support candidates unless "
-        "the supplied target lineage explicitly identifies one as the exact source theorem. "
-        "Never replace the task-bound theorem by a narrower helper or make the desired "
-        "conclusion an assumption merely to obtain compilable Lean. "
-        "When runtime_environment_feedback.formal_target_semantic_review is present, "
-        "treat its independent dimension reviews, findings, and repair instructions as "
-        "binding retry feedback. Regenerate the rejected target semantics before syntax "
-        "or tactic repair and preserve its review lineage in the next work item. "
+        "Design Formalizer/ProofEngineer proof-search artifacts. Return ONLY compact "
+        "JSON matching required_output_contract; at most 3 items/list. Prefer one "
+        "minimal Lean target and up to two registered proof-bank obligations. Propose "
+        "Lean sketches, dependency edges, retrieval queries, and kernel work orders, "
+        "but never claim proof, kernel verification, or source-theorem faithfulness. "
+        "Follow mode_specific_instructions only when activated. Use catalog obligation "
+        "IDs when possible; requests only prioritize AgentRuntime kernel-smoke work. "
+        "Populate theory_trace_alignment with exact trace anchor ids/names. Treat "
+        "task_bound_formal_target_contract as the semantic source of truth. Retrieved "
+        "declarations are support APIs unless lineage identifies the exact source "
+        "theorem. Never narrow the theorem or assume its conclusion for compilation. "
+        "Treat formal_target_semantic_review as binding: repair semantics before "
+        "syntax/tactics and preserve review lineage. "
         + pseudo_formalization_instruction
         +
-        "Do not use C-style comments, placeholder binder types, `/* ... */`, `placeholder`, `TODO`, "
-        "`sorry`, `admit`, `axiom`, `unsafe`, or `by?` in Lean statement sketches. Mark "
-        "expected_status=NEEDS_KERNEL_CHECK on every generated Lean candidate; use "
-        "expected_status=FORMAL_GAP only for an unrepaired source theorem target "
-        "reported outside Lean source. Every Lean candidate is only a proposal until "
-        "local Lean/AXLE verifies that exact artifact. Every next_actions entry must "
-        "point to an artifact or candidate actually emitted in this packet; do not tell "
-        "AgentRuntime/AXLE to check a source_to_bridge_premise_derivation_candidates "
-        "entry unless that exact candidate object is present. If no such candidate can "
-        "be emitted, write the blocker as gap_taxonomy/proof_bank dependency work "
-        "instead of a phantom executable action. "
+        "Do not use C-style comments or placeholder binder types in Lean sketches. "
+        "Forbidden placeholders/tokens include `/* ... */`, `placeholder`, `TODO`, "
+        "`sorry`, `admit`, `axiom`, `unsafe`, or "
+        "`by?`. Set expected_status=NEEDS_KERNEL_CHECK for candidates and FORMAL_GAP "
+        "only for an unrepaired source target outside Lean source. Candidates remain "
+        "proposals until local Lean/AXLE verifies the exact artifact. Every next_actions "
+        "entry must point to an artifact or candidate actually emitted; request a "
+        "source_to_bridge check only when that exact candidate exists. Otherwise record a "
+        "gap_taxonomy/proof-bank blocker, not a phantom executable action. "
         + lean_candidate_instruction
         + "\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
@@ -1872,7 +1873,19 @@ FORMALIZER_JSON_SCHEMA: dict[str, Any] = {
             "minItems": 1,
             "items": FORMAL_TARGET_PROVIDER_JSON_SCHEMA,
         },
-        "lemma_dependency_plan": {"type": "array", "minItems": 1},
+        "lemma_dependency_plan": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["from", "to"],
+                "properties": {
+                    "from": {"type": "string", "minLength": 1},
+                    "to": {"type": "string", "minLength": 1},
+                    "role": {"type": "string"},
+                    "risk": {"type": "string"},
+                },
+            },
+        },
         "retrieval_queries": {"type": "array", "minItems": 1},
         "proof_search_plan": {"type": "object"},
         "proof_bank_obligation_requests": {"type": "array"},
@@ -2092,7 +2105,6 @@ def validate_formalizer_packet(packet: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
     for field in (
         "formal_targets",
-        "lemma_dependency_plan",
         "retrieval_queries",
         "proof_search_plan",
         "gap_taxonomy",
@@ -2101,6 +2113,21 @@ def validate_formalizer_packet(packet: Mapping[str, Any]) -> list[str]:
     ):
         if packet.get(field) in (None, "", [], {}):
             errors.append(f"missing or empty field: {field}")
+    lemma_plan = packet.get("lemma_dependency_plan")
+    if not isinstance(lemma_plan, list):
+        errors.append("missing or invalid field: lemma_dependency_plan")
+    else:
+        for index, edge in enumerate(lemma_plan):
+            if not isinstance(edge, Mapping):
+                errors.append(
+                    f"lemma_dependency_plan[{index}] must be an object"
+                )
+                continue
+            for endpoint in ("from", "to"):
+                if not str(edge.get(endpoint, "") or "").strip():
+                    errors.append(
+                        f"lemma_dependency_plan[{index}] missing {endpoint}"
+                    )
     if packet.get("proof_evidence_status") != FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE:
         errors.append("proof_evidence_status must preserve proposal-only boundary")
     if packet.get("kernel_verified") is not False:
@@ -4910,18 +4937,11 @@ def _normalize_required_formalizer_scaffolding_fields(packet: dict[str, Any]) ->
     """Fill omitted non-proof routing scaffolding so safe candidates can proceed."""
 
     normalized: list[str] = []
-    if packet.get("lemma_dependency_plan") in (None, "", [], {}):
-        packet["lemma_dependency_plan"] = [
-            {
-                "from": "formalizer_candidate_or_gap",
-                "to": "local_lean_or_prover_feedback",
-                "role": "route emitted candidates or blockers through verifier feedback",
-                "risk": (
-                    "auto-filled planning metadata is not proof evidence and "
-                    "does not supply theorem content"
-                ),
-            }
-        ]
+    if (
+        "lemma_dependency_plan" not in packet
+        or packet.get("lemma_dependency_plan") in (None, "", {})
+    ):
+        packet["lemma_dependency_plan"] = []
         normalized.append("lemma_dependency_plan")
     if packet.get("retrieval_queries") in (None, "", [], {}):
         packet["retrieval_queries"] = [
