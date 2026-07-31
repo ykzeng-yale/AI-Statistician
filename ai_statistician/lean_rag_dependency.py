@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
+import subprocess
 from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
@@ -120,6 +122,10 @@ class LeanRagDependencyRetriever:
             "fts_probe_error": "",
             "like_probe_ok": False,
             "like_probe_error": "",
+            "source_snapshot_status": "UNBOUND",
+            "source_snapshot_bound": False,
+            "source_snapshot_match": None,
+            "source_snapshot_metadata": {},
             "all_ok": False,
         }
         if not self.db_path.exists():
@@ -143,6 +149,14 @@ class LeanRagDependencyRetriever:
                     report["n_decl_fts"] = int(
                         conn.execute("SELECT COUNT(*) FROM decl_fts").fetchone()[0] or 0
                     )
+                if _table_exists(conn, "meta"):
+                    metadata = {
+                        str(row[0]): str(row[1])
+                        for row in conn.execute(
+                            "SELECT key, value FROM meta"
+                        ).fetchall()
+                    }
+                    report.update(_source_snapshot_report(metadata))
                 integrity = str(conn.execute("PRAGMA integrity_check").fetchone()[0] or "")
                 report["integrity_check_result"] = integrity
                 report["integrity_check_ok"] = integrity.lower() == "ok"
@@ -184,6 +198,7 @@ class LeanRagDependencyRetriever:
             and (report["schema_has_decl_fts"] or report["schema_has_decl_fts_plain"])
             and report["integrity_check_ok"]
             and search_probe_ok
+            and report["source_snapshot_status"] != "BOUND_MISMATCH"
         )
         self._health_cache = dict(report)
         return report
@@ -344,7 +359,10 @@ class LeanRagDependencyRetriever:
                     FROM decl_fts f
                     JOIN declarations d ON d.id = f.rowid
                     WHERE decl_fts MATCH ?
-                    ORDER BY bm25(decl_fts)
+                    ORDER BY bm25(
+                      decl_fts,
+                      1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.15
+                    )
                     LIMIT ?
                     """,
                     (fts_query, limit),
@@ -395,15 +413,26 @@ class LeanRagDependencyRetriever:
         signature = str(row["signature"] or "")
         proof = str(row["proof"] or "")
         name = str(row["name"] or "")
-        text_tokens = _tokens(" ".join([name, signature, proof, str(row["module"] or ""), str(row["path"] or "")]))
-        overlap = q_tokens & text_tokens
+        module_text = " ".join(
+            [str(row["module"] or ""), str(row["path"] or "")]
+        )
+        name_tokens = _tokens(name)
+        signature_tokens = _tokens(signature)
+        module_tokens = _tokens(module_text)
+        proof_tokens = _tokens(proof)
+        semantic_overlap = q_tokens & (
+            name_tokens | signature_tokens | module_tokens
+        )
+        proof_only_overlap = (q_tokens & proof_tokens) - semantic_overlap
+        overlap = semantic_overlap | proof_only_overlap
         if not overlap:
             return None
         fan_in = int(row["fan_in"] or 0)
         fan_out = int(row["fan_out"] or 0)
         score = (
-            len(overlap)
-            + 2.0 * len(q_tokens & _tokens(name))
+            len(semantic_overlap)
+            + 0.5 * len(proof_only_overlap)
+            + 2.0 * len(q_tokens & name_tokens)
             + min(fan_in, 10) / 20.0
             + min(fan_out, 10) / 40.0
             + 10.0 / rank
@@ -421,16 +450,27 @@ class LeanRagDependencyRetriever:
             signature=signature,
             binder_count=signature.count("(") + signature.count("{") + signature.count("["),
             conclusion_head=_conclusion_head(signature),
-            major_symbols=tuple(sorted(text_tokens & _symbolish_tokens(signature, name))[:24]),
+            major_symbols=tuple(
+                sorted(
+                    (name_tokens | signature_tokens)
+                    & _symbolish_tokens(signature, name)
+                )[:24]
+            ),
             imports=(),
         )
         matched_terms = tuple(
-            sorted(overlap)[:16]
+            sorted(semantic_overlap)[:16]
+            + sorted(proof_only_overlap)[:4]
             + [
                 "lean_rag_dependency_graph",
                 f"fan_in={fan_in}",
                 f"fan_out={fan_out}",
             ]
+            + (
+                ["proof_body_only_match"]
+                if proof_only_overlap and not semantic_overlap
+                else []
+            )
         )
         return FormalSourceHit(declaration=declaration, score=score, matched_terms=matched_terms)
 
@@ -598,6 +638,136 @@ def _table_exists(conn: sqlite3.Connection, table: str) -> bool:
         ).fetchone()
         is not None
     )
+
+
+def _source_snapshot_report(metadata: dict[str, str]) -> dict[str, object]:
+    snapshot_keys = (
+        "schema_version",
+        "project_root",
+        "source_root",
+        "source_git_commit",
+        "source_git_tree",
+        "source_git_dirty",
+        "source_git_remote",
+        "lean_toolchain",
+        "mathlib_revision",
+    )
+    recorded = {
+        key: str(metadata.get(key, "") or "")
+        for key in snapshot_keys
+        if str(metadata.get(key, "") or "")
+    }
+    bound = bool(
+        recorded.get("source_git_commit") and recorded.get("source_git_tree")
+    )
+    report: dict[str, object] = {
+        "graph_schema_version": recorded.get("schema_version", ""),
+        "source_snapshot_status": "UNBOUND",
+        "source_snapshot_bound": bound,
+        "source_snapshot_match": None,
+        "source_snapshot_metadata": recorded,
+    }
+    if not bound:
+        return report
+
+    project_root = Path(recorded.get("project_root", "")).expanduser()
+    source_root = Path(recorded.get("source_root", "")).expanduser()
+    git_root_text = _command_output(
+        ("git", "rev-parse", "--show-toplevel"),
+        cwd=project_root,
+    )
+    if not project_root.is_dir() or not git_root_text:
+        report["source_snapshot_status"] = "BOUND_SOURCE_UNAVAILABLE"
+        return report
+    git_root = Path(git_root_text).resolve()
+    try:
+        relative_source = source_root.resolve().relative_to(git_root)
+    except (OSError, ValueError):
+        report["source_snapshot_status"] = "BOUND_SOURCE_UNAVAILABLE"
+        return report
+    current_tree = _command_output(
+        (
+            "git",
+            "rev-parse",
+            (
+                "HEAD^{tree}"
+                if not relative_source.parts
+                else f"HEAD:{relative_source.as_posix()}"
+            ),
+        ),
+        cwd=git_root,
+    )
+    dirty = _command_output(
+        (
+            "git",
+            "status",
+            "--porcelain",
+            "--untracked-files=all",
+            "--",
+            relative_source.as_posix() or ".",
+            "lean-toolchain",
+            "lake-manifest.json",
+        ),
+        cwd=git_root,
+    )
+    current_toolchain = _read_text(project_root / "lean-toolchain")
+    current_mathlib = _mathlib_revision(project_root / "lake-manifest.json")
+    source_snapshot_match = bool(
+        current_tree
+        and current_tree == recorded.get("source_git_tree")
+        and dirty == ""
+        and recorded.get("source_git_dirty") == "false"
+        and (
+            not recorded.get("lean_toolchain")
+            or current_toolchain == recorded.get("lean_toolchain")
+        )
+        and (
+            not recorded.get("mathlib_revision")
+            or current_mathlib == recorded.get("mathlib_revision")
+        )
+    )
+    report["source_snapshot_match"] = source_snapshot_match
+    report["source_snapshot_status"] = (
+        "BOUND_MATCH" if source_snapshot_match else "BOUND_MISMATCH"
+    )
+    return report
+
+
+def _read_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8", errors="ignore").strip()
+    except OSError:
+        return ""
+
+
+def _mathlib_revision(path: Path) -> str:
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return ""
+    return next(
+        (
+            str(package.get("rev", "") or "")
+            for package in manifest.get("packages", [])
+            if package.get("name") == "mathlib"
+        ),
+        "",
+    )
+
+
+def _command_output(args: tuple[str, ...], *, cwd: Path) -> str | None:
+    try:
+        result = subprocess.run(
+            args,
+            cwd=cwd,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return result.stdout.strip() if result.returncode == 0 else None
 
 
 def _tokens(text: str) -> set[str]:

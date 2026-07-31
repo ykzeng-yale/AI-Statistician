@@ -554,7 +554,11 @@ def build_simulation_engineer_prompt(
         "injected into that draft. Set the simulation language to the common "
         "upstream algorithm language, call every selected estimator with a named "
         "JSON-finite request derived from generated DGP data, and consume its named "
-        "JSON-finite response when computing diagnostics. Do not silently replace it. "
+        "JSON-finite response when computing diagnostics. Treat each "
+        "estimator_interface_contract as the accepted ABI: construct the declared "
+        "request fields, use response fields only with their declared statistical "
+        "meaning and normalization, and do not add or remove an n-dependent scaling "
+        "unless that contract explicitly requires it. Do not silently replace it. "
         "Do not define, copy, wrap, "
         "or rederive the estimator implementation inside simulation source. If the "
         "upstream languages are inconsistent or the ABI cannot represent the theory "
@@ -1176,6 +1180,15 @@ def _compact_upstream_algorithm_handoff(value: Any) -> dict[str, Any]:
             "exact_smoke_result_hash": _truncate_text(
                 row.get("exact_smoke_result_hash", ""), limit=120
             ),
+            "estimator_interface_contract_id": _truncate_text(
+                row.get("estimator_interface_contract_id", ""),
+                limit=120,
+            ),
+            "estimator_interface_contract": (
+                _compact_estimator_interface_contract(
+                    row.get("estimator_interface_contract", {})
+                )
+            ),
         }
         for row in value.get("exact_algorithm_artifacts", []) or []
         if isinstance(row, Mapping)
@@ -1210,6 +1223,37 @@ def _compact_upstream_algorithm_handoff(value: Any) -> dict[str, Any]:
             value.get("proof_evidence_status", ""), limit=180
         ),
         "boundary": _truncate_text(value.get("boundary", ""), limit=360),
+    }
+
+
+def _compact_estimator_interface_contract(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    return {
+        "request_fields": [
+            {
+                key: _truncate_text(row.get(key, ""), limit=220)
+                for key in ("name", "meaning")
+            }
+            for row in _first_mapping_rows(
+                value.get("request_fields", []),
+                limit=16,
+            )
+        ],
+        "response_fields": [
+            {
+                key: _truncate_text(row.get(key, ""), limit=220)
+                for key in (
+                    "name",
+                    "meaning",
+                    "normalization",
+                )
+            }
+            for row in _first_mapping_rows(
+                value.get("response_fields", []),
+                limit=16,
+            )
+        ],
     }
 
 

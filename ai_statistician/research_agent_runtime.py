@@ -8866,21 +8866,47 @@ def _runtime_exact_algorithm_artifacts(
             == stable_hash(result)
         ):
             continue
-        exact_artifacts.append(
-            {
-                "estimator_id": str(
-                    source_row.get("estimator_id", "")
-                    or raw_row.get("artifact_id", "")
-                    or ""
-                ),
-                "language": str(source_row.get("language", "") or ""),
-                "dependencies": list(source_row.get("dependencies", []) or []),
-                "exact_source_code": source,
-                "exact_source_hash": stable_hash(source),
-                "exact_smoke_result": dict(result),
-                "exact_smoke_result_hash": stable_hash(result),
-            }
+        exact_artifact = {
+            "estimator_id": str(
+                source_row.get("estimator_id", "")
+                or raw_row.get("artifact_id", "")
+                or ""
+            ),
+            "language": str(source_row.get("language", "") or ""),
+            "dependencies": list(source_row.get("dependencies", []) or []),
+            "exact_source_code": source,
+            "exact_source_hash": stable_hash(source),
+            "exact_smoke_result": dict(result),
+            "exact_smoke_result_hash": stable_hash(result),
+        }
+        proposal_target = source_row.get(
+            "llm_algorithm_engineer_target",
+            {},
         )
+        proposal_target = (
+            proposal_target
+            if isinstance(proposal_target, Mapping)
+            else {}
+        )
+        interface_contract = proposal_target.get(
+            "estimator_interface_contract",
+            {},
+        )
+        if isinstance(interface_contract, Mapping) and interface_contract:
+            exact_artifact["estimator_interface_contract"] = dict(
+                interface_contract
+            )
+            exact_artifact["estimator_interface_contract_id"] = str(
+                proposal_target.get(
+                    "estimator_interface_contract_id",
+                    "",
+                )
+                or (
+                    "estimator_interface_contract:"
+                    + stable_hash(interface_contract)[:20]
+                )
+            )
+        exact_artifacts.append(exact_artifact)
     return exact_artifacts
 
 
@@ -9173,6 +9199,9 @@ def _runtime_algorithm_handoff_receipt(
             "exact_source_hash": str(row.get("exact_source_hash", "") or ""),
             "exact_smoke_result_hash": str(
                 row.get("exact_smoke_result_hash", "") or ""
+            ),
+            "estimator_interface_contract_id": str(
+                row.get("estimator_interface_contract_id", "") or ""
             ),
         }
         for row in handoff.get("exact_algorithm_artifacts", []) or []

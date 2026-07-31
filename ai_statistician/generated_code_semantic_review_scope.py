@@ -229,6 +229,8 @@ def generated_code_semantic_review_proposal_projection(
                     "adapter_strategy",
                     "registered_template_hint",
                     "data_contract",
+                    "estimator_interface_contract",
+                    "estimator_interface_contract_id",
                 )
                 if field in row
             }
@@ -333,6 +335,17 @@ def generated_code_semantic_review_upstream_dependency_projection(
             ),
             "language": str(row.get("language", "") or ""),
             "dependencies": list(row.get("dependencies", []) or []),
+            "estimator_interface_contract": deepcopy(
+                row.get("estimator_interface_contract", {})
+                if isinstance(
+                    row.get("estimator_interface_contract", {}),
+                    Mapping,
+                )
+                else {}
+            ),
+            "estimator_interface_contract_id": str(
+                row.get("estimator_interface_contract_id", "") or ""
+            ),
         }
         for row in handoff.get("exact_algorithm_artifacts", []) or []
         if isinstance(row, Mapping)

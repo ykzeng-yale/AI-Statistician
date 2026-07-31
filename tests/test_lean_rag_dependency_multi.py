@@ -4,6 +4,7 @@ import sqlite3
 from pathlib import Path
 
 from ai_statistician import formal_source_index
+from ai_statistician import lean_rag_dependency
 from ai_statistician.formal_source_hybrid import (
     FormalSourceDependencyHybridRetriever,
 )
@@ -356,6 +357,158 @@ def test_multi_retriever_search_preserves_corpus_provenance(
         for hit in hits
     )
     assert all("13" not in hit.matched_terms for hit in hits)
+
+
+def test_dependency_search_prefers_name_and_signature_over_proof_chatter(
+    tmp_path: Path,
+) -> None:
+    db_path = _write_dependency_db(
+        tmp_path / "field-weighted.sqlite",
+        corpus="AI4SLT",
+    )
+    rows = [
+        (
+            5,
+            "GaussianLipConcen.gaussian_lipschitz_concentration",
+            "gaussian_lipschitz_concentration",
+            "theorem",
+            "SLT.GaussianLipConcen",
+            "SLT/GaussianLipConcen.lean",
+            100,
+            110,
+            "GaussianLipConcen",
+            "[]",
+            (
+                "theorem gaussian_lipschitz_concentration "
+                "(hf : LipschitzWith L f) : tailProbability f ≤ bound"
+            ),
+            "by exact concentration_helper",
+            1,
+            0,
+            "semantic-result",
+        ),
+        (
+            6,
+            "Internal.unrelated_helper",
+            "unrelated_helper",
+            "lemma",
+            "SLT.Internal",
+            "SLT/Internal.lean",
+            20,
+            30,
+            "Internal",
+            "[]",
+            "lemma unrelated_helper : True",
+            (
+                "by -- gaussian lipschitz concentration "
+                "gaussian lipschitz concentration "
+                "gaussian lipschitz concentration "
+                "gaussian lipschitz concentration "
+                "gaussian lipschitz concentration "
+                "gaussian lipschitz concentration\ntrivial"
+            ),
+            1,
+            0,
+            "proof-chatter",
+        ),
+    ]
+    with sqlite3.connect(db_path) as conn:
+        conn.executemany(
+            "INSERT INTO declarations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            rows,
+        )
+        conn.executemany(
+            """
+            INSERT INTO decl_fts(
+              rowid, name, short_name, kind, module, namespace, signature, proof
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    row[0],
+                    row[1],
+                    row[2],
+                    row[3],
+                    row[4],
+                    row[8],
+                    row[10],
+                    row[11],
+                )
+                for row in rows
+            ],
+        )
+
+    hits = LeanRagDependencyRetriever(db_path).search(
+        "gaussian lipschitz concentration",
+        k=2,
+    )
+
+    assert hits[0].declaration.name == (
+        "GaussianLipConcen.gaussian_lipschitz_concentration"
+    )
+    noisy = next(
+        hit
+        for hit in hits
+        if hit.declaration.name == "Internal.unrelated_helper"
+    )
+    assert "proof_body_only_match" in noisy.matched_terms
+
+
+def test_dependency_health_rejects_bound_source_snapshot_mismatch(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    source_root = tmp_path / "source"
+    (source_root / "SLT").mkdir(parents=True)
+    (source_root / "lean-toolchain").write_text(
+        "leanprover/lean4:v4.32.0\n",
+        encoding="utf-8",
+    )
+    (source_root / "lake-manifest.json").write_text(
+        '{"packages": [{"name": "mathlib", "rev": "' + "c" * 40 + '"}]}',
+        encoding="utf-8",
+    )
+    db_path = _write_dependency_db(
+        tmp_path / "snapshot-bound.sqlite",
+        corpus="AI4SLT",
+    )
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+        )
+        conn.executemany(
+            "INSERT INTO meta(key, value) VALUES (?, ?)",
+            [
+                ("schema_version", "2"),
+                ("project_root", str(source_root)),
+                ("source_root", str(source_root / "SLT")),
+                ("source_git_commit", "a" * 40),
+                ("source_git_tree", "b" * 40),
+                ("source_git_dirty", "false"),
+                ("lean_toolchain", "leanprover/lean4:v4.32.0"),
+                ("mathlib_revision", "c" * 40),
+            ],
+        )
+    monkeypatch.setattr(
+        lean_rag_dependency,
+        "_command_output",
+        lambda args, **_kwargs: (
+            str(source_root)
+            if "--show-toplevel" in args
+            else "e" * 40
+            if "rev-parse" in args
+            else ""
+        ),
+    )
+
+    retriever = LeanRagDependencyRetriever(db_path)
+    health = retriever.health_report()
+
+    assert health["source_snapshot_bound"] is True
+    assert health["source_snapshot_match"] is False
+    assert health["source_snapshot_status"] == "BOUND_MISMATCH"
+    assert health["all_ok"] is False
+    assert retriever.search("master error bound", k=1) == []
 
 
 def test_auto_discovery_activates_multiple_healthy_corpus_graphs(

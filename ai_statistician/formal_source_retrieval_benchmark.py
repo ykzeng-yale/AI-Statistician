@@ -357,6 +357,14 @@ def run_formal_source_retrieval_benchmark(
         "lean_rag_dependency_graph_auto_discovered": bool(
             getattr(active_retriever, "lean_rag_dependency_graph_auto_discovered", False)
         ),
+        "lean_rag_dependency_graph_health": dict(
+            getattr(
+                active_retriever,
+                "lean_rag_dependency_graph_health",
+                {},
+            )
+            or {}
+        ),
         "scoped_premise_corpus_enabled": bool(
             getattr(active_retriever, "scoped_premise_corpus_enabled", False)
         ),

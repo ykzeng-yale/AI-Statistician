@@ -13454,6 +13454,26 @@ def _structured_theory_trace_alignment_fixture() -> dict[str, object]:
     }
 
 
+def _estimator_interface_contract_fixture() -> dict[str, object]:
+    return {
+        "request_fields": [
+            {
+                "name": "observations",
+                "meaning": "sample used by the estimator",
+            }
+        ],
+        "response_fields": [
+            {
+                "name": "estimate",
+                "meaning": "estimate of the theory packet target estimand",
+                "normalization": (
+                    "finite-sample estimate with no additional sample-size scaling"
+                ),
+            }
+        ],
+    }
+
+
 def test_theory_trace_alignment_matches_descriptive_anchor_references() -> None:
     theory_packet = {
         "packet_id": "theory_derivation:descriptive",
@@ -25243,7 +25263,50 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
                                 "sequential:simulationengineer:gate.operator"
                             ],
                         },
+                        {
+                            "requirement_id": (
+                                "sequential:simulationengineer:gate"
+                            ),
+                            "claim_ref": "theory#/estimator_specs/0/formula",
+                            "check_type": "direct_substitution",
+                            "recomputation": (
+                                "Reconstruct T(P_n) from the estimator formula "
+                                "and its declared sample input before coding."
+                            ),
+                            "normalization_and_unit_audit": (
+                                "T(P_n) is already on the estimand scale; no "
+                                "sample-size normalization is introduced."
+                            ),
+                            "normalization_reconstruction": {
+                                "source_expression": "T(P_n)",
+                                "protocol_expression_ref": (
+                                    "requirement:"
+                                    "sequential:simulationengineer:gate."
+                                    "metric_semantics"
+                                ),
+                                "protocol_expression": (
+                                    "absolute deviation from the declared target"
+                                ),
+                                "substitution_without_reinterpretation": (
+                                    "metric input = T(P_n)"
+                                ),
+                                "resulting_sample_size_order": "O(1)",
+                                "required_sample_size_order": "O(1)",
+                                "convention_consistent": True,
+                                "unresolved_conflicts": [],
+                            },
+                            "result": (
+                                "The estimator primitive and metric input agree."
+                            ),
+                            "verdict": "PASS",
+                            "evidence_refs": [
+                                "theory#/estimator_specs/0/formula"
+                            ],
+                        },
                     ],
+                    "foundational_identity_claim_check_indices": {
+                        "theory-owned-candidate": 2,
+                    },
                     "dimension_reviews": [
                         {
                             "dimension": dimension,
@@ -25461,19 +25524,17 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         and "runtime will not infer or map the owner" in error
         for error in repair_payload["local_validation_errors"]
     )
-    repair_instructions = " ".join(repair_payload["repair_instructions"])
     repair_context = repair_payload["subsystem_repair_context"]
     authority_matrix = repair_context["numeric_authority_repair_matrix"]
     repair_catalog = repair_context["acceptance_authority_catalog"]
-    assert "architect_preregistered_design" in repair_instructions
-    assert "do not copy the value into theory" in repair_instructions
-    assert "numeric_authority_repair_matrix" in repair_instructions
-    assert "Authority is field-level" in repair_instructions
-    assert "retain valid source authority for other fields" in (
-        repair_instructions
+    priority_instructions = " ".join(
+        repair_context["repair_prompt_priority_instructions"]
     )
-    assert "changing only rationale cannot change field ownership" in (
-        repair_instructions
+    assert "architect_preregistered_design" in priority_instructions
+    assert "copying the value into theory" in priority_instructions
+    assert "Authority is field-level" in priority_instructions
+    assert "retain valid source authority for other fields" in (
+        priority_instructions
     )
     assert repair_context["acceptance_authority_catalog_scope"] == (
         "numeric_authority_local_slice"
@@ -25702,6 +25763,18 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
                     "smoke_passed": True,
                     "script_hash": runtime_module.stable_hash(exact_source),
                     "result_hash": runtime_module.stable_hash(exact_result),
+                    "llm_algorithm_engineer_target": {
+                        "estimator_id": "accepted-estimator",
+                        "estimator_interface_contract": (
+                            _estimator_interface_contract_fixture()
+                        ),
+                        "estimator_interface_contract_id": (
+                            "estimator_interface_contract:"
+                            + runtime_module.stable_hash(
+                                _estimator_interface_contract_fixture()
+                            )[:20]
+                        ),
+                    },
                 },
             }
         ]
@@ -25747,6 +25820,30 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         )
     )
     assert accepted_handoff
+    accepted_interface = accepted_handoff["exact_algorithm_artifacts"][0]
+    assert accepted_interface["estimator_interface_contract"] == (
+        _estimator_interface_contract_fixture()
+    )
+    assert accepted_interface["estimator_interface_contract_id"].startswith(
+        "estimator_interface_contract:"
+    )
+    handoff_prompt = build_simulation_engineer_prompt(
+        question=question,
+        theory_packet=theory_packet,
+        registered_problem={"problem_class": "generic"},
+        registered_procedures=[],
+        n_runs=17,
+        seed=7,
+        environment_feedback={
+            "upstream_algorithm_handoff": accepted_handoff,
+            "architect_evidence_contract": {
+                "capability_eval_requires_generated_simulation_code": True,
+            },
+        },
+    )
+    assert "estimator_interface_contract" in handoff_prompt
+    assert "no additional sample-size scaling" in handoff_prompt
+    assert "do not add or remove an n-dependent scaling" in handoff_prompt
     accepted_handoff_artifacts = {
         "theory_derivation:structured": theory_packet,
         algorithm_manifest_id: algorithm_manifest,
@@ -28779,6 +28876,8 @@ def test_generated_code_semantic_reviewer_distinguishes_exploration_from_confirm
     assert "no protocol is frozen" in exploratory_prompt
     assert "This is confirmatory execution" in confirmatory_prompt
     assert "Preserve the frozen protocol" in confirmatory_prompt
+    assert "estimator_interface_contract as an auditable" in confirmatory_prompt
+    assert "without an undeclared transformation" in confirmatory_prompt
 
 
 def test_simulation_engineer_prompt_uses_runtime_requested_capability_contract() -> None:
@@ -28821,7 +28920,13 @@ def test_algorithm_engineer_uses_structured_execution_envelope_for_anthropic() -
     payload = {
         "theory_trace_alignment": _structured_theory_trace_alignment_fixture(),
         "implementation_targets": [
-            {"estimator_id": "candidate", "registered_template_hint": "none"}
+            {
+                "estimator_id": "candidate",
+                "registered_template_hint": "none",
+                "estimator_interface_contract": (
+                    _estimator_interface_contract_fixture()
+                ),
+            }
         ],
         "sandbox_code_drafts": [
             {
@@ -28829,8 +28934,13 @@ def test_algorithm_engineer_uses_structured_execution_envelope_for_anthropic() -
                 "language": "python",
                 "entrypoint": "run_sandbox",
                 "code": (
+                    "def run_estimator(request: dict) -> dict:\n"
+                    "    observations = request['observations']\n"
+                    "    return {'estimate': sum(observations) / len(observations)}\n"
+                    "\n"
                     "def run_sandbox(seed: int, replicates: int) -> dict:\n"
-                    "    return {'empirical_coverage': 1.0}\n"
+                    "    result = run_estimator({'observations': [0.0, 1.0]})\n"
+                    "    return {'estimate': result['estimate']}\n"
                 ),
             }
         ],
@@ -28864,7 +28974,7 @@ def test_algorithm_engineer_uses_structured_execution_envelope_for_anthropic() -
         provider=backend,
         config=AlgorithmEngineerConfig(
             provider_name="anthropic",
-            model="claude-sonnet-4-6",
+            model="claude-haiku-4-5-20251001",
         ),
     ).propose(
         question=question,
@@ -28881,7 +28991,14 @@ def test_algorithm_engineer_uses_structured_execution_envelope_for_anthropic() -
     request = backend.requests[0]
     assert request.metadata["provider_structured_output"] is True
     assert request.schema["properties"]["metric_contracts"]["maxItems"] == 0
+    target_schema = request.schema["properties"]["implementation_targets"][
+        "items"
+    ]
+    assert "estimator_interface_contract" in target_schema["required"]
     assert packet["metric_contracts"] == []
+    assert packet["implementation_targets"][0][
+        "estimator_interface_contract_id"
+    ].startswith("estimator_interface_contract:")
     assert _validate_capability_eval_generated_algorithm_packet(
         packet,
         implementation_gaps=[{"estimator_id": "candidate"}],
@@ -29347,6 +29464,7 @@ def test_algorithm_engineer_capability_eval_validator_rejects_template_only_pack
 
     assert any("sandbox_code_drafts" in error for error in errors)
     assert any("registered_template_hint=none" in error for error in errors)
+    assert any("missing estimator_interface_contract" in error for error in errors)
 
 
 def test_algorithm_engineer_capability_eval_validator_accepts_generated_draft() -> None:
@@ -29356,6 +29474,9 @@ def test_algorithm_engineer_capability_eval_validator_accepts_generated_draft() 
                 {
                     "estimator_id": "E1",
                     "registered_template_hint": "none",
+                    "estimator_interface_contract": (
+                        _estimator_interface_contract_fixture()
+                    ),
                 }
             ],
             "sandbox_code_drafts": [
@@ -29409,6 +29530,9 @@ def test_algorithm_engineer_normalizes_sandbox_draft_metadata() -> None:
                 {
                     "estimator_id": "E1",
                     "registered_template_hint": "none",
+                    "estimator_interface_contract": (
+                        _estimator_interface_contract_fixture()
+                    ),
                 }
             ],
             "sandbox_code_drafts": [
@@ -29473,6 +29597,9 @@ def test_algorithm_engineer_normalizes_capability_eval_target_metadata() -> None
                 {
                     "id": "E1",
                     "registered_template_hint": "split_conformal_interval",
+                    "estimator_interface_contract": (
+                        _estimator_interface_contract_fixture()
+                    ),
                 }
             ],
             "sandbox_code_drafts": [
@@ -29514,6 +29641,9 @@ def test_algorithm_engineer_normalizes_capability_eval_target_metadata() -> None
     draft = packet["sandbox_code_drafts"][0]
     assert target["estimator_id"] == "E1"
     assert target["registered_template_hint"] == "none"
+    assert target["estimator_interface_contract_id"].startswith(
+        "estimator_interface_contract:"
+    )
     assert draft["estimator_id"] == "E1"
     assert draft["language"] == "python"
     assert draft["entrypoint"] == "run_sandbox"
@@ -29541,6 +29671,9 @@ def test_algorithm_engineer_binds_single_generated_target_to_canonical_gap_id() 
                 {
                     "estimator_id": "clearer_generated_alias",
                     "registered_template_hint": "none",
+                    "estimator_interface_contract": (
+                        _estimator_interface_contract_fixture()
+                    ),
                 }
             ],
             "sandbox_code_drafts": [
@@ -56810,6 +56943,9 @@ def _write_algorithm_repair_static_response(tmp_path: Path) -> Path:
                 "adapter_strategy": "repair generated estimator execution",
                 "registered_template_hint": "none",
                 "data_contract": ["generated component eval fixture"],
+                "estimator_interface_contract": (
+                    _estimator_interface_contract_fixture()
+                ),
                 "validation_metrics": ["sandbox_failed", "replicates"],
                 "risk_controls": ["do not use registered templates"],
             }
@@ -113432,6 +113568,37 @@ def test_external_proof_search_request_carries_exact_kernel_failure_forward(
     assert "import Mathlib" in request["lean_header"]
     assert "theorem exact_source" not in request["lean_header"]
 
+    unchanged_context = copy.deepcopy(repair_context)
+    unchanged_context["external_proof_search_result"][
+        "request_fingerprint"
+    ] = request["request_fingerprint"]
+    assert runtime_module._runtime_external_proof_search_request(
+        task=task,
+        question=question,
+        environment_feedback={
+            "proofengineer_repair_context": unchanged_context,
+        },
+    ) == {}
+
+    changed_context = copy.deepcopy(unchanged_context)
+    changed_context["proof_state_trace_rag"] = {
+        "query_fingerprint": "new-proof-state-context",
+        "hits": [{"trace_id": "trace:new-evidence"}],
+    }
+    refreshed_request = runtime_module._runtime_external_proof_search_request(
+        task=task,
+        question=question,
+        environment_feedback={
+            "proofengineer_repair_context": changed_context,
+        },
+    )
+    assert refreshed_request["request_fingerprint"] != (
+        request["request_fingerprint"]
+    )
+    assert refreshed_request["proof_state_trace_rag"] == (
+        changed_context["proof_state_trace_rag"]
+    )
+
 
 def test_proofengineer_consumes_external_proof_search_before_llm_proposal(
     tmp_path: Path,
@@ -115591,7 +115758,12 @@ def test_whole_proof_validation_failure_stays_with_proofengineer() -> None:
 
 def test_external_proof_search_artifact_survives_followup_packet_validation_failure(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv(
+        "AI_STATISTICIAN_AI4SLT_PROOF_STATE_TRACE_ENABLED",
+        "false",
+    )
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
 
     class ProofSearchProvider:
