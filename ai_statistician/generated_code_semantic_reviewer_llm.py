@@ -61,6 +61,7 @@ GENERATED_CODE_SEMANTIC_REVIEW_FINDING_SEVERITIES = (
     "high",
     "critical",
 )
+GENERATED_CODE_SEMANTIC_REVIEW_MAX_FINDINGS = 4
 GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS = (
     "source_theory_packet",
     "metric_protocol_candidate",
@@ -600,9 +601,24 @@ def _generated_result_value_projection(
 def generated_code_semantic_review_prompt_projection(
     review_material: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Build a bounded prompt view while retaining full material for lineage."""
+    """Build a bounded, deduplicated prompt view with full lineage retained."""
 
     projected = dict(review_material)
+    canonical_contract = review_material.get(
+        "architect_frozen_evidence_contract",
+        {},
+    )
+    canonical_requirement_rows = (
+        canonical_contract.get("empirical_metric_requirements", []) or []
+        if isinstance(canonical_contract, Mapping)
+        else []
+    )
+    canonical_requirements = {
+        str(row.get("requirement_id", "") or ""): row
+        for row in canonical_requirement_rows
+        if isinstance(row, Mapping)
+        and str(row.get("requirement_id", "") or "")
+    }
 
     def project_artifact(
         raw_artifact: Mapping[str, Any],
@@ -612,11 +628,60 @@ def generated_code_semantic_review_prompt_projection(
         artifact = dict(raw_artifact)
         source_row = artifact.get("source_row", {})
         if isinstance(source_row, Mapping):
+            metric_contracts = source_row.get("metric_contracts", [])
+            metric_contracts_are_canonical = bool(metric_contracts) and all(
+                isinstance(contract, Mapping)
+                and str(contract.get("authority_binding_mode", "") or "")
+                == "runtime_joined_frozen_requirement"
+                and str(
+                    contract.get("authority_requirement_fingerprint", "")
+                    or ""
+                )
+                == stable_hash(
+                    canonical_requirements.get(
+                        str(contract.get("requirement_id", "") or ""),
+                        {},
+                    )
+                )
+                for contract in metric_contracts
+            )
+            omitted_source_row_fields = {"code_excerpt", "metrics"}
+            if metric_contracts_are_canonical:
+                omitted_source_row_fields.update(
+                    {
+                        "metric_contract_evaluation",
+                        "metric_contracts",
+                    }
+                )
             artifact["source_row"] = {
                 key: value
                 for key, value in source_row.items()
-                if key not in {"code_excerpt", "metrics"}
+                if key not in omitted_source_row_fields
             }
+            if metric_contracts_are_canonical:
+                artifact["source_row"]["metric_contract_prompt_refs"] = [
+                    {
+                        key: contract[key]
+                        for key in (
+                            "artifact_id",
+                            "authority_binding_mode",
+                            "authority_requirement_fingerprint",
+                            "contract_id",
+                            "metric_path",
+                            "requirement_id",
+                        )
+                        if key in contract
+                    }
+                    for contract in metric_contracts
+                    if isinstance(contract, Mapping)
+                ]
+            if (
+                metric_contracts_are_canonical
+                and source_row.get("metric_contract_evaluation")
+            ):
+                artifact["source_row"][
+                    "metric_contract_evaluation_prompt_ref"
+                ] = "runtime_metric_gate_projection"
         result = artifact.get("exact_result", {})
         try:
             serialized_result = json.dumps(
@@ -688,12 +753,90 @@ def generated_code_semantic_review_prompt_projection(
             )
         projected_upstream["exact_dependency_artifacts"] = dependency_artifacts
         projected["upstream_generated_dependency"] = projected_upstream
+
+    source_summary = review_material.get("source_manifest_summary", {})
+    if isinstance(source_summary, Mapping):
+        projected_source_summary = dict(source_summary)
+        architect_control = source_summary.get("runtime_architect_control", {})
+        if (
+            isinstance(architect_control, Mapping)
+            and architect_control
+            and stable_hash(architect_control.get("evidence_contract", {}))
+            == stable_hash(canonical_contract)
+        ):
+            evidence_contract = architect_control.get("evidence_contract", {})
+            projected_source_summary["runtime_architect_control"] = {
+                key: architect_control[key]
+                for key in (
+                    "architect_coordinator_proposal_id",
+                    "formal_required_for_final",
+                    "formal_verification_policy",
+                    "recommended_research_path",
+                )
+                if key in architect_control
+            }
+            projected_source_summary["runtime_architect_control"].update(
+                {
+                    "evidence_contract_prompt_ref": (
+                        "architect_frozen_evidence_contract"
+                    ),
+                    "evidence_contract_fingerprint": stable_hash(
+                        evidence_contract
+                    ),
+                }
+            )
+        projected["source_manifest_summary"] = projected_source_summary
+
+    responsibility = review_material.get("source_responsibility_contract", {})
+    if isinstance(responsibility, Mapping):
+        projected_responsibility = dict(responsibility)
+        assigned_requirements = responsibility.get(
+            "assigned_empirical_metric_requirements",
+            [],
+        )
+        assigned_requirements_are_canonical = (
+            isinstance(assigned_requirements, list)
+            and bool(assigned_requirements)
+            and all(
+                isinstance(row, Mapping)
+                and canonical_requirements.get(
+                    str(row.get("requirement_id", "") or "")
+                )
+                == row
+                for row in assigned_requirements
+            )
+        )
+        if assigned_requirements_are_canonical:
+            projected_responsibility.pop(
+                "assigned_empirical_metric_requirements",
+                None,
+            )
+            projected_responsibility.update(
+                {
+                    "assigned_empirical_metric_requirements_prompt_ref": (
+                        "architect_frozen_evidence_contract."
+                        "empirical_metric_requirements filtered by "
+                        "assigned_requirement_ids"
+                    ),
+                    "assigned_empirical_metric_requirements_fingerprint": (
+                        stable_hash(assigned_requirements)
+                    ),
+                    "assigned_empirical_metric_requirement_count": len(
+                        assigned_requirements
+                    ),
+                }
+            )
+        projected["source_responsibility_contract"] = (
+            projected_responsibility
+        )
     projected["prompt_projection_boundary"] = (
-        "This is a context-bounded view of immutable review material. Full result "
-        "artifacts remain lineage-bound by path and hash, but omitted values are not "
-        "semantically visible to this reviewer. Any verdict that depends on omitted "
-        "items must be UNCERTAIN or request a hash-bound bounded summary. Review "
-        "acceptance remains bound to the fingerprint of the full unprojected material."
+        "This is a context-bounded, deduplicated view of immutable review material. "
+        "Canonical theory, protocol, source, and runtime-gate values appear once; "
+        "prompt_ref fields identify intentionally omitted duplicates. Full artifacts "
+        "remain lineage-bound by path and hash, but omitted values are not semantically "
+        "visible to this reviewer. Any verdict that depends on an omitted value must be "
+        "UNCERTAIN or request a hash-bound bounded summary. Review acceptance remains "
+        "bound to the fingerprint of the full unprojected material."
     )
     return projected
 
@@ -823,13 +966,70 @@ def _generated_code_semantic_review_cited_values(
                     "locator": locator,
                     "resolved": resolved,
                     "value": (
-                        _compact_generated_code_review_value(value)
+                        _generated_code_semantic_review_cited_value_projection(
+                            value
+                        )
                         if resolved
                         else None
                     ),
                 }
             )
     return rows
+
+
+def _generated_code_semantic_review_cited_value_projection(
+    value: Any,
+) -> Any:
+    if not isinstance(value, Mapping):
+        return _compact_generated_code_review_value(value)
+    if {
+        "requirement_id",
+        "measurement_protocol",
+    }.issubset(value):
+        fields = (
+            "requirement_id",
+            "metric_semantics",
+            "measurement_protocol",
+            "aggregation",
+            "metric_value_kind",
+            "operator",
+            "threshold",
+            "lower",
+            "upper",
+            "tolerance",
+            "required",
+            "required_runtime_replicates",
+            "minimum_pass_count",
+            "minimum_pass_fraction",
+            "acceptance_authority_kind",
+            "acceptance_authority_rationale",
+            "target_subsystems",
+        )
+        return {
+            **{field: value[field] for field in fields if field in value},
+            "canonical_value_fingerprint": stable_hash(value),
+            "prompt_projection": True,
+        }
+    if "aggregate_value" in value and (
+        "passed" in value or "contract_id" in value
+    ):
+        fields = (
+            "artifact_id",
+            "contract_id",
+            "requirement_id",
+            "metric_path",
+            "operator",
+            "aggregate_value",
+            "required",
+            "passed",
+            "errors",
+        )
+        return {
+            **{field: value[field] for field in fields if field in value},
+            "canonical_value_fingerprint": stable_hash(value),
+            "prompt_projection": True,
+        }
+    return _compact_generated_code_review_value(value)
 
 
 def _generated_code_semantic_review_runtime_facts(
@@ -920,12 +1120,13 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             getattr(self.provider, "provider_name", self.config.provider_name)
             or self.config.provider_name
         ).lower()
+        user_prompt = build_generated_code_semantic_review_prompt(
+            question=question,
+            review_material=review_material,
+        )
         request = GeneratorRequest(
             system_prompt=GENERATED_CODE_SEMANTIC_REVIEW_SYSTEM_PROMPT,
-            user_prompt=build_generated_code_semantic_review_prompt(
-                question=question,
-                review_material=review_material,
-            ),
+            user_prompt=user_prompt,
             model=request_model,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
@@ -937,6 +1138,15 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 "model_tier": self.config.model_tier,
                 "resolved_model": request_model,
                 "review_input_fingerprint": stable_hash(review_material),
+                "review_material_json_chars": len(
+                    json.dumps(
+                        review_material,
+                        separators=(",", ":"),
+                        default=str,
+                        ensure_ascii=False,
+                    )
+                ),
+                "user_prompt_chars": len(user_prompt),
                 "provider_structured_output": provider_name == "anthropic",
             },
         )
@@ -1386,6 +1596,18 @@ def build_generated_code_semantic_review_prompt(
             ),
             "runtime_does_not_select_repair_scope": True,
         },
+        "finding_budget": {
+            "max_findings": GENERATED_CODE_SEMANTIC_REVIEW_MAX_FINDINGS,
+            "priority": (
+                "Return only the smallest set of acceptance-critical, independently "
+                "repairable defects. Consolidate symptoms with the same root artifact "
+                "and correction."
+            ),
+            "advisory_policy": (
+                "Omit advisory observations from findings by default; dimension "
+                "rationales already preserve relevant non-blocking context."
+            ),
+        },
         "evidence_boundary": GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
     }
     phase_instruction = (
@@ -1448,7 +1670,10 @@ def build_generated_code_semantic_review_prompt(
         "repair_scope supported by owner-matching evidence. Never emit a mandatory "
         "repair while every dimension is PASS, and never emit a non-PASS dimension "
         "while every finding uses repair_scope=none. Runtime validates this contract "
-        "but does not infer which artifact is defective. Treat "
+        "but does not infer which artifact is defective. Use the finding_budget "
+        "strictly: prioritize root causes over symptom lists, consolidate findings "
+        "that require the same artifact change, and omit non-blocking advice unless "
+        "it is essential to understand a dimension rationale. Treat "
         "runtime_metric_gate_projection as the authority for already-computed gate "
         "outcomes: never describe a row with passed=true as outside its runtime "
         "tolerance or failed. You may still reject its measurement semantics, but "
@@ -1670,6 +1895,7 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
         },
         "findings": {
             "type": "array",
+            "maxItems": GENERATED_CODE_SEMANTIC_REVIEW_MAX_FINDINGS,
             "items": {
                 "type": "object",
                 "additionalProperties": False,
@@ -1805,6 +2031,10 @@ def validate_generated_code_semantic_review_packet(
     if not isinstance(findings, list):
         errors.append("findings must be an array")
         findings = []
+    elif len(findings) > GENERATED_CODE_SEMANTIC_REVIEW_MAX_FINDINGS:
+        errors.append(
+            "findings exceeds the acceptance-critical finding budget"
+        )
     finding_repair_scopes: set[str] = set()
     for row in findings:
         if not isinstance(row, Mapping):

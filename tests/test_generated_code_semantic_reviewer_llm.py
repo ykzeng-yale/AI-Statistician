@@ -130,6 +130,125 @@ def test_large_generated_results_use_hash_bound_prompt_projection() -> None:
     assert "Do not treat omitted values as inspected" in prompt
 
 
+def test_semantic_review_prompt_projection_deduplicates_metric_authority() -> None:
+    requirement = {
+        "requirement_id": "metric:one",
+        "measurement_protocol": "canonical-metric-authority-marker",
+        "target_subsystems": ["SimulationEngineer"],
+    }
+    evidence_contract = {
+        "empirical_metric_requirements": [requirement],
+    }
+    runtime_contract = {
+        **requirement,
+        "artifact_id": "simulation:one",
+        "authority_binding_mode": "runtime_joined_frozen_requirement",
+        "authority_requirement_fingerprint": stable_hash(requirement),
+        "contract_id": "contract:one",
+        "metric_path": ["metric"],
+    }
+    review_material = {
+        "architect_frozen_evidence_contract": evidence_contract,
+        "source_manifest_summary": {
+            "runtime_architect_control": {
+                "architect_coordinator_proposal_id": "architect:one",
+                "evidence_contract": evidence_contract,
+                "formal_verification_policy": "required",
+            }
+        },
+        "source_responsibility_contract": {
+            "assigned_requirement_ids": ["metric:one"],
+            "assigned_empirical_metric_requirements": [requirement],
+        },
+        "exact_executed_artifacts": [
+            {
+                "artifact_id": "simulation:one",
+                "exact_source_code": "def run_sandbox(seed, replicates): return {}",
+                "exact_source_hash": "source-hash",
+                "exact_result": {"metric": 0.5},
+                "exact_result_hash": "result-hash",
+                "source_row": {
+                    "metric_contracts": [runtime_contract],
+                    "metric_contract_evaluation": {
+                        "evaluations": [
+                            {
+                                "requirement_id": "metric:one",
+                                "aggregate_value": 0.5,
+                                "passed": True,
+                            }
+                        ]
+                    },
+                },
+            }
+        ],
+    }
+
+    projection = generated_code_semantic_review_prompt_projection(
+        review_material
+    )
+    projected_source_row = projection["exact_executed_artifacts"][0][
+        "source_row"
+    ]
+    projected_responsibility = projection["source_responsibility_contract"]
+    projected_control = projection["source_manifest_summary"][
+        "runtime_architect_control"
+    ]
+    prompt = build_generated_code_semantic_review_prompt(
+        question=_question(),
+        review_material=review_material,
+    )
+
+    assert json.dumps(projection).count("canonical-metric-authority-marker") == 1
+    assert "metric_contracts" not in projected_source_row
+    assert "metric_contract_evaluation" not in projected_source_row
+    assert projected_source_row["metric_contract_prompt_refs"] == [
+        {
+            "artifact_id": "simulation:one",
+            "authority_binding_mode": "runtime_joined_frozen_requirement",
+            "authority_requirement_fingerprint": stable_hash(requirement),
+            "contract_id": "contract:one",
+            "metric_path": ["metric"],
+            "requirement_id": "metric:one",
+        }
+    ]
+    assert (
+        projected_source_row["metric_contract_evaluation_prompt_ref"]
+        == "runtime_metric_gate_projection"
+    )
+    assert "assigned_empirical_metric_requirements" not in (
+        projected_responsibility
+    )
+    assert "evidence_contract" not in projected_control
+    assert '"max_findings":4' in prompt
+    assert GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA["properties"][
+        "findings"
+    ]["maxItems"] == 4
+
+    conflicting_material = json.loads(json.dumps(review_material))
+    conflicting_material["source_manifest_summary"]["runtime_architect_control"][
+        "evidence_contract"
+    ] = {"empirical_metric_requirements": []}
+    conflicting_material["source_responsibility_contract"][
+        "assigned_empirical_metric_requirements"
+    ][0]["measurement_protocol"] = "conflicting responsibility"
+    conflicting_material["exact_executed_artifacts"][0]["source_row"][
+        "metric_contracts"
+    ][0]["authority_requirement_fingerprint"] = "forged"
+    conflicting_projection = generated_code_semantic_review_prompt_projection(
+        conflicting_material
+    )
+
+    assert "evidence_contract" in conflicting_projection[
+        "source_manifest_summary"
+    ]["runtime_architect_control"]
+    assert "assigned_empirical_metric_requirements" in conflicting_projection[
+        "source_responsibility_contract"
+    ]
+    assert "metric_contracts" in conflicting_projection[
+        "exact_executed_artifacts"
+    ][0]["source_row"]
+
+
 def test_large_integer_projection_does_not_overflow_numeric_summary() -> None:
     exact_result = {"values": [10**1000] * 80}
     projection = generated_code_semantic_review_prompt_projection(
@@ -2385,6 +2504,10 @@ def test_mixed_semantic_assessments_route_upstream_owner_before_source(
         request.metadata["provider_structured_output"] is True
         for request in backend.requests
     )
+    assert backend.requests[0].metadata["user_prompt_chars"] == len(
+        backend.requests[0].user_prompt
+    )
+    assert backend.requests[0].metadata["review_material_json_chars"] > 0
     assert backend.requests[1].metadata["json_repair_mode"] == (
         "typed_semantic_patch"
     )

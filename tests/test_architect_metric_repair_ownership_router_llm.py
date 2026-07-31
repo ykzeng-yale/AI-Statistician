@@ -13,6 +13,7 @@ from ai_statistician.architect_metric_repair_ownership_router_llm import (
     LLMArchitectMetricRepairOwnershipRouterAgent,
     _normalize_architect_metric_repair_ownership_packet,
     _postexecution_artifact_target_eligibility,
+    _postexecution_router_dimension_projection,
     apply_architect_metric_repair_ownership_routes,
     apply_generated_code_repair_ownership_routes,
     architect_metric_repair_scope_from_decision,
@@ -108,6 +109,27 @@ def _routing_payload() -> dict[str, object]:
     }
 
 
+def test_postexecution_router_dimension_projection_omits_review_narrative() -> None:
+    projection = _postexecution_router_dimension_projection(
+        [
+            {
+                "dimension": "metric_semantics_alignment",
+                "status": "FAIL",
+                "rationale": "oversized-review-rationale-marker",
+                "artifact_citations": ["generated_source_artifact"],
+                "evidence_refs": ["generated_source_artifact#/exact_result"],
+            }
+        ]
+    )
+
+    assert projection == [
+        {
+            "dimension": "metric_semantics_alignment",
+            "status": "FAIL",
+        }
+    ]
+
+
 def _route(
     backend: _Backend,
     *,
@@ -173,6 +195,10 @@ def test_repair_router_overrides_free_scope_with_artifact_bound_ownership() -> N
         "ArchitectMetricRepairOwnershipRouter"
     )
     assert backend.requests[0].metadata["model_tier"] == "haiku"
+    assert backend.requests[0].metadata["user_prompt_chars"] == len(
+        backend.requests[0].user_prompt
+    )
+    assert backend.requests[0].metadata["routing_material_json_chars"] > 0
     assert "Do not repeat the reviewer's repair_scope" in (
         backend.requests[0].user_prompt
     )
@@ -374,7 +400,17 @@ def test_postexecution_router_replaces_result_driven_reviewer_instruction() -> N
                 "empirical_metric_requirements": [{"requirement_id": "gate:1"}]
             },
             "coding_agent_proposal_packet": {"packet_id": "code:proposal"},
-            "source_responsibility_contract": {"assigned_requirement_ids": []},
+            "source_responsibility_contract": {
+                "assigned_requirement_ids": ["gate:1"],
+                "assigned_empirical_metric_requirements": [
+                    {
+                        "requirement_id": "gate:1",
+                        "measurement_protocol": (
+                            "duplicated-owner-contract-marker"
+                        ),
+                    }
+                ],
+            },
             "exact_executed_artifacts": [
                 {
                     "artifact_id": "code:exact",
@@ -463,6 +499,10 @@ def test_postexecution_router_replaces_result_driven_reviewer_instruction() -> N
     assert "failed gate" in backend.requests[0].user_prompt
     assert "advisory note" not in backend.requests[0].user_prompt
     assert "omit-me" not in backend.requests[0].user_prompt
+    assert "duplicated-owner-contract-marker" not in (
+        backend.requests[0].user_prompt
+    )
+    assert "def estimate(): return 1.0" not in backend.requests[0].user_prompt
     assert '"metric":0.5' in backend.requests[0].user_prompt
     assert "not by itself a protocol defect" in backend.requests[0].user_prompt
     assert "runtime_metric_gate_projection" in backend.requests[0].user_prompt

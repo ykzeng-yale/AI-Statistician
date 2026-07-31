@@ -12,7 +12,6 @@ from .architect_metric_semantic_reviewer_llm import (
 )
 from .fingerprint import stable_hash
 from .generated_code_semantic_reviewer_llm import (
-    _compact_generated_code_review_value,
     _generated_code_semantic_review_cited_values,
     _generated_code_semantic_review_metric_gate_projection,
     _generated_code_semantic_review_runtime_facts,
@@ -181,6 +180,9 @@ class LLMArchitectMetricRepairOwnershipRouterAgent:
             semantic_review_packet,
             actionable_only=True,
         )
+        semantic_review_dimensions = list(
+            semantic_review_packet.get("dimension_reviews", []) or []
+        )
         artifact_projection = _postexecution_router_artifact_projection(
             review_material
         )
@@ -208,8 +210,11 @@ class LLMArchitectMetricRepairOwnershipRouterAgent:
                 )
             ),
             "source_responsibility_contract": (
-                _compact_generated_code_review_value(
-                    review_material.get("source_responsibility_contract", {})
+                _postexecution_router_source_responsibility_projection(
+                    review_material.get(
+                        "source_responsibility_contract",
+                        {},
+                    )
                 )
             ),
             "semantic_review_artifact_assessments": _mapping_projection(
@@ -220,16 +225,16 @@ class LLMArchitectMetricRepairOwnershipRouterAgent:
                     "source_theory_assessment",
                 ),
             ),
-            "semantic_review_dimensions": list(
-                semantic_review_packet.get("dimension_reviews", []) or []
+            "semantic_review_dimensions": (
+                _postexecution_router_dimension_projection(
+                    semantic_review_dimensions
+                )
             ),
             "semantic_review_findings": semantic_review_findings,
             "artifact_target_eligibility": (
                 _postexecution_artifact_target_eligibility(
                     semantic_review_findings,
-                    semantic_review_dimensions=list(
-                        semantic_review_packet.get("dimension_reviews", []) or []
-                    ),
+                    semantic_review_dimensions=semantic_review_dimensions,
                     available_artifact_roles=(
                         _postexecution_available_artifact_roles(
                             artifact_projection
@@ -262,13 +267,14 @@ class LLMArchitectMetricRepairOwnershipRouterAgent:
             requested_model=self.config.model,
             model_tier=self.config.model_tier,
         )
+        user_prompt = build_architect_metric_repair_ownership_prompt(
+            question=question,
+            routing_material=routing_material,
+            routing_phase=routing_phase,
+        )
         request = GeneratorRequest(
             system_prompt=ARCHITECT_METRIC_REPAIR_OWNERSHIP_SYSTEM_PROMPT,
-            user_prompt=build_architect_metric_repair_ownership_prompt(
-                question=question,
-                routing_material=routing_material,
-                routing_phase=routing_phase,
-            ),
+            user_prompt=user_prompt,
             model=request_model,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
@@ -283,6 +289,15 @@ class LLMArchitectMetricRepairOwnershipRouterAgent:
                 "resolved_model": request_model,
                 "routing_input_fingerprint": stable_hash(routing_material),
                 "routing_phase": routing_phase,
+                "routing_material_json_chars": len(
+                    json.dumps(
+                        routing_material,
+                        separators=(",", ":"),
+                        default=str,
+                        ensure_ascii=False,
+                    )
+                ),
+                "user_prompt_chars": len(user_prompt),
                 "provider_structured_output": True,
             },
         )
@@ -516,6 +531,11 @@ def _postexecution_router_compact_artifact_projection(
         ARCHITECT_METRIC_REPAIR_TARGET_GENERATED_SOURCE,
         {},
     )
+    current_source = (
+        current_source if isinstance(current_source, Mapping) else {}
+    )
+    proposal = current_source.get("coding_agent_proposal_packet", {})
+    exact_artifacts = current_source.get("exact_executed_artifacts", [])
     return {
         ARCHITECT_METRIC_REPAIR_TARGET_SOURCE_THEORY: _mapping_projection(
             theory,
@@ -541,9 +561,40 @@ def _postexecution_router_compact_artifact_projection(
                 ),
             )
         ),
-        ARCHITECT_METRIC_REPAIR_TARGET_GENERATED_SOURCE: deepcopy(
-            current_source
-        ),
+        ARCHITECT_METRIC_REPAIR_TARGET_GENERATED_SOURCE: {
+            "coding_agent_proposal_packet": _mapping_projection(
+                proposal,
+                ("packet_id",),
+            ),
+            "source_responsibility_contract": (
+                _postexecution_router_source_responsibility_projection(
+                    current_source.get("source_responsibility_contract", {})
+                )
+            ),
+            "review_scope_projection": deepcopy(
+                current_source.get("review_scope_projection", {})
+            ),
+            "exact_executed_artifact_refs": [
+                _mapping_projection(
+                    row,
+                    (
+                        "artifact_id",
+                        "exact_result_summary",
+                        "exact_result_hash",
+                        "exact_source_hash",
+                    ),
+                )
+                for row in exact_artifacts
+                if isinstance(row, Mapping)
+            ]
+            if isinstance(exact_artifacts, list)
+            else [],
+            "exact_value_policy": (
+                "Only values cited by the semantic reviewer are supplied in "
+                "cited_evidence_values; full source and result payloads remain "
+                "immutable lineage artifacts."
+            ),
+        },
         "projection_contract": {
             "content_policy": (
                 "Route from compact runtime facts and exact cited values. Full "
@@ -554,6 +605,43 @@ def _postexecution_router_compact_artifact_projection(
             "owner_router_does_not_accept_generated_code": True,
         },
     }
+
+
+def _postexecution_router_source_responsibility_projection(
+    value: Any,
+) -> dict[str, Any]:
+    return _mapping_projection(
+        value,
+        (
+            "schema_version",
+            "runtime_source_subsystem",
+            "generated_code_author_subsystem",
+            "assigned_requirement_ids",
+            "sibling_only_requirement_refs",
+            "artifact_review_rule",
+            "system_coverage_owner",
+            "system_coverage_rule",
+            "proof_evidence_status",
+        ),
+    )
+
+
+def _postexecution_router_dimension_projection(
+    value: Any,
+) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [
+        _mapping_projection(
+            row,
+            (
+                "dimension",
+                "status",
+            ),
+        )
+        for row in value
+        if isinstance(row, Mapping)
+    ]
 
 
 def _mapping_projection(
