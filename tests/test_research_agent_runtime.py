@@ -38936,6 +38936,8 @@ def test_formalizer_lean_candidate_repair_feedback_uses_formal_source_grounding(
         environment_feedback=feedback,
     )
     assert "Formal-source grounding hits are available" in prompt
+    assert "premise_declaration_outlines in dependency order" in prompt
+    assert "nearby_declaration_outlines only as bounded fallback" in prompt
     assert "formal_blocker_resource_requests" in prompt
     assert "source_theorem_proof_body_adapter_feedback" in prompt
     assert "Mathlib.Algebra.Order.Floor" in prompt

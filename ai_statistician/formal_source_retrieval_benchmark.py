@@ -9,7 +9,7 @@ from .fingerprint import stable_hash
 from .formal_source_index import FormalSourceHit, build_formal_source_search_backend
 
 
-FORMAL_SOURCE_RETRIEVAL_BENCHMARK_SCHEMA_VERSION = 2
+FORMAL_SOURCE_RETRIEVAL_BENCHMARK_SCHEMA_VERSION = 3
 
 
 @dataclass(frozen=True)
@@ -114,6 +114,16 @@ EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK: tuple[
         expected_name_fragments=("master_error_bound",),
         expected_source_ids=("lean_stat_learning_theory",),
         rationale="the Wainwright source crosswalk should be searchable formal RAG metadata",
+    ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="slt_wainwright_one_step_discretization",
+        query="Wainwright 2019 Proposition 5.17 one step discretization",
+        expected_name_fragments=("one_step_discretization_bound",),
+        expected_source_ids=("lean_stat_learning_theory",),
+        rationale=(
+            "citation lookup should survive a unique semantic declaration rename "
+            "without encoding a theorem-specific alias"
+        ),
     ),
     FormalSourceRetrievalBenchmarkCase(
         query_id="slt_boucheron_gaussian_concentration",
@@ -347,6 +357,34 @@ def run_formal_source_retrieval_benchmark(
         "lean_rag_dependency_graph_auto_discovered": bool(
             getattr(active_retriever, "lean_rag_dependency_graph_auto_discovered", False)
         ),
+        "scoped_premise_corpus_enabled": bool(
+            getattr(active_retriever, "scoped_premise_corpus_enabled", False)
+        ),
+        "scoped_premise_corpus_source_ids": tuple(
+            str(source_id)
+            for source_id in getattr(
+                active_retriever,
+                "scoped_premise_corpus_source_ids",
+                (),
+            )
+        ),
+        "scoped_premise_corpus_anchor_source_ids": tuple(
+            str(source_id)
+            for source_id in getattr(
+                active_retriever,
+                "scoped_premise_corpus_anchor_source_ids",
+                (),
+            )
+        ),
+        "scoped_premise_corpus_health": tuple(
+            dict(row)
+            for row in getattr(
+                active_retriever,
+                "scoped_premise_corpus_health",
+                (),
+            )
+            if isinstance(row, dict)
+        ),
         "k": int(k),
         "n_cases": len(rows),
         "n_configured_cases": len(cases),
@@ -398,6 +436,15 @@ def _retriever_source_ids(retriever: object) -> set[str]:
     }
     if getattr(retriever, "lean_rag_dependency_graph_enabled", False):
         source_ids.add("lean_rag_dependency_graph")
+    source_ids.update(
+        str(source_id)
+        for source_id in getattr(
+            retriever,
+            "scoped_premise_corpus_source_ids",
+            (),
+        )
+        if str(source_id)
+    )
     return source_ids
 
 

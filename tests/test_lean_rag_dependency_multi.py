@@ -188,6 +188,143 @@ def test_multi_retriever_routes_dependency_context_to_requested_corpus(
     )
     assert context.proof_uses == ("Theory.Second_proof_dependency",)
     assert context.used_by == ("Theory.Second_consumer",)
+    assert not context.module_import_visibility_enforced
+    assert "without import-visibility filtering" in (
+        context.dependency_resolution_policy
+    )
+
+
+def test_dependency_context_rejects_unimported_unique_basename_edges(
+    tmp_path: Path,
+) -> None:
+    db_path = _write_dependency_db(
+        tmp_path / "import-aware.sqlite",
+        corpus="Scoped",
+    )
+    false_rows = [
+        (
+            5,
+            "Noise.bounded",
+            "bounded",
+            "lemma",
+            "Noise.Unimported",
+            "Noise/Unimported.lean",
+            8,
+            9,
+            "Noise",
+            "[]",
+            "lemma bounded : True",
+            "by trivial",
+            1,
+            0,
+            "noise-dependency",
+        ),
+        (
+            6,
+            "Noise.unrelated_consumer",
+            "unrelated_consumer",
+            "theorem",
+            "Noise.Consumer",
+            "Noise/Consumer.lean",
+            60,
+            65,
+            "Noise",
+            "[]",
+            "theorem unrelated_consumer : True",
+            "by exact master_error_bound",
+            1,
+            0,
+            "noise-consumer",
+        ),
+    ]
+    with sqlite3.connect(db_path) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE module_imports (
+              id INTEGER PRIMARY KEY,
+              src_module TEXT NOT NULL,
+              dst_module TEXT NOT NULL,
+              visibility TEXT NOT NULL,
+              src_path TEXT NOT NULL,
+              line INTEGER NOT NULL,
+              is_local_dst INTEGER NOT NULL
+            );
+            """
+        )
+        conn.executemany(
+            "INSERT INTO declarations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            false_rows,
+        )
+        conn.executemany(
+            """
+            INSERT INTO module_imports(
+              src_module, dst_module, visibility, src_path, line, is_local_dst
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    "Scoped.Main",
+                    "Scoped.Defs",
+                    "import",
+                    "Scoped/Main.lean",
+                    1,
+                    1,
+                ),
+                (
+                    "Scoped.Main",
+                    "Scoped.Helpers",
+                    "import",
+                    "Scoped/Main.lean",
+                    2,
+                    1,
+                ),
+                (
+                    "Scoped.Consumer",
+                    "Scoped.Main",
+                    "import",
+                    "Scoped/Consumer.lean",
+                    1,
+                    1,
+                ),
+            ],
+        )
+        conn.executemany(
+            """
+            INSERT INTO declaration_edges(
+              src_decl_id, dst_decl_id, edge_type, match_kind, scope, weight
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (1, 5, "explicit_source", "unique_basename", "proof", 1),
+                (6, 1, "explicit_source", "unique_basename", "proof", 1),
+            ],
+        )
+
+    context = LeanRagDependencyRetriever(
+        db_path,
+        source_id="scoped_corpus",
+    ).dependency_context(
+        "Theory.master_error_bound",
+        source_id="scoped_corpus",
+        path="Scoped/Main.lean",
+    )
+
+    assert context is not None
+    assert context.direct_module_imports == (
+        "Scoped.Defs",
+        "Scoped.Helpers",
+    )
+    assert context.module_import_visibility_enforced
+    assert context.statement_uses == (
+        "Theory.Scoped_statement_dependency",
+    )
+    assert context.proof_uses == ("Theory.Scoped_proof_dependency",)
+    assert "Noise.bounded" not in context.uses
+    assert context.used_by == ("Theory.Scoped_consumer",)
+    assert "Noise.unrelated_consumer" not in context.used_by
+    assert "transitive local import closure" in (
+        context.dependency_resolution_policy
+    )
 
 
 def test_multi_retriever_search_preserves_corpus_provenance(

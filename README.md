@@ -177,6 +177,14 @@ off.
 reranking backend and writes `formal_source_index.sqlite` next to the audit
 manifest, so repeated search and interactive theorem mining can query the local
 corpus without rescanning every Lean file in Python.
+For `lean-stat-learning-theory`, the Formalizer also consumes direct
+statement/proof dependency signatures in Lean import order before a bounded
+same-file fallback. A checksum-pinned 3,021-premise AI4SLT corpus is available
+only inside that source scope; its proof bodies are removed and its older
+Lean/Mathlib revision means every candidate must be rechecked in the active
+project. Set `AI_STATISTICIAN_AI4SLT_PREMISE_CORPUS` to its pinned
+`corpus.jsonl` when it is not installed under the standard external-resource
+path. This is premise retrieval, never proof evidence.
 The production research benchmark can use the same backend: by default
 `research-benchmark` writes `formal_source_index.sqlite` in its output
 directory and uses that SQLite FTS + Lean-shape reranker when attaching local

@@ -106,17 +106,19 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
     """Context-efficient, feedback-driven policy for Lean proof construction."""
 
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "specification": (
-            "Exact target; compact declaration outlines (qualified "
-            "name/namespace/module/signature/import/reference; prior only; no proof "
-            "bodies); small lemma DAG; assumptions; no weakening."
+            "Exact Lean plus self-contained mathematical target; direct premise "
+            "outlines first (qualified name/namespace/module/signature/import/"
+            "reference), bounded prior fallback, no proof bodies; small lemma DAG; "
+            "assumptions/boundaries; no weakening."
         ),
         "repair_cycle": (
-            "Lean/LSP -> fix the smallest diagnostic -> rerun before restructuring."
+            "Lean/LSP -> preserve valid structure -> fix the smallest diagnostic -> "
+            "refine the spec with new evidence -> rerun; no unchanged retry."
         ),
         "persistent_failure_route": (
-            "On repeated failure, recheck quantifiers/domains/assumptions/"
+            "Independently recheck target fidelity, quantifiers/domains/assumptions/"
             "inequalities/counterexamples; do not weaken."
         ),
         "post_compile_hygiene": (
@@ -7455,13 +7457,11 @@ def _formalizer_mode_specific_instructions(
             and proofengineer_repair_context.get("formal_source_grounding_hits")
         ):
             instructions.append(
-                "Formal-source grounding hits are available for this repair loop: "
-                "use them only as API/premise suggestions from the configured prover "
-                "corpus. A selected declaration or replacement still must compile "
-                "under local Lean/AXLE on the exact repaired artifact before it becomes "
-                "proof evidence. For unknown identifiers, replace only with a retrieved "
-                "or otherwise verified local declaration, derive the fact from known "
-                "primitives, or emit a FORMAL_GAP naming the missing API/dependency."
+                "Formal-source grounding hits are available: "
+                "use premise_declaration_outlines in dependency order and "
+                "nearby_declaration_outlines only as bounded fallback. Corpus signatures "
+                "are API candidates, not proof. Verify every selection on the exact "
+                "local Lean/AXLE artifact; otherwise emit a FORMAL_GAP."
             )
         if (
             isinstance(proofengineer_repair_context, Mapping)

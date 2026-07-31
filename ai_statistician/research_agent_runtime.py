@@ -34046,6 +34046,9 @@ def _proofengineer_repair_context_with_formal_source_grounding(
         formal_source_retriever,
         query_seeds=query_seeds,
         unknown_identifiers=unknowns,
+        source_scope_ids=_proofengineer_formal_source_scope_ids(
+            payload,
+        ),
     )
     if not groups:
         return payload
@@ -34112,6 +34115,7 @@ def _proofengineer_formal_source_grounding_hit_groups(
     *,
     query_seeds: Sequence[str],
     unknown_identifiers: Sequence[str],
+    source_scope_ids: Sequence[str] = (),
     k: int = 2,
     max_groups: int = 3,
 ) -> list[dict[str, Any]]:
@@ -34135,6 +34139,13 @@ def _proofengineer_formal_source_grounding_hit_groups(
     groups: list[dict[str, Any]] = []
     seen_queries: set[str] = set()
     seen_hit_keys: set[tuple[str, str, str, str]] = set()
+    normalized_source_scopes = tuple(
+        dict.fromkeys(
+            str(value).strip()
+            for value in source_scope_ids
+            if str(value).strip()
+        )
+    )
     for row in query_rows:
         query = str(row.get("query", "") or "").strip()
         if not query or query in seen_queries:
@@ -34151,8 +34162,22 @@ def _proofengineer_formal_source_grounding_hit_groups(
         }
         if row.get("unknown_identifier"):
             group["unknown_identifier"] = row["unknown_identifier"]
+        if normalized_source_scopes:
+            group["source_scope_ids"] = list(normalized_source_scopes)
         try:
-            hits = formal_source_retriever.search(query, k=k)
+            scoped_search = getattr(
+                formal_source_retriever,
+                "search_with_source_scope",
+                None,
+            )
+            if normalized_source_scopes and callable(scoped_search):
+                hits = scoped_search(
+                    query,
+                    source_scope_ids=normalized_source_scopes,
+                    k=k,
+                )
+            else:
+                hits = formal_source_retriever.search(query, k=k)
         except Exception as exc:  # pragma: no cover - defensive runtime path
             group["hits"] = []
             group["retrieval_error"] = type(exc).__name__ + ": " + str(exc)[:240]
@@ -34176,6 +34201,35 @@ def _proofengineer_formal_source_grounding_hit_groups(
         if len(groups) >= max_groups:
             break
     return groups
+
+
+def _proofengineer_formal_source_scope_ids(
+    context: Mapping[str, Any],
+) -> tuple[str, ...]:
+    raw_scopes = context.get("formal_source_scope_ids", []) or []
+    if isinstance(raw_scopes, str):
+        raw_scopes = [raw_scopes]
+    discovered: list[str] = [
+        str(value).strip()
+        for value in raw_scopes
+        if str(value).strip()
+    ]
+    provenance_rows: list[Mapping[str, Any]] = []
+    direct_provenance = context.get("source_theorem_target_provenance", {})
+    if isinstance(direct_provenance, Mapping):
+        provenance_rows.append(direct_provenance)
+    for candidate in context.get("candidate_rerun_specs", []) or []:
+        if not isinstance(candidate, Mapping):
+            continue
+        provenance = candidate.get("source_theorem_target_provenance", {})
+        if isinstance(provenance, Mapping):
+            provenance_rows.append(provenance)
+    for provenance in provenance_rows:
+        for key in ("source_id", "corpus_id", "formal_source_scope_id"):
+            candidate = str(provenance.get(key, "") or "").strip()
+            if candidate:
+                discovered.append(candidate)
+    return tuple(dict.fromkeys(discovered))
 
 
 def _formalizer_lean_candidate_proof_state_subclaims(

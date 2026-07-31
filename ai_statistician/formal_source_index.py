@@ -564,6 +564,11 @@ def build_formal_source_search_backend(
                         "formal-source SQLite cache is stale for the configured formal source roots"
                     )
                 dependency_retriever = _optional_lean_rag_dependency_retriever(lean_rag_db_path)
+                scoped_premise_retrievers = (
+                    _optional_scoped_premise_retrievers()
+                    if include_graph
+                    else ()
+                )
                 if include_graph:
                     from .formal_source_hybrid import FormalSourceHybridRetriever
 
@@ -571,12 +576,17 @@ def build_formal_source_search_backend(
                         declarations,
                         sqlite_index,
                         dependency_retriever=dependency_retriever,
+                        scoped_premise_retrievers=scoped_premise_retrievers,
                     )
                 else:
                     retriever = sqlite_index
                 setattr(retriever, "cache_status", "hit")
                 setattr(retriever, "cache_path", str(cache_file))
                 _attach_lean_rag_metadata(retriever, dependency_retriever)
+                _attach_scoped_premise_metadata(
+                    retriever,
+                    scoped_premise_retrievers,
+                )
                 return retriever
             except Exception:
                 # Stale or incompatible cache. Rebuild below and overwrite it.
@@ -591,6 +601,11 @@ def build_formal_source_search_backend(
             if Path(db_path).resolve() != cache_file.resolve():
                 shutil.copy2(db_path, cache_file)
         dependency_retriever = _optional_lean_rag_dependency_retriever(lean_rag_db_path)
+        scoped_premise_retrievers = (
+            _optional_scoped_premise_retrievers()
+            if include_graph
+            else ()
+        )
         if include_graph:
             from .formal_source_hybrid import FormalSourceHybridRetriever
 
@@ -598,26 +613,41 @@ def build_formal_source_search_backend(
                 declarations,
                 sqlite_index,
                 dependency_retriever=dependency_retriever,
+                scoped_premise_retrievers=scoped_premise_retrievers,
             )
         else:
             retriever = sqlite_index
         setattr(retriever, "cache_status", "miss" if cache_file is not None else "disabled")
         setattr(retriever, "cache_path", str(cache_file) if cache_file is not None else "")
         _attach_lean_rag_metadata(retriever, dependency_retriever)
+        _attach_scoped_premise_metadata(
+            retriever,
+            scoped_premise_retrievers,
+        )
         return retriever
     dependency_retriever = _optional_lean_rag_dependency_retriever(lean_rag_db_path)
+    scoped_premise_retrievers = (
+        _optional_scoped_premise_retrievers()
+        if include_graph
+        else ()
+    )
     retriever: object = FormalSourceRetriever(declarations)
-    if dependency_retriever is not None:
+    if dependency_retriever is not None or scoped_premise_retrievers:
         from .formal_source_hybrid import FormalSourceDependencyHybridRetriever
 
         retriever = FormalSourceDependencyHybridRetriever(
             declarations,
             retriever,
             dependency_retriever,
+            scoped_premise_retrievers=scoped_premise_retrievers,
         )
     setattr(retriever, "cache_status", "disabled")
     setattr(retriever, "cache_path", "")
     _attach_lean_rag_metadata(retriever, dependency_retriever)
+    _attach_scoped_premise_metadata(
+        retriever,
+        scoped_premise_retrievers,
+    )
     return retriever
 
 
@@ -664,6 +694,14 @@ def _optional_lean_rag_dependency_retriever(lean_rag_db_path: Path | str | None)
         return retriever
     except Exception:
         return None
+
+
+def _optional_scoped_premise_retrievers() -> tuple[object, ...]:
+    from .formal_source_scoped_corpus import (
+        discover_ai4slt_scoped_premise_retrievers,
+    )
+
+    return tuple(discover_ai4slt_scoped_premise_retrievers())
 
 
 def _auto_lean_rag_db_candidates() -> tuple[Path, ...]:
@@ -785,6 +823,46 @@ def _attach_lean_rag_metadata(retriever: object, dependency_retriever: object | 
     )
 
 
+def _attach_scoped_premise_metadata(
+    retriever: object,
+    scoped_premise_retrievers: tuple[object, ...],
+) -> None:
+    providers = tuple(scoped_premise_retrievers)
+    setattr(retriever, "scoped_premise_corpus_enabled", bool(providers))
+    setattr(
+        retriever,
+        "scoped_premise_corpus_source_ids",
+        tuple(
+            str(getattr(provider, "source_id", "") or "")
+            for provider in providers
+            if str(getattr(provider, "source_id", "") or "")
+        ),
+    )
+    setattr(
+        retriever,
+        "scoped_premise_corpus_anchor_source_ids",
+        tuple(
+            dict.fromkeys(
+                str(source_id)
+                for provider in providers
+                for source_id in (
+                    getattr(provider, "anchor_source_ids", ()) or ()
+                )
+                if str(source_id)
+            )
+        ),
+    )
+    setattr(
+        retriever,
+        "scoped_premise_corpus_health",
+        tuple(
+            dict(provider.health_report())
+            for provider in providers
+            if callable(getattr(provider, "health_report", None))
+        ),
+    )
+
+
 def _cache_covers_configured_roots(
     declarations: list[FormalDeclaration],
     roots: tuple[FormalSourceRoot, ...],
@@ -804,7 +882,27 @@ def _cache_covers_configured_roots(
         for root in roots
         if _root_has_indexable_formal_source_file(root)
     }
-    return required_source_ids.issubset(present_source_ids)
+    if not required_source_ids.issubset(present_source_ids):
+        return False
+    references_by_source: dict[str, set[str]] = {}
+    for declaration in declarations:
+        if declaration.reference:
+            references_by_source.setdefault(
+                declaration.source_id,
+                set(),
+            ).add(declaration.reference)
+    for root in roots:
+        location = Path(root.location).expanduser()
+        if not location.exists():
+            continue
+        expected_references = set(
+            _declaration_references_from_markdown(location).values()
+        )
+        if not expected_references.issubset(
+            references_by_source.get(root.id, set())
+        ):
+            return False
+    return True
 
 
 def _root_has_indexable_formal_source_file(root: FormalSourceRoot) -> bool:
@@ -1342,12 +1440,56 @@ def _bind_declaration_references(
     short_name_counts = Counter(
         declaration.name.rsplit(".", 1)[-1] for declaration in declarations
     )
+    exact_declaration_names = {
+        declaration.name
+        for declaration in declarations
+    }
+    unique_short_names = {
+        short_name
+        for short_name, count in short_name_counts.items()
+        if count == 1
+    }
+    already_bound_reference_names = {
+        reference_name
+        for reference_name in references
+        if (
+            reference_name in exact_declaration_names
+            or reference_name in unique_short_names
+        )
+    }
+    renamed_reference_candidates: dict[str, list[str]] = {}
+    for reference_name, reference in references.items():
+        if reference_name in already_bound_reference_names:
+            continue
+        reference_key = _declaration_lookup_key(reference_name)
+        if len(reference_key) < 8:
+            continue
+        candidates = [
+            declaration
+            for declaration in declarations
+            if _declaration_lookup_key(
+                declaration.name.rsplit(".", 1)[-1]
+            ).startswith(reference_key)
+        ]
+        if len(candidates) == 1:
+            renamed_reference_candidates.setdefault(
+                candidates[0].name,
+                [],
+            ).append(reference)
+    renamed_references = {
+        declaration_name: values[0]
+        for declaration_name, values in renamed_reference_candidates.items()
+        if len(values) == 1
+    }
+
     bound: list[FormalDeclaration] = []
     for declaration in declarations:
         short_name = declaration.name.rsplit(".", 1)[-1]
         reference = references.get(declaration.name, "")
         if not reference and short_name_counts[short_name] == 1:
             reference = references.get(short_name, "")
+        if not reference:
+            reference = renamed_references.get(declaration.name, "")
         bound.append(
             replace(declaration, reference=reference)
             if reference

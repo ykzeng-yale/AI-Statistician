@@ -10,6 +10,7 @@ from ai_statistician.formal_source_index import (
     FormalSourceRetriever,
     FormalSourceRoot,
     FormalSourceSqliteIndex,
+    _cache_covers_configured_roots,
     build_formal_source_index,
     diversify_formal_source_hits,
     search_formal_sources,
@@ -116,6 +117,97 @@ def test_readme_reference_does_not_spill_across_duplicate_short_names(
     assert by_name["LinearMap.shared"].reference == ""
     assert by_name["Matrix.ambiguous"].reference == ""
     assert by_name["LinearMap.ambiguous"].reference == ""
+
+
+def test_readme_reference_resolves_one_unique_renamed_declaration_prefix(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "README.md").write_text(
+        "| Lean name | Reference |\n"
+        "|---|---|\n"
+        "| `one_step_discretization` | Wainwright (2019), Proposition 5.17 |\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "TDudley.lean").write_text(
+        "namespace TDudley\n"
+        "lemma one_step_discretization_bound : True := by trivial\n"
+        "lemma expectation_one_step_bound : True := by trivial\n"
+        "end TDudley\n",
+        encoding="utf-8",
+    )
+
+    declarations = build_formal_source_index(
+        roots=(FormalSourceRoot("fixture_rename", str(tmp_path)),)
+    )
+    by_name = {row.name: row for row in declarations}
+
+    assert by_name["TDudley.one_step_discretization_bound"].reference == (
+        "Wainwright (2019), Proposition 5.17"
+    )
+    assert by_name["TDudley.expectation_one_step_bound"].reference == ""
+    hits = search_formal_sources(
+        "Wainwright 2019 Proposition 5.17",
+        declarations=declarations,
+        k=2,
+    )
+    assert hits[0].declaration.name == (
+        "TDudley.one_step_discretization_bound"
+    )
+
+
+def test_cache_coverage_rejects_missing_current_readme_reference(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "README.md").write_text(
+        "| Lean name | Reference |\n"
+        "|---|---|\n"
+        "| `semantic_result` | Example Book (2026), Theorem 2.1 |\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "Main.lean").write_text(
+        "theorem semantic_result : True := by trivial\n",
+        encoding="utf-8",
+    )
+    root = FormalSourceRoot("fixture_cache_reference", str(tmp_path))
+    stale = [
+        FormalDeclaration(
+            source_id=root.id,
+            source_type="lean_library",
+            path="Main.lean",
+            line=1,
+            kind="theorem",
+            name="semantic_result",
+            namespace="",
+            signature="theorem semantic_result : True",
+        )
+    ]
+
+    assert not _cache_covers_configured_roots(stale, (root,))
+    current = build_formal_source_index(roots=(root,))
+    assert _cache_covers_configured_roots(current, (root,))
+
+
+def test_readme_reference_does_not_guess_ambiguous_renamed_prefix(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "README.md").write_text(
+        "| Lean name | Reference |\n"
+        "|---|---|\n"
+        "| `semantic_result` | Example Book, Theorem 1 |\n"
+        "| `semantic_result_alt` | Example Book, Theorem 2 |\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "Main.lean").write_text(
+        "theorem semantic_result_alternative_bound : True := by trivial\n",
+        encoding="utf-8",
+    )
+
+    declarations = build_formal_source_index(
+        roots=(FormalSourceRoot("fixture_rename_collision", str(tmp_path)),)
+    )
+
+    assert len(declarations) == 1
+    assert declarations[0].reference == ""
 
 
 def test_sqlite_health_rejects_cache_without_reference_columns(
@@ -304,7 +396,7 @@ def test_formal_source_hit_context_adds_bounded_outline_and_dependency_neighbors
             path: str,
         ):
             assert declaration_name == "LeastSquares.master_error_bound"
-            assert limit == 6
+            assert limit == 10
             assert source_id == "lean_stat_learning_theory"
             assert path == "SLT/LeastSquares/MasterErrorBound.lean"
             return SimpleNamespace(
@@ -331,15 +423,23 @@ def test_formal_source_hit_context_adds_bounded_outline_and_dependency_neighbors
         "SLT.LeastSquares.Localization",
         "SLT.GaussianLipConcen",
     ]
-    assert [row["name"] for row in context["nearby_declaration_outlines"]] == [
+    assert [
+        row["name"]
+        for row in context["premise_declaration_outlines"]
+    ] == [
         "LeastSquares.bad_event_probability_bound",
+    ]
+    assert [row["name"] for row in context["nearby_declaration_outlines"]] == [
         "LeastSquares.goodEvent",
     ]
     assert context["n_same_file_declarations"] == 4
     assert context["n_prior_same_file_declarations"] == 2
+    assert context["n_direct_premise_declaration_outlines"] == 1
+    assert context["n_prior_same_file_fallback_candidates"] == 1
     assert context["n_downstream_same_file_declarations_omitted"] == 1
     assert context["outline_selection"] == (
-        "nearest_prior_same_file_declarations_by_source_line"
+        "direct_statement_dependencies_then_direct_proof_dependencies_"
+        "then_nearest_prior_same_file_fallback"
     )
     assert context["dependency_context"]["corpus_id"] == (
         "lean_stat_learning_theory"
@@ -350,13 +450,17 @@ def test_formal_source_hit_context_adds_bounded_outline_and_dependency_neighbors
     assert context["dependency_context"]["proof_uses"] == [
         "LeastSquares.bad_event_probability_bound"
     ]
-    assert context["dependency_context"]["used_by"] == [
-        "LeastSquares.linear_minimax_rate_rank"
-    ]
+    assert context["dependency_context"][
+        "n_downstream_declarations_omitted"
+    ] == 1
+    assert "used_by" not in context["dependency_context"]
     assert "candidate_proof_body" not in str(context)
     assert all(
         ":= by" not in row["signature"]
-        for row in context["nearby_declaration_outlines"]
+        for row in (
+            context["premise_declaration_outlines"]
+            + context["nearby_declaration_outlines"]
+        )
     )
 
 
@@ -407,9 +511,13 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     assert "qualified name/namespace/module/signature/import/reference" in contract[
         "specification"
     ]
-    assert "compact declaration outlines" in contract["specification"]
-    assert "prior only" in contract["specification"]
+    assert "direct premise outlines first" in contract["specification"]
+    assert "bounded prior fallback" in contract["specification"]
     assert "small lemma DAG" in contract["specification"]
+    assert "no unchanged retry" in contract["repair_cycle"]
+    assert "Independently recheck target fidelity" in contract[
+        "persistent_failure_route"
+    ]
     assert "counterexamples" in contract["persistent_failure_route"]
     assert "quantifiers" in contract["persistent_failure_route"]
     assert "exact active-project artifact" in contract["post_compile_hygiene"]
@@ -427,5 +535,6 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     )
 
     assert "proof_construction_strategy_contract" in prompt
-    assert "compact declaration outlines" in prompt
+    assert "direct premise outlines first" in prompt
+    assert "no unchanged retry" in prompt
     assert "fix the smallest diagnostic" in prompt

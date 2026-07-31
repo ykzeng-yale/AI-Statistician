@@ -2364,8 +2364,9 @@ do not enter prompt context. Root README tables with declaration and reference
 columns are parsed generically; this makes the AI4SLT crosswalk to Vershynin,
 Wainwright, and Boucheron-Lugosi-Massart searchable without encoding book-specific
 runtime rules. Retrieval emits qualified name, namespace, module, imports,
-reference, and a bounded outline containing only same-file declarations before
-the target; downstream declarations and proof bodies are omitted. Composite
+reference, and a dependency-first outline: direct statement dependencies, then
+direct proof dependencies, then at most a small same-file prior-declaration
+fallback. Downstream declarations and proof bodies are omitted. Composite
 provider retrieval keeps reciprocal-rank fusion and resolves exact RRF ties by
 the number of provider-reported match terms actually present in the query, not
 by declaration-name ordering. Every result remains candidate-only until the exact
@@ -2378,8 +2379,18 @@ Before the first Formalizer proposal, the exact theorem goal and theory
 formalization handoff seed at most three task-bound queries with at most two
 compact hits each. This follows AI4SLT's structured-specification discipline:
 exact target and mathematical meaning, local declaration pointers, a semantic
-lemma plan, and explicit boundaries. It reuses the existing Formalizer feedback
-and RAG channel; it does not add a scheduler, tactic templates, or proof status.
+lemma plan, and explicit boundaries. Each failed Lean/LSP attempt must evolve
+that specification using the new diagnostic, dependency, semantic, or
+proof-state evidence; an unchanged retry is not a repair. Persistent failure
+routes back to independent target-fidelity and counterexample review before any
+structural rewrite. The strategy contract also requires warning/dead-fact
+cleanup and exact-artifact replay after compilation. It reuses the existing
+Formalizer feedback and RAG channel; it does not add a scheduler, tactic
+templates, or proof status. This
+adopts the paper's workflow mechanism under the AI-Statistician model policy;
+it does not adopt the upstream project's historical model tier. Production
+remains capped at Sonnet and provider-backed evaluation remains pinned to
+`claude-haiku-4-5-20251001`.
 Research benchmark traces also attach the top local declaration hits to every
 `FORMAL_GAP` subclaim and copy them into the generated Lean skeleton comments,
 so a gap is always accompanied by concrete local source candidates rather than
@@ -2406,10 +2417,28 @@ The normal formal-source backend can fuse this graph with the signed
 StatInference graph. Dependency lookup is bound by corpus, declaration name,
 and source path; exact qualified names win, and a short-name fallback is used
 only when unambiguous. Formalizer context distinguishes dependencies appearing
-in a statement from lemmas used in its proof, while continuing to omit proof
-bodies. This graph is source-derived rather than kernel-elaborated, so it is
-premise-selection context only; active-project Lean/kernel checking remains the
-proof authority.
+in a statement from lemmas used in its proof. Cross-module dependency edges are
+admitted only when the declaration is visible through the target module's
+transitive local import closure; reverse users must occur later in the same
+module or import the target transitively. This removes globally unique-basename
+edges to declarations that Lean could not see.
+
+The version-pinned
+`yuanhezhang/lean4-stat-learning-theory-corpus` snapshot adds 3,021 premise
+signatures from 470 SLT/Mathlib/stdlib files. It is checksum-gated and activates
+only when the selected or explicitly requested source scope is AI4SLT. Proof
+bodies are removed while loading, and a current local declaration supersedes a
+stale corpus signature when the name/path match is unambiguous. The corpus was
+extracted under Lean `v4.27.0-rc1` and Mathlib
+`d68c4dc09f5e000d3c968adae8def120a0758729`; therefore every hit is versioned
+retrieval context requiring active-project revalidation. Neither this corpus
+nor the source-derived graph is kernel-elaborated proof evidence.
+The retriever discovers
+`~/.codex/external/lean-stat-learning-theory-corpus/corpus.jsonl` or the path in
+`AI_STATISTICIAN_AI4SLT_PREMISE_CORPUS`. Provision exactly dataset revision
+`f4890ac3b0a18b35071e4cabf54dee8427463cd1`; activation fails closed unless the
+file SHA-256 is
+`43fdcda8b0558c9470ced9307e62970bfe7d62f19fad391ab077f55fac0ce695`.
 
 Formal source graph:
 

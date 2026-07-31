@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-31T04:48:16Z",
+  "updated_at": "2026-07-31T05:51:01Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "keep one canonical research loop and one strict proof boundary. TheoryDeveloper -> typed theory completeness -> independent pre-execution estimand/DGP/identifiability and metric-protocol review -> generated algorithm -> independent code review -> generated confirmatory simulation -> independent review -> Critic. Formalizer/ProofEngineer receive compact task-bound retrieval candidates and iterative Lean feedback; only active-project Lean/kernel evidence closes proof. Current work improves shared agent context, feedback, and retrieval rather than any task answer. Do not add agents, task formulas, Lean grammar/tactic rules, audit-score patches, or held-out fixes; PCA/extremes stay sealed.",
-  "latest_main_worker_patch": "Reuse AI4SLT as structured formal-source infrastructure instead of adding theorem-specific proof rules. The normal Formalizer retriever now fuses the current AI4SLT declaration/import graph with the signed StatInference graph, binds dependency lookup to corpus plus declaration path/name, separates statement dependencies from proof dependencies, ignores pure theorem-number tokens in dependency search, and falls back from qualified to short declaration names only when the match is unambiguous. The two strongest ranked candidates remain ahead of corpus-diversity insertions, preventing an unrelated corpus from displacing exact AI4SLT context in the bounded Formalizer prompt. No statistical answer, Lean grammar/tactic rule, agent, scheduler, validator relaxation, or proof-evidence promotion was added.",
+  "latest_main_worker_patch": "Complete the AI4SLT formal-source integration as a source-scoped, dependency-first RAG mechanism rather than theorem-specific proof rules. Cross-module declaration edges now require Lean import reachability, direct statement/proof premise signatures precede a small prior-declaration fallback, and downstream declarations/proof bodies are omitted. A checksum-pinned 3,021-premise corpus from 470 SLT/Mathlib/stdlib files activates only for AI4SLT source scope; current local declarations supersede uniquely matched stale corpus signatures and every candidate still requires active-project Lean/kernel checking. The Formalizer strategy now requires exact target plus mathematical meaning, compiler-driven specification evolution, smallest-diagnostic repair, and independent target/counterexample review on persistent failure. No statistical answer, Lean grammar/tactic rule, agent, scheduler, validator relaxation, or proof-evidence promotion was added.",
   "latest_main_worker_live_probe": "Fresh exact-Haiku v141 ran both development families with all 10 enabled LLM lanes pinned to claude-haiku-4-5-20251001 and topology policy OK. Both questions ended BLOCKED; the aggregate recorded 4 generated-code executions and sandbox passes, 4 confirmatory generated-simulation executions, 0 simulation metric-gate passes, 0 formal gaps, 0 kernel-verified subclaims, formally_verified_level=none, and 0 exact theorem closures. Survival made one bounded upstream-theory revision and stopped at generated_code_semantic_review_lineage_budget_exhausted. Sequential was rejected at architect_metric_protocol_preexecution_rejected after one TheoryDeveloper revision, before wasting code/simulation execution. V141 is negative design and efficiency evidence, not E2E success.",
-  "latest_main_worker_design_issue": "V141 confirms the compact review projection substantially reduces repeated context while keeping fail-closed behavior. Survival semantic-review input fell from 186,333 tokens across 6 v140 reviews to 174,645 across 7 v141 reviews; comparable confirmatory calls fell from about 51k to 26-33k input tokens, and findings fell from 34 to 14. Ownership-router input fell from 98,391 across 5 calls to 32,668 across 4 calls. One JSON-repair review still took 76 seconds, so wall-clock convergence is not yet established. The current formal-RAG correction addresses a separate demonstrated gap: AI4SLT was lexically retrievable but had no active declaration dependency graph. The next capability gate remains two development tasks reaching accepted confirmatory simulation and exact-target Formalizer/OpenProver/Lean closure; held-out PCA/extremes remain sealed and source-theorem closure remains zero.",
+  "latest_main_worker_design_issue": "The prior AI4SLT graph resolved globally unique basenames without checking whether the target module imported the declaration, so it exposed impossible proof dependencies; prompt context also selected arbitrary nearby declarations before actual dependencies, and the structured corpus was registered but not live. These defects are now corrected with import-closure filtering, dependency-first signatures, source-scoped activation, version/checksum boundaries, and cached corpus construction. This improves premise selection only. The next capability gate remains two development tasks reaching accepted confirmatory simulation and exact-target Formalizer/OpenProver/Lean closure; held-out PCA/extremes remain sealed and source-theorem closure remains zero.",
   "live_anthropic_model_policy": {
     "model_catalog_source_checked_date": "2026-07-19",
     "policy_rechecked_date": "2026-07-31",
@@ -24,7 +24,7 @@
     "provider_backed_tests_may_use_opus": false,
     "opus_live_requests_allowed": false,
     "enforcement": "Production requests above Sonnet are rejected before a live request can be accepted, requested Opus is rejected before Anthropic client construction, and capability/research evaluation policy pins every provider-backed test agent to the exact Haiku model.",
-    "provider_backed_evaluation_runs_in_current_patch": 12,
+    "provider_backed_evaluation_runs_in_current_patch": 0,
     "provider_backed_evaluation_runs": [
       "v122_metric_reviewer_index_diagnosis",
       "v123_zero_based_metric_patch_and_packet_ownership_diagnosis",
@@ -47,9 +47,9 @@
     "indexed_declarations": 2012,
     "indexed_unique_declaration_names": 2012,
     "unicode_identifier_false_duplicates": 0,
-    "indexed_book_reference_rows": 21,
+    "indexed_book_reference_rows": 22,
     "indexed_reference_bound_declarations": 47,
-    "indexed_unambiguous_readme_reference_rows": 46,
+    "indexed_unambiguous_readme_reference_rows": 47,
     "dependency_graph_modules": 204,
     "dependency_graph_import_edges": 278,
     "dependency_graph_declarations": 2006,
@@ -63,25 +63,25 @@
     ],
     "book_crosswalk_row_counts": {
       "Vershynin (2018)": 4,
-      "Wainwright (2019)": 6,
+      "Wainwright (2019)": 7,
       "Boucheron-Lugosi-Massart (2013)": 11
     },
-    "benchmark": "runs/main_worker_ai4slt_multi_dependency_rag_20260731/formal_source_retrieval_benchmark_manifest.json",
-    "benchmark_result": "6/6 currently configured gold families retrieve within 8 with MRR=0.777778; all 46/46 README reference queries retrieve within 8",
+    "benchmark": "runs/main_worker_ai4slt_scoped_premise_rag_20260731/formal_source_retrieval_benchmark_manifest.json",
+    "benchmark_result": "18/18 configured local gold cases retrieve within 8 with MRR=0.758796; all 47/47 current README reference queries retrieve within 8",
     "prior_broad_benchmark_result": "The earlier 17-case source-family panel remains 17/17 recall@8=1.0 with MRR=0.745098",
-    "all_reference_crosswalk_audit": "47 reference-bound declarations form 46 distinct source/reference queries; all 46/46 retrieve within rank 8",
-    "all_book_crosswalk_reference_audit": "The three paper-core books account for 21/46 queries; all 21 retrieve at rank 1 with counts 4/6/11. The remaining 25 queries cover other or post-paper library references.",
-    "default_runtime_retriever": "The normal Formalizer composite retriever now auto-discovers both the AI4SLT dependency graph and the signed StatInference graph. Direct production probes for Vershynin Corollary 4.2.13, Wainwright Theorem 13.5, and Boucheron-Lugosi-Massart Theorem 4.13 return the exact AI4SLT declaration at rank 1 with corpus-bound dependency context.",
-    "prompt_context_policy": "Preserve the two strongest ranked candidates before cross-corpus diversity. Expose qualified declaration name, namespace, module/import/reference metadata, at most three preceding same-file signatures, and bounded corpus-bound statement/proof dependency names. Omit target/downstream proof bodies; all context remains non-proof candidate evidence.",
+    "all_reference_crosswalk_audit": "47 reference-bound declarations form 47 current source/reference queries; all 47/47 retrieve within rank 8",
+    "all_book_crosswalk_reference_audit": "The three paper-core books account for 22/47 queries; all 22 retrieve at rank 1 with counts 4/7/11. Wainwright Proposition 5.17 resolves to the uniquely renamed current declaration TDudley.one_step_discretization_bound. The remaining 25 queries cover other or post-paper library references.",
+    "default_runtime_retriever": "The normal Formalizer composite retriever auto-discovers the AI4SLT dependency graph, signed StatInference graph, and checksum-pinned AI4SLT signature corpus. The corpus activates only when the selected or explicit source scope is lean_stat_learning_theory; unrelated queries do not activate it.",
+    "prompt_context_policy": "Preserve the two strongest ranked candidates before cross-corpus diversity. Expose qualified declaration metadata and direct statement dependencies followed by theorem/lemma proof dependencies, then at most two prior same-file fallback signatures. Require cross-module dependencies to be in the transitive Lean import closure. Omit downstream declarations and every proof body; all context remains non-proof candidate evidence.",
     "structured_corpus": "yuanhezhang/lean4-stat-learning-theory-corpus",
-    "structured_corpus_runtime_status": "registered as an auditable retrieval source candidate; not yet downloaded or promoted as the live proof-state retriever",
+    "structured_corpus_runtime_status": "checksum-pinned revision f4890ac3b0a18b35071e4cabf54dee8427463cd1 is locally available as a source-scoped signature retriever with 3,021 declarations across 470 files; parsed retrievers are cached after first construction; proof bodies are stripped",
     "shared_rag_main_commit": "390cc6bc",
     "shared_rag_feature_commits": [
       "7f954358",
       "1262b04d"
     ],
-    "version_boundary": "external HEAD uses Lean 4.32.0 with Mathlib 81a5d257; upstream tag v4.31.0 at 148db35c uses Mathlib fabf563a; the active proof target uses Lean 4.31.0 with Mathlib 3cd5cf90. Matching Lean major/minor is insufficient, so every hit remains an untrusted candidate until exact active-project compilation and kernel verification",
-    "coverage_boundary": "The 46 queries are every distinct explicit source/reference crosswalk currently indexed from the upstream README; 21 belong to the three paper-core books. This is not a claim that any whole book or theorem family is formalized.",
+    "version_boundary": "external HEAD uses Lean 4.32.0 with Mathlib 81a5d257; upstream tag v4.31.0 at 148db35c uses Mathlib fabf563a; the structured corpus was extracted under Lean v4.27.0-rc1 with Mathlib d68c4dc0; the active proof target uses Lean 4.31.0 with Mathlib 3cd5cf90. Matching Lean major/minor or declaration name is insufficient, so every hit remains an untrusted candidate until exact active-project compilation and kernel verification",
+    "coverage_boundary": "The 47 queries are every explicit source/reference crosswalk currently bound from the upstream README; 22 belong to the three paper-core books. This is not a claim that any whole book or theorem family is formalized.",
     "evidence_boundary": "Indexing, source retrieval, README reference matching, benchmark rank, and external compilation are not active-project proof evidence and cannot close a theorem."
   },
   "latest_runtime_role_boundary_alignment": {
@@ -101,16 +101,16 @@
     "strict_e2e_capability_ready": false,
     "verification": {
       "research_agent_runtime": "1185 tests passed and one stale expected-error-text assertion failed in 2251.78 seconds; after updating only that assertion, --last-failed passed the remaining test, giving 1186/1186 on the same production snapshot without rerunning 37 minutes of unchanged work",
-      "affected_supporting_tests": "Current formal-RAG verification has 27 passing focused tests across multi-corpus dependency routing, unambiguous declaration mapping, formal-source prompt context, retrieval diversification, runtime grounding, and benchmark/loop/system-audit metadata consumers; the prior 78 generated-code reviewer/router tests with 2 skipped, 35 runtime tests, and 40 model/evaluation policy tests remain the most recent coverage for the prior patch",
+      "affected_supporting_tests": "Current deterministic verification has 55 passing focused tests: 30 formal-source/scoped-corpus/import-dependency tests, 6 AgentRuntime grounding/model-policy tests, 12 model/evaluation policy tests, and 7 broader core formal-source/Lean-RAG tests. It includes fail-closed checksum and ambiguous-rename cases, source-scope isolation, no-proof-body loading, import-visible dependency filtering, legacy graph honesty, prompt budget, exact-Haiku evaluation pinning, and pre-client Opus rejection.",
       "exact_haiku_live_probe": "v141 enabled 10 Anthropic LLM lanes, all at claude-haiku-4-5-20251001; topology policy OK, both development tasks BLOCKED, 4 generated-code executions and sandbox passes, 4 confirmatory simulation executions and 0 passes, 0 formal gaps, 0 kernel subclaims, and 0 exact theorem closures",
       "prompt_projection_replay": "Fresh v141 reduced comparable confirmatory semantic-review inputs from about 51k to 26-33k tokens and ownership-router total input from 98,391 to 32,668 while preserving fail-closed routing; total semantic-review input decreased only about 6% because v141 performed one additional review, and wall-clock convergence is not established.",
-      "formal_source_retrieval": "The active multi-graph benchmark is 6/6 configured gold families at recall@8=1.0 with MRR=0.777778; all 46 distinct README reference queries retrieve within 8; the three paper-core books are 21/21 rank 1; three direct default composite-retriever probes return the exact AI4SLT declaration at rank 1 with source-bound statement/proof dependency context",
+      "formal_source_retrieval": "The active multi-graph/source-scoped benchmark is 18/18 configured local gold cases at recall@8=1.0 with MRR=0.758796; all 47 current README reference queries retrieve within 8; the three paper-core books are 22/22 rank 1; import-closure probes reject unimported false dependency/consumer edges while retaining visible statement/proof dependencies",
       "focused_empirical_loop_tests": "the previously pushed TheoryDeveloper retry and metric-lineage regression remains covered by the complete runtime suite",
       "fresh_start_cross_task_e2e_tests": "fresh strict v39 completed theory/code/confirmatory-simulation for both development tasks, then blocked both at exact-target semantic review; frozen strict completion remains 0/2",
       "py_compile": "passed for every changed Python production module",
       "git_diff_check": "passed after final status update"
     },
-    "boundary": "Fresh v141 is negative exact-Haiku design evidence and completes neither development task. AI4SLT retrieval, declaration/import graph neighbors, and citation recall are candidate context only. Prompt compaction is efficiency evidence only. None establishes current-loop completion, simulation acceptance, theorem closure, held-out generalization, proof evidence, or full AI-Statistician readiness."
+    "boundary": "Fresh v141 is negative exact-Haiku design evidence and completes neither development task. AI4SLT retrieval, import-filtered graph neighbors, signature-corpus hits, and citation recall are candidate context only. This patch made zero provider calls. None establishes current-loop completion, simulation acceptance, theorem closure, held-out generalization, proof evidence, or full AI-Statistician readiness."
   },
   "latest_strict_formal_routing_probe": {
     "implementation": "reuse the existing FormalTargetSemanticReviewer, ProofEngineer, ExactSourceTheoremProver, OpenProver HLM, formal RAG, compiler feedback, and exact local Lean; keep all formal continuation inside typed AgentRuntime tasks",

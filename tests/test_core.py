@@ -1462,6 +1462,10 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
         self.assertIn("scilean_gaussian_calculus", optional_query_ids)
         self.assertIn("slt_vershynin_euclidean_covering", optional_query_ids)
         self.assertIn("slt_wainwright_master_error_bound", optional_query_ids)
+        self.assertIn(
+            "slt_wainwright_one_step_discretization",
+            optional_query_ids,
+        )
         self.assertIn("slt_boucheron_gaussian_concentration", optional_query_ids)
         source_ids = {
             source_id

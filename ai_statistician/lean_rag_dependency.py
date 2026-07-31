@@ -42,6 +42,10 @@ class LeanRagDependencyContext:
     proof_uses: tuple[str, ...] = ()
     source_id: str = ""
     db_path: str = ""
+    module: str = ""
+    direct_module_imports: tuple[str, ...] = ()
+    module_import_visibility_enforced: bool = False
+    dependency_resolution_policy: str = ""
 
 
 class LeanRagDependencyRetriever:
@@ -221,7 +225,7 @@ class LeanRagDependencyRetriever:
                 conn.row_factory = sqlite3.Row
                 candidate_rows = conn.execute(
                     """
-                    SELECT id, name, short_name, path
+                    SELECT id, name, short_name, module, path, line_start
                     FROM declarations
                     WHERE name = ? OR short_name = ?
                     ORDER BY CASE WHEN name = ? THEN 0 ELSE 1 END,
@@ -242,13 +246,24 @@ class LeanRagDependencyRetriever:
                 if row is None:
                     return None
                 decl_id = int(row["id"])
+                module = str(row["module"] or "")
+                line_start = int(row["line_start"] or 0)
+                module_import_visibility_enforced = bool(
+                    module and _table_exists(conn, "module_imports")
+                )
                 fan_in, fan_out = _fan_counts(conn, decl_id)
+                direct_module_imports = _direct_local_module_imports(
+                    conn,
+                    module,
+                )
                 statement_uses = _neighbor_names(
                     conn,
                     decl_id,
                     direction="out",
                     limit=limit,
                     scopes=("statement", "mixed"),
+                    module=module,
+                    line_start=line_start,
                 )
                 proof_uses = _neighbor_names(
                     conn,
@@ -256,11 +271,20 @@ class LeanRagDependencyRetriever:
                     direction="out",
                     limit=limit,
                     scopes=("proof", "mixed"),
+                    module=module,
+                    line_start=line_start,
                 )
                 uses = tuple(
                     dict.fromkeys((*statement_uses, *proof_uses))
                 )[:limit]
-                used_by = _neighbor_names(conn, decl_id, direction="in", limit=limit)
+                used_by = _neighbor_names(
+                    conn,
+                    decl_id,
+                    direction="in",
+                    limit=limit,
+                    module=module,
+                    line_start=line_start,
+                )
         except sqlite3.DatabaseError:
             return None
         return LeanRagDependencyContext(
@@ -272,6 +296,25 @@ class LeanRagDependencyRetriever:
             proof_uses=proof_uses,
             source_id=self.source_id,
             db_path=str(self.db_path),
+            module=module,
+            direct_module_imports=direct_module_imports,
+            module_import_visibility_enforced=(
+                module_import_visibility_enforced
+            ),
+            dependency_resolution_policy=(
+                (
+                    "Only declarations in the same earlier source region or in the "
+                    "transitive local import closure are exposed as dependencies; "
+                    "reverse users must occur later in the same module or import the "
+                    "target module transitively."
+                )
+                if module_import_visibility_enforced
+                else (
+                    "Legacy dependency graph has no usable module-import relation; "
+                    "neighbors are source-derived candidates without import-visibility "
+                    "filtering and require active-project validation."
+                )
+            ),
         )
 
     def _search_fts(self, query: str, *, limit: int) -> list[sqlite3.Row]:
@@ -361,8 +404,8 @@ class LeanRagDependencyRetriever:
         score = (
             len(overlap)
             + 2.0 * len(q_tokens & _tokens(name))
-            + min(fan_in, 30) / 6.0
-            + min(fan_out, 30) / 10.0
+            + min(fan_in, 10) / 20.0
+            + min(fan_out, 10) / 40.0
             + 10.0 / rank
         )
         if int(row["has_sorry"] or 0):
@@ -628,6 +671,8 @@ def _neighbor_names(
     direction: str,
     limit: int,
     scopes: tuple[str, ...] = (),
+    module: str = "",
+    line_start: int = 0,
 ) -> tuple[str, ...]:
     scope_clause = ""
     params: list[object] = [decl_id]
@@ -635,8 +680,46 @@ def _neighbor_names(
         placeholders = ", ".join("?" for _ in scopes)
         scope_clause = f" AND e.scope IN ({placeholders})"
         params.extend(scopes)
-    params.append(limit)
+    bounded_limit = max(0, int(limit))
+    if bounded_limit <= 0:
+        return ()
+    import_filter_available = bool(
+        module
+        and _table_exists(conn, "module_imports")
+    )
     if direction == "out":
+        if import_filter_available:
+            rows = conn.execute(
+                f"""
+                WITH RECURSIVE reachable(module) AS (
+                  SELECT ?
+                  UNION
+                  SELECT mi.dst_module
+                  FROM module_imports mi
+                  JOIN reachable r ON mi.src_module = r.module
+                  WHERE mi.is_local_dst = 1
+                )
+                SELECT dst.name
+                FROM declaration_edges e
+                JOIN declarations dst ON dst.id = e.dst_decl_id
+                WHERE e.src_decl_id = ?
+                  {scope_clause}
+                  AND dst.module IN (SELECT module FROM reachable)
+                  AND (dst.module != ? OR dst.line_start < ?)
+                ORDER BY e.scope, e.weight DESC, dst.name
+                LIMIT ?
+                """,
+                [
+                    module,
+                    decl_id,
+                    *scopes,
+                    module,
+                    line_start,
+                    bounded_limit,
+                ],
+            ).fetchall()
+            return tuple(str(row[0]) for row in rows)
+        params.append(bounded_limit)
         rows = conn.execute(
             f"""
             SELECT dst.name
@@ -650,6 +733,38 @@ def _neighbor_names(
             params,
         ).fetchall()
     else:
+        if import_filter_available:
+            rows = conn.execute(
+                f"""
+                WITH RECURSIVE consumers(module) AS (
+                  SELECT ?
+                  UNION
+                  SELECT mi.src_module
+                  FROM module_imports mi
+                  JOIN consumers c ON mi.dst_module = c.module
+                  WHERE mi.is_local_dst = 1
+                )
+                SELECT src.name
+                FROM declaration_edges e
+                JOIN declarations src ON src.id = e.src_decl_id
+                WHERE e.dst_decl_id = ?
+                  {scope_clause}
+                  AND src.module IN (SELECT module FROM consumers)
+                  AND (src.module != ? OR src.line_start > ?)
+                ORDER BY e.weight DESC, src.name
+                LIMIT ?
+                """,
+                [
+                    module,
+                    decl_id,
+                    *scopes,
+                    module,
+                    line_start,
+                    bounded_limit,
+                ],
+            ).fetchall()
+            return tuple(str(row[0]) for row in rows)
+        params.append(bounded_limit)
         rows = conn.execute(
             f"""
             SELECT src.name
@@ -662,4 +777,23 @@ def _neighbor_names(
             """,
             params,
         ).fetchall()
+    return tuple(str(row[0]) for row in rows)
+
+
+def _direct_local_module_imports(
+    conn: sqlite3.Connection,
+    module: str,
+) -> tuple[str, ...]:
+    if not module or not _table_exists(conn, "module_imports"):
+        return ()
+    rows = conn.execute(
+        """
+        SELECT DISTINCT dst_module
+        FROM module_imports
+        WHERE src_module = ?
+          AND is_local_dst = 1
+        ORDER BY dst_module
+        """,
+        (module,),
+    ).fetchall()
     return tuple(str(row[0]) for row in rows)

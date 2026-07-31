@@ -39,10 +39,12 @@ class FormalSourceHybridRetriever:
         sqlite_index: FormalSourceSqliteIndex,
         *,
         dependency_retriever: object | None = None,
+        scoped_premise_retrievers: tuple[object, ...] = (),
     ) -> None:
         self.declarations = declarations
         self.sqlite_index = sqlite_index
         self.dependency_retriever = dependency_retriever
+        self.scoped_premise_retrievers = tuple(scoped_premise_retrievers)
         self.fallback_retriever = FormalSourceRetriever(declarations)
         setattr(self, "lean_rag_dependency_graph_enabled", dependency_retriever is not None)
         setattr(
@@ -73,6 +75,28 @@ class FormalSourceHybridRetriever:
         return list(self.declarations)
 
     def search(self, query: str, *, k: int = 10) -> list[FormalSourceHit]:
+        return self._search(query, k=k, source_scope_ids=())
+
+    def search_with_source_scope(
+        self,
+        query: str,
+        *,
+        source_scope_ids: tuple[str, ...],
+        k: int = 10,
+    ) -> list[FormalSourceHit]:
+        return self._search(
+            query,
+            k=k,
+            source_scope_ids=source_scope_ids,
+        )
+
+    def _search(
+        self,
+        query: str,
+        *,
+        k: int,
+        source_scope_ids: tuple[str, ...],
+    ) -> list[FormalSourceHit]:
         sqlite_candidate_k = max(k * 5, 20)
         try:
             sqlite_hits = self.sqlite_index.search(query, k=sqlite_candidate_k)
@@ -98,6 +122,13 @@ class FormalSourceHybridRetriever:
             search = getattr(self.dependency_retriever, "search", None)
             if callable(search):
                 dependency_hits = search(query, k=max(k * 2, 10))
+        scoped_premise_hits = _search_scoped_premise_retrievers(
+            self.scoped_premise_retrievers,
+            query=query,
+            base_hits=sqlite_hits,
+            source_scope_ids=source_scope_ids,
+            k=max(k * 2, 10),
+        )
 
         by_key: dict[tuple[str, str, int, str], FormalDeclaration] = {}
         score_by_key: dict[tuple[str, str, int, str], float] = defaultdict(float)
@@ -145,6 +176,19 @@ class FormalSourceHybridRetriever:
             matched_by_key[key].update(hit.matched_terms)
             matched_by_key[key].add("lean_rag_dependency_graph")
 
+        for rank, hit in scoped_premise_hits:
+            local_matches = _local_declarations_for_scoped_premise_hit(
+                hit.declaration,
+                by_name=self._declarations_by_name,
+            )
+            target_declarations = local_matches[:1] or [hit.declaration]
+            for declaration in target_declarations:
+                key = _decl_key(declaration)
+                by_key[key] = declaration
+                score_by_key[key] += hit.score + 4.0 / rank
+                matched_by_key[key].update(hit.matched_terms)
+                matched_by_key[key].add("source_scoped_premise_corpus")
+
         rows = [
             _AccumulatedHit(
                 declaration=decl,
@@ -185,16 +229,25 @@ class FormalSourceDependencyHybridRetriever:
         self,
         declarations: list[FormalDeclaration],
         base_retriever: object,
-        dependency_retriever: object,
+        dependency_retriever: object | None,
+        *,
+        scoped_premise_retrievers: tuple[object, ...] = (),
     ) -> None:
         self.declarations = declarations
         self.base_retriever = base_retriever
         self.dependency_retriever = dependency_retriever
-        setattr(self, "lean_rag_dependency_graph_enabled", True)
+        self.scoped_premise_retrievers = tuple(scoped_premise_retrievers)
+        setattr(
+            self,
+            "lean_rag_dependency_graph_enabled",
+            dependency_retriever is not None,
+        )
         setattr(
             self,
             "lean_rag_dependency_graph_path",
-            str(getattr(dependency_retriever, "db_path", "")),
+            str(getattr(dependency_retriever, "db_path", ""))
+            if dependency_retriever is not None
+            else "",
         )
         setattr(
             self,
@@ -213,10 +266,39 @@ class FormalSourceDependencyHybridRetriever:
         return list(self.declarations)
 
     def search(self, query: str, *, k: int = 10) -> list[FormalSourceHit]:
+        return self._search(query, k=k, source_scope_ids=())
+
+    def search_with_source_scope(
+        self,
+        query: str,
+        *,
+        source_scope_ids: tuple[str, ...],
+        k: int = 10,
+    ) -> list[FormalSourceHit]:
+        return self._search(
+            query,
+            k=k,
+            source_scope_ids=source_scope_ids,
+        )
+
+    def _search(
+        self,
+        query: str,
+        *,
+        k: int,
+        source_scope_ids: tuple[str, ...],
+    ) -> list[FormalSourceHit]:
         base_search = getattr(self.base_retriever, "search", None)
         base_hits = base_search(query, k=max(k * 3, 10)) if callable(base_search) else []
         dependency_search = getattr(self.dependency_retriever, "search", None)
         dependency_hits = dependency_search(query, k=max(k * 2, 10)) if callable(dependency_search) else []
+        scoped_premise_hits = _search_scoped_premise_retrievers(
+            self.scoped_premise_retrievers,
+            query=query,
+            base_hits=base_hits,
+            source_scope_ids=source_scope_ids,
+            k=max(k * 2, 10),
+        )
 
         by_key: dict[tuple[str, str, int, str], FormalDeclaration] = {}
         score_by_key: dict[tuple[str, str, int, str], float] = defaultdict(float)
@@ -248,6 +330,19 @@ class FormalSourceDependencyHybridRetriever:
             score_by_key[key] += hit.score + 10.0 / rank
             matched_by_key[key].update(hit.matched_terms)
             matched_by_key[key].add("lean_rag_dependency_graph")
+
+        for rank, hit in scoped_premise_hits:
+            local_matches = _local_declarations_for_scoped_premise_hit(
+                hit.declaration,
+                by_name=self._declarations_by_name,
+            )
+            target_declarations = local_matches[:1] or [hit.declaration]
+            for declaration in target_declarations:
+                key = _decl_key(declaration)
+                by_key[key] = declaration
+                score_by_key[key] += hit.score + 4.0 / rank
+                matched_by_key[key].update(hit.matched_terms)
+                matched_by_key[key].add("source_scoped_premise_corpus")
 
         rows = [
             _AccumulatedHit(
@@ -287,3 +382,58 @@ def _local_declarations_for_dependency_hit(
         [],
     )
     return short_matches if len(short_matches) == 1 else []
+
+
+def _search_scoped_premise_retrievers(
+    retrievers: tuple[object, ...],
+    *,
+    query: str,
+    base_hits: list[FormalSourceHit],
+    source_scope_ids: tuple[str, ...],
+    k: int,
+) -> list[tuple[int, FormalSourceHit]]:
+    requested_scopes = {
+        str(value).strip()
+        for value in source_scope_ids
+        if str(value).strip()
+    }
+    if not requested_scopes and base_hits:
+        requested_scopes.add(base_hits[0].declaration.source_id)
+    rows: list[tuple[int, FormalSourceHit]] = []
+    for retriever in retrievers:
+        supports = getattr(retriever, "supports_anchor_source_id", None)
+        if not callable(supports) or not any(
+            supports(source_id)
+            for source_id in requested_scopes
+        ):
+            continue
+        search = getattr(retriever, "search", None)
+        if not callable(search):
+            continue
+        for rank, hit in enumerate(search(query, k=k), start=1):
+            rows.append((rank, hit))
+    return rows
+
+
+def _local_declarations_for_scoped_premise_hit(
+    declaration: FormalDeclaration,
+    *,
+    by_name: dict[str, list[FormalDeclaration]],
+) -> list[FormalDeclaration]:
+    exact = list(by_name.get(declaration.name, []))
+    if len(exact) <= 1:
+        return exact
+    normalized_path = declaration.path.replace("\\", "/").strip("/")
+    path_matches = [
+        row
+        for row in exact
+        if (
+            row.path.replace("\\", "/").strip("/").endswith(normalized_path)
+            or normalized_path.endswith(
+                row.path.replace("\\", "/").strip("/")
+            )
+        )
+    ]
+    if len(path_matches) == 1:
+        return path_matches
+    return []
