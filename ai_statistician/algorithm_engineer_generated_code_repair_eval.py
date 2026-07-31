@@ -107,11 +107,45 @@ def run_algorithm_engineer_generated_code_repair_eval(
                     {
                         "id": estimator_id,
                         "name": "Generated algorithm repair probe",
+                        "formula": "return deterministic finite smoke diagnostics",
                         "algorithm_sketch": (
                             "Implement the estimator described by this theory packet "
                             "as a bounded generated-code sandbox and return finite "
                             "smoke diagnostics suitable for semantic review."
                         ),
+                        "required_assumptions": [
+                            "seed and replicate count are finite runtime controls"
+                        ],
+                        "estimator_interface_contract": {
+                            "request_fields": [
+                                {
+                                    "name": "seed",
+                                    "meaning": "deterministic sandbox seed",
+                                    "binding": "runtime_control",
+                                },
+                                {
+                                    "name": "replicates",
+                                    "meaning": "bounded sandbox replicate count",
+                                    "binding": "runtime_control",
+                                },
+                            ],
+                            "response_fields": [
+                                {
+                                    "name": "sandbox_failed",
+                                    "meaning": "whether bounded execution failed",
+                                    "normalization": "boolean execution diagnostic",
+                                    "sample_size_order": "not sample-size indexed",
+                                    "derivation_ref": "component_eval_contract",
+                                },
+                                {
+                                    "name": "replicates",
+                                    "meaning": "consumed runtime replicate count",
+                                    "normalization": "unscaled integer runtime control",
+                                    "sample_size_order": "not sample-size indexed",
+                                    "derivation_ref": "component_eval_contract",
+                                },
+                            ],
+                        },
                         "validation_metrics": ["sandbox_failed", "replicates"],
                     }
                 ],

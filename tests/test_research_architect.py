@@ -22,6 +22,10 @@ from ai_statistician.cli import (
     main,
 )
 from ai_statistician.llm_json_repair import PacketValidationError
+from ai_statistician.estimator_interface_contract import (
+    ESTIMATOR_REQUEST_BINDINGS,
+    estimator_interface_contract_id,
+)
 from ai_statistician.model_backend import (
     DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
     GeneratorRequest,
@@ -212,6 +216,24 @@ def _sample_response() -> dict[str, object]:
                 "algorithm_sketch": "fit nuisances on folds and evaluate held-out scores",
                 "tuning": ["number of folds"],
                 "required_assumptions": ["positivity", "product-rate nuisance convergence"],
+                "estimator_interface_contract": {
+                    "request_fields": [
+                        {
+                            "name": "observations",
+                            "meaning": "one replicate of observed O_i=(X_i,A_i,Y_i)",
+                            "binding": "per_replicate_data",
+                        }
+                    ],
+                    "response_fields": [
+                        {
+                            "name": "estimate",
+                            "meaning": "cross-fitted AIPW estimate of psi",
+                            "normalization": "finite-sample point estimate, not root-n scaled",
+                            "sample_size_order": "O(1)",
+                            "derivation_ref": "orthogonal_expansion",
+                        }
+                    ],
+                },
             }
         ],
         "theorem_cards": [
@@ -363,6 +385,32 @@ def test_theory_validation_requires_operational_precode_semantics() -> None:
     assert "simulation_ademp_spec.dgps must be a non-empty list" in errors
 
 
+def test_theory_validation_rejects_unresolved_estimator_semantic_reference() -> None:
+    packet = _sample_response()
+    estimator = dict(packet["estimator_specs"][0])
+    contract = dict(estimator["estimator_interface_contract"])
+    response_fields = [dict(row) for row in contract["response_fields"]]
+    response_fields[0]["derivation_ref"] = "missing_theory_step"
+    contract["response_fields"] = response_fields
+    estimator["estimator_interface_contract"] = contract
+    estimator["estimator_interface_contract_id"] = (
+        estimator_interface_contract_id(contract)
+    )
+    packet["estimator_specs"] = [estimator]
+    packet["proof_evidence_status"] = THEORY_DERIVATION_NOT_PROOF_EVIDENCE
+    packet["kernel_verified"] = False
+
+    errors = validate_theory_packet(packet)
+
+    unresolved = next(
+        row
+        for row in errors
+        if "unresolved derivation_ref missing_theory_step" in row
+    )
+    assert "choose exactly one allowed reference id from:" in unresolved
+    assert "orthogonal_expansion" in unresolved
+
+
 def test_serious_theory_validation_requires_explicit_sanity_recomputations() -> None:
     packet = _sample_response()
     derivation = dict(packet["theory_derivation_packet"])
@@ -466,8 +514,22 @@ def test_theory_developer_anthropic_request_uses_structured_output() -> None:
     )
 
     assert packet["ok"] is True
+    estimator = packet["estimator_specs"][0]
+    assert estimator["estimator_interface_contract_id"] == (
+        estimator_interface_contract_id(
+            estimator["estimator_interface_contract"]
+        )
+    )
     assert provider.requests[0].metadata["provider_structured_output"] is True
     assert provider.requests[0].schema is not None
+    interface_schema = provider.requests[0].schema["properties"][
+        "estimator_specs"
+    ]["items"]["properties"]["estimator_interface_contract"]
+    assert interface_schema["properties"]["request_fields"]["minItems"] == 1
+    assert interface_schema["properties"]["response_fields"]["minItems"] == 1
+    assert interface_schema["properties"]["request_fields"]["items"][
+        "properties"
+    ]["binding"]["enum"] == list(ESTIMATOR_REQUEST_BINDINGS)
 
 
 def test_theory_developer_opts_into_one_strict_progress_patch(
@@ -689,6 +751,13 @@ def test_llm_theory_developer_canonicalizes_common_schema_variants() -> None:
     ]
     derivation.pop("formalization_handoff", None)
     response["theory_derivation_packet"] = derivation
+    estimator = dict(response["estimator_specs"][0])
+    interface = dict(estimator["estimator_interface_contract"])
+    response_fields = [dict(row) for row in interface["response_fields"]]
+    response_fields[0]["derivation_ref"] = "E2"
+    interface["response_fields"] = response_fields
+    estimator["estimator_interface_contract"] = interface
+    response["estimator_specs"] = [estimator]
     provider = SequentialGeneratorBackend([response])
     developer = LLMTheoryDeveloperAgent(
         provider=provider,

@@ -13460,6 +13460,7 @@ def _estimator_interface_contract_fixture() -> dict[str, object]:
             {
                 "name": "observations",
                 "meaning": "sample used by the estimator",
+                "binding": "per_replicate_data",
             }
         ],
         "response_fields": [
@@ -13469,8 +13470,44 @@ def _estimator_interface_contract_fixture() -> dict[str, object]:
                 "normalization": (
                     "finite-sample estimate with no additional sample-size scaling"
                 ),
+                "sample_size_order": "O(1)",
+                "derivation_ref": "expansion",
             }
         ],
+    }
+
+
+def _structured_theory_packet_with_estimator_interface(
+    estimator_id: str,
+) -> dict[str, object]:
+    packet = _structured_theory_packet_fixture()
+    contract = _estimator_interface_contract_fixture()
+    packet["estimator_specs"] = [
+        {
+            "id": estimator_id,
+            "name": "generic estimator",
+            "formula": "estimate = sample functional",
+            "algorithm_sketch": "compute the declared sample functional",
+            "required_assumptions": ["positivity"],
+            "estimator_interface_contract": contract,
+            "estimator_interface_contract_id": (
+                "estimator_interface_contract:"
+                + runtime_module.stable_hash(contract)[:20]
+            ),
+        }
+    ]
+    return packet
+
+
+def _estimator_interface_authority_fixture() -> dict[str, object]:
+    return {
+        "owner_agent": "TheoryDeveloper",
+        "source_theory_packet_id": "theory_derivation:structured",
+        "source_theory_packet_hash": "theory-hash",
+        "source_estimator_ref": (
+            "theory#/estimator_specs/0/estimator_interface_contract"
+        ),
+        "transport_status": "RUNTIME_BOUND_FROM_THEORY",
     }
 
 
@@ -25045,6 +25082,25 @@ def test_semantic_review_selects_source_planned_repair_task() -> None:
     assert selected_fallback["task_id"] == source_execution_task.task_id
 
 
+def _metric_sample_size_order_derivation_fixture(
+    *,
+    evidence_ref: str,
+) -> dict[str, object]:
+    return {
+        "primitive_orders": [
+            {
+                "quantity": "theta",
+                "order": "O(1)",
+                "justification": "theta is the fixed scalar in the cited fixture",
+                "evidence_ref": evidence_ref,
+            }
+        ],
+        "composition": "metric_value = theta = O(1)",
+        "orders_agree": True,
+        "unresolved_assumptions": [],
+    }
+
+
 def test_live_architect_preauthors_metric_contract_with_structured_substage() -> None:
     question = next(
         question
@@ -25217,6 +25273,14 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
                                 "convention_consistent": True,
                                 "unresolved_conflicts": [],
                             },
+                            "sample_size_order_derivation": (
+                                _metric_sample_size_order_derivation_fixture(
+                                    evidence_ref=(
+                                        "requirement:sequential:"
+                                        "simulationengineer:gate.threshold"
+                                    )
+                                )
+                            ),
                             "result": "The scalar comparison is coherent.",
                             "verdict": "PASS",
                             "evidence_refs": [
@@ -25256,6 +25320,14 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
                                 "convention_consistent": True,
                                 "unresolved_conflicts": [],
                             },
+                            "sample_size_order_derivation": (
+                                _metric_sample_size_order_derivation_fixture(
+                                    evidence_ref=(
+                                        "requirement:sequential:"
+                                        "simulationengineer:gate.operator"
+                                    )
+                                )
+                            ),
                             "result": "The pass set matches the protocol.",
                             "verdict": "PASS",
                             "evidence_refs": [
@@ -25295,6 +25367,13 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
                                 "convention_consistent": True,
                                 "unresolved_conflicts": [],
                             },
+                            "sample_size_order_derivation": (
+                                _metric_sample_size_order_derivation_fixture(
+                                    evidence_ref=(
+                                        "theory#/estimator_specs/0/formula"
+                                    )
+                                )
+                            ),
                             "result": (
                                 "The estimator primitive and metric input agree."
                             ),
@@ -25774,6 +25853,9 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
                                 _estimator_interface_contract_fixture()
                             )[:20]
                         ),
+                        "estimator_interface_contract_authority": (
+                            _estimator_interface_authority_fixture()
+                        ),
                     },
                 },
             }
@@ -25827,6 +25909,9 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert accepted_interface["estimator_interface_contract_id"].startswith(
         "estimator_interface_contract:"
     )
+    assert accepted_interface["estimator_interface_contract_authority"][
+        "owner_agent"
+    ] == "TheoryDeveloper"
     handoff_prompt = build_simulation_engineer_prompt(
         question=question,
         theory_packet=theory_packet,
@@ -26293,6 +26378,14 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
                                 "convention_consistent": True,
                                 "unresolved_conflicts": [],
                             },
+                            "sample_size_order_derivation": (
+                                _metric_sample_size_order_derivation_fixture(
+                                    evidence_ref=(
+                                        "requirement:generic:"
+                                        "simulationengineer:gate"
+                                    )
+                                )
+                            ),
                             "result": (
                                 "The revised gate is attainable."
                                 if accepted
@@ -26620,6 +26713,14 @@ def test_live_architect_stops_metric_rewrites_for_upstream_theory_gap() -> None:
                                     "convention_consistent": True,
                                     "unresolved_conflicts": [],
                                 },
+                                "sample_size_order_derivation": (
+                                    _metric_sample_size_order_derivation_fixture(
+                                        evidence_ref=(
+                                            "requirement:generic:"
+                                            "simulationengineer:gate"
+                                        )
+                                    )
+                                ),
                                 "result": "The pass set is typed but lacks authority.",
                                 "verdict": "PASS",
                                 "evidence_refs": [
@@ -26817,6 +26918,14 @@ def test_live_architect_uses_artifact_router_to_correct_repair_owner() -> None:
                                     "convention_consistent": True,
                                     "unresolved_conflicts": [],
                                 },
+                                "sample_size_order_derivation": (
+                                    _metric_sample_size_order_derivation_fixture(
+                                        evidence_ref=(
+                                            "requirement:generic:"
+                                            "simulationengineer:owner-routing"
+                                        )
+                                    )
+                                ),
                                 "result": "The candidate evaluator pass set is typed.",
                                 "verdict": "PASS",
                                 "evidence_refs": [
@@ -28876,7 +28985,7 @@ def test_generated_code_semantic_reviewer_distinguishes_exploration_from_confirm
     assert "no protocol is frozen" in exploratory_prompt
     assert "This is confirmatory execution" in confirmatory_prompt
     assert "Preserve the frozen protocol" in confirmatory_prompt
-    assert "estimator_interface_contract as an auditable" in confirmatory_prompt
+    assert "estimator_interface_contract as immutable" in confirmatory_prompt
     assert "without an undeclared transformation" in confirmatory_prompt
 
 
@@ -28978,7 +29087,9 @@ def test_algorithm_engineer_uses_structured_execution_envelope_for_anthropic() -
         ),
     ).propose(
         question=question,
-        theory_packet=_structured_theory_packet_fixture(),
+        theory_packet=_structured_theory_packet_with_estimator_interface(
+            "candidate"
+        ),
         simulation_manifest={"manifest_id": "simulation:accepted"},
         implementation_gaps=[{"estimator_id": "candidate"}],
         environment_feedback={
@@ -28994,7 +29105,7 @@ def test_algorithm_engineer_uses_structured_execution_envelope_for_anthropic() -
     target_schema = request.schema["properties"]["implementation_targets"][
         "items"
     ]
-    assert "estimator_interface_contract" in target_schema["required"]
+    assert "estimator_interface_contract" not in target_schema["required"]
     assert packet["metric_contracts"] == []
     assert packet["implementation_targets"][0][
         "estimator_interface_contract_id"
@@ -29477,6 +29588,9 @@ def test_algorithm_engineer_capability_eval_validator_accepts_generated_draft() 
                     "estimator_interface_contract": (
                         _estimator_interface_contract_fixture()
                     ),
+                    "estimator_interface_contract_authority": (
+                        _estimator_interface_authority_fixture()
+                    ),
                 }
             ],
             "sandbox_code_drafts": [
@@ -29530,9 +29644,6 @@ def test_algorithm_engineer_normalizes_sandbox_draft_metadata() -> None:
                 {
                     "estimator_id": "E1",
                     "registered_template_hint": "none",
-                    "estimator_interface_contract": (
-                        _estimator_interface_contract_fixture()
-                    ),
                 }
             ],
             "sandbox_code_drafts": [
@@ -29551,7 +29662,7 @@ def test_algorithm_engineer_normalizes_sandbox_draft_metadata() -> None:
         provider_name="anthropic",
         backend_provider_name="anthropic",
         raw_response="{}",
-        theory_packet=_structured_theory_packet_fixture(),
+        theory_packet=_structured_theory_packet_with_estimator_interface("E1"),
         implementation_gaps=[
             {
                 "estimator_id": "E1",
@@ -29564,6 +29675,13 @@ def test_algorithm_engineer_normalizes_sandbox_draft_metadata() -> None:
     assert draft["language"] == "python"
     assert draft["entrypoint"] == "run_sandbox"
     assert draft["estimator_id"] == "E1"
+    target = packet["implementation_targets"][0]
+    assert target["estimator_interface_contract"] == (
+        _estimator_interface_contract_fixture()
+    )
+    assert target["estimator_interface_contract_authority"][
+        "transport_status"
+    ] == "RUNTIME_BOUND_FROM_THEORY"
     assert packet["backend_provider"] == "anthropic"
     contract = packet["theory_trace_consumption_contract"]
     assert contract["consumer_subsystem"] == "AlgorithmEngineer"
@@ -29585,6 +29703,58 @@ def test_algorithm_engineer_normalizes_sandbox_draft_metadata() -> None:
             ],
         )
         == []
+    )
+
+
+def test_algorithm_engineer_rejects_downstream_estimator_semantic_redefinition() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    redefined_contract = copy.deepcopy(_estimator_interface_contract_fixture())
+    redefined_contract["response_fields"][0]["sample_size_order"] = "O(n)"
+    packet = _normalize_algorithm_packet(
+        {
+            "theory_trace_alignment": _structured_theory_trace_alignment_fixture(),
+            "implementation_targets": [
+                {
+                    "estimator_id": "E1",
+                    "registered_template_hint": "none",
+                    "estimator_interface_contract": redefined_contract,
+                }
+            ],
+            "sandbox_code_drafts": [
+                {
+                    "estimator_id": "E1",
+                    "language": "python",
+                    "entrypoint": "run_sandbox",
+                    "code": (
+                        "def run_sandbox(seed, replicates):\n"
+                        "    return {'sandbox_failed': False}\n"
+                    ),
+                }
+            ],
+            "metric_contracts": [],
+            "next_actions": [{"owner": "AlgorithmEngineer", "action": "execute"}],
+        },
+        question=question,
+        model="claude-haiku-4-5-20251001",
+        model_tier="haiku",
+        provider_name="anthropic",
+        backend_provider_name="anthropic",
+        raw_response="{}",
+        theory_packet=_structured_theory_packet_with_estimator_interface("E1"),
+        implementation_gaps=[{"estimator_id": "E1"}],
+        requires_generated_code=True,
+    )
+
+    target = packet["implementation_targets"][0]
+    assert target["estimator_interface_contract"] == (
+        _estimator_interface_contract_fixture()
+    )
+    assert target["estimator_interface_contract_authority"][
+        "transport_status"
+    ] == "REJECTED_ALGORITHM_REDEFINITION"
+    assert any(
+        "cannot redefine the TheoryDeveloper estimator interface contract" in error
+        for error in validate_algorithm_engineer_packet(packet)
     )
 
 
@@ -29627,7 +29797,7 @@ def test_algorithm_engineer_normalizes_capability_eval_target_metadata() -> None
         provider_name="anthropic",
         backend_provider_name="anthropic",
         raw_response="{}",
-        theory_packet=_structured_theory_packet_fixture(),
+        theory_packet=_structured_theory_packet_with_estimator_interface("E1"),
         implementation_gaps=[
             {
                 "estimator_id": "E1",
@@ -29696,7 +29866,9 @@ def test_algorithm_engineer_binds_single_generated_target_to_canonical_gap_id() 
         provider_name="anthropic",
         backend_provider_name="anthropic",
         raw_response="{}",
-        theory_packet=_structured_theory_packet_fixture(),
+        theory_packet=_structured_theory_packet_with_estimator_interface(
+            "architect_canonical_estimator"
+        ),
         implementation_gaps=[
             {
                 "estimator_id": "architect_canonical_estimator",
@@ -56943,9 +57115,6 @@ def _write_algorithm_repair_static_response(tmp_path: Path) -> Path:
                 "adapter_strategy": "repair generated estimator execution",
                 "registered_template_hint": "none",
                 "data_contract": ["generated component eval fixture"],
-                "estimator_interface_contract": (
-                    _estimator_interface_contract_fixture()
-                ),
                 "validation_metrics": ["sandbox_failed", "replicates"],
                 "risk_controls": ["do not use registered templates"],
             }
@@ -91055,6 +91224,20 @@ def _runtime_sample_response() -> dict[str, object]:
                     "risk_if_dropped": "second-order remainder may dominate",
                 },
             ],
+            "sanity_checks": [
+                {
+                    "id": "generated_probe_interface",
+                    "claim_ref": "generated_bias_probe",
+                    "check_type": "normalization",
+                    "recomputation": (
+                        "The deterministic probe returns unscaled finite diagnostics "
+                        "from the supplied runtime controls."
+                    ),
+                    "result": "All declared outputs are finite and unscaled.",
+                    "conclusion": "PASS",
+                    "depends_on": [],
+                }
+            ],
             "formalization_handoff": {
                 "source_theorem_target": "aipw_asymptotic_normality",
                 "candidate_lean_targets": ["bounded_aipw_expansion"],
@@ -91075,6 +91258,26 @@ def _runtime_sample_response() -> dict[str, object]:
                 "algorithm_sketch": "fit nuisances on folds and evaluate held-out scores",
                 "tuning": ["number of folds"],
                 "required_assumptions": ["positivity", "product-rate nuisance convergence"],
+                "estimator_interface_contract": {
+                    "request_fields": [
+                        {
+                            "name": "observations",
+                            "meaning": "one replicate of observed treatment-outcome data",
+                            "binding": "per_replicate_data",
+                        }
+                    ],
+                    "response_fields": [
+                        {
+                            "name": "estimate",
+                            "meaning": "cross-fitted AIPW estimate of the ATE",
+                            "normalization": (
+                                "finite-sample point estimate, not root-n scaled"
+                            ),
+                            "sample_size_order": "O(1)",
+                            "derivation_ref": "orthogonal_expansion",
+                        }
+                    ],
+                },
             },
             {
                 "id": "generated_bias_probe",
@@ -91083,6 +91286,43 @@ def _runtime_sample_response() -> dict[str, object]:
                 "algorithm_sketch": "use an AgentRuntime-vetted generated Python sandbox draft",
                 "tuning": ["replicates"],
                 "required_assumptions": ["finite deterministic summary metrics"],
+                "estimator_interface_contract": {
+                    "request_fields": [
+                        {
+                            "name": "seed",
+                            "meaning": "deterministic runtime seed",
+                            "binding": "runtime_control",
+                        },
+                        {
+                            "name": "replicates",
+                            "meaning": "bounded runtime replicate count",
+                            "binding": "runtime_control",
+                        },
+                    ],
+                    "response_fields": [
+                        {
+                            "name": "mean_bias_probe",
+                            "meaning": "unscaled deterministic probe mean",
+                            "normalization": "finite average over runtime replicates",
+                            "sample_size_order": "not sample-size indexed",
+                            "derivation_ref": "generated_probe_interface",
+                        },
+                        {
+                            "name": "rmse",
+                            "meaning": "unscaled root mean squared probe value",
+                            "normalization": "finite root mean square over replicates",
+                            "sample_size_order": "not sample-size indexed",
+                            "derivation_ref": "generated_probe_interface",
+                        },
+                        {
+                            "name": "n_runs",
+                            "meaning": "consumed runtime replicate count",
+                            "normalization": "unscaled integer runtime diagnostic",
+                            "sample_size_order": "not sample-size indexed",
+                            "derivation_ref": "generated_probe_interface",
+                        },
+                    ],
+                },
             }
         ],
         "theorem_cards": [

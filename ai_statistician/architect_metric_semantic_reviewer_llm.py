@@ -327,6 +327,8 @@ def _architect_metric_claim_check_contract(
             "general claim_check. Each check must independently recompute the "
             "metric, record its normalization_and_unit_audit, and reconstruct the "
             "source-to-protocol normalization without changing the source notation; "
+            "sample_size_order_derivation must expose primitive orders and their "
+            "composition instead of merely asserting a final order; "
             "every foundational_identity_rows entry must also have a claim_check "
             "whose claim_ref exactly matches its required_claim_ref and which "
             "reconstructs the identity from primitives rather than citing a prior "
@@ -382,10 +384,36 @@ def _architect_metric_foundational_identity_rows(
             else ""
         )
         if required_claim_ref:
+            interface = raw_spec.get("estimator_interface_contract", {})
+            response_fields = (
+                interface.get("response_fields", []) or []
+                if isinstance(interface, Mapping)
+                else []
+            )
+            response_semantics = [
+                {
+                    "field_ref": (
+                        f"theory#/estimator_specs/{index}/"
+                        f"estimator_interface_contract/response_fields/{field_index}"
+                    ),
+                    "name": str(field.get("name", "") or ""),
+                    "normalization": str(field.get("normalization", "") or ""),
+                    "sample_size_order": str(
+                        field.get("sample_size_order", "") or ""
+                    ),
+                    "derivation_ref": str(field.get("derivation_ref", "") or ""),
+                }
+                for field_index, field in enumerate(response_fields)
+                if isinstance(field, Mapping)
+            ]
             rows.append(
                 {
                     "estimator_id": estimator_id,
                     "required_claim_ref": required_claim_ref,
+                    "estimator_interface_contract_id": str(
+                        raw_spec.get("estimator_interface_contract_id", "") or ""
+                    ),
+                    "response_semantics": response_semantics,
                 }
             )
     return rows
@@ -1209,6 +1237,9 @@ def _architect_metric_rejected_review_consistency_state(
             "normalization_reconstruction": deepcopy(
                 row.get("normalization_reconstruction", {})
             ),
+            "sample_size_order_derivation": deepcopy(
+                row.get("sample_size_order_derivation", {})
+            ),
             "result": str(row.get("result", "") or "").strip(),
             "evidence_refs": [
                 str(value).strip()
@@ -1458,6 +1489,28 @@ def _architect_metric_semantic_review_repair_context(
         "rejected_review_packet": rejected_review,
         "repair_prompt_priority_instructions": [
             (
+                "Preserve every unresolved diagnostic from rejected_review_packet. "
+                "Never erase unresolved_assumptions or unresolved_conflicts merely to "
+                "make PASS validate. Instead set the affected claim verdict to FAIL, "
+                "set the corresponding dimension to FAIL, emit a high or critical "
+                "finding with the correct repair scope, and set overall_verdict to "
+                "REVISE. Correct the diagnostic itself only when the supplied current "
+                "artifacts explicitly resolve it."
+            ),
+            (
+                "Close rejected_review_consistency_state as one judgment: either "
+                "retain each failed recomputation with a relevant FAIL dimension and "
+                "high/critical finding, or correct the recomputation, result, and "
+                "claim verdict together. Never hide a failed check behind all-PASS "
+                "dimensions."
+            ),
+            (
+                "Preserve claim_checks coverage for every requirement_id listed in "
+                "metric_claim_check_contract. Rebuild normalization and sample-size "
+                "order derivations from cited primitives; disagreement or unresolved "
+                "assumptions require FAIL."
+            ),
+            (
                 "Set prior_finding_reviews=[] when expected_prior_finding_ids is "
                 "empty; otherwise emit exactly one row per listed ID and no others."
             ),
@@ -1506,25 +1559,6 @@ def _architect_metric_semantic_review_repair_context(
                 "that finding's status_citation_contract. The list constrains citation "
                 "lineage only; independently decide whether the exact current value "
                 "semantically supports that status."
-            ),
-            (
-                "Close rejected_review_consistency_state as one judgment: either "
-                "retain each failed recomputation with a relevant FAIL dimension and "
-                "high/critical finding, or correct the recomputation, result, and "
-                "claim verdict together. Never hide a failed check behind all-PASS "
-                "dimensions."
-            ),
-            (
-                "Preserve claim_checks coverage for every requirement_id listed in "
-                "metric_claim_check_contract. For each row, repair or supply its "
-                "normalization_and_unit_audit by tracing finite-sample versus "
-                "asymptotic quantities, units, sample-size order, and every n, "
-                "sqrt(n), replicate-count, and aggregation factor. Rebuild "
-                "normalization_reconstruction from the exact source and protocol "
-                "expressions without reinterpreting either one. A false "
-                "convention_consistent value or any unresolved conflict requires "
-                "that claim_check to remain FAIL. Do not infer the statistical "
-                "verdict mechanically from any other runtime instruction."
             ),
             (
                 "For every row in "
@@ -1673,7 +1707,9 @@ def build_architect_metric_semantic_review_prompt(
     return (
         "Independently review the proposed empirical acceptance contract before "
         "any coding agent, simulation, or result exists. Return ONLY JSON matching "
-        "the required output contract. Before other claim checks, satisfy every row "
+        "the required output contract. Keep every free-text or equation field within "
+        "320 characters, cite artifact fields by ID, and do not repeat the same "
+        "derivation across multiple fields. Before other claim checks, satisfy every row "
         "in review_material.metric_claim_check_contract.foundational_identity_rows "
         "by mapping its exact estimator_id to the zero-based index of one claim_checks "
         "row that reconstructs it. Use a distinct index for each estimator. "
@@ -1732,8 +1768,15 @@ def build_architect_metric_semantic_review_prompt(
         "metric_claim_check_contract for the same requirement_id, and substitute "
         "the referenced protocol expression into the source expression "
         "without adding, deleting, or reinterpreting any normalization factor, and "
-        "state both the resulting and required sample-size order. If those orders "
-        "or conventions cannot be reconciled from the supplied artifacts, set "
+        "state both the resulting and required sample-size order. In "
+        "sample_size_order_derivation, list every primitive contributing an "
+        "n-dependent factor and display how products, sums, roots, ratios, and "
+        "explicit scaling combine. Cite the exact theory or requirement field for "
+        "each primitive; a bare assertion of a final big-O order is not a derivation. "
+        "List every unstated regime or regularity condition under "
+        "unresolved_assumptions, and set orders_agree only after comparing the "
+        "displayed composition with both declared orders. If those orders or "
+        "conventions cannot be reconciled from the supplied artifacts, set "
         "convention_consistent=false, list the unresolved conflict, and mark the "
         "claim FAIL. Never repair an inconsistency inside the review by silently "
         "changing what a source symbol denotes. Cross-check estimator definitions, "
@@ -1985,6 +2028,21 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_OUTPUT_CONTRACT: dict[str, Any] = {
                 "convention_consistent": True,
                 "unresolved_conflicts": [],
             },
+            "sample_size_order_derivation": {
+                "primitive_orders": [
+                    {
+                        "quantity": "primitive quantity",
+                        "order": "explicit order in sample size",
+                        "justification": "equation-level reason for this order",
+                        "evidence_ref": "exact source or theory field",
+                    }
+                ],
+                "composition": (
+                    "equation showing how primitive orders combine into the result"
+                ),
+                "orders_agree": True,
+                "unresolved_assumptions": [],
+            },
             "result": "computed or logically reduced result",
             "verdict": "PASS|FAIL",
             "evidence_refs": ["exact source field"],
@@ -2114,6 +2172,7 @@ _CLAIM_CHECK_SCHEMA: dict[str, Any] = {
         "recomputation",
         "normalization_and_unit_audit",
         "normalization_reconstruction",
+        "sample_size_order_derivation",
         "result",
         "verdict",
         "evidence_refs",
@@ -2168,6 +2227,44 @@ _CLAIM_CHECK_SCHEMA: dict[str, Any] = {
                 },
             },
         },
+        "sample_size_order_derivation": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "primitive_orders",
+                "composition",
+                "orders_agree",
+                "unresolved_assumptions",
+            ],
+            "properties": {
+                "primitive_orders": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": [
+                            "quantity",
+                            "order",
+                            "justification",
+                            "evidence_ref",
+                        ],
+                        "properties": {
+                            "quantity": {"type": "string", "minLength": 1},
+                            "order": {"type": "string", "minLength": 1},
+                            "justification": {"type": "string", "minLength": 1},
+                            "evidence_ref": {"type": "string", "minLength": 1},
+                        },
+                    },
+                },
+                "composition": {"type": "string", "minLength": 1},
+                "orders_agree": {"type": "boolean"},
+                "unresolved_assumptions": {
+                    "type": "array",
+                    "items": {"type": "string", "minLength": 1},
+                },
+            },
+        },
         "result": {"type": "string", "minLength": 1},
         "verdict": {"type": "string", "enum": ["PASS", "FAIL"]},
         "evidence_refs": {
@@ -2212,6 +2309,43 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
         },
     },
 }
+
+_ARCHITECT_METRIC_REVIEW_MAX_STRING_CHARS = 320
+_ARCHITECT_METRIC_REVIEW_ARRAY_LIMITS = {
+    "claim_checks": 12,
+    "primitive_orders": 6,
+    "unresolved_assumptions": 4,
+    "unresolved_conflicts": 4,
+    "evidence_refs": 8,
+    "findings": 8,
+    "repair_instructions": 8,
+}
+
+
+def _bound_architect_metric_review_schema(
+    value: Any,
+    *,
+    field_name: str = "",
+) -> None:
+    if not isinstance(value, dict):
+        return
+    if value.get("type") == "string":
+        value.setdefault("maxLength", _ARCHITECT_METRIC_REVIEW_MAX_STRING_CHARS)
+    if value.get("type") == "array":
+        limit = _ARCHITECT_METRIC_REVIEW_ARRAY_LIMITS.get(field_name)
+        if limit is not None and "maxItems" not in value:
+            value["maxItems"] = max(int(value.get("minItems", 0) or 0), limit)
+        _bound_architect_metric_review_schema(
+            value.get("items"),
+            field_name=field_name,
+        )
+    properties = value.get("properties", {})
+    if isinstance(properties, Mapping):
+        for child_name, child_schema in properties.items():
+            _bound_architect_metric_review_schema(
+                child_schema,
+                field_name=str(child_name),
+            )
 
 
 def architect_metric_semantic_review_json_schema(
@@ -2371,6 +2505,7 @@ def architect_metric_semantic_review_json_schema(
             "required": list(theory_scope_check_properties),
             "properties": theory_scope_check_properties,
         }
+    _bound_architect_metric_review_schema(schema)
     return schema
 
 
@@ -2697,6 +2832,9 @@ def validate_architect_metric_semantic_review_packet(
             if not str(row.get(field, "") or "").strip():
                 errors.append(f"claim check {index} missing {field}")
         check_type = str(row.get("check_type", "") or "")
+        normalization_reconstruction: Mapping[str, Any] = {}
+        order_agreement: Any = None
+        unresolved_order_assumptions: Any = []
         if check_type not in allowed_check_types:
             errors.append(f"claim check {index} has invalid check_type")
         if check_type != ARCHITECT_METRIC_THEORY_SCOPE_CHECK_TYPE:
@@ -2812,6 +2950,60 @@ def validate_architect_metric_semantic_review_packet(
                     f"claim check {index} normalization_reconstruction "
                     "contains empty unresolved_conflicts"
                 )
+            order_derivation = row.get("sample_size_order_derivation")
+            if not isinstance(order_derivation, Mapping):
+                errors.append(
+                    f"claim check {index} missing sample_size_order_derivation"
+                )
+                order_derivation = {}
+            primitive_orders = order_derivation.get("primitive_orders", [])
+            if not isinstance(primitive_orders, list) or not primitive_orders:
+                errors.append(
+                    f"claim check {index} sample_size_order_derivation "
+                    "requires primitive_orders"
+                )
+                primitive_orders = []
+            for primitive_index, primitive in enumerate(primitive_orders):
+                if not isinstance(primitive, Mapping):
+                    errors.append(
+                        f"claim check {index} sample_size_order_derivation "
+                        "primitive_orders entries must be objects"
+                    )
+                    continue
+                for field in ("quantity", "order", "justification", "evidence_ref"):
+                    if not str(primitive.get(field, "") or "").strip():
+                        errors.append(
+                            f"claim check {index} sample_size_order_derivation "
+                            f"primitive {primitive_index} missing {field}"
+                        )
+            if not str(order_derivation.get("composition", "") or "").strip():
+                errors.append(
+                    f"claim check {index} sample_size_order_derivation missing "
+                    "composition"
+                )
+            order_agreement = order_derivation.get("orders_agree")
+            if not isinstance(order_agreement, bool):
+                errors.append(
+                    f"claim check {index} sample_size_order_derivation requires "
+                    "boolean orders_agree"
+                )
+            unresolved_order_assumptions = order_derivation.get(
+                "unresolved_assumptions"
+            )
+            if not isinstance(unresolved_order_assumptions, list):
+                errors.append(
+                    f"claim check {index} sample_size_order_derivation requires "
+                    "unresolved_assumptions array"
+                )
+                unresolved_order_assumptions = []
+            elif any(
+                not str(value or "").strip()
+                for value in unresolved_order_assumptions
+            ):
+                errors.append(
+                    f"claim check {index} sample_size_order_derivation contains "
+                    "empty unresolved_assumptions"
+                )
         claim_verdict = str(row.get("verdict", "") or "").upper()
         if claim_verdict not in {"PASS", "FAIL"}:
             errors.append(f"claim check {index} has invalid verdict")
@@ -2852,6 +3044,25 @@ def validate_architect_metric_semantic_review_packet(
                 errors.append(
                     f"claim check {index} normalization reconstruction cannot "
                     "be consistent while listing unresolved conflicts"
+                )
+            if claim_verdict == "PASS" and order_agreement is not True:
+                errors.append(
+                    f"claim check {index} cannot PASS when sample-size orders "
+                    "do not agree"
+                )
+            if (
+                claim_verdict == "PASS"
+                and isinstance(unresolved_order_assumptions, list)
+                and unresolved_order_assumptions
+            ):
+                errors.append(
+                    f"claim check {index} cannot PASS with unresolved sample-size "
+                    "order assumptions"
+                )
+            if convention_consistent is True and order_agreement is False:
+                errors.append(
+                    f"claim check {index} normalization reconstruction cannot be "
+                    "consistent when sample-size orders disagree"
                 )
         evidence_refs = row.get("evidence_refs", [])
         if not isinstance(evidence_refs, list) or not any(

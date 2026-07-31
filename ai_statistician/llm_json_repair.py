@@ -53,7 +53,6 @@ _TYPED_SEMANTIC_PATCH_DIRECT_REPLACEMENT_SCHEMA: dict[str, Any] = {
         {"type": "number"},
         {"type": "boolean"},
         {"type": "null"},
-        {"type": "array", "items": {"type": "string"}},
     ]
 }
 _TYPED_SEMANTIC_PATCH_SCHEMA: dict[str, Any] = {
@@ -98,6 +97,8 @@ _VALIDATION_ERROR_TOP_LEVEL_ARRAY_PATH = re.compile(
     r"\b([A-Za-z_][A-Za-z0-9_]*)\[(\d+)\]"
 )
 _TYPED_SEMANTIC_PATCH_NONLOCAL_SHAPE_ERROR_PATTERNS = (
+    re.compile(r"\bcannot PASS\b", re.IGNORECASE),
+    re.compile(r"\bcannot be consistent\b", re.IGNORECASE),
     re.compile(r"\bmust contain each required\b", re.IGNORECASE),
     re.compile(r"\bmust contain\b.*\bexactly once\b", re.IGNORECASE),
     re.compile(
@@ -317,6 +318,8 @@ def generate_validated_json_packet(
             "response_text_chars": len(raw_text),
             "request_max_tokens": request_max_tokens,
             "progress_extension_attempt": progress_extension_attempt,
+            "payload_extracted": payload is not None,
+            "packet_built": packet is not None,
             "response_metadata": _compact_response_metadata(response.metadata),
         }
         if typed_semantic_patch_mode:
@@ -379,6 +382,11 @@ def generate_validated_json_packet(
                     base_payload_fingerprint=semantic_patch_base_fingerprint,
                     repair_context=repair_context,
                     max_updates=_typed_semantic_patch_update_budget(last_errors),
+                    source_schema=(
+                        request.schema
+                        if isinstance(request.schema, Mapping)
+                        else None
+                    ),
                 )
             else:
                 semantic_patch_base_payload = None
@@ -403,7 +411,7 @@ def generate_validated_json_packet(
 def _typed_semantic_patch_history_made_strict_progress(
     history: list[dict[str, Any]],
 ) -> bool:
-    """Allow one opt-in extension only after a smaller valid patch residual."""
+    """Allow one opt-in extension after bounded, machine-observable progress."""
 
     if len(history) < 2:
         return False
@@ -411,7 +419,7 @@ def _typed_semantic_patch_history_made_strict_progress(
     current = history[-1]
     previous_errors = previous.get("errors", [])
     current_errors = current.get("errors", [])
-    return bool(
+    patch_made_progress = bool(
         current.get("repair_mode") == "typed_semantic_patch"
         and isinstance(previous_errors, list)
         and isinstance(current_errors, list)
@@ -424,6 +432,23 @@ def _typed_semantic_patch_history_made_strict_progress(
         )
         and not _history_row_indicates_truncation(current)
     )
+    regeneration_reached_patchable_residual = bool(
+        current.get("repair_mode") == "full_packet_regeneration"
+        and current.get("payload_extracted") is True
+        and current.get("packet_built") is True
+        and isinstance(previous_errors, list)
+        and isinstance(current_errors, list)
+        and current_errors
+        and (
+            _history_row_indicates_truncation(previous)
+            or len(current_errors) < len(previous_errors)
+        )
+        and _typed_semantic_patch_fits_update_budget(
+            [str(error) for error in current_errors]
+        )
+        and not _history_row_indicates_truncation(current)
+    )
+    return patch_made_progress or regeneration_reached_patchable_residual
 
 
 def _typed_semantic_patch_prompt(
@@ -435,12 +460,17 @@ def _typed_semantic_patch_prompt(
     base_payload_fingerprint: str,
     repair_context: Mapping[str, Any] | None = None,
     max_updates: int,
+    source_schema: Mapping[str, Any] | None = None,
 ) -> str:
     base_payload_excerpt, base_payload_excerpt_metadata = (
         _compact_patch_base_payload(base_payload)
     )
     validation_error_focus_values = _validation_error_focus_values(
         base_payload,
+        errors=errors,
+    )
+    validation_error_focus_schemas = _validation_error_focus_schemas(
+        source_schema or {},
         errors=errors,
     )
     payload: dict[str, Any] = {
@@ -457,7 +487,7 @@ def _typed_semantic_patch_prompt(
             "updates": [
                 {
                     "path": ["top_level_field", 0, "nested_field"],
-                    "replacement": "direct scalar or array-of-strings value",
+                    "replacement": "direct scalar value",
                 },
                 {
                     "path": ["top_level_field", 1, "nested_object"],
@@ -484,11 +514,12 @@ def _typed_semantic_patch_prompt(
                 "subsystem_repair_context when they are supplied."
             ),
             (
-                "Use replacement directly for a string, number, boolean, null, or "
-                "array of strings; do not JSON-encode that direct value."
+                "Use replacement directly only for a string, number, boolean, or "
+                "null; do not JSON-encode that scalar value."
             ),
             (
-                "Use replacement_json only for a complex object or array, and make "
+                "Use replacement_json for every object or array, including arrays "
+                "of strings, and make "
                 "that string decode as exactly one valid JSON value. Include exactly "
                 "one of replacement or replacement_json in each update."
             ),
@@ -502,6 +533,11 @@ def _typed_semantic_patch_prompt(
                 "original array indices named by local validation errors. Use those "
                 "original paths even when base_payload_excerpt omits other rows."
             ),
+            (
+                "validation_error_focus_schemas, when present, is the authoritative "
+                "source schema for validator-named rows. Use its exact required keys, "
+                "item shapes, enums, and cardinality constraints."
+            ),
             "Do not remove evidence boundaries or claim unexecuted verification.",
         ],
         "original_request": _compact_original_request(
@@ -510,6 +546,10 @@ def _typed_semantic_patch_prompt(
             tail_chars=1200,
         ),
     }
+    if validation_error_focus_schemas:
+        payload["validation_error_focus_schemas"] = (
+            validation_error_focus_schemas
+        )
     payload["repair_instructions"].extend(
         _subsystem_priority_repair_instructions(repair_context)
     )
@@ -604,7 +644,7 @@ def _apply_typed_semantic_patch(
             if not _is_typed_semantic_patch_direct_replacement(replacement):
                 raise ValueError(
                     f"typed semantic patch update {update_index} replacement must "
-                    "be a finite JSON scalar or an array of strings"
+                    "be a finite JSON scalar"
                 )
             replacement = deepcopy(replacement)
         else:
@@ -643,7 +683,7 @@ def _is_typed_semantic_patch_direct_replacement(value: Any) -> bool:
         return True
     if isinstance(value, float):
         return math.isfinite(value)
-    return isinstance(value, list) and all(isinstance(item, str) for item in value)
+    return False
 
 
 def _normalize_typed_semantic_patch_path(
@@ -862,6 +902,53 @@ def _validation_error_focus_values(
                         else row
                     ),
                     "value_truncated": value_truncated,
+                }
+            )
+            if len(focused) >= _TYPED_SEMANTIC_PATCH_MAX_VALIDATION_ERRORS:
+                return focused
+    return focused
+
+
+def _validation_error_focus_schemas(
+    schema: Mapping[str, Any],
+    *,
+    errors: list[str],
+) -> list[dict[str, Any]]:
+    """Expose bounded source schemas for validator-named top-level array rows."""
+
+    properties = schema.get("properties", {})
+    if not isinstance(properties, Mapping):
+        return []
+    focused: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for error in errors:
+        for field, _raw_index in _VALIDATION_ERROR_TOP_LEVEL_ARRAY_PATH.findall(
+            str(error)
+        ):
+            if field in seen:
+                continue
+            field_schema = properties.get(field, {})
+            item_schema = (
+                field_schema.get("items", {})
+                if isinstance(field_schema, Mapping)
+                else {}
+            )
+            if not isinstance(item_schema, Mapping) or not item_schema:
+                continue
+            encoded = json.dumps(
+                item_schema,
+                sort_keys=True,
+                separators=(",", ":"),
+                default=str,
+                ensure_ascii=False,
+            )
+            if len(encoded) > _TYPED_SEMANTIC_PATCH_MAX_FOCUS_VALUE_CHARS:
+                continue
+            seen.add(field)
+            focused.append(
+                {
+                    "path_pattern": [field, "<array_index>"],
+                    "expected_item_schema": deepcopy(dict(item_schema)),
                 }
             )
             if len(focused) >= _TYPED_SEMANTIC_PATCH_MAX_VALIDATION_ERRORS:

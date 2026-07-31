@@ -1420,6 +1420,15 @@ def test_semantic_review_projection_excludes_advisory_coding_agent_work(
             "adapter_strategy": "Implement the theory-defined estimator.",
             "registered_template_hint": "none",
             "data_contract": ["named finite request and response"],
+            "estimator_interface_contract": {
+                "request_fields": [],
+                "response_fields": [],
+            },
+            "estimator_interface_contract_id": "interface:theory-owned",
+            "estimator_interface_contract_authority": {
+                "owner_agent": "TheoryDeveloper",
+                "transport_status": "RUNTIME_BOUND_FROM_THEORY",
+            },
             "validation_metrics": [
                 "Advisory future diagnostic not assigned by Architect"
             ],
@@ -1471,7 +1480,13 @@ def test_semantic_review_projection_excludes_advisory_coding_agent_work(
         "adapter_strategy",
         "registered_template_hint",
         "data_contract",
+        "estimator_interface_contract",
+        "estimator_interface_contract_id",
+        "estimator_interface_contract_authority",
     }
+    assert target["estimator_interface_contract_authority"]["owner_agent"] == (
+        "TheoryDeveloper"
+    )
     projection = projected["proposal_review_projection"]
     assert projection["canonical_proposal_fingerprint"] == stable_hash(
         proposal
@@ -2235,6 +2250,10 @@ def test_simulation_review_separates_immutable_dependency_from_consumer() -> Non
                     "estimator_id": "EST1",
                     "language": "python",
                     "dependencies": [],
+                    "estimator_interface_contract_authority": {
+                        "owner_agent": "TheoryDeveloper",
+                        "transport_status": "RUNTIME_BOUND_FROM_THEORY",
+                    },
                     "exact_source_code": dependency_source,
                     "exact_source_hash": stable_hash(dependency_source),
                     "exact_smoke_result": dependency_result,
@@ -2281,6 +2300,9 @@ def test_simulation_review_separates_immutable_dependency_from_consumer() -> Non
     assert dependency_projection["exact_dependency_artifacts"][0][
         "exact_result"
     ] == dependency_result
+    assert dependency_projection["exact_dependency_artifacts"][0][
+        "estimator_interface_contract_authority"
+    ]["owner_agent"] == "TheoryDeveloper"
 
     prompt = build_generated_code_semantic_review_prompt(
         question=_question(),

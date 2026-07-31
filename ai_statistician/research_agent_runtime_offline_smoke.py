@@ -336,6 +336,20 @@ def _theory_response() -> dict[str, Any]:
                     "risk_if_dropped": "remainder may dominate",
                 },
             ],
+            "sanity_checks": [
+                {
+                    "id": "generated_probe_interface",
+                    "claim_ref": "generated_bias_probe",
+                    "check_type": "normalization",
+                    "recomputation": (
+                        "The deterministic probe returns unscaled finite diagnostics "
+                        "from the supplied runtime controls."
+                    ),
+                    "result": "All declared outputs are finite and unscaled.",
+                    "conclusion": "PASS",
+                    "depends_on": [],
+                }
+            ],
             "formalization_handoff": {
                 "source_theorem_target": "aipw_asymptotic_normality",
                 "candidate_lean_targets": ["bounded_aipw_expansion"],
@@ -352,6 +366,26 @@ def _theory_response() -> dict[str, Any]:
                 "algorithm_sketch": "fit nuisances on folds and evaluate held-out scores",
                 "tuning": ["number of folds"],
                 "required_assumptions": ["positivity", "nuisance convergence"],
+                "estimator_interface_contract": {
+                    "request_fields": [
+                        {
+                            "name": "observations",
+                            "meaning": "one replicate of observed treatment-outcome data",
+                            "binding": "per_replicate_data",
+                        }
+                    ],
+                    "response_fields": [
+                        {
+                            "name": "estimate",
+                            "meaning": "cross-fitted AIPW estimate of the ATE",
+                            "normalization": (
+                                "finite-sample point estimate, not root-n scaled"
+                            ),
+                            "sample_size_order": "O(1)",
+                            "derivation_ref": "orthogonal_expansion",
+                        }
+                    ],
+                },
             },
             {
                 "id": "generated_bias_probe",
@@ -360,6 +394,43 @@ def _theory_response() -> dict[str, Any]:
                 "algorithm_sketch": "use a vetted generated Python sandbox draft",
                 "tuning": ["replicates"],
                 "required_assumptions": ["finite deterministic summary metrics"],
+                "estimator_interface_contract": {
+                    "request_fields": [
+                        {
+                            "name": "seed",
+                            "meaning": "deterministic runtime seed",
+                            "binding": "runtime_control",
+                        },
+                        {
+                            "name": "replicates",
+                            "meaning": "bounded runtime replicate count",
+                            "binding": "runtime_control",
+                        },
+                    ],
+                    "response_fields": [
+                        {
+                            "name": "mean_bias_probe",
+                            "meaning": "unscaled deterministic probe mean",
+                            "normalization": "finite average over runtime replicates",
+                            "sample_size_order": "not sample-size indexed",
+                            "derivation_ref": "generated_probe_interface",
+                        },
+                        {
+                            "name": "rmse",
+                            "meaning": "unscaled root mean squared probe value",
+                            "normalization": "finite root mean square over replicates",
+                            "sample_size_order": "not sample-size indexed",
+                            "derivation_ref": "generated_probe_interface",
+                        },
+                        {
+                            "name": "n_runs",
+                            "meaning": "consumed runtime replicate count",
+                            "normalization": "unscaled integer runtime diagnostic",
+                            "sample_size_order": "not sample-size indexed",
+                            "derivation_ref": "generated_probe_interface",
+                        },
+                    ],
+                },
             },
         ],
         "theorem_cards": [

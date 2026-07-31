@@ -75,6 +75,26 @@ def _normalization_reconstruction(
     }
 
 
+def _sample_size_order_derivation(
+    *,
+    orders_agree: bool = True,
+    unresolved_assumptions: list[str] | None = None,
+) -> dict[str, object]:
+    return {
+        "primitive_orders": [
+            {
+                "quantity": "theta",
+                "order": "O(1)",
+                "justification": "theta is the fixed estimand in the cited definition",
+                "evidence_ref": "requirement:generic_gate.metric_semantics",
+            }
+        ],
+        "composition": "metric_value = theta = O(1)",
+        "orders_agree": orders_agree,
+        "unresolved_assumptions": list(unresolved_assumptions or []),
+    }
+
+
 def _review_payload(*, accept: bool) -> dict[str, object]:
     status = "PASS" if accept else "FAIL"
     return {
@@ -92,6 +112,9 @@ def _review_payload(*, accept: bool) -> dict[str, object]:
                 "normalization_reconstruction": (
                     _normalization_reconstruction()
                 ),
+                "sample_size_order_derivation": (
+                    _sample_size_order_derivation()
+                ),
                 "result": "The declared metric is finite and scalar.",
                 "verdict": "PASS",
                 "evidence_refs": ["requirement:generic_gate.metric_semantics"],
@@ -107,6 +130,9 @@ def _review_payload(*, accept: bool) -> dict[str, object]:
                 ),
                 "normalization_reconstruction": (
                     _normalization_reconstruction()
+                ),
+                "sample_size_order_derivation": (
+                    _sample_size_order_derivation()
                 ),
                 "result": (
                     "The pass set matches the protocol."
@@ -285,7 +311,18 @@ def test_preexecution_metric_reviewer_accepts_only_with_independent_lineage() ->
     )
     assert backend.requests[0].metadata["model_tier"] == "haiku"
     assert backend.requests[0].metadata["provider_structured_output"] is True
+    review_schema = backend.requests[0].schema
+    assert review_schema["properties"]["claim_checks"]["items"]["properties"][
+        "recomputation"
+    ]["maxLength"] == 320
+    assert review_schema["properties"]["claim_checks"]["items"]["properties"][
+        "sample_size_order_derivation"
+    ]["properties"]["primitive_orders"]["maxItems"] == 6
+    assert review_schema["properties"]["dimension_reviews"]["items"][
+        "properties"
+    ]["rationale"]["maxLength"] == 320
     assert "before any coding agent" in backend.requests[0].user_prompt
+    assert "within 320 characters" in backend.requests[0].user_prompt
     assert "more gates are not more rigorous" in backend.requests[0].user_prompt
     assert "runtime_evaluator_certificate" in backend.requests[0].user_prompt
     assert "fixed before all replicates" in backend.requests[0].user_prompt
@@ -436,6 +473,23 @@ def test_metric_reviewer_rejects_pass_with_unresolved_normalization_conflict() -
     assert (
         "claim check 1 cannot PASS with unresolved normalization conflicts"
     ) in error
+
+
+def test_metric_reviewer_rejects_asserted_order_without_closed_derivation() -> None:
+    payload = _review_payload(accept=True)
+    payload["claim_checks"][0]["sample_size_order_derivation"] = (
+        _sample_size_order_derivation(
+            orders_agree=False,
+            unresolved_assumptions=["The denominator order was not derived."],
+        )
+    )
+
+    with pytest.raises(PacketValidationError) as exc_info:
+        _review(accept=True, payload=payload)
+
+    error = str(exc_info.value)
+    assert "cannot PASS when sample-size orders do not agree" in error
+    assert "cannot PASS with unresolved sample-size order assumptions" in error
 
 
 def test_metric_reviewer_protocol_expression_is_runtime_bound_from_ref() -> None:
@@ -765,6 +819,9 @@ def test_metric_review_requires_primitive_identity_audit_before_coding() -> None
     )
     repair_instructions = " ".join(
         repair_context["repair_prompt_priority_instructions"]
+    )
+    assert "Never erase unresolved_assumptions" in (
+        repair_context["repair_prompt_priority_instructions"][0]
     )
     assert "foundational_identity_rows" in repair_instructions
     assert "zero-based index" in repair_instructions
@@ -1857,6 +1914,15 @@ def test_metric_review_schema_transforms_for_anthropic_structured_output() -> No
     assert "theory_scope_consistency" not in transformed["properties"][
         "claim_checks"
     ]["items"]["properties"]["check_type"]["enum"]
+    order_schema = transformed["properties"]["claim_checks"]["items"][
+        "properties"
+    ]["sample_size_order_derivation"]
+    assert order_schema["required"] == [
+        "primitive_orders",
+        "composition",
+        "orders_agree",
+        "unresolved_assumptions",
+    ]
     assert "minItems: 2" in transformed_prior_schema["description"]
     assert ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA["properties"][
         "prior_finding_reviews"

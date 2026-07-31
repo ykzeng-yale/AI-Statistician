@@ -99,13 +99,19 @@ The canonical product loop is deliberately small:
    scheduling, and evidence labels. It does not own statistical formulas,
    expected answers, task-family thresholds, Lean grammar, or tactics.
 
-The Python/R estimator ABI binds the exact independently reviewed
-AlgorithmEngineer source into the generated DGP harness. The fresh v39 strict
-probe completed this research loop for survival and sequential tasks before the
-formal gate: three algorithm executions passed, both final algorithms passed
-independent review, two generated confirmatory simulations passed their frozen
-metric contracts and independent review, and no Architect plan-repair detour
-was needed. Both tasks then blocked at exact-target semantic review. This is
+TheoryDeveloper owns one immutable Python/R estimator ABI per proposed
+procedure: request fields state their replicate lifecycle, while response fields
+state their meaning, normalization, sample-size order, and theory derivation
+anchor. AgentRuntime hash-binds that ABI into the AlgorithmEngineer artifact;
+the coding agent may implement it or report an upstream inconsistency but cannot
+silently rename or rescale it. Independent code review checks the exact source
+against the ABI, and SimulationEngineer consumes the same accepted artifact in
+the generated DGP harness. The fresh v39 strict probe completed the older form
+of this research loop for survival and sequential tasks before the formal gate:
+three algorithm executions passed, both final algorithms passed independent
+review, two generated confirmatory simulations passed their frozen metric
+contracts and independent review, and no Architect plan-repair detour was
+needed. Both tasks then blocked at exact-target semantic review. This is
 two-family research-loop evidence, not held-out generalization or theorem-proof
 evidence.
 
@@ -212,7 +218,10 @@ preexecution_review_accepted` phase transition and does not authorize
 confirmatory simulation in either pending phase. A separate Sonnet agent invocation checks
 question/estimand alignment, identifiability, mathematical and numeric
 consistency, finite-sample attainability, exact evaluator semantics, and
-cross-requirement consistency. For a rejected candidate, a second Sonnet agent
+cross-requirement consistency. Every accepted claim review must reconstruct
+normalization and sample-size order from cited theory/protocol primitives;
+unresolved assumptions or conflicting orders force `REVISE` instead of being
+erased by packet repair. For a rejected candidate, a second Sonnet agent
 independently decides which immutable artifact must change. It sees the source
 theory, metric candidate, and substantive findings, but not the reviewer's
 scope label or global repair instruction. A metric-only decision returns to the

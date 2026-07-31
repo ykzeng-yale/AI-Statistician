@@ -9,6 +9,14 @@ from pathlib import Path
 from typing import Any, Mapping, Protocol
 
 from .fingerprint import stable_hash
+from .estimator_interface_contract import (
+    ESTIMATOR_REQUEST_BINDINGS,
+    estimator_interface_contract_errors,
+    estimator_interface_contract_id,
+    estimator_interface_contract_json_schema,
+    normalize_theory_estimator_interface_contracts,
+    theory_semantic_reference_ids,
+)
 from .model_backend import (
     AnthropicGeneratorBackend,
     GeneratorBackend,
@@ -419,6 +427,11 @@ def build_theory_developer_prompt(
                 "insert or remove an n or sqrt(n) factor implicitly. Repair any "
                 "contradiction in the theory packet itself; "
                 "never ask generated code to enforce incompatible premises. "
+                "For every estimator, define one immutable request/response interface. "
+                "Bind every request field to its replicate lifecycle, and bind every "
+                "response field's normalization and sample-size order to a named "
+                "derivation, equation, or sanity-check id. The AlgorithmEngineer may "
+                "implement this interface but may not redefine its semantics. "
                 "Include multiple lemmas or critic findings when needed to represent "
                 "real dependencies; do not compress unresolved contradictions into a "
                 "single vague risk sentence. Do not repeat the same definition, "
@@ -554,7 +567,11 @@ def build_theory_developer_prompt(
         "produce an estimand or decision. Put intermediate statistics, helper "
         "quantities, and sufficient-statistic definitions in equation_chain, "
         "lemma_cards, or formalization_handoff.required_definitions instead of using "
-        "another estimator slot. "
+        "another estimator slot. Treat estimator_interface_contract as an immutable "
+        "TheoryDeveloper specification: request binding describes when a value is "
+        "fixed or recomputed, while every response normalization and sample_size_order "
+        "must cite a real derivation, equation, or sanity-check id. Resolve any "
+        "interface contradiction here instead of delegating semantic choices to code. "
         "Before returning, check required_output_contract exactly, including "
         "theorem_cards[0].informal_statement, theorem_cards[0].proof_strategy, "
         "proof_plan, simulation_ademp_spec, and every sanity_checks field. "
@@ -1722,6 +1739,26 @@ THEORY_DEVELOPER_OUTPUT_CONTRACT: dict[str, Any] = {
             "algorithm_sketch": "string",
             "tuning": ["string"],
             "required_assumptions": ["string"],
+            "estimator_interface_contract": {
+                "request_fields": [
+                    {
+                        "name": "field name",
+                        "meaning": "statistical meaning",
+                        "binding": "|".join(ESTIMATOR_REQUEST_BINDINGS),
+                    }
+                ],
+                "response_fields": [
+                    {
+                        "name": "field name",
+                        "meaning": "statistical meaning",
+                        "normalization": "exact finite-sample or asymptotic convention",
+                        "sample_size_order": "explicit order in sample size",
+                        "derivation_ref": (
+                            "derivation step, equation step, or sanity-check id"
+                        ),
+                    }
+                ],
+            },
         }
     ],
     "theorem_cards": [
@@ -1801,6 +1838,9 @@ THEORY_DEVELOPER_JSON_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     **_json_schema_from_output_contract(THEORY_DEVELOPER_OUTPUT_CONTRACT),
 }
+THEORY_DEVELOPER_JSON_SCHEMA["properties"]["estimator_specs"]["items"][
+    "properties"
+]["estimator_interface_contract"] = estimator_interface_contract_json_schema()
 
 
 def _theory_developer_json_schema(
@@ -2060,6 +2100,7 @@ def validate_theory_packet(packet: Mapping[str, Any]) -> list[str]:
     for list_field in ("estimator_specs", "theorem_cards", "lemma_cards", "formalization_requests"):
         if not isinstance(packet.get(list_field), list) or not packet.get(list_field):
             errors.append(f"{list_field} must be a non-empty list")
+    allowed_derivation_refs = theory_semantic_reference_ids(packet)
     for idx, row in enumerate(packet.get("estimator_specs", []) or []):
         if not isinstance(row, Mapping):
             errors.append("estimator_specs entries must be objects")
@@ -2072,6 +2113,24 @@ def validate_theory_packet(packet: Mapping[str, Any]) -> list[str]:
             errors.append(
                 f"estimator_specs[{idx}].required_assumptions must be non-empty"
             )
+        contract = row.get("estimator_interface_contract")
+        errors.extend(
+            estimator_interface_contract_errors(
+                contract,
+                label=f"estimator_specs[{idx}]",
+                required=True,
+                allowed_derivation_refs=allowed_derivation_refs,
+            )
+        )
+        if isinstance(contract, Mapping):
+            expected_contract_id = estimator_interface_contract_id(contract)
+            if str(row.get("estimator_interface_contract_id", "") or "") != (
+                expected_contract_id
+            ):
+                errors.append(
+                    f"estimator_specs[{idx}].estimator_interface_contract_id "
+                    "does not match the immutable contract"
+                )
     simulation_ademp_spec = packet.get("simulation_ademp_spec", {})
     if isinstance(simulation_ademp_spec, Mapping):
         if not str(simulation_ademp_spec.get("aim", "") or "").strip():
@@ -2125,6 +2184,7 @@ def _normalize_theory_packet(
             derivation_packet,
             formalization_requests=body.get("formalization_requests", []),
         )
+    normalize_theory_estimator_interface_contracts(body)
     body["proof_evidence_status"] = THEORY_DERIVATION_NOT_PROOF_EVIDENCE
     body["proof_evidence_boundary"] = KERNEL_PROOF_BOUNDARY
     body["kernel_verified"] = False

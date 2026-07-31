@@ -657,7 +657,7 @@ def test_semantic_patch_focuses_validator_named_rows_at_original_indices() -> No
                         },
                         {
                             "path": ["rows", 4, "anchors"],
-                            "replacement": ["source:current-row"],
+                            "replacement_json": json.dumps(["source:current-row"]),
                         }
                     ],
                 }
@@ -675,7 +675,27 @@ def test_semantic_patch_focuses_validator_named_rows_at_original_indices() -> No
             user_prompt="Produce a row packet.",
             model="test-haiku",
             max_tokens=5000,
-            schema={"type": "object"},
+            schema={
+                "type": "object",
+                "properties": {
+                    "rows": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": ["row_id", "status", "anchors"],
+                            "properties": {
+                                "row_id": {"type": "integer"},
+                                "status": {"type": "string"},
+                                "anchors": {
+                                    "type": "array",
+                                    "minItems": 1,
+                                    "items": {"type": "string"},
+                                },
+                            },
+                        },
+                    }
+                },
+            },
         ),
         extract_payload=lambda text: extract_json_object(text, label="row packet"),
         build_packet=lambda payload, response, raw_text: dict(payload),
@@ -701,6 +721,14 @@ def test_semantic_patch_focuses_validator_named_rows_at_original_indices() -> No
             "value_truncated": False,
         }
     ]
+    assert repair_payload["validation_error_focus_schemas"] == [
+        {
+            "path_pattern": ["rows", "<array_index>"],
+            "expected_item_schema": backend.requests[0].schema["properties"][
+                "rows"
+            ]["items"],
+        }
+    ]
     assert repair_payload["patch_contract"]["maximum_updates"] == 4
     assert backend.requests[1].schema["properties"]["updates"]["maxItems"] == 4
     assert packet["rows"][4]["status"] == "valid"
@@ -715,7 +743,14 @@ def test_semantic_patch_focuses_validator_named_rows_at_original_indices() -> No
                 "path": ["status"],
                 "replacement": {"status": "valid"},
             },
-            "finite JSON scalar or an array of strings",
+            "finite JSON scalar",
+        ),
+        (
+            {
+                "path": ["status"],
+                "replacement": ["valid"],
+            },
+            "finite JSON scalar",
         ),
         (
             {
@@ -882,6 +917,54 @@ def test_semantic_patch_defers_broad_defects_then_repairs_residual() -> None:
     assert packet["llm_json_repair_attempts"] == 2
 
 
+def test_semantic_patch_defers_cross_field_pass_contradictions() -> None:
+    class CoherentReviewBackend:
+        provider_name = "test"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            payload = (
+                {"verdict": "PASS", "unresolved_assumptions": ["missing regime"]}
+                if len(self.requests) == 1
+                else {"verdict": "REVISE", "unresolved_assumptions": ["missing regime"]}
+            )
+            return GeneratorResponse(
+                text=json.dumps(payload),
+                provider=self.provider_name,
+                model=request.model,
+            )
+
+    backend = CoherentReviewBackend()
+    packet = generate_validated_json_packet(
+        provider=backend,
+        request=GeneratorRequest(
+            system_prompt="Return JSON.",
+            user_prompt="Review the candidate.",
+            model="test-model",
+            max_tokens=1000,
+        ),
+        extract_payload=lambda text: extract_json_object(text, label="review packet"),
+        build_packet=lambda payload, response, raw_text: dict(payload),
+        validate_packet=lambda candidate: (
+            ["claim check 0 cannot PASS with unresolved assumptions"]
+            if candidate.get("verdict") == "PASS"
+            else []
+        ),
+        validation_label="review packet",
+        max_repair_attempts=1,
+        semantic_patch_repair=True,
+    )
+
+    assert packet["verdict"] == "REVISE"
+    assert [
+        request.metadata["json_repair_mode"] for request in backend.requests
+    ] == ["full_packet_generation", "full_packet_regeneration"]
+    assert "Rewrite the full JSON object from scratch" in backend.requests[1].user_prompt
+
+
 def test_typed_patch_separates_residual_count_from_edit_count() -> None:
     class MultiEditBackend:
         provider_name = "test"
@@ -1024,7 +1107,7 @@ def test_generate_validated_json_packet_escalates_truncated_repair_budget() -> N
     assert packet["llm_json_repair_history"][1]["request_max_tokens"] > 128
 
 
-def test_complete_regeneration_clears_truncation_mode_for_typed_repair() -> None:
+def test_complete_regeneration_uses_progress_extension_for_typed_repair() -> None:
     class TruncatingThenInvalidThenValidBackend:
         provider_name = "test"
 
@@ -1089,8 +1172,9 @@ def test_complete_regeneration_clears_truncation_mode_for_typed_repair() -> None
         if candidate.get("ok") is True
         else ["missing ok"],
         validation_label="test packet",
-        max_repair_attempts=2,
+        max_repair_attempts=1,
         semantic_patch_repair=True,
+        allow_progress_repair_extension=True,
     )
 
     assert packet["ok"] is True
@@ -1103,8 +1187,81 @@ def test_complete_regeneration_clears_truncation_mode_for_typed_repair() -> None
         "typed_semantic_patch",
     ]
     assert backend.requests[2].metadata["json_repair_truncation_repair_mode"] is False
+    assert backend.requests[2].metadata[
+        "json_repair_progress_extension_attempt"
+    ] == 1
     third_repair_payload = json.loads(
         backend.requests[2].user_prompt.split("\n\n", 1)[1]
     )
     assert "truncation_detected" not in third_repair_payload
     assert packet["llm_json_repair_history"][2]["patched_paths"] == [["ok"]]
+
+
+def test_complete_regeneration_progress_allows_one_typed_repair() -> None:
+    class ProgressingRegenerationBackend:
+        provider_name = "test"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                payload = {"ok": False, **{f"missing_{index}": False for index in range(9)}}
+            elif len(self.requests) == 2:
+                payload = {"ok": False}
+            else:
+                repair_payload = json.loads(
+                    request.user_prompt.split("\n\n", 1)[1]
+                )
+                payload = {
+                    "base_payload_fingerprint": repair_payload[
+                        "base_payload_fingerprint"
+                    ],
+                    "updates": [{"path": ["ok"], "replacement": True}],
+                }
+            return GeneratorResponse(
+                text=json.dumps(payload),
+                provider=self.provider_name,
+                model=request.model,
+                metadata={"provider_stop_reason": "end_turn"},
+            )
+
+    backend = ProgressingRegenerationBackend()
+
+    def validate(candidate: Mapping[str, object]) -> list[str]:
+        if candidate.get("ok") is True:
+            return []
+        missing_errors = [
+            f"{key} must be true"
+            for key, value in candidate.items()
+            if key.startswith("missing_") and value is not True
+        ]
+        return missing_errors or ["ok must be true"]
+
+    packet = generate_validated_json_packet(
+        provider=backend,
+        request=GeneratorRequest(
+            system_prompt="Return JSON.",
+            user_prompt="Produce a valid packet.",
+            model="test-model",
+            max_tokens=128,
+        ),
+        extract_payload=lambda text: extract_json_object(text, label="test packet"),
+        build_packet=lambda payload, response, raw_text: dict(payload),
+        validate_packet=validate,
+        validation_label="test packet",
+        max_repair_attempts=1,
+        semantic_patch_repair=True,
+        allow_progress_repair_extension=True,
+    )
+
+    assert packet["ok"] is True
+    assert [
+        request.metadata["json_repair_mode"] for request in backend.requests
+    ] == [
+        "full_packet_generation",
+        "full_packet_regeneration",
+        "typed_semantic_patch",
+    ]
+    assert packet["llm_json_repair_history"][2]["progress_extension_attempt"] == 1

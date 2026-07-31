@@ -8906,6 +8906,14 @@ def _runtime_exact_algorithm_artifacts(
                     + stable_hash(interface_contract)[:20]
                 )
             )
+            interface_authority = proposal_target.get(
+                "estimator_interface_contract_authority",
+                {},
+            )
+            if isinstance(interface_authority, Mapping) and interface_authority:
+                exact_artifact["estimator_interface_contract_authority"] = dict(
+                    interface_authority
+                )
         exact_artifacts.append(exact_artifact)
     return exact_artifacts
 
