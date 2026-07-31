@@ -2423,10 +2423,20 @@ transitive local import closure; reverse users must occur later in the same
 module or import the target transitively. This removes globally unique-basename
 edges to declarations that Lean could not see.
 
+The default AgentRuntime factory uses this rich backend, and its outer composite
+preserves source-scoped search, declaration loading, and dependency context.
+Dedicated retrieval benchmarks are not evidence of runtime integration unless
+the same capabilities reach the Formalizer packet. Source scopes activate
+companion providers; they are not global source allowlists, so ordinary
+cross-source retrieval remains possible and any unscoped provider fallback is
+recorded in diagnostics. Qualified declaration identity and import visibility
+govern reuse. Name patterns and textbook citations are retrieval hints only.
+
 The version-pinned
 `yuanhezhang/lean4-stat-learning-theory-corpus` snapshot adds 3,021 premise
-signatures from 470 SLT/Mathlib/stdlib files. It is checksum-gated and activates
-only when the selected or explicitly requested source scope is AI4SLT. Proof
+signatures from 470 SLT/Mathlib/stdlib files. It is checksum-gated, and its
+companion provider activates only when the selected or explicitly requested
+source scope is AI4SLT. Proof
 bodies are removed while loading, and a current local declaration supersedes a
 stale corpus signature when the name/path match is unambiguous. The corpus was
 extracted under Lean `v4.27.0-rc1` and Mathlib
@@ -2439,6 +2449,11 @@ The retriever discovers
 `f4890ac3b0a18b35071e4cabf54dee8427463cd1`; activation fails closed unless the
 file SHA-256 is
 `43fdcda8b0558c9470ced9307e62970bfe7d62f19fad391ab077f55fac0ce695`.
+The current source-derived dependency SQLite stores project/source roots but no
+source commit or tree hash. It is therefore version-unbound candidate context;
+a future shared graph-builder revision should persist a source snapshot
+identity. The checksum-pinned corpus and traces do not remove the need to
+recompile every selected declaration in the active project.
 
 The complementary AI4SLT Novel training split supplies bounded proof-state
 analogies to the existing ProofEngineer loop. A local SQLite FTS index contains

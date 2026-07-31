@@ -4,7 +4,10 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
-from .formal_source_index import FormalDeclaration, FormalSourceRetriever
+from .formal_source_index import (
+    FormalDeclaration,
+    build_formal_source_search_backend,
+)
 from .proof_bank import all_obligations, proof_bank_fingerprint
 from .retrieval import ProofBankRetriever, RetrievalQuery
 from .schema import FormalObligation
@@ -130,7 +133,7 @@ def build_default_formal_source_retriever(
             (
                 local_retriever
                 if local_retriever is not None
-                else FormalSourceRetriever()
+                else build_formal_source_search_backend()
             ),
             (
                 proof_bank_retriever

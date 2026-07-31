@@ -7458,10 +7458,11 @@ def _formalizer_mode_specific_instructions(
         ):
             instructions.append(
                 "Formal-source grounding hits are available: "
-                "use premise_declaration_outlines in dependency order and "
-                "nearby_declaration_outlines only as bounded fallback. Corpus signatures "
-                "are API candidates, not proof. Verify every selection on the exact "
-                "local Lean/AXLE artifact; otherwise emit a FORMAL_GAP."
+                "use qualified names and premise_declaration_outlines in dependency "
+                "order; use nearby_declaration_outlines only as bounded fallback. "
+                "Names and citations are hints, not authority. Treat hits as one "
+                "premise DAG. Verify each selection in exact local Lean/AXLE; otherwise "
+                "emit a FORMAL_GAP."
             )
         if (
             isinstance(proofengineer_repair_context, Mapping)

@@ -13,7 +13,7 @@ from types import ModuleType
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from .fingerprint import stable_hash
-from .formal_source_index import FormalDeclaration, FormalSourceHit
+from .formal_source_index import FormalDeclaration
 from .lean_proof_agent_contract import llm_proof_body_generation_contract
 from .llm_json_repair import generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest
@@ -123,10 +123,131 @@ class CompositeFormalSourceRetriever:
             "providers": [provider_descriptor(provider) for provider in self.providers],
             "fusion": "reciprocal_rank_fusion",
             "fusion_tie_break": "query_matched_term_count",
+            "source_scope_semantics": (
+                "provider_activation_hint_not_global_allowlist"
+            ),
+            "source_scoped_search": any(
+                callable(getattr(provider, "search_with_source_scope", None))
+                for provider in self.providers
+            ),
+            "declaration_outline_context": any(
+                callable(getattr(provider, "load_declarations", None))
+                or getattr(provider, "declarations", None) is not None
+                for provider in self.providers
+            ),
+            "dependency_context": any(
+                callable(getattr(provider, "dependency_context", None))
+                or callable(
+                    getattr(
+                        getattr(provider, "dependency_retriever", None),
+                        "dependency_context",
+                        None,
+                    )
+                )
+                for provider in self.providers
+            ),
             "boundary": LEAN_PROVIDER_BOUNDARY,
         }
 
     def search(self, query: str, *, k: int = 10) -> list[CompositeFormalSourceHit]:
+        return self._search(query, k=k, source_scope_ids=())
+
+    def search_with_source_scope(
+        self,
+        query: str,
+        *,
+        source_scope_ids: Sequence[str],
+        k: int = 10,
+    ) -> list[CompositeFormalSourceHit]:
+        return self._search(
+            query,
+            k=k,
+            source_scope_ids=tuple(
+                dict.fromkeys(
+                    str(value).strip()
+                    for value in source_scope_ids
+                    if str(value).strip()
+                )
+            ),
+        )
+
+    def load_declarations(self) -> list[FormalDeclaration]:
+        """Expose provider declarations for compact dependency-first outlines."""
+
+        declarations: list[FormalDeclaration] = []
+        seen: set[tuple[str, str, int, str]] = set()
+        for provider in self.providers:
+            rows = getattr(provider, "declarations", None)
+            if rows is None:
+                loader = getattr(provider, "load_declarations", None)
+                if callable(loader):
+                    try:
+                        rows = loader()
+                    except Exception:
+                        rows = ()
+            for declaration in rows or ():
+                if not isinstance(declaration, FormalDeclaration):
+                    continue
+                key = (
+                    declaration.source_id,
+                    declaration.path,
+                    declaration.line,
+                    declaration.name,
+                )
+                if key in seen:
+                    continue
+                seen.add(key)
+                declarations.append(declaration)
+        return declarations
+
+    def dependency_context(
+        self,
+        declaration_name: str,
+        *,
+        limit: int = 8,
+        source_id: str = "",
+        path: str = "",
+    ) -> Any | None:
+        """Delegate graph context without hiding richer provider capabilities."""
+
+        for provider in self.providers:
+            context_loader = getattr(provider, "dependency_context", None)
+            if not callable(context_loader):
+                context_loader = getattr(
+                    getattr(provider, "dependency_retriever", None),
+                    "dependency_context",
+                    None,
+                )
+            if not callable(context_loader):
+                continue
+            try:
+                context = context_loader(
+                    declaration_name,
+                    limit=limit,
+                    source_id=source_id,
+                    path=path,
+                )
+            except TypeError:
+                try:
+                    context = context_loader(
+                        declaration_name,
+                        limit=limit,
+                    )
+                except Exception:
+                    continue
+            except Exception:
+                continue
+            if context is not None:
+                return context
+        return None
+
+    def _search(
+        self,
+        query: str,
+        *,
+        k: int,
+        source_scope_ids: tuple[str, ...],
+    ) -> list[CompositeFormalSourceHit]:
         limit = max(int(k), 0)
         if limit == 0:
             return []
@@ -135,6 +256,14 @@ class CompositeFormalSourceRetriever:
         provider_limit = max(limit * 2, limit)
         for provider_index, provider in enumerate(self.providers):
             provider_name = str(getattr(provider, "name", type(provider).__name__))
+            scoped_search = getattr(
+                provider,
+                "search_with_source_scope",
+                None,
+            )
+            use_scoped_search = bool(
+                source_scope_ids and callable(scoped_search)
+            )
             diagnostic = {
                 "provider": provider_name,
                 "query_fingerprint": query_fingerprint,
@@ -142,9 +271,30 @@ class CompositeFormalSourceRetriever:
                 "requested_k": provider_limit,
                 "status": "ok",
                 "n_hits": 0,
+                "search_mode": (
+                    "source_scoped"
+                    if use_scoped_search
+                    else "unscoped_fallback"
+                    if source_scope_ids
+                    else "unscoped"
+                ),
             }
+            if source_scope_ids:
+                diagnostic["source_scope_ids"] = list(source_scope_ids)
+                diagnostic["source_scope_semantics"] = (
+                    "provider_activation_hint_not_global_allowlist"
+                )
             try:
-                hits = list(provider.search(query, k=provider_limit))
+                if use_scoped_search:
+                    hits = list(
+                        scoped_search(
+                            query,
+                            source_scope_ids=source_scope_ids,
+                            k=provider_limit,
+                        )
+                    )
+                else:
+                    hits = list(provider.search(query, k=provider_limit))
             except Exception as exc:
                 diagnostic["status"] = "provider_error"
                 diagnostic["error"] = f"{type(exc).__name__}: {str(exc)[:300]}"

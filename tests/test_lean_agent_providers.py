@@ -109,6 +109,39 @@ def test_composite_retriever_breaks_rrf_ties_by_query_evidence() -> None:
     )
 
 
+def test_composite_diagnostics_disclose_unscoped_provider_fallback() -> None:
+    @dataclass
+    class Provider:
+        name: str = "unscoped"
+
+        def search(self, _query: str, *, k: int = 10):
+            return [
+                ExternalFormalSourceHit(
+                    declaration=_declaration("Local.result"),
+                    score=1.0,
+                    matched_terms=("result",),
+                )
+            ][:k]
+
+    retriever = CompositeFormalSourceRetriever((Provider(),))
+
+    hits = retriever.search_with_source_scope(
+        "result",
+        source_scope_ids=("lean_stat_learning_theory",),
+        k=1,
+    )
+
+    assert hits
+    diagnostic = retriever.runtime_diagnostics()[0]
+    assert diagnostic["search_mode"] == "unscoped_fallback"
+    assert diagnostic["source_scope_ids"] == [
+        "lean_stat_learning_theory"
+    ]
+    assert diagnostic["source_scope_semantics"] == (
+        "provider_activation_hint_not_global_allowlist"
+    )
+
+
 def test_emperical_process_lean_provider_calls_structured_graph_api(
     tmp_path: Path,
 ) -> None:

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 import pytest
 
+import ai_statistician.proof_bank_formal_source as proof_bank_formal_source_module
 from ai_statistician import cli
 from ai_statistician.proof_bank_formal_source import (
     PROOF_BANK_FORMAL_SOURCE_BOUNDARY,
@@ -98,6 +99,40 @@ def test_default_formal_source_topology_fuses_proof_bank_with_other_providers() 
         "external",
     ]
     assert descriptor["boundary"]
+
+
+def test_default_formal_source_topology_uses_rich_local_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    @dataclass
+    class LocalBackend:
+        name: str = "rich_local_backend"
+
+        def search(self, _query: str, *, k: int = 10):
+            del k
+            return []
+
+        def search_with_source_scope(
+            self,
+            _query: str,
+            *,
+            source_scope_ids: tuple[str, ...],
+            k: int = 10,
+        ):
+            del source_scope_ids, k
+            return []
+
+    local_backend = LocalBackend()
+    monkeypatch.setattr(
+        proof_bank_formal_source_module,
+        "build_formal_source_search_backend",
+        lambda: local_backend,
+    )
+
+    retriever = build_default_formal_source_retriever()
+
+    assert retriever.providers[0] is local_backend
+    assert retriever.descriptor()["source_scoped_search"]
 
 
 def test_runtime_cli_uses_default_proof_bank_topology_without_external_rag(

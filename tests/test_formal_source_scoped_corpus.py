@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 from ai_statistician.formal_source_hybrid import (
     FormalSourceDependencyHybridRetriever,
@@ -12,6 +13,9 @@ from ai_statistician.formal_source_index import (
 )
 from ai_statistician.formal_source_scoped_corpus import (
     LeanJsonlScopedPremiseRetriever,
+)
+from ai_statistician.lean_agent_providers import (
+    CompositeFormalSourceRetriever,
 )
 from ai_statistician.research_agent_runtime import (
     _proofengineer_formal_source_grounding_hit_groups,
@@ -262,3 +266,135 @@ def test_proofengineer_recovers_source_scope_from_target_provenance() -> None:
             2,
         )
     ]
+
+
+def test_composite_runtime_preserves_three_book_dependency_context() -> None:
+    source_id = "lean_stat_learning_theory"
+    vershynin = FormalDeclaration(
+        source_id=source_id,
+        source_type="lean_library",
+        path="SLT/CoveringNumber.lean",
+        line=610,
+        kind="theorem",
+        name="coveringNumber_euclideanBall_le",
+        namespace="",
+        signature=(
+            "theorem coveringNumber_euclideanBall_le "
+            "(hR : 0 <= R) (heps : 0 < eps) : coveringNumber eps s <= n"
+        ),
+        reference="Vershynin (2018), Corollary 4.2.13",
+    )
+    boucheron = FormalDeclaration(
+        source_id=source_id,
+        source_type="lean_library",
+        path="SLT/GaussianLipConcen.lean",
+        line=1301,
+        kind="theorem",
+        name="GaussianLipConcen.gaussian_lipschitz_concentration",
+        namespace="GaussianLipConcen",
+        signature=(
+            "theorem gaussian_lipschitz_concentration "
+            "(hf : LipschitzWith L f) : tailProbability f <= bound"
+        ),
+        reference="Boucheron et al. (2013), Theorem 5.6",
+    )
+    wainwright = FormalDeclaration(
+        source_id=source_id,
+        source_type="lean_library",
+        path="SLT/LeastSquares/MasterErrorBound.lean",
+        line=900,
+        kind="theorem",
+        name="LeastSquares.master_error_bound",
+        namespace="LeastSquares",
+        signature=(
+            "theorem master_error_bound "
+            "(hCI : satisfiesCriticalInequality model radius) : "
+            "predictionError estimator <= rate"
+        ),
+        reference="Wainwright (2019), Theorem 13.5",
+    )
+    scoped_calls: list[tuple[str, tuple[str, ...], int]] = []
+
+    class StructuredProvider:
+        name = "structured_ai4slt_fixture"
+        declarations = (vershynin, boucheron, wainwright)
+
+        def search(self, query: str, *, k: int = 10):
+            del query
+            return [
+                FormalSourceHit(wainwright, 12.0, ("master", "error", "bound"))
+            ][:k]
+
+        def search_with_source_scope(
+            self,
+            query: str,
+            *,
+            source_scope_ids: tuple[str, ...],
+            k: int = 10,
+        ):
+            scoped_calls.append((query, source_scope_ids, k))
+            return self.search(query, k=k)
+
+        def dependency_context(
+            self,
+            declaration_name: str,
+            *,
+            limit: int,
+            source_id: str,
+            path: str,
+        ):
+            del limit
+            assert declaration_name == wainwright.name
+            assert source_id == "lean_stat_learning_theory"
+            assert path == wainwright.path
+            return SimpleNamespace(
+                fan_in=3,
+                fan_out=2,
+                uses=(vershynin.name, boucheron.name),
+                used_by=(),
+                statement_uses=(vershynin.name,),
+                proof_uses=(boucheron.name,),
+                source_id=source_id,
+                module="SLT.LeastSquares.MasterErrorBound",
+                direct_module_imports=(
+                    "SLT.CoveringNumber",
+                    "SLT.GaussianLipConcen",
+                ),
+                module_import_visibility_enforced=True,
+                dependency_resolution_policy=(
+                    "qualified_name_then_unique_path_bound_short_name"
+                ),
+            )
+
+    retriever = CompositeFormalSourceRetriever((StructuredProvider(),))
+
+    groups = _proofengineer_formal_source_grounding_hit_groups(
+        retriever,
+        query_seeds=("localized least squares master error bound",),
+        unknown_identifiers=(),
+        source_scope_ids=(source_id,),
+        k=2,
+        max_groups=1,
+    )
+
+    assert scoped_calls
+    assert groups[0]["source_scope_semantics"] == (
+        "provider_activation_hint_not_global_allowlist"
+    )
+    hit = groups[0]["hits"][0]
+    assert hit["name"] == "LeastSquares.master_error_bound"
+    context = hit["declaration_source_context"]
+    assert context["dependency_context"]["module_import_visibility_enforced"]
+    outlines = context["premise_declaration_outlines"]
+    assert [row["dependency_scope"] for row in outlines] == [
+        "statement",
+        "proof",
+    ]
+    assert {
+        hit["reference"],
+        *(row["reference"] for row in outlines),
+    } == {
+        "Vershynin (2018), Corollary 4.2.13",
+        "Boucheron et al. (2013), Theorem 5.6",
+        "Wainwright (2019), Theorem 13.5",
+    }

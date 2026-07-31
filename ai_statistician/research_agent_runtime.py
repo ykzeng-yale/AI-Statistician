@@ -34242,6 +34242,9 @@ def _proofengineer_formal_source_grounding_hit_groups(
             group["unknown_identifier"] = row["unknown_identifier"]
         if normalized_source_scopes:
             group["source_scope_ids"] = list(normalized_source_scopes)
+            group["source_scope_semantics"] = (
+                "provider_activation_hint_not_global_allowlist"
+            )
         try:
             scoped_search = getattr(
                 formal_source_retriever,

@@ -9,8 +9,10 @@ from .research_schema import OpenResearchQuestion
 FORMAL_SOURCE_OUTLINE_PROMPT_POLICY = (
     "Bounded direct statement/proof premise signatures first, then at most a small "
     "same-file prior-declaration fallback; downstream declarations and proof bodies "
-    "are omitted. Retrieved declarations remain candidate context until the exact "
-    "target artifact passes active-project Lean/kernel checking."
+    "are omitted. Qualified declaration identity and active import visibility govern "
+    "reuse; declaration-name patterns and source citations are retrieval hints, not "
+    "semantic or proof authority. Retrieved declarations remain candidate context "
+    "until the exact target artifact passes active-project Lean/kernel checking."
 )
 
 
