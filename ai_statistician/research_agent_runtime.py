@@ -290,6 +290,9 @@ from .formal_source_prompt_context import (
     prompt_safe_formal_source_provenance,
     unique_formal_source_hit_payloads,
 )
+from .lean_proof_state_trace_rag import (
+    attach_ai4slt_proof_state_trace_rag,
+)
 from .lean_agent_providers import (
     LEAN_PROVIDER_BOUNDARY,
     LeanProofSearchProvider,
@@ -20201,6 +20204,14 @@ def _runtime_external_proof_search_request(
             (list, tuple),
         )
         else [],
+        "proof_state_trace_rag": dict(
+            repair_context.get("proof_state_trace_rag", {}) or {}
+        )
+        if isinstance(
+            repair_context.get("proof_state_trace_rag", {}),
+            Mapping,
+        )
+        else {},
         "semantic_alignment_constraints": [
             str(value)
             for value in repair_context.get("semantic_alignment_constraints", []) or []
@@ -34022,7 +34033,7 @@ def _proofengineer_repair_context_with_formal_source_grounding(
 
     payload = dict(context) if isinstance(context, Mapping) else {}
     if payload.get("formal_source_grounding_hits"):
-        return _proofengineer_repair_context_ordered_with_formal_source_grounding(
+        grounded = _proofengineer_repair_context_ordered_with_formal_source_grounding(
             payload,
             immediate_fields={
                 "formal_source_grounding_hits": payload.get(
@@ -34030,8 +34041,12 @@ def _proofengineer_repair_context_with_formal_source_grounding(
                 )
             },
         )
+        return attach_ai4slt_proof_state_trace_rag(
+            grounded,
+            formal_source_retriever=formal_source_retriever,
+        )
     if formal_source_retriever is None:
-        return payload
+        return attach_ai4slt_proof_state_trace_rag(payload)
     query_seeds = [
         str(seed).strip()
         for seed in payload.get("retrieval_query_seeds", []) or []
@@ -34051,7 +34066,10 @@ def _proofengineer_repair_context_with_formal_source_grounding(
         ),
     )
     if not groups:
-        return payload
+        return attach_ai4slt_proof_state_trace_rag(
+            payload,
+            formal_source_retriever=formal_source_retriever,
+        )
     trailing_fields: dict[str, Any] = {}
     trailing_fields["formal_source_grounding_policy"] = (
         "Formal-source retrieval hits are API/premise suggestions for the "
@@ -34077,10 +34095,14 @@ def _proofengineer_repair_context_with_formal_source_grounding(
             }
             for value in unknowns[:5]
         ]
-    return _proofengineer_repair_context_ordered_with_formal_source_grounding(
+    grounded = _proofengineer_repair_context_ordered_with_formal_source_grounding(
         payload,
         immediate_fields={"formal_source_grounding_hits": groups},
         trailing_fields=trailing_fields,
+    )
+    return attach_ai4slt_proof_state_trace_rag(
+        grounded,
+        formal_source_retriever=formal_source_retriever,
     )
 
 

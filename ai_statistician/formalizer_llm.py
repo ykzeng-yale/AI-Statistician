@@ -7465,6 +7465,22 @@ def _formalizer_mode_specific_instructions(
             )
         if (
             isinstance(proofengineer_repair_context, Mapping)
+            and proofengineer_repair_context.get("proof_state_trace_rag")
+        ):
+            instructions.append(
+                "AI4SLT proof-state transitions are available in "
+                "proofengineer_repair_context.proof_state_trace_rag. Use them only "
+                "as analogies between a prior local goal, one tactic action, and its "
+                "next state. Do not copy them as templates or treat them as proof "
+                "evidence: check premise visibility and current indexed signatures, "
+                "choose the smallest action justified by the present goal and "
+                "diagnostics, then rerun the exact current artifact through local "
+                "Lean/AXLE. If the same obstruction persists, reconsider the target "
+                "statement, assumptions, or lemma decomposition rather than replaying "
+                "an unchanged tactic."
+            )
+        if (
+            isinstance(proofengineer_repair_context, Mapping)
             and proofengineer_repair_context.get("external_proof_search_result")
         ):
             instructions.append(
@@ -11624,6 +11640,50 @@ def _source_theorem_candidate_materialization_contract(
 
 
 def _compact_value_for_key(key: Any, value: Any) -> Any:
+    if str(key) == "proof_state_trace_rag" and isinstance(value, Mapping):
+        return _compact_mapping(
+            value,
+            keys=(
+                "schema_version",
+                "provider",
+                "source_id",
+                "anchor_source_ids",
+                "dataset_id",
+                "dataset_url",
+                "repository_url",
+                "license",
+                "dataset_revision",
+                "trace_sha256",
+                "split",
+                "toolchain",
+                "mathlib_revision",
+                "query_fingerprint",
+                "query_roles",
+                "n_hits",
+                "n_target_name_overlap_hits",
+                "hits",
+                "selection_policy",
+                "use_policy",
+                "version_boundary",
+                "evaluation_contamination_policy",
+                "proof_evidence_status",
+            ),
+        )
+    if str(key) in {
+        "source_theorem_statement",
+        "state_before",
+        "state_after",
+        "tactic",
+        "current_signature",
+    } and isinstance(value, str):
+        limits = {
+            "source_theorem_statement": 1800,
+            "state_before": 2600,
+            "state_after": 1800,
+            "tactic": 1000,
+            "current_signature": 1400,
+        }
+        return value[: limits[str(key)]]
     if str(key) in {
         "target_declaration_source_excerpt",
         "candidate_source_excerpt",
@@ -11906,6 +11966,7 @@ def _compact_value(value: Any) -> Any:
             "compiler_feedback",
             "prior_exact_candidate_feedback",
             "proof_body_generation_contract",
+            "proof_state_trace_rag",
             "formal_environment_placeholder_symbols",
             "formal_environment_typeclass_blockers",
             "semantic_alignment_constraints",

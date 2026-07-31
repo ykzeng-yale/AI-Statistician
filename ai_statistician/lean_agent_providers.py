@@ -25,6 +25,7 @@ LEAN_PROVIDER_BOUNDARY = (
     "Statistician source theorem until its exact declaration passes the configured "
     "local Lean/AXLE gate."
 )
+OPENPROVER_RETRIEVAL_CONTEXT_MAX_CHARS = 24000
 
 OPENPROVER_TASK_NORMALIZATION_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -600,18 +601,49 @@ class GeneratorBackendCandidatePolicy:
         max_tokens: int,
         temperature: float,
         proof_generation_prompt: Callable[[Any, int], str],
+        retrieval_context: Mapping[str, Any] | None = None,
     ) -> None:
         self.provider = provider
         self.model = model
         self.max_tokens = max_tokens
         self.temperature = temperature
         self._proof_generation_prompt = proof_generation_prompt
+        self.retrieval_context = dict(retrieval_context or {})
         provider_name = str(getattr(provider, "provider_name", type(provider).__name__))
         self.name = f"ai-statistician-generator:{provider_name}"
         self.last_diagnostics: dict[str, Any] = {}
 
     def propose(self, task: Any, n: int) -> list[str]:
-        prompt = self._proof_generation_prompt(task, n) + (
+        retrieval_context_keys = sorted(self.retrieval_context)
+        retrieval_context_fingerprint = (
+            stable_hash(self.retrieval_context)
+            if self.retrieval_context
+            else ""
+        )
+        prompt = self._proof_generation_prompt(task, n)
+        if self.retrieval_context:
+            serialized_context = json.dumps(
+                self.retrieval_context,
+                ensure_ascii=False,
+                indent=2,
+            )
+            if len(serialized_context) > OPENPROVER_RETRIEVAL_CONTEXT_MAX_CHARS:
+                truncation_notice = (
+                    "\n[retrieval context truncated at "
+                    f"{OPENPROVER_RETRIEVAL_CONTEXT_MAX_CHARS} characters]"
+                )
+                serialized_context = (
+                    serialized_context[:OPENPROVER_RETRIEVAL_CONTEXT_MAX_CHARS]
+                    + truncation_notice
+                )
+            prompt += (
+                "\n\nAI-STATISTICIAN NON-PROOF RETRIEVAL CONTEXT:\n"
+                + serialized_context
+                + "\nUse declaration signatures and proof-state transitions only "
+                "as candidates or analogies. Check the current local context and "
+                "verifier feedback before using any premise or action."
+            )
+        prompt += (
             "\n\nOUTPUT CONTRACT: Return one JSON object with exactly one key, "
             "`candidates`. Its value must be an array of Lean proof-body strings. "
             "Do not return markdown fences, prose, declarations, imports, or a "
@@ -636,6 +668,8 @@ class GeneratorBackendCandidatePolicy:
                 "agent": "GeneratorBackendCandidatePolicy",
                 "requested_candidates": n,
                 "generation_contract": llm_proof_body_generation_contract(),
+                "retrieval_context_keys": retrieval_context_keys,
+                "retrieval_context_fingerprint": retrieval_context_fingerprint,
             },
         )
         try:
@@ -646,6 +680,8 @@ class GeneratorBackendCandidatePolicy:
                 "error": f"{type(exc).__name__}: {str(exc)[:300]}",
                 "requested_candidates": n,
                 "extracted_candidates": 0,
+                "retrieval_context_keys": retrieval_context_keys,
+                "retrieval_context_fingerprint": retrieval_context_fingerprint,
             }
             return []
         try:
@@ -658,6 +694,8 @@ class GeneratorBackendCandidatePolicy:
                 "model": response.model,
                 "requested_candidates": n,
                 "extracted_candidates": 0,
+                "retrieval_context_keys": retrieval_context_keys,
+                "retrieval_context_fingerprint": retrieval_context_fingerprint,
                 "response_metadata": (
                     dict(response.metadata)
                     if isinstance(response.metadata, Mapping)
@@ -703,6 +741,8 @@ class GeneratorBackendCandidatePolicy:
                 for candidate in rejected_candidates[:12]
             ],
             "response_contract": "json_schema",
+            "retrieval_context_keys": retrieval_context_keys,
+            "retrieval_context_fingerprint": retrieval_context_fingerprint,
             "response_metadata": (
                 dict(response.metadata) if isinstance(response.metadata, Mapping) else {}
             ),
@@ -810,6 +850,14 @@ class OpenProverHLMProofSearchProvider:
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
             proof_generation_prompt=runtime["proof_generation_prompt"],
+            retrieval_context={
+                key: request_payload[key]
+                for key in (
+                    "proof_state_trace_rag",
+                    "formal_source_grounding_hits",
+                )
+                if request_payload.get(key) not in (None, "", [], {})
+            },
         )
         backend = (
             runtime["LakeLeanBackend"](

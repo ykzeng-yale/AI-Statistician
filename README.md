@@ -185,6 +185,22 @@ Lean/Mathlib revision means every candidate must be rechecked in the active
 project. Set `AI_STATISTICIAN_AI4SLT_PREMISE_CORPUS` to its pinned
 `corpus.jsonl` when it is not installed under the standard external-resource
 path. This is premise retrieval, never proof evidence.
+When a ProofEngineer packet contains an actual Lean goal or compiler diagnostic,
+the same path can add at most three checksum-pinned
+[AI4SLT Novel](https://huggingface.co/datasets/yuanhezhang/lean4-stat-learning-theory-novel)
+`state_before -> tactic -> state_after` analogies. Only the Novel training split
+is indexed; the external validation and test splits stay excluded. Retrieved
+actions carry premise provenance and are re-bound to exact names/signatures in
+the current formal-source index when possible, but the older source toolchain
+means they must be rerun on the exact active-project artifact. Set
+`AI_STATISTICIAN_AI4SLT_PROOF_STATE_TRACES` when the pinned `novel-train.jsonl`
+is not under the standard external-resource path. These transitions guide the
+existing LLM ProofEngineer feedback loop; they are neither tactic templates nor
+proof evidence. The same bounded packet reaches the existing OpenProver
+generator policy together with declaration RAG, and its retrieval fingerprint
+is recorded before verifier-driven search.
+Exact target/source-theorem name overlaps are marked explicitly and cannot be
+counted as held-out generalization.
 The production research benchmark can use the same backend: by default
 `research-benchmark` writes `formal_source_index.sqlite` in its output
 directory and uses that SQLite FTS + Lean-shape reranker when attaching local

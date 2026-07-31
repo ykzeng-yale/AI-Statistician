@@ -62,6 +62,7 @@ PINNED_HF_LEAN_DATASETS: tuple[str, ...] = (
     "phanerozoic/Lean4-CvxLean",
     "phanerozoic/Lean4-PhysLean",
     "yuanhezhang/lean4-stat-learning-theory-corpus",
+    "yuanhezhang/lean4-stat-learning-theory-novel",
 )
 
 DEFAULT_HF_COLLECTIONS: tuple[str, ...] = ("m-a-p/oprover",)

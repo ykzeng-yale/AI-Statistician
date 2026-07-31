@@ -2440,6 +2440,58 @@ The retriever discovers
 file SHA-256 is
 `43fdcda8b0558c9470ced9307e62970bfe7d62f19fad391ab077f55fac0ce695`.
 
+The complementary AI4SLT Novel training split supplies bounded proof-state
+analogies to the existing ProofEngineer loop. A local SQLite FTS index contains
+519 source theorems, 6,749 `state_before -> tactic -> state_after` transitions,
+and premise provenance on 2,845 steps. Retrieval starts only when a packet has
+an actual goal, residual goal, or compiler/LSP diagnostic; a semantic query by
+itself cannot activate it. Ranking preserves complete Lean identifiers as well
+as their camel-case components, weights current-state overlap most strongly,
+and returns at most one transition per source theorem. Each hit records its
+module, source theorem, local states, one action, and exact-name/path premise
+resolution against the current formal-source index. Query fingerprints suppress
+unchanged retrieval on the next repair turn; a changed goal/diagnostic refreshes
+the packet, and a no-hit refresh removes stale transitions.
+
+This layer follows the upstream large-formalization organization instead of
+inventing theorem-number names or flat proof snippets. Mathematical layers and
+Lean namespaces remain primary (`CoveringNumber`, `MetricEntropy`, `Chaining`,
+`Dudley`, `GaussianLSI`, and `LeastSquares`); textbook references remain
+separate citation metadata. The complete declaration/citation RAG covers all 22
+current core-book crosswalk rows across Vershynin, Wainwright, and
+Boucheron-Lugosi-Massart. The Novel training traces directly contain only four
+of those 22 major-result declarations, with at least one from each book family;
+the rest of the action traces may occur in the upstream validation/test splits.
+Those splits are deliberately excluded to avoid turning held-out proofs into
+retrieval answers. The train split still supplies reusable state-action examples
+from the surrounding foundation, Gaussian, entropy/chaining, and least-squares
+layers. Every exact qualified- or short-name overlap between a retrieved source
+theorem and the current target is recorded in the packet. Production reuse may
+consume it, but it must be disclosed and excluded from held-out generalization
+claims.
+
+The trace file is discovered at
+`~/.codex/external/lean-stat-learning-theory-traces/novel-train.jsonl` or through
+`AI_STATISTICIAN_AI4SLT_PROOF_STATE_TRACES`; its optional SQLite location can be
+set with `AI_STATISTICIAN_AI4SLT_PROOF_STATE_TRACE_INDEX`. Controlled ablations
+can set `AI_STATISTICIAN_AI4SLT_PROOF_STATE_TRACE_ENABLED=false`. Provision dataset
+revision `d90449a3ce738ca05ae90f530da0d7a4d3448e26` with SHA-256
+`007ad0af7add62b8fb7bd10c5c02fdaa54871d403baea99ff34399631d4ab89c`.
+The traces were extracted under Lean `v4.27.0-rc1` and Mathlib
+`d68c4dc09f5e000d3c968adae8def120a0758729`. They are analogical context, not a
+learned tactic policy, proof script, or proof evidence. ProofEngineer must check
+current premise visibility, make a target-preserving change justified by the
+live state, and rerun the exact artifact through local Lean/AXLE. Repeated
+failure triggers statement/assumption/decomposition review rather than replaying
+an unchanged action.
+The exact-source external proof-search handoff carries both
+`formal_source_grounding_hits` and `proof_state_trace_rag` into OpenProver's
+existing generator-backed candidate policy. The prompt records a stable
+retrieval-context fingerprint and is bounded to 24,000 characters; OpenProver's
+Lean verifier and the AI-Statistician exact-artifact rerun remain authoritative.
+This closes a prior transport bug where the request contained declaration RAG
+but the external candidate policy did not consume it.
+
 Formal source graph:
 
 ```bash
@@ -2459,7 +2511,10 @@ coverage, and system audit fuse dependency-direction evidence across all
 healthy graphs. Supplying `--lean-rag-db` or `AI_STATISTICIAN_LEAN_RAG_DB`
 intentionally narrows retrieval to that graph. Auto-discovery applies to both
 SQLite-backed retrieval and the lighter in-memory fallback. Kernel-extracted
-proof-state graphs remain a future LeanDojo/ReProver-style integration.
+proof-state search trees and a trained LeanDojo/ReProver-style action policy
+remain future work; the AI4SLT trace retriever is a bounded state-action context
+provider inside the current LLM repair loop, not that missing autonomous search
+engine.
 
 Primitive-source coverage is optimized as a prioritization audit by default:
 it searches external Lean sources only for primitives that do not already have

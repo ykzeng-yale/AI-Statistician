@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from ai_statistician.formal_source_index import FormalDeclaration
 from ai_statistician.lean_agent_providers import (
     LEAN_PROVIDER_BOUNDARY,
+    OPENPROVER_RETRIEVAL_CONTEXT_MAX_CHARS,
     CompositeFormalSourceRetriever,
     EmpericalProcessLeanRetrievalProvider,
     ExternalFormalSourceHit,
@@ -382,15 +383,76 @@ def test_generator_backend_candidate_policy_reuses_negotiated_backend() -> None:
         max_tokens=800,
         temperature=0.1,
         proof_generation_prompt=lambda _task, n: f"return {n}",
+        retrieval_context={
+            "proof_state_trace_rag": {
+                "hits": [
+                    {
+                        "state_before": "prior_goal : Prop\n⊢ prior_goal",
+                        "tactic": "exact prior_goal",
+                    }
+                ],
+                "proof_evidence_status": (
+                    "PROOF_STATE_TRACE_RETRIEVAL_CONTEXT_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        },
     )
 
     candidates = policy.propose(SimpleNamespace(), 1)
 
     assert candidates == ["exact hp"]
+    assert "prior_goal" in backend.requests[0].user_prompt
+    assert backend.requests[0].metadata["retrieval_context_keys"] == [
+        "proof_state_trace_rag"
+    ]
     assert backend.requests[0].metadata["subsystem"] == "OpenProverHLM"
+    assert policy.last_diagnostics["retrieval_context_keys"] == [
+        "proof_state_trace_rag"
+    ]
     assert policy.last_diagnostics["response_metadata"][
         "capability_fallback_count"
     ] == 1
+
+
+def test_generator_backend_candidate_policy_bounds_retrieval_context() -> None:
+    class Backend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.request = None
+
+        def generate(self, request):
+            self.request = request
+            return GeneratorResponse(
+                text='{"candidates":["exact hp"]}',
+                provider="anthropic",
+                model=request.model,
+            )
+
+    backend = Backend()
+    policy = GeneratorBackendCandidatePolicy(
+        provider=backend,  # type: ignore[arg-type]
+        model=TEST_HAIKU_MODEL,
+        max_tokens=800,
+        temperature=0.1,
+        proof_generation_prompt=lambda _task, n: f"return {n}",
+        retrieval_context={
+            "proof_state_trace_rag": {
+                "hits": [{"state_before": "TRACE_FIRST", "tactic": "exact hp"}]
+            },
+            "formal_source_grounding_hits": [{"payload": "x" * 40000}],
+        },
+    )
+
+    assert policy.propose(SimpleNamespace(), 1) == ["exact hp"]
+    assert backend.request is not None
+    prompt = backend.request.user_prompt
+    assert "TRACE_FIRST" in prompt
+    assert (
+        f"truncated at {OPENPROVER_RETRIEVAL_CONTEXT_MAX_CHARS} characters"
+        in prompt
+    )
+    assert len(prompt) < OPENPROVER_RETRIEVAL_CONTEXT_MAX_CHARS + 1000
 
 
 def test_generator_backend_candidate_policy_keeps_valid_siblings() -> None:
@@ -438,6 +500,7 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
 
         def __init__(self) -> None:
             self.normalization_calls = 0
+            self.generation_prompts: list[str] = []
 
         def generate(self, request):
             if request.metadata.get("agent") == "StructuredLeanTaskNormalizer":
@@ -453,6 +516,7 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
                     )
                 )
             else:
+                self.generation_prompts.append(request.user_prompt)
                 text = '{"candidates":["exact hp"]}'
             return GeneratorResponse(
                 text=text,
@@ -570,6 +634,35 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
                     "status": "LOCAL_LEAN_FAILED",
                 }
             ],
+            "proof_state_trace_rag": {
+                "hits": [
+                    {
+                        "state_before": "p : Prop\nhp : p\n⊢ p",
+                        "tactic": "exact hp",
+                        "state_after": "no goals",
+                    }
+                ],
+                "proof_evidence_status": (
+                    "PROOF_STATE_TRACE_RETRIEVAL_CONTEXT_NOT_PROOF_EVIDENCE"
+                ),
+            },
+            "formal_source_grounding_hits": [
+                {
+                    "query": "prior_goal Lean theorem",
+                    "hits": [
+                        {
+                            "name": "Fixture.prior_goal",
+                            "signature": (
+                                "theorem Fixture.prior_goal "
+                                "(p : Prop) (hp : p) : p"
+                            ),
+                        }
+                    ],
+                    "proof_evidence_status": (
+                        "FORMAL_SOURCE_RETRIEVAL_GROUNDING_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            ],
             "lean_header": "set_option autoImplicit false",
         }
     )
@@ -589,9 +682,15 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
     assert result["compiler_feedback_consumed"] is True
     assert result["prior_exact_candidate_feedback_items"] == 1
     assert result["initial_failure_feedback_items"] == 2
+    assert result["policy_diagnostics"]["retrieval_context_keys"] == [
+        "formal_source_grounding_hits",
+        "proof_state_trace_rag",
+    ]
     assert result["task_normalization"]["source"] == "llm_structured_json"
     assert result["task_normalization"]["context_binding_count"] == 2
     assert backend.normalization_calls == 2
+    assert "Fixture.prior_goal" in backend.generation_prompts[0]
+    assert "state_before" in backend.generation_prompts[0]
     assert result["task_normalization"]["response"][
         "llm_json_repair_attempts"
     ] == 1
