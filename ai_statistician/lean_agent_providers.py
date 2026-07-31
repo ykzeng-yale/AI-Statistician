@@ -121,6 +121,7 @@ class CompositeFormalSourceRetriever:
             "provider_count": len(self.providers),
             "providers": [provider_descriptor(provider) for provider in self.providers],
             "fusion": "reciprocal_rank_fusion",
+            "fusion_tie_break": "query_matched_term_count",
             "boundary": LEAN_PROVIDER_BOUNDARY,
         }
 
@@ -190,10 +191,16 @@ class CompositeFormalSourceRetriever:
                         "provenance": provenance,
                     }
                 )
+        for row in fused.values():
+            row["query_matched_term_count"] = _query_matched_term_count(
+                query,
+                row["matched_terms"],
+            )
         ordered = sorted(
             fused.values(),
             key=lambda row: (
                 -float(row["score"]),
+                -int(row["query_matched_term_count"]),
                 str(row["declaration"].name),
                 str(row["declaration"].path),
                 int(row["declaration"].line),
@@ -206,6 +213,9 @@ class CompositeFormalSourceRetriever:
                 matched_terms=tuple(sorted(row["matched_terms"]))[:16],
                 provenance={
                     "retrieval_fusion": "reciprocal_rank_fusion",
+                    "query_matched_term_count": int(
+                        row["query_matched_term_count"]
+                    ),
                     "provider_support": row["provider_support"],
                     "query_fingerprint": query_fingerprint,
                     "proof_evidence_status": (
@@ -216,6 +226,24 @@ class CompositeFormalSourceRetriever:
             )
             for row in ordered
         ]
+
+
+def _query_matched_term_count(query: str, matched_terms: Sequence[Any]) -> int:
+    """Count distinct provider-reported match terms present in the query."""
+
+    query_terms = {
+        token.casefold()
+        for token in re.findall(r"[\w'.]+", str(query or ""), re.UNICODE)
+        if token
+    }
+    return len(
+        query_terms
+        & {
+            str(term).strip().casefold()
+            for term in matched_terms
+            if str(term).strip()
+        }
+    )
 
 
 class EmpericalProcessLeanRetrievalProvider:

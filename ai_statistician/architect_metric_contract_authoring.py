@@ -450,40 +450,21 @@ def _metric_authoring_repair_priority_instructions(
         for error in error_rows
     ):
         instructions.append(
-            "Use numeric_authority_repair_matrix as the local retrieval index. "
-            "Each implicated row includes the exact current_requirement plus exact "
-            "matching catalog nodes for each gate field, and marks values with no "
-            "upstream numeric match. For every field, satisfy all "
-            "required_field_anchor_kinds as well as the numeric match. When a "
-            "required nonnumeric authority kind is missing, prefer an exact "
-            "current_row_candidates_for_missing_field_anchor_kinds node that truly "
-            "supports the field; do not replace a theory node with a merely topical "
-            "expectation. Preserve unimplicated fields. For each error, "
-            "decide ownership "
-            "from the current artifacts. If the value is explicitly source-derived "
-            "or mandated, "
-            "retain that authority kind and cite the exact catalog node containing "
-            "it. If it is an Architect-chosen pre-execution empirical benchmark, "
-            "tolerance, or quorum absent upstream, set that field's authority_kind "
-            "to architect_preregistered_design and rewrite its field rationale. A "
-            "field listed under "
-            "numeric_gate_fields_without_exact_catalog_match cannot remain under a "
-            "source-derived authority merely by repeating its value or rewriting "
-            "prose. Authority is field-level: retain valid source authority for other "
-            "fields. If choosing architect_preregistered_design, emit every update in "
-            "that field's entry in "
-            "architect_preregistered_design_patch_contracts together; "
-            "changing only rationale cannot change field ownership. AgentRuntime "
-            "recomputes the conservative row-level authority roll-up. Use that "
-            "resolution only when the unmatched choice is a defensible pre-execution "
-            "design decision. If and only if the returned quantity is intrinsically "
-            "true/false, set metric_value_kind=boolean and use the exact runtime "
-            "truth representation == 1 with zero tolerance; the predicate still "
-            "needs semantic source authority, but the representational 1 is not a "
-            "source-derived cutoff. Otherwise make the row diagnostic or remove it; "
-            "do not copy "
-            "the value into theory, change a gate merely to match an anchor, or treat "
-            "the matrix as an automatic repair."
+            "When unmatched_gate_resolution_decisions is nonempty, resolve it before "
+            "editing any other path and choose exactly one semantic decision for each "
+            "listed field. The current_invalid_owner cannot be retained because no "
+            "exact upstream node owns that value. For fields with "
+            "an exact matching catalog node, cite that node and preserve its valid "
+            "owner; retain valid source authority for other fields. Authority is "
+            "field-level. If choosing "
+            "architect_preregistered_design, emit every exact "
+            "required_patch_updates_if_preregistered entry "
+            "together, including the owner and a pre-execution rationale. If choosing "
+            "diagnostic_only, make the row non-required and remove every acceptance "
+            "contribution; choose remove_requirement when the row does not belong in "
+            "the protocol. Preserve unimplicated fields. Never "
+            "fabricate numeric support by changing anchors, copying the value into "
+            "theory, or changing the gate to match an anchor."
         )
     if any(
         is_generated_metric_numeric_authority_error(error)
@@ -674,6 +655,60 @@ def _metric_authoring_repair_context(
             "architect_preregistered_design_patch_contracts"
         ] = field_patch_contracts
 
+    unmatched_gate_resolution_decisions: list[dict[str, Any]] = []
+    for matrix_row in numeric_authority_repair_matrix:
+        preregistered_contracts = {
+            str(row.get("field", "") or "").strip(): dict(row)
+            for row in matrix_row.get(
+                "architect_preregistered_design_patch_contracts",
+                [],
+            )
+            if isinstance(row, Mapping)
+            and str(row.get("field", "") or "").strip()
+        }
+        for gate_match in matrix_row.get("numeric_gate_matches", []):
+            if (
+                not isinstance(gate_match, Mapping)
+                or gate_match.get("current_source_authority_must_change")
+                is not True
+            ):
+                continue
+            field = str(gate_match.get("field", "") or "").strip()
+            if not field:
+                continue
+            requirement_index = int(matrix_row["requirement_index"])
+            preregistered_contract = preregistered_contracts.get(field, {})
+            unmatched_gate_resolution_decisions.append(
+                {
+                    "decision_id": (
+                        f"requirement:{requirement_index}:field:{field}"
+                    ),
+                    "requirement_id": str(
+                        matrix_row.get("requirement_id", "") or ""
+                    ),
+                    "field": field,
+                    "current_invalid_owner": str(
+                        gate_match.get(
+                            "current_field_authority_kind",
+                            "",
+                        )
+                        or ""
+                    ),
+                    "value": gate_match.get("value"),
+                    "allowed_resolutions": [
+                        "architect_preregistered_design",
+                        "diagnostic_only",
+                        "remove_requirement",
+                    ],
+                    "required_patch_updates_if_preregistered": list(
+                        preregistered_contract.get(
+                            "required_updates_if_selected",
+                            [],
+                        )
+                    ),
+                }
+            )
+
     repair_catalog = acceptance_authority_catalog
     repair_catalog_scope = "full_catalog"
     if numeric_authority_repair_matrix:
@@ -702,6 +737,9 @@ def _metric_authoring_repair_context(
         repair_catalog_scope = "numeric_authority_local_slice"
 
     context = {
+        "unmatched_gate_resolution_decisions": (
+            unmatched_gate_resolution_decisions
+        ),
         "runtime_owned_replicates": runtime_replicates,
         "acceptance_authority_catalog_id": acceptance_authority_catalog_id,
         "acceptance_authority_catalog": repair_catalog,

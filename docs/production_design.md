@@ -2362,8 +2362,12 @@ Declaration outlines stop before `:=`, so proof bodies, tactics, and placeholder
 do not enter prompt context. Root README tables with declaration and reference
 columns are parsed generically; this makes the AI4SLT crosswalk to Vershynin,
 Wainwright, and Boucheron-Lugosi-Massart searchable without encoding book-specific
-runtime rules. Retrieval emits namespace, imports, a bounded signature outline, and reference,
-uses exact-name/source-diverse ranking, and remains candidate-only until the exact
+runtime rules. Retrieval emits qualified name, namespace, module, imports,
+reference, and a bounded outline containing only same-file declarations before
+the target; downstream declarations and proof bodies are omitted. Composite
+provider retrieval keeps reciprocal-rank fusion and resolves exact RRF ties by
+the number of provider-reported match terms actually present in the query, not
+by declaration-name ordering. Every result remains candidate-only until the exact
 artifact compiles in the active pinned Lean project. In particular, the external
 SLT v4.32 checkout is not assumed compatible with the current v4.31 proof target.
 The upstream `v4.31.0` tag is a useful promotion candidate, but its pinned Mathlib

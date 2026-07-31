@@ -7,9 +7,10 @@ from .research_schema import OpenResearchQuestion
 
 
 FORMAL_SOURCE_OUTLINE_PROMPT_POLICY = (
-    "Bounded same-file declaration signatures and imported module names only; "
-    "proof bodies are omitted. Retrieved declarations remain candidate context "
-    "until the exact target artifact passes active-project Lean/kernel checking."
+    "Bounded declaration-order-available same-file signatures and imported module "
+    "names only; downstream declarations and proof bodies are omitted. Retrieved "
+    "declarations remain candidate context until the exact target artifact passes "
+    "active-project Lean/kernel checking."
 )
 
 
@@ -175,23 +176,29 @@ def formal_source_context_for_hit(
         for value in getattr(declaration, "imports", ()) or ()
         if str(value).strip()
     ]
-    same_file = list(
+    all_same_file = list(
         _formal_source_outline_rows_by_file(retriever).get((source_id, path), ())
     )
     same_file = [
         row
-        for row in same_file
+        for row in all_same_file
         if not (
             int(getattr(row, "line", 0) or 0) == target_line
             and str(getattr(row, "name", "") or "")
             == str(getattr(declaration, "name", "") or "")
         )
+        and (
+            target_line <= 0
+            or int(getattr(row, "line", 0) or 0) < target_line
+        )
     ]
     same_file.sort(
         key=lambda row: (
-            abs(int(getattr(row, "line", 0) or 0) - target_line),
-            0 if int(getattr(row, "line", 0) or 0) <= target_line else 1,
-            int(getattr(row, "line", 0) or 0),
+            (
+                target_line - int(getattr(row, "line", 0) or 0)
+                if target_line > 0
+                else int(getattr(row, "line", 0) or 0)
+            ),
             str(getattr(row, "name", "") or ""),
         )
     )
@@ -232,8 +239,17 @@ def formal_source_context_for_hit(
         "path": path,
         "imports": imports[:12],
         "nearby_declaration_outlines": outline_rows,
-        "n_same_file_declarations": len(same_file) + 1,
-        "outline_selection": "nearest_same_file_declarations_by_source_line",
+        "n_same_file_declarations": len(all_same_file),
+        "n_prior_same_file_declarations": len(same_file),
+        "n_downstream_same_file_declarations_omitted": sum(
+            1
+            for row in all_same_file
+            if target_line > 0
+            and int(getattr(row, "line", 0) or 0) > target_line
+        ),
+        "outline_selection": (
+            "nearest_prior_same_file_declarations_by_source_line"
+        ),
         "prompt_policy": FORMAL_SOURCE_OUTLINE_PROMPT_POLICY,
     }
     if dependency_context:

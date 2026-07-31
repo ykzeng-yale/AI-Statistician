@@ -838,10 +838,66 @@ def test_field_bound_gate_authority_requires_exact_active_field_coverage() -> No
             require_gate_field_authorities=True,
         )
         assert any(
-            "must bind each active substantive numeric field exactly once"
+            "must bind each declared substantive numeric field exactly once"
             in error
             for error in errors
         )
+
+
+def test_gate_authority_shape_reports_missing_between_fields_in_same_pass() -> None:
+    anchor = "architect:acceptance:criterion-control"
+    requirement = _requirement(
+        aggregation="mean",
+        minimum_pass_count=None,
+        operator="between",
+        threshold=None,
+        lower=None,
+        upper=None,
+        tolerance=0.02,
+        acceptance_authority_kind="architect_preregistered_design",
+        gate_field_authority_mode=(
+            GENERATED_METRIC_GATE_FIELD_AUTHORITY_MODE
+        ),
+        gate_field_authorities=[
+            {
+                "field": "tolerance",
+                "authority_kind": "architect_preregistered_design",
+                "source_anchors": [anchor],
+                "rationale": (
+                    "The Architect preregisters the comparison tolerance."
+                ),
+            }
+        ],
+    )
+    catalog = [
+        {
+            "anchor_id": anchor,
+            "authority_kind": "question_mandate",
+            "content": "Generic evaluation context.",
+            "explicit_numeric_values": [],
+        }
+    ]
+
+    errors = validate_generated_metric_requirements(
+        [requirement],
+        require_acceptance_authority=True,
+        acceptance_authority_catalog=catalog,
+        require_gate_field_authorities=True,
+    )
+
+    assert any(
+        "lower must be a finite number for between" in error
+        for error in errors
+    )
+    assert any(
+        "upper must be a finite number for between" in error
+        for error in errors
+    )
+    assert any(
+        "expected=['lower', 'upper', 'tolerance'] observed=['tolerance']"
+        in error
+        for error in errors
+    )
 
 
 def test_field_bound_authority_survives_runtime_binding_and_evaluation() -> None:

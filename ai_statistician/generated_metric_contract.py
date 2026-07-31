@@ -1391,6 +1391,37 @@ def _generated_metric_required_gate_numeric_fields(
     return rows
 
 
+def _generated_metric_expected_gate_numeric_field_names(
+    requirement: Mapping[str, Any],
+) -> list[str]:
+    """Return gate fields required by the declared comparison shape.
+
+    Unlike ``_generated_metric_required_gate_numeric_fields``, this helper
+    retains structurally required fields whose values are currently invalid or
+    absent. That lets one validation pass report both the missing value and its
+    missing authority binding without inventing either one.
+    """
+
+    metric_value_kind = _generated_metric_value_kind(requirement)
+    if metric_value_kind == "boolean":
+        fields: list[str] = []
+    elif str(requirement.get("operator", "") or "") == "between":
+        fields = ["lower", "upper"]
+    else:
+        fields = ["threshold"]
+
+    tolerance = requirement.get("tolerance")
+    if _finite_number(tolerance) and not _same_finite_number(tolerance, 0):
+        fields.append("tolerance")
+
+    aggregation = str(requirement.get("aggregation", "") or "")
+    if aggregation == "at_least_count":
+        fields.append("minimum_pass_count")
+    elif aggregation == "at_least_fraction":
+        fields.append("minimum_pass_fraction")
+    return fields
+
+
 def generated_metric_gate_field_authority_rollup(
     gate_field_authorities: Sequence[Mapping[str, Any]],
     *,
@@ -1531,12 +1562,9 @@ def _generated_metric_gate_field_authority_errors(
             f"{prefix}.gate_field_authority_mode must equal "
             f"{GENERATED_METRIC_GATE_FIELD_AUTHORITY_MODE}"
         )
-    expected_fields = [
-        field
-        for field, _value in _generated_metric_required_gate_numeric_fields(
-            requirement
-        )
-    ]
+    expected_fields = _generated_metric_expected_gate_numeric_field_names(
+        requirement
+    )
     expected_values = dict(
         _generated_metric_required_gate_numeric_fields(requirement)
     )
@@ -1556,7 +1584,7 @@ def _generated_metric_gate_field_authority_errors(
     ]
     if observed_fields != expected_fields:
         errors.append(
-            f"{prefix}.gate_field_authorities must bind each active substantive "
+            f"{prefix}.gate_field_authorities must bind each declared substantive "
             f"numeric field exactly once in order: expected={expected_fields!r} "
             f"observed={observed_fields!r}"
         )

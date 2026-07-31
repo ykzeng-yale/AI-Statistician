@@ -108,8 +108,8 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
     return {
         "schema_version": 2,
         "specification": (
-            "Exact target/math meaning; compact declaration outlines only "
-            "(name/namespace/signature/import/reference; no proof "
+            "Exact target; compact declaration outlines (qualified "
+            "name/namespace/module/signature/import/reference; prior only; no proof "
             "bodies); small lemma DAG; assumptions; no weakening."
         ),
         "repair_cycle": (

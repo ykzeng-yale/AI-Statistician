@@ -1267,6 +1267,8 @@ def test_theory_developer_prompt_compacts_runtime_retrieval_context() -> None:
     assert "assumption_ledger" in prompt
     assert "formalization_handoff" in prompt
     assert "equation_chain" in prompt
+    assert "Use estimator_specs only for complete candidate procedures" in prompt
+    assert "intermediate statistics, helper quantities" in prompt
     assert "at least three derivation steps" in prompt
     assert "Probability.coverage" in prompt
     assert "signature_omitted" in prompt

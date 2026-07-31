@@ -11,6 +11,7 @@ from ai_statistician.architect_metric_semantic_reviewer_llm import (
     ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA,
     ArchitectMetricSemanticReviewerConfig,
     LLMArchitectMetricSemanticReviewerAgent,
+    _architect_metric_semantic_review_repair_context,
     _architect_metric_theory_scope_check_contract,
     architect_metric_active_prior_finding_current_evidence,
     architect_metric_review_material_with_runtime_evaluator_certificate,
@@ -644,6 +645,129 @@ def test_theory_bound_metric_review_requires_scope_consistency_check() -> None:
         "requires exact source theory lineage and semantic material"
         in str(context_exc.value)
     )
+
+
+def test_metric_review_requires_primitive_identity_audit_before_coding() -> None:
+    formula_ref = "theory#/estimator_specs/0/formula"
+    material = {
+        "review_stage": "pre_execution_metric_contract_review",
+        "execution_results_available": False,
+        "empirical_metric_requirements": [_generic_requirement()],
+        "theory_developer_protocol_material": {
+            "artifact_kind": "RuntimeTheoryInformedMetricProtocolMaterial",
+            "source_theory_packet_id": "theory:primitive-check",
+            "source_theory_packet_hash": stable_hash(
+                {"theory": "primitive-check"}
+            ),
+            "theory_semantic_material": {
+                "estimator_specs": [
+                    {
+                        "id": "generic_estimator",
+                        "formula": "T = numerator / denominator",
+                        "algorithm_sketch": "compute numerator then divide",
+                        "required_assumptions": ["denominator is positive"],
+                        "estimand_alignment": "T targets theta",
+                    }
+                ]
+            },
+            "execution_results_available": False,
+        },
+    }
+    payload = _review_payload(accept=True)
+    payload["claim_checks"][0].update(
+        {
+            "claim_ref": "theory#/theorem_cards/0/statement",
+            "recomputation": (
+                "Derive T from the primitive numerator, denominator, and target "
+                "equation; check a non-degenerate boundary, one substitution, "
+                "and the positive-denominator domain."
+            ),
+            "normalization_and_unit_audit": (
+                "Numerator and denominator have the declared compatible units."
+            ),
+            "result": "The primitive reconstruction matches the proposed formula.",
+            "evidence_refs": [
+                "theory#/estimator_specs/0/required_assumptions"
+            ],
+        }
+    )
+    payload["foundational_identity_claim_check_indices"] = {
+        "generic_estimator": 0
+    }
+    packet, backend, enriched_material = _review(
+        accept=True,
+        payload=payload,
+        material=material,
+    )
+
+    foundational_rows = packet["metric_claim_check_contract"][
+        "foundational_identity_rows"
+    ]
+    assert foundational_rows[0][
+        "estimator_id"
+    ] == "generic_estimator"
+    assert validate_architect_metric_semantic_review_packet(packet) == []
+    identity_schema = backend.requests[0].schema["properties"][
+        "foundational_identity_claim_check_indices"
+    ]
+    assert identity_schema["required"] == ["generic_estimator"]
+    assert identity_schema["properties"]["generic_estimator"] == {
+        "type": "integer",
+        "minimum": 0,
+    }
+    bound_check = next(
+        row for row in packet["claim_checks"] if row["claim_ref"] == formula_ref
+    )
+    assert bound_check["evidence_refs"][0] == formula_ref
+    assert enriched_material["metric_claim_check_contract"][
+        "foundational_identity_rows"
+    ] == foundational_rows
+
+    missing_payload = deepcopy(payload)
+    missing_payload.pop("foundational_identity_claim_check_indices")
+    with pytest.raises(PacketValidationError) as exc_info:
+        _review(
+            accept=True,
+            payload=missing_payload,
+            material=material,
+        )
+    assert (
+        "claim_checks must include a primitive identity reconstruction"
+        in str(exc_info.value)
+    )
+
+    spoofed_payload = deepcopy(payload)
+    spoofed_payload["claim_checks"][0]["claim_ref"] = (
+        "theory#/estimator_specs/99/formula"
+    )
+    spoofed_packet, _, _ = _review(
+        accept=True,
+        payload=spoofed_payload,
+        material=material,
+    )
+    spoofed_check = next(
+        row
+        for row in spoofed_packet["claim_checks"]
+        if row["claim_ref"] == formula_ref
+    )
+    assert spoofed_check["claim_ref"] == formula_ref
+    assert validate_architect_metric_semantic_review_packet(spoofed_packet) == []
+
+    repair_context = _architect_metric_semantic_review_repair_context(
+        enriched_material,
+        invalid_packet=missing_payload,
+        errors=[
+            "claim_checks must include a primitive identity reconstruction for "
+            f"estimator_id generic_estimator at claim_ref {formula_ref}"
+        ],
+    )
+    repair_instructions = " ".join(
+        repair_context["repair_prompt_priority_instructions"]
+    )
+    assert "foundational_identity_rows" in repair_instructions
+    assert "zero-based index" in repair_instructions
+    assert "Runtime binds that indexed row" in repair_instructions
+    assert "Use distinct indices" in repair_instructions
 
 
 def test_mixed_field_authority_keeps_theory_scope_review_visible() -> None:

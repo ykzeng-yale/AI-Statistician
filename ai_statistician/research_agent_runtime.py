@@ -18626,6 +18626,7 @@ class AlgorithmEngineerRuntimeSubsystem:
             "n_typed_metric_contracts_evaluated": n_typed_metric_contracts_evaluated,
             "n_typed_metric_contracts_passed": n_typed_metric_contracts_passed,
             "n_typed_metric_contracts_failed": n_typed_metric_contracts_failed,
+            "confirmatory_empirical_evidence_eligible": False,
             "generated_code_semantic_reviewer_available": (
                 self.semantic_reviewer_available
             ),

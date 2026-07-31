@@ -309,8 +309,13 @@ def test_formal_source_hit_context_adds_bounded_outline_and_dependency_neighbors
     assert [row["name"] for row in context["nearby_declaration_outlines"]] == [
         "LeastSquares.bad_event_probability_bound",
         "LeastSquares.goodEvent",
-        "LeastSquares.master_error_bound_corollary",
     ]
+    assert context["n_same_file_declarations"] == 4
+    assert context["n_prior_same_file_declarations"] == 2
+    assert context["n_downstream_same_file_declarations_omitted"] == 1
+    assert context["outline_selection"] == (
+        "nearest_prior_same_file_declarations_by_source_line"
+    )
     assert context["dependency_context"]["uses"] == [
         "LeastSquares.bad_event_probability_bound"
     ]
@@ -368,8 +373,11 @@ def test_formal_source_prompt_payload_omits_full_candidate_proof_body() -> None:
 def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     contract = formalizer_proof_construction_strategy_contract()
     assert "smallest diagnostic" in contract["repair_cycle"]
-    assert "name/namespace/signature/import/reference" in contract["specification"]
+    assert "qualified name/namespace/module/signature/import/reference" in contract[
+        "specification"
+    ]
     assert "compact declaration outlines" in contract["specification"]
+    assert "prior only" in contract["specification"]
     assert "small lemma DAG" in contract["specification"]
     assert "counterexamples" in contract["persistent_failure_route"]
     assert "quantifiers" in contract["persistent_failure_route"]

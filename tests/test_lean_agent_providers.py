@@ -76,6 +76,38 @@ def test_composite_formal_source_retriever_fuses_and_records_provider_failure() 
     assert "index unavailable" in diagnostics[-1]["error"]
 
 
+def test_composite_retriever_breaks_rrf_ties_by_query_evidence() -> None:
+    @dataclass
+    class Provider:
+        name: str
+        hit: ExternalFormalSourceHit
+
+        def search(self, _query: str, *, k: int = 10):
+            return [self.hit][:k]
+
+    weak = ExternalFormalSourceHit(
+        declaration=_declaration("A.weak", source_id="weak"),
+        score=100.0,
+        matched_terms=("finite",),
+    )
+    exact = ExternalFormalSourceHit(
+        declaration=_declaration("Z.exact", source_id="exact"),
+        score=1.0,
+        matched_terms=("finite", "variance", "independent", "sum"),
+    )
+    retriever = CompositeFormalSourceRetriever(
+        (Provider("weak", weak), Provider("exact", exact))
+    )
+
+    hits = retriever.search("finite variance independent sum", k=2)
+
+    assert [hit.declaration.name for hit in hits] == ["Z.exact", "A.weak"]
+    assert hits[0].provenance["query_matched_term_count"] == 4
+    assert retriever.descriptor()["fusion_tie_break"] == (
+        "query_matched_term_count"
+    )
+
+
 def test_emperical_process_lean_provider_calls_structured_graph_api(
     tmp_path: Path,
 ) -> None:

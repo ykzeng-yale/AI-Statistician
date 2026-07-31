@@ -316,11 +316,18 @@ def _architect_metric_claim_check_contract(
     return {
         "requirement_ids": requirement_ids,
         "normalization_expression_rows": normalization_expression_rows,
+        "foundational_identity_rows": (
+            _architect_metric_foundational_identity_rows(review_material)
+        ),
         "coverage_policy": (
             "Every proposed metric requirement_id must appear in at least one "
             "general claim_check. Each check must independently recompute the "
             "metric, record its normalization_and_unit_audit, and reconstruct the "
             "source-to-protocol normalization without changing the source notation; "
+            "every foundational_identity_rows entry must also have a claim_check "
+            "whose claim_ref exactly matches its required_claim_ref and which "
+            "reconstructs the identity from primitives rather than citing a prior "
+            "sanity check; "
             "runtime verifies coverage and decision consistency but does not choose "
             "the statistical conclusion."
         ),
@@ -336,6 +343,49 @@ def _architect_metric_claim_check_contract(
             "from that ref; the reviewer owns the semantic audit, not literal transport."
         ),
     }
+
+
+def _architect_metric_foundational_identity_rows(
+    review_material: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Bind each proposed estimator to one primitive-level claim check."""
+
+    theory_material = review_material.get(
+        "theory_developer_protocol_material",
+        {},
+    )
+    semantic_material = (
+        theory_material.get("theory_semantic_material", {})
+        if isinstance(theory_material, Mapping)
+        else {}
+    )
+    estimator_specs = (
+        semantic_material.get("estimator_specs", [])
+        if isinstance(semantic_material, Mapping)
+        else []
+    )
+    rows: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    for index, raw_spec in enumerate(estimator_specs or []):
+        if not isinstance(raw_spec, Mapping):
+            continue
+        estimator_id = str(raw_spec.get("id", "") or "").strip()
+        if not estimator_id or estimator_id in seen_ids:
+            continue
+        seen_ids.add(estimator_id)
+        required_claim_ref = (
+            f"theory#/estimator_specs/{index}/formula"
+            if raw_spec.get("formula") not in (None, "", [], {})
+            else ""
+        )
+        if required_claim_ref:
+            rows.append(
+                {
+                    "estimator_id": estimator_id,
+                    "required_claim_ref": required_claim_ref,
+                }
+            )
+    return rows
 
 
 def architect_metric_semantic_recommended_repair_scope(
@@ -1064,7 +1114,7 @@ def _architect_metric_semantic_review_repair_context(
                 "dimensions."
             ),
             (
-                "Preserve one general claim_check for every requirement_id listed in "
+                "Preserve claim_checks coverage for every requirement_id listed in "
                 "metric_claim_check_contract. For each row, repair or supply its "
                 "normalization_and_unit_audit by tracing finite-sample versus "
                 "asymptotic quantities, units, sample-size order, and every n, "
@@ -1074,6 +1124,14 @@ def _architect_metric_semantic_review_repair_context(
                 "convention_consistent value or any unresolved conflict requires "
                 "that claim_check to remain FAIL. Do not infer the statistical "
                 "verdict mechanically from any other runtime instruction."
+            ),
+            (
+                "For every row in "
+                "metric_claim_check_contract.foundational_identity_rows, map its exact "
+                "estimator_id to the zero-based index of one claim_checks row that "
+                "reconstructs that estimator. Runtime binds that indexed row to "
+                "required_claim_ref. Use distinct indices and preserve already valid "
+                "independent checks."
             ),
         ],
     }
@@ -1187,6 +1245,18 @@ def build_architect_metric_semantic_review_prompt(
             }
             for row in theory_scope_rows
         }
+    foundational_identity_rows = _architect_metric_claim_check_contract(
+        review_material
+    ).get("foundational_identity_rows", [])
+    if foundational_identity_rows:
+        required_output_contract[
+            "foundational_identity_claim_check_indices"
+        ] = {
+            str(row["estimator_id"]): 0
+            for row in foundational_identity_rows
+            if isinstance(row, Mapping)
+            and str(row.get("estimator_id", "") or "").strip()
+        }
     payload = {
         "question": {
             "id": question.id,
@@ -1202,7 +1272,22 @@ def build_architect_metric_semantic_review_prompt(
     return (
         "Independently review the proposed empirical acceptance contract before "
         "any coding agent, simulation, or result exists. Return ONLY JSON matching "
-        "the required output contract. Derive and check the mathematical meaning of "
+        "the required output contract. Before other claim checks, satisfy every row "
+        "in review_material.metric_claim_check_contract.foundational_identity_rows "
+        "by mapping its exact estimator_id to the zero-based index of one claim_checks "
+        "row that reconstructs it. Use a distinct index for each estimator. "
+        "AgentRuntime binds each indexed row to its immutable required_claim_ref. "
+        "Reconstruct the estimator's core statistical object from the primitive "
+        "model, reference law, measure, numerator/denominator, or target equation; "
+        "explicitly calculate an initial or non-degenerate boundary case, a one-step "
+        "conditional expectation/normalization/defining invariant, and domain plus "
+        "integrability conditions. A TheoryDeveloper theorem name, proof sketch, "
+        "repeated formula, or self-authored sanity check is a claim under review and "
+        "cannot substitute for this reconstruction. If the calculation fails, set "
+        "that claim_check verdict to FAIL, mark "
+        "mathematical_and_numeric_internal_consistency FAIL, and emit a high or "
+        "critical upstream_theory finding before any coding begins. Derive and check "
+        "the mathematical meaning of "
         "every proposed metric, numeric constant, comparison, aggregation, quorum, "
         "runtime replicate count, estimand, and data-generating regime from the "
         "supplied question and protocol. Translate the prose through each exact "
@@ -1231,9 +1316,10 @@ def build_architect_metric_semantic_review_prompt(
         "undefined, contradictory, unidentifiable, or implausible. Never propose "
         "retuning a frozen gate from its own confirmatory result. "
         "Before assigning the mathematical/numeric and finite-sample dimensions, "
-        "emit claim_checks that cover every requirement_id listed in "
-        "review_material.metric_claim_check_contract, with at least two total "
-        "general checks. Each check must include an explicit substitution, arithmetic "
+        "make claim_checks cover every requirement_id listed in "
+        "review_material.metric_claim_check_contract, with at least two total checks. "
+        "Each check must include an explicit "
+        "substitution, arithmetic "
         "recomputation, normalization check, boundary case, uncertainty-scale "
         "calculation, inequality-direction check, or pass-set translation. Its "
         "normalization_and_unit_audit must distinguish finite-sample variance or "
@@ -1738,6 +1824,19 @@ def architect_metric_semantic_review_json_schema(
     metric_requirement_ids = _architect_metric_claim_check_requirement_ids(
         review_material
     )
+    metric_claim_check_contract = _architect_metric_claim_check_contract(
+        review_material
+    )
+    foundational_identity_rows = [
+        dict(row)
+        for row in metric_claim_check_contract.get(
+            "foundational_identity_rows",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+        and str(row.get("estimator_id", "") or "").strip()
+    ]
     general_claim_checks_schema = schema["properties"]["claim_checks"]
     if metric_requirement_ids:
         general_claim_checks_schema["items"]["properties"][
@@ -1747,9 +1846,28 @@ def architect_metric_semantic_review_json_schema(
             general_claim_checks_schema.get("minItems", 0),
             len(metric_requirement_ids),
         )
-    metric_claim_check_contract = _architect_metric_claim_check_contract(
-        review_material
-    )
+    if foundational_identity_rows:
+        general_claim_checks_schema["minItems"] = max(
+            general_claim_checks_schema.get("minItems", 0),
+            len(foundational_identity_rows),
+        )
+        field = "foundational_identity_claim_check_indices"
+        schema["required"].append(field)
+        schema["properties"][field] = {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                str(row["estimator_id"])
+                for row in foundational_identity_rows
+            ],
+            "properties": {
+                str(row["estimator_id"]): {
+                    "type": "integer",
+                    "minimum": 0,
+                }
+                for row in foundational_identity_rows
+            },
+        }
     protocol_expression_refs = list(
         dict.fromkeys(
             str(option.get("expression_ref", "") or "").strip()
@@ -2329,6 +2447,50 @@ def validate_architect_metric_semantic_review_packet(
             "requirement_ids: "
             + json.dumps(missing_metric_requirement_ids)
         )
+    foundational_identity_rows = (
+        metric_claim_check_contract.get("foundational_identity_rows", [])
+        if isinstance(metric_claim_check_contract, Mapping)
+        else []
+    )
+    failed_foundational_claim_checks = 0
+    for required_row in foundational_identity_rows or []:
+        if not isinstance(required_row, Mapping):
+            continue
+        estimator_id = str(required_row.get("estimator_id", "") or "").strip()
+        required_claim_ref = str(
+            required_row.get("required_claim_ref", "") or ""
+        ).strip()
+        matching_checks = [
+            row
+            for row in general_claim_checks
+            if str(row.get("claim_ref", "") or "").strip()
+            == required_claim_ref
+        ]
+        if not matching_checks:
+            errors.append(
+                "claim_checks must include a primitive identity "
+                f"reconstruction for estimator_id {estimator_id} at "
+                f"claim_ref {required_claim_ref}"
+            )
+            continue
+        if not any(
+            required_claim_ref
+            in {
+                str(value).strip()
+                for value in check.get("evidence_refs", []) or []
+                if str(value).strip()
+            }
+            for check in matching_checks
+        ):
+            errors.append(
+                "primitive identity reconstruction for estimator_id "
+                f"{estimator_id} must cite its exact required_claim_ref"
+            )
+        if any(
+            str(check.get("verdict", "") or "").upper() == "FAIL"
+            for check in matching_checks
+        ):
+            failed_foundational_claim_checks += 1
     required_theory_scope_rows = [
         dict(row)
         for row in packet.get("required_theory_scope_check_rows", []) or []
@@ -2552,6 +2714,19 @@ def validate_architect_metric_semantic_review_packet(
         )
     if failed_claim_checks and not any(status == "FAIL" for status in statuses):
         errors.append("a failed claim check requires a FAIL review dimension")
+    if failed_foundational_claim_checks:
+        math_dimension_statuses = [
+            str(row.get("status", "") or "").strip().upper()
+            for row in dimension_rows
+            if isinstance(row, Mapping)
+            and str(row.get("dimension", "") or "").strip()
+            == "mathematical_and_numeric_internal_consistency"
+        ]
+        if math_dimension_statuses != ["FAIL"]:
+            errors.append(
+                "a failed foundational identity check requires "
+                "mathematical_and_numeric_internal_consistency=FAIL"
+            )
 
     expected_verdict = _architect_metric_semantic_review_derived_verdict(
         dimension_reviews=dimension_rows,
@@ -2675,28 +2850,79 @@ def _normalize_architect_metric_semantic_review_packet(
         if isinstance(row, Mapping)
         and str(row.get("requirement_id", "") or "").strip()
     }
+    def bind_protocol_expression(raw_row: Mapping[str, Any]) -> dict[str, Any]:
+        row = dict(raw_row)
+        reconstruction = row.get("normalization_reconstruction", {})
+        if not isinstance(reconstruction, Mapping):
+            return row
+        reconstruction = dict(reconstruction)
+        requirement_id = str(row.get("requirement_id", "") or "").strip()
+        expression_ref = str(
+            reconstruction.get("protocol_expression_ref", "") or ""
+        ).strip()
+        exact_expression = protocol_expressions_by_requirement_id.get(
+            requirement_id,
+            {},
+        ).get(expression_ref)
+        if exact_expression is None:
+            reconstruction.pop("protocol_expression", None)
+        else:
+            reconstruction["protocol_expression"] = exact_expression
+        row["normalization_reconstruction"] = reconstruction
+        return row
+
     general_claim_checks = []
     for raw_row in body.get("claim_checks", []) or []:
         if not isinstance(raw_row, Mapping):
             continue
-        row = dict(raw_row)
-        reconstruction = row.get("normalization_reconstruction", {})
-        if isinstance(reconstruction, Mapping):
-            reconstruction = dict(reconstruction)
-            requirement_id = str(row.get("requirement_id", "") or "").strip()
-            expression_ref = str(
-                reconstruction.get("protocol_expression_ref", "") or ""
-            ).strip()
-            exact_expression = protocol_expressions_by_requirement_id.get(
-                requirement_id,
-                {},
-            ).get(expression_ref)
-            if exact_expression is None:
-                reconstruction.pop("protocol_expression", None)
-            else:
-                reconstruction["protocol_expression"] = exact_expression
-            row["normalization_reconstruction"] = reconstruction
-        general_claim_checks.append(row)
+        general_claim_checks.append(bind_protocol_expression(raw_row))
+
+    raw_foundational_identity_indices = body.pop(
+        "foundational_identity_claim_check_indices",
+        {},
+    )
+    foundational_identity_rows = _architect_metric_claim_check_contract(
+        review_material
+    ).get("foundational_identity_rows", [])
+    assigned_indices: set[int] = set()
+    for required_row in foundational_identity_rows or []:
+        if not isinstance(required_row, Mapping):
+            continue
+        estimator_id = str(
+            required_row.get("estimator_id", "") or ""
+        ).strip()
+        required_claim_ref = str(
+            required_row.get("required_claim_ref", "") or ""
+        ).strip()
+        raw_index = (
+            raw_foundational_identity_indices.get(estimator_id)
+            if isinstance(raw_foundational_identity_indices, Mapping)
+            else None
+        )
+        if (
+            not isinstance(raw_index, int)
+            or isinstance(raw_index, bool)
+            or raw_index < 0
+            or raw_index >= len(general_claim_checks)
+            or raw_index in assigned_indices
+            or not required_claim_ref
+        ):
+            continue
+        assigned_indices.add(raw_index)
+        check = general_claim_checks[raw_index]
+        check["claim_ref"] = required_claim_ref
+        check["evidence_refs"] = list(
+            dict.fromkeys(
+                [
+                    required_claim_ref,
+                    *[
+                        str(value).strip()
+                        for value in check.get("evidence_refs", []) or []
+                        if str(value).strip()
+                    ],
+                ]
+            )
+        )
     body["claim_checks"] = [
         *theory_scope_claim_checks,
         *general_claim_checks,

@@ -20005,6 +20005,9 @@ def test_runtime_executes_architect_routed_generated_algorithm_gap(
     assert len(algorithm_engineer.feedbacks) == 1
     assert algorithm_artifacts[0]["n_generated_code_executed"] == 1
     assert algorithm_artifacts[0]["n_passed"] == 1
+    assert algorithm_artifacts[0][
+        "confirmatory_empirical_evidence_eligible"
+    ] is False
     assert algorithm_artifacts[0]["n_typed_metric_contracts_evaluated"] == 0
     assert algorithm_artifacts[0]["prototypes"][0]["metric_contracts"] == []
     assert algorithm_artifacts[0]["prototypes"][0]["executor"] == (
@@ -23851,6 +23854,19 @@ def test_metric_authoring_unmatched_numeric_gate_does_not_invent_source_authorit
     assert matrix_row["numeric_gate_matches"][0][
         "current_source_authority_must_change"
     ] is True
+    decision = context["unmatched_gate_resolution_decisions"][0]
+    assert decision["decision_id"] == "requirement:0:field:threshold"
+    assert decision["requirement_id"] == "candidate_owned_gate"
+    assert decision["field"] == "threshold"
+    assert decision["current_invalid_owner"] == "theory_derived"
+    assert decision["allowed_resolutions"] == [
+        "architect_preregistered_design",
+        "diagnostic_only",
+        "remove_requirement",
+    ]
+    assert decision[
+        "required_patch_updates_if_preregistered"
+    ] == patch_contract["required_updates_if_selected"]
 
     validation_errors = validate_generated_metric_requirements(
         [requirement],
@@ -24655,6 +24671,7 @@ def test_semantic_review_honors_exhausted_source_repair_budget(
 
     assert dispatch is not None
     work_order = dispatch["work_order"]
+    assert work_order["confirmatory_empirical_evidence_eligible"] is True
     assert work_order["source_repair_budget"] == {
         "source_subsystem": "SimulationEvaluator",
         "theory_packet_id": "theory_derivation:source-budget",
@@ -24774,6 +24791,7 @@ def test_semantic_review_does_not_send_rejected_algorithm_to_simulation(
     source_manifest = {
         "artifact_kind": "RuntimeAlgorithmSandboxManifest",
         "manifest_id": "algorithm_sandbox_manifest:source-budget",
+        "confirmatory_empirical_evidence_eligible": False,
         "prototypes": [
             {
                 "estimator_id": "source-budget-estimator",
@@ -24828,6 +24846,7 @@ def test_semantic_review_does_not_send_rejected_algorithm_to_simulation(
     assert dispatch is not None
     work_order = dispatch["work_order"]
     assert work_order["source_repair_budget"]["budget_exhausted"] is True
+    assert work_order["confirmatory_empirical_evidence_eligible"] is False
     assert work_order["deferred_next_task"]["owner_subsystem"] == (
         "SimulationEvaluator"
     )
