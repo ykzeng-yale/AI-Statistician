@@ -11,6 +11,7 @@ from ai_statistician.llm_json_repair import (
     _format_generation_error,
     _repair_attempt_max_tokens,
     _repair_prompt,
+    _typed_semantic_patch_schema,
     extract_json_object,
     generate_validated_json_packet,
 )
@@ -421,7 +422,7 @@ def test_semantic_patch_repair_preserves_unaffected_large_payload() -> None:
     assert backend.requests[1].metadata["json_repair_mode"] == (
         "typed_semantic_patch"
     )
-    assert backend.requests[1].max_tokens == 5000
+    assert backend.requests[1].max_tokens == 6000
     assert backend.requests[1].schema is not None
     assert set(backend.requests[1].schema["required"]) == {
         "base_payload_fingerprint",
@@ -625,6 +626,84 @@ def test_progress_extension_stops_when_patch_makes_no_progress() -> None:
     )
 
 
+def test_progress_extension_allows_one_changed_single_residual() -> None:
+    class ChangedResidualBackend:
+        provider_name = "test"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                response = {"authority_kind": "evaluation_design"}
+            else:
+                repair_payload = json.loads(
+                    request.user_prompt.split("\n\n", 1)[1]
+                )
+                authority_kind = (
+                    "theory_derived"
+                    if len(self.requests) == 2
+                    else "architect_preregistered_design"
+                )
+                response = {
+                    "base_payload_fingerprint": repair_payload[
+                        "base_payload_fingerprint"
+                    ],
+                    "updates": [
+                        {
+                            "path": ["authority_kind"],
+                            "replacement": authority_kind,
+                        }
+                    ],
+                }
+            return GeneratorResponse(
+                text=json.dumps(response),
+                provider=self.provider_name,
+                model=request.model,
+            )
+
+    def validate(candidate: dict[str, object]) -> list[str]:
+        authority_kind = candidate.get("authority_kind")
+        if authority_kind == "architect_preregistered_design":
+            return []
+        if authority_kind == "theory_derived":
+            return ["theory_derived cannot authorize the numeric bound"]
+        return ["numeric bound is absent from the evaluation design"]
+
+    backend = ChangedResidualBackend()
+    packet = generate_validated_json_packet(
+        provider=backend,
+        request=GeneratorRequest(
+            system_prompt="Return JSON.",
+            user_prompt="Assign a valid numeric authority owner.",
+            model="test-haiku",
+            max_tokens=5000,
+            schema={"type": "object"},
+        ),
+        extract_payload=lambda text: extract_json_object(
+            text,
+            label="numeric authority packet",
+        ),
+        build_packet=lambda payload, response, raw_text: dict(payload),
+        validate_packet=validate,
+        validation_label="numeric authority packet",
+        max_repair_attempts=1,
+        semantic_patch_repair=True,
+        allow_progress_repair_extension=True,
+    )
+
+    assert packet["authority_kind"] == "architect_preregistered_design"
+    assert len(backend.requests) == 3
+    assert [
+        row["progress_extension_attempt"]
+        for row in packet["llm_json_repair_history"]
+    ] == [0, 0, 1]
+    assert packet["llm_json_repair_history"][0]["errors"] != (
+        packet["llm_json_repair_history"][1]["errors"]
+    )
+
+
 def test_semantic_patch_focuses_validator_named_rows_at_original_indices() -> None:
     class FocusedRowBackend:
         provider_name = "test"
@@ -776,6 +855,66 @@ def test_typed_semantic_patch_rejects_ambiguous_or_complex_direct_replacements(
             },
             max_updates=4,
         )
+
+
+def test_typed_semantic_patch_allows_any_existing_payload_depth() -> None:
+    path = [
+        "estimator_specs",
+        0,
+        "estimator_interface_contract",
+        "response_fields",
+        0,
+        "sample_size_rate",
+        "contributions",
+        0,
+        "justification_ref",
+    ]
+    base_payload = {
+        "estimator_specs": [
+            {
+                "estimator_interface_contract": {
+                    "response_fields": [
+                        {
+                            "sample_size_rate": {
+                                "contributions": [
+                                    {"justification_ref": "missing_reference"}
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+
+    patched, applied_paths, _normalizations = _apply_typed_semantic_patch(
+        base_payload=base_payload,
+        expected_base_fingerprint="base-fingerprint",
+        patch_envelope={
+            "base_payload_fingerprint": "base-fingerprint",
+            "updates": [
+                {
+                    "path": path,
+                    "replacement": "valid_reference",
+                }
+            ],
+        },
+        max_updates=4,
+    )
+
+    assert applied_paths == [path]
+    assert (
+        patched["estimator_specs"][0]["estimator_interface_contract"]
+        ["response_fields"][0]["sample_size_rate"]["contributions"][0]
+        ["justification_ref"]
+        == "valid_reference"
+    )
+    patch_schema = _typed_semantic_patch_schema(max_updates=4)
+    update_variants = patch_schema["properties"]["updates"]["items"]["anyOf"]
+    assert all(
+        "maxItems" not in variant["properties"]["path"]
+        for variant in update_variants
+    )
 
 
 def test_semantic_patch_does_not_strip_a_real_wrapper_named_payload_field() -> None:

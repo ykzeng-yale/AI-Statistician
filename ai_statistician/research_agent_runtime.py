@@ -16103,7 +16103,12 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 if isinstance(next_inputs.get("environment_feedback", {}), Mapping)
                 else {}
             )
-            next_inputs["environment_feedback"] = {**prior_feedback, **feedback}
+            next_inputs["environment_feedback"] = (
+                _generated_code_review_feedback_with_source_execution_snapshot(
+                    prior_feedback=prior_feedback,
+                    review_feedback=feedback,
+                )
+            )
             next_inputs["generated_code_semantic_review_revision_count"] = (
                 revision_count + 1
             )
@@ -16260,8 +16265,10 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 else "generated_code_semantic_review_revision_budget_escalated_to_architect"
             )
             escalation_feedback = {
-                **prior_feedback,
-                **feedback,
+                **_generated_code_review_feedback_with_source_execution_snapshot(
+                    prior_feedback=prior_feedback,
+                    review_feedback=feedback,
+                ),
                 "failure_classification": escalation_classification,
                 "semantic_review_revision_budget": {
                     "revisions_used": revision_count,
@@ -61639,6 +61646,68 @@ def _runtime_llm_proposal_packet_live_generator(packet: Mapping[str, Any]) -> bo
     return is_live_generator_backend(provider, backend_provider)
 
 
+_GENERATED_SANDBOX_EXECUTION_FEEDBACK_TYPES = frozenset(
+    {
+        "algorithm_sandbox_execution_feedback",
+        "generated_simulation_sandbox_execution_feedback",
+    }
+)
+
+
+def _generated_sandbox_execution_feedback_snapshot(
+    feedback: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Return the ID-bearing sandbox feedback without semantic-review overlays."""
+
+    if not isinstance(feedback, Mapping):
+        return {}
+    nested = feedback.get("source_execution_feedback", {})
+    candidates = (
+        nested if isinstance(nested, Mapping) else {},
+        feedback,
+    )
+    for candidate in candidates:
+        feedback_type = str(candidate.get("feedback_type", "") or "").strip()
+        if (
+            feedback_type not in _GENERATED_SANDBOX_EXECUTION_FEEDBACK_TYPES
+            or not str(candidate.get("feedback_id", "") or "").strip()
+        ):
+            continue
+        snapshot_keys = (
+            "feedback_id",
+            "feedback_type",
+            "algorithm_sandbox_manifest_id",
+            "simulation_manifest_id",
+            "failure_classification",
+            "prototypes",
+            "generated_simulation_prototypes",
+            "boundary",
+        )
+        return {
+            key: deepcopy(candidate[key])
+            for key in snapshot_keys
+            if key in candidate
+        }
+    return {}
+
+
+def _generated_code_review_feedback_with_source_execution_snapshot(
+    *,
+    prior_feedback: Mapping[str, Any] | None,
+    review_feedback: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Merge review feedback while preserving its ID-bound execution parent."""
+
+    prior = dict(prior_feedback) if isinstance(prior_feedback, Mapping) else {}
+    merged = {**prior, **dict(review_feedback)}
+    source_execution_feedback = _generated_sandbox_execution_feedback_snapshot(
+        prior
+    )
+    if source_execution_feedback:
+        merged["source_execution_feedback"] = source_execution_feedback
+    return merged
+
+
 def _annotate_generated_sandbox_prototype_provenance(
     prototype: Mapping[str, Any],
     *,
@@ -61666,15 +61735,24 @@ def _annotate_generated_sandbox_prototype_provenance(
         annotated
     )
     feedback = repair_feedback if isinstance(repair_feedback, Mapping) else {}
-    feedback_id = str(feedback.get("feedback_id", "") or "").strip()
+    source_execution_feedback = _generated_sandbox_execution_feedback_snapshot(
+        feedback
+    )
+    if source_execution_feedback:
+        lineage_feedback: Mapping[str, Any] = source_execution_feedback
+    else:
+        lineage_feedback = feedback
+    feedback_id = str(lineage_feedback.get("feedback_id", "") or "").strip()
     parent_manifest_id = str(
-        feedback.get("algorithm_sandbox_manifest_id", "")
-        or feedback.get("simulation_manifest_id", "")
+        lineage_feedback.get("algorithm_sandbox_manifest_id", "")
+        or lineage_feedback.get("simulation_manifest_id", "")
         or ""
     ).strip()
-    parent_rows = feedback.get("prototypes", [])
+    parent_rows = lineage_feedback.get("prototypes", [])
     if not isinstance(parent_rows, list) or not parent_rows:
-        parent_rows = feedback.get("generated_simulation_prototypes", [])
+        parent_rows = lineage_feedback.get(
+            "generated_simulation_prototypes", []
+        )
     if not isinstance(parent_rows, list):
         parent_rows = []
     parent_artifact_ids = [
@@ -61694,9 +61772,11 @@ def _annotate_generated_sandbox_prototype_provenance(
             "schema_version": 1,
             "artifact_kind": "GeneratedSandboxRepairLineage",
             "feedback_id": feedback_id,
-            "feedback_type": str(feedback.get("feedback_type", "") or ""),
+            "feedback_type": str(
+                lineage_feedback.get("feedback_type", "") or ""
+            ),
             "feedback_failure_classification": str(
-                feedback.get("failure_classification", "") or ""
+                lineage_feedback.get("failure_classification", "") or ""
             ),
             "parent_manifest_id": parent_manifest_id,
             "parent_prototype_artifact_ids": list(dict.fromkeys(parent_artifact_ids)),
@@ -61706,6 +61786,19 @@ def _annotate_generated_sandbox_prototype_provenance(
             "child_proposal_id": annotated["source_llm_proposal_id"],
             "feedback_supplied_to_generator": True,
             "lineage_contract_complete": True,
+            "semantic_review_execution_id": str(
+                feedback.get("semantic_review_execution_id", "") or ""
+            ),
+            "semantic_review_packet_id": str(
+                feedback.get("semantic_review_packet_id", "") or ""
+            ),
+            "semantic_review_packet_hash": str(
+                feedback.get("semantic_review_packet_hash", "") or ""
+            ),
+            "semantic_review_feedback_supplied_to_generator": bool(
+                str(feedback.get("semantic_review_execution_id", "") or "")
+                and str(feedback.get("semantic_review_packet_id", "") or "")
+            ),
             "boundary": (
                 "This lineage records which failed generated artifact and runtime "
                 "feedback were supplied to the next LLM proposal. It is execution "
@@ -105638,6 +105731,8 @@ def _formal_source_hit_to_json(
         "signature": declaration.signature,
         "imports": list(declaration.imports),
         "reference": declaration.reference,
+        "reference_aliases": list(declaration.reference_aliases),
+        "module_summary": declaration.module_summary,
         "score": round(hit.score, 4),
         "matched_terms": list(hit.matched_terms),
     }

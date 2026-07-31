@@ -286,9 +286,14 @@ def sample_size_rate_errors(
             allowed_derivation_refs is not None
             and justification_ref not in allowed_derivation_refs
         ):
+            allowed = sorted(allowed_derivation_refs)
+            allowed_preview = ", ".join(allowed[:16]) or "<none>"
+            if len(allowed) > 16:
+                allowed_preview += f", ... ({len(allowed)} total)"
             errors.append(
                 f"{label} contribution {index} has unresolved "
-                f"justification_ref {justification_ref}"
+                f"justification_ref {justification_ref}; choose exactly one "
+                f"allowed reference id from: {allowed_preview}"
             )
         row_exponents: list[float] = []
         for field in ("polynomial_exponent", "log_exponent"):
@@ -319,7 +324,12 @@ def sample_size_rate_errors(
             for observed, expected in zip(claimed, computed, strict=True)
         ):
             errors.append(
-                f"{label} exponents must equal the sum of signed contributions"
+                f"{label} exponents must equal the sum of signed contributions; "
+                "claimed "
+                f"polynomial_exponent={claimed[0]:g}, "
+                f"log_exponent={claimed[1]:g}; computed from contributions "
+                f"polynomial_exponent={computed[0]:g}, "
+                f"log_exponent={computed[1]:g}"
             )
     return errors
 

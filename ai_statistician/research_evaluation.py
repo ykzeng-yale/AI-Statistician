@@ -216,6 +216,7 @@ def _semantic_review_accepted(
     source_subsystem: str,
     source_manifest_id: str,
     source_manifest: Mapping[str, Any],
+    require_confirmatory_empirical_evidence: bool,
 ) -> bool:
     if not source_manifest_id or not source_manifest:
         return False
@@ -231,7 +232,10 @@ def _semantic_review_accepted(
         and row.get("independent_invocation") is True
         and str(row.get("reviewer_model_tier", "") or "").lower()
         == LIVE_EVALUATION_CLAUDE_MODEL_TIER
-        and row.get("confirmatory_empirical_evidence_eligible") is True
+        and (
+            not require_confirmatory_empirical_evidence
+            or row.get("confirmatory_empirical_evidence_eligible") is True
+        )
         for row in artifacts.values()
     )
 
@@ -437,6 +441,7 @@ def build_research_evaluation_summary(
                 source_subsystem="AlgorithmEngineer",
                 source_manifest_id=algorithm_manifest_id,
                 source_manifest=algorithm_manifest,
+                require_confirmatory_empirical_evidence=False,
             ),
             "generated_simulation_executed_and_passed": bool(
                 simulation_manifest.get("artifact_kind")
@@ -471,6 +476,7 @@ def build_research_evaluation_summary(
                 source_subsystem="SimulationEvaluator",
                 source_manifest_id=simulation_manifest_id,
                 source_manifest=simulation_manifest,
+                require_confirmatory_empirical_evidence=True,
             ),
             "critic_research_acceptance": bool(
                 critic_manifest and result.get("status") == "ACCEPTED"

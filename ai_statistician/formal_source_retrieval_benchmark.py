@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -9,7 +10,7 @@ from .fingerprint import stable_hash
 from .formal_source_index import FormalSourceHit, build_formal_source_search_backend
 
 
-FORMAL_SOURCE_RETRIEVAL_BENCHMARK_SCHEMA_VERSION = 3
+FORMAL_SOURCE_RETRIEVAL_BENCHMARK_SCHEMA_VERSION = 4
 
 
 @dataclass(frozen=True)
@@ -246,7 +247,17 @@ def audit_formal_source_reference_crosswalk(
             FormalSourceReferenceCrosswalkRow(
                 source_id=source_id,
                 reference=reference,
-                citation_family=_citation_family(reference),
+                citation_family=_citation_family(
+                    reference,
+                    reference_aliases=tuple(
+                        str(alias)
+                        for declaration in expected
+                        for alias in (
+                            getattr(declaration, "reference_aliases", ()) or ()
+                        )
+                        if str(alias).strip()
+                    ),
+                ),
                 expected_declaration_names=tuple(
                     sorted(
                         str(getattr(declaration, "name", "") or "")
@@ -271,6 +282,12 @@ def audit_formal_source_reference_crosswalk(
         counts["n_queries"] += 1
         counts["n_ok"] += int(row.ok)
     n_ok = sum(int(row.ok) for row in rows)
+    alias_crosswalk = _audit_formal_source_reference_alias_crosswalk(
+        retriever,
+        declarations=declarations,
+        k=k,
+        source_ids=source_ids,
+    )
     return {
         "query_policy": "exact_source_citation_only_without_declaration_name",
         "k": int(k),
@@ -278,7 +295,10 @@ def audit_formal_source_reference_crosswalk(
         "n_reference_bound_declarations": sum(len(value) for value in grouped.values()),
         "n_reference_queries": len(rows),
         "n_ok": n_ok,
-        "all_ok": n_ok == len(rows),
+        "all_ok": (
+            n_ok == len(rows)
+            and bool(alias_crosswalk.get("all_ok", False))
+        ),
         "recall_at_k": n_ok / len(rows) if rows else 1.0,
         "citation_families": [
             {
@@ -289,10 +309,88 @@ def audit_formal_source_reference_crosswalk(
             for family, counts in sorted(family_counts.items())
         ],
         "rows": [asdict(row) for row in rows],
+        "reference_alias_crosswalk": alias_crosswalk,
         "coverage_boundary": (
             "This audits only declarations explicitly bound to source citations in "
             "the indexed repositories. It does not claim that an entire cited book, "
             "paper, or theorem family has been formalized, and retrieval is not proof."
+        ),
+    }
+
+
+def _audit_formal_source_reference_alias_crosswalk(
+    retriever: object,
+    *,
+    declarations: list[object],
+    k: int,
+    source_ids: tuple[str, ...],
+) -> dict[str, object]:
+    """Check every source-authored citation alias without hand-written cases."""
+
+    allowed_source_ids = set(source_ids)
+    grouped: dict[tuple[str, str, str], list[object]] = {}
+    for declaration in declarations:
+        source_id = str(getattr(declaration, "source_id", "") or "")
+        if allowed_source_ids and source_id not in allowed_source_ids:
+            continue
+        reference = str(getattr(declaration, "reference", "") or "").strip()
+        for alias in getattr(declaration, "reference_aliases", ()) or ():
+            query = str(alias or "").strip()
+            if reference and query:
+                grouped.setdefault((source_id, reference, query), []).append(
+                    declaration
+                )
+
+    rows: list[dict[str, object]] = []
+    for (source_id, reference, query), expected in sorted(grouped.items()):
+        hits = (
+            list(retriever.search(query, k=k))
+            if hasattr(retriever, "search")
+            else []
+        )
+        expected_names = {
+            str(getattr(declaration, "name", "") or "")
+            for declaration in expected
+        }
+        hit_rank = next(
+            (
+                rank
+                for rank, hit in enumerate(hits, start=1)
+                if str(getattr(hit.declaration, "source_id", "") or "")
+                == source_id
+                and str(getattr(hit.declaration, "name", "") or "")
+                in expected_names
+            ),
+            None,
+        )
+        rows.append(
+            {
+                "source_id": source_id,
+                "reference": reference,
+                "query": query,
+                "expected_declaration_names": tuple(sorted(expected_names)),
+                "hit_rank": hit_rank,
+                "top_hit_names": tuple(
+                    str(getattr(hit.declaration, "name", "") or "")
+                    for hit in hits[:3]
+                ),
+                "ok": hit_rank is not None and hit_rank <= k,
+            }
+        )
+    n_ok = sum(int(bool(row["ok"])) for row in rows)
+    return {
+        "query_policy": (
+            "source_authored_citation_alias_without_declaration_name"
+        ),
+        "k": int(k),
+        "n_queries": len(rows),
+        "n_ok": n_ok,
+        "all_ok": n_ok == len(rows),
+        "recall_at_k": n_ok / len(rows) if rows else 1.0,
+        "rows": rows,
+        "coverage_boundary": (
+            "Aliases are extracted from source documentation rather than encoded "
+            "as theorem-specific runtime rules. Alias retrieval is not proof."
         ),
     }
 
@@ -468,9 +566,17 @@ def _retriever_declarations(retriever: object) -> list[object]:
     return declarations
 
 
-def _citation_family(reference: str) -> str:
-    family = reference.split("(", 1)[0].strip().rstrip(",")
-    return family or reference.split(",", 1)[0].strip() or "unspecified"
+def _citation_family(
+    reference: str,
+    *,
+    reference_aliases: tuple[str, ...] = (),
+) -> str:
+    citation = next(
+        (alias for alias in reference_aliases if str(alias).strip()),
+        reference,
+    )
+    family = re.split(r"\s*\(|,", citation, maxsplit=1)[0].strip()
+    return family or "unspecified"
 
 
 def _split_available_cases(
@@ -539,6 +645,8 @@ def _hit_payload(hit: FormalSourceHit, *, rank: int) -> dict[str, object]:
         "namespace": decl.namespace,
         "signature": decl.signature,
         "reference": decl.reference,
+        "reference_aliases": decl.reference_aliases,
+        "module_summary": decl.module_summary,
         "score": hit.score,
         "matched_terms": hit.matched_terms,
         "binder_count": decl.binder_count,
@@ -562,6 +670,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Source-reference recall@{payload.get('k')}: "
         f"{dict(payload.get('reference_crosswalk', {}) or {}).get('n_ok', 0)}/"
         f"{dict(payload.get('reference_crosswalk', {}) or {}).get('n_reference_queries', 0)}",
+        f"- Source-reference alias recall@{payload.get('k')}: "
+        f"{dict(dict(payload.get('reference_crosswalk', {}) or {}).get('reference_alias_crosswalk', {}) or {}).get('n_ok', 0)}/"
+        f"{dict(dict(payload.get('reference_crosswalk', {}) or {}).get('reference_alias_crosswalk', {}) or {}).get('n_queries', 0)}",
         "",
         "## Gold Queries",
         "",

@@ -406,6 +406,8 @@ def _hit_payload(
         "signature": declaration.signature,
         "imports": declaration.imports,
         "reference": declaration.reference,
+        "reference_aliases": declaration.reference_aliases,
+        "module_summary": declaration.module_summary,
         "target_prover_family": _hit_target_prover_family(hit),
         "score": hit.score,
         "matched_terms": hit.matched_terms,

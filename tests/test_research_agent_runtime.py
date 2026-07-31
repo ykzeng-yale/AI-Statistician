@@ -276,6 +276,10 @@ from ai_statistician.research_agent_runtime import (
     _architect_control_payload,
     _runtime_research_path_execution_summary,
     _runtime_failure_summary,
+    _annotate_generated_sandbox_prototype_provenance,
+    _generated_code_review_feedback_with_source_execution_snapshot,
+    _generated_sandbox_feedback_id,
+    _generated_sandbox_prototype_artifact_id,
     _generated_sandbox_repair_sequence_counts,
     _generated_sandbox_metric_gate_errors,
     _generated_simulation_revision_feedback,
@@ -25680,7 +25684,7 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert metric_request.model == LIVE_EVALUATION_CLAUDE_MODEL
     assert metric_request.max_tokens == 8000
     assert first_patch_request.model == LIVE_EVALUATION_CLAUDE_MODEL
-    assert first_patch_request.max_tokens == 5000
+    assert first_patch_request.max_tokens == 8000
     assert first_patch_request.metadata["json_repair_mode"] == (
         "typed_semantic_patch"
     )
@@ -25688,7 +25692,7 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         "json_repair_progress_extension_attempt"
     ] == 0
     assert second_patch_request.model == LIVE_EVALUATION_CLAUDE_MODEL
-    assert second_patch_request.max_tokens == 5000
+    assert second_patch_request.max_tokens == 8000
     assert second_patch_request.metadata["json_repair_mode"] == (
         "typed_semantic_patch"
     )
@@ -54144,6 +54148,108 @@ def test_generated_sandbox_repair_sequence_counts_require_explicit_artifact_line
             "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
         ]
         == 0
+    )
+
+
+def test_generated_simulation_repair_preserves_execution_and_review_lineage() -> None:
+    failed_row = {
+        "executor": "generated_simulation_sandbox",
+        "simulation_id": "sim",
+        "prototype_status": "FAILED_METRIC_GATE",
+        "smoke_passed": False,
+        "script_hash": "failed-script",
+        "source_llm_proposal_id": "proposal:failed",
+        "metric_gate_errors": ["coverage gate failed"],
+    }
+    failed_row["prototype_artifact_id"] = (
+        _generated_sandbox_prototype_artifact_id(failed_row)
+    )
+    failed_manifest_id = "simulation_manifest:failed"
+    feedback_type = "generated_simulation_sandbox_execution_feedback"
+    failure_classification = "generated_simulation_sandbox_metric_gate_failed"
+    feedback_id = _generated_sandbox_feedback_id(
+        feedback_type=feedback_type,
+        source_manifest_id=failed_manifest_id,
+        failure_classification=failure_classification,
+        prototype_rows=[failed_row],
+    )
+    passed_row = {
+        "executor": "generated_simulation_sandbox",
+        "simulation_id": "sim",
+        "prototype_status": "EXECUTED",
+        "smoke_passed": True,
+        "script_hash": "repaired-script",
+        "source_llm_proposal_id": "proposal:repaired",
+    }
+    passed_row["prototype_artifact_id"] = (
+        _generated_sandbox_prototype_artifact_id(passed_row)
+    )
+    direct_feedback = {
+        "feedback_id": feedback_id,
+        "feedback_type": feedback_type,
+        "failure_classification": failure_classification,
+        "simulation_manifest_id": failed_manifest_id,
+        "generated_simulation_prototypes": [failed_row],
+    }
+    semantic_feedback = {
+        "feedback_type": "generated_code_semantic_review_feedback",
+        "semantic_review_execution_id": "semantic-review-execution:1",
+        "semantic_review_packet_id": "semantic-review-packet:1",
+        "semantic_review_packet_hash": "semantic-review-hash",
+        "findings": [{"repair_scope": "source_code"}],
+    }
+    merged_feedback = (
+        _generated_code_review_feedback_with_source_execution_snapshot(
+            prior_feedback=direct_feedback,
+            review_feedback=semantic_feedback,
+        )
+    )
+    passed_row = _annotate_generated_sandbox_prototype_provenance(
+        passed_row,
+        proposal_packet={
+            "packet_id": "proposal:repaired",
+            "source_agent": "SimulationEngineer",
+        },
+        repair_feedback=merged_feedback,
+    )
+    lineage = passed_row["repair_lineage"]
+    assert lineage["feedback_id"] == feedback_id
+    assert lineage["feedback_type"] == feedback_type
+    assert lineage["semantic_review_execution_id"] == (
+        "semantic-review-execution:1"
+    )
+    assert lineage["semantic_review_packet_id"] == "semantic-review-packet:1"
+    assert lineage["semantic_review_feedback_supplied_to_generator"] is True
+    artifacts = {
+        failed_manifest_id: {
+            "artifact_kind": "RuntimeSimulationManifest",
+            "created_at": "2026-07-31T00:00:00+00:00",
+            "manifest_id": failed_manifest_id,
+            "question": {"id": "q"},
+            "generated_simulation_sandbox_prototypes": [failed_row],
+        },
+        "simulation_manifest:passed": {
+            "artifact_kind": "RuntimeSimulationManifest",
+            "created_at": "2026-07-31T00:01:00+00:00",
+            "manifest_id": "simulation_manifest:passed",
+            "question": {"id": "q"},
+            "generated_simulation_sandbox_prototypes": [passed_row],
+        },
+    }
+
+    sequence_counts = _generated_sandbox_repair_sequence_counts(artifacts)
+
+    assert (
+        sequence_counts[
+            "n_generated_simulation_sandbox_failed_then_passed_repair_sequences"
+        ]
+        == 1
+    )
+    assert (
+        sequence_counts[
+            "n_generated_simulation_sandbox_metric_failed_then_passed_repair_sequences"
+        ]
+        == 1
     )
 
 

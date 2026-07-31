@@ -425,6 +425,36 @@ def test_theory_validation_rejects_unresolved_estimator_semantic_reference() -> 
     assert "orthogonal_expansion" in unresolved
 
 
+def test_theory_validation_reports_allowed_rate_justification_references() -> None:
+    packet = _sample_response()
+    estimator = dict(packet["estimator_specs"][0])
+    contract = dict(estimator["estimator_interface_contract"])
+    response_fields = [dict(row) for row in contract["response_fields"]]
+    rate = dict(response_fields[0]["sample_size_rate"])
+    contributions = [dict(row) for row in rate["contributions"]]
+    contributions[0]["justification_ref"] = "missing_theory_step"
+    rate["contributions"] = contributions
+    response_fields[0]["sample_size_rate"] = rate
+    contract["response_fields"] = response_fields
+    estimator["estimator_interface_contract"] = contract
+    estimator["estimator_interface_contract_id"] = (
+        estimator_interface_contract_id(contract)
+    )
+    packet["estimator_specs"] = [estimator]
+    packet["proof_evidence_status"] = THEORY_DERIVATION_NOT_PROOF_EVIDENCE
+    packet["kernel_verified"] = False
+
+    errors = validate_theory_packet(packet)
+
+    unresolved = next(
+        row
+        for row in errors
+        if "unresolved justification_ref missing_theory_step" in row
+    )
+    assert "choose exactly one allowed reference id from:" in unresolved
+    assert "orthogonal_expansion" in unresolved
+
+
 def test_theory_validation_rejects_inconsistent_signed_rate_sum() -> None:
     packet = _sample_response()
     estimator = dict(packet["estimator_specs"][0])
@@ -444,9 +474,15 @@ def test_theory_validation_rejects_inconsistent_signed_rate_sum() -> None:
 
     errors = validate_theory_packet(packet)
 
-    assert any(
-        "exponents must equal the sum of signed contributions" in error
+    mismatch = next(
+        error
         for error in errors
+        if "exponents must equal the sum of signed contributions" in error
+    )
+    assert "claimed polynomial_exponent=-1, log_exponent=0" in mismatch
+    assert (
+        "computed from contributions polynomial_exponent=0, log_exponent=0"
+        in mismatch
     )
 
 

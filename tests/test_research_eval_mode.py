@@ -672,6 +672,7 @@ def test_research_evaluation_summary_requires_every_research_artifact() -> None:
         "source_subsystem": "AlgorithmEngineer",
         "source_manifest_id": "algorithm",
         "source_manifest_hash": stable_hash(artifacts["algorithm"]),
+        "confirmatory_empirical_evidence_eligible": False,
     }
     artifacts["simulation_review"] = {
         **accepted_review,
@@ -695,6 +696,17 @@ def test_research_evaluation_summary_requires_every_research_artifact() -> None:
         [result], evaluation_mode="research_eval", schema_version="test"
     )
     assert summary["all_questions_research_loop_complete"] is True
+
+    artifacts["simulation_review"][
+        "confirmatory_empirical_evidence_eligible"
+    ] = False
+    summary = build_research_evaluation_summary(
+        [result], evaluation_mode="research_eval", schema_version="test"
+    )
+    assert summary["all_questions_research_loop_complete"] is False
+    artifacts["simulation_review"][
+        "confirmatory_empirical_evidence_eligible"
+    ] = True
 
     artifacts["stale_algorithm"] = {
         **artifacts["algorithm"],

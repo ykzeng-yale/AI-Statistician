@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-31T19:45:22Z",
+  "updated_at": "2026-07-31T23:42:06Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "keep one canonical research loop and one strict proof boundary. TheoryDeveloper -> typed theory completeness -> independent pre-execution estimand/DGP/identifiability and metric-protocol review -> generated algorithm -> independent code review -> generated confirmatory simulation -> independent review -> Critic. Formalizer/ProofEngineer receive compact task-bound retrieval candidates and iterative Lean feedback; only active-project Lean/kernel evidence closes proof. Current work improves shared agent context, feedback, and retrieval rather than any task answer. Do not add agents, task formulas, Lean grammar/tactic rules, audit-score patches, or held-out fixes; PCA/extremes stay sealed.",
-  "latest_main_worker_patch": "Bind every TheoryDeveloper estimator response to a typed, signed primary-index/log(index) rate projection whose contribution vector is mechanically summed before code generation. The independent metric reviewer emits one compact response-identity audit per response, reconstructs semantics, and independently derives the projection exponents; AgentRuntime binds source identity and rejects PASS when the derived exponents disagree. Cross-descendant generated-code repair budgets now survive changing artifact IDs under the same question, theory hash, frozen evidence contract, and subsystem family. Separately, RuntimeLeanProviderTopology exposes sanitized AI4SLT graph, signature-corpus, and train-only proof-state availability. Formalizer follows semantic module/namespace/declaration naming, keeps textbook citations as metadata, emits dependency edges only when needed, and requires active-project revalidation. No task formula, expected answer, generated-output patch, Lean tactic/grammar generator, new agent, scheduler, proof promotion, or held-out rule was added.",
-  "latest_main_worker_live_probe": "V149 remains the latest successful exact-Haiku provider execution: it reached generated code and simulation but completed 0/1 research loops and 0 theorem closures. One post-v149 exact-Haiku frozen-packet diagnostic exercised the new response-identity contract; both bounded generations were structurally incomplete, totaling 43,769 input tokens and 6,056 output tokens. No review packet was accepted and no run artifact was promoted. That negative evidence drove the final compact numeric schema, which is statically verified but still requires a fresh exact-Haiku live run. This patch therefore establishes no new live completion, kernel proof, or E2E readiness.",
-  "latest_main_worker_design_issue": "The v149 false-positive route is now structurally guarded: Theory owns a hash-bound signed rate projection, the reviewer must independently derive numeric exponents, runtime compares them, and a repeated descendant repair cannot reset its budget by changing artifact IDs. This is not yet live-validated after the final schema. The next empirical gate is a fresh exact-Haiku development replay, followed by the second development family if the first closes without a task-specific repair. The larger remaining architecture gaps are still the post-runtime orchestration plane and the absence of a mature learned tactic-state search policy. Exact source-theorem closure remains zero, and held-out PCA/extremes stay sealed.",
+  "latest_main_worker_patch": "Strengthen shared LLM repair and formal retrieval rather than patching any generated answer. Typed JSON repair now inherits the caller's bounded token budget, supports schema-valid paths without an arbitrary nesting cutoff, and permits one extra attempt only after machine-observable residual progress. Generated-code repair lineage preserves the failed sandbox parent separately from independent semantic-review feedback. AI4SLT retrieval now carries source-authored module summaries and citation aliases, while qualified declaration signatures and import visibility remain authoritative. Module-only terms are low-weight, and the SQLite production path builds its exhaustive Python fallback only after an actual database failure. No task formula, expected answer, generated-output patch, Lean tactic/grammar rule, new agent, scheduler, proof promotion, or held-out rule was added.",
+  "latest_main_worker_live_probe": "V157 is the latest exact-Haiku provider execution and used claude-haiku-4-5-20251001 for all eight enabled live agents. The historical run artifact is ACCEPTED; deterministic replay through the current research-evaluation contract reports 1/1 research loop complete with serious theory, generated algorithm, independently reviewed metric protocol and code, generated confirmatory simulation, independent simulation review, and Critic acceptance. It is one survival-family development task only, ran no strict formal lane, and has 0 kernel-verified subclaims and 0 source-theorem closures.",
+  "latest_main_worker_design_issue": "The immediate research-loop blocker is repaired generically and has one exact-Haiku success, but repeatability across the second development family is not established. The next live gate is the untouched sequential development task under the same frozen mechanism, followed by strict Formalizer/ProofEngineer continuation only after both development research loops close. The larger remaining architecture gaps are still the post-runtime orchestration plane and the absence of a mature learned tactic-state search policy. Exact source-theorem closure remains zero, and held-out PCA/extremes stay sealed.",
   "live_anthropic_model_policy": {
     "model_catalog_source_checked_date": "2026-07-19",
     "policy_rechecked_date": "2026-07-31",
@@ -25,8 +25,8 @@
     "opus_live_requests_allowed": false,
     "enforcement": "Production requests above Sonnet are rejected before a live request can be accepted, requested Opus is rejected before Anthropic client construction, and capability/research evaluation policy pins every provider-backed test agent to the exact Haiku model.",
     "provider_backed_evaluation_attempts_in_current_patch": 1,
-    "successful_provider_backed_evaluation_runs_in_current_patch": 0,
-    "failed_provider_backed_diagnostics_in_current_patch": 1,
+    "successful_provider_backed_evaluation_runs_in_current_patch": 1,
+    "failed_provider_backed_diagnostics_in_current_patch": 0,
     "provider_backed_evaluation_runs": [
       "v122_metric_reviewer_index_diagnosis",
       "v123_zero_based_metric_patch_and_packet_ownership_diagnosis",
@@ -47,19 +47,24 @@
       "v146_schema_guided_theory_abi_repair_haiku",
       "v147_coherent_metric_review_repair_haiku",
       "v148_compact_review_cross_family_haiku",
-      "v149_compact_metric_reviewer_haiku_survival"
+      "v149_compact_metric_reviewer_haiku_survival",
+      "v157_changed_residual_extension_haiku_survival"
     ]
   },
   "latest_slt_formal_rag": {
     "source": "https://github.com/YuanheZ/lean-stat-learning-theory",
     "pinned_commit": "d0f506f0a695018265dccb33bcb05e2f5ca1c876",
     "paper": "ICML 2026 AI4SLT",
-    "indexed_declarations": 2012,
-    "indexed_unique_declaration_names": 2012,
+    "paper_url": "https://arxiv.org/abs/2602.02285",
+    "conference_page": "https://icml.cc/virtual/2026/poster/62752",
+    "indexed_declarations": 2020,
+    "indexed_unique_declaration_names": 2020,
     "unicode_identifier_false_duplicates": 0,
     "indexed_book_reference_rows": 22,
     "indexed_reference_bound_declarations": 47,
     "indexed_unambiguous_readme_reference_rows": 47,
+    "indexed_module_summary_declarations": 1951,
+    "indexed_source_authored_reference_alias_rows": 15,
     "dependency_graph_modules": 204,
     "dependency_graph_import_edges": 278,
     "dependency_graph_declarations": 2006,
@@ -83,15 +88,20 @@
       "Wainwright (2019)": 7,
       "Boucheron-Lugosi-Massart (2013)": 11
     },
+    "source_authored_book_reference_query_counts": {
+      "Vershynin including HDP alias rows": 19,
+      "Wainwright": 7,
+      "Boucheron-Lugosi-Massart": 11
+    },
     "benchmark": "runs/main_worker_ai4slt_snapshot_bound_rag_20260731_v8/formal_source_retrieval_benchmark_manifest.json",
-    "benchmark_result": "18/18 configured local gold cases retrieve within 8 with MRR=0.718122; all 47/47 current README reference queries retrieve within 8; all 22 three-book rows remain rank 1",
+    "benchmark_result": "The final system gate passed 18/18 configured local gold cases, 47/47 current README reference queries, and 15/15 source-authored alias queries at recall@8=1.0. The optional 12-query cross-repository intent panel passed 12/12; its four AI4SLT three-book representatives were rank 1, and the previously displaced projective-family declaration returned at rank 6.",
     "prior_broad_benchmark_result": "The earlier 17-case source-family panel remains 17/17 recall@8=1.0 with MRR=0.745098",
     "all_reference_crosswalk_audit": "47 reference-bound declarations form 47 current source/reference queries; all 47/47 retrieve within rank 8",
-    "all_book_crosswalk_reference_audit": "The three paper-core books account for 22/47 queries; all 22 retrieve at rank 1 with counts 4/7/11. Wainwright Proposition 5.17 resolves to the uniquely renamed current declaration TDudley.one_step_discretization_bound. The remaining 25 queries cover other or post-paper library references.",
+    "all_book_crosswalk_reference_audit": "The ICML paper-core crosswalk accounts for 22/47 exact source-reference queries with counts 4/7/11 for Vershynin, Wainwright, and Boucheron-Lugosi-Massart. Source-authored HDP expansion adds 15 further Vershynin-family queries, yielding current source-family counts 19/7/11; all 47 exact and all 15 expanded-alias queries retrieve within rank 8. Wainwright Proposition 5.17 resolves to the uniquely renamed current declaration TDudley.one_step_discretization_bound without a runtime theorem alias.",
     "default_runtime_retriever": "The normal Formalizer composite retriever now builds and preserves the rich local backend: AI4SLT dependency graph, signed StatInference graph, checksum-pinned AI4SLT signature corpus, source-scoped search, declaration loading, and dependency context. ProofEngineer additionally auto-discovers the checksum-pinned Novel-train proof-state index when a repair packet contains a real Lean state/diagnostic. source_scope_ids are companion-provider activation hints, not global source allowlists: unrelated hints do not activate the AI4SLT signature/trace providers, while ordinary base cross-source retrieval remains allowed and diagnostics disclose unscoped fallback.",
     "default_runtime_composite_probe": "The real default factory reports a two-provider composite with a FormalSourceDependencyHybridRetriever local backend, 56,665 indexed declarations, source-scoped search, declaration outlines, and dependency context. Its final serialized descriptor is 4,741 characters and contains no current-machine path. Representative Vershynin covering-number, Boucheron-Lugosi-Massart Gaussian concentration, and Wainwright least-squares queries retrieve the intended AI4SLT declarations at rank 1. A runtime ProofEngineer packet for LeastSquares.master_error_bound retained the AI4SLT source id, citation, source scope, dependency context, and six premise outlines with FORMAL_SOURCE_RETRIEVAL_GROUNDING_NOT_PROOF_EVIDENCE.",
     "runtime_provider_topology_probe": "The final default topology reports two dependency-graph providers. AI4SLT is BOUND_MATCH at commit d0f506f0/tree c881c153 with 2,006 graph declarations; its scoped signature corpus is checksum-valid with 3,021 declarations across 470 files. Train-only proof-state retrieval is checksum-valid and available with 519 source theorems, 6,749 transitions, and 2,845 premise-provenance steps. Every topology row is explicitly non-proof and requires active-project re-elaboration.",
-    "prompt_context_policy": "Preserve the two strongest ranked candidates before cross-corpus diversity. Expose qualified declaration metadata, module ancestry, exact compact source-snapshot identity, and direct statement dependencies followed by theorem/lemma proof dependencies, then at most two prior same-file fallback signatures. Require cross-module dependencies to be in the transitive Lean import closure. Treat the selected declarations as one premise DAG. Qualified names, signatures, modules, and import visibility govern reuse; proof-body-only terms receive lower FTS and overlap weight and are marked as such, so repetition alone is not treated as equivalent to a semantic declaration match. Name patterns and citations are hints only. Omit machine paths, downstream declarations, and every proof body from prompts; all context remains non-proof candidate evidence.",
+    "prompt_context_policy": "Preserve the two strongest ranked candidates before cross-corpus diversity. Expose qualified declaration metadata, module ancestry, exact compact source-snapshot identity, bounded source-authored module documentation and citation aliases, and direct statement dependencies followed by theorem/lemma proof dependencies, then at most two prior same-file fallback signatures. Require cross-module dependencies to be in the transitive Lean import closure. Treat the selected declarations as one premise DAG. Qualified names, signatures, modules, and import visibility govern reuse; module-only and proof-body-only terms receive lower overlap weight, so repeated file-level prose cannot outrank a direct declaration match. Name patterns and citations are hints only. Omit machine paths, downstream declarations, and every proof body from prompts; all context remains non-proof candidate evidence.",
     "structured_corpus": "yuanhezhang/lean4-stat-learning-theory-corpus",
     "structured_corpus_runtime_status": "checksum-pinned revision f4890ac3b0a18b35071e4cabf54dee8427463cd1 is locally available as a source-scoped signature retriever with 3,021 declarations across 470 files; parsed retrievers are cached after first construction; proof bodies are stripped",
     "proof_state_trace_dataset": "yuanhezhang/lean4-stat-learning-theory-novel",
@@ -99,7 +109,8 @@
     "proof_state_trace_sha256": "007ad0af7add62b8fb7bd10c5c02fdaa54871d403baea99ff34399631d4ab89c",
     "proof_state_trace_runtime_status": "Novel train is locally checksum-verified and indexed: 519 source theorems, 6,749 tactic-state transitions, and 2,845 steps with premise provenance. Runtime retrieval activates from Lean goal/diagnostic context, returns at most three hits with one transition per source theorem, and is consumed by both the Formalizer/ProofEngineer prompt and the existing OpenProver generator policy. Query fingerprints suppress unchanged lookup, changed Lean feedback refreshes the packet, and no-hit refresh removes stale transitions. OpenProver records retrieval-context keys/fingerprint and still verifies candidates locally.",
     "proof_state_trace_split_policy": "Only novel/train is available to runtime RAG. External validation/test remain excluded to preserve held-out proof evaluation and prevent proof-answer leakage. Exact qualified- or short-name overlap between a retrieved source theorem and the current target is recorded and cannot support a held-out generalization claim.",
-    "proof_state_trace_book_boundary": "The complete declaration/citation RAG retains all 22 core-book crosswalk declarations at rank 1: Vershynin 4, Wainwright 7, Boucheron-Lugosi-Massart 11. Novel train directly traces only 4/22 major declarations: one Vershynin, two Wainwright, and one Boucheron result. This is useful cross-book action context, not full-book proof coverage.",
+    "proof_state_trace_book_boundary": "Source-derived citation retrieval currently covers 19 Vershynin-family rows including 15 README-defined HDP aliases, 7 Wainwright rows, and 11 Boucheron-Lugosi-Massart rows. The ICML paper-core subset remains 22 rows with counts 4/7/11. Novel train directly traces only 4/22 paper-core declarations: one Vershynin, two Wainwright, and one Boucheron result. This is useful cross-book action context, not full-book proof coverage.",
+    "retrieval_runtime_efficiency": "The production SQLite hybrid now constructs the exhaustive Python token fallback only after sqlite3.DatabaseError. The final frontier system test finished in 365.77 seconds with 2,600,321,024-byte maximum RSS; the immediately preceding eager-fallback attempt was terminated unfinished at 343 seconds after reaching about 3.83 GB RSS.",
     "proof_state_trace_live_retrieval_probe": "Checksum/integrity audit passed. Representative state queries retrieve SLT.Chaining dyadicScale declarations, GaussianLipConcen.gaussian_lipschitz_concentration, and LeastSquares.basic_inequality at rank 1. The normal ProofEngineer repair-context helper auto-attached three Gaussian goal-state analogies with non-proof status and one disclosed target-name overlap; the content-hash-bound serialized packet was 6,122 characters, below the 24,000-character OpenProver context cap without truncation.",
     "shared_rag_main_commit": "390cc6bc",
     "shared_rag_feature_commits": [
@@ -127,17 +138,17 @@
     "fresh_live_two_family_strict_completion_verified": false,
     "strict_e2e_capability_ready": false,
     "verification": {
-      "research_agent_runtime": "The complete central runtime suite passed 1190/1190 tests in 2420.09 seconds. The only failures in the immediately preceding full run were three stale Formalizer prompt-string assertions; the shared prompt contract was restored and the complete suite was rerun from scratch to green.",
-      "affected_supporting_tests": "After the final wording/general-rate projection cleanup, 118 focused tests passed across the reviewer, TheoryDeveloper, Formalizer, AI4SLT graph/corpus/state-trace, cross-descendant lineage budget, and Claude model-policy surfaces. Coverage includes numeric mismatch fail-closed behavior, semantic naming, honest empty direct-proof DAGs, path sanitization, and Opus rejection/Haiku evaluation pinning.",
-      "exact_haiku_live_probe": "V149 remains the latest successful provider-backed run and used claude-haiku-4-5-20251001 throughout. One later exact-Haiku frozen-packet diagnostic failed structurally after two bounded generations and was not promoted as a run. The final compact response-identity schema has no successful live validation yet; research completion and exact theorem closure remain zero for this patch.",
+      "research_agent_runtime": "The complete central runtime suite passed 1191/1191 tests in 2792.88 seconds before the final retrieval-only lazy-fallback optimization. Its post-optimization formal-source/retrieval selection passed 6/6.",
+      "affected_supporting_tests": "The final focused research-repair suite passed 92 tests. The final formal-source index suite passed 15 tests, including source-authored alias extraction, bounded module context, low-weight shared module hints, SQLite persistence, and lazy fallback activation only after a simulated database failure.",
+      "exact_haiku_live_probe": "V157 used claude-haiku-4-5-20251001 for all eight enabled live agents and ended ACCEPTED. Deterministic replay through the current evaluator reports 1/1 research loop complete and mode-conformant. It covers one survival development task only and reports 0 kernel-verified subclaims and 0 source-theorem closures.",
       "prompt_projection_replay": "Fresh v141 reduced comparable confirmatory semantic-review inputs from about 51k to 26-33k tokens and ownership-router total input from 98,391 to 32,668 while preserving fail-closed routing; total semantic-review input decreased only about 6% because v141 performed one additional review, and wall-clock convergence is not established.",
-      "formal_source_retrieval": "The snapshot-bound benchmark remains 18/18 configured local gold cases at recall@8=1.0 with MRR=0.718122; all 47 current README reference queries retrieve within 8 and the three paper-core books are 22/22 rank 1. The final real default-factory probe independently retrieved coveringNumber_euclideanBall_le, GaussianLipConcen.gaussian_lipschitz_concentration, and LeastSquares.master_error_bound at rank 1, exposed BOUND_MATCH graph/corpus/trace health, and serialized without a current-machine path. This records source organization and candidate context, not whole-book formalization or proof.",
+      "formal_source_retrieval": "The final frontier system gate passed in 365.77 seconds. It reports 18/18 configured local gold cases, 47/47 exact README-reference queries, 15/15 source-authored alias queries, and 12/12 optional cross-repository intent queries at recall@8=1.0. Direct probes retrieve LinearMap.IsSymmetric.davisKahan_eigenvector_angle_hdp, LeastSquares.master_error_bound, and GaussianLipConcen.gaussian_lipschitz_concentration at rank 1. This records source organization and candidate context, not whole-book formalization or proof.",
       "focused_empirical_loop_tests": "the previously pushed TheoryDeveloper retry and metric-lineage regression remains covered by the complete runtime suite",
       "fresh_start_cross_task_e2e_tests": "fresh strict v39 completed theory/code/confirmatory-simulation for both development tasks, then blocked both at exact-target semantic review; frozen strict completion remains 0/2",
       "py_compile": "passed for every changed Python production module after the final edits",
       "git_diff_check": "passed after final status update"
     },
-    "boundary": "Fresh v142-v149 are mixed exact-Haiku mechanism evidence and complete neither the two-task development panel nor a source theorem. The final response-identity/rate contract and cross-descendant budget are verified locally but have no successful post-change live run. The estimator interface is a Theory-owned execution contract, not statistical acceptance. AI4SLT retrieval, import-filtered graph neighbors, module ancestry, signature-corpus hits, state-action analogies, snapshot matches, and citation recall are candidate context only. None establishes current-loop completion, held-out generalization, theorem closure, proof evidence, or full AI-Statistician readiness."
+    "boundary": "V157 establishes one exact-Haiku survival-family research-loop completion under the current evaluator. It does not complete the second development family, strict formal continuation, a source theorem, or any held-out task. The estimator interface is a Theory-owned execution contract, not statistical acceptance. AI4SLT retrieval, import-filtered graph neighbors, module summaries, citation aliases, signature-corpus hits, state-action analogies, snapshot matches, and citation recall are candidate context only. None establishes held-out generalization, theorem closure, proof evidence, or full AI-Statistician readiness."
   },
   "latest_strict_formal_routing_probe": {
     "implementation": "reuse the existing FormalTargetSemanticReviewer, ProofEngineer, ExactSourceTheoremProver, OpenProver HLM, formal RAG, compiler feedback, and exact local Lean; keep all formal continuation inside typed AgentRuntime tasks",
@@ -503,10 +514,10 @@
   },
   "latest_local_regression": {
     "runtime_test_file": "tests/test_research_agent_runtime.py",
-    "result": "1190/1190 central runtime tests passed in 2420.09 seconds on the final production logic. After the last prompt wording and general-rate projection clarification, an additional 118 changed-surface tests passed in 2.85 seconds.",
+    "result": "1191/1191 central runtime tests passed in 2792.88 seconds before the retrieval-only lazy-fallback optimization. Post-optimization checks passed 15/15 formal-source index tests, 6/6 selected central retrieval tests, and the exact frontier system gate in 365.77 seconds.",
     "failed": 0,
-    "validated_at": "2026-07-31T19:45:22Z",
-    "boundary": "Local regression validates runtime contracts, retrieval transport, and orchestration behavior. The final metric-review schema still lacks a successful fresh exact-Haiku replay, and no source theorem was closed; exact source-theorem closure remains zero."
+    "validated_at": "2026-07-31T23:42:06Z",
+    "boundary": "Local regression validates runtime contracts, retrieval transport, and orchestration behavior. V157 supplies one successful fresh exact-Haiku research-loop replay under the current evaluator, but no source theorem was closed; exact source-theorem closure remains zero."
   },
   "latest_four_stage_route_planner_live_probe": {
     "run": "runs/main_worker_s14_v5_fdr_route_feedback_live_replay_20260713_v9_four_stage_split",

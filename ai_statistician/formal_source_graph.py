@@ -365,6 +365,8 @@ def _graph_hit_payload(hit: FormalSourceGraphHit) -> dict[str, object]:
         "namespace": hit.declaration.namespace,
         "signature": hit.declaration.signature,
         "reference": hit.declaration.reference,
+        "reference_aliases": hit.declaration.reference_aliases,
+        "module_summary": hit.declaration.module_summary,
         "score": hit.score,
         "matched_terms": hit.matched_terms,
         "graph_symbols": hit.graph_symbols,

@@ -46,7 +46,10 @@ class FormalSourceHybridRetriever:
         self.sqlite_index = sqlite_index
         self.dependency_retriever = dependency_retriever
         self.scoped_premise_retrievers = tuple(scoped_premise_retrievers)
-        self.fallback_retriever = FormalSourceRetriever(declarations)
+        # The SQLite index is the production candidate generator. Building the
+        # full Python token index eagerly duplicates its largest in-memory data
+        # structure even though it is used only after a SQLite failure.
+        self.fallback_retriever: FormalSourceRetriever | None = None
         setattr(self, "lean_rag_dependency_graph_enabled", dependency_retriever is not None)
         setattr(
             self,
@@ -106,7 +109,14 @@ class FormalSourceHybridRetriever:
             sqlite_hits = self.sqlite_index.search(query, k=sqlite_candidate_k)
             sqlite_error = ""
         except sqlite3.DatabaseError as exc:
-            sqlite_hits = self.fallback_retriever.search(query, k=sqlite_candidate_k)
+            if self.fallback_retriever is None:
+                self.fallback_retriever = FormalSourceRetriever(
+                    self.declarations
+                )
+            sqlite_hits = self.fallback_retriever.search(
+                query,
+                k=sqlite_candidate_k,
+            )
             sqlite_error = f"{type(exc).__name__}: {exc}"
             setattr(self, "last_sqlite_search_error", sqlite_error)
         # The graph retriever expands its own seeds internally. Keep this leg

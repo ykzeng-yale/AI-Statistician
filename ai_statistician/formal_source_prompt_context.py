@@ -9,9 +9,11 @@ from .research_schema import OpenResearchQuestion
 FORMAL_SOURCE_OUTLINE_PROMPT_POLICY = (
     "Bounded direct statement/proof premise signatures first, then at most a small "
     "same-file prior-declaration fallback; downstream declarations and proof bodies "
-    "are omitted. Qualified declaration identity and active import visibility govern "
-    "reuse; declaration-name patterns and source citations are retrieval hints, not "
-    "semantic or proof authority. Retrieved declarations remain candidate context "
+    "are omitted. A bounded source-authored module summary and citation aliases may "
+    "describe library organization but never replace the declaration signature. "
+    "Qualified declaration identity and active import visibility govern reuse; "
+    "declaration-name patterns and source citations are retrieval hints, not semantic "
+    "or proof authority. Retrieved declarations remain candidate context "
     "until the exact target artifact passes active-project Lean/kernel checking."
 )
 
@@ -250,6 +252,11 @@ def formal_source_context_for_hit(
                 "namespace": str(getattr(row, "namespace", "") or ""),
                 "signature": signature,
                 "reference": str(getattr(row, "reference", "") or ""),
+                "reference_aliases": [
+                    str(value)
+                    for value in getattr(row, "reference_aliases", ()) or ()
+                    if str(value).strip()
+                ],
             }
         )
         outline_chars += len(signature)
@@ -262,6 +269,9 @@ def formal_source_context_for_hit(
         module = _formal_source_module_name(path, imports)
     payload: dict[str, Any] = {
         "module": module,
+        "module_summary": str(
+            getattr(declaration, "module_summary", "") or ""
+        )[:800],
         "path": path,
         "imports": imports[:12],
         "premise_declaration_outlines": premise_outline_rows,
@@ -443,6 +453,16 @@ def _formal_source_dependency_outline_rows(
                     "reference": str(
                         getattr(declaration, "reference", "") or ""
                     ),
+                    "reference_aliases": [
+                        str(value)
+                        for value in getattr(
+                            declaration,
+                            "reference_aliases",
+                            (),
+                        )
+                        or ()
+                        if str(value).strip()
+                    ],
                 }
             )
     return rows

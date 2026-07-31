@@ -9556,6 +9556,8 @@ def _formal_source_hit_payload(hit: FormalSourceHit) -> dict[str, Any]:
         "signature": decl.signature,
         "imports": list(decl.imports),
         "reference": decl.reference,
+        "reference_aliases": list(decl.reference_aliases),
+        "module_summary": decl.module_summary,
         "score": round(hit.score, 4),
         "matched_terms": list(hit.matched_terms),
     }

@@ -80,6 +80,7 @@ STOP_TOKENS = {
 }
 _EMPTY_SEARCH_TOKENS: frozenset[str] = frozenset()
 MAX_SQLITE_FTS_QUERY_TOKENS = 24
+MODULE_SUMMARY_TOKEN_WEIGHT = 0.25
 SKIPPED_PATH_PARTS = {
     ".git",
     ".lake",
@@ -143,6 +144,8 @@ class FormalDeclaration:
     major_symbols: tuple[str, ...] = ()
     imports: tuple[str, ...] = ()
     reference: str = ""
+    reference_aliases: tuple[str, ...] = ()
+    module_summary: str = ""
 
 
 @dataclass(frozen=True)
@@ -157,40 +160,50 @@ class FormalSourceRetriever:
 
     def __init__(self, declarations: list[FormalDeclaration] | None = None) -> None:
         self.declarations = declarations if declarations is not None else build_formal_source_index()
-        self._rows = [
-            (
-                decl,
-                _search_tokens(
-                    " ".join(
-                        [
-                            decl.name,
-                            decl.kind,
-                            decl.signature,
-                            decl.path,
-                            decl.source_id,
-                            decl.conclusion_head,
-                            decl.lhs_head,
-                            decl.rhs_head,
-                            " ".join(decl.premise_heads),
-                            " ".join(decl.major_symbols),
-                            " ".join(decl.imports),
-                            decl.reference,
-                        ]
-                    )
-                ),
-                _search_tokens(decl.name),
-                _search_tokens(
-                    " ".join([decl.conclusion_head, decl.lhs_head, decl.rhs_head, " ".join(decl.premise_heads)])
-                ),
-                _search_tokens(" ".join(decl.imports)),
-                (
-                    _search_tokens(decl.reference)
-                    if decl.reference
-                    else _EMPTY_SEARCH_TOKENS
-                ),
+        module_tokens_by_file: dict[
+            tuple[str, str, str], frozenset[str]
+        ] = {}
+        self._rows = []
+        for decl in self.declarations:
+            module_key = (
+                decl.source_id,
+                decl.path,
+                decl.module_summary,
             )
-            for decl in self.declarations
-        ]
+            module_tokens = module_tokens_by_file.get(module_key)
+            if module_tokens is None:
+                module_tokens = frozenset(
+                    _search_tokens(decl.module_summary)
+                    if decl.module_summary
+                    else _EMPTY_SEARCH_TOKENS
+                )
+                module_tokens_by_file[module_key] = module_tokens
+            self._rows.append(
+                (
+                    decl,
+                    _search_tokens(_decl_core_search_text(decl)),
+                    module_tokens,
+                    _search_tokens(decl.name),
+                    _search_tokens(
+                        " ".join(
+                            [
+                                decl.conclusion_head,
+                                decl.lhs_head,
+                                decl.rhs_head,
+                                " ".join(decl.premise_heads),
+                            ]
+                        )
+                    ),
+                    _search_tokens(" ".join(decl.imports)),
+                    (
+                        _search_tokens(
+                            " ".join((decl.reference, *decl.reference_aliases))
+                        )
+                        if decl.reference or decl.reference_aliases
+                        else _EMPTY_SEARCH_TOKENS
+                    ),
+                )
+            )
 
     def search(self, query: str, *, k: int = 10) -> list[FormalSourceHit]:
         q_tokens = _search_tokens(query)
@@ -198,6 +211,7 @@ class FormalSourceRetriever:
         for (
             decl,
             d_tokens,
+            module_tokens,
             name_tokens,
             shape_tokens,
             import_tokens,
@@ -208,6 +222,7 @@ class FormalSourceRetriever:
                 q_tokens,
                 query_text=query,
                 declaration_tokens=d_tokens,
+                module_summary_tokens=module_tokens,
                 name_tokens=name_tokens,
                 shape_tokens=shape_tokens,
                 import_tokens=import_tokens,
@@ -275,7 +290,15 @@ class FormalSourceSqliteIndex:
                         "PRAGMA table_info(declarations_fts)"
                     ).fetchall()
                 }
-                if "reference" not in declaration_columns or "reference" not in fts_columns:
+                if not {
+                    "reference",
+                    "reference_aliases",
+                    "module_summary",
+                }.issubset(declaration_columns) or not {
+                    "reference",
+                    "reference_aliases",
+                    "module_summary",
+                }.issubset(fts_columns):
                     return False
                 conn.execute("SELECT COUNT(*) FROM declarations").fetchone()
                 conn.execute("SELECT COUNT(*) FROM declarations_fts").fetchone()
@@ -307,7 +330,9 @@ class FormalSourceSqliteIndex:
                     rhs_head TEXT NOT NULL,
                     major_symbols TEXT NOT NULL,
                     imports TEXT NOT NULL,
-                    reference TEXT NOT NULL
+                    reference TEXT NOT NULL,
+                    reference_aliases TEXT NOT NULL,
+                    module_summary TEXT NOT NULL
                 )
                 """
             )
@@ -321,14 +346,16 @@ class FormalSourceSqliteIndex:
                     path,
                     source_id,
                     imports,
-                    reference
+                    reference,
+                    reference_aliases,
+                    module_summary
                 )
                 """
             )
             for idx, decl in enumerate(declarations, start=1):
                 conn.execute(
                     """
-                    INSERT INTO declarations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO declarations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         idx,
@@ -348,13 +375,16 @@ class FormalSourceSqliteIndex:
                         json.dumps(decl.major_symbols),
                         json.dumps(decl.imports),
                         decl.reference,
+                        json.dumps(decl.reference_aliases),
+                        decl.module_summary,
                     ),
                 )
                 conn.execute(
                     """
                     INSERT INTO declarations_fts (
-                        decl_id, name, signature, shape, path, source_id, imports, reference
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        decl_id, name, signature, shape, path, source_id, imports,
+                        reference, reference_aliases, module_summary
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         idx,
@@ -375,6 +405,8 @@ class FormalSourceSqliteIndex:
                         _fts_text(decl.source_id),
                         _fts_text(" ".join(decl.imports)),
                         _fts_text(decl.reference),
+                        _fts_text(" ".join(decl.reference_aliases)),
+                        _fts_text(decl.module_summary),
                     ),
                 )
             conn.execute("CREATE INDEX declarations_name_idx ON declarations(name)")
@@ -503,6 +535,7 @@ def build_formal_source_index(
             continue
         seen_roots.add(resolved)
         declaration_references = _declaration_references_from_markdown(location)
+        reference_aliases = _reference_aliases_from_markdown(location)
         root_rows: list[FormalDeclaration] = []
         for path in _iter_formal_source_files(
             root,
@@ -515,6 +548,7 @@ def build_formal_source_index(
             _bind_declaration_references(
                 root_rows,
                 declaration_references,
+                reference_aliases=reference_aliases,
             )
         )
     return rows
@@ -885,12 +919,18 @@ def _cache_covers_configured_roots(
     if not required_source_ids.issubset(present_source_ids):
         return False
     references_by_source: dict[str, set[str]] = {}
+    reference_aliases_by_source: dict[str, set[str]] = {}
     for declaration in declarations:
         if declaration.reference:
             references_by_source.setdefault(
                 declaration.source_id,
                 set(),
             ).add(declaration.reference)
+        if declaration.reference_aliases:
+            reference_aliases_by_source.setdefault(
+                declaration.source_id,
+                set(),
+            ).update(declaration.reference_aliases)
     for root in roots:
         location = Path(root.location).expanduser()
         if not location.exists():
@@ -900,6 +940,19 @@ def _cache_covers_configured_roots(
         )
         if not expected_references.issubset(
             references_by_source.get(root.id, set())
+        ):
+            return False
+        source_aliases = _reference_aliases_from_markdown(location)
+        expected_reference_aliases = {
+            alias
+            for reference in expected_references
+            for alias in _expanded_reference_aliases(
+                reference,
+                source_aliases,
+            )
+        }
+        if not expected_reference_aliases.issubset(
+            reference_aliases_by_source.get(root.id, set())
         ):
             return False
     return True
@@ -997,6 +1050,8 @@ def formal_source_index_fingerprint(declarations: list[FormalDeclaration] | None
             "major_symbols": decl.major_symbols,
             "imports": decl.imports,
             "reference": decl.reference,
+            "reference_aliases": decl.reference_aliases,
+            "module_summary": decl.module_summary,
         }
         for decl in decls
     ]
@@ -1034,12 +1089,26 @@ def _score_declaration(
     *,
     query_text: str = "",
     declaration_tokens: set[str] | None = None,
+    module_summary_tokens: set[str] | frozenset[str] | None = None,
     name_tokens: set[str] | None = None,
     shape_tokens: set[str] | None = None,
     import_tokens: set[str] | None = None,
     reference_tokens: set[str] | None = None,
 ) -> FormalSourceHit | None:
-    d_tokens = declaration_tokens if declaration_tokens is not None else _search_tokens(_decl_search_text(decl))
+    d_tokens = (
+        declaration_tokens
+        if declaration_tokens is not None
+        else _search_tokens(_decl_core_search_text(decl))
+    )
+    m_tokens = (
+        module_summary_tokens
+        if module_summary_tokens is not None
+        else (
+            _search_tokens(decl.module_summary)
+            if decl.module_summary
+            else _EMPTY_SEARCH_TOKENS
+        )
+    )
     n_tokens = name_tokens if name_tokens is not None else _search_tokens(decl.name)
     s_tokens = (
         shape_tokens
@@ -1051,14 +1120,19 @@ def _score_declaration(
         reference_tokens
         if reference_tokens is not None
         else (
-            _search_tokens(decl.reference)
-            if decl.reference
+            _search_tokens(
+                " ".join((decl.reference, *decl.reference_aliases))
+            )
+            if decl.reference or decl.reference_aliases
             else _EMPTY_SEARCH_TOKENS
         )
     )
-    overlap = q_tokens & d_tokens
+    core_overlap = q_tokens & d_tokens
+    module_overlap = q_tokens & m_tokens
+    overlap = core_overlap | module_overlap
     if not overlap:
         return None
+    module_only_overlap = module_overlap - core_overlap
     name_bonus = 2.0 * len(q_tokens & n_tokens)
     shape_bonus = 1.5 * len(q_tokens & s_tokens)
     import_bonus = 0.75 * len(q_tokens & i_tokens)
@@ -1068,7 +1142,8 @@ def _score_declaration(
     short_name_anchor_bonus = 8.0 if short_name in q_tokens else 0.0
     source_bonus = 1.0 if decl.source_id.startswith("mathlib") else 1.5
     score = (
-        len(overlap)
+        len(core_overlap)
+        + MODULE_SUMMARY_TOKEN_WEIGHT * len(module_only_overlap)
         + name_bonus
         + shape_bonus
         + import_bonus
@@ -1166,7 +1241,7 @@ def diversify_formal_source_hits(
     return selected[:limit]
 
 
-def _decl_search_text(decl: FormalDeclaration) -> str:
+def _decl_core_search_text(decl: FormalDeclaration) -> str:
     return " ".join(
         [
             decl.name,
@@ -1181,6 +1256,7 @@ def _decl_search_text(decl: FormalDeclaration) -> str:
             " ".join(decl.major_symbols),
             " ".join(decl.imports),
             decl.reference,
+            " ".join(decl.reference_aliases),
         ]
     )
 
@@ -1223,6 +1299,10 @@ def _decl_from_sqlite_row(row) -> FormalDeclaration:
         major_symbols=tuple(json.loads(row[14])),
         imports=tuple(json.loads(row[15])) if len(row) > 15 else (),
         reference=str(row[16]) if len(row) > 16 else "",
+        reference_aliases=(
+            tuple(json.loads(row[17])) if len(row) > 17 else ()
+        ),
+        module_summary=str(row[18]) if len(row) > 18 else "",
     )
 
 
@@ -1367,20 +1447,25 @@ def _name_like_symbols(text: str) -> list[str]:
     return symbols
 
 
+def _source_readme_paths(root: Path) -> tuple[Path, ...]:
+    return tuple(
+        sorted(
+            {
+                path
+                for candidate_root in (root, root.parent)
+                for path in candidate_root.glob("README*")
+                if path.is_file()
+                and path.suffix.lower() in {".md", ".markdown"}
+            }
+        )
+    )
+
+
 def _declaration_references_from_markdown(root: Path) -> dict[str, str]:
     """Extract declaration/source crosswalks from root README tables."""
 
-    readmes = sorted(
-        {
-            path
-            for candidate_root in (root, root.parent)
-            for path in candidate_root.glob("README*")
-            if path.is_file()
-            and path.suffix.lower() in {".md", ".markdown"}
-        }
-    )
     references: dict[str, str] = {}
-    for path in readmes:
+    for path in _source_readme_paths(root):
         try:
             lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
         except OSError:
@@ -1431,9 +1516,47 @@ def _declaration_references_from_markdown(root: Path) -> dict[str, str]:
     return references
 
 
+def _reference_aliases_from_markdown(root: Path) -> dict[str, str]:
+    """Extract source-defined citation abbreviations such as `HDP = ...`."""
+
+    aliases: dict[str, str] = {}
+    alias_pattern = re.compile(
+        r"(?:^|[\s*(])([A-Z][A-Z0-9]{1,8})\s*=\s*([^\n)]{3,220})\)"
+    )
+    for path in _source_readme_paths(root):
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        for match in alias_pattern.finditer(text):
+            alias = match.group(1).strip()
+            expansion = _markdown_cell_text(match.group(2)).strip(" .")
+            if alias and expansion:
+                aliases.setdefault(alias, expansion)
+    return aliases
+
+
+def _expanded_reference_aliases(
+    reference: str,
+    aliases: dict[str, str],
+) -> tuple[str, ...]:
+    match = re.match(r"^([A-Z][A-Z0-9]{1,8})(?=$|[\s:-])", reference)
+    if match is None:
+        return ()
+    abbreviation = match.group(1)
+    expansion = aliases.get(abbreviation, "").strip()
+    if not expansion:
+        return ()
+    suffix = reference[len(abbreviation) :].lstrip(" :-")
+    expanded = " ".join(value for value in (expansion, suffix) if value)
+    return (expanded,) if expanded and expanded != reference else ()
+
+
 def _bind_declaration_references(
     declarations: list[FormalDeclaration],
     references: dict[str, str],
+    *,
+    reference_aliases: dict[str, str] | None = None,
 ) -> list[FormalDeclaration]:
     """Bind exact names and globally unique short names to source references."""
 
@@ -1490,11 +1613,19 @@ def _bind_declaration_references(
             reference = references.get(short_name, "")
         if not reference:
             reference = renamed_references.get(declaration.name, "")
-        bound.append(
-            replace(declaration, reference=reference)
-            if reference
-            else declaration
-        )
+        if reference:
+            bound.append(
+                replace(
+                    declaration,
+                    reference=reference,
+                    reference_aliases=_expanded_reference_aliases(
+                        reference,
+                        reference_aliases or {},
+                    ),
+                )
+            )
+        else:
+            bound.append(declaration)
     return bound
 
 
@@ -1523,6 +1654,40 @@ def _markdown_declaration_name(cell: str) -> str:
     return text.split()[0] if text else ""
 
 
+def _lean_module_summary(
+    lines: list[str],
+    *,
+    max_chars: int = 800,
+) -> str:
+    """Return the bounded leading `/-! ... -/` module documentation."""
+
+    collecting = False
+    fragments: list[str] = []
+    for line in lines:
+        if not collecting:
+            if DECL_RE.match(line):
+                break
+            marker = line.find("/-!")
+            if marker < 0:
+                continue
+            collecting = True
+            line = line[marker + 3 :]
+        end = line.find("-/")
+        if end >= 0:
+            fragments.append(line[:end])
+            break
+        fragments.append(line)
+    if not fragments:
+        return ""
+    text = "\n".join(fragments)
+    text = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", text)
+    text = re.sub(r"(?m)^\s*#{1,6}\s*", "", text)
+    text = re.sub(r"(?m)^\s*[-*+]\s*", "", text)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[: max(0, int(max_chars))]
+
+
 def _declarations_in_file(
     root: FormalSourceRoot,
     path: Path,
@@ -1534,6 +1699,7 @@ def _declarations_in_file(
         return []
     rel = str(path.relative_to(base))
     language = _formal_source_language(root, path)
+    module_summary = _lean_module_summary(lines) if language == "lean" else ""
     namespace_stack: list[str] = []
     lean_scope_stack: list[tuple[str, str, tuple[str, ...]]] = []
     imports: list[str] = []
@@ -1599,6 +1765,7 @@ def _declarations_in_file(
                 rhs_head=compressed["rhs_head"],
                 major_symbols=compressed["major_symbols"],
                 imports=tuple(imports),
+                module_summary=module_summary,
             )
         )
     return rows
@@ -1832,6 +1999,8 @@ def _hit_payload(hit: FormalSourceHit) -> dict[str, object]:
         "namespace": hit.declaration.namespace,
         "signature": hit.declaration.signature,
         "reference": hit.declaration.reference,
+        "reference_aliases": hit.declaration.reference_aliases,
+        "module_summary": hit.declaration.module_summary,
         "score": hit.score,
         "matched_terms": hit.matched_terms,
         "binder_count": hit.declaration.binder_count,

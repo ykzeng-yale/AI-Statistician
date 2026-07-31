@@ -22,8 +22,6 @@ _TYPED_SEMANTIC_PATCH_MAX_UPDATES = (
     _TYPED_SEMANTIC_PATCH_MAX_VALIDATION_ERRORS
     * _TYPED_SEMANTIC_PATCH_MAX_UPDATES_PER_VALIDATION_ERROR
 )
-_TYPED_SEMANTIC_PATCH_MAX_PATH_DEPTH = 8
-_TYPED_SEMANTIC_PATCH_MAX_TOKENS = 5000
 _TYPED_SEMANTIC_PATCH_MAX_FOCUS_VALUE_CHARS = 4000
 _TRUNCATION_REPAIR_MAX_TOKENS = 16000
 _TYPED_SEMANTIC_PATCH_PROMPT_WRAPPER_KEYS = frozenset(
@@ -32,14 +30,9 @@ _TYPED_SEMANTIC_PATCH_PROMPT_WRAPPER_KEYS = frozenset(
         "top_level_outline",
     }
 )
-_TYPED_SEMANTIC_PATCH_MAX_RAW_PATH_DEPTH = (
-    _TYPED_SEMANTIC_PATCH_MAX_PATH_DEPTH
-    + len(_TYPED_SEMANTIC_PATCH_PROMPT_WRAPPER_KEYS)
-)
 _TYPED_SEMANTIC_PATCH_PATH_SCHEMA: dict[str, Any] = {
     "type": "array",
     "minItems": 1,
-    "maxItems": _TYPED_SEMANTIC_PATCH_MAX_RAW_PATH_DEPTH,
     "items": {
         "anyOf": [
             {"type": "string"},
@@ -202,11 +195,6 @@ def generate_validated_json_packet(
             request.max_tokens,
             truncation_repair_mode=truncation_repair_mode,
         )
-        if typed_semantic_patch_mode:
-            request_max_tokens = min(
-                request_max_tokens,
-                _TYPED_SEMANTIC_PATCH_MAX_TOKENS,
-            )
         response = provider.generate(
             replace(
                 request,
@@ -419,12 +407,22 @@ def _typed_semantic_patch_history_made_strict_progress(
     current = history[-1]
     previous_errors = previous.get("errors", [])
     current_errors = current.get("errors", [])
+    changed_single_residual = bool(
+        isinstance(previous_errors, list)
+        and isinstance(current_errors, list)
+        and len(previous_errors) == 1
+        and len(current_errors) == 1
+        and previous_errors != current_errors
+    )
     patch_made_progress = bool(
         current.get("repair_mode") == "typed_semantic_patch"
         and isinstance(previous_errors, list)
         and isinstance(current_errors, list)
         and current_errors
-        and len(current_errors) < len(previous_errors)
+        and (
+            len(current_errors) < len(previous_errors)
+            or changed_single_residual
+        )
         and current.get("patched_paths")
         and not any(
             str(error).startswith("typed semantic patch repair failed:")
@@ -495,7 +493,6 @@ def _typed_semantic_patch_prompt(
                 },
             ],
             "maximum_updates": max_updates,
-            "maximum_path_depth": _TYPED_SEMANTIC_PATCH_MAX_PATH_DEPTH,
         },
         "repair_instructions": [
             "Return only the typed patch envelope, not the full packet.",
@@ -603,10 +600,6 @@ def _apply_typed_semantic_patch(
             raise ValueError(
                 f"typed semantic patch update {update_index} must contain a path"
             )
-        if len(raw_path) > _TYPED_SEMANTIC_PATCH_MAX_RAW_PATH_DEPTH:
-            raise ValueError(
-                f"typed semantic patch update {update_index} exceeds maximum raw path depth"
-            )
         path: list[str | int] = []
         for component in raw_path:
             if isinstance(component, bool) or not isinstance(component, (str, int)):
@@ -628,10 +621,6 @@ def _apply_typed_semantic_patch(
                 path=path,
             )
         )
-        if len(normalized_path) > _TYPED_SEMANTIC_PATCH_MAX_PATH_DEPTH:
-            raise ValueError(
-                f"typed semantic patch update {update_index} exceeds maximum path depth"
-            )
         has_direct_replacement = "replacement" in raw_update
         has_json_replacement = "replacement_json" in raw_update
         if has_direct_replacement == has_json_replacement:

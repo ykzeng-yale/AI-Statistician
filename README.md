@@ -190,6 +190,12 @@ must be rechecked in the active project. Set
 `AI_STATISTICIAN_AI4SLT_PREMISE_CORPUS` to its pinned
 `corpus.jsonl` when it is not installed under the standard external-resource
 path. This is premise retrieval, never proof evidence.
+The declaration index also carries each Lean file's bounded leading module
+documentation and source-authored citation aliases. For example, the upstream
+README's `HDP` abbreviation is expanded from that README rather than encoded as
+a runtime theorem rule. These fields improve semantic and book-reference
+retrieval while declaration signatures, import visibility, and active-project
+kernel checking remain authoritative.
 When a ProofEngineer packet contains an actual Lean goal or compiler diagnostic,
 the same path can add at most three checksum-pinned
 [AI4SLT Novel](https://huggingface.co/datasets/yuanhezhang/lean4-stat-learning-theory-novel)

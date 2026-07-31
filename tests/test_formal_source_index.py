@@ -15,6 +15,7 @@ from ai_statistician.formal_source_index import (
     diversify_formal_source_hits,
     search_formal_sources,
 )
+from ai_statistician.formal_source_hybrid import FormalSourceHybridRetriever
 from ai_statistician.formal_source_retrieval_benchmark import (
     audit_formal_source_reference_crosswalk,
 )
@@ -39,6 +40,10 @@ def test_readme_reference_is_searchable_and_persists_in_sqlite(
     )
     (source_root / "Dudley.lean").write_text(
         "import SLT.SubGaussian\n"
+        "/-!\n"
+        "# Dudley's Entropy Integral Bound\n"
+        "Dependency-first chaining for sub-Gaussian processes.\n"
+        "-/\n"
         "namespace SLT\n"
         "theorem dudley_helper : True := by trivial\n"
         "theorem long_dudley_bound : True := by trivial\n"
@@ -51,6 +56,10 @@ def test_readme_reference_is_searchable_and_persists_in_sqlite(
     )
     dudley = next(row for row in declarations if row.name == "SLT.dudley")
     assert dudley.reference == "Boucheron et al. (2013), Corollary 13.2"
+    assert dudley.module_summary == (
+        "Dudley's Entropy Integral Bound Dependency-first chaining for "
+        "sub-Gaussian processes."
+    )
     assert dudley.signature == "theorem dudley : True"
     assert "trivial" not in dudley.signature
 
@@ -62,6 +71,9 @@ def test_readme_reference_is_searchable_and_persists_in_sqlite(
         k=3,
     )
     assert reference_hits[0].declaration.name == "SLT.dudley"
+    serialized_hit = _formal_source_hit_to_json(reference_hits[0])
+    assert serialized_hit["module_summary"] == dudley.module_summary
+    assert serialized_hit["reference_aliases"] == []
 
     sqlite_index = FormalSourceSqliteIndex.build(
         declarations,
@@ -71,6 +83,7 @@ def test_readme_reference_is_searchable_and_persists_in_sqlite(
     sqlite_hits = sqlite_index.search("Boucheron Corollary 13.2", k=3)
     assert sqlite_hits[0].declaration.name == "SLT.dudley"
     assert sqlite_hits[0].declaration.reference == dudley.reference
+    assert sqlite_hits[0].declaration.module_summary == dudley.module_summary
 
     crosswalk = audit_formal_source_reference_crosswalk(
         FormalSourceRetriever(declarations),
@@ -81,6 +94,153 @@ def test_readme_reference_is_searchable_and_persists_in_sqlite(
     assert crosswalk["all_ok"] is True
     assert crosswalk["rows"][0]["hit_rank"] == 1
     assert crosswalk["rows"][0]["reference"] == dudley.reference
+
+
+def test_source_authored_reference_alias_is_searchable_without_runtime_rule(
+    tmp_path: Path,
+) -> None:
+    source_root = tmp_path / "SLT"
+    source_root.mkdir()
+    (tmp_path / "README.md").write_text(
+        "| Lean name | Reference / role |\n"
+        "|---|---|\n"
+        "| `davisKahan` | HDP Theorem 4.1.15, eigenvector angle bound |\n"
+        "\n"
+        "*(HDP = Vershynin, 2018, High-Dimensional Probability.)*\n",
+        encoding="utf-8",
+    )
+    (source_root / "Perturb.lean").write_text(
+        "/-! # Matrix perturbation theory -/\n"
+        "theorem davisKahan : True := by trivial\n",
+        encoding="utf-8",
+    )
+    declarations = build_formal_source_index(
+        roots=(FormalSourceRoot("fixture_hdp", str(source_root)),)
+    )
+    declaration = declarations[0]
+
+    assert declaration.reference_aliases == (
+        "Vershynin, 2018, High-Dimensional Probability Theorem 4.1.15, "
+        "eigenvector angle bound",
+    )
+    hits = search_formal_sources(
+        "Vershynin 2018 High Dimensional Probability Theorem 4.1.15",
+        declarations=declarations,
+        k=2,
+    )
+    assert hits[0].declaration.name == "davisKahan"
+
+    crosswalk = audit_formal_source_reference_crosswalk(
+        FormalSourceRetriever(declarations),
+        k=2,
+    )
+    alias_crosswalk = crosswalk["reference_alias_crosswalk"]
+    assert alias_crosswalk["n_queries"] == 1
+    assert alias_crosswalk["n_ok"] == 1
+    assert alias_crosswalk["all_ok"] is True
+    assert crosswalk["citation_families"] == [
+        {
+            "citation_family": "Vershynin",
+            "n_queries": 1,
+            "n_ok": 1,
+            "all_ok": True,
+        }
+    ]
+
+
+def test_module_summary_is_a_shared_low_weight_semantic_hint(
+    monkeypatch,
+) -> None:
+    module_summary = (
+        "Kolmogorov extension theorem projective family finite dimensional "
+        "distributions measure"
+    )
+    declarations = [
+        FormalDeclaration(
+            source_id="direct_source",
+            source_type="lean_library",
+            path="Direct.lean",
+            line=1,
+            kind="def",
+            name="MeasureTheory.projectiveFamilyContent",
+            namespace="MeasureTheory",
+            signature="def projectiveFamilyContent : True",
+        ),
+        *[
+            FormalDeclaration(
+                source_id="summary_source",
+                source_type="lean_library",
+                path="Summary.lean",
+                line=index,
+                kind="lemma",
+                name=f"Summary.unrelated{index}",
+                namespace="Summary",
+                signature=f"lemma unrelated{index} : True",
+                module_summary=module_summary,
+            )
+            for index in range(1, 5)
+        ],
+    ]
+    import ai_statistician.formal_source_index as formal_source_index
+
+    original_search_tokens = formal_source_index._search_tokens
+    summary_tokenizations = 0
+
+    def counted_search_tokens(text: str):
+        nonlocal summary_tokenizations
+        if text == module_summary:
+            summary_tokenizations += 1
+        return original_search_tokens(text)
+
+    monkeypatch.setattr(
+        formal_source_index,
+        "_search_tokens",
+        counted_search_tokens,
+    )
+    retriever = FormalSourceRetriever(declarations)
+    assert summary_tokenizations == 1
+
+    hits = retriever.search(module_summary, k=5)
+
+    assert hits[0].declaration.name == (
+        "MeasureTheory.projectiveFamilyContent"
+    )
+
+
+def test_sqlite_hybrid_builds_python_fallback_only_after_database_failure(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    declarations = [
+        FormalDeclaration(
+            source_id="fixture",
+            source_type="lean_library",
+            path="Demo.lean",
+            line=1,
+            kind="theorem",
+            name="Demo.variance_bound",
+            namespace="Demo",
+            signature="theorem variance_bound : True",
+        )
+    ]
+    sqlite_index = FormalSourceSqliteIndex.build(
+        declarations,
+        tmp_path / "formal_source.sqlite",
+    )
+    retriever = FormalSourceHybridRetriever(declarations, sqlite_index)
+
+    assert retriever.fallback_retriever is None
+    assert retriever.search("variance bound", k=1)
+    assert retriever.fallback_retriever is None
+
+    def fail_sqlite_search(query: str, *, k: int):
+        raise sqlite3.DatabaseError("fixture failure")
+
+    monkeypatch.setattr(sqlite_index, "search", fail_sqlite_search)
+    hits = retriever.search("variance bound", k=1)
+
+    assert hits[0].declaration.name == "Demo.variance_bound"
+    assert isinstance(retriever.fallback_retriever, FormalSourceRetriever)
 
 
 def test_readme_reference_does_not_spill_across_duplicate_short_names(
@@ -348,6 +508,10 @@ def test_formal_source_hit_context_keeps_outline_and_nonproof_boundary() -> None
         signature="theorem master_error_bound : True",
         imports=("SLT.LeastSquares.Localization", "SLT.GaussianLipConcen"),
         reference="Wainwright (2019), Theorem 13.5",
+        reference_aliases=("Wainwright, 2019, High-Dimensional Statistics",),
+        module_summary=(
+            "Master error bound for localized least-squares regression."
+        ),
     )
     payload = _formal_source_hit_to_json(
         FormalSourceHit(declaration, 9.0, ("wainwright", "13.5"))
@@ -359,6 +523,12 @@ def test_formal_source_hit_context_keeps_outline_and_nonproof_boundary() -> None
         "SLT.GaussianLipConcen",
     ]
     assert payload["reference"] == "Wainwright (2019), Theorem 13.5"
+    assert payload["reference_aliases"] == [
+        "Wainwright, 2019, High-Dimensional Statistics"
+    ]
+    assert payload["module_summary"] == (
+        "Master error bound for localized least-squares regression."
+    )
     assert "kernel_verified" not in payload
 
 
@@ -374,6 +544,9 @@ def test_formal_source_hit_context_adds_bounded_outline_and_dependency_neighbors
             namespace="LeastSquares",
             signature=signature,
             imports=("SLT.LeastSquares.Localization", "SLT.GaussianLipConcen"),
+            module_summary=(
+                "Master error bound for localized least-squares regression."
+            ),
         )
         for line, kind, name, signature in (
             (640, "theorem", "LeastSquares.bad_event_probability_bound", "theorem bad_event_probability_bound : True"),
@@ -432,6 +605,9 @@ def test_formal_source_hit_context_adds_bounded_outline_and_dependency_neighbors
 
     context = payload["declaration_source_context"]
     assert context["module"] == "SLT.LeastSquares.MasterErrorBound"
+    assert context["module_summary"] == (
+        "Master error bound for localized least-squares regression."
+    )
     assert context["imports"] == [
         "SLT.LeastSquares.Localization",
         "SLT.GaussianLipConcen",

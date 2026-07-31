@@ -2377,15 +2377,20 @@ Declaration outlines stop before `:=`, so proof bodies, tactics, and placeholder
 do not enter prompt context. Root README tables with declaration and reference
 columns are parsed generically; this makes the AI4SLT crosswalk to Vershynin,
 Wainwright, and Boucheron-Lugosi-Massart searchable without encoding book-specific
-runtime rules. Retrieval emits qualified name, namespace, module, imports,
-reference, and a dependency-first outline: direct statement dependencies, then
-direct proof dependencies, then at most a small same-file prior-declaration
-fallback. Downstream declarations and proof bodies are omitted. Composite
+runtime rules. Source-authored citation abbreviations are expanded from those
+same documents, and bounded leading Lean module documentation provides the
+mathematical layer summary. Retrieval emits qualified name, namespace, module,
+imports, reference metadata, and a dependency-first outline: direct statement
+dependencies, then direct proof dependencies, then at most a small same-file
+prior-declaration fallback. Downstream declarations and proof bodies are omitted. Composite
 provider retrieval keeps reciprocal-rank fusion and resolves exact RRF ties by
 the number of provider-reported match terms actually present in the query, not
 by declaration-name ordering. Every result remains candidate-only until the exact
 artifact compiles in the active pinned Lean project. In particular, the external
 SLT v4.32 checkout is not assumed compatible with the current v4.31 proof target.
+The production SQLite hybrid constructs its exhaustive Python token fallback
+only after a database error; healthy repeated searches do not pay for two full
+candidate indexes.
 The upstream `v4.31.0` tag is a useful promotion candidate, but its pinned Mathlib
 revision also differs from the active project's revision, so version number alone
 does not authorize an import.
@@ -2406,6 +2411,13 @@ adopts the paper's workflow mechanism under the AI-Statistician model policy;
 it does not adopt the upstream project's historical model tier. Production
 remains capped at Sonnet and provider-backed evaluation remains pinned to
 `claude-haiku-4-5-20251001`.
+The adopted workflow is grounded in the
+[AI4SLT paper](https://arxiv.org/abs/2602.02285) and its
+[ICML 2026 presentation](https://icml.cc/virtual/2026/poster/62752), together
+with the
+[Lean source library](https://github.com/YuanheZ/lean-stat-learning-theory);
+the implementation reuses their organization and feedback strategy, not their
+generated proof answers or historical model configuration.
 Research benchmark traces also attach the top local declaration hits to every
 `FORMAL_GAP` subclaim and copy them into the generated Lean skeleton comments,
 so a gap is always accompanied by concrete local source candidates rather than
@@ -2496,10 +2508,12 @@ This layer follows the upstream large-formalization organization instead of
 inventing theorem-number names or flat proof snippets. Mathematical layers and
 Lean namespaces remain primary (`CoveringNumber`, `MetricEntropy`, `Chaining`,
 `Dudley`, `GaussianLSI`, and `LeastSquares`); textbook references remain
-separate citation metadata. The complete declaration/citation RAG covers all 22
-current core-book crosswalk rows across Vershynin, Wainwright, and
-Boucheron-Lugosi-Massart. The Novel training traces directly contain only four
-of those 22 major-result declarations, with at least one from each book family;
+separate citation metadata. The current source-derived declaration/citation
+audit covers all 47 README-bound declarations, including all 15 references whose
+source-authored `HDP` alias expands to Vershynin. The ICML paper-core subset
+contains 22 rows across Vershynin, Wainwright, and Boucheron-Lugosi-Massart. The
+Novel training traces directly contain only four of those 22 major-result
+declarations, with at least one from each book family;
 the rest of the action traces may occur in the upstream validation/test splits.
 Those splits are deliberately excluded to avoid turning held-out proofs into
 retrieval answers. The train split still supplies reusable state-action examples
