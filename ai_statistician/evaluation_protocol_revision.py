@@ -402,6 +402,59 @@ def architect_metric_semantic_review_validation_failure_result(
 
     context = invalidate_metric_protocol_authorization(architect_context)
     validation_errors = [str(error) for error in exc.errors if str(error)]
+    authoring_packet_value = getattr(exc, "authoring_packet", None)
+    authoring_packet = (
+        deepcopy(dict(authoring_packet_value))
+        if isinstance(authoring_packet_value, Mapping)
+        else {}
+    )
+    authoring_packet_id = str(authoring_packet.get("packet_id", "") or "")
+    observed_authoring_packet_hash = (
+        stable_hash(authoring_packet) if authoring_packet else ""
+    )
+    trusted_review_lineage_value = getattr(
+        exc, "trusted_review_lineage", None
+    )
+    trusted_review_lineage = (
+        deepcopy(dict(trusted_review_lineage_value))
+        if isinstance(trusted_review_lineage_value, Mapping)
+        else {}
+    )
+    expected_authoring_packet_hash = str(
+        getattr(exc, "authoring_packet_hash", "") or ""
+    )
+    authoring_packet_persisted = bool(
+        authoring_packet
+        and authoring_packet.get("artifact_kind")
+        == "ArchitectMetricRequirementAuthoringPacket"
+        and authoring_packet_id
+        and str(authoring_packet.get("question_id", "") or "") == question.id
+        and not authoring_packet.get("semantic_review_status")
+        and not authoring_packet.get("semantic_review_packet")
+        and authoring_packet.get("metric_protocol_execution_authorized") is not True
+        and expected_authoring_packet_hash == observed_authoring_packet_hash
+        and str(trusted_review_lineage.get("authoring_packet_id", "") or "")
+        == authoring_packet_id
+        and str(trusted_review_lineage.get("authoring_packet_hash", "") or "")
+        == observed_authoring_packet_hash
+    )
+    authoring_packet_integrity_errors = (
+        []
+        if not authoring_packet or authoring_packet_persisted
+        else ["attached authoring packet failed replay-lineage validation"]
+    )
+    semantic_review_history_value = getattr(
+        exc, "semantic_review_history", None
+    )
+    semantic_review_history = (
+        [
+            deepcopy(dict(row))
+            for row in semantic_review_history_value
+            if isinstance(row, Mapping)
+        ]
+        if isinstance(semantic_review_history_value, list)
+        else []
+    )
     last_invalid_packet = (
         dict(exc.last_invalid_packet)
         if isinstance(exc.last_invalid_packet, Mapping)
@@ -436,15 +489,20 @@ def architect_metric_semantic_review_validation_failure_result(
                 validation_errors,
                 exc.history,
                 review_projection,
+                authoring_packet_id,
+                observed_authoring_packet_hash,
+                int(getattr(exc, "revision_index", 0) or 0),
+                str(getattr(exc, "review_material_fingerprint", "") or ""),
             ]
         )[:20]
     )
     boundary = (
         "This artifact records an independently generated pre-execution metric "
         "review packet that remained structurally invalid after bounded repair. "
-        "The candidate protocol stays unauthorized; the invalid review is feedback "
-        "for the reviewer interface and is not execution, statistical acceptance, "
-        "or theorem proof evidence."
+        "Its locally validated author candidate is preserved for deterministic "
+        "review replay when exact lineage is available, but remains unauthorized. "
+        "The invalid review is feedback for the reviewer interface and is not "
+        "execution, statistical acceptance, or theorem proof evidence."
     )
     artifact = {
         "schema_version": EVALUATION_PROTOCOL_REVISION_SCHEMA_VERSION,
@@ -459,6 +517,24 @@ def architect_metric_semantic_review_validation_failure_result(
         "validation_errors": validation_errors,
         "validation_attempts": exc.attempts,
         "llm_json_repair_history": [dict(row) for row in exc.history],
+        "authoring_packet_available": bool(authoring_packet),
+        "authoring_packet_id": authoring_packet_id,
+        "authoring_packet_hash": observed_authoring_packet_hash,
+        "authoring_packet_persisted": authoring_packet_persisted,
+        "authoring_packet_integrity_errors": authoring_packet_integrity_errors,
+        "semantic_review_revision_index": int(
+            getattr(exc, "revision_index", 0) or 0
+        ),
+        "review_material_fingerprint": str(
+            getattr(exc, "review_material_fingerprint", "") or ""
+        ),
+        "trusted_review_lineage": trusted_review_lineage,
+        "prior_semantic_review_history": semantic_review_history,
+        "prior_semantic_review_history_fingerprint": (
+            stable_hash(semantic_review_history)
+            if semantic_review_history
+            else ""
+        ),
         "last_invalid_packet_available": bool(last_invalid_packet),
         "last_invalid_packet_fingerprint": (
             stable_hash(last_invalid_packet) if last_invalid_packet else ""
@@ -474,6 +550,10 @@ def architect_metric_semantic_review_validation_failure_result(
         ),
         "boundary": boundary,
     }
+    produced_artifacts = {}
+    if authoring_packet_persisted:
+        produced_artifacts[authoring_packet_id] = authoring_packet
+    produced_artifacts[failure_id] = artifact
     evidence = EvidenceLedgerEntry(
         evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
         task_id=task.task_id,
@@ -484,6 +564,9 @@ def architect_metric_semantic_review_validation_failure_result(
         payload={
             "validation_errors": validation_errors,
             "validation_attempts": exc.attempts,
+            "authoring_packet_id": authoring_packet_id,
+            "authoring_packet_hash": observed_authoring_packet_hash,
+            "authoring_packet_persisted": authoring_packet_persisted,
             "metric_protocol_execution_authorized": False,
             "kernel_verified": False,
         },
@@ -495,7 +578,7 @@ def architect_metric_semantic_review_validation_failure_result(
             "its exact validation lineage was preserved without authorizing "
             "generated execution."
         ),
-        produced_artifacts={failure_id: artifact},
+        produced_artifacts=produced_artifacts,
         observations=(
             EnvironmentObservation(
                 observation_type=(
@@ -506,6 +589,9 @@ def architect_metric_semantic_review_validation_failure_result(
                     "failure_id": failure_id,
                     "validation_errors": validation_errors,
                     "validation_attempts": exc.attempts,
+                    "authoring_packet_id": authoring_packet_id,
+                    "authoring_packet_hash": observed_authoring_packet_hash,
+                    "authoring_packet_persisted": authoring_packet_persisted,
                     "metric_protocol_execution_authorized": False,
                     "proof_evidence_status": artifact[
                         "proof_evidence_status"

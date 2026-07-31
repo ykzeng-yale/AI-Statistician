@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -130,6 +131,36 @@ class ArchitectMetricSemanticReviewRejected(PacketValidationError):
                 ],
             ],
             history=history,
+        )
+
+
+class ArchitectMetricSemanticReviewPacketValidationError(PacketValidationError):
+    """Reviewer validation failure bound to its validated author candidate."""
+
+    def __init__(
+        self,
+        *,
+        cause: PacketValidationError,
+        authoring_packet: Mapping[str, Any],
+        revision_index: int,
+        trusted_review_lineage: Mapping[str, Any],
+        review_material_fingerprint: str,
+        semantic_review_history: list[dict[str, Any]],
+    ) -> None:
+        self.authoring_packet = deepcopy(dict(authoring_packet))
+        self.authoring_packet_hash = stable_hash(self.authoring_packet)
+        self.revision_index = int(revision_index)
+        self.trusted_review_lineage = deepcopy(dict(trusted_review_lineage))
+        self.review_material_fingerprint = str(
+            review_material_fingerprint or ""
+        )
+        self.semantic_review_history = deepcopy(semantic_review_history)
+        super().__init__(
+            validation_label=cause.validation_label,
+            attempts=cause.attempts,
+            errors=cause.errors,
+            history=cause.history,
+            last_invalid_packet=cause.last_invalid_packet,
         )
 
 
@@ -2082,11 +2113,21 @@ def author_reviewed_architect_metric_requirements(
                 "blinded_independent_invocation": True,
             },
         ):
-            semantic_review_packet = semantic_reviewer.review(
-                question=question,
-                review_material=review_material,
-                trusted_lineage=trusted_review_lineage,
-            )
+            try:
+                semantic_review_packet = semantic_reviewer.review(
+                    question=question,
+                    review_material=review_material,
+                    trusted_lineage=trusted_review_lineage,
+                )
+            except PacketValidationError as exc:
+                raise ArchitectMetricSemanticReviewPacketValidationError(
+                    cause=exc,
+                    authoring_packet=authoring_packet,
+                    revision_index=revision_index,
+                    trusted_review_lineage=trusted_review_lineage,
+                    review_material_fingerprint=stable_hash(review_material),
+                    semantic_review_history=semantic_review_history,
+                ) from exc
         review_packet_hash = stable_hash(semantic_review_packet)
         routed_current_findings = [
             dict(row)

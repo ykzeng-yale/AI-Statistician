@@ -26180,6 +26180,135 @@ def test_architect_metric_reviewer_packet_failure_is_typed_not_subsystem_excepti
     )
 
 
+def test_metric_reviewer_failure_persists_only_unreviewed_replay_candidate(
+    monkeypatch,
+) -> None:
+    import ai_statistician.architect_metric_contract_authoring as authoring_module
+    from ai_statistician.evaluation_protocol_revision import (
+        architect_metric_semantic_review_validation_failure_result,
+    )
+    from ai_statistician.fingerprint import stable_hash
+    from ai_statistician.metric_protocol_stage import (
+        METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED,
+    )
+
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    candidate = {
+        "artifact_kind": "ArchitectMetricRequirementAuthoringPacket",
+        "packet_id": "architect_metric_requirement_authoring:validated",
+        "question_id": question.id,
+        "source_agent": "ArchitectMetricContractPlanner",
+        "model": "claude-haiku-4-5-20251001",
+        "model_tier": "haiku",
+        "empirical_metric_requirement_set_id": "metric-set:validated",
+        "empirical_metric_requirements": [],
+    }
+    monkeypatch.setattr(
+        authoring_module,
+        "generate_validated_json_packet",
+        lambda **_kwargs: copy.deepcopy(candidate),
+    )
+
+    class InvalidReviewer:
+        config = type("ReviewerConfig", (), {"model_tier": "haiku"})()
+
+        def review(self, **_kwargs):
+            raise PacketValidationError(
+                validation_label="Architect metric semantic review packet",
+                attempts=1,
+                errors=["review packet is incomplete"],
+                history=[
+                    {
+                        "request_max_tokens": 400,
+                        "response_metadata": {
+                            "provider_stop_reason": "max_tokens",
+                            "provider_usage": {
+                                "input_tokens": 300,
+                                "output_tokens": 400,
+                            },
+                        },
+                    }
+                ],
+            )
+
+    theory_material = _theory_informed_metric_context_fixture()[
+        "architect_metric_protocol_theory_material"
+    ]
+    with pytest.raises(
+        authoring_module.ArchitectMetricSemanticReviewPacketValidationError
+    ) as exc_info:
+        authoring_module.author_reviewed_architect_metric_requirements(
+            provider=type("Provider", (), {"provider_name": "anthropic"})(),
+            config=authoring_module.ArchitectMetricContractAuthoringConfig(
+                model_tier="haiku",
+                max_repair_attempts=0,
+                metric_semantic_reviewer_max_revisions=0,
+            ),
+            request_model="claude-haiku-4-5-20251001",
+            semantic_reviewer=InvalidReviewer(),
+            repair_ownership_router=None,
+            question=question,
+            runtime_contract={
+                "capability_eval_requires_typed_metric_contracts": True,
+                "empirical_metric_requirements": [],
+                "empirical_metric_protocol_phase": (
+                    METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED
+                ),
+                "generated_sandbox_runtime_replicates": 17,
+            },
+            theory_protocol_material=theory_material,
+        )
+
+    exc = exc_info.value
+    task = AgentTask(
+        task_id="architect-metric-protocol:replay",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Preserve failed review lineage.",
+    )
+    result = architect_metric_semantic_review_validation_failure_result(
+        task=task,
+        question=question,
+        architect_context=_theory_informed_metric_context_fixture(),
+        exc=exc,
+    )
+    failure = next(
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind")
+        == "RuntimeArchitectMetricSemanticReviewValidationFailure"
+    )
+    assert exc.authoring_packet_hash == stable_hash(candidate)
+    assert result.produced_artifacts[candidate["packet_id"]] == candidate
+    assert failure["authoring_packet_persisted"] is True
+    assert failure["metric_protocol_execution_authorized"] is False
+    assert failure["llm_json_repair_history"][0]["response_metadata"][
+        "provider_stop_reason"
+    ] == "max_tokens"
+
+    forged = {**candidate, "semantic_review_status": "ACCEPT"}
+    forged_result = architect_metric_semantic_review_validation_failure_result(
+        task=task,
+        question=question,
+        architect_context=_theory_informed_metric_context_fixture(),
+        exc=authoring_module.ArchitectMetricSemanticReviewPacketValidationError(
+            cause=exc,
+            authoring_packet=forged,
+            revision_index=0,
+            trusted_review_lineage={
+                "authoring_packet_id": forged["packet_id"],
+                "authoring_packet_hash": stable_hash(forged),
+            },
+            review_material_fingerprint="review-material:forged",
+            semantic_review_history=[],
+        ),
+    )
+    forged_failure = next(iter(forged_result.produced_artifacts.values()))
+    assert forged["packet_id"] not in forged_result.produced_artifacts
+    assert forged_failure["authoring_packet_persisted"] is False
+
+
 def test_confirmatory_simulation_task_requires_accepted_algorithm_handoff() -> None:
     question = load_open_research_questions(
         Path("examples/research_questions.json")
