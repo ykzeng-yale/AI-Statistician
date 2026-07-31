@@ -7,6 +7,8 @@ import pytest
 
 from ai_statistician.architect_metric_semantic_reviewer_llm import (
     ARCHITECT_METRIC_RUNTIME_CONTRACT_RETRACTION_EVIDENCE_IDS,
+    ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL,
+    ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION,
     ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS,
     ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA,
     ArchitectMetricSemanticReviewerConfig,
@@ -17,6 +19,7 @@ from ai_statistician.architect_metric_semantic_reviewer_llm import (
     architect_metric_review_material_with_runtime_evaluator_certificate,
     architect_metric_semantic_review_json_schema,
     bind_architect_metric_finding_evidence_identities,
+    build_architect_metric_semantic_review_prompt,
     validate_architect_metric_semantic_review_packet,
 )
 from ai_statistician.fingerprint import stable_hash
@@ -299,6 +302,9 @@ def test_preexecution_metric_reviewer_accepts_only_with_independent_lineage() ->
     assert packet["independent_model"] is False
     assert packet["independent_model_tier"] is False
     assert packet["review_input_fingerprint"] == stable_hash(material)
+    assert packet["review_protocol_version"] == (
+        ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION
+    )
     assert packet["reviewed_empirical_metric_requirement_set_id"] == (
         generated_metric_requirement_set_id(
             material["empirical_metric_requirements"]
@@ -314,69 +320,100 @@ def test_preexecution_metric_reviewer_accepts_only_with_independent_lineage() ->
     review_schema = backend.requests[0].schema
     assert review_schema["properties"]["claim_checks"]["items"]["properties"][
         "recomputation"
-    ]["maxLength"] == 320
+    ]["maxLength"] == 240
     assert review_schema["properties"]["claim_checks"]["items"]["properties"][
         "sample_size_order_derivation"
     ]["properties"]["primitive_orders"]["maxItems"] == 6
+    assert "protocol_expression" not in review_schema["properties"][
+        "claim_checks"
+    ]["items"]["properties"]["normalization_reconstruction"]["properties"]
     assert review_schema["properties"]["dimension_reviews"]["items"][
         "properties"
-    ]["rationale"]["maxLength"] == 320
-    assert "before any coding agent" in backend.requests[0].user_prompt
-    assert "within 320 characters" in backend.requests[0].user_prompt
-    assert "more gates are not more rigorous" in backend.requests[0].user_prompt
-    assert "runtime_evaluator_certificate" in backend.requests[0].user_prompt
-    assert "fixed before all replicates" in backend.requests[0].user_prompt
-    assert "recomputed from each replicate" in backend.requests[0].user_prompt
-    assert "cannot require pilot or confirmatory results" in (
-        backend.requests[0].user_prompt
+    ]["rationale"]["maxLength"] == 240
+    request = backend.requests[0]
+    prompt_payload = json.loads(request.user_prompt.split("\n\n", 1)[1])
+    assert prompt_payload["review_protocol_version"] == (
+        ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION
     )
-    assert "finite-sample uncertainty as low-severity advisory" in (
-        backend.requests[0].user_prompt
+    assert prompt_payload["review_protocol"] == list(
+        ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL
     )
-    assert "cover every requirement_id" in backend.requests[0].user_prompt
-    assert "normalization_and_unit_audit" in backend.requests[0].user_prompt
-    assert "normalization_reconstruction" in backend.requests[0].user_prompt
-    assert "without adding, deleting, or reinterpreting" in (
-        backend.requests[0].user_prompt
+    assert "required_output_contract" not in prompt_payload
+    assert len(request.user_prompt) < 10_000
+    assert request.metadata["review_prompt_chars"] == len(request.user_prompt)
+    assert request.metadata["review_schema_chars"] == len(
+        json.dumps(request.schema, separators=(",", ":"))
     )
-    assert "finite-sample variance or standard error" in (
-        backend.requests[0].user_prompt
-    )
-    assert "every explicit evaluation objective" in (
-        backend.requests[0].user_prompt
-    )
-    assert "A citation without a displayed recomputation" in (
-        backend.requests[0].user_prompt
-    )
-    assert "entry in theory_scope_checks" in (
-        backend.requests[0].user_prompt
-    )
-    assert "cannot validate a claim over their wider stated scope" in (
-        backend.requests[0].user_prompt
-    )
-    assert "topically related node is not enough" in backend.requests[0].user_prompt
-    assert "diagnostic_only rows must be required=false" in (
-        backend.requests[0].user_prompt
-    )
-    assert "architect_preregistered_design" in backend.requests[0].user_prompt
-    assert "every required architect_preregistered_design row" in (
-        backend.requests[0].user_prompt
-    )
-    assert "computes an uncertainty scale" in backend.requests[0].user_prompt
-    assert "generic statement that a gate is plausible" in (
-        backend.requests[0].user_prompt
-    )
-    assert "do not require a candidate-owned evaluation choice" in (
-        backend.requests[0].user_prompt
-    )
-    assert "never recommend editing that derived list directly" in (
-        backend.requests[0].user_prompt
-    )
-    assert "Do not route upstream merely to make TheoryDeveloper ratify" in (
-        backend.requests[0].user_prompt
-    )
+    assert request.metadata["review_requirement_count"] == 1
+    protocol_text = " ".join(prompt_payload["review_protocol"])
+    for required_contract in (
+        "foundational_identity_row",
+        "normalization_reconstruction",
+        "sample_size_order_derivation",
+        "runtime_evaluator_certificate",
+        "gate_field_authorities",
+        "theory_scope_checks",
+        "active prior finding",
+        "upstream_theory",
+        "metric_contract",
+        "AgentRuntime derives the overall verdict",
+    ):
+        assert required_contract in protocol_text
     assert packet["runtime_evaluator_certificate_set_id"].startswith(
         "generated_metric_evaluator_certificate_set:"
+    )
+
+
+def test_metric_reviewer_six_gate_prompt_and_scope_schema_stay_compact() -> None:
+    requirements = [
+        _generic_requirement(
+            requirement_id=f"generic_gate_{index}",
+            acceptance_authority_kind="theory_derived",
+            acceptance_authority_rationale="The cited node derives the gate.",
+            source_anchors=[f"theory:generic-gate-{index}"],
+        )
+        for index in range(6)
+    ]
+    material = architect_metric_review_material_with_runtime_evaluator_certificate(
+        {
+            "review_stage": "pre_execution_metric_contract_review",
+            "execution_results_available": False,
+            "empirical_metric_requirements": requirements,
+            "theory_developer_protocol_material": {
+                "source_theory_packet_id": "theory:six-gate",
+                "source_theory_packet_hash": "six-gate-hash",
+                "theory_semantic_material": {
+                    "theorem_cards": [
+                        {
+                            "id": "theorem:generic",
+                            "conclusion": "The generic claims hold.",
+                        }
+                    ]
+                },
+            },
+        }
+    )
+    question = OpenResearchQuestion(
+        id="q_six_gate",
+        title="Review six generic gates",
+        description="Audit a bounded generic evaluation portfolio.",
+    )
+    prompt = build_architect_metric_semantic_review_prompt(
+        question=question,
+        review_material=material,
+    )
+    schema = architect_metric_semantic_review_json_schema(material)
+    scope_properties = schema["properties"]["theory_scope_checks"][
+        "properties"
+    ]
+
+    assert len(prompt) < 20_000
+    assert len(json.dumps(schema, separators=(",", ":"))) < 12_000
+    assert len(scope_properties) == 6
+    assert all(
+        set(row["properties"])
+        == {"claim_ref", "recomputation", "result", "verdict", "evidence_refs"}
+        for row in scope_properties.values()
     )
 
 
@@ -676,7 +713,7 @@ def test_theory_bound_metric_review_requires_scope_consistency_check() -> None:
             ],
         }
     }
-    packet, _, _ = _review(
+    packet, backend, _ = _review(
         accept=True,
         payload=payload,
         material=material,
@@ -685,6 +722,17 @@ def test_theory_bound_metric_review_requires_scope_consistency_check() -> None:
     assert packet["theory_scope_check_required"] is True
     assert packet["source_theory_packet_id"] == "theory:scope-check"
     assert validate_architect_metric_semantic_review_packet(packet) == []
+    scope_schema = backend.requests[0].schema["properties"][
+        "theory_scope_checks"
+    ]["properties"]["generic_gate"]
+    assert set(scope_schema["properties"]) == {
+        "claim_ref",
+        "recomputation",
+        "result",
+        "verdict",
+        "evidence_refs",
+    }
+    assert backend.requests[0].metadata["review_theory_scope_check_count"] == 1
 
     contextless_material = {
         key: value
@@ -820,13 +868,14 @@ def test_metric_review_requires_primitive_identity_audit_before_coding() -> None
     repair_instructions = " ".join(
         repair_context["repair_prompt_priority_instructions"]
     )
-    assert "Never erase unresolved_assumptions" in (
-        repair_context["repair_prompt_priority_instructions"][0]
-    )
-    assert "foundational_identity_rows" in repair_instructions
-    assert "zero-based index" in repair_instructions
-    assert "Runtime binds that indexed row" in repair_instructions
-    assert "Use distinct indices" in repair_instructions
+    assert len(repair_context["repair_prompt_priority_instructions"]) == 5
+    assert "Preserve unresolved_assumptions" in repair_instructions
+    assert "foundational identity mapping" in repair_instructions
+    assert "distinct zero-based indices" in repair_instructions
+    assert "exact required_claim_ref" in repair_instructions
+    assert "current_candidate as immutable authority" in repair_instructions
+    assert "requirement_schema" not in repair_context
+    assert len(json.dumps(repair_context, separators=(",", ":"))) < 12_000
 
 
 def test_mixed_field_authority_keeps_theory_scope_review_visible() -> None:
@@ -929,7 +978,7 @@ def test_preexecution_metric_reviewer_accepts_low_severity_advisory_uncertainty(
     assert packet["recommended_repair_scope"] == "none"
     assert packet["findings"][0]["severity"] == "low"
     assert validate_architect_metric_semantic_review_packet(packet) == []
-    assert "advisory UNCERTAIN" in backend.requests[0].user_prompt
+    assert "UNCERTAIN is advisory" in backend.requests[0].user_prompt
 
 
 def test_preexecution_metric_reviewer_routes_missing_semantics_upstream() -> None:
@@ -1294,7 +1343,7 @@ def test_metric_reviewer_materializes_current_theory_evidence_for_prior_finding(
     assert packet["active_prior_finding_current_evidence"] == snapshots
     assert validate_architect_metric_semantic_review_packet(packet) == []
     assert "generic bound = new_limit" in backend.requests[0].user_prompt
-    assert "Never retain an old finding because hidden" in (
+    assert "Snapshot existence alone is not semantic support" in (
         backend.requests[0].user_prompt
     )
 

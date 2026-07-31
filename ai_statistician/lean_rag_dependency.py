@@ -45,9 +45,14 @@ class LeanRagDependencyContext:
     source_id: str = ""
     db_path: str = ""
     module: str = ""
+    module_ancestry: tuple[str, ...] = ()
     direct_module_imports: tuple[str, ...] = ()
     module_import_visibility_enforced: bool = False
     dependency_resolution_policy: str = ""
+    source_snapshot_status: str = "UNBOUND"
+    source_snapshot_bound: bool = False
+    source_snapshot_match: bool | None = None
+    source_snapshot_metadata: tuple[tuple[str, str], ...] = ()
 
 
 class LeanRagDependencyRetriever:
@@ -302,6 +307,22 @@ class LeanRagDependencyRetriever:
                 )
         except sqlite3.DatabaseError:
             return None
+        health = self.health_report()
+        raw_snapshot_metadata = health.get("source_snapshot_metadata", {})
+        snapshot_metadata = (
+            raw_snapshot_metadata
+            if isinstance(raw_snapshot_metadata, dict)
+            else {}
+        )
+        prompt_snapshot_keys = (
+            "schema_version",
+            "source_git_commit",
+            "source_git_tree",
+            "source_git_dirty",
+            "source_git_remote",
+            "lean_toolchain",
+            "mathlib_revision",
+        )
         return LeanRagDependencyContext(
             fan_in=fan_in,
             fan_out=fan_out,
@@ -312,6 +333,7 @@ class LeanRagDependencyRetriever:
             source_id=self.source_id,
             db_path=str(self.db_path),
             module=module,
+            module_ancestry=_module_ancestry(module),
             direct_module_imports=direct_module_imports,
             module_import_visibility_enforced=(
                 module_import_visibility_enforced
@@ -329,6 +351,22 @@ class LeanRagDependencyRetriever:
                     "neighbors are source-derived candidates without import-visibility "
                     "filtering and require active-project validation."
                 )
+            ),
+            source_snapshot_status=str(
+                health.get("source_snapshot_status", "UNBOUND") or "UNBOUND"
+            ),
+            source_snapshot_bound=bool(
+                health.get("source_snapshot_bound", False)
+            ),
+            source_snapshot_match=(
+                bool(health["source_snapshot_match"])
+                if health.get("source_snapshot_match") is not None
+                else None
+            ),
+            source_snapshot_metadata=tuple(
+                (key, str(snapshot_metadata[key]))
+                for key in prompt_snapshot_keys
+                if str(snapshot_metadata.get(key, "") or "")
             ),
         )
 
@@ -628,6 +666,11 @@ def _source_paths_match(left: str, right: str) -> bool:
             or normalized_right.endswith("/" + normalized_left)
         )
     )
+
+
+def _module_ancestry(module: str) -> tuple[str, ...]:
+    parts = tuple(part for part in str(module or "").split(".") if part)
+    return tuple(".".join(parts[:index]) for index in range(1, len(parts) + 1))
 
 
 def _table_exists(conn: sqlite3.Connection, table: str) -> bool:

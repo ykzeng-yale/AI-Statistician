@@ -407,6 +407,19 @@ def test_formal_source_hit_context_adds_bounded_outline_and_dependency_neighbors
                 statement_uses=("LeastSquares.localizedBall",),
                 proof_uses=("LeastSquares.bad_event_probability_bound",),
                 source_id="lean_stat_learning_theory",
+                module="SLT.LeastSquares.MasterErrorBound",
+                module_ancestry=(
+                    "SLT",
+                    "SLT.LeastSquares",
+                    "SLT.LeastSquares.MasterErrorBound",
+                ),
+                source_snapshot_status="BOUND_MATCH",
+                source_snapshot_bound=True,
+                source_snapshot_match=True,
+                source_snapshot_metadata=(
+                    ("source_git_commit", "a" * 40),
+                    ("lean_toolchain", "leanprover/lean4:v4.32.0"),
+                ),
             )
 
     retriever.dependency_retriever = DependencyProvider()
@@ -444,6 +457,23 @@ def test_formal_source_hit_context_adds_bounded_outline_and_dependency_neighbors
     assert context["dependency_context"]["corpus_id"] == (
         "lean_stat_learning_theory"
     )
+    assert context["dependency_context"]["module_ancestry"] == [
+        "SLT",
+        "SLT.LeastSquares",
+        "SLT.LeastSquares.MasterErrorBound",
+    ]
+    assert context["dependency_context"]["source_snapshot"] == {
+        "status": "BOUND_MATCH",
+        "bound": True,
+        "match": True,
+        "metadata": {
+            "source_git_commit": "a" * 40,
+            "lean_toolchain": "leanprover/lean4:v4.32.0",
+        },
+        "evidence_status": (
+            "SOURCE_SNAPSHOT_IDENTITY_NOT_ACTIVE_PROJECT_PROOF_EVIDENCE"
+        ),
+    }
     assert context["dependency_context"]["statement_uses"] == [
         "LeastSquares.localizedBall"
     ]

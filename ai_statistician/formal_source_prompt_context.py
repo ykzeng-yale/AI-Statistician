@@ -506,6 +506,11 @@ def _formal_source_dependency_context(
         "provider": str(getattr(provider, "source", provider.__class__.__name__)),
         "corpus_id": str(getattr(context, "source_id", "") or source_id),
         "module": str(getattr(context, "module", "") or ""),
+        "module_ancestry": [
+            str(value)
+            for value in getattr(context, "module_ancestry", ()) or ()
+            if str(value).strip()
+        ],
         "direct_module_imports": [
             str(value)
             for value in getattr(context, "direct_module_imports", ()) or ()
@@ -527,6 +532,24 @@ def _formal_source_dependency_context(
         "dependency_kind": "source_visible_declaration_reference",
         "evidence_status": "SOURCE_DERIVED_DEPENDENCY_CONTEXT_NOT_PROOF_EVIDENCE",
     }
+    raw_snapshot_metadata = getattr(context, "source_snapshot_metadata", ()) or ()
+    try:
+        snapshot_metadata = dict(raw_snapshot_metadata)
+    except (TypeError, ValueError):
+        snapshot_metadata = {}
+    snapshot_status = str(
+        getattr(context, "source_snapshot_status", "") or ""
+    )
+    if snapshot_status or snapshot_metadata:
+        payload["source_snapshot"] = {
+            "status": snapshot_status or "UNBOUND",
+            "bound": bool(getattr(context, "source_snapshot_bound", False)),
+            "match": getattr(context, "source_snapshot_match", None),
+            "metadata": snapshot_metadata,
+            "evidence_status": (
+                "SOURCE_SNAPSHOT_IDENTITY_NOT_ACTIVE_PROJECT_PROOF_EVIDENCE"
+            ),
+        }
     statement_uses = [
         str(value)
         for value in getattr(context, "statement_uses", ()) or ()

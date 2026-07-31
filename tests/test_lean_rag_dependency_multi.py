@@ -454,7 +454,7 @@ def test_dependency_search_prefers_name_and_signature_over_proof_chatter(
     assert "proof_body_only_match" in noisy.matched_terms
 
 
-def test_dependency_health_rejects_bound_source_snapshot_mismatch(
+def test_dependency_health_rejects_mismatch_and_exposes_matching_snapshot_context(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -509,6 +509,36 @@ def test_dependency_health_rejects_bound_source_snapshot_mismatch(
     assert health["source_snapshot_status"] == "BOUND_MISMATCH"
     assert health["all_ok"] is False
     assert retriever.search("master error bound", k=1) == []
+
+    monkeypatch.setattr(
+        lean_rag_dependency,
+        "_command_output",
+        lambda args, **_kwargs: (
+            str(source_root)
+            if "--show-toplevel" in args
+            else "b" * 40
+            if "rev-parse" in args
+            else ""
+        ),
+    )
+    matching = LeanRagDependencyRetriever(db_path)
+    context = matching.dependency_context(
+        "Theory.master_error_bound",
+        path="AI4SLT/Main.lean",
+    )
+
+    assert context is not None
+    assert context.module_ancestry == ("AI4SLT", "AI4SLT.Main")
+    assert context.source_snapshot_status == "BOUND_MATCH"
+    assert context.source_snapshot_bound is True
+    assert context.source_snapshot_match is True
+    snapshot = dict(context.source_snapshot_metadata)
+    assert snapshot["source_git_commit"] == "a" * 40
+    assert snapshot["source_git_tree"] == "b" * 40
+    assert snapshot["lean_toolchain"] == "leanprover/lean4:v4.32.0"
+    assert snapshot["mathlib_revision"] == "c" * 40
+    assert "project_root" not in snapshot
+    assert "source_root" not in snapshot
 
 
 def test_auto_discovery_activates_multiple_healthy_corpus_graphs(
