@@ -628,6 +628,20 @@ async def run_research_loop_benchmark(
                 else ""
             ),
             "lean_rag_db_path": getattr(formal_source_retriever, "lean_rag_dependency_graph_path", ""),
+            "lean_rag_db_paths": tuple(
+                getattr(
+                    formal_source_retriever,
+                    "lean_rag_dependency_graph_paths",
+                    (),
+                )
+            ),
+            "lean_rag_source_ids": tuple(
+                getattr(
+                    formal_source_retriever,
+                    "lean_rag_dependency_graph_source_ids",
+                    (),
+                )
+            ),
             "lean_rag_auto_discovered": getattr(
                 formal_source_retriever,
                 "lean_rag_dependency_graph_auto_discovered",

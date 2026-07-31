@@ -12,7 +12,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .fingerprint import stable_hash
-from .research_source_inventory import SOURCE_INVENTORY_TARGETS
+from .research_source_inventory import (
+    EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT,
+    SOURCE_INVENTORY_TARGETS,
+)
 
 
 LEAN_IDENTIFIER_PATTERN = r"[^\W\d][\w'.]*"
@@ -92,6 +95,9 @@ SKIPPED_PATH_PARTS = {
 }
 DEFAULT_LEAN_RAG_DB_RELATIVE_PATH = Path(
     "runs/current_status_lean_rag_dependency_graph/stat_inference.sqlite"
+)
+DEFAULT_AI4SLT_LEAN_RAG_DB_RELATIVE_PATH = Path(
+    "runs/current_status_ai4slt_lean_rag_dependency_graph/stat_learning.sqlite"
 )
 # Tests and downstream orchestration can prepend project-specific candidates
 # without changing the global auto-discovery rule.
@@ -625,16 +631,37 @@ def _optional_lean_rag_dependency_retriever(lean_rag_db_path: Path | str | None)
     if not candidate_paths:
         return None
     try:
-        from .lean_rag_dependency import LeanRagDependencyRetriever
+        from .lean_rag_dependency import (
+            LeanRagDependencyMultiRetriever,
+            LeanRagDependencyRetriever,
+        )
 
+        healthy_retrievers = []
         for candidate in candidate_paths:
-            retriever = LeanRagDependencyRetriever(candidate)
+            source_id, source_aliases = _lean_rag_dependency_source_identity(
+                candidate,
+                explicit=bool(explicit_path),
+            )
+            retriever = LeanRagDependencyRetriever(
+                candidate,
+                source_id=source_id,
+                source_aliases=source_aliases,
+            )
             health = retriever.health_report()
             if health.get("all_ok"):
                 setattr(retriever, "auto_discovered", not bool(explicit_path))
                 setattr(retriever, "health_payload", health)
-                return retriever
-        return None
+                healthy_retrievers.append(retriever)
+                if explicit_path:
+                    break
+        if not healthy_retrievers:
+            return None
+        if len(healthy_retrievers) == 1:
+            return healthy_retrievers[0]
+        retriever = LeanRagDependencyMultiRetriever(tuple(healthy_retrievers))
+        setattr(retriever, "auto_discovered", True)
+        setattr(retriever, "health_payload", retriever.health_report())
+        return retriever
     except Exception:
         return None
 
@@ -655,6 +682,16 @@ def _auto_lean_rag_db_candidates() -> tuple[Path, ...]:
     candidates = (
         *DEFAULT_LEAN_RAG_DB_CANDIDATES,
         *(root / DEFAULT_LEAN_RAG_DB_RELATIVE_PATH for root in search_roots),
+        *(
+            root / DEFAULT_AI4SLT_LEAN_RAG_DB_RELATIVE_PATH
+            for root in search_roots
+        ),
+        (
+            EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT
+            / "build"
+            / "ai_statistician_signed_lean_graph"
+            / "stat_inference.sqlite"
+        ),
     )
     rows: list[Path] = []
     seen: set[Path] = set()
@@ -672,12 +709,62 @@ def _auto_lean_rag_db_candidates() -> tuple[Path, ...]:
     return tuple(rows)
 
 
+def _lean_rag_dependency_source_identity(
+    path: Path,
+    *,
+    explicit: bool,
+) -> tuple[str, tuple[str, ...]]:
+    """Bind an auto-discovered graph to its formal-source corpus."""
+
+    if explicit:
+        return "lean_rag_dependency_graph", ()
+    normalized = str(path).replace("\\", "/").lower()
+    if (
+        path.name == "stat_learning.sqlite"
+        or "current_status_ai4slt_lean_rag_dependency_graph" in normalized
+    ):
+        return "lean_stat_learning_theory", ("ai4slt",)
+    if path.name == "stat_inference.sqlite":
+        return (
+            "empirical_process_lean",
+            (
+                "local_statinference_repo",
+                "legacy_ai_statistician_statinference",
+            ),
+        )
+    return "lean_rag_dependency_graph", ()
+
+
 def _attach_lean_rag_metadata(retriever: object, dependency_retriever: object | None) -> None:
+    dependency_paths = tuple(
+        str(path)
+        for path in (
+            getattr(dependency_retriever, "db_paths", ())
+            if dependency_retriever is not None
+            else ()
+        )
+        if str(path)
+    )
+    if not dependency_paths and dependency_retriever is not None:
+        dependency_path = str(getattr(dependency_retriever, "db_path", "") or "")
+        dependency_paths = (dependency_path,) if dependency_path else ()
     setattr(retriever, "lean_rag_dependency_graph_enabled", dependency_retriever is not None)
     setattr(
         retriever,
         "lean_rag_dependency_graph_path",
-        str(getattr(dependency_retriever, "db_path", "")) if dependency_retriever is not None else "",
+        dependency_paths[0] if dependency_paths else "",
+    )
+    setattr(
+        retriever,
+        "lean_rag_dependency_graph_paths",
+        dependency_paths,
+    )
+    setattr(
+        retriever,
+        "lean_rag_dependency_graph_source_ids",
+        tuple(getattr(dependency_retriever, "source_ids", ()) or ())
+        if dependency_retriever is not None
+        else (),
     )
     setattr(
         retriever,
@@ -918,8 +1005,9 @@ def diversify_formal_source_hits(
     k: int,
     max_sources: int = 3,
     min_relative_score: float = 0.5,
+    preserve_top_n: int = 1,
 ) -> list[FormalSourceHit]:
-    """Keep the strongest hit while preventing one corpus from flooding context."""
+    """Preserve the strongest rows before adding relevant corpus diversity."""
 
     limit = max(int(k), 0)
     if limit == 0 or not hits:
@@ -938,11 +1026,16 @@ def diversify_formal_source_hits(
 
     top_score = max(float(hits[0].score), 0.0)
     relevance_floor = top_score * min_relative_score
-    selected: list[FormalSourceHit] = [hits[0]]
-    selected_keys = {hit_key(hits[0])}
-    selected_sources = {hits[0].declaration.source_id}
+    preserve_count = min(
+        limit,
+        len(hits),
+        max(1, int(preserve_top_n)),
+    )
+    selected = list(hits[:preserve_count])
+    selected_keys = {hit_key(hit) for hit in selected}
+    selected_sources = {hit.declaration.source_id for hit in selected}
     source_candidates: dict[str, tuple[float, int, FormalSourceHit]] = {}
-    for rank, hit in enumerate(hits[1:], start=1):
+    for rank, hit in enumerate(hits[preserve_count:], start=preserve_count):
         source_id = hit.declaration.source_id
         if source_id in selected_sources or float(hit.score) < relevance_floor:
             continue
@@ -956,11 +1049,15 @@ def diversify_formal_source_hits(
         source_candidates.values(),
         key=lambda row: (-row[0], row[1], row[2].declaration.source_id),
     )
-    for _, _, hit in diverse_candidates[: max(0, min(max_sources, limit) - 1)]:
+    diversity_slots = max(
+        0,
+        min(max_sources, limit) - len(selected_sources),
+    )
+    for _, _, hit in diverse_candidates[:diversity_slots]:
         selected.append(hit)
         selected_keys.add(hit_key(hit))
         selected_sources.add(hit.declaration.source_id)
-    for hit in hits[1:]:
+    for hit in hits[preserve_count:]:
         if len(selected) >= limit:
             break
         key = hit_key(hit)

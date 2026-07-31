@@ -1964,12 +1964,13 @@ The package integrates existing systems where appropriate:
   and merges the two rankings. This keeps runtime local/reproducible while
   moving formal-gap grounding closer to the provider-fusion architecture used
   by Loogle/Lean Finder/ReProver-style premise selection.
-- The backend can now fuse the shared `EmpericalProcessLEAN/lean_rag`
-  dependency graph as a third provider. The standard local DB
-  `runs/current_status_lean_rag_dependency_graph/stat_inference.sqlite` is
-  auto-discovered when present; pass `--lean-rag-db path/to/stat_inference.sqlite`
-  or set `AI_STATISTICIAN_LEAN_RAG_DB` only to override that path. This adapter
-  reuses the other machine's source-derived declaration graph:
+- The backend can now fuse multiple shared `EmpericalProcessLEAN/lean_rag`
+  dependency graphs as a third provider family. It auto-discovers the standard
+  StatInference and AI4SLT graph locations and the signed external
+  StatInference graph when present. Pass `--lean-rag-db path/to/graph.sqlite`
+  or set `AI_STATISTICIAN_LEAN_RAG_DB` only when intentionally narrowing the
+  run to one reproducible graph. This adapter reuses source-derived declaration
+  graphs:
   statement/proof/mixed references, fan-in/fan-out, `has_sorry`, and FTS over
   signatures/proofs. It treats every hit as a premise suggestion that must be
   checked by the local Lean kernel.
@@ -2384,6 +2385,32 @@ Research benchmark traces also attach the top local declaration hits to every
 so a gap is always accompanied by concrete local source candidates rather than
 only a free-text missing-primitive label.
 
+AI4SLT's scalable library organization is reused as retrieval structure, not as
+hard-coded proof policy. Modules follow mathematical layers (`CoveringNumber`,
+`MetricEntropy`, `Dudley`, `GaussianLSI/`, `LeastSquares/`, `MatrixInfra/`,
+`RMT/`); declarations use semantic Lean names such as `dudley` and
+`LeastSquares.master_error_bound`; theorem numbers from Vershynin, Wainwright,
+and Boucheron-Lugosi-Massart remain separate README citation metadata. The
+existing EmpericalProcessLEAN
+`lean_graph_index.py` builds the source-visible import/declaration graph:
+
+```bash
+python3 /path/to/EmpericalProcessLEAN/lean_rag/scripts/lean_graph_index.py build \
+  --db runs/current_status_ai4slt_lean_rag_dependency_graph/stat_learning.sqlite \
+  --project-root /path/to/lean-stat-learning-theory \
+  --source-root SLT \
+  --no-include-root-file
+```
+
+The normal formal-source backend can fuse this graph with the signed
+StatInference graph. Dependency lookup is bound by corpus, declaration name,
+and source path; exact qualified names win, and a short-name fallback is used
+only when unambiguous. Formalizer context distinguishes dependencies appearing
+in a statement from lemmas used in its proof, while continuing to omit proof
+bodies. This graph is source-derived rather than kernel-elaborated, so it is
+premise-selection context only; active-project Lean/kernel checking remains the
+proof authority.
+
 Formal source graph:
 
 ```bash
@@ -2397,13 +2424,13 @@ mention each symbol. The report surfaces high-degree cross-source symbols and
 checks graph-expanded retrieval for variance, Hajek ratio, Wald variance,
 Rademacher, martingale, Borel-Cantelli, and independence queries. This is the
 current lightweight graph-RAG layer for formal statistics: useful for finding
-reusable local declarations. If a `lean_rag` SQLite graph exists at the
-standard local path, or is supplied through `--lean-rag-db` or
-`AI_STATISTICIAN_LEAN_RAG_DB`, the research benchmark, research loop, primitive
-coverage, and system audit fuse dependency-direction evidence from that graph.
-This auto-discovery applies to both SQLite-backed retrieval and the lighter
-in-memory fallback. Kernel-extracted proof-state graphs remain a future
-LeanDojo/ReProver-style integration.
+reusable local declarations. If `lean_rag` SQLite graphs exist at the standard
+StatInference or AI4SLT paths, the research benchmark, research loop, primitive
+coverage, and system audit fuse dependency-direction evidence across all
+healthy graphs. Supplying `--lean-rag-db` or `AI_STATISTICIAN_LEAN_RAG_DB`
+intentionally narrows retrieval to that graph. Auto-discovery applies to both
+SQLite-backed retrieval and the lighter in-memory fallback. Kernel-extracted
+proof-state graphs remain a future LeanDojo/ReProver-style integration.
 
 Primitive-source coverage is optimized as a prioritization audit by default:
 it searches external Lean sources only for primitives that do not already have

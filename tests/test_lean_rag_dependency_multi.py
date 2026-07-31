@@ -1,0 +1,370 @@
+from __future__ import annotations
+
+import sqlite3
+from pathlib import Path
+
+from ai_statistician import formal_source_index
+from ai_statistician.formal_source_hybrid import (
+    FormalSourceDependencyHybridRetriever,
+)
+from ai_statistician.formal_source_index import (
+    FormalDeclaration,
+    FormalSourceHit,
+)
+from ai_statistician.lean_rag_dependency import (
+    LeanRagDependencyMultiRetriever,
+    LeanRagDependencyRetriever,
+)
+
+
+def _write_dependency_db(path: Path, *, corpus: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(path) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE declarations (
+              id INTEGER PRIMARY KEY,
+              name TEXT NOT NULL,
+              short_name TEXT NOT NULL,
+              kind TEXT NOT NULL,
+              module TEXT NOT NULL,
+              path TEXT NOT NULL,
+              line_start INTEGER NOT NULL,
+              line_end INTEGER NOT NULL,
+              namespace TEXT NOT NULL,
+              attributes TEXT NOT NULL,
+              signature TEXT NOT NULL,
+              proof TEXT NOT NULL,
+              has_proof INTEGER NOT NULL,
+              has_sorry INTEGER NOT NULL,
+              text_hash TEXT NOT NULL
+            );
+            CREATE TABLE declaration_edges (
+              id INTEGER PRIMARY KEY,
+              src_decl_id INTEGER NOT NULL,
+              dst_decl_id INTEGER NOT NULL,
+              edge_type TEXT NOT NULL,
+              match_kind TEXT NOT NULL,
+              scope TEXT NOT NULL,
+              weight INTEGER NOT NULL
+            );
+            CREATE VIRTUAL TABLE decl_fts USING fts5(
+              name, short_name, kind, module, namespace, signature, proof
+            );
+            """
+        )
+        rows = [
+            (
+                1,
+                "Theory.master_error_bound",
+                "master_error_bound",
+                "theorem",
+                f"{corpus}.Main",
+                f"{corpus}/Main.lean",
+                30,
+                40,
+                "Theory",
+                "[]",
+                "theorem master_error_bound : True",
+                "by exact proof_dependency",
+                1,
+                0,
+                f"{corpus}-target",
+            ),
+            (
+                2,
+                f"Theory.{corpus}_statement_dependency",
+                f"{corpus}_statement_dependency",
+                "def",
+                f"{corpus}.Defs",
+                f"{corpus}/Defs.lean",
+                5,
+                8,
+                "Theory",
+                "[]",
+                f"def {corpus}_statement_dependency : Prop",
+                ":= True",
+                1,
+                0,
+                f"{corpus}-statement",
+            ),
+            (
+                3,
+                f"Theory.{corpus}_proof_dependency",
+                f"{corpus}_proof_dependency",
+                "lemma",
+                f"{corpus}.Helpers",
+                f"{corpus}/Helpers.lean",
+                10,
+                12,
+                "Theory",
+                "[]",
+                f"lemma {corpus}_proof_dependency : True",
+                "by trivial",
+                1,
+                0,
+                f"{corpus}-proof",
+            ),
+            (
+                4,
+                f"Theory.{corpus}_consumer",
+                f"{corpus}_consumer",
+                "theorem",
+                f"{corpus}.Consumer",
+                f"{corpus}/Consumer.lean",
+                50,
+                55,
+                "Theory",
+                "[]",
+                f"theorem {corpus}_consumer : True",
+                "by exact master_error_bound",
+                1,
+                0,
+                f"{corpus}-consumer",
+            ),
+        ]
+        conn.executemany(
+            "INSERT INTO declarations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            rows,
+        )
+        conn.executemany(
+            """
+            INSERT INTO decl_fts(
+              rowid, name, short_name, kind, module, namespace, signature, proof
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    row[0],
+                    row[1],
+                    row[2],
+                    row[3],
+                    row[4],
+                    row[8],
+                    row[10],
+                    row[11],
+                )
+                for row in rows
+            ],
+        )
+        conn.executemany(
+            """
+            INSERT INTO declaration_edges(
+              src_decl_id, dst_decl_id, edge_type, match_kind, scope, weight
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (1, 2, "explicit_source", "unique_basename", "statement", 1),
+                (1, 3, "explicit_source", "unique_basename", "proof", 1),
+                (4, 1, "explicit_source", "unique_basename", "proof", 1),
+            ],
+        )
+    return path
+
+
+def test_multi_retriever_routes_dependency_context_to_requested_corpus(
+    tmp_path: Path,
+) -> None:
+    first = LeanRagDependencyRetriever(
+        _write_dependency_db(tmp_path / "first.sqlite", corpus="First"),
+        source_id="first_corpus",
+    )
+    second = LeanRagDependencyRetriever(
+        _write_dependency_db(tmp_path / "second.sqlite", corpus="Second"),
+        source_id="second_corpus",
+    )
+    retriever = LeanRagDependencyMultiRetriever((first, second))
+
+    context = retriever.dependency_context(
+        "AlternativeNamespace.master_error_bound",
+        source_id="second_corpus",
+        path="Second/Main.lean",
+    )
+
+    assert context is not None
+    assert context.source_id == "second_corpus"
+    assert context.statement_uses == (
+        "Theory.Second_statement_dependency",
+    )
+    assert context.proof_uses == ("Theory.Second_proof_dependency",)
+    assert context.used_by == ("Theory.Second_consumer",)
+
+
+def test_multi_retriever_search_preserves_corpus_provenance(
+    tmp_path: Path,
+) -> None:
+    retriever = LeanRagDependencyMultiRetriever(
+        (
+            LeanRagDependencyRetriever(
+                _write_dependency_db(tmp_path / "first.sqlite", corpus="First"),
+                source_id="first_corpus",
+            ),
+            LeanRagDependencyRetriever(
+                _write_dependency_db(tmp_path / "second.sqlite", corpus="Second"),
+                source_id="second_corpus",
+            ),
+        )
+    )
+
+    hits = retriever.search("Theorem 13.5 master error bound", k=4)
+
+    assert {
+        hit.declaration.source_id for hit in hits
+    } == {"first_corpus", "second_corpus"}
+    assert all(
+        any(
+            term == f"dependency_corpus={hit.declaration.source_id}"
+            for term in hit.matched_terms
+        )
+        for hit in hits
+    )
+    assert all("13" not in hit.matched_terms for hit in hits)
+
+
+def test_auto_discovery_activates_multiple_healthy_corpus_graphs(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    ai4slt = _write_dependency_db(
+        tmp_path
+        / "current_status_ai4slt_lean_rag_dependency_graph"
+        / "stat_learning.sqlite",
+        corpus="AI4SLT",
+    )
+    stat_inference = _write_dependency_db(
+        tmp_path
+        / "current_status_lean_rag_dependency_graph"
+        / "stat_inference.sqlite",
+        corpus="StatInference",
+    )
+    monkeypatch.setattr(
+        formal_source_index,
+        "_auto_lean_rag_db_candidates",
+        lambda: (ai4slt, stat_inference),
+    )
+
+    retriever = formal_source_index._optional_lean_rag_dependency_retriever(
+        None
+    )
+
+    assert isinstance(retriever, LeanRagDependencyMultiRetriever)
+    assert retriever.db_paths == (ai4slt, stat_inference)
+    assert "lean_stat_learning_theory" in retriever.source_ids
+    assert "empirical_process_lean" in retriever.source_ids
+
+
+def test_short_name_fallback_refuses_ambiguous_declarations(
+    tmp_path: Path,
+) -> None:
+    db_path = _write_dependency_db(
+        tmp_path / "ambiguous.sqlite",
+        corpus="First",
+    )
+    duplicate = (
+        5,
+        "Other.master_error_bound",
+        "master_error_bound",
+        "theorem",
+        "Other.Main",
+        "Other/Main.lean",
+        20,
+        25,
+        "Other",
+        "[]",
+        "theorem master_error_bound : True",
+        "by trivial",
+        1,
+        0,
+        "other-target",
+    )
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "INSERT INTO declarations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            duplicate,
+        )
+        conn.execute(
+            """
+            INSERT INTO decl_fts(
+              rowid, name, short_name, kind, module, namespace, signature, proof
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                duplicate[0],
+                duplicate[1],
+                duplicate[2],
+                duplicate[3],
+                duplicate[4],
+                duplicate[8],
+                duplicate[10],
+                duplicate[11],
+            ),
+        )
+    retriever = LeanRagDependencyRetriever(db_path)
+
+    assert retriever.dependency_context(
+        "Unknown.master_error_bound"
+    ) is None
+    assert retriever.dependency_context(
+        "Unknown.master_error_bound",
+        path="First/Main.lean",
+    ) is not None
+
+
+def test_dependency_hit_maps_to_unique_local_qualified_declaration() -> None:
+    local = FormalDeclaration(
+        source_id="lean_stat_learning_theory",
+        source_type="lean",
+        path="SLT/LeastSquares/MasterErrorBound.lean",
+        line=30,
+        kind="theorem",
+        name="LeastSquares.master_error_bound",
+        namespace="LeastSquares",
+        signature="theorem master_error_bound : True",
+        binder_count=0,
+        conclusion_head="True",
+        major_symbols=(),
+        imports=(),
+    )
+    graph_declaration = FormalDeclaration(
+        source_id="lean_stat_learning_theory",
+        source_type="lean_rag_dependency_graph",
+        path="SLT/LeastSquares/MasterErrorBound.lean",
+        line=30,
+        kind="theorem",
+        name="master_error_bound",
+        namespace="LeastSquares",
+        signature=local.signature,
+        binder_count=0,
+        conclusion_head="True",
+        major_symbols=(),
+        imports=(),
+    )
+
+    class EmptyBaseRetriever:
+        def search(self, query: str, *, k: int):
+            return []
+
+    class ShortNameDependencyRetriever:
+        db_path = Path("fixture.sqlite")
+        auto_discovered = False
+
+        def search(self, query: str, *, k: int):
+            return [
+                FormalSourceHit(
+                    declaration=graph_declaration,
+                    score=10.0,
+                    matched_terms=("dependency_corpus=lean_stat_learning_theory",),
+                )
+            ]
+
+    retriever = FormalSourceDependencyHybridRetriever(
+        [local],
+        EmptyBaseRetriever(),
+        ShortNameDependencyRetriever(),
+    )
+
+    hits = retriever.search("master error bound", k=1)
+
+    assert len(hits) == 1
+    assert hits[0].declaration is local
+    assert "lean_rag_dependency_graph" in hits[0].matched_terms

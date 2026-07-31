@@ -230,6 +230,8 @@ def formal_source_context_for_hit(
     dependency_context = _formal_source_dependency_context(
         retriever,
         str(getattr(declaration, "name", "") or ""),
+        source_id=source_id,
+        path=path,
         limit=max_dependency_neighbors,
     )
     if not outline_rows and not dependency_context:
@@ -302,6 +304,8 @@ def _formal_source_dependency_context(
     retriever: Any,
     declaration_name: str,
     *,
+    source_id: str,
+    path: str,
     limit: int,
 ) -> dict[str, Any]:
     provider = getattr(retriever, "dependency_retriever", None)
@@ -311,21 +315,52 @@ def _formal_source_dependency_context(
     if not declaration_name or not callable(context_loader):
         return {}
     try:
-        context = context_loader(declaration_name, limit=max(0, int(limit)))
+        context = context_loader(
+            declaration_name,
+            limit=max(0, int(limit)),
+            source_id=source_id,
+            path=path,
+        )
+    except TypeError:
+        try:
+            context = context_loader(
+                declaration_name,
+                limit=max(0, int(limit)),
+            )
+        except Exception:
+            return {}
     except Exception:
         return {}
     if context is None:
         return {}
-    return {
+    payload = {
         "provider": str(getattr(provider, "source", provider.__class__.__name__)),
+        "corpus_id": str(getattr(context, "source_id", "") or source_id),
         "fan_in": int(getattr(context, "fan_in", 0) or 0),
         "fan_out": int(getattr(context, "fan_out", 0) or 0),
-        "uses": [str(value) for value in getattr(context, "uses", ()) or ()],
         "used_by": [
             str(value) for value in getattr(context, "used_by", ()) or ()
         ],
+        "dependency_kind": "source_visible_declaration_reference",
         "evidence_status": "SOURCE_DERIVED_DEPENDENCY_CONTEXT_NOT_PROOF_EVIDENCE",
     }
+    statement_uses = [
+        str(value)
+        for value in getattr(context, "statement_uses", ()) or ()
+    ]
+    proof_uses = [
+        str(value)
+        for value in getattr(context, "proof_uses", ()) or ()
+    ]
+    if statement_uses or proof_uses:
+        payload["statement_uses"] = statement_uses
+        payload["proof_uses"] = proof_uses
+    else:
+        payload["uses"] = [
+            str(value)
+            for value in getattr(context, "uses", ()) or ()
+        ]
+    return payload
 
 
 def _formal_source_module_name(path: str, imports: Sequence[str]) -> str:

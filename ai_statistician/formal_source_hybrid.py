@@ -58,8 +58,12 @@ class FormalSourceHybridRetriever:
             else False,
         )
         self._declarations_by_name: dict[str, list[FormalDeclaration]] = defaultdict(list)
+        self._declarations_by_short_name: dict[str, list[FormalDeclaration]] = defaultdict(list)
         for declaration in declarations:
             self._declarations_by_name[declaration.name].append(declaration)
+            self._declarations_by_short_name[
+                declaration.name.rsplit(".", 1)[-1]
+            ].append(declaration)
         self.graph_retriever = FormalSourceGraphRetriever(
             declarations,
             base_retriever=sqlite_index,
@@ -115,7 +119,11 @@ class FormalSourceHybridRetriever:
             matched_by_key[key].add("symbol_graph")
 
         for rank, hit in enumerate(dependency_hits, start=1):
-            local_matches = self._declarations_by_name.get(hit.declaration.name, [])
+            local_matches = _local_declarations_for_dependency_hit(
+                hit.declaration.name,
+                by_name=self._declarations_by_name,
+                by_short_name=self._declarations_by_short_name,
+            )
             target_declarations = local_matches[:2]
             for declaration in target_declarations:
                 key = _decl_key(declaration)
@@ -125,7 +133,11 @@ class FormalSourceHybridRetriever:
                 matched_by_key[key].add("lean_rag_dependency_graph")
 
         for rank, hit in enumerate(dependency_hits, start=1):
-            if hit.declaration.name in self._declarations_by_name:
+            if _local_declarations_for_dependency_hit(
+                hit.declaration.name,
+                by_name=self._declarations_by_name,
+                by_short_name=self._declarations_by_short_name,
+            ):
                 continue
             key = _decl_key(hit.declaration)
             by_key[key] = hit.declaration
@@ -153,6 +165,7 @@ class FormalSourceHybridRetriever:
             hits,
             k=k,
             min_relative_score=0.35,
+            preserve_top_n=2,
         )
 
 
@@ -189,8 +202,12 @@ class FormalSourceDependencyHybridRetriever:
             bool(getattr(dependency_retriever, "auto_discovered", False)),
         )
         self._declarations_by_name: dict[str, list[FormalDeclaration]] = defaultdict(list)
+        self._declarations_by_short_name: dict[str, list[FormalDeclaration]] = defaultdict(list)
         for declaration in declarations:
             self._declarations_by_name[declaration.name].append(declaration)
+            self._declarations_by_short_name[
+                declaration.name.rsplit(".", 1)[-1]
+            ].append(declaration)
 
     def load_declarations(self) -> list[FormalDeclaration]:
         return list(self.declarations)
@@ -213,7 +230,11 @@ class FormalSourceDependencyHybridRetriever:
             matched_by_key[key].add("python_shape")
 
         for rank, hit in enumerate(dependency_hits, start=1):
-            local_matches = self._declarations_by_name.get(hit.declaration.name, ())
+            local_matches = _local_declarations_for_dependency_hit(
+                hit.declaration.name,
+                by_name=self._declarations_by_name,
+                by_short_name=self._declarations_by_short_name,
+            )
             if local_matches:
                 for declaration in local_matches[:2]:
                     key = _decl_key(declaration)
@@ -241,8 +262,28 @@ class FormalSourceDependencyHybridRetriever:
             FormalSourceHit(row.declaration, row.score, row.matched_terms)
             for row in rows
         ]
-        return diversify_formal_source_hits(hits, k=k)
+        return diversify_formal_source_hits(
+            hits,
+            k=k,
+            preserve_top_n=2,
+        )
 
 
 def _decl_key(decl: FormalDeclaration) -> tuple[str, str, int, str]:
     return (decl.source_id, decl.path, decl.line, decl.name)
+
+
+def _local_declarations_for_dependency_hit(
+    declaration_name: str,
+    *,
+    by_name: dict[str, list[FormalDeclaration]],
+    by_short_name: dict[str, list[FormalDeclaration]],
+) -> list[FormalDeclaration]:
+    exact = by_name.get(declaration_name, [])
+    if exact:
+        return exact
+    short_matches = by_short_name.get(
+        declaration_name.rsplit(".", 1)[-1],
+        [],
+    )
+    return short_matches if len(short_matches) == 1 else []

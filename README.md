@@ -95,7 +95,7 @@ python3 -m ai_statistician.cli research-gap-audit --run-dir runs/research_benchm
 python3 -m ai_statistician.cli formalization-target-audit --run-dir runs/research_benchmark --out runs/formalization_target_audit
 python3 -m ai_statistician.cli autoform-harness-audit --out runs/autoform_harness
 python3 -m ai_statistician.cli autoform-target-export --run-dir runs/research_benchmark --out runs/autoform_targets
-python3 -m ai_statistician.cli formal-source-retrieval-benchmark --suite all --lean-rag-db runs/current_status_lean_rag_dependency_graph/stat_inference.sqlite --out runs/formal_source_retrieval_all_benchmark
+python3 -m ai_statistician.cli formal-source-retrieval-benchmark --suite all --out runs/formal_source_retrieval_all_benchmark
 python3 -m ai_statistician.cli research-system-audit --runs 100 --out runs/research_system_audit
 python3 -m ai_statistician.cli rag-collaboration-export --system-audit-manifest runs/research_system_audit/research_system_audit_manifest.json --out runs/rag_collaboration_handoff
 ```

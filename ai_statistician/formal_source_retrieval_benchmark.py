@@ -328,6 +328,22 @@ def run_formal_source_retrieval_benchmark(
         "lean_rag_dependency_graph_path": str(
             getattr(active_retriever, "lean_rag_dependency_graph_path", "")
         ),
+        "lean_rag_dependency_graph_paths": tuple(
+            str(path)
+            for path in getattr(
+                active_retriever,
+                "lean_rag_dependency_graph_paths",
+                (),
+            )
+        ),
+        "lean_rag_dependency_graph_source_ids": tuple(
+            str(source_id)
+            for source_id in getattr(
+                active_retriever,
+                "lean_rag_dependency_graph_source_ids",
+                (),
+            )
+        ),
         "lean_rag_dependency_graph_auto_discovered": bool(
             getattr(active_retriever, "lean_rag_dependency_graph_auto_discovered", False)
         ),

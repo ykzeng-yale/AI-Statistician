@@ -230,6 +230,19 @@ def test_source_diversification_preserves_top_hit_and_relevant_corpora() -> None
         row.declaration.source_id for row in diversified
     }
 
+    prompt_ranked = diversify_formal_source_hits(
+        ranked,
+        k=4,
+        preserve_top_n=2,
+    )
+    assert [row.declaration.name for row in prompt_ranked[:2]] == [
+        "top",
+        "same_source_second",
+    ]
+    assert prompt_ranked[2].declaration.source_id == (
+        "lean_stat_learning_theory"
+    )
+
 
 def test_formal_source_hit_context_keeps_outline_and_nonproof_boundary() -> None:
     declaration = FormalDeclaration(
@@ -282,14 +295,26 @@ def test_formal_source_hit_context_adds_bounded_outline_and_dependency_neighbors
     class DependencyProvider:
         source = "fixture_dependency_graph"
 
-        def dependency_context(self, declaration_name: str, *, limit: int):
+        def dependency_context(
+            self,
+            declaration_name: str,
+            *,
+            limit: int,
+            source_id: str,
+            path: str,
+        ):
             assert declaration_name == "LeastSquares.master_error_bound"
             assert limit == 6
+            assert source_id == "lean_stat_learning_theory"
+            assert path == "SLT/LeastSquares/MasterErrorBound.lean"
             return SimpleNamespace(
                 fan_in=8,
                 fan_out=3,
                 uses=("LeastSquares.bad_event_probability_bound",),
                 used_by=("LeastSquares.linear_minimax_rate_rank",),
+                statement_uses=("LeastSquares.localizedBall",),
+                proof_uses=("LeastSquares.bad_event_probability_bound",),
+                source_id="lean_stat_learning_theory",
             )
 
     retriever.dependency_retriever = DependencyProvider()
@@ -316,7 +341,13 @@ def test_formal_source_hit_context_adds_bounded_outline_and_dependency_neighbors
     assert context["outline_selection"] == (
         "nearest_prior_same_file_declarations_by_source_line"
     )
-    assert context["dependency_context"]["uses"] == [
+    assert context["dependency_context"]["corpus_id"] == (
+        "lean_stat_learning_theory"
+    )
+    assert context["dependency_context"]["statement_uses"] == [
+        "LeastSquares.localizedBall"
+    ]
+    assert context["dependency_context"]["proof_uses"] == [
         "LeastSquares.bad_event_probability_bound"
     ]
     assert context["dependency_context"]["used_by"] == [

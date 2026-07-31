@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-31T03:31:50Z",
+  "updated_at": "2026-07-31T04:48:16Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "base_coordination_branch": "codex/ai-stat-lab-sync-20260625",
   "current_lane": "keep one canonical research loop and one strict proof boundary. TheoryDeveloper -> typed theory completeness -> independent pre-execution estimand/DGP/identifiability and metric-protocol review -> generated algorithm -> independent code review -> generated confirmatory simulation -> independent review -> Critic. Formalizer/ProofEngineer receive compact task-bound retrieval candidates and iterative Lean feedback; only active-project Lean/kernel evidence closes proof. Current work improves shared agent context, feedback, and retrieval rather than any task answer. Do not add agents, task formulas, Lean grammar/tactic rules, audit-score patches, or held-out fixes; PCA/extremes stay sealed.",
-  "latest_main_worker_patch": "Reduce the existing research feedback loop's duplicated context without adding another scheduler, reviewer, or task rule. Full immutable review artifacts remain hash-bound for lineage, while the GeneratedCodeSemanticReviewer prompt includes canonical frozen metric requirements once, replaces only fingerprint-equal runtime copies with explicit prompt refs, preserves conflicting copies in full, and exposes deterministic metric-gate outcomes separately. The ownership router now sees compact artifact identities, requirement ids, dimension statuses, gate facts, eligibility, and exact reviewer-cited values or fingerprints instead of uncited full source and repeated review narrative. Reviewer output is limited to four prioritized acceptance-critical findings and is prompted to consolidate root causes and omit advisory lists. No statistical formula, threshold, source-specific branch, Lean grammar/tactic rule, validator relaxation, agent, or proof-evidence promotion was added.",
-  "latest_main_worker_live_probe": "Fresh exact-Haiku v140 ran both development families with all 10 enabled LLM lanes pinned to claude-haiku-4-5-20251001 and topology policy OK. Both questions ended BLOCKED; the aggregate recorded 9 generated-code executions and sandbox passes, 2 confirmatory generated-simulation executions, 0 simulation metric-gate passes, 0 formal gaps, 0 kernel-verified subclaims, formally_verified_level=none, and 0 exact theorem closures. Survival reached algorithm review and confirmatory simulation, then made one bounded upstream-theory revision and stopped at generated_code_semantic_review_upstream_theory_revision_budget_exhausted. Sequential's exploratory Algorithm evidence was correctly non-confirmatory and accepted without replicate retuning; its confirmatory simulation exposed an internally infeasible required weak-signal gate and stopped at evaluation_protocol_revision_required. V140 is negative design evidence, not E2E success.",
-  "latest_main_worker_design_issue": "V140 confirms the metric-validation and exploratory/confirmatory phase fixes work, and that global theory/protocol budgets stop repeated replans before max_iterations. It also quantifies the remaining serial-context inefficiency: one sequential confirmatory semantic-review call consumed 53,295 input tokens and its ownership router consumed 37,512. The shared least-authority projection now reduces that exact semantic-review materialization from 155,778 to 75,182 JSON characters (51.7%) and reconstructs the router prompt at 42,188 characters while preserving exact citations and fingerprints. This is deterministic replay evidence; a fresh live run is still required to measure provider-token and wall-clock reduction. The next capability gate remains two development tasks reaching accepted confirmatory simulation and then exact-target Formalizer/OpenProver/Lean closure. Held-out PCA/extremes remain sealed and source-theorem closure remains zero.",
+  "latest_main_worker_patch": "Reuse AI4SLT as structured formal-source infrastructure instead of adding theorem-specific proof rules. The normal Formalizer retriever now fuses the current AI4SLT declaration/import graph with the signed StatInference graph, binds dependency lookup to corpus plus declaration path/name, separates statement dependencies from proof dependencies, ignores pure theorem-number tokens in dependency search, and falls back from qualified to short declaration names only when the match is unambiguous. The two strongest ranked candidates remain ahead of corpus-diversity insertions, preventing an unrelated corpus from displacing exact AI4SLT context in the bounded Formalizer prompt. No statistical answer, Lean grammar/tactic rule, agent, scheduler, validator relaxation, or proof-evidence promotion was added.",
+  "latest_main_worker_live_probe": "Fresh exact-Haiku v141 ran both development families with all 10 enabled LLM lanes pinned to claude-haiku-4-5-20251001 and topology policy OK. Both questions ended BLOCKED; the aggregate recorded 4 generated-code executions and sandbox passes, 4 confirmatory generated-simulation executions, 0 simulation metric-gate passes, 0 formal gaps, 0 kernel-verified subclaims, formally_verified_level=none, and 0 exact theorem closures. Survival made one bounded upstream-theory revision and stopped at generated_code_semantic_review_lineage_budget_exhausted. Sequential was rejected at architect_metric_protocol_preexecution_rejected after one TheoryDeveloper revision, before wasting code/simulation execution. V141 is negative design and efficiency evidence, not E2E success.",
+  "latest_main_worker_design_issue": "V141 confirms the compact review projection substantially reduces repeated context while keeping fail-closed behavior. Survival semantic-review input fell from 186,333 tokens across 6 v140 reviews to 174,645 across 7 v141 reviews; comparable confirmatory calls fell from about 51k to 26-33k input tokens, and findings fell from 34 to 14. Ownership-router input fell from 98,391 across 5 calls to 32,668 across 4 calls. One JSON-repair review still took 76 seconds, so wall-clock convergence is not yet established. The current formal-RAG correction addresses a separate demonstrated gap: AI4SLT was lexically retrievable but had no active declaration dependency graph. The next capability gate remains two development tasks reaching accepted confirmatory simulation and exact-target Formalizer/OpenProver/Lean closure; held-out PCA/extremes remain sealed and source-theorem closure remains zero.",
   "live_anthropic_model_policy": {
     "model_catalog_source_checked_date": "2026-07-19",
     "policy_rechecked_date": "2026-07-31",
@@ -24,7 +24,7 @@
     "provider_backed_tests_may_use_opus": false,
     "opus_live_requests_allowed": false,
     "enforcement": "Production requests above Sonnet are rejected before a live request can be accepted, requested Opus is rejected before Anthropic client construction, and capability/research evaluation policy pins every provider-backed test agent to the exact Haiku model.",
-    "provider_backed_evaluation_runs_in_current_patch": 11,
+    "provider_backed_evaluation_runs_in_current_patch": 12,
     "provider_backed_evaluation_runs": [
       "v122_metric_reviewer_index_diagnosis",
       "v123_zero_based_metric_patch_and_packet_ownership_diagnosis",
@@ -36,7 +36,8 @@
       "v137_typed_procedure_identity_repair_haiku",
       "v138_runtime_bound_identity_ai4slt_prior_context_haiku",
       "v139_compact_identity_index_ai4slt_prior_context_haiku",
-      "v140_coupled_metric_algorithm_phase_ai4slt_haiku"
+      "v140_coupled_metric_algorithm_phase_ai4slt_haiku",
+      "v141_prompt_compaction_ai4slt_haiku"
     ]
   },
   "latest_slt_formal_rag": {
@@ -49,6 +50,12 @@
     "indexed_book_reference_rows": 21,
     "indexed_reference_bound_declarations": 47,
     "indexed_unambiguous_readme_reference_rows": 46,
+    "dependency_graph_modules": 204,
+    "dependency_graph_import_edges": 278,
+    "dependency_graph_declarations": 2006,
+    "dependency_graph_declaration_edges": 6362,
+    "dependency_graph_builder": "EmpericalProcessLEAN/lean_rag/scripts/lean_graph_index.py",
+    "dependency_graph_kind": "source-visible import and declaration-reference graph; not a kernel-elaborated premise graph",
     "book_crosswalks": [
       "Vershynin (2018)",
       "Wainwright (2019)",
@@ -59,12 +66,13 @@
       "Wainwright (2019)": 6,
       "Boucheron-Lugosi-Massart (2013)": 11
     },
-    "benchmark": "runs/main_worker_slt_formal_rag_20260730_v9_upstream_structure_recheck/formal_source_retrieval_benchmark_manifest.json",
-    "benchmark_result": "17/17 recall@8=1.0, MRR=0.745098; all three representative book-reference cases rank 1",
+    "benchmark": "runs/main_worker_ai4slt_multi_dependency_rag_20260731/formal_source_retrieval_benchmark_manifest.json",
+    "benchmark_result": "6/6 currently configured gold families retrieve within 8 with MRR=0.777778; all 46/46 README reference queries retrieve within 8",
+    "prior_broad_benchmark_result": "The earlier 17-case source-family panel remains 17/17 recall@8=1.0 with MRR=0.745098",
     "all_reference_crosswalk_audit": "47 reference-bound declarations form 46 distinct source/reference queries; all 46/46 retrieve within rank 8",
     "all_book_crosswalk_reference_audit": "The three paper-core books account for 21/46 queries; all 21 retrieve at rank 1 with counts 4/6/11. The remaining 25 queries cover other or post-paper library references.",
-    "default_runtime_retriever": "The normal Formalizer composite retriever includes the registered lean_stat_learning_theory source root by default; direct production probes for Vershynin Corollary 4.2.13, Wainwright equation (5.48), and Boucheron-Lugosi-Massart Theorem 4.13 each return the exact AI4SLT declaration at rank 1.",
-    "prompt_context_policy": "For only the top hit per task-bound query group, expose at most three nearest same-file declaration signatures that textually precede the target, qualified declaration name, namespace, module/import metadata, source reference, and at most six source-derived dependency neighbors. Omit the target declaration, downstream declarations, and every proof body; all context remains non-proof candidate evidence.",
+    "default_runtime_retriever": "The normal Formalizer composite retriever now auto-discovers both the AI4SLT dependency graph and the signed StatInference graph. Direct production probes for Vershynin Corollary 4.2.13, Wainwright Theorem 13.5, and Boucheron-Lugosi-Massart Theorem 4.13 return the exact AI4SLT declaration at rank 1 with corpus-bound dependency context.",
+    "prompt_context_policy": "Preserve the two strongest ranked candidates before cross-corpus diversity. Expose qualified declaration name, namespace, module/import/reference metadata, at most three preceding same-file signatures, and bounded corpus-bound statement/proof dependency names. Omit target/downstream proof bodies; all context remains non-proof candidate evidence.",
     "structured_corpus": "yuanhezhang/lean4-stat-learning-theory-corpus",
     "structured_corpus_runtime_status": "registered as an auditable retrieval source candidate; not yet downloaded or promoted as the live proof-state retriever",
     "shared_rag_main_commit": "390cc6bc",
@@ -93,16 +101,16 @@
     "strict_e2e_capability_ready": false,
     "verification": {
       "research_agent_runtime": "1185 tests passed and one stale expected-error-text assertion failed in 2251.78 seconds; after updating only that assertion, --last-failed passed the remaining test, giving 1186/1186 on the same production snapshot without rerunning 37 minutes of unchanged work",
-      "affected_supporting_tests": "78 generated-code semantic-review and ownership-router tests passed with 2 skipped; 35 focused runtime routing/execution tests passed; 40 model-backend, test-environment, and research-evaluation policy tests passed",
-      "exact_haiku_live_probe": "v140 enabled 10 Anthropic LLM lanes, all at claude-haiku-4-5-20251001; topology policy OK, both development tasks BLOCKED, 9 generated-code executions and sandbox passes, 2 confirmatory simulation executions and 0 passes, 0 formal gaps, 0 kernel subclaims, and 0 exact theorem closures",
-      "prompt_projection_replay": "On v140 sequential's exact confirmatory review material, the semantic projection decreased from 155,778 to 75,182 JSON characters (51.7%); the reconstructed ownership-router prompt is 42,188 characters. This replay does not claim live provider-token or latency improvement until a fresh run confirms it.",
-      "formal_source_retrieval": "17/17 gold recall@8=1.0 with MRR=0.745098; all 46 distinct explicit source/reference crosswalks retrieve within 8; the three paper-core books are 21/21 rank 1; three direct default composite-retriever probes return the exact AI4SLT declaration at rank 1",
+      "affected_supporting_tests": "Current formal-RAG verification has 27 passing focused tests across multi-corpus dependency routing, unambiguous declaration mapping, formal-source prompt context, retrieval diversification, runtime grounding, and benchmark/loop/system-audit metadata consumers; the prior 78 generated-code reviewer/router tests with 2 skipped, 35 runtime tests, and 40 model/evaluation policy tests remain the most recent coverage for the prior patch",
+      "exact_haiku_live_probe": "v141 enabled 10 Anthropic LLM lanes, all at claude-haiku-4-5-20251001; topology policy OK, both development tasks BLOCKED, 4 generated-code executions and sandbox passes, 4 confirmatory simulation executions and 0 passes, 0 formal gaps, 0 kernel subclaims, and 0 exact theorem closures",
+      "prompt_projection_replay": "Fresh v141 reduced comparable confirmatory semantic-review inputs from about 51k to 26-33k tokens and ownership-router total input from 98,391 to 32,668 while preserving fail-closed routing; total semantic-review input decreased only about 6% because v141 performed one additional review, and wall-clock convergence is not established.",
+      "formal_source_retrieval": "The active multi-graph benchmark is 6/6 configured gold families at recall@8=1.0 with MRR=0.777778; all 46 distinct README reference queries retrieve within 8; the three paper-core books are 21/21 rank 1; three direct default composite-retriever probes return the exact AI4SLT declaration at rank 1 with source-bound statement/proof dependency context",
       "focused_empirical_loop_tests": "the previously pushed TheoryDeveloper retry and metric-lineage regression remains covered by the complete runtime suite",
       "fresh_start_cross_task_e2e_tests": "fresh strict v39 completed theory/code/confirmatory-simulation for both development tasks, then blocked both at exact-target semantic review; frozen strict completion remains 0/2",
       "py_compile": "passed for every changed Python production module",
       "git_diff_check": "passed after final status update"
     },
-    "boundary": "Fresh v140 is negative exact-Haiku design evidence and completes neither development task. AI4SLT retrieval, prior-declaration outlines, dependency neighbors, and citation recall are candidate context only. Prompt compaction replay is efficiency evidence only. None establishes current-loop completion, simulation acceptance, theorem closure, held-out generalization, proof evidence, or full AI-Statistician readiness."
+    "boundary": "Fresh v141 is negative exact-Haiku design evidence and completes neither development task. AI4SLT retrieval, declaration/import graph neighbors, and citation recall are candidate context only. Prompt compaction is efficiency evidence only. None establishes current-loop completion, simulation acceptance, theorem closure, held-out generalization, proof evidence, or full AI-Statistician readiness."
   },
   "latest_strict_formal_routing_probe": {
     "implementation": "reuse the existing FormalTargetSemanticReviewer, ProofEngineer, ExactSourceTheoremProver, OpenProver HLM, formal RAG, compiler feedback, and exact local Lean; keep all formal continuation inside typed AgentRuntime tasks",
