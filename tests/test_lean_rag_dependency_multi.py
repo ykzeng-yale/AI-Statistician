@@ -350,6 +350,38 @@ def test_dependency_context_rejects_unimported_unique_basename_edges(
                     1,
                     1,
                 ),
+                (
+                    "Scoped.Defs",
+                    "Scoped.Foundation",
+                    "import",
+                    "Scoped/Defs.lean",
+                    1,
+                    1,
+                ),
+                (
+                    "Scoped.Helpers",
+                    "Scoped.Foundation",
+                    "import",
+                    "Scoped/Helpers.lean",
+                    1,
+                    1,
+                ),
+                (
+                    "Scoped.Foundation",
+                    "Scoped.Main",
+                    "import",
+                    "Scoped/Foundation.lean",
+                    1,
+                    1,
+                ),
+                (
+                    "Scoped.Main",
+                    "External.Library",
+                    "import",
+                    "Scoped/Main.lean",
+                    3,
+                    0,
+                ),
             ],
         )
         conn.executemany(
@@ -377,6 +409,11 @@ def test_dependency_context_rejects_unimported_unique_basename_edges(
     assert context.direct_module_imports == (
         "Scoped.Defs",
         "Scoped.Helpers",
+    )
+    assert context.module_dependency_route == (
+        (1, "Scoped.Defs"),
+        (1, "Scoped.Helpers"),
+        (2, "Scoped.Foundation"),
     )
     assert context.module_import_visibility_enforced
     assert context.statement_uses == (

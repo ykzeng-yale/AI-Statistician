@@ -12,6 +12,9 @@ from ai_statistician.formal_source_index import (
     FormalSourceHit,
     FormalSourceRetriever,
 )
+from ai_statistician.formal_source_prompt_context import (
+    compact_formal_source_grounding_hits_for_prompt,
+)
 from ai_statistician.formal_source_scoped_corpus import (
     LeanJsonlScopedPremiseRetriever,
 )
@@ -341,7 +344,7 @@ def test_composite_runtime_preserves_three_book_dependency_context() -> None:
     vershynin = FormalDeclaration(
         source_id=source_id,
         source_type="lean_library",
-        path="SLT/CoveringNumber.lean",
+        path="CoveringNumber.lean",
         line=610,
         kind="theorem",
         name="coveringNumber_euclideanBall_le",
@@ -351,11 +354,12 @@ def test_composite_runtime_preserves_three_book_dependency_context() -> None:
             "(hR : 0 <= R) (heps : 0 < eps) : coveringNumber eps s <= n"
         ),
         reference="Vershynin (2018), Corollary 4.2.13",
+        module_group="Metric entropy",
     )
     boucheron = FormalDeclaration(
         source_id=source_id,
         source_type="lean_library",
-        path="SLT/GaussianLipConcen.lean",
+        path="GaussianLipConcen.lean",
         line=1301,
         kind="theorem",
         name="GaussianLipConcen.gaussian_lipschitz_concentration",
@@ -365,11 +369,12 @@ def test_composite_runtime_preserves_three_book_dependency_context() -> None:
             "(hf : LipschitzWith L f) : tailProbability f <= bound"
         ),
         reference="Boucheron et al. (2013), Theorem 5.6",
+        module_group="Gaussian concentration",
     )
     wainwright = FormalDeclaration(
         source_id=source_id,
         source_type="lean_library",
-        path="SLT/LeastSquares/MasterErrorBound.lean",
+        path="LeastSquares/MasterErrorBound.lean",
         line=900,
         kind="theorem",
         name="LeastSquares.master_error_bound",
@@ -379,7 +384,9 @@ def test_composite_runtime_preserves_three_book_dependency_context() -> None:
             "(hCI : satisfiesCriticalInequality model radius) : "
             "predictionError estimator <= rate"
         ),
+        imports=("SLT.CoveringNumber", "SLT.GaussianLipConcen"),
         reference="Wainwright (2019), Theorem 13.5",
+        module_group="Least squares",
     )
     scoped_calls: list[tuple[str, tuple[str, ...], int]] = []
 
@@ -427,6 +434,10 @@ def test_composite_runtime_preserves_three_book_dependency_context() -> None:
                 direct_module_imports=(
                     "SLT.CoveringNumber",
                     "SLT.GaussianLipConcen",
+                ),
+                module_dependency_route=(
+                    (1, "SLT.CoveringNumber"),
+                    (1, "SLT.GaussianLipConcen"),
                 ),
                 module_import_visibility_enforced=True,
                 dependency_resolution_policy=(
@@ -489,6 +500,48 @@ def test_composite_runtime_preserves_three_book_dependency_context() -> None:
         "Boucheron et al. (2013), Theorem 5.6",
         "Wainwright (2019), Theorem 13.5",
     }
+    assert context["source_architecture_route"] == {
+        "target_module": "SLT.LeastSquares.MasterErrorBound",
+        "target_layer": "Least squares",
+        "upstream_layers": [
+            {
+                "depth": 1,
+                "layer": "Gaussian concentration",
+                "modules": ["SLT.GaussianLipConcen"],
+            },
+            {
+                "depth": 1,
+                "layer": "Metric entropy",
+                "modules": ["SLT.CoveringNumber"],
+            },
+        ],
+        "evidence_status": (
+            "SOURCE_IMPORT_GRAPH_AND_SOURCE_AUTHORED_LAYER_CONTEXT_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    initial_groups = [dict(groups[0], query_role="initial_formalization_context")]
+    compact = compact_formal_source_grounding_hits_for_prompt(initial_groups)
+    compact_context = compact[0]["hits"][0]["declaration_source_context"]
+    assert compact_context["source_architecture_route"] == {
+        "target_layer": "Least squares",
+        "upstream_layers": [
+            {
+                "min_depth": 1,
+                "modules": ["SLT.GaussianLipConcen"],
+                "layer": "Gaussian concentration",
+            },
+            {
+                "min_depth": 1,
+                "modules": ["SLT.CoveringNumber"],
+                "layer": "Metric entropy",
+            },
+        ],
+    }
+    assert "module_ancestry" not in compact_context
+    assert "direct_module_imports" not in compact_context
+    repair = compact_formal_source_grounding_hits_for_prompt(groups)
+    repair_context = repair[0]["hits"][0]["declaration_source_context"]
+    assert "source_architecture_route" not in repair_context
     distractor_diagnostic = retriever.runtime_diagnostics()[1]
     assert distractor_diagnostic["n_raw_hits"] == 1
     assert distractor_diagnostic["n_hits"] == 0

@@ -1329,6 +1329,15 @@ def test_formal_source_hit_context_adds_bounded_outline_and_dependency_neighbors
                     "SLT.LeastSquares",
                     "SLT.LeastSquares.MasterErrorBound",
                 ),
+                direct_module_imports=(
+                    "SLT.LeastSquares.Localization",
+                    "SLT.GaussianLipConcen",
+                ),
+                module_dependency_route=(
+                    (1, "SLT.GaussianLipConcen"),
+                    (1, "SLT.LeastSquares.Localization"),
+                ),
+                module_import_visibility_enforced=True,
                 source_snapshot_status="BOUND_MATCH",
                 source_snapshot_bound=True,
                 source_snapshot_match=True,
@@ -1388,6 +1397,23 @@ def test_formal_source_hit_context_adds_bounded_outline_and_dependency_neighbors
         "SLT",
         "SLT.LeastSquares",
         "SLT.LeastSquares.MasterErrorBound",
+    ]
+    assert context["dependency_context"]["module_dependency_route"] == [
+        {"depth": 1, "module": "SLT.GaussianLipConcen"},
+        {"depth": 1, "module": "SLT.LeastSquares.Localization"},
+    ]
+    assert context["source_architecture_route"]["target_layer"] == (
+        "Least squares"
+    )
+    assert context["source_architecture_route"]["upstream_layers"] == [
+        {
+            "depth": 1,
+            "layer": "",
+            "modules": [
+                "SLT.GaussianLipConcen",
+                "SLT.LeastSquares.Localization",
+            ],
+        }
     ]
     assert context["dependency_context"]["source_snapshot"] == {
         "status": "BOUND_MATCH",
@@ -1631,6 +1657,22 @@ def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() ->
                         ],
                         "imports": ["Library.Foundation", "Library.Reduction"],
                         "premise_declaration_outlines": premise_rows,
+                        "source_architecture_route": {
+                            "target_module": "Library.Target",
+                            "target_layer": "Localized applications",
+                            "upstream_layers": [
+                                {
+                                    "depth": 1,
+                                    "layer": "Reusable reductions",
+                                    "modules": ["Library.Reduction"],
+                                },
+                                {
+                                    "depth": 2,
+                                    "layer": "Foundations",
+                                    "modules": ["Library.Foundation"],
+                                },
+                            ],
+                        },
                         "dependency_context": {
                             "module_ancestry": ["Library", "Library.Target"],
                             "source_snapshot": {
@@ -1757,7 +1799,23 @@ def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() ->
     assert "module_group" not in context
     assert "module_group_summary" not in context
     assert "local_naming_examples" not in context
-    assert context["module_ancestry"] == ["Library", "Library.Target"]
+    assert "module_ancestry" not in context
+    assert "direct_module_imports" not in context
+    assert context["source_architecture_route"] == {
+        "target_layer": "Localized applications",
+        "upstream_layers": [
+            {
+                "min_depth": 1,
+                "modules": ["Library.Reduction"],
+                "layer": "Reusable reductions",
+            },
+            {
+                "min_depth": 2,
+                "modules": ["Library.Foundation"],
+                "layer": "Foundations",
+            },
+        ],
+    }
     assert context["source_snapshot"]["status"] == "BOUND_MATCH"
     assert context["source_snapshot"]["metadata"]["source_git_commit"] == "b" * 40
     assert target["active_project_reuse_status"] == (
@@ -1849,6 +1907,21 @@ def test_source_scoped_prompt_keeps_two_ranked_signatures_without_library_prose(
     assert "nearbyHelper" not in encoded
     assert len(encoded) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS
 
+    exact = compact_formal_source_grounding_hits_for_prompt(
+        [
+            {
+                "query": "Library.bestCandidate",
+                "query_role": "initial_formalization_context",
+                "query_fingerprint": "e" * 64,
+                "source_scope_ids": ["fixture_library"],
+                "hits": hits,
+            }
+        ]
+    )
+    assert [row["name"] for row in exact[0]["hits"]] == [
+        "Library.bestCandidate"
+    ]
+
 
 def test_formal_source_repair_prompt_keeps_signatures_not_library_prose() -> None:
     hit = {
@@ -1888,6 +1961,17 @@ def test_formal_source_repair_prompt_keeps_signatures_not_library_prose() -> Non
                     ),
                 }
             ],
+            "source_architecture_route": {
+                "target_module": "SLT.LeastSquares.MasterErrorBound",
+                "target_layer": "Least-squares applications",
+                "upstream_layers": [
+                    {
+                        "depth": 1,
+                        "layer": "Least-squares applications",
+                        "modules": ["SLT.LeastSquares.Localization"],
+                    }
+                ],
+            },
             "dependency_context": {
                 "module_ancestry": ["SLT", "SLT.LeastSquares"],
                 "direct_module_imports": [
@@ -1941,9 +2025,11 @@ def test_formal_source_repair_prompt_keeps_signatures_not_library_prose() -> Non
     assert repair_context["imports"] == [
         "SLT.LeastSquares.Localization"
     ]
-    assert repair_context["direct_module_imports"] == [
-        "SLT.LeastSquares.Localization"
+    assert "direct_module_imports" not in repair_context
+    assert "source_architecture_route" in initial_hit[
+        "declaration_source_context"
     ]
+    assert "source_architecture_route" not in repair_context
     assert repair_context["premise_declaration_outlines"][0]["name"] == (
         "LeastSquares.localized_reduction"
     )

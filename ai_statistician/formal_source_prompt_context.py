@@ -10,9 +10,10 @@ from .research_schema import OpenResearchQuestion
 FORMAL_SOURCE_OUTLINE_PROMPT_POLICY = (
     "Bounded qualified target and direct statement/proof premise signatures are the "
     "prompt authority; source-scoped queries may retain two ranked target candidates. "
-    "Downstream declarations, proof bodies, broad module prose, README taxonomy, and "
-    "nearby naming examples are omitted. A bounded source-authored declaration doc and "
-    "citation may disambiguate intent but never replace a signature or active proof state. "
+    "A compact source-derived module dependency route may orient initial authoring. "
+    "Downstream declarations, proof bodies, broad module prose, and nearby naming "
+    "examples are omitted. A bounded source-authored declaration doc and citation may "
+    "disambiguate intent but never replace a signature or active proof state. "
     "Qualified declaration identity and active import visibility govern reuse; "
     "declaration-name patterns and source citations are retrieval hints, not semantic "
     "or proof authority. Retrieved declarations remain candidate context "
@@ -40,7 +41,8 @@ def compact_formal_source_grounding_hits_for_prompt(value: Any) -> list[dict[str
     seen_hits: set[tuple[str, str, int, str, str]] = set()
     for group in groups:
         source_scoped = bool(group.get("source_scope_ids"))
-        hit_limit = 2 if source_scoped else 1
+        exact_target_query = _formal_source_group_has_exact_target_query(group)
+        hit_limit = 2 if source_scoped and not exact_target_query else 1
         group_hits: list[Mapping[str, Any]] = []
         for hit in group.get("hits", []) or []:
             if not isinstance(hit, Mapping):
@@ -98,6 +100,18 @@ def compact_formal_source_grounding_hits_for_prompt(value: Any) -> list[dict[str
         )
     _fit_formal_source_prompt_projection(projected_groups)
     return projected_groups
+
+
+def _formal_source_group_has_exact_target_query(group: Mapping[str, Any]) -> bool:
+    query = " ".join(str(group.get("query", "") or "").split())
+    hits = group.get("hits", []) or []
+    if not query or not isinstance(hits, list | tuple) or not hits:
+        return False
+    first_hit = hits[0]
+    if not isinstance(first_hit, Mapping):
+        return False
+    name = str(first_hit.get("name", "") or "").strip()
+    return bool(name and query in {name, name.rsplit(".", 1)[-1]})
 
 
 def _formal_source_hit_prompt_identity(
@@ -187,7 +201,6 @@ def _compact_declaration_source_context_for_prompt(
         for row in context.get("premise_declaration_outlines", []) or []
         if isinstance(row, Mapping)
     ][:6]
-    module_ancestry_limit = 0 if repair_focused else 4 if primary else 2
     import_limit = 4 if repair_focused else 6 if primary else 3
     selected_rows: list[Mapping[str, Any]] = []
     if primary:
@@ -222,12 +235,6 @@ def _compact_declaration_source_context_for_prompt(
         outlines.append(outline)
     payload: dict[str, Any] = {
         "module": str(context.get("module", "") or "")[:240],
-        "module_ancestry": [
-            str(item)[:180]
-            for item in list(
-                dependency.get("module_ancestry", []) or []
-            )[:module_ancestry_limit]
-        ],
         "imports": [
             str(item)[:180]
             for item in list(context.get("imports", []) or [])[:import_limit]
@@ -244,23 +251,11 @@ def _compact_declaration_source_context_for_prompt(
             dependency.get("module_import_visibility_enforced", False)
         ),
     }
-    if repair_focused:
-        payload["direct_module_imports"] = [
-            str(item)[:180]
-            for item in list(
-                dependency.get("direct_module_imports", []) or []
-            )[:4]
-        ]
     if primary and not repair_focused:
-        payload.update(
-            {
-                "direct_module_imports": [
-                    str(item)[:180]
-                    for item in list(
-                        dependency.get("direct_module_imports", []) or []
-                    )[:4]
-                ],
-            }
+        payload["source_architecture_route"] = (
+            _compact_source_architecture_route_for_prompt(
+                context.get("source_architecture_route", {})
+            )
         )
     snapshot = (
         dependency.get("source_snapshot", {})
@@ -343,7 +338,7 @@ def _fit_formal_source_prompt_projection(groups: list[dict[str, Any]]) -> None:
     context["premise_names"] = list(context.get("premise_names", []))[:4]
     if _prompt_json_chars(groups) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
         return
-    context.pop("module_ancestry", None)
+    context.pop("source_architecture_route", None)
     if _prompt_json_chars(groups) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
         return
     if hit.get("declaration_doc"):
@@ -374,7 +369,7 @@ def _fit_formal_source_prompt_projection(groups: list[dict[str, Any]]) -> None:
     primary_hit.pop("declaration_doc", None)
     primary_hit.pop("reference_aliases", None)
     for key in (
-        "direct_module_imports",
+        "source_architecture_route",
         "premise_names",
         "premise_declaration_outlines",
     ):
@@ -430,6 +425,46 @@ def _fit_formal_source_prompt_projection(groups: list[dict[str, Any]]) -> None:
 
 def _prompt_json_chars(value: Any) -> int:
     return len(json.dumps(value, separators=(",", ":"), ensure_ascii=False, default=str))
+
+
+def _compact_source_architecture_route_for_prompt(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    target_layer = str(value.get("target_layer", "") or "").strip()
+    grouped: dict[str, dict[str, Any]] = {}
+    for raw_row in list(value.get("upstream_layers", []) or [])[:8]:
+        if not isinstance(raw_row, Mapping):
+            continue
+        modules = [str(module)[:180] for module in raw_row.get("modules", []) or []]
+        modules = [module for module in modules if module.strip()]
+        if not modules:
+            continue
+        layer = str(raw_row.get("layer", "") or "").strip()
+        depth = max(1, int(raw_row.get("depth", 1) or 1))
+        row = grouped.setdefault(
+            layer,
+            {"min_depth": depth, "modules": []},
+        )
+        row["min_depth"] = min(int(row["min_depth"]), depth)
+        if not row["modules"]:
+            row["modules"].append(modules[0])
+    upstream_rows = []
+    for layer, row in sorted(
+        grouped.items(),
+        key=lambda item: (int(item[1]["min_depth"]), item[0]),
+    )[:4]:
+        compact_row = dict(row)
+        if layer:
+            compact_row["layer"] = layer[:160]
+        upstream_rows.append(compact_row)
+    if not upstream_rows and not target_layer:
+        return {}
+    payload: dict[str, Any] = {}
+    if upstream_rows:
+        payload["upstream_layers"] = upstream_rows
+    if target_layer:
+        payload["target_layer"] = target_layer[:160]
+    return payload
 
 
 def task_bound_formal_source_query_seeds(
@@ -893,6 +928,15 @@ def formal_source_context_for_hit(
     }
     if dependency_context:
         payload["dependency_context"] = dependency_context
+    source_architecture_route = _formal_source_architecture_route(
+        retriever,
+        source_id=source_id,
+        target_module=module,
+        target_layer=str(getattr(declaration, "module_group", "") or ""),
+        dependency_context=dependency_context,
+    )
+    if source_architecture_route:
+        payload["source_architecture_route"] = source_architecture_route
     return payload
 
 
@@ -1086,6 +1130,118 @@ def _formal_source_outline_rows_by_file(
     return index
 
 
+def _formal_source_module_layer_index(
+    retriever: Any,
+) -> dict[tuple[str, str], str]:
+    cached = getattr(retriever, "_prompt_module_layer_index", None)
+    if isinstance(cached, dict):
+        return cached
+    index: dict[tuple[str, str], str] = {}
+    for declaration in _formal_source_retriever_declarations(retriever):
+        source_id = str(getattr(declaration, "source_id", "") or "")
+        module = _formal_source_module_name(
+            str(getattr(declaration, "path", "") or ""),
+            tuple(getattr(declaration, "imports", ()) or ()),
+        )
+        layer = str(getattr(declaration, "module_group", "") or "").strip()
+        if source_id and module and layer:
+            index.setdefault((source_id, module), layer)
+    try:
+        setattr(retriever, "_prompt_module_layer_index", index)
+    except Exception:
+        pass
+    return index
+
+
+def _formal_source_module_layer(
+    module_layers: Mapping[tuple[str, str], str],
+    *,
+    source_id: str,
+    module: str,
+) -> str:
+    exact = str(module_layers.get((source_id, module), "") or "")
+    if exact:
+        return exact
+    suffix_layers = {
+        layer
+        for (candidate_source_id, candidate_module), layer in module_layers.items()
+        if candidate_source_id == source_id
+        and candidate_module
+        and module.endswith("." + candidate_module)
+        and layer
+    }
+    return next(iter(suffix_layers)) if len(suffix_layers) == 1 else ""
+
+
+def _formal_source_architecture_route(
+    retriever: Any,
+    *,
+    source_id: str,
+    target_module: str,
+    target_layer: str,
+    dependency_context: Mapping[str, Any],
+) -> dict[str, Any]:
+    if not dependency_context:
+        return {}
+    module_layers = _formal_source_module_layer_index(retriever)
+    resolved_target_layer = target_layer.strip() or _formal_source_module_layer(
+        module_layers,
+        source_id=source_id,
+        module=target_module,
+    )
+    raw_route = dependency_context.get("module_dependency_route", []) or []
+    route: list[tuple[int, str]] = []
+    for raw_row in raw_route:
+        if isinstance(raw_row, Mapping):
+            depth = int(raw_row.get("depth", 0) or 0)
+            module = str(raw_row.get("module", "") or "").strip()
+        elif isinstance(raw_row, (list, tuple)) and len(raw_row) >= 2:
+            depth = int(raw_row[0] or 0)
+            module = str(raw_row[1] or "").strip()
+        else:
+            continue
+        if depth > 0 and module and module != target_module:
+            route.append((depth, module))
+    if not route:
+        route = [
+            (1, str(module).strip())
+            for module in dependency_context.get("direct_module_imports", []) or []
+            if str(module).strip() and str(module).strip() != target_module
+        ]
+    if not route and not resolved_target_layer:
+        return {}
+
+    grouped: dict[tuple[int, str], list[str]] = {}
+    for depth, module in sorted(set(route), key=lambda row: (row[0], row[1])):
+        layer = _formal_source_module_layer(
+            module_layers,
+            source_id=source_id,
+            module=module,
+        )
+        modules = grouped.setdefault((depth, layer), [])
+        if module not in modules:
+            modules.append(module)
+    upstream_layers = [
+        {
+            "depth": depth,
+            "layer": layer,
+            "modules": modules[:3],
+        }
+        for (depth, layer), modules in sorted(
+            grouped.items(),
+            key=lambda item: (item[0][0], item[0][1], item[1]),
+        )[:8]
+    ]
+    return {
+        "target_module": target_module,
+        "target_layer": resolved_target_layer,
+        "upstream_layers": upstream_layers,
+        "evidence_status": (
+            "SOURCE_IMPORT_GRAPH_AND_SOURCE_AUTHORED_LAYER_CONTEXT_NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+
 def _formal_source_dependency_context(
     retriever: Any,
     declaration_name: str,
@@ -1131,6 +1287,13 @@ def _formal_source_dependency_context(
         "direct_module_imports": [
             str(value)
             for value in getattr(context, "direct_module_imports", ()) or ()
+        ],
+        "module_dependency_route": [
+            {"depth": int(depth), "module": str(module)}
+            for depth, module in (
+                getattr(context, "module_dependency_route", ()) or ()
+            )
+            if int(depth) > 0 and str(module).strip()
         ],
         "module_import_visibility_enforced": bool(
             getattr(context, "module_import_visibility_enforced", False)

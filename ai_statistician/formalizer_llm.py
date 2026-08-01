@@ -62,11 +62,9 @@ from .theory_derivation_trace import (
 FORMALIZER_SCHEMA_VERSION = 1
 FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE = "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE"
 FORMALIZER_BOUNDARY = (
-    "LLM Formalizer/ProofEngineer packets are formalization and proof-search "
-    "proposals only. They do not count as Lean proof evidence, do not certify "
-    "source theorem faithfulness, and cannot claim kernel verification. Proof "
-    "evidence requires AgentRuntime to run AXLE/local Lean/kernel verification "
-    "on the intended formal claim."
+    "Formalizer packets are proposals, not Lean proof, source-faithfulness, or "
+    "kernel evidence. Only AgentRuntime verification of the exact intended artifact "
+    "through local Lean/AXLE/kernel supplies proof evidence."
 )
 FORMALIZER_MAX_THEORY_ROWS = 3
 FORMALIZER_MAX_THEOREM_GOALS = 4
@@ -111,27 +109,23 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
     return {
         "schema_version": 11,
         "specification": (
-            "Four-part structured specification: exact Lean target plus faithful "
-            "natural-language statement and assumptions; qualified infrastructure "
-            "pointers; a formalization-oriented lemma/proof plan; and hard evidence, "
-            "scope, and success boundaries. Never weaken."
+            "Four-part structured specification: exact Lean target and faithful "
+            "natural-language statement/assumptions; qualified infrastructure "
+            "pointers; formalization-oriented lemma/proof plan; hard evidence, scope, "
+            "and success boundaries. Never weaken."
         ),
         "context_policy": (
-            "Stage context by purpose. Retrieval may use source-authored declaration "
-            "docs, section/module "
-            "taxonomy, naming, and citations may rank candidates, but prompt transport "
-            "is target-bound and signature-first. For initial API design and declaration "
-            "placement, use qualified names/signatures/imports, the source-local "
-            "namespace/module role, and at most one bounded declaration doc or citation. "
-            "For compiler/tactic repair, rank by the live Lean goal or diagnostic and "
-            "send only a few qualified signatures, direct premise signatures, module "
-            "imports, and active toolchain/version gates; do not resend taxonomy, "
-            "naming examples, or broad citation prose. A source-bound discovery query "
-            "may retain two ranked target signatures with separate module/import "
-            "context; other queries retain one. Use direct premise outlines first, "
-            "bounded prior fallback, and no source files or proof bodies. Treat "
-            "module/import identity separately from declaration namespace because they "
-            "may differ."
+            "Initial authoring is signature-first: source-authored declaration docs, "
+            "section/module taxonomy, naming, and citations may rank candidates. For "
+            "initial API design and declaration placement, send qualified signatures/"
+            "imports, the source-local namespace/module role, one bounded doc/citation, "
+            "and the source import route. Repair ranks by the live Lean goal or "
+            "diagnostic; send only a few qualified signatures, direct premises, and "
+            "active toolchain/version gates; do not resend taxonomy. A source-bound "
+            "query may retain two ranked target signatures; other queries retain one. "
+            "Use direct premise outlines first, bounded prior fallback, and no source "
+            "files or proof bodies. Keep module/import identity separately from the "
+            "declaration namespace; they may differ."
         ),
         "assumption_audit": (
             "Audit domain, measurability, integrability, finiteness, nonemptiness, "
@@ -139,13 +133,12 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
             "invent or strengthen assumptions."
         ),
         "decomposition": (
-            "Maintain the complete dependency-ordered lemma DAG in artifacts, while "
-            "sending only the current active frontier slice through each bounded agent "
-            "request. Keep one semantic obligation per node and never merge unrelated "
-            "obligations to fit a transport cap. Use the smallest leaf per bounded "
-            "compiler-feedback episode, a minimal explicit support-dependency plan "
-            "([] for a direct proof), preserve verified ancestors, and use reusable "
-            "library abstractions; continue with later frontier slices until closure."
+            "Keep the complete dependency-ordered lemma DAG in artifacts; send only "
+            "the current active frontier slice. Keep one semantic obligation per node "
+            "and never merge unrelated obligations. For each bounded compiler-feedback "
+            "episode use the smallest leaf and a minimal explicit support-dependency "
+            "plan ([] for a direct proof); preserve verified ancestors and continue "
+            "with later frontier slices."
         ),
         "repair_cycle": (
             "Lean/LSP: fix errors one-by-one from the smallest diagnostic; no "
@@ -154,12 +147,11 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
             "infrastructure pointers, or proof plan from that new evidence."
         ),
         "library_design": (
-            "Use the lowest reusable mathematical layer. Organize modules by reusable "
-            "mathematical dependency rather than textbook order: definitions and "
-            "infrastructure below concentration, empirical-process, and application "
-            "layers; infer namespace, module placement, and naming style locally; use "
-            "stable semantic Lean names; avoid duplicate wrappers; textbook theorem "
-            "numbers and citations are source metadata rather than declaration identity."
+            "Use the lowest reusable mathematical layer and organize by reusable "
+            "mathematical dependency rather than textbook order; infer namespace, "
+            "module placement, and naming style locally; use stable semantic Lean names "
+            "and avoid duplicate wrappers. Textbook numbers and citations are source "
+            "metadata rather than declaration identity."
         ),
         "reuse_policy": (
             "Prefer an exact compatible imported declaration; cross-toolchain or "
@@ -1248,7 +1240,6 @@ def build_formalizer_prompt(
         },
         "prompt_mode": {
             "mode": "target_bound_formalization_specification",
-            "purpose": "prove/revise target from theory, outlines, and Lean feedback",
             "max_items_per_list": 3,
             "list_scope": "current_active_frontier_slice_not_complete_lemma_dag",
             "complete_lemma_dag_resides_in_artifacts": True,
@@ -1313,11 +1304,7 @@ def build_formalizer_prompt(
         "pseudo_formalization_contract": (
             pseudo_formalizer_prompt_contract()
             if pseudo_formalization_active
-            else {
-                "output_key": "pseudo_formal_proof_packets",
-                "activation": "use only when source proof repair is blocked",
-                "boundary": "not theorem proof evidence",
-            }
+            else {}
         ),
         "pseudo_formalization_required_packet_seed": pseudo_formalization_packet_seed,
         "pseudo_formalization_component_gate_failure_repair_seed": (
@@ -1376,17 +1363,19 @@ def build_formalizer_prompt(
             proof_memory_summary,
             runtime_environment_feedback,
         ),
-        "proof_bank_obligation_request_policy": {
-            "use_only_registered_catalog_ids_when_possible": True,
-            "request_effect": "priority_only_for_kernel_smoke_selection",
-            "runtime_filter": "AgentRuntime rejects unknown obligation IDs and filters against the current candidate set",
-            "not_evidence": "A proof-bank obligation request is not Lean proof evidence and does not prove the frontier theorem.",
-            "when_catalog_exhausted_by_kernel_memory": (
-                "Do not request already-kernel-verified bridge obligations again. "
-                "Target the theorem-level reduction closure that connects those "
-                "verified bridge obligations to the remaining frontier theorem goal."
-            ),
-        },
+        "proof_bank_obligation_request_policy": (
+            {
+                "use_only_registered_catalog_ids_when_possible": True,
+                "request_effect": "priority_only_for_kernel_smoke_selection",
+                "runtime_gate": "unknown ids rejected; requests are not proof evidence",
+                "when_catalog_exhausted_by_kernel_memory": (
+                    "skip verified bridge obligations and target theorem-level "
+                    "reduction closure"
+                ),
+            }
+            if catalog_rows or proof_memory_summary
+            else {}
+        ),
         "required_output_contract": _formalizer_output_contract_for_prompt(
             has_theory_trace=bool(theory_derivation_trace),
             pseudo_formalization_required=pseudo_formalization_required,
@@ -1403,6 +1392,11 @@ def build_formalizer_prompt(
             ),
         ),
         "boundary": FORMALIZER_BOUNDARY,
+    }
+    payload = {
+        key: value
+        for key, value in payload.items()
+        if value not in (None, "", [], {}, ())
     }
     metadata_authoring_mode = bool(
         _formalizer_bool_like(
@@ -1518,33 +1512,21 @@ def build_formalizer_prompt(
     else:
         pseudo_formalization_instruction = ""
     return (
-        "Design Formalizer/ProofEngineer proof-search artifacts. Return ONLY compact "
-        "JSON matching required_output_contract; at most 3 current-active-frontier "
-        "items/list. This transport cap is not a cap on the complete lemma DAG: do not "
-        "merge unrelated obligations to fit it, preserve verified ancestors in runtime "
-        "artifacts, and continue later frontier slices. Prefer one minimal Lean target "
-        "and up to two registered proof-bank obligations. Propose "
-        "Lean sketches, dependency edges, retrieval queries, and kernel work orders, "
-        "but never claim proof, kernel verification, or source-theorem faithfulness. "
-        "Follow mode_specific_instructions only when activated. Use catalog obligation "
-        "IDs when possible; requests only prioritize AgentRuntime kernel-smoke work. "
-        "Populate theory_trace_alignment with exact trace anchor ids/names. Treat "
-        "task_bound_formal_target_contract as the semantic source of truth. Retrieved "
-        "declarations are support APIs unless lineage identifies the exact source "
-        "theorem. Never narrow the theorem or assume its conclusion for compilation. "
-        "Treat formal_target_semantic_review as binding: repair semantics before "
-        "syntax/tactics and preserve review lineage. "
+        "Return ONLY compact JSON matching required_output_contract, with at most 3 "
+        "current-active-frontier items/list. This transport cap is not a cap on the "
+        "complete lemma DAG: do not merge unrelated obligations. Treat "
+        "task_bound_formal_target_contract as semantic authority and follow only "
+        "activated mode_specific_instructions. Retrieved declarations are support APIs "
+        "unless exact lineage identifies the source theorem; preserve that target and "
+        "await AgentRuntime checking of the exact artifact. "
         + pseudo_formalization_instruction
         +
-        "Do not use C-style comments or placeholder binder types in Lean sketches. "
-        "Forbidden placeholders/tokens include `/* ... */`, `placeholder`, `TODO`, "
-        "`sorry`, `admit`, `axiom`, `unsafe`, or "
-        "`by?`. Set expected_status=NEEDS_KERNEL_CHECK for candidates and FORMAL_GAP "
-        "only for an unrepaired source target outside Lean source. Candidates remain "
-        "proposals until local Lean/AXLE verifies the exact artifact. Every next_actions "
-        "entry must point to an artifact or candidate actually emitted; request a "
-        "source_to_bridge check only when that exact candidate exists. Otherwise record a "
-        "gap_taxonomy/proof-bank blocker, not a phantom executable action. "
+        "Do not use C-style comments, placeholder binder types, `sorry`, `admit`, "
+        "`axiom`, `unsafe`, or `by?` in Lean sketches. Set candidate status to "
+        "NEEDS_KERNEL_CHECK; use FORMAL_GAP only for an unrepaired source target with "
+        "no Lean source. Every next_actions entry must point to an artifact or candidate "
+        "actually emitted; otherwise record a typed blocker, not a phantom executable "
+        "action. "
         + lean_candidate_instruction
         + "\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
@@ -7244,6 +7226,15 @@ def _formalizer_mode_specific_instructions(
         "proofengineer_repair_context",
         {},
     )
+    initial_formal_source_grounding = (
+        _is_initial_formal_source_grounding_context(
+            proofengineer_repair_context
+        )
+    )
+    formal_source_grounding_available = bool(
+        isinstance(proofengineer_repair_context, Mapping)
+        and proofengineer_repair_context.get("formal_source_grounding_hits")
+    )
     source_theorem_promotion_generation_request = (
         runtime_environment_feedback.get(
             "source_theorem_promotion_generation_request",
@@ -7502,7 +7493,10 @@ def _formalizer_mode_specific_instructions(
         )
         else {}
     )
-    if repair_owner_agent == "ProofEngineer" or proofengineer_repair_context:
+    if (
+        repair_owner_agent == "ProofEngineer"
+        or (proofengineer_repair_context and not initial_formal_source_grounding)
+    ):
         instructions.append(
             "ProofEngineer repair loop is active: consume "
             "runtime_environment_feedback.proofengineer_repair_context, including "
@@ -7519,18 +7513,6 @@ def _formalizer_mode_specific_instructions(
             "Lean repair with model reasoning over that context; there is no "
             "runtime-authored assumption/simp tactic fallback."
         )
-        if (
-            isinstance(proofengineer_repair_context, Mapping)
-            and proofengineer_repair_context.get("formal_source_grounding_hits")
-        ):
-            instructions.append(
-                "Formal-source grounding hits are available: "
-                "use qualified names and premise_declaration_outlines in dependency "
-                "order; use nearby_declaration_outlines only as bounded fallback. "
-                "Names and citations are hints, not authority. Treat hits as one "
-                "premise DAG. Verify each selection in exact local Lean/AXLE; otherwise "
-                "emit a FORMAL_GAP."
-            )
         if (
             isinstance(proofengineer_repair_context, Mapping)
             and proofengineer_repair_context.get("proof_state_trace_rag")
@@ -7563,6 +7545,15 @@ def _formalizer_mode_specific_instructions(
                 "target_theorem_statement exactly, emit the complete declaration, and "
                 "let the AI Statistician local Lean/AXLE gate rerun it."
             )
+    if formal_source_grounding_available:
+        instructions.append(
+            "Formal-source grounding hits are available: use qualified names and "
+            "premise_declaration_outlines in dependency order; use "
+            "nearby_declaration_outlines only as bounded fallback. Names, citations, "
+            "and the source architecture route are orientation, not authority. "
+            "Revalidate every selection in the exact local Lean/AXLE project; emit "
+            "FORMAL_GAP when the required API is unavailable."
+        )
     if formal_blocker_resource_requests:
         instructions.append(
             "Formal blocker resource requests are active: consume "
@@ -9660,6 +9651,49 @@ def _formalizer_mode_specific_instructions(
     return instructions
 
 
+def _is_initial_formal_source_grounding_context(value: Any) -> bool:
+    if not isinstance(value, Mapping):
+        return False
+    if str(value.get("context_kind", "") or "") != (
+        "task_bound_formal_source_grounding"
+    ):
+        return False
+    repair_keys = (
+        "candidate_diagnostics",
+        "proof_state_trace_rag",
+        "external_proof_search_result",
+        "candidate_rerun_specs",
+        "unknown_identifiers",
+    )
+    if any(value.get(key) not in (None, "", [], {}) for key in repair_keys):
+        return False
+    query_roles = {
+        str(group.get("query_role", "") or "")
+        for group in value.get("formal_source_grounding_hits", []) or []
+        if isinstance(group, Mapping)
+    }
+    return not query_roles or query_roles == {"initial_formalization_context"}
+
+
+def _compact_proofengineer_context_for_prompt(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    if (
+        _is_initial_formal_source_grounding_context(value)
+        and value.get("formal_source_grounding_hits")
+    ):
+        return {
+            "context_kind": "task_bound_formal_source_grounding",
+            "formal_source_grounding_hits": (
+                compact_formal_source_grounding_hits_for_prompt(
+                    value.get("formal_source_grounding_hits")
+                )
+            ),
+        }
+    compact = _compact_value(value)
+    return compact if isinstance(compact, dict) else {}
+
+
 def _compact_formalizer_environment_feedback(
     feedback: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -9741,7 +9775,7 @@ def _compact_formalizer_environment_feedback(
             feedback,
             expected_feedback_type="formal_target_semantic_review_feedback",
         ),
-        "proofengineer_repair_context": _compact_value(
+        "proofengineer_repair_context": _compact_proofengineer_context_for_prompt(
             feedback.get("proofengineer_repair_context", {})
             or input_summary.get("proofengineer_repair_context", {})
         ),

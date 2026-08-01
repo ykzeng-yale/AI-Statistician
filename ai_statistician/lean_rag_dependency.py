@@ -50,6 +50,7 @@ class LeanRagDependencyContext:
     module: str = ""
     module_ancestry: tuple[str, ...] = ()
     direct_module_imports: tuple[str, ...] = ()
+    module_dependency_route: tuple[tuple[int, str], ...] = ()
     module_import_visibility_enforced: bool = False
     dependency_resolution_policy: str = ""
     source_snapshot_status: str = "UNBOUND"
@@ -281,6 +282,10 @@ class LeanRagDependencyRetriever:
                     conn,
                     module,
                 )
+                module_dependency_route = _transitive_local_module_imports(
+                    conn,
+                    module,
+                )
                 statement_uses = _neighbor_names(
                     conn,
                     decl_id,
@@ -340,6 +345,7 @@ class LeanRagDependencyRetriever:
             module=module,
             module_ancestry=_module_ancestry(module),
             direct_module_imports=direct_module_imports,
+            module_dependency_route=module_dependency_route,
             module_import_visibility_enforced=(
                 module_import_visibility_enforced
             ),
@@ -1076,3 +1082,48 @@ def _direct_local_module_imports(
         (module,),
     ).fetchall()
     return tuple(str(row[0]) for row in rows)
+
+
+def _transitive_local_module_imports(
+    conn: sqlite3.Connection,
+    module: str,
+    *,
+    max_depth: int = 3,
+    limit: int = 16,
+) -> tuple[tuple[int, str], ...]:
+    if (
+        not module
+        or max_depth <= 0
+        or limit <= 0
+        or not _table_exists(conn, "module_imports")
+    ):
+        return ()
+    rows = conn.execute(
+        """
+        WITH RECURSIVE route(module, depth, visited) AS (
+          SELECT dst_module,
+                 1,
+                 '|' || ? || '|' || dst_module || '|'
+          FROM module_imports
+          WHERE src_module = ?
+            AND is_local_dst = 1
+            AND dst_module != ?
+          UNION ALL
+          SELECT mi.dst_module,
+                 route.depth + 1,
+                 route.visited || mi.dst_module || '|'
+          FROM module_imports mi
+          JOIN route ON mi.src_module = route.module
+          WHERE mi.is_local_dst = 1
+            AND route.depth < ?
+            AND instr(route.visited, '|' || mi.dst_module || '|') = 0
+        )
+        SELECT min(depth) AS minimum_depth, module
+        FROM route
+        GROUP BY module
+        ORDER BY minimum_depth, module
+        LIMIT ?
+        """,
+        (module, module, module, int(max_depth), int(limit)),
+    ).fetchall()
+    return tuple((int(row[0]), str(row[1])) for row in rows)

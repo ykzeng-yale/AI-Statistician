@@ -41172,6 +41172,16 @@ def test_first_formalizer_proposal_receives_task_bound_formal_source_grounding()
     assert "LeastSquares.master_error_bound" in prompt
     assert "High-Dimensional Statistics" in prompt
     assert "Theorem 13.5" in prompt
+    assert "Formal-source grounding hits are available" in prompt
+    assert "ProofEngineer repair loop is active" not in prompt
+    prompt_payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+    prompt_context = prompt_payload["runtime_environment_feedback"][
+        "proofengineer_repair_context"
+    ]
+    assert set(prompt_context) == {
+        "context_kind",
+        "formal_source_grounding_hits",
+    }
     assert len(prompt) < 16000
 
 
