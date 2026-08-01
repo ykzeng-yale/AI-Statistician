@@ -79820,7 +79820,7 @@ def test_formalizer_validator_rejects_source_to_bridge_skeleton_marker() -> None
     assert any("fail_if_success" in error for error in errors)
 
 
-def test_formalizer_validator_rejects_source_to_bridge_wrong_declaration_name() -> None:
+def test_formalizer_validator_binds_identity_without_parsing_declaration_kind() -> None:
     expected_declaration = (
         "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
     )
@@ -79870,7 +79870,7 @@ def test_formalizer_validator_rejects_source_to_bridge_wrong_declaration_name() 
                     "premise_candidate_declaration_name": expected_declaration,
                 },
                 "premise_derivation_candidate_lean_source": (
-                    "theorem invented_hGoodCovered_bridge "
+                    f"lemma {expected_declaration} "
                     "(A B : Prop) (hC : A -> B) : A -> B := by\n"
                     "  exact hC\n"
                 ),
@@ -79892,10 +79892,21 @@ def test_formalizer_validator_rejects_source_to_bridge_wrong_declaration_name() 
 
     errors = validate_formalizer_packet(packet)
 
-    assert any(
-        "exact premise_candidate_declaration_name" in error
-        and expected_declaration in error
+    assert not any(
+        "premise candidate declaration" in error.lower()
+        or "premise_candidate_declaration_name" in error
         for error in errors
+    )
+
+    packet["source_to_bridge_premise_derivation_candidates"][0][
+        "premise_candidate_declaration_name"
+    ] = "invented_hGoodCovered_bridge"
+    mismatch_errors = validate_formalizer_packet(packet)
+
+    assert any(
+        "does not match the runtime request" in error
+        and expected_declaration in error
+        for error in mismatch_errors
     )
 
 
@@ -81057,6 +81068,10 @@ def test_formalizer_normalizer_marks_executable_lean_as_kernel_check_work() -> N
                 "premise_name": "hGoodRankImpliesCovered",
                 "target_theorem_name": "split_conformal_finite_sample_coverage",
                 "target_lean_declaration": "split_conformal_finite_sample_coverage",
+                "premise_candidate_declaration_name": (
+                    "split_conformal_finite_sample_coverage_"
+                    "hGoodRankImpliesCovered_source_to_bridge_derivation"
+                ),
                 "required_semantic_anchor_reference_names": ["hGoodRank", "hExch"],
                 "premise_derivation_candidate_lean_source": (
                     "theorem split_conformal_finite_sample_coverage_hGoodRankImpliesCovered_source_to_bridge_derivation "

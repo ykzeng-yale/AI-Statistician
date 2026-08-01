@@ -1338,8 +1338,11 @@ def build_formalizer_prompt(
                     "AgentRuntime will not infer it by parsing generated Lean text and "
                     "will ask Lean to #check it. "
                     "A source_to_bridge_premise_derivation_candidates entry must copy "
-                    "premise_candidate_declaration_name from the runtime request and "
-                    "its Lean source must declare theorem <that exact name>. "
+                    "premise_candidate_declaration_name from the runtime request. "
+                    "AgentRuntime will compile the exact source and ask Lean to #check "
+                    "that identity; use the declaration kind and namespace organization "
+                    "appropriate to the source library rather than encoding them as "
+                    "validator assumptions. "
                     "When runtime target-shape feedback says a source theorem would "
                     "drift if repaired, emit that source theorem as FORMAL_GAP and "
                     "route helper/premise Lean candidates separately. A separate helper "
@@ -1628,8 +1631,8 @@ FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
                 "source_theorem_policy_bridge_premise_source_to_bridge_derivation"
             ),
             "premise_derivation_candidate_lean_source": (
-                "theorem source_theorem_policy_bridge_premise_source_to_bridge_derivation ... := by\n"
-                "  ..."
+                "complete Lean source exporting the exact structured declaration "
+                "identity under source-local conventions"
             ),
             "reason": "derive the adapter premise from exact source theorem hypotheses",
             "expected_status": "NEEDS_KERNEL_CHECK",
@@ -1782,9 +1785,11 @@ def _formalizer_output_contract_for_prompt(
                     "copy exact premise_candidate_declaration_name when supplied"
                 ),
                 "premise_derivation_candidate_lean_source": (
-                    "canonical Lean source field; declare theorem with the exact "
-                    "premise_candidate_declaration_name and do not use lean_source/"
-                    "lean_code aliases in the final JSON"
+                    "canonical Lean source field; emit the exact structured "
+                    "premise_candidate_declaration_name using source-local declaration "
+                    "and namespace conventions. AgentRuntime compiles the source and "
+                    "asks Lean to #check that identity; do not use lean_source/lean_code "
+                    "aliases in the final JSON"
                 ),
                 "source_to_bridge_premise_derivation_candidate_request_id": (
                     "copy runtime request id when supplied"
@@ -2229,10 +2234,7 @@ def validate_formalizer_packet(packet: Mapping[str, Any]) -> list[str]:
             errors.append(
                 "source_to_bridge_premise_derivation_candidates entry missing Lean candidate source"
             )
-        declaration_errors = _source_to_bridge_candidate_declaration_contract_errors(
-            row,
-            candidate_source,
-        )
+        declaration_errors = _source_to_bridge_candidate_declaration_contract_errors(row)
         errors.extend(declaration_errors)
         if not _source_to_bridge_candidate_has_source_binding_contract(row):
             errors.append(
@@ -2302,28 +2304,42 @@ def validate_formalizer_packet(packet: Mapping[str, Any]) -> list[str]:
 
 def _source_to_bridge_candidate_declaration_contract_errors(
     row: Mapping[str, Any],
-    candidate_source: str,
 ) -> list[str]:
-    if not candidate_source.strip():
-        return []
-    expected_names = _source_to_bridge_candidate_expected_declaration_names(row)
-    if not expected_names:
-        return []
-    missing = [
-        name
-        for name in expected_names
-        if not re.search(rf"\btheorem\s+{re.escape(name)}\b", candidate_source)
-    ]
-    if not missing:
-        return []
-    return [
-        "source_to_bridge_premise_derivation_candidates Lean candidate must "
-        "declare theorem with exact premise_candidate_declaration_name: "
-        + ", ".join(missing)
-    ]
+    row_names = tuple(
+        dict.fromkeys(
+            str(row.get(key, "") or "").strip()
+            for key in (
+                "premise_candidate_declaration_name",
+                "source_to_bridge_premise_candidate_declaration_name",
+            )
+            if str(row.get(key, "") or "").strip()
+        )
+    )
+    if not row_names:
+        return [
+            "source_to_bridge_premise_derivation_candidates entry missing "
+            "structured premise_candidate_declaration_name; AgentRuntime does not "
+            "infer declaration identity by parsing generated Lean source"
+        ]
+    if len(row_names) != 1:
+        return [
+            "source_to_bridge_premise_derivation_candidates entry has conflicting "
+            "structured premise candidate declaration identities: "
+            + ", ".join(row_names)
+        ]
+
+    request_names = _source_to_bridge_candidate_request_declaration_names(row)
+    if request_names and row_names[0] not in request_names:
+        return [
+            "source_to_bridge_premise_derivation_candidates structured "
+            "premise_candidate_declaration_name does not match the runtime request: "
+            f"{row_names[0]} not in "
+            + ", ".join(request_names)
+        ]
+    return []
 
 
-def _source_to_bridge_candidate_expected_declaration_names(
+def _source_to_bridge_candidate_request_declaration_names(
     row: Mapping[str, Any],
 ) -> tuple[str, ...]:
     names: list[str] = []
@@ -2342,8 +2358,6 @@ def _source_to_bridge_candidate_expected_declaration_names(
         if generated:
             names.append(generated)
 
-    add_value(row.get("premise_candidate_declaration_name", ""))
-    add_value(row.get("source_to_bridge_premise_candidate_declaration_name", ""))
     single_request = row.get("source_to_bridge_premise_derivation_candidate_request", {})
     if isinstance(single_request, Mapping):
         add_request(single_request)
@@ -2365,18 +2379,6 @@ def _source_to_bridge_candidate_expected_declaration_names(
                     add_request(item)
                 else:
                     add_value(item)
-    if not names:
-        target = str(
-            row.get("target_lean_declaration", "")
-            or row.get("target_theorem_name", "")
-            or ""
-        ).strip()
-        for premise in _source_to_bridge_candidate_premise_names(row):
-            generated = default_premise_candidate_declaration_name(
-                {"target_lean_declaration": target, "premise_name": premise}
-            )
-            if generated:
-                names.append(generated)
     return tuple(dict.fromkeys(name for name in names if name))
 
 

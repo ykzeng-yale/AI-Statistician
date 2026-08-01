@@ -2407,7 +2407,6 @@ def test_premise_bridge_enforces_candidate_request_declaration_name(
                     ),
                 },
                 premise_derivation_candidate_lean_source=(
-                    "import Mathlib\n\n"
                     f"theorem {wrong_declaration} "
                     "(source_hypotheses bridge_premise : Prop) "
                     "(hsource : source_hypotheses) "
@@ -2422,24 +2421,29 @@ def test_premise_bridge_enforces_candidate_request_declaration_name(
         out_dir=tmp_path / "premise_bridge",
         queue_jsonl=queue,
         local_lean=True,
-        lean_command=(sys.executable, "-c", "import sys; sys.exit(0)"),
+        lean_command=premise_bridge_module._lean_command(None),
     )
 
     row = manifest["rows"][0]
     assert row["local_lean_requested"] is True
-    assert row["local_lean_checked"] is False
+    assert row["local_lean_checked"] is True
+    assert row["local_lean_source_compiled"] is True
+    assert row["candidate_identity_lean_checked"] is True
+    assert row["candidate_identity_lean_verified"] is False
     assert row["local_lean_compiled"] is False
     assert row["premise_candidate_declaration_name"] == requested_declaration
-    assert row["premise_candidate_evidence_eligible"] is False
+    assert row["premise_candidate_evidence_eligible"] is True
     assert row["premise_derivation_kernel_verified"] is False
     assert row["failure_classification"] == (
         "premise_derivation_candidate_wrong_declaration"
     )
-    assert "not evidence eligible" in row["diagnostics"][0]
+    assert row["candidate_identity_probe_artifact_path"]
     assert row[
         "source_to_bridge_premise_derivation_candidate_request_id"
     ] == "source_to_bridge_premise_derivation_candidate_request:hGoodCovered"
     assert manifest["n_premise_derivation_kernel_verified"] == 0
+    assert manifest["n_candidate_identity_lean_checked"] == 1
+    assert manifest["n_candidate_identity_lean_verified"] == 0
     assert manifest["source_theorem_kernel_verified"] is False
 
 
@@ -2659,7 +2663,7 @@ def test_premise_bridge_marks_nonvacuous_candidate_verified_with_local_lean(
                 },
                 premise_derivation_candidate_lean_source=(
                     "import Mathlib\n\n"
-                    f"theorem {declaration} "
+                    f"lemma {declaration} "
                     "(source_hypotheses bridge_premise : Prop) "
                     "(hsource : source_hypotheses) "
                     "(hGoodCovered : bridge_premise) : bridge_premise := by\n"
@@ -2669,14 +2673,19 @@ def test_premise_bridge_marks_nonvacuous_candidate_verified_with_local_lean(
         ],
     )
 
+    lean_project = Path("legacy_sources/emperical_process_lean").resolve()
     manifest = run_source_to_bridge_premise_derivation_proofengineer_bridge(
         out_dir=tmp_path / "premise_bridge",
         queue_jsonl=queue,
         local_lean=True,
-        lean_command=(sys.executable, "-c", "import sys; sys.exit(0)"),
+        lean_project=lean_project,
+        lean_command=premise_bridge_module._lean_command(lean_project),
     )
 
     row = manifest["rows"][0]
+    assert row["local_lean_source_compiled"] is True
+    assert row["candidate_identity_lean_checked"] is True
+    assert row["candidate_identity_lean_verified"] is True
     assert row["premise_candidate_assumes_forbidden_premise"] is False
     assert row["premise_candidate_evidence_eligible"] is True
     assert row["premise_derivation_kernel_verified"] is True
@@ -2691,6 +2700,8 @@ def test_premise_bridge_marks_nonvacuous_candidate_verified_with_local_lean(
         "KERNEL_VERIFIED_SOURCE_TO_BRIDGE_PREMISE_DERIVATIONS_PRESENT"
     )
     assert manifest["n_premise_derivation_kernel_verified"] == 1
+    assert manifest["n_candidate_identity_lean_checked"] == 1
+    assert manifest["n_candidate_identity_lean_verified"] == 1
     assert manifest["source_theorem_kernel_verified"] is False
     learning_rows = [
         json.loads(line)

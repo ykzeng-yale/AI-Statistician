@@ -21,8 +21,8 @@ from .exact_semantic_definition_policy import (
 from .formal_verifier_agentic_proof_execution_artifact_verifier import (
     FORBIDDEN_ARTIFACT_TOKENS,
     _lean_command,
-    _run_local_lean,
 )
+from .lean_candidate_identity import run_lean_candidate_identity_probe
 from .research_architect import KERNEL_PROOF_BOUNDARY
 
 
@@ -57,8 +57,9 @@ BOUNDARY = (
     "Source-to-bridge premise derivation rows are ProofEngineer work items for "
     "deriving closure/bridge premise binders from exact source-theorem "
     "hypotheses. They are not full source theorem proof evidence. A row can "
-    "become premise-derivation evidence only when a non-vacuous theorem for the "
-    "specific premise compiles under local Lean/AXLE with no forbidden "
+    "become premise-derivation evidence only when a non-vacuous declaration for "
+    "the specific premise compiles and its explicit identity resolves under local "
+    "Lean/AXLE with no forbidden "
     "placeholder tokens. The exact source theorem still must be rerun and "
     "kernel verified separately."
 )
@@ -149,7 +150,11 @@ class SourceToBridgePremiseDerivationCheckRow:
     acceptance_gate: str
     local_lean_requested: bool
     local_lean_checked: bool
+    local_lean_source_compiled: bool
     local_lean_compiled: bool
+    candidate_identity_lean_checked: bool
+    candidate_identity_lean_verified: bool
+    candidate_identity_probe_artifact_path: str
     lean_command: tuple[str, ...]
     lean_project: str
     lean_timeout: int
@@ -346,7 +351,16 @@ def run_source_to_bridge_premise_derivation_proofengineer_bridge(
         "n_work_orders": len(work_orders),
         "n_premise_derivation_check_rows": len(rows),
         "n_local_lean_checked": sum(1 for row in rows if row.local_lean_checked),
+        "n_local_lean_source_compiled": sum(
+            1 for row in rows if row.local_lean_source_compiled
+        ),
         "n_local_lean_compiled": sum(1 for row in rows if row.local_lean_compiled),
+        "n_candidate_identity_lean_checked": sum(
+            1 for row in rows if row.candidate_identity_lean_checked
+        ),
+        "n_candidate_identity_lean_verified": sum(
+            1 for row in rows if row.candidate_identity_lean_verified
+        ),
         "n_local_lean_skipped_not_evidence_eligible": (
             n_local_lean_skipped_not_evidence_eligible
         ),
@@ -799,9 +813,7 @@ def _premise_derivation_check_row(
         else ()
     )
     references_semantic_anchor = not missing_semantic_anchor_names
-    theorem_matches = bool(
-        re.search(rf"\btheorem\s+{re.escape(declaration_name)}\b", source)
-    )
+    candidate_identity_present = bool(declaration_name)
     premise_referenced = _premise_name_referenced_by_candidate(
         source,
         premise_name=premise_name,
@@ -810,7 +822,7 @@ def _premise_derivation_check_row(
     evidence_eligible = bool(
         provided_source
         and source_binding_contract_present
-        and theorem_matches
+        and candidate_identity_present
         and premise_referenced
         and not vacuous
         and not assumes_forbidden_premise
@@ -818,8 +830,12 @@ def _premise_derivation_check_row(
         and references_semantic_anchor
         and not forbidden_tokens
     )
+    local_source_compiled = False
     local_compiled = False
     local_checked = False
+    candidate_identity_checked = False
+    candidate_identity_verified = False
+    candidate_identity_probe_artifact_path = ""
     returncode = 0
     diagnostics: tuple[str, ...] = ()
     if local_lean and evidence_eligible:
@@ -828,11 +844,38 @@ def _premise_derivation_check_row(
             returncode = -1
             diagnostics = ("local Lean executable not found",)
         else:
-            local_compiled, returncode, diagnostics = _run_local_lean(
-                candidate_path,
+            lean_result = run_lean_candidate_identity_probe(
+                artifact_path=candidate_path,
+                candidate_lean_declaration=declaration_name,
                 lean_command=lean_command,
                 lean_project=lean_project,
-                timeout_s=lean_timeout,
+                lean_timeout=lean_timeout,
+            )
+            local_source_compiled = bool(
+                lean_result.get("local_lean_source_compiled", False)
+            )
+            local_compiled = bool(lean_result.get("local_lean_compiled", False))
+            candidate_identity_checked = bool(
+                lean_result.get("candidate_identity_lean_checked", False)
+            )
+            candidate_identity_verified = bool(
+                lean_result.get("candidate_identity_lean_verified", False)
+            )
+            candidate_identity_probe_artifact_path = str(
+                lean_result.get("candidate_identity_probe_artifact_path", "") or ""
+            )
+            exit_status = str(
+                lean_result.get("local_lean_exit_status", "") or ""
+            )
+            returncode = int(exit_status) if exit_status.lstrip("-").isdigit() else -1
+            diagnostics = tuple(
+                line
+                for value in (
+                    lean_result.get("local_lean_stdout", ""),
+                    lean_result.get("local_lean_stderr", ""),
+                )
+                for line in str(value or "").splitlines()
+                if line.strip()
             )
     elif local_lean and not evidence_eligible:
         diagnostics = (
@@ -840,10 +883,13 @@ def _premise_derivation_check_row(
         )
     failure = _premise_failure_classification(
         local_lean=local_lean,
+        local_source_compiled=local_source_compiled,
         local_compiled=local_compiled,
         provided_source=bool(provided_source),
         evidence_eligible=evidence_eligible,
-        theorem_matches=theorem_matches,
+        candidate_identity_present=candidate_identity_present,
+        candidate_identity_checked=candidate_identity_checked,
+        candidate_identity_verified=candidate_identity_verified,
         premise_referenced=premise_referenced,
         source_binding_contract_present=source_binding_contract_present,
         vacuous=vacuous,
@@ -853,7 +899,12 @@ def _premise_derivation_check_row(
         forbidden_tokens=forbidden_tokens,
         diagnostics=diagnostics,
     )
-    premise_verified = bool(local_lean and local_compiled and evidence_eligible)
+    premise_verified = bool(
+        local_lean
+        and local_compiled
+        and candidate_identity_verified
+        and evidence_eligible
+    )
     llm_candidate_generation_required = not bool(provided_source)
     candidate_generation_request = (
         {
@@ -1106,7 +1157,13 @@ def _premise_derivation_check_row(
         acceptance_gate=str(row.get("acceptance_gate", "") or ""),
         local_lean_requested=bool(local_lean),
         local_lean_checked=local_checked,
+        local_lean_source_compiled=local_source_compiled,
         local_lean_compiled=local_compiled,
+        candidate_identity_lean_checked=candidate_identity_checked,
+        candidate_identity_lean_verified=candidate_identity_verified,
+        candidate_identity_probe_artifact_path=(
+            candidate_identity_probe_artifact_path
+        ),
         lean_command=lean_command,
         lean_project=str(lean_project or ""),
         lean_timeout=int(lean_timeout),
@@ -3975,8 +4032,9 @@ def _premise_derivation_candidate_request_row(
             "premise_derivation_candidate_lean_source",
         ],
         "candidate_contract": (
-            "Return a non-vacuous Lean theorem with exactly the listed "
-            "premise_candidate_declaration_name, proving premise_target_type from "
+            "Return a non-vacuous Lean declaration with exactly the listed "
+            "premise_candidate_declaration_name. The runtime compiles the exact "
+            "source and asks Lean to resolve that identity. Prove premise_target_type from "
             "exact source-theorem hypotheses and semantic dependencies. Use the "
             "premise_semantic_anchor_binders as the preferred source binders for "
             "this premise and reference every required_semantic_anchor_reference_names "
@@ -4202,10 +4260,13 @@ def _lean_proof_body_without_comments(
 def _premise_failure_classification(
     *,
     local_lean: bool,
+    local_source_compiled: bool,
     local_compiled: bool,
     provided_source: bool,
     evidence_eligible: bool,
-    theorem_matches: bool,
+    candidate_identity_present: bool,
+    candidate_identity_checked: bool,
+    candidate_identity_verified: bool,
     premise_referenced: bool,
     source_binding_contract_present: bool,
     vacuous: bool,
@@ -4229,7 +4290,7 @@ def _premise_failure_classification(
         return "premise_derivation_candidate_missing_source_binding_contract"
     if not references_semantic_anchor:
         return "premise_derivation_candidate_missing_semantic_anchor_reference"
-    if not theorem_matches:
+    if not candidate_identity_present:
         return "premise_derivation_candidate_wrong_declaration"
     if not premise_referenced:
         return "premise_derivation_candidate_missing_premise_reference"
@@ -4239,6 +4300,12 @@ def _premise_failure_classification(
         return "premise_derivation_candidate_not_checked"
     if local_compiled:
         return ""
+    if (
+        local_source_compiled
+        and candidate_identity_checked
+        and not candidate_identity_verified
+    ):
+        return "premise_derivation_candidate_wrong_declaration"
     text = "\n".join(diagnostics).lower()
     if "timed out" in text or "timeout" in text:
         return "premise_derivation_local_lean_timeout"
