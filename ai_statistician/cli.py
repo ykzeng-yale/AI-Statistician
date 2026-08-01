@@ -446,6 +446,7 @@ from .model_backend import (
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
     OpenAIResponsesGeneratorBackend,
     _call_with_wall_clock_timeout,
+    claude_model_tier_for_model,
     default_generator_model,
     default_generator_provider,
 )
@@ -11770,12 +11771,20 @@ def _research_architect_theory_develop(args: argparse.Namespace) -> int:
     _attach_runtime_learning_memory(args, context)
     _attach_runtime_capability_gap_routing(args, context)
     model = _default_model_for_provider(args.provider, args.llm_model, model_tier="sonnet")
+    model_tier = (
+        claude_model_tier_for_model(model)
+        if provider_name == "anthropic"
+        else ""
+    ) or "sonnet"
     theory_developer = LLMTheoryDeveloperAgent(
         provider=provider,
         config=ResearchArchitectConfig(
             model=model,
-            model_tier="sonnet",
+            model_tier=model_tier,
             max_tokens=args.max_tokens,
+            serious_model=model,
+            serious_model_tier=model_tier,
+            serious_max_tokens=args.max_tokens,
             temperature=args.temperature,
             provider_name=provider_name,
             max_repair_attempts=args.max_repair_attempts,

@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-08-01T17:53:10Z",
+  "updated_at": "2026-08-01T18:57:37Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "active_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
@@ -35,7 +35,10 @@
     "theory_gate_scope": "Self-critique remains useful serious-workspace content but is not a standalone hard execution gate. V173 showed that requiring a non-empty reflection list caused four repairs and 180 seconds of waste while an independent semantic reviewer already owned substantive criticism; that cosmetic validator and its test were removed.",
     "metric_review_transport": "The independent pre-execution reviewer receives a compact projection of immutable authority, a single typed array for variable-count theory-scope checks, and runtime-owned prior-finding identity/evidence binding. Local validators still check the full source material and exact coverage.",
     "semantic_audit": "Generic prompts require primitive DGP/estimand reconstruction, full-support expectation or probability expansion, normalization, boundary checks, and alignment with Architect formal/simulation targets. No statistical task formula was added.",
-    "formalizer_strategy": "Exact target and assumptions, source-local module and namespace as distinct identities, dependency-ordered lemma DAG, smallest blocked leaf, real Lean/LSP diagnostics, preservation of verified ancestors, and statement/assumption review after persistent failure. Library placement follows reusable mathematical dependencies rather than textbook order, declarations use source-local semantic names, and book theorem numbers remain citation metadata. Initial API design and compiler repair receive bounded qualified signatures, direct premises, module/import context, and version gates; broad source prose remains a retrieval signal, with at most one bounded primary declaration doc or citation for disambiguation. No Lean syntax or tactic repair rule was added.",
+    "formalizer_strategy": "Exact target and assumptions, source-local module and namespace as distinct identities, a complete dependency-ordered lemma DAG in artifacts, the current bounded active-frontier slice per agent call, real Lean/LSP diagnostics, preservation of verified ancestors, and statement/assumption review after persistent failure. The three-item transport cap no longer describes the whole DAG and must not merge unrelated obligations. Every retry binds the failed candidate and diagnostic and evolves the target API, infrastructure pointers, or proof plan. Library placement follows reusable mathematical dependencies rather than textbook order, declarations use source-local semantic names, and book theorem numbers remain citation metadata. No Lean syntax or tactic repair rule was added.",
+    "theory_formal_rag_projection": "TheoryDeveloper now compares the top three ranked qualified declaration signatures so a direct semantic match at rank three is not discarded. Only the primary candidate may carry one bounded source-authored declaration doc or citation; secondary prose, broad module summaries, and every proof body are omitted. Architect proof skeletons are routing proposals rather than mathematical authority, so the LLM may choose a more direct retrieved declaration while preserving the exact target and evidence gates.",
+    "research_eval_metric_semantics": "Research completion now follows the frozen metric contract's required flag: at least one authority-bound metric must execute and pass, and all required metrics must pass. Failed optional diagnostics remain explicit failed observations but do not masquerade as required-gate failure. No threshold, task metric, or observed value was changed.",
+    "theory_cli_model_binding": "An explicit Anthropic CLI model now binds both ordinary and serious TheoryDeveloper phases to that exact model and inferred tier. This closes the serious-mode override that made one discarded, mislabeled probe invoke Sonnet despite a Haiku CLI request. The invalid probe was removed, no evidence was retained from it, and no Opus request occurred.",
     "formalizer_declaration_identity": "Formalizer source-to-bridge candidates now bind an explicit declaration identity to the runtime request, then use the same shared local Lean source-compilation plus #check probe as ordinary Formalizer candidates. Packet validation no longer parses generated source for a hardcoded theorem keyword, so source-local lemma/namespace conventions reach Lean unchanged. A source that compiles but does not export the requested identity remains non-evidence and is classified as a wrong declaration.",
     "formal_rag_queries": "Initial retrieval keeps an exact qualified-name query first, then consumes an explicit upstream source citation/query when present, then theorem semantics and required definitions/lemmas within the bounded query budget. Explicit source ids or source-target provenance are carried into the Formalizer instead of guessed by the runtime. Once Lean feedback exists, the three bounded lanes become one live goal/diagnostic, one unknown API when present, and one semantic target. Repeated declarations across query groups are removed. Imports remain visibility metadata rather than lexical hits, and relative dotted Lean declarations preserve their enclosing namespace.",
     "formal_rag_fusion": "Providers are fused by declaration identity and normalized signature using strongest relevance plus a bounded corroboration bonus. Reindexing one source cannot multiply its score. A source-bound request is now a real main-source allowlist: providers without scoped search have out-of-scope hits removed and counted, while explicitly declared anchor-scoped companion corpora remain provider-owned support context.",
@@ -78,7 +81,7 @@
       "declarations_with_section_summaries": 1334,
       "declarations_bound_to_readme_layers": 1996,
       "readme_layers": 8,
-      "prompt_policy": "Source architecture, docs, citations, and naming are retrieval signals. Initial source-scoped authoring may carry two qualified candidate signatures with module/import context and a bounded primary declaration doc/citation; broad module prose, README taxonomy, section summaries, nearby naming examples, and proof bodies are excluded. Repair uses one live-state, one unknown-API, and one semantic query when available; current Lean state is authoritative."
+      "prompt_policy": "Source architecture, docs, citations, and naming are retrieval signals. Theory route comparison may carry three ranked qualified signatures and only one bounded primary declaration doc/citation. Formalizer source-scoped authoring carries up to two qualified candidate signatures with module/import context. Broad module prose, README taxonomy, section summaries, nearby naming examples, and proof bodies are excluded. Repair uses one live-state, one unknown-API, and one semantic query when available; current Lean state is authoritative."
     },
     "signature_corpus": {
       "declarations": 3021,
@@ -174,33 +177,35 @@
       "proof_bodies_present": false,
       "proof_status": "LIVE_STATE_RANKED_RUNTIME_CONTEXT_NOT_THEOREM_PROOF"
     },
-    "boundary": "AI4SLT source docs, section summaries, README taxonomy, naming examples, and citations may rank candidate declarations, but the Formalizer receives a bounded signature-first projection rather than broad source prose; only one bounded primary declaration doc or citation may disambiguate intent. Signatures, dependency context, and train-state hits remain non-proof candidate context. Toolchain/snapshot identity is disclosed, and every selected declaration or generated action must be re-elaborated in the exact active project before it can contribute to kernel evidence."
+    "boundary": "AI4SLT source docs, section summaries, README taxonomy, naming examples, and citations may rank candidate declarations, but TheoryDeveloper and Formalizer receive role-specific bounded signature-first projections rather than broad source prose; only one bounded primary declaration doc or citation may disambiguate intent. Signatures, dependency context, and train-state hits remain non-proof candidate context. Toolchain/snapshot identity is disclosed, and every selected declaration or generated action must be re-elaborated in the exact active project before it can contribute to kernel evidence."
   },
   "latest_live_research_eval": {
-    "run": "runs/main_worker_research_eval_20260801_v180_raw_transport_repair_haiku_survival",
-    "task_family": "right-censored survival development task",
+    "run": "runs/main_worker_theory_rag_semantic_probe_20260801_v185_exact_haiku_sequential",
+    "task_family": "anytime-valid sequential Bernoulli development task",
     "evaluation_model": "claude-haiku-4-5-20251001",
     "enabled_llm_agents_at_exact_haiku": 8,
     "llm_topology_policy_ok": true,
-    "status": "BLOCKED",
-    "terminal_classification": "architect_metric_protocol_preexecution_rejected",
-    "agent_runtime_iterations": 18,
-    "task_handoffs": 17,
-    "runtime_tool_calls": 11,
+    "status": "ACCEPTED",
+    "terminal_classification": "critic_accepted",
+    "agent_runtime_iterations": 11,
+    "task_handoffs": 10,
+    "runtime_tool_calls": 5,
     "theory_revision_attempted": true,
     "targeted_preexecution_theory_revision_completed": true,
-    "raw_transport_repair_path_completed": true,
     "exact_key_interface_transport_completed": true,
     "independent_preexecution_reviews_accepted": 1,
-    "algorithm_sandbox_executions": 2,
-    "algorithm_sandbox_execution_passes": 2,
-    "algorithm_semantic_review_accepted_before_superseding_theory_revision": true,
-    "generated_simulation_sandbox_executions": 2,
-    "generated_simulation_metric_gate_passes": 0,
-    "research_loops_complete": "0/1",
+    "algorithm_sandbox_executions": 1,
+    "algorithm_sandbox_execution_passes": 1,
+    "algorithm_semantic_review_accepted": true,
+    "generated_simulation_sandbox_executions": 1,
+    "generated_simulation_metric_contracts": 6,
+    "generated_simulation_metric_contracts_passed": 5,
+    "required_simulation_metric_contracts_passed": "2/2",
+    "optional_simulation_metric_contracts_failed": 1,
+    "research_loops_complete_under_current_required_metric_semantics": "1/1",
     "kernel_verified_subclaims": 0,
     "strict_formal_lane_executed": false,
-    "result": "The run crossed the prior interface-cardinality and raw-path repair blockers. One parent-bound theory revision passed independent preflight, fresh unregistered algorithms executed twice and passed independent code review, and two generated simulations executed against frozen gates. Both simulations failed those gates. Post-execution feedback triggered the bounded upstream revision path, whose next theory remained semantically inadequate on procedure identity, zero-event behavior, and guarantee transport. Global lineage stopped at iteration 18. This is integrated mechanism progress but remains 0/1 research-loop closure and no theorem evidence."
+    "result": "The fresh exact-Haiku run completed TheoryDeveloper revision, independent pre-execution review, metric-protocol authorization, generated algorithm execution and review, generated simulation execution and review, and Critic acceptance. Its saved manifest used the old all-metrics-must-pass summary and reported 0/1 because one optional stopping-time diagnostic failed. Deterministic replay with the corrected required/optional semantics reports research-only 1/1 while preserving that failed optional observation. No formal lane ran and there is no theorem evidence."
   },
   "latest_component_replay": {
     "run": "runs/main_worker_simulation_profile_schema_replay_20260801_v181_haiku",
@@ -222,13 +227,13 @@
   },
   "current_readiness": {
     "fully_end_to_end_ready": false,
-    "development_research_loop_current_mechanism": "0/2 completed after the current transport change",
+    "development_research_loop_current_mechanism": "1/2 completed after deterministic replay under the corrected required/optional metric semantics",
     "exact_source_theorem_kernel_closure": "0/2",
     "held_out_generalization": "not run",
-    "primary_blocker": "Cross-stage statistical semantic and generated simulation quality under exact-Haiku evaluation: transport now reaches real execution and feedback, but the development task still fails frozen simulation gates and the bounded follow-up theory remains unsupported or incomplete",
+    "primary_blocker": "The survival development family still lacks research-loop closure, and neither development family has entered exact source-theorem active-project Lean/kernel closure",
     "secondary_blockers": [
       "research completion correctly ignores artifacts tied to a superseded theory, but a separate historical progress projection is still needed to expose earlier sandbox and reviewer passes",
-      "survival has one fresh integrated run after the transport repairs, but sequential development still needs the same fresh-start evaluation",
+      "sequential has one fresh research-only closure, but survival still needs a fresh retry under the same shared mechanism",
       "pending cross-stage findings do not yet carry explicit resolution identities, so a later ownership review cannot safely prove an earlier dual theory/code finding resolved",
       "accepted metric-protocol preflight still performs metric author, independent reviewer, and final Architect plan calls serially",
       "some proof continuation still lives in legacy post-runtime processing",
@@ -237,7 +242,7 @@
     ]
   },
   "next_main_worker_actions": [
-    "Run the fresh exact-Haiku sequential development evaluation next; do not open PCA or extremes.",
+    "Run a fresh exact-Haiku survival development evaluation under the same shared mechanism; do not open PCA or extremes.",
     "Add explicit finding-resolution identity across ownership packets before changing how pending dual theory/code defects survive replans; do not infer resolution from wording.",
     "Reduce accepted preflight cost by reusing the already validated plan skeleton when attaching an immutable metric protocol; preserve the independent reviewer and authority boundary.",
     "Record historical partial-stage progress separately from final active-candidate completion so superseded evidence remains visible but cannot satisfy the gate.",
@@ -248,7 +253,7 @@
   ],
   "verification": {
     "core_suite": "291 passed, 3 skipped, 6 subtests passed in 2183.57 seconds",
-    "current_affected_file_panel": "146 formal-source, scoped-RAG, proof-state, research-architect, repair, preflight, and scientific-sandbox tests plus 7 focused AgentRuntime cases passed; no provider call",
+    "current_affected_file_panel": "161 unique formal-source, scoped-RAG, proof-state, research-architect, research-evaluation, repair, preflight, scientific-sandbox, and focused AgentRuntime tests passed; no provider call",
     "shared_lean_graph_indexer_panel": "7 parser, declaration-identity, dependency-edge, metadata, and FTS tests passed; no provider call",
     "current_declaration_trace_alignment_panel": "62 focused proof-state, formal-source, scoped-corpus, proof-bank, Lean-provider, and offline AgentRuntime transport tests passed; no provider call",
     "model_and_test_environment_policy": "39 model-backend and research-eval policy tests passed; no provider call",
@@ -265,7 +270,8 @@
     "checkpoint_live_replay": "V172 resumed the hash-bound V171 targeted core and completed estimator-interface authoring with exact claude-haiku-4-5-20251001 in one provider call, zero repairs, and zero validation errors. This is component evidence only.",
     "exact_key_and_raw_path_live_replays": "V177 exact-key interface authoring and V179 raw-path preflight repair both passed with exact claude-haiku-4-5-20251001. They are component evidence only.",
     "simulation_profile_live_replay": "V181 generated one valid simulation packet with exact claude-haiku-4-5-20251001 in one 8,000-token structured-output call, zero repairs, and zero validation errors. Raw stdlib dependencies were absent and canonical dependencies were empty. This is proposal-only component evidence, not execution or proof.",
-    "provider_evaluation_policy": "V180 topology reports eight enabled agents at exact claude-haiku-4-5-20251001, zero policy violations, and no Opus call; production remains hard-capped at Sonnet"
+    "exact_haiku_sequential_replay": "V185 topology reports eight enabled agents at exact claude-haiku-4-5-20251001 with zero policy violations. Current-code deterministic summary replay is research-only 1/1; two required metrics passed, one of four optional diagnostics failed, and formal/kernel evidence remains zero.",
+    "provider_evaluation_policy": "V185 topology reports eight enabled agents at exact claude-haiku-4-5-20251001, zero policy violations, and no Opus call; production remains hard-capped at Sonnet"
   },
   "proof_boundary": "Theory, simulation, code execution, reviewer acceptance, RAG hits, pseudo-formal blocks, external source compilation, and support-lemma compilation are not proof of the intended theorem. Only exact active-project Lean/kernel verification can close a theorem.",
   "history_policy": "This file contains current coordination state only. Superseded audits, runs, and validation logs remain available in Git history and immutable run manifests instead of being recopied here."

@@ -290,13 +290,6 @@ def _simulation_has_bound_nonvacuous_metric_evidence(
         or 0
     ) <= 0:
         return False
-    if int(
-        simulation_manifest.get(
-            "n_generated_simulation_typed_metric_contracts_failed", 0
-        )
-        or 0
-    ) != 0:
-        return False
     prototypes = simulation_manifest.get(
         "generated_simulation_sandbox_prototypes", []
     )
@@ -320,7 +313,6 @@ def _simulation_has_bound_nonvacuous_metric_evidence(
             and evaluation.get("metric_requirement_authority_validated") is True
             and int(evaluation.get("n_contracts", 0) or 0) > 0
             and int(evaluation.get("n_passed", 0) or 0) > 0
-            and int(evaluation.get("n_failed", 0) or 0) == 0
             and evaluation.get("all_required_passed") is True
         ):
             return True
@@ -457,13 +449,6 @@ def build_research_evaluation_summary(
                 > 0
                 and simulation_manifest.get("generated_simulation_passed") is True
                 and simulation_manifest.get("simulation_passed") is True
-                and int(
-                    simulation_manifest.get(
-                        "n_generated_simulation_typed_metric_contracts_failed", 0
-                    )
-                    or 0
-                )
-                == 0,
             ),
             "simulation_metric_evidence_nonvacuous_and_bound": (
                 _simulation_has_bound_nonvacuous_metric_evidence(

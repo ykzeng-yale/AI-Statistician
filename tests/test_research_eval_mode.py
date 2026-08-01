@@ -697,6 +697,36 @@ def test_research_evaluation_summary_requires_every_research_artifact() -> None:
     )
     assert summary["all_questions_research_loop_complete"] is True
 
+    artifacts["simulation"].update(
+        {
+            "n_generated_simulation_typed_metric_contracts_declared": 2,
+            "n_generated_simulation_typed_metric_contracts_evaluated": 2,
+            "n_generated_simulation_typed_metric_contracts_passed": 1,
+            "n_generated_simulation_typed_metric_contracts_failed": 1,
+        }
+    )
+    metric_evaluation = artifacts["simulation"][
+        "generated_simulation_sandbox_prototypes"
+    ][0]["metric_contract_evaluation"]
+    metric_evaluation.update(
+        {
+            "n_contracts": 2,
+            "n_passed": 1,
+            "n_failed": 1,
+            "all_required_passed": True,
+        }
+    )
+    artifacts["simulation_review"]["source_manifest_hash"] = stable_hash(
+        artifacts["simulation"]
+    )
+    summary = build_research_evaluation_summary(
+        [result], evaluation_mode="research_eval", schema_version="test"
+    )
+    assert summary["all_questions_research_loop_complete"] is True
+    assert summary["rows"][0]["requirements"][
+        "simulation_metric_evidence_nonvacuous_and_bound"
+    ] is True
+
     artifacts["simulation_review"][
         "confirmatory_empirical_evidence_eligible"
     ] = False

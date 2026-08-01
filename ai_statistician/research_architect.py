@@ -62,6 +62,11 @@ KERNEL_PROOF_BOUNDARY = (
     "or diagnostic evidence only. Formal proof evidence requires AXLE/local "
     "Lean kernel verification of the intended formal claim."
 )
+THEORY_FORMAL_SOURCE_PROMPT_POLICY = (
+    "Three ranked qualified declaration signatures are retained for semantic route "
+    "comparison. Only the primary hit may carry one bounded declaration doc or "
+    "citation; broad module prose and proof bodies are omitted."
+)
 
 
 class ArchitectLLMProvider(GeneratorBackend, Protocol):
@@ -581,6 +586,23 @@ def build_theory_developer_prompt(
                 "or nonlinear transforms, verify the exact closure direction and every "
                 "hypothesis. If this cannot be derived, reject that candidate or leave "
                 "one explicit unresolved critic finding instead of asserting validity."
+            ),
+            (
+                "Before selecting a proof route, compare the actual conclusion and "
+                "hypotheses of each retrieved declaration with the target. Prefer a "
+                "direct target-matching result whose assumptions are verified over a "
+                "stronger theorem that introduces unproved side conditions. If a "
+                "retrieved declaration is selected, preserve its exact qualified name "
+                "in formalization_handoff.candidate_lean_targets and explain the "
+                "mathematical match in theorem_cards[*].proof_strategy. Retrieval "
+                "remains candidate context, not proof evidence."
+            ),
+            (
+                "Treat any Architect-proposed proof skeleton as a routing proposal, "
+                "not mathematical authority. Preserve the target and evidence gates, "
+                "but replace the proposed route when declaration signatures support a "
+                "more direct argument under fewer verified assumptions; record the "
+                "reason for that route change in the proof strategy."
             ),
             (
                 "Use sanity_checks for falsification: show at least one primitive "
@@ -1129,6 +1151,7 @@ def _compact_retrieval_context_for_prompt(retrieval_context: Mapping[str, Any]) 
         },
         "knowledge_cards": [_compact_knowledge_card(row) for row in knowledge_cards[:3]],
         "paper_sources": [_compact_paper_source(row) for row in paper_sources[:3]],
+        "formal_source_prompt_policy": THEORY_FORMAL_SOURCE_PROMPT_POLICY,
         "formal_source_hits": [_compact_formal_hit_group(row) for row in formal_source_hits[:2]],
         "boundary": retrieval_context.get("boundary", ""),
         "compaction_note": (
@@ -1171,22 +1194,40 @@ def _compact_formal_hit_group(row: Any) -> dict[str, Any]:
     return {
         "theorem_goal_id": row.get("theorem_goal_id", ""),
         "n_hits": len(hits),
-        "hits": [_compact_formal_hit(hit) for hit in hits[:2]],
+        "hits": [
+            _compact_formal_hit(hit, primary=index == 0)
+            for index, hit in enumerate(hits[:3])
+        ],
     }
 
 
-def _compact_formal_hit(hit: Any) -> dict[str, Any]:
+def _compact_formal_hit(hit: Any, *, primary: bool) -> dict[str, Any]:
     if not isinstance(hit, Mapping):
         return {"summary": _truncate_text(hit, 240)}
-    return {
+    compact = {
         "source_id": hit.get("source_id", ""),
         "path": hit.get("path", ""),
         "line": hit.get("line", ""),
         "kind": hit.get("kind", ""),
         "name": _truncate_text(hit.get("name", ""), 140),
+        "namespace": _truncate_text(hit.get("namespace", ""), 140),
         "score": hit.get("score", ""),
         "matched_terms": list(hit.get("matched_terms", []) or [])[:8],
-        "signature_omitted": bool(hit.get("signature")),
+        "proof_body_included": False,
+    }
+    for key, limit in (("signature", 520),):
+        value = str(hit.get(key, "") or "").strip()
+        if value:
+            compact[key] = _truncate_text(value, limit)
+    if primary:
+        for key, limit in (("declaration_doc", 320), ("reference", 180)):
+            value = str(hit.get(key, "") or "").strip()
+            if value:
+                compact[key] = _truncate_text(value, limit)
+    return {
+        key: value
+        for key, value in compact.items()
+        if value not in (None, "", [], {})
     }
 
 
@@ -3416,15 +3457,20 @@ def _validate_theory_estimator_interface_authoring_packet(
             errors.append(f"interfaces[{index}] must be an object")
             continue
         estimator_id = str(row.get("estimator_id", "") or "").strip()
+        interface_label = (
+            f"interfaces[{json.dumps(estimator_id, ensure_ascii=False)}]"
+            if estimator_id
+            else f"interfaces[{index}]"
+        )
         observed_ids.append(estimator_id)
         if estimator_id not in expected_ids:
             errors.append(
-                f"interfaces[{index}].estimator_id must name a frozen estimator"
+                f"{interface_label}.estimator_id must name a frozen estimator"
             )
         errors.extend(
             estimator_interface_contract_errors(
                 row.get("estimator_interface_contract"),
-                label=f"interfaces[{index}]",
+                label=interface_label,
                 required=True,
                 allowed_derivation_refs=allowed_refs,
                 require_typed_rate=True,
@@ -3478,6 +3524,10 @@ def _theory_estimator_interface_repair_context(
         "required_behavior": (
             "Repair only the exact-key interfaces object. Preserve every frozen "
             "estimator property and use interface_object_paths for typed patches. "
+            "Validation errors use those raw exact-key object paths. When a typed "
+            "rate is inconsistent, recompute the aggregate and contribution "
+            "exponents from the frozen core semantics and update every inconsistent "
+            "field together; do not guess from an array index. "
             "Copy derivation_ref and justification_ref only from "
             "allowed_semantic_reference_ids."
         ),

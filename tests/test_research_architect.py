@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+import ai_statistician.cli as cli_module
 from ai_statistician.cli import (
     _apply_research_agent_runtime_evaluation_model_policy,
     _build_algorithm_engineer_agent_from_args,
@@ -1106,6 +1107,17 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
     )
     assert "allowed_semantic_reference_ids" in first_provider.requests[2].user_prompt
     assert "orthogonal_expansion" in first_provider.requests[2].user_prompt
+    repair_payload = json.loads(
+        first_provider.requests[2].user_prompt.split("\n\n", 1)[1]
+    )
+    repair_errors = repair_payload["subsystem_repair_context"][
+        "last_validation_errors"
+    ]
+    assert any(
+        f'interfaces["{estimator["id"]}"]' in error
+        for error in repair_errors
+    )
+    assert all("interfaces[0]" not in error for error in repair_errors)
 
     retry_context = dict(context)
     retry_context["theory_developer_source_environment_feedback"] = dict(
@@ -1585,6 +1597,63 @@ def test_research_architect_cli_static_provider_exports_artifacts() -> None:
     assert Path(manifest["artifacts"]["evidence_ledger"]).exists()
 
 
+def test_research_architect_cli_binds_explicit_haiku_to_serious_mode(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class NoCallBackend:
+        provider_name = "anthropic"
+
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        cli_module,
+        "_build_theory_generator_backend",
+        lambda **_kwargs: (NoCallBackend(), "anthropic"),
+    )
+
+    def fake_run(the_architect, questions, *, architect_context):
+        captured["config"] = the_architect.theory_developer.config
+        return {
+            "n_questions": len(questions),
+            "n_theory_derivation_packets": len(questions),
+            "all_packets_ok": True,
+            "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
+        }
+
+    monkeypatch.setattr(
+        cli_module.ResearchArchitectAgent,
+        "run_theory_development",
+        fake_run,
+    )
+
+    code = main(
+        [
+            "research-architect-theory",
+            "--question-file",
+            "examples/research_questions.json",
+            "--question-id",
+            "sequential_anytime_bernoulli",
+            "--provider",
+            "anthropic",
+            "--llm-model",
+            DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            "--max-tokens",
+            "8000",
+            "--out",
+            str(tmp_path),
+        ]
+    )
+
+    assert code == 0
+    config = captured["config"]
+    assert config.model == DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL
+    assert config.model_tier == "haiku"
+    assert config.serious_model == DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL
+    assert config.serious_model_tier == "haiku"
+    assert config.serious_max_tokens == 8000
+
+
 def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytest.MonkeyPatch) -> None:
     for key in (
         "AI_STATISTICIAN_LLM_PROVIDER",
@@ -1851,8 +1920,45 @@ def test_theory_developer_prompt_compacts_runtime_retrieval_context() -> None:
                                 "kind": "theorem",
                                 "name": "Probability.coverage",
                                 "signature": long_signature,
+                                "declaration_doc": (
+                                    "Direct maximal inequality with the target event "
+                                    "and its required hypotheses."
+                                ),
+                                "module_summary": (
+                                    "The module derives uniform control from a "
+                                    "nonnegative process without proof bodies."
+                                ),
+                                "reference": "Source theorem 2.1",
                                 "matched_terms": ["probability"],
-                            }
+                            },
+                            {
+                                "source_id": "formal_slt",
+                                "path": "AnytimeValid/Bridge.lean",
+                                "line": 24,
+                                "kind": "theorem",
+                                "name": "FormalSLT.IndirectBridge",
+                                "namespace": "FormalSLT",
+                                "signature": "theorem IndirectBridge (h : True) : True",
+                                "declaration_doc": "Secondary prose must be omitted.",
+                            },
+                            {
+                                "source_id": "lean_stat_learning_theory",
+                                "path": "SLT/DirectBound.lean",
+                                "line": 42,
+                                "kind": "theorem",
+                                "name": "DirectBound.target_bound",
+                                "namespace": "DirectBound",
+                                "signature": "theorem target_bound (h : True) : True",
+                                "declaration_doc": "Third-ranked prose must be omitted.",
+                            },
+                            {
+                                "source_id": "mathlib",
+                                "path": "Mathlib/Unused.lean",
+                                "line": 99,
+                                "kind": "theorem",
+                                "name": "Unused.fourth",
+                                "signature": "theorem fourth : True",
+                            },
                         ],
                     }
                 ],
@@ -1992,10 +2098,19 @@ def test_theory_developer_prompt_compacts_runtime_retrieval_context() -> None:
     assert "intermediate statistics, helper quantities" in prompt
     assert "at least three derivation steps" in prompt
     assert "Probability.coverage" in prompt
-    assert "signature_omitted" in prompt
+    assert '"signature":' in prompt
+    assert '"proof_body_included":false' in prompt
+    assert "Direct maximal inequality" in prompt
+    assert "Source theorem 2.1" in prompt
+    assert "DirectBound.target_bound" in prompt
+    assert "Unused.fourth" not in prompt
+    assert "Secondary prose must be omitted" not in prompt
+    assert "Third-ranked prose must be omitted" not in prompt
+    assert "The module derives uniform control" not in prompt
+    assert "Three ranked qualified declaration signatures" in prompt
     assert long_signature not in prompt
     assert '"inputs"' not in prompt
-    assert '"formal_source_hits":1' in prompt
+    assert '"formal_source_hits":4' in prompt
     assert "CriticEvaluator" in prompt
     assert "formal_gap:proof_bank_expansion" in prompt
     assert "missing exchangeability bridge" in prompt
@@ -2013,6 +2128,9 @@ def test_theory_developer_prompt_compacts_runtime_retrieval_context() -> None:
     assert "route-feedback:staged-assembly" in prompt
     assert "staged_followup_assembly_error_preview" in prompt
     assert "formal_attempt_queue[0] does not resolve to a seed route" in prompt
+    assert "actual conclusion and hypotheses" in prompt
+    assert "direct target-matching result" in prompt
+    assert "routing proposal, not mathematical authority" in prompt
     assert "provider_total_tokens_including_staged_followups" in prompt
     assert "orchestration memory, not proof evidence" in prompt
 

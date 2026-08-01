@@ -49297,8 +49297,11 @@ def test_theory_developer_prompt_compacts_architect_and_retrieval_context() -> N
     assert "paper_0" in prompt
     assert "paper_4" not in prompt
     assert "hit_0_0" in prompt
+    assert "hit_0_2" in prompt
     assert "hit_0_3" not in prompt
-    assert "signature_omitted" in prompt
+    assert "Three ranked qualified declaration signatures" in prompt
+    assert '"signature":' in prompt
+    assert '"proof_body_included":false' in prompt
 
 
 def test_theory_developer_capability_eval_uses_serious_theory_mode() -> None:

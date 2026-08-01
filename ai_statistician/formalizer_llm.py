@@ -109,7 +109,7 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
     """Context-efficient, feedback-driven policy for Lean proof construction."""
 
     return {
-        "schema_version": 10,
+        "schema_version": 11,
         "specification": (
             "Four-part structured specification: exact Lean target plus faithful "
             "natural-language statement and assumptions; qualified infrastructure "
@@ -139,14 +139,19 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
             "invent or strengthen assumptions."
         ),
         "decomposition": (
-            "Dependency-ordered lemma DAG; one semantic obligation per node; smallest "
-            "leaf per bounded compiler-feedback episode; minimal explicit "
-            "support-dependency plan ([] for a direct proof); preserve verified "
-            "ancestors; reuse library abstractions."
+            "Maintain the complete dependency-ordered lemma DAG in artifacts, while "
+            "sending only the current active frontier slice through each bounded agent "
+            "request. Keep one semantic obligation per node and never merge unrelated "
+            "obligations to fit a transport cap. Use the smallest leaf per bounded "
+            "compiler-feedback episode, a minimal explicit support-dependency plan "
+            "([] for a direct proof), preserve verified ancestors, and use reusable "
+            "library abstractions; continue with later frontier slices until closure."
         ),
         "repair_cycle": (
             "Lean/LSP: fix errors one-by-one from the smallest diagnostic; no "
-            "unchanged retry or wholesale rewrite without evidence."
+            "unchanged retry or wholesale rewrite without evidence. Every retry must "
+            "bind the failed candidate and diagnostic, then update the target API, "
+            "infrastructure pointers, or proof plan from that new evidence."
         ),
         "library_design": (
             "Use the lowest reusable mathematical layer. Organize modules by reusable "
@@ -1245,6 +1250,9 @@ def build_formalizer_prompt(
             "mode": "target_bound_formalization_specification",
             "purpose": "prove/revise target from theory, outlines, and Lean feedback",
             "max_items_per_list": 3,
+            "list_scope": "current_active_frontier_slice_not_complete_lemma_dag",
+            "complete_lemma_dag_resides_in_artifacts": True,
+            "do_not_merge_unrelated_obligations_to_fit_transport_cap": True,
             "expand_target_bound_derivation": True,
             "do_not_expand_unrelated_derivations": True,
         },
@@ -1511,8 +1519,11 @@ def build_formalizer_prompt(
         pseudo_formalization_instruction = ""
     return (
         "Design Formalizer/ProofEngineer proof-search artifacts. Return ONLY compact "
-        "JSON matching required_output_contract; at most 3 items/list. Prefer one "
-        "minimal Lean target and up to two registered proof-bank obligations. Propose "
+        "JSON matching required_output_contract; at most 3 current-active-frontier "
+        "items/list. This transport cap is not a cap on the complete lemma DAG: do not "
+        "merge unrelated obligations to fit it, preserve verified ancestors in runtime "
+        "artifacts, and continue later frontier slices. Prefer one minimal Lean target "
+        "and up to two registered proof-bank obligations. Propose "
         "Lean sketches, dependency edges, retrieval queries, and kernel work orders, "
         "but never claim proof, kernel verification, or source-theorem faithfulness. "
         "Follow mode_specific_instructions only when activated. Use catalog obligation "

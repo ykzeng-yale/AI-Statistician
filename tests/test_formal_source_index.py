@@ -1464,7 +1464,7 @@ def test_formal_source_prompt_payload_omits_full_candidate_proof_body() -> None:
 
 def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     contract = formalizer_proof_construction_strategy_contract()
-    assert contract["schema_version"] == 10
+    assert contract["schema_version"] == 11
     assert "smallest diagnostic" in contract["repair_cycle"]
     assert "faithful natural-language statement" in contract["specification"]
     assert "four-part structured specification" in contract[
@@ -1498,6 +1498,10 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     assert "formal gap" in contract["assumption_audit"]
     assert "do not silently invent" in contract["assumption_audit"]
     assert "dependency-ordered lemma dag" in contract["decomposition"].lower()
+    assert "complete dependency-ordered lemma DAG" in contract["decomposition"]
+    assert "current active frontier slice" in contract["decomposition"]
+    assert "never merge unrelated obligations" in contract["decomposition"]
+    assert "later frontier slices" in contract["decomposition"]
     assert "one semantic obligation per node" in contract["decomposition"]
     assert "bounded compiler-feedback episode" in contract[
         "decomposition"
@@ -1510,6 +1514,7 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     assert "fix errors one-by-one" in contract["repair_cycle"]
     assert "no unchanged retry" in contract["repair_cycle"]
     assert "wholesale rewrite without evidence" in contract["repair_cycle"]
+    assert "bind the failed candidate and diagnostic" in contract["repair_cycle"]
     assert "Independently recheck target fidelity" in contract[
         "persistent_failure_route"
     ]
@@ -1560,6 +1565,9 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     assert "exact compatible imported declaration" in prompt
     assert "four-part structured specification" in prompt.lower()
     assert "source-authored declaration docs" in prompt
+    assert "current-active-frontier" in prompt
+    assert "not a cap on the complete lemma DAG" in prompt
+    assert "do not merge unrelated obligations" in prompt
 
 
 def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() -> None:
