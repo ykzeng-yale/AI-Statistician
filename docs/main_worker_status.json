@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-08-01T12:37:40Z",
+  "updated_at": "2026-08-01T13:42:28Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "active_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
@@ -25,11 +25,11 @@
     "enforcement": "Opus is rejected before Anthropic client construction. Research and capability evaluation override every enabled LLM subsystem to the exact Haiku model."
   },
   "current_change": {
-    "theory_execution_preflight": "Before metric authoring or coding, the independent reviewer now checks whether the theory packet actually defines a finite executable estimator/interface, maps ideal objects to finite computation, and transports the claimed guarantee. A rejected packet routes through the existing typed TheoryDeveloper task with immutable finding lineage; no second scheduler or task-specific formula was added.",
+    "theory_execution_preflight": "Before metric authoring or coding, the independent reviewer now recomputes each guarantee-carrying procedure identity from the primitive DGP, audits data-dependent operators and theorem hypotheses under the conclusion measure, checks finite typed returns, and verifies ideal-to-executable guarantee transport. Runtime-derived booleans gate acceptance; reviewer wording is not parsed as a mathematical rule. A rejection routes through the existing typed TheoryDeveloper task with immutable finding lineage; no second scheduler or task-specific formula was added.",
     "theory_transport": "The same TheoryDeveloper and task now use two bounded provider calls: first a core mathematical workspace, then an executable estimator interface constrained to frozen estimator and semantic-reference IDs. The merged packet is rehashed and validated as one theory artifact. This is transport decomposition, not another agent or scheduler.",
     "metric_review_transport": "The independent pre-execution reviewer receives a compact projection of immutable authority, a single typed array for variable-count theory-scope checks, and runtime-owned prior-finding identity/evidence binding. Local validators still check the full source material and exact coverage.",
     "semantic_audit": "Generic prompts require primitive DGP/estimand reconstruction, full-support expectation or probability expansion, normalization, boundary checks, and alignment with Architect formal/simulation targets. No statistical task formula was added.",
-    "formalizer_strategy": "Exact target and assumptions, source-local module and namespace as distinct identities, dependency-ordered lemma DAG, smallest blocked leaf, real Lean/LSP diagnostics, preservation of verified ancestors, and statement/assumption review after persistent failure. Initial API design and compiler repair receive bounded qualified signatures, direct premises, module/import context, and version gates; broad source prose remains a retrieval signal, with at most one bounded primary declaration doc or citation for disambiguation. No Lean syntax or tactic repair rule was added.",
+    "formalizer_strategy": "Exact target and assumptions, source-local module and namespace as distinct identities, dependency-ordered lemma DAG, smallest blocked leaf, real Lean/LSP diagnostics, preservation of verified ancestors, and statement/assumption review after persistent failure. Library placement follows reusable mathematical dependencies rather than textbook order, declarations use source-local semantic names, and book theorem numbers remain citation metadata. Initial API design and compiler repair receive bounded qualified signatures, direct premises, module/import context, and version gates; broad source prose remains a retrieval signal, with at most one bounded primary declaration doc or citation for disambiguation. No Lean syntax or tactic repair rule was added.",
     "formal_rag_queries": "Initial retrieval keeps an exact qualified-name query first, then consumes an explicit upstream source citation/query when present, then theorem semantics and required definitions/lemmas within the bounded query budget. Explicit source ids or source-target provenance are carried into the Formalizer instead of guessed by the runtime. Once Lean feedback exists, the three bounded lanes become one live goal/diagnostic, one unknown API when present, and one semantic target. Repeated declarations across query groups are removed. Imports remain visibility metadata rather than lexical hits, and relative dotted Lean declarations preserve their enclosing namespace.",
     "formal_rag_fusion": "Providers are fused by declaration identity and normalized signature using strongest relevance plus a bounded corroboration bonus. Reindexing one source cannot multiply its score. A source-bound request is now a real main-source allowlist: providers without scoped search have out-of-scope hits removed and counted, while explicitly declared anchor-scoped companion corpora remain provider-owned support context.",
     "formal_rag_cache": "The persistent SQLite index is bound to schema version, declaration fingerprint, source-root snapshots, and README/toolchain metadata; changed source material rebuilds the index instead of serving stale declarations.",
@@ -88,7 +88,7 @@
       "proof_status": "NON_PROOF_ANALOGICAL_CONTEXT"
     },
     "semantic_benchmark": {
-      "manifest": "runs/current_ai4slt_three_book_rag_benchmark_20260801_v9_source_prominence/formal_source_retrieval_benchmark_manifest.json",
+      "manifest": "runs/current_ai4slt_three_book_rag_benchmark_20260801_v10_contract_alignment/formal_source_retrieval_benchmark_manifest.json",
       "discovery_recall_cases_passed": "28/28",
       "source_scoped_prover_context_cases_passed": "27/28",
       "ai4slt_source_scoped_prover_context_cases_passed": "14/14",
@@ -174,15 +174,15 @@
     "boundary": "AI4SLT source docs, section summaries, README taxonomy, naming examples, and citations may rank candidate declarations, but the Formalizer receives a bounded signature-first projection rather than broad source prose; only one bounded primary declaration doc or citation may disambiguate intent. Signatures, dependency context, and train-state hits remain non-proof candidate context. Toolchain/snapshot identity is disclosed, and every selected declaration or generated action must be re-elaborated in the exact active project before it can contribute to kernel evidence."
   },
   "latest_live_research_eval": {
-    "run": "runs/main_worker_research_eval_20260801_v167_theory_preflight_haiku_sequential",
+    "run": "runs/main_worker_research_eval_20260801_v169_grounded_totality_haiku_sequential",
     "task_family": "sequential development task",
     "evaluation_model": "claude-haiku-4-5-20251001",
     "enabled_llm_agents_at_exact_haiku": 8,
     "llm_topology_policy_ok": true,
     "status": "BLOCKED",
     "terminal_classification": "architect_metric_protocol_preexecution_rejected",
-    "agent_runtime_iterations": 7,
-    "task_handoffs": 6,
+    "agent_runtime_iterations": 6,
+    "task_handoffs": 5,
     "runtime_tool_calls": 1,
     "theory_revision_attempted": true,
     "independent_preexecution_reviews_accepted": 0,
@@ -191,7 +191,7 @@
     "research_loops_complete": "0/1",
     "kernel_verified_subclaims": 0,
     "strict_formal_lane_executed": false,
-    "result": "The pre-execution gate rejected the initial theory packet before any coding, routed one typed upstream TheoryDeveloper revision, and independently rejected the still-incomplete revised estimator/guarantee interface. One truncated estimator-interface response recovered through the bounded task retry, and a transient Anthropic 529 recovered through provider retry. Zero generated code or simulation ran. This is correct fail-closed mechanism evidence, not end-to-end success."
+    "result": "The initial theory packet passed transport validation but contained a wrong likelihood-ratio simplification, an unverified optional-stopping theorem application, and no total finite return contract. One typed upstream TheoryDeveloper revision corrected the main likelihood-ratio formula but still treated E[tau]<infinity as an established theorem condition and left continue/nontermination untyped. The independent preflight therefore rejected both packets before coding or simulation. This is correct fail-closed mechanism evidence, not end-to-end success."
   },
   "current_readiness": {
     "fully_end_to_end_ready": false,
@@ -211,14 +211,14 @@
     "Improve TheoryDeveloper through shared critic feedback, candidate comparison, explicit equation/lemma dependencies, and executable estimator-interface transport; do not add sequential-task formulas or output patches.",
     "After theory preflight passes, improve AlgorithmEngineer through shared frozen-context transport, candidate generation, executable diagnostics, and independent semantic feedback.",
     "Record partial research-stage evidence independently of final Critic acceptance while keeping the completion gate unchanged.",
-    "Run a fresh exact-Haiku sequential development evaluation, then require repeatable survival plus sequential research-loop closure before opening strict formal continuation.",
+    "Use the v169 failure packet as generic TheoryDeveloper feedback, then require repeatable survival plus sequential research-loop closure before opening strict formal continuation.",
     "Use AI4SLT qualified declarations, dependency context, and train-only state-action analogies inside the existing Formalizer/ProofEngineer feedback loop; require active-project Lean/kernel closure.",
     "Move remaining legacy post-runtime proof work into Architect-visible typed tasks, then evaluate learned tactic-state search without hardcoded Lean repairs.",
     "Keep PCA and extremes sealed until both development families satisfy the frozen protocol."
   ],
   "verification": {
     "core_suite": "291 passed, 3 skipped, 6 subtests passed in 2183.57 seconds",
-    "current_affected_file_panel": "68 formal-source, scoped-corpus, proof-state, provider, focused AgentRuntime transport, and core integration tests passed; no provider call",
+    "current_affected_file_panel": "145 theory-preflight, TheoryDeveloper, formal-source, scoped-corpus, proof-state, model-policy, focused AgentRuntime transport, and core integration tests passed; no provider call",
     "shared_lean_graph_indexer_panel": "7 parser, declaration-identity, dependency-edge, metadata, and FTS tests passed; no provider call",
     "current_declaration_trace_alignment_panel": "62 focused proof-state, formal-source, scoped-corpus, proof-bank, Lean-provider, and offline AgentRuntime transport tests passed; no provider call",
     "model_and_test_environment_policy": "39 model-backend and research-eval policy tests passed; no provider call",
@@ -230,7 +230,7 @@
     "ai4slt_source_project_execution": "SLT/CoveringNumber.lean compiled successfully in the pinned AI4SLT Lean v4.32 project after provisioning its official Mathlib cache",
     "cross_project_import_gate": "The configured Lean v4.31 proof project rejects SLT.CoveringNumber as unavailable, so the runtime cannot silently promote the cross-toolchain RAG hit to executable reuse",
     "git_diff_check": "passed before final Git synchronization",
-    "provider_evaluation_policy": "V167 topology reports eight enabled agents at exact claude-haiku-4-5-20251001, zero policy violations, and no Opus call; six focused model-policy tests also passed offline"
+    "provider_evaluation_policy": "V169 topology reports eight enabled agents at exact claude-haiku-4-5-20251001, zero policy violations, and no Opus call; production remains hard-capped at Sonnet"
   },
   "proof_boundary": "Theory, simulation, code execution, reviewer acceptance, RAG hits, pseudo-formal blocks, external source compilation, and support-lemma compilation are not proof of the intended theorem. Only exact active-project Lean/kernel verification can close a theorem.",
   "history_policy": "This file contains current coordination state only. Superseded audits, runs, and validation logs remain available in Git history and immutable run manifests instead of being recopied here."

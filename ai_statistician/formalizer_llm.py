@@ -109,7 +109,7 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
     """Context-efficient, feedback-driven policy for Lean proof construction."""
 
     return {
-        "schema_version": 9,
+        "schema_version": 10,
         "specification": (
             "Four-part structured specification: exact Lean target plus faithful "
             "natural-language statement and assumptions; qualified infrastructure "
@@ -117,15 +117,18 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
             "scope, and success boundaries. Never weaken."
         ),
         "context_policy": (
-            "Stage context by purpose. For initial API design and declaration "
-            "placement, use target-bound qualified names/signatures/imports, the "
-            "source-local namespace/module role, bounded source-authored declaration "
-            "docs, section and README module taxonomy, and local naming examples. "
+            "Stage context by purpose. Retrieval may use source-authored declaration "
+            "docs, section/module "
+            "taxonomy, naming, and citations may rank candidates, but prompt transport "
+            "is target-bound and signature-first. For initial API design and declaration "
+            "placement, use qualified names/signatures/imports, the source-local "
+            "namespace/module role, and at most one bounded declaration doc or citation. "
             "For compiler/tactic repair, rank by the live Lean goal or diagnostic and "
             "send only a few qualified signatures, direct premise signatures, module "
             "imports, and active toolchain/version gates; do not resend taxonomy, "
-            "naming examples, or citation prose. In both stages use one unique top "
-            "signature per independent retrieval query, direct premise outlines first, "
+            "naming examples, or broad citation prose. A source-bound discovery query "
+            "may retain two ranked target signatures with separate module/import "
+            "context; other queries retain one. Use direct premise outlines first, "
             "bounded prior fallback, and no source files or proof bodies. Treat "
             "module/import identity separately from declaration namespace because they "
             "may differ."
@@ -146,10 +149,12 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
             "unchanged retry or wholesale rewrite without evidence."
         ),
         "library_design": (
-            "Use the lowest reusable mathematical layer; infer namespace, module "
-            "placement, and naming style locally; use stable semantic Lean names; "
-            "avoid duplicate wrappers; citations are source metadata rather than "
-            "declaration identity."
+            "Use the lowest reusable mathematical layer. Organize modules by reusable "
+            "mathematical dependency rather than textbook order: definitions and "
+            "infrastructure below concentration, empirical-process, and application "
+            "layers; infer namespace, module placement, and naming style locally; use "
+            "stable semantic Lean names; avoid duplicate wrappers; textbook theorem "
+            "numbers and citations are source metadata rather than declaration identity."
         ),
         "reuse_policy": (
             "Prefer an exact compatible imported declaration; cross-toolchain or "

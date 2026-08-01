@@ -10,8 +10,8 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 
 
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 1
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 1
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 2
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 2
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
     "primitive_mathematical_consistency",
@@ -42,11 +42,33 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "or incompatible regime when a universal or finite claim is made."
     ),
     (
+        "For every estimator, recompute the procedure-defining identity that carries "
+        "its claimed invariant or guarantee. Do not validate an identity by restating "
+        "a theorem card, sanity check, named theorem, or the estimator's own formula."
+    ),
+    (
+        "Audit data dependence and operator closure explicitly. If a parameter, "
+        "function, model, stopping rule, tuning value, extremum, or candidate is "
+        "selected from the same observations, condition on the information available "
+        "before the next observation and recompute the claimed identity after that "
+        "selection. A fixed-candidate result does not automatically survive plug-in, "
+        "optimization, maximization, minimization, stopping, or nonlinear composition; "
+        "verify the exact closure direction and hypotheses or mark it non-PASS."
+    ),
+    (
         "For every estimator, distinguish the ideal mathematical procedure from the "
         "finite executable observation returned to AlgorithmEngineer or "
         "SimulationEngineer. A finite input interface cannot silently implement a "
         "procedure that may require unbounded data. Describe only behavior explicitly "
         "declared by the source; a proposed repair is not current semantics."
+    ),
+    (
+        "Use each estimator's source_interface_inventory before judging interface "
+        "presence. Distinguish a present-but-incomplete contract from an absent one: "
+        "never call outputs or request/response fields MISSING when the inventory "
+        "lists them, and identify the exact unresolved mapping instead. Reconstruct "
+        "every execution branch from the listed field meanings before proposing a "
+        "counterexample; do not substitute a hypothetical branch for a declared one."
     ),
     (
         "Every executable procedure must return for every admitted sandbox input, "
@@ -70,6 +92,17 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "When the source invokes a named theorem, audit its exact hypotheses and "
         "conclusion. Do not replace a missing hypothesis with a nearby moment or "
         "regularity condition, and do not treat naming the theorem as verification."
+    ),
+    (
+        "Bind every theorem hypothesis to the same DGP, probability law, filtration, "
+        "or measure under which its conclusion is used. A condition established under "
+        "one regime cannot discharge an assumption needed under another regime."
+    ),
+    (
+        "Inspect source critic findings, semantic risks, self-critique, and rejected "
+        "alternatives. A risk that can invalidate the central procedure remains a "
+        "blocker unless the current derivation explicitly resolves it; a proposed "
+        "future repair is not a current resolution."
     ),
     (
         "Use only exact evidence anchor IDs from the supplied catalog. Evidence refs "
@@ -158,13 +191,42 @@ def _project_estimator_specs(value: Any) -> tuple[list[dict[str, Any]], list[str
                 "normalization",
                 "sample_size_order",
                 "required_assumptions",
-                "estimator_interface_contract",
             )
             if key in raw_row
+        }
+        interface = raw_row.get("estimator_interface_contract", {})
+        interface = interface if isinstance(interface, Mapping) else {}
+
+        def field_inventory(rows: Any) -> list[dict[str, str]]:
+            fields: list[dict[str, str]] = []
+            for raw_field in rows if isinstance(rows, list | tuple) else []:
+                if isinstance(raw_field, Mapping):
+                    name = str(
+                        raw_field.get("name", "")
+                        or raw_field.get("id", "")
+                        or ""
+                    ).strip()
+                else:
+                    name = str(raw_field or "").strip()
+                if name:
+                    field = {"name": name[:160]}
+                    if isinstance(raw_field, Mapping):
+                        for key in ("meaning", "binding", "derivation_ref"):
+                            value = str(raw_field.get(key, "") or "").strip()
+                            if value:
+                                field[key] = value[:320]
+                    fields.append(field)
+            return fields[:12]
+
+        source_interface_inventory = {
+            "declared_outputs": field_inventory(raw_row.get("outputs", [])),
+            "request_fields": field_inventory(interface.get("request_fields", [])),
+            "response_fields": field_inventory(interface.get("response_fields", [])),
         }
         projected.append(
             {
                 "preflight_estimator_id": estimator_id,
+                "source_interface_inventory": source_interface_inventory,
                 "source_estimator": _compact_value(
                     selected,
                     max_depth=6,
@@ -229,11 +291,26 @@ def build_architect_theory_execution_preflight_material(
             derivation.get("sanity_checks", []),
         ),
         (
+            "theory.self_critique",
+            "source_self_critique",
+            derivation.get("self_critique", []),
+        ),
+        (
+            "theory.rejected_alternatives",
+            "rejected_alternatives",
+            derivation.get("rejected_alternatives", []),
+        ),
+        (
             "theory.theorem_cards",
             "theorem_cards",
             semantic.get("theorem_cards", []),
         ),
         ("theory.lemma_cards", "lemma_cards", semantic.get("lemma_cards", [])),
+        (
+            "theory.critic_findings",
+            "source_critic_findings",
+            semantic.get("critic_findings", []),
+        ),
         (
             "architect.upstream_research_contract",
             "upstream_research_contract",
@@ -343,6 +420,11 @@ def architect_theory_execution_preflight_json_schema(
                     "required": [
                         "estimator_id",
                         "ideal_procedure_semantics",
+                        "procedure_identity_recomputation",
+                        "selection_conditioning_or_operator_audit",
+                        "procedure_identity_declared_valid",
+                        "theorem_hypothesis_measure_audit",
+                        "theorem_applications_declared_valid",
                         "executable_observation_semantics",
                         "ideal_to_executable_mapping_declared",
                         "termination_or_censoring_analysis",
@@ -360,6 +442,50 @@ def architect_theory_execution_preflight_json_schema(
                             "minLength": 1,
                             "maxLength": 280,
                             "description": "State only the ideal procedure declared by the source.",
+                        },
+                        "procedure_identity_recomputation": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 420,
+                            "description": (
+                                "Reconstruct the central invariant or guarantee-carrying "
+                                "identity from the primitive DGP. Do not restate source prose."
+                            ),
+                        },
+                        "selection_conditioning_or_operator_audit": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 420,
+                            "description": (
+                                "Audit data-dependent selection, conditioning, stopping, "
+                                "optimization, extrema, and nonlinear operators. State why "
+                                "the claimed property survives, or give the failure."
+                            ),
+                        },
+                        "procedure_identity_declared_valid": {
+                            "type": "boolean",
+                            "description": (
+                                "True only when the supplied derivation establishes the "
+                                "recomputed identity after every declared adaptive choice "
+                                "or operator; reviewer prose cannot fill a missing argument."
+                            ),
+                        },
+                        "theorem_hypothesis_measure_audit": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 420,
+                            "description": (
+                                "For every theorem used to carry a guarantee, name its "
+                                "conclusion law or measure and audit each hypothesis under "
+                                "that same law. Say NOT_APPLICABLE only when no theorem is used."
+                            ),
+                        },
+                        "theorem_applications_declared_valid": {
+                            "type": "boolean",
+                            "description": (
+                                "True only when the source establishes every invoked "
+                                "theorem hypothesis under the law governing its conclusion."
+                            ),
                         },
                         "executable_observation_semantics": {
                             "type": "string",
@@ -505,6 +631,11 @@ def _derived_verdict(packet: Mapping[str, Any]) -> str:
     all_estimators_pass = all(
         isinstance(row, Mapping)
         and str(row.get("status", "") or "").strip().upper() == "PASS"
+        and row.get("procedure_identity_declared_valid") is True
+        and row.get("theorem_applications_declared_valid") is True
+        and row.get("ideal_to_executable_mapping_declared") is True
+        and row.get("total_or_typed_bounded_outcome_declared") is True
+        and row.get("guarantee_transport_argument_declared") is True
         for row in estimator_rows or []
     )
     return (
@@ -512,6 +643,29 @@ def _derived_verdict(packet: Mapping[str, Any]) -> str:
         if all_pass and all_estimators_pass and not packet.get("findings", [])
         else "REVISE"
     )
+
+
+def _source_interface_inventories(
+    material: Mapping[str, Any],
+) -> dict[str, dict[str, Any]]:
+    estimator_anchor = next(
+        (
+            row
+            for row in material.get("anchor_catalog", []) or []
+            if isinstance(row, Mapping)
+            and row.get("anchor_id") == "theory.estimator_specs"
+        ),
+        {},
+    )
+    inventories: dict[str, dict[str, Any]] = {}
+    for projected in estimator_anchor.get("content", []) or []:
+        if not isinstance(projected, Mapping):
+            continue
+        estimator_id = str(projected.get("preflight_estimator_id", "") or "")
+        inventory = projected.get("source_interface_inventory", {})
+        if estimator_id and isinstance(inventory, Mapping):
+            inventories[estimator_id] = dict(inventory)
+    return inventories
 
 
 def _normalize_packet(
@@ -667,18 +821,44 @@ def validate_architect_theory_execution_preflight_packet(
     ]
     if sorted(estimator_ids) != sorted(required_estimator_ids):
         errors.append("theory execution preflight must check every estimator exactly once")
+
     for row in estimator_rows:
         status = str(row.get("status", "") or "").strip().upper()
         declaration_flags = (
+            row.get("procedure_identity_declared_valid"),
+            row.get("theorem_applications_declared_valid"),
             row.get("ideal_to_executable_mapping_declared"),
             row.get("total_or_typed_bounded_outcome_declared"),
             row.get("guarantee_transport_argument_declared"),
         )
         if status == "PASS" and any(value is not True for value in declaration_flags):
             errors.append(
-                "PASS estimator preflight requires source-declared executable "
+                "PASS estimator preflight requires an established procedure "
+                "identity, valid theorem applications, source-declared executable "
                 "mapping, bounded outcome, and guarantee transport"
             )
+    primitive_dimension = next(
+        (
+            row
+            for row in dimension_rows
+            if str(row.get("dimension", "") or "")
+            == "primitive_mathematical_consistency"
+        ),
+        {},
+    )
+    invalid_identity_rows = [
+        row
+        for row in estimator_rows
+        if row.get("procedure_identity_declared_valid") is not True
+        or row.get("theorem_applications_declared_valid") is not True
+    ]
+    if invalid_identity_rows and str(
+        primitive_dimension.get("status", "") or ""
+    ).strip().upper() == "PASS":
+        errors.append(
+            "primitive mathematical consistency cannot PASS when an estimator "
+            "procedure identity or theorem application is not established"
+        )
 
     valid_anchor_ids = {
         str(row.get("anchor_id", "") or "")
@@ -780,11 +960,16 @@ def review_architect_theory_execution_preflight(
     )
     prompt = build_architect_theory_execution_preflight_prompt(material)
     schema = architect_theory_execution_preflight_json_schema(material)
+    review_estimator_count = len(material.get("required_estimator_ids", []) or [])
+    review_output_token_cap = min(
+        4800,
+        3200 + 1600 * max(0, review_estimator_count - 1),
+    )
     request = GeneratorRequest(
         system_prompt=ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT,
         user_prompt=prompt,
         model=request_model,
-        max_tokens=min(max(1, int(max_tokens)), 3200),
+        max_tokens=min(max(1, int(max_tokens)), review_output_token_cap),
         temperature=temperature,
         schema=schema,
         metadata={
@@ -799,9 +984,8 @@ def review_architect_theory_execution_preflight(
             "review_protocol_version": ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION,
             "review_prompt_chars": len(prompt),
             "review_schema_chars": len(json.dumps(schema, separators=(",", ":"))),
-            "review_estimator_count": len(
-                material.get("required_estimator_ids", []) or []
-            ),
+            "review_estimator_count": review_estimator_count,
+            "review_output_token_cap": review_output_token_cap,
         },
     )
 
@@ -843,6 +1027,12 @@ def review_architect_theory_execution_preflight(
             "required_estimator_ids": list(
                 material.get("required_estimator_ids", []) or []
             ),
+            "source_interface_inventories": [
+                {"estimator_id": estimator_id, **inventory}
+                for estimator_id, inventory in _source_interface_inventories(
+                    material
+                ).items()
+            ],
             "allowed_evidence_anchor_ids": [
                 str(row.get("anchor_id", "") or "")
                 for row in material.get("anchor_catalog", []) or []
@@ -852,6 +1042,18 @@ def review_architect_theory_execution_preflight(
                 "Repair statuses, findings, and instructions together. Preserve "
                 "semantic judgments unless a listed validation error requires change."
             ),
+            "repair_prompt_priority_instructions": [
+                (
+                    "Treat source_interface_inventories as exact source facts. Do not "
+                    "label listed outputs or request/response fields MISSING; describe "
+                    "only the unresolved semantic mapping."
+                ),
+                (
+                    "When a theorem application or procedure identity is invalid, "
+                    "primitive_mathematical_consistency must be non-PASS and the "
+                    "finding must preserve the same mathematical reason."
+                ),
+            ],
         },
         semantic_patch_repair=True,
         allow_progress_repair_extension=True,

@@ -581,7 +581,7 @@ def test_capability_theory_mode_requires_deeper_equation_trace(
     assert request.schema["properties"]["theorem_cards"]["maxItems"] == 2
     assert request.schema["properties"]["problem_card"]["properties"][
         "observed_data"
-    ]["maxLength"] == 600
+    ]["maxLength"] == 420
     assert "finite-sample variance of the estimator" in request.user_prompt
     assert "asymptotic variance of any sample-size-scaled limit" in (
         request.user_prompt

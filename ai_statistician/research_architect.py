@@ -420,7 +420,7 @@ def build_theory_developer_prompt(
             "max_critic_findings": 2 if transport_recovery else 4,
             "max_simulation_predictions": 2 if transport_recovery else 4,
             "max_next_actions": 1 if transport_recovery else 3,
-            "max_string_chars": 320 if transport_recovery else 600,
+            "max_string_chars": 320 if transport_recovery else 420,
             "transport_recovery": transport_recovery,
             "instruction": (
                 (
@@ -514,6 +514,42 @@ def build_theory_developer_prompt(
         "prompt_mode": prompt_mode,
         "architect_context": compact_context,
         "required_output_contract": THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT,
+        "procedure_identity_falsification_contract": [
+            (
+                "For every candidate estimator or decision rule, identify the exact "
+                "primitive identity that carries its claimed guarantee and derive it "
+                "from the DGP rather than from the candidate's own prose."
+            ),
+            (
+                "List every parameter, function, tuning value, model, stopping rule, "
+                "extremum, or candidate selected from the observations. Recompute the "
+                "claimed conditional or unconditional identity after that selection; "
+                "a fixed-candidate result cannot simply be substituted after plug-in."
+            ),
+            (
+                "For optimization, extrema, stopping, truncation, censoring, mixtures, "
+                "or nonlinear transforms, verify the exact closure direction and every "
+                "hypothesis. If this cannot be derived, reject that candidate or leave "
+                "one explicit unresolved critic finding instead of asserting validity."
+            ),
+            (
+                "Use sanity_checks for falsification: show at least one primitive "
+                "conditional calculation, full-support expectation, or concrete "
+                "counterexample for each procedure-defining identity."
+            ),
+            (
+                "For every admitted finite input and resource-exit path, declare the "
+                "exact returned values and keep execution status separate from the "
+                "statistical decision. Never encode not observed, truncated, timed out, "
+                "or censored as false unless that equality is mathematically derived."
+            ),
+            (
+                "When executable bounds, approximation, truncation, or censoring change "
+                "the ideal procedure, derive the event inclusion, error decomposition, "
+                "or changed estimand that transports each claimed guarantee. Check each "
+                "theorem hypothesis under the same DGP or measure as its conclusion."
+            ),
+        ],
         output_budget_key: output_budget,
         "proof_boundary": KERNEL_PROOF_BOUNDARY,
     }
@@ -605,7 +641,14 @@ def build_theory_developer_prompt(
         "lemma_cards, or formalization_handoff.required_definitions instead of using "
         "another estimator slot. Fully state each estimator's formula, algorithm "
         "semantics, inputs, outputs, normalization, and sample-size order in the core "
-        "workspace. Do not emit estimator_interface_contract here: after the core "
+        "workspace. Treat data-dependent selection, plug-in, optimization, extrema, "
+        "stopping, truncation, censoring, mixtures, and nonlinear transforms as new "
+        "mathematical operations: reconstruct the claimed invariant after those "
+        "operations and verify its direction and hypotheses. A fixed-candidate theorem "
+        "or repeated sanity-check claim is not such a reconstruction. Declare a total "
+        "typed return contract for every finite input and resource exit, then derive "
+        "how any executable modification transports the ideal guarantee. Do not emit "
+        "estimator_interface_contract here: after the core "
         "workspace is frozen, the same TheoryDeveloper will author that bounded typed "
         "interface from these exact semantic ids. Resolve any semantic contradiction "
         "here instead of delegating choices to code. "
@@ -1920,7 +1963,7 @@ def _theory_developer_json_schema(
     serious_theory_mode = theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
     max_string_chars = (
         320 if serious_theory_mode and transport_recovery
-        else 600 if serious_theory_mode
+        else 420 if serious_theory_mode
         else 180
     )
     schema = _bounded_theory_schema_value(

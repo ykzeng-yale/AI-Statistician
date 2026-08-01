@@ -1439,7 +1439,7 @@ def test_formal_source_prompt_payload_omits_full_candidate_proof_body() -> None:
 
 def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     contract = formalizer_proof_construction_strategy_contract()
-    assert contract["schema_version"] == 9
+    assert contract["schema_version"] == 10
     assert "smallest diagnostic" in contract["repair_cycle"]
     assert "faithful natural-language statement" in contract["specification"]
     assert "four-part structured specification" in contract[
@@ -1459,13 +1459,12 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     assert "only a few qualified signatures" in contract["context_policy"]
     assert "do not resend taxonomy" in contract["context_policy"]
     assert "active toolchain/version gates" in contract["context_policy"]
-    assert "one unique top signature per independent retrieval query" in contract[
-        "context_policy"
-    ]
+    assert "may retain two ranked target signatures" in contract["context_policy"]
+    assert "other queries retain one" in contract["context_policy"]
     assert "module/import identity separately" in contract["context_policy"]
     assert "may differ" in contract["context_policy"]
-    assert "README module taxonomy" in contract["context_policy"]
-    assert "local naming examples" in contract["context_policy"]
+    assert "section/module taxonomy" in contract["context_policy"]
+    assert "naming, and citations may rank candidates" in contract["context_policy"]
     assert "direct premise outlines first" in contract["context_policy"]
     assert "bounded prior fallback" in contract["context_policy"]
     assert "no source files or proof bodies" in contract["context_policy"]
@@ -1496,6 +1495,9 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     assert "quantifiers" in contract["persistent_failure_route"]
     assert "exact active-project artifact" in contract["post_compile_hygiene"]
     assert "lowest reusable mathematical layer" in contract["library_design"]
+    assert "reusable mathematical dependency rather than textbook order" in contract[
+        "library_design"
+    ]
     assert "infer namespace, module placement, and naming style" in contract[
         "library_design"
     ]

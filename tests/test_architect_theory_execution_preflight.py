@@ -114,12 +114,30 @@ def _theory_material() -> dict[str, object]:
                 {"assumption": "eventual occurrence", "used_in": ["claim_1"]}
             ],
             "sanity_checks": [],
+            "self_critique": [
+                {
+                    "finding": "The finite input may end before the event.",
+                    "resolution": "Expose that case as a typed censored outcome.",
+                }
+            ],
+            "rejected_alternatives": [
+                {
+                    "candidate": "Pretend every finite input contains the event.",
+                    "reason": "That changes the declared observation law.",
+                }
+            ],
         },
         "theorem_cards": [
             {"id": "theorem_1", "conclusion": "The ideal risk is controlled."}
         ],
         "lemma_cards": [],
-        "critic_findings": [],
+        "critic_findings": [
+            {
+                "id": "resolved_finite_input_risk",
+                "finding": "A finite input may omit the ideal event.",
+                "resolution": "The accepted fixture declares a typed censored output.",
+            }
+        ],
     }
     return {
         "artifact_kind": "RuntimeTheoryInformedMetricProtocolMaterial",
@@ -153,6 +171,25 @@ def _payload(*, accept: bool) -> dict[str, object]:
             {
                 "estimator_id": "generic_stream_method",
                 "ideal_procedure_semantics": "The ideal method reads until an event.",
+                "procedure_identity_recomputation": (
+                    "The first-event identity is reconstructed on event and no-event "
+                    "finite-support branches."
+                    if accept
+                    else "The source merely asserts eventual occurrence."
+                ),
+                "selection_conditioning_or_operator_audit": (
+                    "The stopping rule is adapted and the finite resource boundary "
+                    "is represented by a separate censored outcome."
+                    if accept
+                    else "Stopping at a finite resource bound is not represented."
+                ),
+                "procedure_identity_declared_valid": accept,
+                "theorem_hypothesis_measure_audit": (
+                    "The accepted fixture uses no external theorem: NOT_APPLICABLE."
+                    if accept
+                    else "The source does not establish the invoked theorem hypotheses."
+                ),
+                "theorem_applications_declared_valid": accept,
                 "executable_observation_semantics": (
                     "A finite input exposes either the event or an explicit censored outcome."
                     if accept
@@ -248,6 +285,13 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     protocol = " ".join(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL)
     for phrase in (
         "full declared support",
+        "recompute the procedure-defining identity",
+        "condition on the information available",
+        "fixed-candidate result does not automatically survive",
+        "source_interface_inventory",
+        "present-but-incomplete contract",
+        "do not substitute a hypothetical branch",
+        "same DGP, probability law",
         "finite executable observation",
         "typed outcome",
         "not observed within a resource bound",
@@ -258,13 +302,86 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     assert packet["execution_authorized"] is False
     assert packet["kernel_verified"] is False
     assert packet["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
+    anchor_ids = {
+        row["anchor_id"] for row in material["anchor_catalog"]
+    }
+    assert {
+        "theory.self_critique",
+        "theory.rejected_alternatives",
+        "theory.critic_findings",
+    } <= anchor_ids
+    estimator_anchor = next(
+        row
+        for row in material["anchor_catalog"]
+        if row["anchor_id"] == "theory.estimator_specs"
+    )
+    assert estimator_anchor["content"][0]["source_interface_inventory"] == {
+        "declared_outputs": [{"name": "T"}],
+        "request_fields": [
+            {"name": "observations", "binding": "per_replicate_data"}
+        ],
+        "response_fields": [
+            {"name": "T", "meaning": "ideal first-event index"}
+        ],
+    }
     assert backend.requests[0].model == TEST_HAIKU_MODEL
     assert backend.requests[0].metadata["model_tier"] == "haiku"
     assert backend.requests[0].max_tokens == 3200
+    assert backend.requests[0].metadata["review_output_token_cap"] == 3200
     assert validate_architect_theory_execution_preflight_packet(
         packet,
         material=material,
     ) == []
+
+
+def test_preflight_cannot_accept_an_unestablished_procedure_identity() -> None:
+    packet, _backend = _review(accept=True)
+    material = build_architect_theory_execution_preflight_material(
+        question=_question(),
+        theory_protocol_material=_theory_material(),
+        upstream_research_contract={
+            "formal_targets": [],
+            "simulation_targets": ["evaluate the declared risk"],
+        },
+    )
+    packet["estimator_execution_checks"][0][
+        "procedure_identity_declared_valid"
+    ] = False
+
+    errors = validate_architect_theory_execution_preflight_packet(
+        packet,
+        material=material,
+    )
+
+    assert any("established procedure identity" in error for error in errors)
+    assert any(
+        "primitive mathematical consistency cannot PASS" in error
+        for error in errors
+    )
+    assert any("overall verdict is not runtime-derived" in error for error in errors)
+
+
+def test_preflight_cannot_accept_invalid_theorem_application() -> None:
+    packet, _backend = _review(accept=True)
+    material = build_architect_theory_execution_preflight_material(
+        question=_question(),
+        theory_protocol_material=_theory_material(),
+        upstream_research_contract={
+            "formal_targets": [],
+            "simulation_targets": ["evaluate the declared risk"],
+        },
+    )
+    packet["estimator_execution_checks"][0][
+        "theorem_applications_declared_valid"
+    ] = False
+
+    errors = validate_architect_theory_execution_preflight_packet(
+        packet,
+        material=material,
+    )
+
+    assert any("valid theorem applications" in error for error in errors)
+    assert any("procedure identity or theorem application" in error for error in errors)
 
 
 def test_preflight_routes_semantic_mismatch_to_upstream_theory() -> None:

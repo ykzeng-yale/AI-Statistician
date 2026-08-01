@@ -25331,6 +25331,17 @@ def _accepted_theory_execution_preflight_payload(request) -> dict[str, object]:
             {
                 "estimator_id": estimator_id,
                 "ideal_procedure_semantics": "The source defines one ideal method.",
+                "procedure_identity_recomputation": (
+                    "The finite-support identity is reconstructed from the fixture DGP."
+                ),
+                "selection_conditioning_or_operator_audit": (
+                    "The fixture has no adaptive selection or unbounded operator."
+                ),
+                "procedure_identity_declared_valid": True,
+                "theorem_hypothesis_measure_audit": (
+                    "The fixture uses no external theorem: NOT_APPLICABLE."
+                ),
+                "theorem_applications_declared_valid": True,
                 "executable_observation_semantics": (
                     "The finite interface returns the same declared object."
                 ),
@@ -48859,6 +48870,12 @@ def test_theory_developer_capability_eval_uses_serious_theory_mode() -> None:
     assert '"max_critic_findings":4' in prompt
     assert "finite-sample feasibility claim" in prompt
     assert "A citation or repeated claim is not a sanity check" in prompt
+    assert "procedure_identity_falsification_contract" in prompt
+    assert "a fixed-candidate result cannot simply be substituted" in prompt
+    assert "verify the exact closure direction" in prompt
+    assert "every admitted finite input and resource-exit path" in prompt
+    assert "same DGP or measure as its conclusion" in prompt
+    assert "total typed return contract" in prompt
     assert "exactly one primary procedure" not in prompt
     assert "s" * 800 not in prompt
     assert "x" * 800 not in prompt
