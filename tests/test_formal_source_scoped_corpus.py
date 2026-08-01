@@ -434,7 +434,27 @@ def test_composite_runtime_preserves_three_book_dependency_context() -> None:
                 ),
             )
 
-    retriever = CompositeFormalSourceRetriever((StructuredProvider(),))
+    class UnscopedDistractorProvider:
+        name = "unscoped_proof_bank_fixture"
+
+        def search(self, _query: str, *, k: int = 10):
+            distractor = FormalDeclaration(
+                source_id="proof_bank",
+                source_type="proof_bank",
+                path="ProofBank/Distractor.lean",
+                line=1,
+                kind="theorem",
+                name="ProofBank.master_error_bound_distractor",
+                namespace="ProofBank",
+                signature="theorem master_error_bound_distractor : True",
+            )
+            return [FormalSourceHit(distractor, 1000.0, ("master", "error"))][
+                :k
+            ]
+
+    retriever = CompositeFormalSourceRetriever(
+        (StructuredProvider(), UnscopedDistractorProvider())
+    )
 
     groups = _proofengineer_formal_source_grounding_hit_groups(
         retriever,
@@ -451,6 +471,9 @@ def test_composite_runtime_preserves_three_book_dependency_context() -> None:
     )
     hit = groups[0]["hits"][0]
     assert hit["name"] == "LeastSquares.master_error_bound"
+    assert all(
+        row["source_id"] == source_id for row in groups[0]["hits"]
+    )
     context = hit["declaration_source_context"]
     assert context["dependency_context"]["module_import_visibility_enforced"]
     outlines = context["premise_declaration_outlines"]
@@ -466,3 +489,54 @@ def test_composite_runtime_preserves_three_book_dependency_context() -> None:
         "Boucheron et al. (2013), Theorem 5.6",
         "Wainwright (2019), Theorem 13.5",
     }
+    distractor_diagnostic = retriever.runtime_diagnostics()[1]
+    assert distractor_diagnostic["n_raw_hits"] == 1
+    assert distractor_diagnostic["n_hits"] == 0
+    assert distractor_diagnostic["n_out_of_scope_hits_dropped"] == 1
+
+
+def test_runtime_filters_source_scope_when_retriever_has_no_scoped_api() -> None:
+    allowed = FormalDeclaration(
+        source_id="source_library",
+        source_type="lean_library",
+        path="Library/Target.lean",
+        line=1,
+        kind="theorem",
+        name="Library.target",
+        namespace="Library",
+        signature="theorem target : True",
+    )
+    distractor = FormalDeclaration(
+        source_id="proof_bank",
+        source_type="proof_bank",
+        path="ProofBank/Distractor.lean",
+        line=1,
+        kind="theorem",
+        name="ProofBank.target",
+        namespace="ProofBank",
+        signature="theorem target : True",
+    )
+
+    class UnscopedRetriever:
+        def search(self, _query: str, *, k: int = 10):
+            return [
+                FormalSourceHit(distractor, 100.0, ("target",)),
+                FormalSourceHit(allowed, 1.0, ("target",)),
+            ][:k]
+
+    groups = _proofengineer_formal_source_grounding_hit_groups(
+        UnscopedRetriever(),
+        query_seeds=("target",),
+        unknown_identifiers=(),
+        source_scope_ids=("source_library",),
+        k=2,
+        max_groups=1,
+    )
+
+    assert [row["source_id"] for row in groups[0]["hits"]] == [
+        "source_library"
+    ]
+    assert groups[0]["source_scope_enforcement"] == (
+        "runtime_unscoped_fallback_filtered_by_source_allowlist"
+    )
+    assert groups[0]["n_out_of_scope_hits_dropped"] == 1

@@ -27,7 +27,9 @@ from ai_statistician.formal_source_graph import FormalSourceGraphRetriever
 from ai_statistician.formal_source_prompt_context import (
     FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS,
     compact_formal_source_grounding_hits_for_prompt,
+    formalizer_feedback_with_task_bound_formal_source_queries,
     task_bound_formal_source_query_seeds,
+    task_bound_formal_source_scope_ids,
 )
 from ai_statistician.formal_source_retrieval_benchmark import (
     FormalSourceRetrievalBenchmarkCase,
@@ -77,6 +79,68 @@ def test_task_bound_formal_source_queries_keep_semantics_after_exact_name() -> N
         "Semantic title semantic mathematical statement",
         "Support.definition",
     ]
+
+
+def test_task_bound_formal_source_queries_and_scope_use_explicit_provenance() -> None:
+    theory_packet = {
+        "theory_derivation_packet": {
+            "formalization_handoff": {
+                "candidate_lean_targets": ["LeastSquares.master_error_bound"],
+                "source_references": [
+                    {
+                        "citation": "Source Book (2026), Theorem 13.5",
+                        "title": "Localized least-squares error bound",
+                    }
+                ],
+                "formal_source_scope_ids": ["source_library"],
+            }
+        }
+    }
+    theorem_goals = [
+        {
+            "title": "Master error theorem",
+            "claim": "the estimator satisfies a localized error bound",
+            "source_theorem_target_provenance": {
+                "source_id": "source_library"
+            },
+        }
+    ]
+
+    queries = task_bound_formal_source_query_seeds(
+        question=OpenResearchQuestion(
+            id="source_grounded_query",
+            title="Source-grounded theorem",
+            description="Reuse a source theorem.",
+        ),
+        theory_packet=theory_packet,
+        theorem_goals=theorem_goals,
+        max_queries=3,
+    )
+    source_scope_ids = task_bound_formal_source_scope_ids(
+        theory_packet=theory_packet,
+        theorem_goals=theorem_goals,
+    )
+
+    assert queries == [
+        "LeastSquares.master_error_bound",
+        "Source Book (2026), Theorem 13.5 Localized least-squares error bound",
+        "Master error theorem the estimator satisfies a localized error bound",
+    ]
+    assert source_scope_ids == ("source_library",)
+
+    feedback = formalizer_feedback_with_task_bound_formal_source_queries(
+        {},
+        question=OpenResearchQuestion(
+            id="source_grounded_query",
+            title="Source-grounded theorem",
+            description="Reuse a source theorem.",
+        ),
+        theory_packet=theory_packet,
+        theorem_goals=theorem_goals,
+    )
+    repair_context = feedback["proofengineer_repair_context"]
+    assert repair_context["retrieval_query_seeds"][:3] == queries
+    assert repair_context["formal_source_scope_ids"] == ["source_library"]
 
 
 def test_camel_tokenization_keeps_semantics_without_short_fragments() -> None:
@@ -969,6 +1033,66 @@ def test_source_scoped_search_filters_main_index_and_supports_two_stage_eval(
         "global_source_discovery_then_scoped_declaration"
     )
     assert payload["all_ok"] is True
+
+
+def test_retrieval_benchmark_rejects_source_scoped_prover_context_leakage() -> None:
+    target = FormalDeclaration(
+        source_id="source_a",
+        source_type="lean_library",
+        path="A.lean",
+        line=1,
+        kind="theorem",
+        name="A.semantic_target",
+        namespace="A",
+        signature="theorem semantic_target : True",
+    )
+    distractor = replace(
+        target,
+        source_id="unrelated_proof_bank",
+        path="Distractor.lean",
+        name="Distractor.semantic_target_copy",
+        namespace="Distractor",
+    )
+
+    class LeakyScopedRetriever:
+        declarations = [target, distractor]
+
+        def search(self, _query: str, *, k: int = 10):
+            return [
+                FormalSourceHit(target, 2.0, ("semantic",)),
+                FormalSourceHit(distractor, 1.0, ("semantic",)),
+            ][:k]
+
+        def search_with_source_scope(
+            self,
+            _query: str,
+            *,
+            source_scope_ids: tuple[str, ...],
+            k: int = 10,
+        ):
+            assert source_scope_ids == ("source_a",)
+            return self.search("semantic", k=k)
+
+    payload = run_formal_source_retrieval_benchmark(
+        retriever=LeakyScopedRetriever(),
+        cases=(
+            FormalSourceRetrievalBenchmarkCase(
+                query_id="leaky_scope",
+                query="semantic target",
+                expected_name_fragments=("semantic_target",),
+                expected_source_ids=("source_a",),
+            ),
+        ),
+        k=2,
+    )
+
+    row = payload["rows"][0]
+    assert payload["retrieval_recall_all_ok"] is True
+    assert row["source_scoped_context_hit_rank"] == 1
+    assert row["source_scoped_context_n_out_of_scope_hits"] == 1
+    assert row["source_scoped_context_ok"] is False
+    assert payload["source_scoped_context_all_ok"] is False
+    assert payload["all_ok"] is False
 
 
 def test_provider_fusion_deduplicates_mirrors_without_score_multiplication() -> None:

@@ -109,7 +109,7 @@ def test_composite_retriever_breaks_rrf_ties_by_query_evidence() -> None:
     )
 
 
-def test_composite_diagnostics_disclose_unscoped_provider_fallback() -> None:
+def test_composite_source_scope_filters_unscoped_provider_fallback() -> None:
     @dataclass
     class Provider:
         name: str = "unscoped"
@@ -117,10 +117,21 @@ def test_composite_diagnostics_disclose_unscoped_provider_fallback() -> None:
         def search(self, _query: str, *, k: int = 10):
             return [
                 ExternalFormalSourceHit(
-                    declaration=_declaration("Local.result"),
+                    declaration=_declaration(
+                        "SLT.result",
+                        source_id="lean_stat_learning_theory",
+                    ),
                     score=1.0,
                     matched_terms=("result",),
-                )
+                ),
+                ExternalFormalSourceHit(
+                    declaration=_declaration(
+                        "ProofBank.distractor",
+                        source_id="proof_bank",
+                    ),
+                    score=100.0,
+                    matched_terms=("result",),
+                ),
             ][:k]
 
     retriever = CompositeFormalSourceRetriever((Provider(),))
@@ -128,18 +139,24 @@ def test_composite_diagnostics_disclose_unscoped_provider_fallback() -> None:
     hits = retriever.search_with_source_scope(
         "result",
         source_scope_ids=("lean_stat_learning_theory",),
-        k=1,
+        k=2,
     )
 
-    assert hits
+    assert [hit.declaration.name for hit in hits] == ["SLT.result"]
     diagnostic = retriever.runtime_diagnostics()[0]
-    assert diagnostic["search_mode"] == "unscoped_fallback"
+    assert diagnostic["search_mode"] == (
+        "unscoped_filtered_by_source_allowlist"
+    )
     assert diagnostic["source_scope_ids"] == [
         "lean_stat_learning_theory"
     ]
     assert diagnostic["source_scope_semantics"] == (
-        "provider_activation_hint_not_global_allowlist"
+        "main_retrieval_allowlist_with_provider_owned_"
+        "anchor_scoped_support_corpora"
     )
+    assert diagnostic["n_raw_hits"] == 2
+    assert diagnostic["n_hits"] == 1
+    assert diagnostic["n_out_of_scope_hits_dropped"] == 1
 
 
 def test_emperical_process_lean_provider_calls_structured_graph_api(

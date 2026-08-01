@@ -2499,6 +2499,17 @@ stale hits are removed. Nested runtime proof-state rows use the same extractor a
 the train-only state-action retriever, so declaration RAG and trace RAG cannot
 silently reason from different Lean states.
 
+Source binding is an allowlist, not merely a provider activation hint. When an
+upstream theorem target or formalization handoff supplies source provenance, the
+Formalizer carries that source id and any explicit citation/query into the same
+bounded retrieval channel. A provider with native scoped search owns any
+explicitly declared anchor-scoped companion corpus; an unscoped provider is
+filtered by declaration `source_id`, and dropped hits are reported in runtime
+diagnostics. The retrieval benchmark therefore separates global discovery
+recall from the packet the prover can actually consume: the strict context gate
+requires the expected declaration in source-scoped top 2 and zero undeclared
+source leakage.
+
 Research benchmark traces also attach the top local declaration hits to every
 `FORMAL_GAP` subclaim and copy them into the generated Lean skeleton comments,
 so a gap is always accompanied by concrete local source candidates rather than

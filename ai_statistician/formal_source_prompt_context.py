@@ -463,6 +463,7 @@ def task_bound_formal_source_query_seeds(
     """Derive exact-name-first, bounded semantic queries without domain rules."""
 
     exact_candidates: list[str] = []
+    reference_candidates: list[str] = []
     semantic_candidates: list[str] = []
     support_candidates: list[str] = []
 
@@ -482,7 +483,23 @@ def task_bound_formal_source_query_seeds(
     def add_values(destination: list[str], values: Any) -> None:
         rows = values if isinstance(values, (list, tuple)) else [values]
         for value in rows:
-            text = str(value or "").strip()
+            if isinstance(value, Mapping):
+                parts = [
+                    str(value.get(field, "") or "").strip()
+                    for field in (
+                        "citation",
+                        "reference",
+                        "source_ref",
+                        "title",
+                        "theorem",
+                        "location",
+                        "query",
+                    )
+                    if str(value.get(field, "") or "").strip()
+                ]
+                text = " ".join(dict.fromkeys(parts)).strip()
+            else:
+                text = str(value or "").strip()
             if text:
                 destination.append(text[:1000])
 
@@ -509,6 +526,24 @@ def task_bound_formal_source_query_seeds(
         handoff = {}
     add_values(exact_candidates, handoff.get("candidate_lean_targets", []))
 
+    # Source citations are a separate retrieval lane from Lean declaration
+    # identity and theorem semantics. Only explicit upstream values are used;
+    # the runtime neither invents citations nor maps book titles to theorems.
+    reference_fields = (
+        "formal_source_queries",
+        "source_references",
+        "source_citations",
+        "known_proof_sources",
+    )
+    for row in theorem_goals[:2]:
+        if not isinstance(row, Mapping):
+            continue
+        for field in reference_fields:
+            add_values(reference_candidates, row.get(field, []))
+    for field in reference_fields:
+        add_values(reference_candidates, handoff.get(field, []))
+        add_values(reference_candidates, theory_packet.get(field, []))
+
     # Keep the natural-language theorem meaning separate from exact names. A
     # failed or stale declaration hint therefore cannot crowd semantic search
     # out of the bounded first-turn query set.
@@ -523,6 +558,8 @@ def task_bound_formal_source_query_seeds(
     for row in theory_packet.get("formalization_requests", []) or []:
         if not isinstance(row, Mapping):
             continue
+        for field in reference_fields:
+            add_values(reference_candidates, row.get(field, []))
         add_row(
             semantic_candidates,
             row,
@@ -537,7 +574,12 @@ def task_bound_formal_source_query_seeds(
     ):
         add_values(support_candidates, handoff.get(field, []))
 
-    if not exact_candidates and not semantic_candidates and not support_candidates:
+    if (
+        not exact_candidates
+        and not reference_candidates
+        and not semantic_candidates
+        and not support_candidates
+    ):
         semantic_candidates.append(
             " ".join(
                 value
@@ -552,14 +594,66 @@ def task_bound_formal_source_query_seeds(
     ordered: list[str] = []
     if exact_candidates:
         ordered.append(exact_candidates[0])
+    if reference_candidates and len(ordered) < limit:
+        ordered.append(reference_candidates[0])
     if semantic_candidates and len(ordered) < limit:
         ordered.append(semantic_candidates[0])
     if support_candidates and len(ordered) < limit:
         ordered.append(support_candidates[0])
     ordered.extend(exact_candidates[1:])
+    ordered.extend(reference_candidates[1:])
     ordered.extend(semantic_candidates[1:])
     ordered.extend(support_candidates[1:])
     return [value for value in dict.fromkeys(ordered) if value][:limit]
+
+
+def task_bound_formal_source_scope_ids(
+    *,
+    theory_packet: Mapping[str, Any],
+    theorem_goals: Sequence[Mapping[str, Any]],
+) -> tuple[str, ...]:
+    """Carry explicit source provenance into Formalizer retrieval."""
+
+    discovered: list[str] = []
+
+    def add_values(values: Any) -> None:
+        rows = values if isinstance(values, (list, tuple)) else [values]
+        discovered.extend(
+            str(value).strip()
+            for value in rows
+            if not isinstance(value, Mapping) and str(value).strip()
+        )
+
+    def add_provenance(value: Any) -> None:
+        if not isinstance(value, Mapping):
+            return
+        for field in ("source_id", "corpus_id", "formal_source_scope_id"):
+            candidate = str(value.get(field, "") or "").strip()
+            if candidate:
+                discovered.append(candidate)
+
+    derivation = theory_packet.get("theory_derivation_packet", {})
+    handoff = (
+        derivation.get("formalization_handoff", {})
+        if isinstance(derivation, Mapping)
+        else {}
+    )
+    if not isinstance(handoff, Mapping):
+        handoff = {}
+    for row in theorem_goals[:2]:
+        if not isinstance(row, Mapping):
+            continue
+        add_values(row.get("formal_source_scope_ids", []))
+        add_provenance(row.get("source_theorem_target_provenance", {}))
+    for row in (theory_packet, handoff):
+        add_values(row.get("formal_source_scope_ids", []))
+        add_provenance(row.get("source_theorem_target_provenance", {}))
+    for row in theory_packet.get("formalization_requests", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        add_values(row.get("formal_source_scope_ids", []))
+        add_provenance(row.get("source_theorem_target_provenance", {}))
+    return tuple(dict.fromkeys(discovered))
 
 
 def formalizer_feedback_with_task_bound_formal_source_queries(
@@ -591,6 +685,10 @@ def formalizer_feedback_with_task_bound_formal_source_queries(
         theorem_goals=theorem_goals,
     )
     query_seeds = list(dict.fromkeys([*existing_queries, *task_queries]))[:5]
+    source_scope_ids = task_bound_formal_source_scope_ids(
+        theory_packet=theory_packet,
+        theorem_goals=theorem_goals,
+    )
     if not query_seeds:
         return payload
 
@@ -600,6 +698,8 @@ def formalizer_feedback_with_task_bound_formal_source_queries(
     )
     repair_context.setdefault("owner_subsystem", "FormalizerProofEngineer")
     repair_context["retrieval_query_seeds"] = query_seeds
+    if source_scope_ids:
+        repair_context["formal_source_scope_ids"] = list(source_scope_ids)
     repair_context.setdefault(
         "retrieval_boundary",
         (

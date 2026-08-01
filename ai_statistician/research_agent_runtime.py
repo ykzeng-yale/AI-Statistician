@@ -34340,6 +34340,28 @@ def _proofengineer_formal_source_grounding_hit_groups(
                 )
             else:
                 hits = formal_source_retriever.search(query, k=k)
+                if normalized_source_scopes:
+                    raw_hits = list(hits)
+                    allowed_source_ids = set(normalized_source_scopes)
+                    hits = [
+                        hit
+                        for hit in raw_hits
+                        if str(
+                            getattr(
+                                getattr(hit, "declaration", None),
+                                "source_id",
+                                "",
+                            )
+                            or ""
+                        )
+                        in allowed_source_ids
+                    ]
+                    group["source_scope_enforcement"] = (
+                        "runtime_unscoped_fallback_filtered_by_source_allowlist"
+                    )
+                    group["n_out_of_scope_hits_dropped"] = (
+                        len(raw_hits) - len(hits)
+                    )
         except Exception as exc:  # pragma: no cover - defensive runtime path
             group["hits"] = []
             group["retrieval_error"] = type(exc).__name__ + ": " + str(exc)[:240]

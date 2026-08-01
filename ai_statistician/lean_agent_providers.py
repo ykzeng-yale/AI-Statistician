@@ -124,7 +124,8 @@ class CompositeFormalSourceRetriever:
             "fusion": "reciprocal_rank_fusion",
             "fusion_tie_break": "query_matched_term_count",
             "source_scope_semantics": (
-                "provider_activation_hint_not_global_allowlist"
+                "main_retrieval_allowlist_with_provider_owned_"
+                "anchor_scoped_support_corpora"
             ),
             "source_scoped_search": any(
                 callable(getattr(provider, "search_with_source_scope", None))
@@ -274,7 +275,7 @@ class CompositeFormalSourceRetriever:
                 "search_mode": (
                     "source_scoped"
                     if use_scoped_search
-                    else "unscoped_fallback"
+                    else "unscoped_filtered_by_source_allowlist"
                     if source_scope_ids
                     else "unscoped"
                 ),
@@ -282,7 +283,8 @@ class CompositeFormalSourceRetriever:
             if source_scope_ids:
                 diagnostic["source_scope_ids"] = list(source_scope_ids)
                 diagnostic["source_scope_semantics"] = (
-                    "provider_activation_hint_not_global_allowlist"
+                    "main_retrieval_allowlist_with_provider_owned_"
+                    "anchor_scoped_support_corpora"
                 )
             try:
                 if use_scoped_search:
@@ -300,6 +302,26 @@ class CompositeFormalSourceRetriever:
                 diagnostic["error"] = f"{type(exc).__name__}: {str(exc)[:300]}"
                 self._runtime_diagnostics.append(diagnostic)
                 continue
+            raw_hit_count = len(hits)
+            if source_scope_ids and not use_scoped_search:
+                allowed_source_ids = set(source_scope_ids)
+                hits = [
+                    hit
+                    for hit in hits
+                    if str(
+                        getattr(
+                            getattr(hit, "declaration", None),
+                            "source_id",
+                            "",
+                        )
+                        or ""
+                    )
+                    in allowed_source_ids
+                ]
+                diagnostic["n_raw_hits"] = raw_hit_count
+                diagnostic["n_out_of_scope_hits_dropped"] = (
+                    raw_hit_count - len(hits)
+                )
             diagnostic["n_hits"] = len(hits)
             self._runtime_diagnostics.append(diagnostic)
             for rank, hit in enumerate(hits, start=1):

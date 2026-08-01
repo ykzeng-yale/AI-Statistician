@@ -7297,12 +7297,17 @@ def _formal_source_retrieval_benchmark(args: argparse.Namespace) -> int:
         f"suite={args.suite} hits={payload['n_ok']}/{payload['n_cases']} "
         f"recall@{payload['k']}={payload['recall_at_k']:.3f} "
         f"mrr={payload['mean_reciprocal_rank']:.3f} "
+        f"scoped_context={payload['n_source_scoped_context_ok']}/"
+        f"{payload['n_cases']} "
+        f"all_ok={payload['all_ok']} "
         f"lean_rag={payload['lean_rag_dependency_graph_enabled']} "
         f"cache={getattr(retriever, 'cache_status', 'unknown')}"
     )
     for row in payload["rows"]:
         print(
             f"  {row['query_id']}: ok={row['ok']} rank={row['hit_rank'] or 'miss'} "
+            f"scoped_context_ok={row['source_scoped_context_ok']} "
+            f"scoped_rank={row['source_scoped_context_hit_rank'] or 'miss'} "
             f"top={row['top1_name']} source={row['top1_source_id']}"
         )
     print(

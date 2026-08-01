@@ -10,7 +10,8 @@ from .fingerprint import stable_hash
 from .formal_source_index import FormalSourceHit, build_formal_source_search_backend
 
 
-FORMAL_SOURCE_RETRIEVAL_BENCHMARK_SCHEMA_VERSION = 7
+FORMAL_SOURCE_RETRIEVAL_BENCHMARK_SCHEMA_VERSION = 8
+FORMAL_SOURCE_PROVER_CONTEXT_K = 2
 
 
 @dataclass(frozen=True)
@@ -38,6 +39,14 @@ class FormalSourceRetrievalBenchmarkRow:
     top1_name: str
     top1_source_id: str
     ok: bool
+    source_scoped_context_k: int
+    source_scoped_context_hit_rank: int | None
+    source_scoped_context_top1_name: str
+    source_scoped_context_top1_source_id: str
+    source_scoped_context_allowed_source_ids: tuple[str, ...]
+    source_scoped_context_n_hits: int
+    source_scoped_context_n_out_of_scope_hits: int
+    source_scoped_context_ok: bool
     top_hits: tuple[dict[str, object], ...]
     scoped_top_hits: tuple[dict[str, object], ...]
 
@@ -503,6 +512,12 @@ def run_formal_source_retrieval_benchmark(
         == "global_source_discovery_then_scoped_declaration"
         for row in rows
     )
+    n_source_scoped_context_ok = sum(
+        row.source_scoped_context_ok for row in rows
+    )
+    source_scoped_context_all_ok = (
+        n_source_scoped_context_ok == len(rows)
+    )
     reciprocal_ranks = [1.0 / row.hit_rank for row in rows if row.hit_rank]
     reference_crosswalk = audit_formal_source_reference_crosswalk(
         active_retriever,
@@ -585,9 +600,17 @@ def run_formal_source_retrieval_benchmark(
         "n_ok": n_ok,
         "n_direct_ok": n_direct_ok,
         "n_source_discovery_then_scoped_ok": n_scoped_ok,
+        "prover_context_k": FORMAL_SOURCE_PROVER_CONTEXT_K,
+        "n_source_scoped_context_ok": n_source_scoped_context_ok,
+        "source_scoped_context_all_ok": source_scoped_context_all_ok,
+        "retrieval_recall_all_ok": n_ok == len(rows),
+        "reference_crosswalk_all_ok": bool(
+            reference_crosswalk.get("all_ok", False)
+        ),
         "all_ok": (
             n_ok == len(rows)
             and bool(reference_crosswalk.get("all_ok", False))
+            and source_scoped_context_all_ok
         ),
         "recall_at_k": n_ok / len(rows) if rows else 1.0,
         "mean_reciprocal_rank": sum(reciprocal_ranks) / len(rows) if rows else 1.0,
@@ -608,6 +631,7 @@ def run_formal_source_retrieval_benchmark(
             "the benchmark complements AXLE proof audits; Lean remains the final verifier",
             "source-reference coverage is limited to explicitly indexed crosswalk rows and never implies full-book formalization",
             "source-scoped resolution searches the source candidates actually discovered in global top-k order; gold source ids score the result but never select the scope",
+            "the prover-context gate separately uses gold source provenance to model an already source-bound Formalizer request; it requires the target in scoped top-2 and rejects out-of-scope provider leakage",
         ],
     }
     if out_dir is not None:
@@ -762,6 +786,11 @@ def _run_case(
         )
     )
     top1 = hits[0].declaration if hits else None
+    scoped_context = _source_scoped_prover_context(
+        retriever,
+        case,
+        k=FORMAL_SOURCE_PROVER_CONTEXT_K,
+    )
     return FormalSourceRetrievalBenchmarkRow(
         query_id=case.query_id,
         query=case.query,
@@ -777,9 +806,102 @@ def _run_case(
         top1_name=top1.name if top1 is not None else "",
         top1_source_id=top1.source_id if top1 is not None else "",
         ok=hit_rank is not None and hit_rank <= k,
+        source_scoped_context_k=FORMAL_SOURCE_PROVER_CONTEXT_K,
+        source_scoped_context_hit_rank=scoped_context["hit_rank"],
+        source_scoped_context_top1_name=scoped_context["top1_name"],
+        source_scoped_context_top1_source_id=scoped_context["top1_source_id"],
+        source_scoped_context_allowed_source_ids=tuple(
+            scoped_context["allowed_source_ids"]
+        ),
+        source_scoped_context_n_hits=scoped_context["n_hits"],
+        source_scoped_context_n_out_of_scope_hits=scoped_context[
+            "n_out_of_scope_hits"
+        ],
+        source_scoped_context_ok=scoped_context["ok"],
         top_hits=tuple(_hit_payload(hit, rank=rank) for rank, hit in enumerate(hits, start=1)),
         scoped_top_hits=tuple(scoped_top_hit_payloads),
     )
+
+
+def _source_scoped_prover_context(
+    retriever: object,
+    case: FormalSourceRetrievalBenchmarkCase,
+    *,
+    k: int,
+) -> dict[str, object]:
+    """Audit the small source-bound packet consumed by the Formalizer."""
+
+    scoped_search = getattr(retriever, "search_with_source_scope", None)
+    if not case.expected_source_ids or not callable(scoped_search):
+        return {
+            "hit_rank": None,
+            "top1_name": "",
+            "top1_source_id": "",
+            "allowed_source_ids": tuple(case.expected_source_ids),
+            "n_hits": 0,
+            "n_out_of_scope_hits": 0,
+            "ok": False,
+        }
+    hits = list(
+        scoped_search(
+            case.query,
+            source_scope_ids=case.expected_source_ids,
+            k=max(0, int(k)),
+        )
+    )
+    allowed_source_ids = _source_scoped_allowed_result_ids(
+        retriever,
+        source_scope_ids=case.expected_source_ids,
+    )
+    hit_rank = _expected_hit_rank(hits, case)
+    top1 = hits[0].declaration if hits else None
+    n_out_of_scope_hits = sum(
+        hit.declaration.source_id not in allowed_source_ids
+        for hit in hits
+    )
+    return {
+        "hit_rank": hit_rank,
+        "top1_name": top1.name if top1 is not None else "",
+        "top1_source_id": top1.source_id if top1 is not None else "",
+        "allowed_source_ids": tuple(sorted(allowed_source_ids)),
+        "n_hits": len(hits),
+        "n_out_of_scope_hits": n_out_of_scope_hits,
+        "ok": (
+            hit_rank is not None
+            and hit_rank <= max(0, int(k))
+            and n_out_of_scope_hits == 0
+        ),
+    }
+
+
+def _source_scoped_allowed_result_ids(
+    retriever: object,
+    *,
+    source_scope_ids: tuple[str, ...],
+) -> set[str]:
+    """Include only explicit scopes and their provider-declared companions."""
+
+    allowed = set(source_scope_ids)
+    anchor_source_ids = {
+        str(value)
+        for value in getattr(
+            retriever,
+            "scoped_premise_corpus_anchor_source_ids",
+            (),
+        )
+        if str(value)
+    }
+    if allowed & anchor_source_ids:
+        allowed.update(
+            str(value)
+            for value in getattr(
+                retriever,
+                "scoped_premise_corpus_source_ids",
+                (),
+            )
+            if str(value)
+        )
+    return allowed
 
 
 def _expected_hit_rank(
@@ -833,6 +955,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"({float(payload.get('recall_at_k', 0.0)):.3f})",
         f"- Skipped unavailable source cases: {payload.get('n_skipped_cases', 0)}/{payload.get('n_configured_cases', payload.get('n_cases'))}",
         f"- MRR: {float(payload.get('mean_reciprocal_rank', 0.0)):.3f}",
+        f"- Source-scoped prover context@{payload.get('prover_context_k')}: "
+        f"{payload.get('n_source_scoped_context_ok')}/{payload.get('n_cases')}",
         f"- Fingerprint: `{payload.get('dataset_fingerprint')}`",
         f"- Source-reference recall@{payload.get('k')}: "
         f"{dict(payload.get('reference_crosswalk', {}) or {}).get('n_ok', 0)}/"
@@ -843,8 +967,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "",
         "## Gold Queries",
         "",
-        "| Query | OK | Rank | Top hit | Expected name fragments |",
-        "|---|---:|---:|---|---|",
+        "| Query | Recall OK | Rank | Scoped packet OK | Scoped rank | Top hit | Expected name fragments |",
+        "|---|---:|---:|---:|---:|---|---|",
     ]
     for row in payload.get("rows", []):
         if not isinstance(row, dict):
@@ -853,6 +977,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         rank = row.get("hit_rank")
         lines.append(
             f"| `{row.get('query_id')}` | {row.get('ok')} | {rank if rank is not None else 'miss'} | "
+            f"{row.get('source_scoped_context_ok')} | "
+            f"{row.get('source_scoped_context_hit_rank') if row.get('source_scoped_context_hit_rank') is not None else 'miss'} | "
             f"`{row.get('top1_name')}` ({row.get('top1_source_id')}) | {expected} |"
         )
     return "\n".join(lines) + "\n"
