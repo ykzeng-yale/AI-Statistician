@@ -14,6 +14,7 @@ PacketBuilder = Callable[[Mapping[str, Any], GeneratorResponse, str], dict[str, 
 PacketValidator = Callable[[Mapping[str, Any]], list[str]]
 PayloadExtractor = Callable[[str], dict[str, Any]]
 RepairContextBuilder = Callable[..., Mapping[str, Any] | None]
+RetryPromptBuilder = Callable[..., str]
 
 
 _TYPED_SEMANTIC_PATCH_MAX_VALIDATION_ERRORS = 8
@@ -116,6 +117,12 @@ def _typed_semantic_patch_schema(*, max_updates: int) -> dict[str, Any]:
     return schema
 
 
+def typed_semantic_patch_schema(*, max_updates: int) -> dict[str, Any]:
+    """Return the bounded patch envelope schema for subsystem-owned revision loops."""
+
+    return _typed_semantic_patch_schema(max_updates=max_updates)
+
+
 class PacketValidationError(ValueError):
     """Structured packet validation failure for runtime learning feedback."""
 
@@ -127,6 +134,7 @@ class PacketValidationError(ValueError):
         errors: list[str],
         history: list[dict[str, Any]],
         last_invalid_packet: Mapping[str, Any] | None = None,
+        recovery_checkpoint: Mapping[str, Any] | None = None,
     ) -> None:
         self.validation_label = validation_label
         self.attempts = attempts
@@ -135,6 +143,11 @@ class PacketValidationError(ValueError):
         self.last_invalid_packet = (
             deepcopy(dict(last_invalid_packet))
             if isinstance(last_invalid_packet, Mapping)
+            else None
+        )
+        self.recovery_checkpoint = (
+            deepcopy(dict(recovery_checkpoint))
+            if isinstance(recovery_checkpoint, Mapping)
             else None
         )
         super().__init__(
@@ -154,6 +167,7 @@ def generate_validated_json_packet(
     validation_label: str,
     max_repair_attempts: int = 1,
     repair_context_builder: RepairContextBuilder | None = None,
+    retry_prompt_builder: RetryPromptBuilder | None = None,
     semantic_patch_repair: bool = False,
     allow_progress_repair_extension: bool = False,
 ) -> dict[str, Any]:
@@ -379,13 +393,18 @@ def generate_validated_json_packet(
             else:
                 semantic_patch_base_payload = None
                 semantic_patch_base_fingerprint = ""
-                user_prompt = _repair_prompt(
-                    original_user_prompt=original_user_prompt,
-                    bad_response=raw_text,
-                    errors=last_errors,
-                    validation_label=validation_label,
-                    truncation_detected=truncation_detected,
-                    repair_context=repair_context,
+                retry_prompt_kwargs = {
+                    "original_user_prompt": original_user_prompt,
+                    "bad_response": raw_text,
+                    "errors": last_errors,
+                    "validation_label": validation_label,
+                    "truncation_detected": truncation_detected,
+                    "repair_context": repair_context,
+                }
+                user_prompt = (
+                    retry_prompt_builder(**retry_prompt_kwargs)
+                    if retry_prompt_builder is not None
+                    else _repair_prompt(**retry_prompt_kwargs)
                 )
     raise PacketValidationError(
         validation_label=validation_label,
@@ -565,6 +584,7 @@ def _apply_typed_semantic_patch(
     expected_base_fingerprint: str,
     patch_envelope: Mapping[str, Any],
     max_updates: int,
+    allow_new_object_keys: bool = True,
 ) -> tuple[
     dict[str, Any],
     list[list[str | int]],
@@ -654,6 +674,7 @@ def _apply_typed_semantic_patch(
             patched,
             path=normalized_path,
             replacement=replacement,
+            allow_new_object_keys=allow_new_object_keys,
         )
         applied_paths.append(normalized_path)
         if stripped_prefixes:
@@ -665,6 +686,29 @@ def _apply_typed_semantic_patch(
                 }
             )
     return patched, applied_paths, path_normalizations
+
+
+def apply_typed_semantic_patch(
+    *,
+    base_payload: Mapping[str, Any],
+    expected_base_fingerprint: str,
+    patch_envelope: Mapping[str, Any],
+    max_updates: int,
+    allow_new_object_keys: bool = True,
+) -> tuple[
+    dict[str, Any],
+    list[list[str | int]],
+    list[dict[str, Any]],
+]:
+    """Apply a lineage-bound typed patch without exposing mutable runtime metadata."""
+
+    return _apply_typed_semantic_patch(
+        base_payload=base_payload,
+        expected_base_fingerprint=expected_base_fingerprint,
+        patch_envelope=patch_envelope,
+        max_updates=max_updates,
+        allow_new_object_keys=allow_new_object_keys,
+    )
 
 
 def _is_typed_semantic_patch_direct_replacement(value: Any) -> bool:
@@ -703,14 +747,17 @@ def _replace_typed_patch_path(
     *,
     path: list[str | int],
     replacement: Any,
+    allow_new_object_keys: bool = True,
 ) -> None:
     parent: Any = payload
     for depth, component in enumerate(path[:-1]):
         if isinstance(parent, dict):
             if not isinstance(component, str) or component not in parent:
+                available_keys = sorted(str(key) for key in parent)[:16]
                 raise ValueError(
                     "typed semantic patch path does not resolve at component "
-                    f"{depth}: {component!r}"
+                    f"{depth}: {component!r}; full_path={path!r}; "
+                    f"available_keys={available_keys!r}"
                 )
             parent = parent[component]
         elif isinstance(parent, list):
@@ -721,19 +768,26 @@ def _replace_typed_patch_path(
             ):
                 raise ValueError(
                     "typed semantic patch array path does not resolve at component "
-                    f"{depth}: {component!r}"
+                    f"{depth}: {component!r}; full_path={path!r}; "
+                    f"array_length={len(parent)}"
                 )
             parent = parent[component]
         else:
             raise ValueError(
                 "typed semantic patch path traverses a scalar at component "
-                f"{depth}: {component!r}"
+                f"{depth}: {component!r}; full_path={path!r}"
             )
 
     final_component = path[-1]
     if isinstance(parent, dict):
         if not isinstance(final_component, str):
             raise ValueError("typed semantic patch object replacement requires a string key")
+        if not allow_new_object_keys and final_component not in parent:
+            available_keys = sorted(str(key) for key in parent)[:16]
+            raise ValueError(
+                "typed semantic patch may replace only an existing object key; "
+                f"full_path={path!r}; available_keys={available_keys!r}"
+            )
         parent[final_component] = replacement
         return
     if isinstance(parent, list):
@@ -761,6 +815,12 @@ def _stable_payload_fingerprint(payload: Mapping[str, Any]) -> str:
         ensure_ascii=False,
     )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def typed_semantic_patch_payload_fingerprint(payload: Mapping[str, Any]) -> str:
+    """Fingerprint the exact base payload expected by a typed patch envelope."""
+
+    return _stable_payload_fingerprint(payload)
 
 
 def _compact_patch_base_payload(

@@ -357,6 +357,7 @@ from .research_architect import (
     AnthropicArchitectLLMProvider,
     KERNEL_PROOF_BOUNDARY,
     LLMTheoryDeveloperAgent,
+    THEORY_DEVELOPER_STAGE_CHECKPOINT_KIND,
     THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
     THEORY_MIN_DERIVATION_STEPS,
     THEORY_MIN_EQUATION_CHAIN_STEPS,
@@ -12880,6 +12881,16 @@ def _theory_developer_packet_validation_failure_result(
     exc: PacketValidationError,
 ) -> AgentStepResult:
     validation_errors = [str(error) for error in exc.errors if str(error)]
+    raw_recovery_checkpoint = getattr(exc, "recovery_checkpoint", None)
+    recovery_checkpoint = (
+        deepcopy(dict(raw_recovery_checkpoint))
+        if isinstance(raw_recovery_checkpoint, Mapping)
+        and raw_recovery_checkpoint.get("artifact_kind")
+        == THEORY_DEVELOPER_STAGE_CHECKPOINT_KIND
+        and raw_recovery_checkpoint.get("question_id") == question.id
+        and raw_recovery_checkpoint.get("kernel_verified") is False
+        else {}
+    )
     retry_attempt = _runtime_safe_int(
         task.inputs.get("theory_developer_validation_retry_attempt", 0)
     )
@@ -12923,6 +12934,18 @@ def _theory_developer_packet_validation_failure_result(
         "theory_developer_validation_failure:"
         + stable_hash([task.task_id, exc.validation_label, validation_errors, exc.history])[:20]
     )
+    target_behavior = (
+        "resume only estimator-interface authoring from the hash-bound validated "
+        "TheoryDeveloper core checkpoint; do not regenerate the completed core phase"
+        if recovery_checkpoint
+        else (
+            "rerun TheoryDeveloper with a compact but structured "
+            "TheoryDerivationPacket: preserve problem_card, theorem_cards, "
+            "derivation_steps, equation_chain, assumption_ledger, and "
+            "formalization_handoff, but use minimum validator-satisfying rows and "
+            "short mathematical strings"
+        )
+    )
     learning_row = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "question_id": question.id,
@@ -12942,14 +12965,9 @@ def _theory_developer_packet_validation_failure_result(
             "last_attempt_summary": exc.history[-1] if exc.history else {},
             "truncation_detected": truncation_detected,
             "max_runtime_validation_retries": max_runtime_validation_retries,
+            "recovery_checkpoint_available": bool(recovery_checkpoint),
         },
-        "target_behavior": (
-            "rerun TheoryDeveloper with a compact but structured "
-            "TheoryDerivationPacket: preserve problem_card, theorem_cards, "
-            "derivation_steps, equation_chain, assumption_ledger, and "
-            "formalization_handoff, but use minimum validator-satisfying rows and "
-            "short mathematical strings"
-        ),
+        "target_behavior": target_behavior,
         "acceptance_gate": (
             "TheoryDeveloper packet passes local validation with proof_evidence_status "
             "preserving the LLM-not-proof boundary; downstream workers may consume "
@@ -12972,6 +12990,12 @@ def _theory_developer_packet_validation_failure_result(
         "failure_classification": failure_classification,
         "validation_errors": validation_errors,
         "llm_json_repair_history": exc.history,
+        "recovery_checkpoint_available": bool(recovery_checkpoint),
+        **(
+            {"recovery_checkpoint": recovery_checkpoint}
+            if recovery_checkpoint
+            else {}
+        ),
         "learning_rows": [learning_row],
         "recommended_next_action": learning_row["target_behavior"],
         "proof_evidence_status": "THEORY_DEVELOPER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE",
@@ -12998,6 +13022,7 @@ def _theory_developer_packet_validation_failure_result(
                 "failure_fingerprint": failure_fingerprint,
                 "truncation_detected": truncation_detected,
                 "max_runtime_validation_retries": max_runtime_validation_retries,
+                "recovery_checkpoint_available": bool(recovery_checkpoint),
                 "proof_evidence_status": (
                     "THEORY_DEVELOPER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
                 ),
@@ -13020,26 +13045,35 @@ def _theory_developer_packet_validation_failure_result(
                 source_environment_feedback
             )
         retry_mode = (
-            "compact_truncation_transport_recovery"
-            if truncation_detected
-            else "compact_validation_retry"
+            "resume_estimator_interface_authoring"
+            if recovery_checkpoint
+            else (
+                "compact_truncation_transport_recovery"
+                if truncation_detected
+                else "compact_validation_retry"
+            )
         )
         source_feedback_summary = (
             _theory_developer_compact_runtime_feedback_summary(context)
         )
         required_revision = (
-            "Return one complete compact JSON object satisfying the serious "
-            "TheoryDeveloper output contract. Use exactly the minimum required "
-            "derivation, equation-chain, and independent sanity-check rows, one "
-            "primary theorem card, and a complete formalization_handoff. Preserve "
-            "the upstream mathematical obligations summarized in "
-            "source_runtime_feedback_summary."
-            if truncation_detected
+            "Keep the validated core checkpoint immutable and regenerate only the "
+            "failed estimator-interface packet from its exact semantic ids."
+            if recovery_checkpoint
             else (
-                "Return one complete compact JSON object satisfying the "
-                "TheoryDeveloper output contract. Use minimum row counts, short "
-                "symbolic equations, and preserve proof_evidence_status as "
-                f"{THEORY_DERIVATION_NOT_PROOF_EVIDENCE}."
+                "Return one complete compact JSON object satisfying the serious "
+                "TheoryDeveloper output contract. Use exactly the minimum required "
+                "derivation, equation-chain, and independent sanity-check rows, one "
+                "primary theorem card, and a complete formalization_handoff. Preserve "
+                "the upstream mathematical obligations summarized in "
+                "source_runtime_feedback_summary."
+                if truncation_detected
+                else (
+                    "Return one complete compact JSON object satisfying the "
+                    "TheoryDeveloper output contract. Use minimum row counts, short "
+                    "symbolic equations, and preserve proof_evidence_status as "
+                    f"{THEORY_DERIVATION_NOT_PROOF_EVIDENCE}."
+                )
             )
         )
         retry_feedback = {
@@ -13058,6 +13092,11 @@ def _theory_developer_packet_validation_failure_result(
             "retry_mode": retry_mode,
             "truncation_detected": truncation_detected,
             "required_revision": required_revision,
+            **(
+                {"recovery_checkpoint": recovery_checkpoint}
+                if recovery_checkpoint
+                else {}
+            ),
             "source_runtime_feedback_summary": source_feedback_summary,
             "acceptance_gate": learning_row["acceptance_gate"],
             "proof_evidence_status": (

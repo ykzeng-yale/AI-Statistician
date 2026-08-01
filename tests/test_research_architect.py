@@ -21,16 +21,23 @@ from ai_statistician.cli import (
     build_parser,
     main,
 )
-from ai_statistician.llm_json_repair import PacketValidationError
+from ai_statistician.llm_json_repair import (
+    PacketValidationError,
+    typed_semantic_patch_payload_fingerprint,
+)
 from ai_statistician.estimator_interface_contract import (
     ESTIMATOR_REQUEST_BINDINGS,
     estimator_interface_contract_id,
 )
 from ai_statistician.model_backend import (
+    DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
     DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
     GeneratorRequest,
     GeneratorResponse,
     default_generator_model,
+)
+from ai_statistician.metric_protocol_stage import (
+    build_theory_informed_metric_protocol_material,
 )
 from ai_statistician.research_architect import (
     KERNEL_PROOF_BOUNDARY,
@@ -40,6 +47,7 @@ from ai_statistician.research_architect import (
     ResearchArchitectConfig,
     StaticArchitectLLMProvider,
     THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
+    build_theory_developer_revision_inputs,
     build_theory_developer_prompt,
     validate_theory_packet,
 )
@@ -309,6 +317,93 @@ def _sample_response() -> dict[str, object]:
                 "acceptance_gate": "Lean statement semantic review then kernel proof attempt",
             }
         ],
+    }
+
+
+def _serious_sample_response() -> dict[str, object]:
+    response = json.loads(json.dumps(_sample_response()))
+    derivation = dict(response["theory_derivation_packet"])
+    derivation_steps = list(derivation["derivation_steps"])
+    derivation_steps.extend(
+        [
+            {
+                "id": "limit_variance",
+                "claim": "The influence-function variance determines the root-n limit.",
+                "equation_or_argument": "Var(phi)=E[phi^2] under E[phi]=0",
+                "depends_on": ["orthogonal_score"],
+                "formal_goal": "aipw_limit_variance",
+                "risk": "finite second moments are required",
+            },
+            {
+                "id": "studentized_limit",
+                "claim": "A consistent variance estimate yields studentized normality.",
+                "equation_or_argument": "sqrt(n)(psi_hat-psi)/sigma_hat => N(0,1)",
+                "depends_on": ["remainder_control", "limit_variance"],
+                "formal_goal": "aipw_studentized_normality",
+                "risk": "variance consistency needs a separate lemma",
+            },
+        ]
+    )
+    derivation["derivation_steps"] = derivation_steps
+    equation_chain = list(derivation["equation_chain"])
+    equation_chain.extend(
+        [
+            {
+                "step_id": "variance_identity",
+                "lhs": "sigma^2",
+                "relation": "=",
+                "rhs": "E[phi^2]",
+                "justification": "the centered influence function has mean zero",
+                "depends_on": ["limit_variance"],
+            },
+            {
+                "step_id": "studentized_expansion",
+                "lhs": "sqrt(n)(psi_hat-psi)/sigma_hat",
+                "relation": "=",
+                "rhs": "sqrt(n)P_n phi/sigma + o_p(1)",
+                "justification": "Slutsky after remainder and variance control",
+                "depends_on": ["studentized_limit"],
+            },
+        ]
+    )
+    derivation["equation_chain"] = equation_chain
+    response["theory_derivation_packet"] = derivation
+    return response
+
+
+def _metric_theory_revision_context(
+    *,
+    question: OpenResearchQuestion,
+    parent: dict[str, object],
+) -> dict[str, object]:
+    source_packet_id = "theory_derivation:targeted-revision-parent"
+    material = build_theory_informed_metric_protocol_material(
+        theory_packet=parent,
+        theory_packet_id=source_packet_id,
+    )
+    feedback = {
+        "artifact_kind": "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback",
+        "feedback_id": "metric-protocol-theory-feedback:targeted",
+        "question_id": question.id,
+        "source_theory_packet_id": source_packet_id,
+        "source_theory_packet_hash": material["source_theory_packet_hash"],
+        "target_consumer_subsystem": "TheoryDeveloper",
+        "execution_authorized": False,
+        "upstream_theory_revision_count": 1,
+        "findings": [
+            {
+                "severity": "high",
+                "category": "assumption audit",
+                "summary": "The bounded-outcome premise is not explicit.",
+                "required_change": "Revise the theory semantics and direct dependents.",
+                "repair_scope": "upstream_theory",
+            }
+        ],
+        "acceptance_gate": "Fresh theory must pass independent metric review.",
+    }
+    return {
+        "environment_feedback": feedback,
+        "metric_protocol_prior_theory_material": material,
     }
 
 
@@ -723,6 +818,289 @@ def test_theory_developer_authors_interfaces_after_freezing_core_theory() -> Non
         "core_theory_workspace",
         "estimator_interface_authoring",
     ]
+
+
+def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -> None:
+    parent = _serious_sample_response()
+    question = OpenResearchQuestion(
+        id="targeted_revision",
+        title="Targeted theory revision",
+        description="Repair one upstream theory defect without regenerating valid work.",
+    )
+    context = _metric_theory_revision_context(
+        question=question,
+        parent=parent,
+    )
+    revision_inputs = build_theory_developer_revision_inputs(
+        context,
+        question=question,
+    )
+    base_fingerprint = revision_inputs["base_core_payload_fingerprint"]
+    invalid_patch = {
+        "base_payload_fingerprint": base_fingerprint,
+        "updates": [
+            {
+                "path": ["theory_derivation_packet", "invented_section"],
+                "replacement_json": "[]",
+            }
+        ],
+    }
+    revised_assumptions = [
+        *parent["problem_card"]["assumptions"],
+        "bounded outcomes",
+    ]
+    valid_patch = {
+        "base_payload_fingerprint": base_fingerprint,
+        "updates": [
+            {
+                "path": ["problem_card", "assumptions"],
+                "replacement_json": json.dumps(revised_assumptions),
+            }
+        ],
+    }
+    estimator = parent["estimator_specs"][0]
+    interface_response = {
+        "interfaces": [
+            {
+                "estimator_id": estimator["id"],
+                "estimator_interface_contract": estimator[
+                    "estimator_interface_contract"
+                ],
+            }
+        ]
+    }
+    provider = SequentialGeneratorBackend(
+        [invalid_patch, valid_patch, interface_response]
+    )
+    developer = LLMTheoryDeveloperAgent(
+        provider=provider,
+        config=ResearchArchitectConfig(
+            provider_name="anthropic",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            serious_model_tier="haiku",
+            max_repair_attempts=1,
+        ),
+    )
+
+    packet = developer.derive(question, architect_context=context)
+
+    assert packet["ok"] is True
+    assert packet["problem_card"]["assumptions"] == revised_assumptions
+    assert packet["theorem_cards"] == parent["theorem_cards"]
+    assert packet["theory_derivation_packet"]["self_critique"] == parent[
+        "theory_derivation_packet"
+    ]["self_critique"]
+    assert "invented_section" not in packet["theory_derivation_packet"]
+    assert len(provider.requests) == 3
+    assert [request.model for request in provider.requests] == [
+        DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+    ]
+    first_request, retry_request, interface_request = provider.requests
+    assert first_request.metadata["theory_developer_phase"] == (
+        "targeted_core_revision"
+    )
+    assert first_request.max_tokens <= 8000
+    assert set(first_request.schema["properties"]) == {
+        "base_payload_fingerprint",
+        "updates",
+    }
+    assert "never a regenerated theory packet" in first_request.user_prompt
+    assert "preserved byte-for-structure" in first_request.user_prompt
+    assert '"existing_paths_only":true' in first_request.user_prompt
+    assert '"valid_top_level_path_keys"' in first_request.user_prompt
+    assert "original immutable base" in retry_request.user_prompt
+    assert retry_request.metadata["json_repair_attempt"] == 1
+    assert interface_request.metadata["theory_developer_phase"] == (
+        "estimator_interface_authoring"
+    )
+    transport = packet["theory_revision_transport"]
+    assert transport["source_theory_packet_id"] == (
+        "theory_derivation:targeted-revision-parent"
+    )
+    assert transport["feedback_id"] == (
+        "metric-protocol-theory-feedback:targeted"
+    )
+    assert transport["base_core_payload_fingerprint"] == base_fingerprint
+    assert transport["applied_paths"] == [["problem_card", "assumptions"]]
+    assert transport["kernel_verified"] is False
+
+
+def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
+    parent = _serious_sample_response()
+    question = OpenResearchQuestion(
+        id="targeted_revision_interface_resume",
+        title="Targeted revision interface resume",
+        description="Resume only the failed interface stage after core validation.",
+    )
+    context = _metric_theory_revision_context(question=question, parent=parent)
+    revision_inputs = build_theory_developer_revision_inputs(
+        context,
+        question=question,
+    )
+    core_patch = {
+        "base_payload_fingerprint": revision_inputs[
+            "base_core_payload_fingerprint"
+        ],
+        "updates": [
+            {
+                "path": ["problem_card", "assumptions"],
+                "replacement_json": json.dumps(
+                    [*parent["problem_card"]["assumptions"], "bounded outcomes"]
+                ),
+            }
+        ],
+    }
+    estimator = parent["estimator_specs"][0]
+    expected_contract = json.loads(
+        json.dumps(estimator["estimator_interface_contract"])
+    )
+    invalid_contract = json.loads(json.dumps(expected_contract))
+    invalid_rate = invalid_contract["response_fields"][0]["sample_size_rate"]
+    expected_exponent = float(invalid_rate["polynomial_exponent"])
+    invalid_rate["polynomial_exponent"] = expected_exponent + 1.0
+    invalid_interface = {
+        "interfaces": [
+            {
+                "estimator_id": estimator["id"],
+                "estimator_interface_contract": invalid_contract,
+            }
+        ]
+    }
+    still_invalid_patch = {
+        "base_payload_fingerprint": typed_semantic_patch_payload_fingerprint(
+            invalid_interface
+        ),
+        "updates": [
+            {
+                "path": [
+                    "interfaces",
+                    0,
+                    "estimator_interface_contract",
+                    "response_fields",
+                    0,
+                    "sample_size_rate",
+                    "polynomial_exponent",
+                ],
+                "replacement": expected_exponent + 2.0,
+            }
+        ],
+    }
+    first_provider = SequentialGeneratorBackend(
+        [core_patch, invalid_interface, still_invalid_patch]
+    )
+    first_developer = LLMTheoryDeveloperAgent(
+        provider=first_provider,
+        config=ResearchArchitectConfig(
+            provider_name="anthropic",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            serious_model_tier="haiku",
+            max_repair_attempts=1,
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc_info:
+        first_developer.derive(question, architect_context=context)
+
+    checkpoint = exc_info.value.recovery_checkpoint
+    assert checkpoint is not None
+    assert checkpoint["completed_phase"] == "targeted_core_revision"
+    assert checkpoint["failed_phase"] == "estimator_interface_authoring"
+    assert checkpoint["kernel_verified"] is False
+    assert [
+        request.metadata["theory_developer_phase"]
+        for request in first_provider.requests
+    ] == [
+        "targeted_core_revision",
+        "estimator_interface_authoring",
+        "estimator_interface_authoring",
+    ]
+    assert first_provider.requests[2].metadata["json_repair_mode"] == (
+        "typed_semantic_patch"
+    )
+    assert "allowed_semantic_reference_ids" in first_provider.requests[2].user_prompt
+    assert "orthogonal_expansion" in first_provider.requests[2].user_prompt
+
+    retry_context = dict(context)
+    retry_context["theory_developer_source_environment_feedback"] = dict(
+        context["environment_feedback"]
+    )
+    retry_context["environment_feedback"] = {
+        "artifact_kind": "RuntimeTheoryDeveloperValidationFeedback",
+        "truncation_detected": False,
+        "recovery_checkpoint": checkpoint,
+    }
+    valid_interface = {
+        "interfaces": [
+            {
+                "estimator_id": estimator["id"],
+                "estimator_interface_contract": expected_contract,
+            }
+        ]
+    }
+    retry_provider = SequentialGeneratorBackend([valid_interface])
+    retry_developer = LLMTheoryDeveloperAgent(
+        provider=retry_provider,
+        config=ResearchArchitectConfig(
+            provider_name="anthropic",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            serious_model_tier="haiku",
+            max_repair_attempts=1,
+        ),
+    )
+
+    packet = retry_developer.derive(question, architect_context=retry_context)
+
+    assert validate_theory_packet(packet) == []
+    assert len(retry_provider.requests) == 1
+    assert retry_provider.requests[0].metadata["theory_developer_phase"] == (
+        "estimator_interface_authoring"
+    )
+    assert packet["theory_generation_phases"][0]["phase"] == (
+        "targeted_core_revision"
+    )
+    assert packet["theory_revision_transport"]["feedback_id"] == (
+        context["environment_feedback"]["feedback_id"]
+    )
+
+
+def test_theory_revision_rejects_lineage_mismatch_before_provider_call() -> None:
+    parent = _serious_sample_response()
+    question = OpenResearchQuestion(
+        id="targeted_revision_mismatch",
+        title="Targeted revision lineage",
+        description="Reject feedback for different parent bytes.",
+    )
+    context = _metric_theory_revision_context(
+        question=question,
+        parent=parent,
+    )
+    feedback = dict(context["environment_feedback"])
+    feedback["source_theory_packet_hash"] = "wrong-parent-hash"
+    context["environment_feedback"] = feedback
+    provider = SequentialGeneratorBackend([])
+    developer = LLMTheoryDeveloperAgent(
+        provider=provider,
+        config=ResearchArchitectConfig(
+            provider_name="anthropic",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            serious_model_tier="haiku",
+        ),
+    )
+
+    with pytest.raises(PacketValidationError, match="packet hashes must match"):
+        developer.derive(question, architect_context=context)
+
+    assert provider.requests == []
 
 
 def test_theory_developer_opts_into_one_strict_progress_patch(

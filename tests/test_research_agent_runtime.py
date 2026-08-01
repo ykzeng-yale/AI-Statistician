@@ -437,6 +437,84 @@ def _structured_theory_packet_fixture(
     }
 
 
+def _targetable_theory_packet_fixture(packet_id: str) -> dict[str, object]:
+    packet = _structured_theory_packet_fixture(packet_id)
+    packet.update(
+        {
+            "problem_card": {
+                "observed_data": "generic observations",
+                "dgp": "a declared statistical law",
+                "estimand": "a declared target",
+                "nuisance_quantities": [],
+                "assumptions": ["regularity"],
+                "asymptotic_regime": "sample size tends to infinity",
+                "desired_theorem_type": "finite-sample or asymptotic guarantee",
+            },
+            "estimator_specs": [
+                {
+                    "id": "candidate",
+                    "name": "candidate estimator",
+                    "formula": "T(data)",
+                    "algorithm_sketch": "evaluate the declared statistic",
+                    "tuning": [],
+                    "required_assumptions": ["regularity"],
+                }
+            ],
+            "lemma_cards": [
+                {
+                    "id": "supporting_lemma",
+                    "statement": "the declared regularity condition supports the target",
+                    "depends_on": [],
+                    "used_by": ["T_FINITE_SAMPLE_GATE_FIXTURE"],
+                    "formalization_difficulty": "medium",
+                }
+            ],
+            "proof_plan": {
+                "proof_dependency_dag": [],
+                "required_primitives": ["declared statistical law"],
+                "acceptable_strengthening": ["explicit integrability"],
+                "unacceptable_changes": ["change the estimand"],
+            },
+            "formalization_requests": [
+                {
+                    "id": "formalize_target",
+                    "target_theorem_card": "T_FINITE_SAMPLE_GATE_FIXTURE",
+                    "lean_statement_sketch": "the exact target statement",
+                    "semantic_alignment_constraints": ["preserve the estimand"],
+                    "kernel_status": "OPEN",
+                }
+            ],
+            "simulation_ademp_spec": {
+                "aim": "stress the declared guarantee",
+                "dgps": ["declared statistical law"],
+                "methods": ["candidate estimator"],
+                "performance_measures": ["declared error"],
+                "stress_tests": ["boundary parameter"],
+                "expected_theoretical_behavior": ["match the theorem target"],
+            },
+            "critic_findings": [
+                {
+                    "critic": "theory critic",
+                    "finding": "calibration remains to be audited",
+                    "reroute_if_confirmed": "TheoryDeveloper",
+                }
+            ],
+            "next_actions": [
+                {
+                    "owner_agent": "TheoryDeveloper",
+                    "action": "audit calibration",
+                    "acceptance_gate": "independent review",
+                }
+            ],
+        }
+    )
+    derivation = dict(packet["theory_derivation_packet"])
+    derivation["self_critique"] = ["The calibration must be checked independently."]
+    derivation["rejected_alternatives"] = []
+    packet["theory_derivation_packet"] = derivation
+    return packet
+
+
 def _theory_informed_metric_context_fixture() -> dict[str, object]:
     theory_packet = _structured_theory_packet_fixture()
     theory_packet_id = str(theory_packet["packet_id"])
@@ -1459,6 +1537,72 @@ def test_theory_developer_validation_failure_routes_compact_retry() -> None:
     assert result.observations[0].payload["truncation_detected"] is True
 
 
+def test_theory_interface_failure_routes_validated_core_checkpoint() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    question_payload = runtime_module._question_to_payload(question)
+    checkpoint = {
+        "artifact_kind": "TheoryDeveloperStageRecoveryCheckpoint",
+        "question_id": question.id,
+        "completed_phase": "targeted_core_revision",
+        "failed_phase": "estimator_interface_authoring",
+        "validated_core_packet_fingerprint": "validated-core-fingerprint",
+        "validated_core_packet": {"packet_id": "theory_derivation:validated-core"},
+        "proof_evidence_status": "LLM_THEORY_DERIVATION_NOT_PROOF_EVIDENCE",
+        "kernel_verified": False,
+    }
+
+    class RejectingInterfaceAuthor:
+        def derive(self, *_args: object, **_kwargs: object) -> dict[str, object]:
+            raise PacketValidationError(
+                validation_label="LLM TheoryDeveloper estimator interface packet",
+                attempts=2,
+                errors=["interfaces[0] typed rate is inconsistent"],
+                history=[
+                    {
+                        "attempt_index": 1,
+                        "provider": "anthropic",
+                        "model": LIVE_EVALUATION_CLAUDE_MODEL,
+                        "ok": False,
+                    }
+                ],
+                recovery_checkpoint=checkpoint,
+            )
+
+    result = TheoryDeveloperRuntimeSubsystem(
+        theory_developer=RejectingInterfaceAuthor(),  # type: ignore[arg-type]
+        n_runs=5,
+        seed=20260801,
+    ).run(
+        AgentTask(
+            task_id="theory-interface-recovery:test",
+            owner_subsystem="TheoryDeveloper",
+            objective="Recover a failed interface phase.",
+            inputs={
+                "question": question_payload,
+                "architect_context": {},
+            },
+            allowed_tools=("model_backend", "rag_memory"),
+            expected_artifacts=("theory_derivation_packet",),
+        ),
+        BlackboardState(project_id="theory-interface-recovery"),
+    )
+
+    assert result.status == "REVISE"
+    assert result.next_task is not None
+    retry_feedback = result.next_task.inputs["environment_feedback"]
+    assert retry_feedback["retry_mode"] == "resume_estimator_interface_authoring"
+    assert retry_feedback["recovery_checkpoint"] == checkpoint
+    assert "regenerate only the failed estimator-interface packet" in (
+        retry_feedback["required_revision"]
+    )
+    assert "do not regenerate the completed core phase" in (
+        next(iter(result.produced_artifacts.values()))["recommended_next_action"]
+    )
+    assert result.observations[0].payload[
+        "recovery_checkpoint_available"
+    ] is True
+
+
 def test_theory_developer_routes_protocol_preflight_before_generated_code() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[0]
     theory_packet = _structured_theory_packet_fixture(
@@ -1881,7 +2025,7 @@ def test_theory_developer_preserves_metric_protocol_revision_lineage() -> None:
     theory_packet = _structured_theory_packet_fixture(
         "theory_derivation:metric-gate-revised"
     )
-    parent_theory_packet = _structured_theory_packet_fixture(
+    parent_theory_packet = _targetable_theory_packet_fixture(
         "theory_derivation:metric-gate-original"
     )
     captured_context: dict[str, Any] = {}
@@ -1934,16 +2078,15 @@ def test_theory_developer_preserves_metric_protocol_revision_lineage() -> None:
             ),
         },
     )
-    assert "metric_protocol_upstream_theory_revision_instruction" in revision_prompt
     assert "serious_upstream_theory_revision" in revision_prompt
-    assert '"min_derivation_steps":5' in revision_prompt
-    assert '"min_equation_chain_steps":4' in revision_prompt
+    assert "typed patch contract" in revision_prompt
+    assert "never a regenerated theory packet" in revision_prompt
     assert "missing theory calibration" in revision_prompt
-    assert "metric_protocol_prior_theory_material" in revision_prompt
+    assert "base_core_payload" in revision_prompt
     assert parent_theory_packet["theory_derivation_packet"]["equation_chain"][0][
         "step_id"
     ] in revision_prompt
-    assert "do not edit rejected metric rows" in revision_prompt
+    assert "Paths are relative to base_core_payload" in revision_prompt
     result = TheoryDeveloperRuntimeSubsystem(
         theory_developer=StaticTheoryDeveloper(),  # type: ignore[arg-type]
         n_runs=17,
@@ -2249,7 +2392,7 @@ def test_theory_developer_blocks_exhausted_upstream_review_before_model_call(
 
 def test_theory_validation_retry_preserves_metric_revision_feedback() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[0]
-    parent_theory_packet = _structured_theory_packet_fixture(
+    parent_theory_packet = _targetable_theory_packet_fixture(
         "theory_derivation:metric-retry-parent"
     )
     revised_theory_packet = _structured_theory_packet_fixture(
@@ -2371,7 +2514,7 @@ def test_theory_validation_retry_preserves_metric_revision_feedback() -> None:
         architect_context=retry_context,
     )
     assert "serious_upstream_theory_revision" in retry_prompt
-    assert "serious_theory_output_budget" in retry_prompt
+    assert "transport_recovery_instruction" in retry_prompt
     assert "JSONDecodeError" in retry_prompt
     assert "missing finite-sample derivation" in retry_prompt
 

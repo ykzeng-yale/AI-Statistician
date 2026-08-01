@@ -26,8 +26,11 @@ from .model_backend import (
 )
 from .llm_json_repair import (
     PacketValidationError,
+    apply_typed_semantic_patch,
     extract_json_object,
     generate_validated_json_packet,
+    typed_semantic_patch_payload_fingerprint,
+    typed_semantic_patch_schema,
 )
 from .research_schema import OpenResearchQuestion, ResearchReport
 
@@ -46,6 +49,9 @@ THEORY_SERIOUS_PROMPT_MODES = (
     THEORY_PROMPT_MODE_SERIOUS_CAPABILITY,
     THEORY_PROMPT_MODE_SERIOUS_REVISION,
 )
+THEORY_REVISION_PATCH_MAX_UPDATES = 20
+THEORY_REVISION_PATCH_MAX_TOKENS = 8000
+THEORY_DEVELOPER_STAGE_CHECKPOINT_KIND = "TheoryDeveloperStageRecoveryCheckpoint"
 KERNEL_PROOF_BOUNDARY = (
     "LLM derivations, retrieval hits, and simulation predictions are proposal "
     "or diagnostic evidence only. Formal proof evidence requires AXLE/local "
@@ -164,10 +170,6 @@ class LLMTheoryDeveloperAgent:
             if serious_theory_mode
             else self.config.max_tokens
         )
-        user_prompt = build_theory_developer_prompt(
-            question,
-            architect_context=context,
-        )
         request_model = resolve_generator_model(
             provider_name=self.config.provider_name,
             requested_model=(
@@ -187,61 +189,98 @@ class LLMTheoryDeveloperAgent:
             if transport_recovery
             else self.config.max_repair_attempts
         )
-        request = GeneratorRequest(
-            system_prompt=THEORY_DEVELOPER_SYSTEM_PROMPT,
-            user_prompt=user_prompt,
-            model=request_model,
-            max_tokens=effective_max_tokens,
-            temperature=self.config.temperature,
-            schema=_theory_developer_core_json_schema(
-                theory_prompt_mode=theory_prompt_mode,
-                transport_recovery=transport_recovery,
-            ),
-            metadata={
-                "subsystem": "TheoryDeveloper",
-                "agent": "LLMTheoryDeveloperAgent",
-                "theory_developer_phase": "core_theory_workspace",
-                "provider_name": self.config.provider_name,
-                "model_tier": effective_model_tier,
-                "base_model_tier": self.config.model_tier,
-                "configured_serious_model": self.config.serious_model,
-                "serious_model_tier": self.config.serious_model_tier,
-                "theory_prompt_mode": theory_prompt_mode,
-                "serious_theory_mode": serious_theory_mode,
-                "transport_recovery": transport_recovery,
-                "effective_max_repair_attempts": effective_max_repair_attempts,
-                "resolved_model": request_model,
-                **(
-                    {"provider_structured_output": True}
-                    if use_provider_structured_output
-                    else {}
-                ),
-            },
+        recovered_core_packet = _theory_developer_recovered_core_checkpoint(
+            context,
+            question=question,
+            theory_prompt_mode=theory_prompt_mode,
         )
-
-        def build_packet(raw_payload: Mapping[str, Any], response: Any, raw_text: str) -> dict[str, Any]:
-            return _normalize_theory_packet(
-                raw_payload,
+        if recovered_core_packet is not None:
+            core_packet = recovered_core_packet
+        elif theory_prompt_mode == THEORY_PROMPT_MODE_SERIOUS_REVISION:
+            revision_inputs = build_theory_developer_revision_inputs(
+                context,
                 question=question,
-                model=response.model or request_model,
+            )
+            core_packet = _generate_targeted_theory_revision(
+                provider=self.provider,
+                provider_name=self.config.provider_name,
+                question=question,
+                revision_inputs=revision_inputs,
+                request_model=request_model,
                 model_tier=effective_model_tier,
-                provider_name=self.config.provider_name or response.provider,
-                raw_response=raw_text,
-                theory_prompt_mode=theory_prompt_mode,
+                base_model_tier=self.config.model_tier,
+                configured_serious_model=self.config.serious_model,
+                serious_model_tier=self.config.serious_model_tier,
+                temperature=self.config.temperature,
+                max_tokens=effective_max_tokens,
+                max_repair_attempts=effective_max_repair_attempts,
+                transport_recovery=transport_recovery,
+                use_provider_structured_output=use_provider_structured_output,
+            )
+        else:
+            user_prompt = build_theory_developer_prompt(
+                question,
+                architect_context=context,
+            )
+            request = GeneratorRequest(
+                system_prompt=THEORY_DEVELOPER_SYSTEM_PROMPT,
+                user_prompt=user_prompt,
+                model=request_model,
+                max_tokens=effective_max_tokens,
+                temperature=self.config.temperature,
+                schema=_theory_developer_core_json_schema(
+                    theory_prompt_mode=theory_prompt_mode,
+                    transport_recovery=transport_recovery,
+                ),
+                metadata={
+                    "subsystem": "TheoryDeveloper",
+                    "agent": "LLMTheoryDeveloperAgent",
+                    "theory_developer_phase": "core_theory_workspace",
+                    "provider_name": self.config.provider_name,
+                    "model_tier": effective_model_tier,
+                    "base_model_tier": self.config.model_tier,
+                    "configured_serious_model": self.config.serious_model,
+                    "serious_model_tier": self.config.serious_model_tier,
+                    "theory_prompt_mode": theory_prompt_mode,
+                    "serious_theory_mode": serious_theory_mode,
+                    "transport_recovery": transport_recovery,
+                    "effective_max_repair_attempts": effective_max_repair_attempts,
+                    "resolved_model": request_model,
+                    **(
+                        {"provider_structured_output": True}
+                        if use_provider_structured_output
+                        else {}
+                    ),
+                },
             )
 
-        core_packet = generate_validated_json_packet(
-            provider=self.provider,
-            request=request,
-            extract_payload=_extract_json_object,
-            build_packet=build_packet,
-            validate_packet=validate_theory_core_packet,
-            validation_label="LLM TheoryDeveloper core packet",
-            max_repair_attempts=effective_max_repair_attempts,
-            repair_context_builder=_theory_developer_json_repair_context,
-            semantic_patch_repair=True,
-            allow_progress_repair_extension=True,
-        )
+            def build_packet(
+                raw_payload: Mapping[str, Any],
+                response: Any,
+                raw_text: str,
+            ) -> dict[str, Any]:
+                return _normalize_theory_packet(
+                    raw_payload,
+                    question=question,
+                    model=response.model or request_model,
+                    model_tier=effective_model_tier,
+                    provider_name=self.config.provider_name or response.provider,
+                    raw_response=raw_text,
+                    theory_prompt_mode=theory_prompt_mode,
+                )
+
+            core_packet = generate_validated_json_packet(
+                provider=self.provider,
+                request=request,
+                extract_payload=_extract_json_object,
+                build_packet=build_packet,
+                validate_packet=validate_theory_core_packet,
+                validation_label="LLM TheoryDeveloper core packet",
+                max_repair_attempts=effective_max_repair_attempts,
+                repair_context_builder=_theory_developer_json_repair_context,
+                semantic_patch_repair=True,
+                allow_progress_repair_extension=True,
+            )
         # Test doubles may return a sentinel without running the supplied builder.
         if not core_packet.get("estimator_specs"):
             return core_packet
@@ -373,13 +412,19 @@ def build_theory_developer_prompt(
     *,
     architect_context: Mapping[str, Any],
 ) -> str:
-    compact_context = _compact_architect_context_for_prompt(architect_context)
     theory_prompt_mode = _theory_developer_prompt_mode(architect_context)
+    if theory_prompt_mode == THEORY_PROMPT_MODE_SERIOUS_REVISION:
+        return _build_targeted_theory_revision_prompt(
+            question=question,
+            revision_inputs=build_theory_developer_revision_inputs(
+                architect_context,
+                question=question,
+            ),
+        )
+
+    compact_context = _compact_architect_context_for_prompt(architect_context)
     serious_theory_mode = theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
     transport_recovery = _theory_developer_transport_recovery(architect_context)
-    source_environment_feedback = theory_developer_source_environment_feedback(
-        compact_context
-    )
     exact_semantic_instruction = (
         _theory_developer_downstream_exact_semantic_instruction(compact_context)
     )
@@ -557,57 +602,6 @@ def build_theory_developer_prompt(
         payload["downstream_exact_semantic_formalizer_instruction"] = (
             exact_semantic_instruction
         )
-    environment_feedback = source_environment_feedback
-    if (
-        isinstance(environment_feedback, Mapping)
-        and environment_feedback.get("artifact_kind")
-        == "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback"
-    ):
-        ownership_clarification_required = (
-            environment_feedback.get("ownership_clarification_required") is True
-        )
-        payload["metric_protocol_upstream_theory_revision_instruction"] = {
-            "required_behavior": (
-                (
-                    "Regenerate the theory packet and make the estimand, procedure, "
-                    "estimator, DGP, assumptions, derivation, calibration, and "
-                    "feasibility material explicit enough to resolve every routed "
-                    "ownership uncertainty. Revise claims only where needed; do not "
-                    "edit rejected metric rows, invent execution results, or merely "
-                    "restate reviewer wording."
-                )
-                if ownership_clarification_required
-                else (
-                    "Regenerate the theory packet itself and address every routed "
-                    "upstream finding at the estimand, procedure, estimator, DGP, "
-                    "assumption, derivation, and feasibility layers. Preserve valid "
-                    "parts of architect_context.metric_protocol_prior_theory_material "
-                    "and explicitly replace the defective parts, but do not edit "
-                    "rejected metric rows, invent execution results, or merely "
-                    "restate reviewer wording."
-                )
-            ),
-            "ownership_clarification_required": ownership_clarification_required,
-            "critic_finding_policy": (
-                "critic_findings must describe only risks that remain unresolved in "
-                "the revised packet. When a routed issue is closed by an explicit "
-                "assumption, derivation, or procedure change, update its disposition "
-                "and do not restate the repaired condition as a still-missing premise."
-            ),
-            "lineage_fields": {
-                "source_theory_packet_id": environment_feedback.get(
-                    "source_theory_packet_id", ""
-                ),
-                "feedback_id": environment_feedback.get("feedback_id", ""),
-                "upstream_theory_revision_count": environment_feedback.get(
-                    "upstream_theory_revision_count", ""
-                ),
-            },
-            "acceptance_gate": environment_feedback.get("acceptance_gate", ""),
-            "proof_evidence_status": environment_feedback.get(
-                "proof_evidence_status", ""
-            ),
-        }
     serious_mode_label = (
         "upstream-theory revision"
         if theory_prompt_mode == THEORY_PROMPT_MODE_SERIOUS_REVISION
@@ -715,6 +709,86 @@ def theory_developer_source_environment_feedback(
     if isinstance(environment_feedback, Mapping):
         return environment_feedback
     return {}
+
+
+def _theory_developer_recovered_core_checkpoint(
+    architect_context: Mapping[str, Any],
+    *,
+    question: OpenResearchQuestion,
+    theory_prompt_mode: str,
+) -> dict[str, Any] | None:
+    """Resume interface authoring from one validator-bound completed core phase."""
+
+    feedback = architect_context.get("environment_feedback", {})
+    checkpoint = (
+        feedback.get("recovery_checkpoint", {})
+        if isinstance(feedback, Mapping)
+        and feedback.get("artifact_kind")
+        == "RuntimeTheoryDeveloperValidationFeedback"
+        else {}
+    )
+    if not isinstance(checkpoint, Mapping) or not checkpoint:
+        return None
+
+    errors: list[str] = []
+    if checkpoint.get("artifact_kind") != THEORY_DEVELOPER_STAGE_CHECKPOINT_KIND:
+        errors.append("TheoryDeveloper recovery checkpoint has the wrong artifact kind")
+    if checkpoint.get("failed_phase") != "estimator_interface_authoring":
+        errors.append("TheoryDeveloper recovery checkpoint is not for interface authoring")
+    if str(checkpoint.get("question_id", "") or "") != question.id:
+        errors.append("TheoryDeveloper recovery checkpoint belongs to another question")
+    if checkpoint.get("kernel_verified") is not False:
+        errors.append("TheoryDeveloper recovery checkpoint must remain non-proof")
+
+    raw_core_packet = checkpoint.get("validated_core_packet", {})
+    core_packet = (
+        deepcopy(dict(raw_core_packet))
+        if isinstance(raw_core_packet, Mapping)
+        else {}
+    )
+    if not core_packet:
+        errors.append("TheoryDeveloper recovery checkpoint has no completed core packet")
+    expected_fingerprint = str(
+        checkpoint.get("validated_core_packet_fingerprint", "") or ""
+    )
+    actual_fingerprint = (
+        typed_semantic_patch_payload_fingerprint(core_packet)
+        if core_packet
+        else ""
+    )
+    if not expected_fingerprint or expected_fingerprint != actual_fingerprint:
+        errors.append("TheoryDeveloper recovery checkpoint fingerprint does not match")
+    if core_packet:
+        errors.extend(validate_theory_core_packet(core_packet))
+
+    if theory_prompt_mode == THEORY_PROMPT_MODE_SERIOUS_REVISION and core_packet:
+        revision_inputs = build_theory_developer_revision_inputs(
+            architect_context,
+            question=question,
+        )
+        transport = core_packet.get("theory_revision_transport", {})
+        if not isinstance(transport, Mapping) or not transport:
+            errors.append("recovered targeted core has no revision transport lineage")
+        else:
+            if transport.get("source_theory_packet_id") != revision_inputs.get(
+                "source_theory_packet_id"
+            ):
+                errors.append("recovered targeted core parent packet id changed")
+            if transport.get("source_theory_packet_hash") != revision_inputs.get(
+                "source_theory_packet_hash"
+            ):
+                errors.append("recovered targeted core parent packet hash changed")
+            if transport.get("feedback_id") != revision_inputs.get("feedback_id"):
+                errors.append("recovered targeted core feedback lineage changed")
+
+    if errors:
+        raise PacketValidationError(
+            validation_label="TheoryDeveloper stage recovery checkpoint",
+            attempts=0,
+            errors=list(dict.fromkeys(errors)),
+            history=[],
+        )
+    return core_packet
 
 
 def _theory_developer_serious_mode(
@@ -2411,6 +2485,401 @@ def _normalize_theory_packet(
     }
 
 
+def build_theory_developer_revision_inputs(
+    architect_context: Mapping[str, Any],
+    *,
+    question: OpenResearchQuestion,
+) -> dict[str, Any]:
+    """Bind an upstream-theory revision to one immutable accepted parent packet."""
+
+    feedback = theory_developer_source_environment_feedback(architect_context)
+    material = architect_context.get("metric_protocol_prior_theory_material", {})
+    errors: list[str] = []
+    if (
+        not isinstance(feedback, Mapping)
+        or feedback.get("artifact_kind")
+        != "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback"
+    ):
+        errors.append(
+            "revision feedback must be RuntimeMetricProtocolUpstreamTheoryRevisionFeedback"
+        )
+        feedback = {}
+    if (
+        not isinstance(material, Mapping)
+        or material.get("artifact_kind")
+        != "RuntimeTheoryInformedMetricProtocolMaterial"
+    ):
+        errors.append(
+            "metric_protocol_prior_theory_material must be an immutable theory handoff"
+        )
+        material = {}
+    if material.get("execution_results_available") is not False:
+        errors.append("prior theory material must not contain execution results")
+    if feedback.get("execution_authorized") is True:
+        errors.append("upstream theory revision feedback cannot authorize execution")
+
+    feedback_packet_id = str(
+        feedback.get("source_theory_packet_id", "") or ""
+    ).strip()
+    material_packet_id = str(
+        material.get("source_theory_packet_id", "") or ""
+    ).strip()
+    feedback_packet_hash = str(
+        feedback.get("source_theory_packet_hash", "") or ""
+    ).strip()
+    material_packet_hash = str(
+        material.get("source_theory_packet_hash", "") or ""
+    ).strip()
+    if not feedback_packet_id or feedback_packet_id != material_packet_id:
+        errors.append("revision feedback and prior material source packet ids must match")
+    if not feedback_packet_hash or feedback_packet_hash != material_packet_hash:
+        errors.append(
+            "revision feedback and prior material source packet hashes must match"
+        )
+    feedback_question_id = str(feedback.get("question_id", "") or "").strip()
+    if feedback_question_id and feedback_question_id != question.id:
+        errors.append("revision feedback question_id does not match the active question")
+    target_consumer = str(
+        feedback.get("target_consumer_subsystem", "") or ""
+    ).strip()
+    if target_consumer and target_consumer != "TheoryDeveloper":
+        errors.append("revision feedback is not routed to TheoryDeveloper")
+
+    semantic_material = material.get("theory_semantic_material", {})
+    if not isinstance(semantic_material, Mapping) or not semantic_material:
+        errors.append("prior theory material must contain lossless semantic material")
+        semantic_material = {}
+    semantic_packet_id = str(semantic_material.get("packet_id", "") or "").strip()
+    if semantic_packet_id and semantic_packet_id != material_packet_id:
+        errors.append("prior semantic material packet_id does not match its lineage")
+    semantic_question = semantic_material.get("question", {})
+    semantic_question_id = (
+        str(semantic_question.get("id", "") or "").strip()
+        if isinstance(semantic_question, Mapping)
+        else ""
+    )
+    if semantic_question_id and semantic_question_id != question.id:
+        errors.append("prior semantic material belongs to a different question")
+
+    missing_core_fields = [
+        field
+        for field in THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
+        if field not in semantic_material
+    ]
+    if missing_core_fields:
+        errors.append(
+            "prior semantic material is missing core fields: "
+            + ", ".join(missing_core_fields)
+        )
+    base_core_payload = {
+        field: deepcopy(semantic_material[field])
+        for field in THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
+        if field in semantic_material
+    }
+    raw_specs = base_core_payload.get("estimator_specs", [])
+    if isinstance(raw_specs, list):
+        stripped_specs: list[Any] = []
+        for index, raw_spec in enumerate(raw_specs):
+            if not isinstance(raw_spec, Mapping):
+                errors.append(f"prior estimator_specs[{index}] must be an object")
+                stripped_specs.append(deepcopy(raw_spec))
+                continue
+            spec = deepcopy(dict(raw_spec))
+            spec.pop("estimator_interface_contract", None)
+            spec.pop("estimator_interface_contract_id", None)
+            stripped_specs.append(spec)
+        base_core_payload["estimator_specs"] = stripped_specs
+    else:
+        errors.append("prior estimator_specs must be a list")
+
+    derivation = base_core_payload.get("theory_derivation_packet", {})
+    if isinstance(derivation, Mapping):
+        derivation = deepcopy(dict(derivation))
+        derivation.setdefault("self_critique", [])
+        derivation.setdefault("rejected_alternatives", [])
+        base_core_payload["theory_derivation_packet"] = derivation
+    else:
+        errors.append("prior theory_derivation_packet must be an object")
+
+    if errors:
+        raise PacketValidationError(
+            validation_label="TheoryDeveloper targeted revision inputs",
+            attempts=0,
+            errors=errors,
+            history=[],
+        )
+    environment_feedback = architect_context.get("environment_feedback", {})
+    transport_feedback = (
+        deepcopy(dict(environment_feedback))
+        if isinstance(environment_feedback, Mapping)
+        and environment_feedback.get("artifact_kind")
+        == "RuntimeTheoryDeveloperValidationFeedback"
+        else {}
+    )
+    return {
+        "source_theory_packet_id": material_packet_id,
+        "source_theory_packet_hash": material_packet_hash,
+        "feedback_id": str(feedback.get("feedback_id", "") or "").strip(),
+        "upstream_theory_revision_count": feedback.get(
+            "upstream_theory_revision_count", ""
+        ),
+        "feedback": deepcopy(dict(feedback)),
+        "transport_feedback": transport_feedback,
+        "base_core_payload": base_core_payload,
+        "base_core_payload_fingerprint": (
+            typed_semantic_patch_payload_fingerprint(base_core_payload)
+        ),
+    }
+
+
+def _build_targeted_theory_revision_prompt(
+    *,
+    question: OpenResearchQuestion,
+    revision_inputs: Mapping[str, Any],
+    validation_errors: list[str] | None = None,
+    previous_patch_excerpt: str = "",
+) -> str:
+    base_core_payload = revision_inputs.get("base_core_payload", {})
+    base_fingerprint = str(
+        revision_inputs.get("base_core_payload_fingerprint", "") or ""
+    )
+    valid_top_level_path_keys = (
+        sorted(str(key) for key in base_core_payload)
+        if isinstance(base_core_payload, Mapping)
+        else []
+    )
+    payload: dict[str, Any] = {
+        "question": {
+            "id": question.id,
+            "title": question.title,
+            "description": question.description,
+            "tags": list(question.tags),
+        },
+        "revision_mode": THEORY_PROMPT_MODE_SERIOUS_REVISION,
+        "lineage": {
+            "source_theory_packet_id": revision_inputs.get(
+                "source_theory_packet_id", ""
+            ),
+            "source_theory_packet_hash": revision_inputs.get(
+                "source_theory_packet_hash", ""
+            ),
+            "feedback_id": revision_inputs.get("feedback_id", ""),
+            "base_core_payload_fingerprint": base_fingerprint,
+        },
+        "routed_feedback": _compact_environment_feedback_for_prompt(
+            revision_inputs.get("feedback", {})
+            if isinstance(revision_inputs.get("feedback", {}), Mapping)
+            else {}
+        ),
+        "base_core_payload": base_core_payload,
+        "patch_contract": {
+            "base_payload_fingerprint": (
+                "copy lineage.base_core_payload_fingerprint exactly"
+            ),
+            "updates": [
+                {
+                    "path": ["problem_card", "assumptions"],
+                    "replacement_json": "JSON-encoded replacement array",
+                },
+                {
+                    "path": ["theory_derivation_packet", "equation_chain", 0, "rhs"],
+                    "replacement": "replacement scalar",
+                },
+            ],
+            "maximum_updates": THEORY_REVISION_PATCH_MAX_UPDATES,
+            "valid_top_level_path_keys": valid_top_level_path_keys,
+            "existing_paths_only": True,
+        },
+        "revision_instructions": [
+            "Return only one typed patch envelope, never a regenerated theory packet.",
+            "Copy base_payload_fingerprint exactly and update only defective fields plus their direct semantic dependents.",
+            "Every unmentioned field is immutable and will be preserved byte-for-structure by the runtime.",
+            "Derive replacements from the primitive DGP, estimand, and theorem hypotheses; reviewer prose is diagnostic evidence, not an answer key.",
+            "Recompute guarantee-carrying identities and check data-dependent operations, finite typed returns, and guarantee transport where the feedback makes them relevant.",
+            "For a structural correction, replace the smallest complete semantic section using replacement_json; do not scatter cosmetic leaf edits.",
+            "Use replacement only for a JSON scalar and replacement_json for every object or array.",
+            "Paths are relative to base_core_payload and may not target runtime metadata, lineage, evidence status, model fields, packet ids, or kernel status.",
+            "The first path component must be one exact valid_top_level_path_keys value; top-level siblings may not be nested under theory_derivation_packet or another section.",
+            "Every complete path must already exist in base_core_payload; replace an existing section or leaf instead of inventing a new field.",
+            "Resolve repaired critic findings instead of preserving them as unresolved; retain genuinely open risks explicitly.",
+            "Do not invent code execution, simulation results, source matches, Lean diagnostics, or proof evidence.",
+        ],
+        "proof_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+    transport_feedback = revision_inputs.get("transport_feedback", {})
+    if isinstance(transport_feedback, Mapping) and transport_feedback:
+        payload["transport_feedback"] = _compact_environment_feedback_for_prompt(
+            transport_feedback
+        )
+        payload["transport_recovery_instruction"] = (
+            "The previous patch transport failed local parsing or validation. "
+            "Return a complete compact patch envelope against the same parent."
+        )
+    if validation_errors:
+        payload["local_validation_errors"] = [
+            str(error) for error in validation_errors[:12]
+        ]
+        payload["retry_instruction"] = (
+            "Return a fresh complete patch envelope against the original immutable "
+            "base, correcting every local validation error. Do not patch the prior patch."
+        )
+    if previous_patch_excerpt:
+        payload["previous_invalid_patch_excerpt"] = previous_patch_excerpt[:2000]
+    return (
+        "Revise one lineage-bound statistical theory workspace. Return ONLY JSON "
+        "matching the typed patch contract; the runtime applies it to the immutable "
+        "parent and validates the resulting full theory packet.\n\n"
+        + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
+    )
+
+
+def _generate_targeted_theory_revision(
+    *,
+    provider: GeneratorBackend,
+    provider_name: str,
+    question: OpenResearchQuestion,
+    revision_inputs: Mapping[str, Any],
+    request_model: str,
+    model_tier: str,
+    base_model_tier: str,
+    configured_serious_model: str,
+    serious_model_tier: str,
+    temperature: float,
+    max_tokens: int,
+    max_repair_attempts: int,
+    transport_recovery: bool,
+    use_provider_structured_output: bool,
+) -> dict[str, Any]:
+    """Ask the same TheoryDeveloper for a bounded semantic delta, then validate it."""
+
+    user_prompt = _build_targeted_theory_revision_prompt(
+        question=question,
+        revision_inputs=revision_inputs,
+    )
+    request = GeneratorRequest(
+        system_prompt=THEORY_DEVELOPER_SYSTEM_PROMPT,
+        user_prompt=user_prompt,
+        model=request_model,
+        max_tokens=min(max_tokens, THEORY_REVISION_PATCH_MAX_TOKENS),
+        temperature=temperature,
+        schema=typed_semantic_patch_schema(
+            max_updates=THEORY_REVISION_PATCH_MAX_UPDATES
+        ),
+        metadata={
+            "subsystem": "TheoryDeveloper",
+            "agent": "LLMTheoryDeveloperAgent",
+            "theory_developer_phase": "targeted_core_revision",
+            "provider_name": provider_name,
+            "model_tier": model_tier,
+            "base_model_tier": base_model_tier,
+            "configured_serious_model": configured_serious_model,
+            "serious_model_tier": serious_model_tier,
+            "theory_prompt_mode": THEORY_PROMPT_MODE_SERIOUS_REVISION,
+            "serious_theory_mode": True,
+            "transport_recovery": transport_recovery,
+            "effective_max_repair_attempts": max_repair_attempts,
+            "resolved_model": request_model,
+            "source_theory_packet_id": revision_inputs.get(
+                "source_theory_packet_id", ""
+            ),
+            "base_core_payload_fingerprint": revision_inputs.get(
+                "base_core_payload_fingerprint", ""
+            ),
+            **(
+                {"provider_structured_output": True}
+                if use_provider_structured_output
+                else {}
+            ),
+        },
+    )
+    base_core_payload = revision_inputs.get("base_core_payload", {})
+    base_core_payload = (
+        dict(base_core_payload) if isinstance(base_core_payload, Mapping) else {}
+    )
+    base_fingerprint = str(
+        revision_inputs.get("base_core_payload_fingerprint", "") or ""
+    )
+
+    def build_packet(
+        raw_payload: Mapping[str, Any],
+        response: Any,
+        raw_text: str,
+    ) -> dict[str, Any]:
+        patched_payload, applied_paths, path_normalizations = (
+            apply_typed_semantic_patch(
+                base_payload=base_core_payload,
+                expected_base_fingerprint=base_fingerprint,
+                patch_envelope=raw_payload,
+                max_updates=THEORY_REVISION_PATCH_MAX_UPDATES,
+                allow_new_object_keys=False,
+            )
+        )
+        packet = _normalize_theory_packet(
+            patched_payload,
+            question=question,
+            model=response.model or request_model,
+            model_tier=model_tier,
+            provider_name=provider_name or response.provider,
+            raw_response=raw_text,
+            theory_prompt_mode=THEORY_PROMPT_MODE_SERIOUS_REVISION,
+        )
+        packet["theory_revision_transport"] = {
+            "artifact_kind": "TheoryDeveloperTargetedRevisionTransport",
+            "source_theory_packet_id": revision_inputs.get(
+                "source_theory_packet_id", ""
+            ),
+            "source_theory_packet_hash": revision_inputs.get(
+                "source_theory_packet_hash", ""
+            ),
+            "feedback_id": revision_inputs.get("feedback_id", ""),
+            "upstream_theory_revision_count": revision_inputs.get(
+                "upstream_theory_revision_count", ""
+            ),
+            "base_core_payload_fingerprint": base_fingerprint,
+            "patched_core_payload_fingerprint": (
+                typed_semantic_patch_payload_fingerprint(patched_payload)
+            ),
+            "applied_paths": applied_paths,
+            "path_normalizations": path_normalizations,
+            "provider": provider_name or response.provider,
+            "model": response.model or request_model,
+            "model_tier": model_tier,
+            "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
+            "kernel_verified": False,
+        }
+        return packet
+
+    def retry_prompt_builder(
+        *,
+        original_user_prompt: str,
+        bad_response: str,
+        errors: list[str],
+        validation_label: str,
+        truncation_detected: bool,
+        repair_context: Mapping[str, Any] | None,
+    ) -> str:
+        del original_user_prompt, validation_label, truncation_detected, repair_context
+        return _build_targeted_theory_revision_prompt(
+            question=question,
+            revision_inputs=revision_inputs,
+            validation_errors=errors,
+            previous_patch_excerpt=bad_response,
+        )
+
+    return generate_validated_json_packet(
+        provider=provider,
+        request=request,
+        extract_payload=_extract_json_object,
+        build_packet=build_packet,
+        validate_packet=validate_theory_core_packet,
+        validation_label="LLM TheoryDeveloper targeted revision packet",
+        max_repair_attempts=max_repair_attempts,
+        retry_prompt_builder=retry_prompt_builder,
+        semantic_patch_repair=False,
+        allow_progress_repair_extension=False,
+    )
+
+
 THEORY_ESTIMATOR_INTERFACE_SYSTEM_PROMPT = """\
 You are the interface-authoring phase of the AI Statistician TheoryDeveloper.
 
@@ -2444,7 +2913,7 @@ def _complete_theory_estimator_interfaces(
         system_prompt=THEORY_ESTIMATOR_INTERFACE_SYSTEM_PROMPT,
         user_prompt=_theory_estimator_interface_authoring_prompt(core_packet),
         model=request_model,
-        max_tokens=min(max_tokens, 6000),
+        max_tokens=min(max_tokens, 8000),
         temperature=temperature,
         schema=interface_schema,
         metadata={
@@ -2496,23 +2965,63 @@ def _complete_theory_estimator_interfaces(
             **body,
         }
 
-    interface_packet = generate_validated_json_packet(
-        provider=provider,
-        request=request,
-        extract_payload=_extract_json_object,
-        build_packet=build_packet,
-        validate_packet=lambda packet: (
-            _validate_theory_estimator_interface_authoring_packet(
-                packet,
-                core_packet=core_packet,
-            )
-        ),
-        validation_label="LLM TheoryDeveloper estimator interface packet",
-        max_repair_attempts=min(max(0, max_repair_attempts), 1),
-        repair_context_builder=_theory_estimator_interface_repair_context,
-        semantic_patch_repair=False,
-        allow_progress_repair_extension=False,
-    )
+    try:
+        interface_packet = generate_validated_json_packet(
+            provider=provider,
+            request=request,
+            extract_payload=_extract_json_object,
+            build_packet=build_packet,
+            validate_packet=lambda packet: (
+                _validate_theory_estimator_interface_authoring_packet(
+                    packet,
+                    core_packet=core_packet,
+                )
+            ),
+            validation_label="LLM TheoryDeveloper estimator interface packet",
+            max_repair_attempts=min(max(0, max_repair_attempts), 1),
+            repair_context_builder=lambda **kwargs: (
+                _theory_estimator_interface_repair_context(
+                    core_packet=core_packet,
+                    **kwargs,
+                )
+            ),
+            semantic_patch_repair=True,
+            allow_progress_repair_extension=True,
+        )
+    except PacketValidationError as exc:
+        completed_phase = (
+            "targeted_core_revision"
+            if isinstance(core_packet.get("theory_revision_transport", {}), Mapping)
+            and core_packet.get("theory_revision_transport")
+            else "core_theory_workspace"
+        )
+        checkpoint = {
+            "schema_version": ARCHITECT_SCHEMA_VERSION,
+            "artifact_kind": THEORY_DEVELOPER_STAGE_CHECKPOINT_KIND,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "question_id": question.id,
+            "completed_phase": completed_phase,
+            "failed_phase": "estimator_interface_authoring",
+            "validated_core_packet_fingerprint": (
+                typed_semantic_patch_payload_fingerprint(core_packet)
+            ),
+            "validated_core_packet": deepcopy(dict(core_packet)),
+            "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
+            "kernel_verified": False,
+            "boundary": (
+                "This checkpoint preserves a locally validated TheoryDeveloper core "
+                "for bounded interface-stage recovery. It is not execution, review "
+                "acceptance, or theorem proof evidence."
+            ),
+        }
+        raise PacketValidationError(
+            validation_label=exc.validation_label,
+            attempts=exc.attempts,
+            errors=exc.errors,
+            history=exc.history,
+            last_invalid_packet=exc.last_invalid_packet,
+            recovery_checkpoint=checkpoint,
+        ) from exc
     merged = deepcopy(dict(core_packet))
     authored_by_id = {
         str(row.get("estimator_id", "") or "").strip(): deepcopy(
@@ -2557,7 +3066,14 @@ def _complete_theory_estimator_interfaces(
     }
     merged["theory_generation_phases"] = [
         {
-            "phase": "core_theory_workspace",
+            "phase": (
+                "targeted_core_revision"
+                if isinstance(
+                    core_packet.get("theory_revision_transport", {}), Mapping
+                )
+                and core_packet.get("theory_revision_transport")
+                else "core_theory_workspace"
+            ),
             "model": str(core_packet.get("model", "")),
             "model_tier": str(core_packet.get("model_tier", "")),
             "llm_json_repair_attempts": core_packet.get(
@@ -2670,6 +3186,9 @@ def _theory_estimator_interface_authoring_prompt(
             "semantic_reference_catalog": _theory_semantic_reference_catalog(
                 core_packet
             ),
+            "allowed_semantic_reference_ids": sorted(
+                theory_semantic_reference_ids(core_packet)
+            ),
         },
         "required_output_schema": (
             _theory_estimator_interface_authoring_json_schema(core_packet)
@@ -2686,7 +3205,7 @@ def _theory_estimator_interface_authoring_prompt(
         "and cite only ids in semantic_reference_catalog for derivation_ref and "
         "justification_ref. Keep additional dimensions and non-polynomial factors in "
         "sample_size_order and use scale=other when needed. Do not edit or restate the "
-        "core theory and do not claim proof evidence.\n\n"
+        "core theory, keep prose fields concise, and do not claim proof evidence.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
     )
 
@@ -2809,6 +3328,7 @@ def _validate_theory_estimator_interface_authoring_packet(
 
 def _theory_estimator_interface_repair_context(
     *,
+    core_packet: Mapping[str, Any],
     original_user_prompt: str,
     bad_response: str,
     invalid_packet: Mapping[str, Any] | None = None,
@@ -2821,9 +3341,13 @@ def _theory_estimator_interface_repair_context(
         "subsystem": "TheoryDeveloper.estimator_interface_authoring",
         "truncation_detected": bool(truncation_detected),
         "last_validation_errors": [str(error) for error in errors[:12]],
+        "allowed_semantic_reference_ids": sorted(
+            theory_semantic_reference_ids(core_packet)
+        ),
         "required_behavior": (
             "Regenerate only the complete interfaces object. Preserve every frozen "
-            "estimator id and use only the supplied semantic reference ids."
+            "estimator id and copy derivation_ref and justification_ref only from "
+            "allowed_semantic_reference_ids."
         ),
         "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
     }
