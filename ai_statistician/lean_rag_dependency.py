@@ -16,7 +16,9 @@ from .formal_source_index import (
 )
 
 
-TOKEN_RE = re.compile(r"[A-Za-z0-9_']+")
+TOKEN_RE = re.compile(r"[\w']+", re.UNICODE)
+MIN_LEAN_RAG_GRAPH_SCHEMA_VERSION = 3
+LEAN_RAG_DECLARATION_IDENTITY_POLICY = "unicode_lean_identifier_v1"
 STOP_TOKENS = {
     "the",
     "a",
@@ -128,6 +130,10 @@ class LeanRagDependencyRetriever:
             "source_snapshot_bound": False,
             "source_snapshot_match": None,
             "source_snapshot_metadata": {},
+            "graph_schema_version": "",
+            "graph_schema_supported": False,
+            "declaration_identity_policy": "",
+            "declaration_identity_policy_supported": False,
             "all_ok": False,
         }
         if not self.db_path.exists():
@@ -200,6 +206,8 @@ class LeanRagDependencyRetriever:
             and (report["schema_has_decl_fts"] or report["schema_has_decl_fts_plain"])
             and report["integrity_check_ok"]
             and search_probe_ok
+            and report["graph_schema_supported"]
+            and report["declaration_identity_policy_supported"]
             and report["source_snapshot_status"] != "BOUND_MISMATCH"
         )
         self._health_cache = dict(report)
@@ -733,6 +741,7 @@ def _table_exists(conn: sqlite3.Connection, table: str) -> bool:
 def _source_snapshot_report(metadata: dict[str, str]) -> dict[str, object]:
     snapshot_keys = (
         "schema_version",
+        "declaration_identity_policy",
         "project_root",
         "source_root",
         "source_git_commit",
@@ -752,6 +761,16 @@ def _source_snapshot_report(metadata: dict[str, str]) -> dict[str, object]:
     )
     report: dict[str, object] = {
         "graph_schema_version": recorded.get("schema_version", ""),
+        "graph_schema_supported": _graph_schema_supported(
+            recorded.get("schema_version", "")
+        ),
+        "declaration_identity_policy": recorded.get(
+            "declaration_identity_policy", ""
+        ),
+        "declaration_identity_policy_supported": (
+            recorded.get("declaration_identity_policy", "")
+            == LEAN_RAG_DECLARATION_IDENTITY_POLICY
+        ),
         "source_snapshot_status": "UNBOUND",
         "source_snapshot_bound": bound,
         "source_snapshot_match": None,
@@ -874,18 +893,26 @@ def _tokens(text: str) -> set[str]:
 
 
 def _fts_query(text: str) -> str:
-    tokens = [
+    tokens = sorted(
         token
-        for token in TOKEN_RE.findall(text)
-        if (
-            not token.isdigit()
-            and re.match(r"^[A-Za-z0-9_]+$", token)
-            and token.lower() not in STOP_TOKENS
-        )
-    ]
+        for token in _tokens(text)
+        if re.fullmatch(r"[\w']+", token, re.UNICODE)
+    )
     if not tokens:
         return ""
-    return " OR ".join(f"{token}*" for token in tokens[:16])
+    return " OR ".join(
+        f'"{token.replace(chr(34), chr(34) * 2)}"*'
+        for token in tokens[:16]
+    )
+
+
+def _graph_schema_supported(value: str) -> bool:
+    if not str(value or "").strip():
+        return False
+    try:
+        return int(value) >= MIN_LEAN_RAG_GRAPH_SCHEMA_VERSION
+    except ValueError:
+        return False
 
 
 def _symbolish_tokens(signature: str, name: str) -> set[str]:

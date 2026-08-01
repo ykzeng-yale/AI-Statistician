@@ -337,7 +337,15 @@ def _write_tiny_lean_rag_dependency_db(path: Path) -> Path:
             CREATE VIRTUAL TABLE decl_fts USING fts5(
               name, short_name, kind, module, namespace, signature, proof
             );
+            CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             """
+        )
+        conn.executemany(
+            "INSERT INTO meta(key, value) VALUES (?, ?)",
+            [
+                ("schema_version", "3"),
+                ("declaration_identity_policy", "unicode_lean_identifier_v1"),
+            ],
         )
         rows = [
             (
@@ -1123,7 +1131,15 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
                 CREATE VIRTUAL TABLE decl_fts USING fts5(
                   name, short_name, kind, module, namespace, signature, proof
                 );
+                CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
                 """
+            )
+            conn.executemany(
+                "INSERT INTO meta(key, value) VALUES (?, ?)",
+                [
+                    ("schema_version", "3"),
+                    ("declaration_identity_policy", "unicode_lean_identifier_v1"),
+                ],
             )
             rows = [
                 (
@@ -1549,7 +1565,15 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
                 CREATE VIRTUAL TABLE decl_fts USING fts5(
                   name, short_name, kind, module, namespace, signature, proof
                 );
+                CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
                 """
+            )
+            conn.executemany(
+                "INSERT INTO meta(key, value) VALUES (?, ?)",
+                [
+                    ("schema_version", "3"),
+                    ("declaration_identity_policy", "unicode_lean_identifier_v1"),
+                ],
             )
             rows = (
                 (

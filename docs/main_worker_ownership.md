@@ -281,14 +281,15 @@ off. This completes the active-path attribution repair, not theorem closure.
 Eleventh concrete change in this lane: formal retrieval and exact-source repair
 now carry immutable external provenance. EmpericalProcessLEAN's shared graph
 builder was fixed on `codex/lean-reuse-source-integration` at `779604a9f30e` so
-nested repositories are signed against their actual Git top level. The clean
-runtime shard contains 444 Lean files, 26,373 declarations, 956 import edges,
-and 75,479 declaration edges. AI-Statistician rejects dirty, changed, unknown,
-or unsigned shards by default before retrieval; compatibility bypasses are
-explicit CLI flags and cannot create proof evidence. A live strict search
-returned three hits with `index_signature_state=unchanged`, `dirty=false`, and
-the expected commit. Its long high-fanout declarations confirm that ranking
-quality remains a real open problem.
+nested repositories are signed against their actual Git top level. Its generic
+declaration parser was then fixed at `e3fc5234b249` so Unicode Lean identifiers
+and inline-attributed declarations retain exact identity. The current clean,
+source-bound StatInference graph contains 26,455 declarations, 831 import edges,
+and 78,276 declaration edges. AI-Statistician rejects dirty, changed, unknown,
+unsigned, pre-v3, or identity-policy-incompatible shards by default before
+retrieval; compatibility bypasses cannot create proof evidence. Its long
+high-fanout declarations confirm that ranking quality remains a real open
+problem.
 
 The dedicated `ExactSourceTheoremProver` now emits a
 `RuntimeLeanProofRepairTrajectory` adapted from CodexProver's tool-use and

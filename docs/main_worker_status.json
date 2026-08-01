@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-08-01T10:48:24Z",
+  "updated_at": "2026-08-01T11:30:40Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "active_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
@@ -34,7 +34,8 @@
     "formal_rag_fusion": "Providers are fused by declaration identity and normalized signature using strongest relevance plus a bounded corroboration bonus. Reindexing one source cannot multiply its score, while global corpus discovery can activate a SQL-enforced source scope for the resolution stage.",
     "formal_rag_cache": "The persistent SQLite index is bound to schema version, declaration fingerprint, source-root snapshots, and README/toolchain metadata; changed source material rebuilds the index instead of serving stale declarations.",
     "formal_rag_source_architecture": "The generic Lean index keeps source-authored declaration docs and active section summaries, binds README layer/module tables by longest module-path prefix derived from each configured source root, and exposes bounded nearby semantic naming examples. There is no SLT package-name special case. Module/import identity and declaration namespace stay separate. Signatures and active Lean proof state retain higher authority; docs, taxonomy, names, and citations are planning hints only, and proof bodies remain excluded.",
-    "formal_rag_trace_alignment": "AI4SLT declaration hits supply bounded exact theorem-name and exact module anchors to train-only proof-state retrieval. Declaration and trace RAG now share nested runtime goal/diagnostic extraction. Live proof-state overlap remains mandatory and receives first token priority; unrelated source ids are ignored. Changed state/query-role/source-scope fingerprints refresh both layers, and stale declaration hits are removed if no retriever is available. This creates neither a tactic template nor proof evidence."
+    "formal_rag_trace_alignment": "AI4SLT declaration hits supply bounded exact theorem-name and exact module anchors to train-only proof-state retrieval. Declaration and trace RAG now share nested runtime goal/diagnostic extraction. Live proof-state overlap remains mandatory and receives first token priority; unrelated source ids are ignored. Changed state/query-role/source-scope fingerprints refresh both layers, and stale declaration hits are removed if no retriever is available. This creates neither a tactic template nor proof evidence.",
+    "formal_rag_declaration_identity": "The shared source parser and runtime graph adapter now preserve complete Unicode Lean declaration identities, including inline-attributed declarations, and reject unversioned, pre-v3, or identity-policy-incompatible graphs before retrieval. AI4SLT's 2,010 named source-index declarations reconcile 2,010/2,010 with the dependency graph; eight additional graph nodes are explicitly anonymous synthetic instances. This is a generic source-identity contract, not a Lean grammar repair rule or theorem-family policy."
   },
   "ai4slt_formal_rag": {
     "repository": "https://github.com/YuanheZ/lean-stat-learning-theory",
@@ -42,7 +43,7 @@
     "conference_page": "https://icml.cc/virtual/2026/poster/62752",
     "pinned_source_commit": "d0f506f0a695018265dccb33bcb05e2f5ca1c876",
     "rag_infrastructure_repository": "https://github.com/ykzeng-yale/EmpericalProcessLEAN",
-    "rag_infrastructure_revision": "04bb9dac3fb58a2763024cc651fa748a15eae43a",
+    "rag_infrastructure_revision": "e3fc5234b2491ffc758f09631d0b45f3c0f81cef",
     "organization_reused": "Qualified semantic declaration names and layered modules/namespaces for CoveringNumber, MetricEntropy/Chaining/Dudley, Gaussian concentration/LSI, LeastSquares, MatrixInfra, and RMT. Textbook numbers remain citation metadata rather than Lean names or proof policy.",
     "scope_truth": "The source formalizes substantial selected material cross-referenced to Vershynin, Wainwright, and Boucheron-Lugosi-Massart; it does not establish that all three books are fully formalized.",
     "three_book_crosswalk": [
@@ -51,9 +52,14 @@
       "Boucheron-Lugosi-Massart (2013)"
     ],
     "source_graph": {
-      "declarations": 2006,
+      "schema_version": 3,
+      "declaration_identity_policy": "unicode_lean_identifier_v1",
+      "declarations": 2018,
+      "named_declarations": 2010,
+      "anonymous_synthetic_instances": 8,
+      "source_index_named_reconciliation": "2010/2010",
       "import_edges": 278,
-      "declaration_reference_edges": 6948,
+      "declaration_reference_edges": 7035,
       "snapshot_status": "BOUND_MATCH",
       "proof_status": "NON_PROOF_RETRIEVAL_CONTEXT"
     },
@@ -82,10 +88,10 @@
       "proof_status": "NON_PROOF_ANALOGICAL_CONTEXT"
     },
     "semantic_benchmark": {
-      "manifest": "runs/current_ai4slt_three_book_rag_benchmark_20260801_v6_source_docs/formal_source_retrieval_benchmark_manifest.json",
+      "manifest": "runs/current_ai4slt_three_book_rag_benchmark_20260801_v7_unicode_identity/formal_source_retrieval_benchmark_manifest.json",
       "cases_passed": "23/23",
       "recall_at_8": 1.0,
-      "mean_reciprocal_rank": 0.7236024844720497,
+      "mean_reciprocal_rank": 0.7272256728778467,
       "direct_global_resolutions": 19,
       "global_discovery_then_scoped_resolutions": 4,
       "source_authored_outline_case": "dudley_chaining_bound_core ranks 2 globally and 1 inside the AI4SLT source for a semantic telescoping/base/increment query",
@@ -192,12 +198,13 @@
   ],
   "verification": {
     "core_suite": "291 passed, 3 skipped, 6 subtests passed in 2183.57 seconds",
-    "current_affected_file_panel": "52 complete formal-source, scoped-corpus, proof-state, and multi-dependency tests plus 5 focused offline AgentRuntime transport tests passed; no provider call",
+    "current_affected_file_panel": "57 dependency-graph, formal-source, scoped-corpus, proof-state, and focused core integration tests passed; no provider call",
+    "shared_lean_graph_indexer_panel": "7 parser, declaration-identity, dependency-edge, metadata, and FTS tests passed; no provider call",
     "current_declaration_trace_alignment_panel": "62 focused proof-state, formal-source, scoped-corpus, proof-bank, Lean-provider, and offline AgentRuntime transport tests passed; no provider call",
     "model_and_test_environment_policy": "39 model-backend and research-eval policy tests passed; no provider call",
     "exact_semantic_support_query_regression": "exact, semantic, and required-support queries retain independent first-turn capacity",
     "benchmark_registration_regression": "1 passed",
-    "ai4slt_semantic_retrieval": "23/23 at recall@8=1.0; 19 direct and 4 globally discovered then source-scoped; source-authored Dudley outline ranks 2 globally and 1 source-scoped",
+    "ai4slt_semantic_retrieval": "23/23 at recall@8=1.0 and MRR=0.7272256728778467; 19 direct and 4 globally discovered then source-scoped; both auto-discovered dependency graphs satisfy schema 3, unicode_lean_identifier_v1, and BOUND_MATCH; source-authored Dudley outline ranks 2 globally and 1 source-scoped",
     "ai4slt_three_book_crosswalk": "47/47 source-reference queries at top 8: 19 Vershynin, 7 Wainwright, 11 Boucheron-Lugosi-Massart, and 10 other references",
     "ai4slt_prompt_transport": "Initial three-book authoring transport remains 3/3 under 5480 characters. A real live-state repair probe ranked LeastSquares.master_error_bound first and linear_critical_inequality second, projected 2345 characters, retained dependency/version gates, and included neither declaration prose nor proof bodies.",
     "ai4slt_source_project_execution": "SLT/CoveringNumber.lean compiled successfully in the pinned AI4SLT Lean v4.32 project after provisioning its official Mathlib cache",

@@ -2525,7 +2525,13 @@ python3 /path/to/EmpericalProcessLEAN/lean_rag/scripts/lean_graph_index.py build
 
 The source-identity and projection-resolution behavior used for the current
 AI4SLT graph is pinned to EmpericalProcessLEAN RAG package revision
-`04bb9dac3fb58a2763024cc651fa748a15eae43a`.
+`e3fc5234b2491ffc758f09631d0b45f3c0f81cef`. Schema 3 uses a shared
+Unicode-aware Lean identifier grammar for declarations, namespaces, imports,
+and declaration references, including declarations preceded by inline
+attributes. The current graph contains 2,018 nodes: all 2,010 named source-index
+declarations reconcile by exact identity and the other eight nodes are anonymous
+synthetic instances. This identity grammar belongs to source indexing only; it
+does not rewrite generated Lean or prescribe tactics.
 
 The normal formal-source backend can fuse this graph with the signed
 StatInference graph. Dependency lookup is bound by corpus, declaration name,
@@ -2575,8 +2581,11 @@ The retriever discovers
 `f4890ac3b0a18b35071e4cabf54dee8427463cd1`; activation fails closed unless the
 file SHA-256 is
 `43fdcda8b0558c9470ced9307e62970bfe7d62f19fad391ab077f55fac0ce695`.
-Shared graph schema version 2 records the source Git commit and tree, source
-cleanliness, Lean toolchain, and Mathlib revision. The current AI4SLT graph is
+Shared graph schema version 3 records the Unicode declaration-identity policy,
+source Git commit and tree, source cleanliness, Lean toolchain, and Mathlib
+revision. An unversioned graph, older schema, or different identity policy fails
+runtime health instead of serving truncated declaration identities. The
+current AI4SLT graph is
 bound to source tree `c881c15393cd5218b5d127017529d6f443f8cfa5` at commit
 `d0f506f0a695018265dccb33bcb05e2f5ca1c876`. Runtime health rejects a known
 tree/toolchain mismatch rather than silently presenting a stale graph as

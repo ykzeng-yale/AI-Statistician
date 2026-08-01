@@ -52,7 +52,18 @@ def _write_dependency_db(path: Path, *, corpus: str) -> Path:
             CREATE VIRTUAL TABLE decl_fts USING fts5(
               name, short_name, kind, module, namespace, signature, proof
             );
+            CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             """
+        )
+        conn.executemany(
+            "INSERT INTO meta(key, value) VALUES (?, ?)",
+            [
+                ("schema_version", "3"),
+                (
+                    "declaration_identity_policy",
+                    "unicode_lean_identifier_v1",
+                ),
+            ],
         )
         rows = [
             (
@@ -193,6 +204,58 @@ def test_multi_retriever_routes_dependency_context_to_requested_corpus(
     assert "without import-visibility filtering" in (
         context.dependency_resolution_policy
     )
+
+
+def test_dependency_graph_preserves_unicode_declaration_identity(
+    tmp_path: Path,
+) -> None:
+    db_path = _write_dependency_db(
+        tmp_path / "unicode-identity.sqlite",
+        corpus="Unicode",
+    )
+    with sqlite3.connect(db_path) as conn:
+        row = (
+            5,
+            "Theory.linear_δ_star",
+            "linear_δ_star",
+            "def",
+            "Unicode.CriticalRadius",
+            "Unicode/CriticalRadius.lean",
+            60,
+            62,
+            "Theory",
+            "[]",
+            "noncomputable def linear_δ_star (σ : ℝ) : ℝ",
+            ":= σ",
+            1,
+            0,
+            "unicode-critical-radius",
+        )
+        conn.execute(
+            "INSERT INTO declarations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            row,
+        )
+        conn.execute(
+            """
+            INSERT INTO decl_fts(
+              rowid, name, short_name, kind, module, namespace, signature, proof
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (row[0], row[1], row[2], row[3], row[4], row[8], row[10], row[11]),
+        )
+
+    retriever = LeanRagDependencyRetriever(db_path)
+    hits = retriever.search("Theory.linear_δ_star critical radius", k=3)
+    context = retriever.dependency_context(
+        "Theory.linear_δ_star",
+        path="Unicode/CriticalRadius.lean",
+    )
+
+    assert hits
+    assert hits[0].declaration.name == "Theory.linear_δ_star"
+    assert "δ" in hits[0].declaration.name
+    assert context is not None
+    assert context.module == "Unicode.CriticalRadius"
 
 
 def test_dependency_context_rejects_unimported_unique_basename_edges(
@@ -473,13 +536,15 @@ def test_dependency_health_rejects_mismatch_and_exposes_matching_snapshot_contex
         corpus="AI4SLT",
     )
     with sqlite3.connect(db_path) as conn:
-        conn.execute(
-            "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
-        )
+        conn.execute("DELETE FROM meta")
         conn.executemany(
             "INSERT INTO meta(key, value) VALUES (?, ?)",
             [
-                ("schema_version", "2"),
+                ("schema_version", "3"),
+                (
+                    "declaration_identity_policy",
+                    "unicode_lean_identifier_v1",
+                ),
                 ("project_root", str(source_root)),
                 ("source_root", str(source_root / "SLT")),
                 ("source_git_commit", "a" * 40),
@@ -539,6 +604,48 @@ def test_dependency_health_rejects_mismatch_and_exposes_matching_snapshot_contex
     assert snapshot["mathlib_revision"] == "c" * 40
     assert "project_root" not in snapshot
     assert "source_root" not in snapshot
+
+
+def test_bound_legacy_graph_schema_fails_closed(tmp_path: Path) -> None:
+    db_path = _write_dependency_db(
+        tmp_path / "legacy-identity.sqlite",
+        corpus="Legacy",
+    )
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("DELETE FROM meta")
+        conn.executemany(
+            "INSERT INTO meta(key, value) VALUES (?, ?)",
+            [
+                ("schema_version", "2"),
+                ("source_git_commit", "a" * 40),
+                ("source_git_tree", "b" * 40),
+            ],
+        )
+
+    retriever = LeanRagDependencyRetriever(db_path)
+    health = retriever.health_report()
+
+    assert health["graph_schema_version"] == "2"
+    assert health["graph_schema_supported"] is False
+    assert health["declaration_identity_policy_supported"] is False
+    assert health["all_ok"] is False
+    assert retriever.search("master error bound", k=1) == []
+
+
+def test_unversioned_graph_fails_closed(tmp_path: Path) -> None:
+    db_path = _write_dependency_db(
+        tmp_path / "unversioned.sqlite",
+        corpus="Unversioned",
+    )
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("DROP TABLE meta")
+
+    health = LeanRagDependencyRetriever(db_path).health_report()
+
+    assert health["graph_schema_version"] == ""
+    assert health["graph_schema_supported"] is False
+    assert health["declaration_identity_policy_supported"] is False
+    assert health["all_ok"] is False
 
 
 def test_auto_discovery_activates_multiple_healthy_corpus_graphs(
