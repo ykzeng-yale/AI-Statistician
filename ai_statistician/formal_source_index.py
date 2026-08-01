@@ -1517,9 +1517,10 @@ def _declaration_references_from_markdown(root: Path) -> dict[str, str]:
 
 
 def _reference_aliases_from_markdown(root: Path) -> dict[str, str]:
-    """Extract source-defined citation abbreviations such as `HDP = ...`."""
+    """Extract source-authored abbreviation and bibliography aliases."""
 
     aliases: dict[str, str] = {}
+    bibliography_candidates: dict[str, set[str]] = {}
     alias_pattern = re.compile(
         r"(?:^|[\s*(])([A-Z][A-Z0-9]{1,8})\s*=\s*([^\n)]{3,220})\)"
     )
@@ -1533,23 +1534,79 @@ def _reference_aliases_from_markdown(root: Path) -> dict[str, str]:
             expansion = _markdown_cell_text(match.group(2)).strip(" .")
             if alias and expansion:
                 aliases.setdefault(alias, expansion)
+        for line in text.splitlines():
+            bibliography_row = _markdown_bibliography_alias(line)
+            if bibliography_row is None:
+                continue
+            key, expansion = bibliography_row
+            bibliography_candidates.setdefault(key, set()).add(expansion)
+    for key, expansions in bibliography_candidates.items():
+        if len(expansions) == 1:
+            aliases.setdefault(key, next(iter(expansions)))
     return aliases
+
+
+def _markdown_bibliography_alias(line: str) -> tuple[str, str] | None:
+    """Return an author/year key and title from one Markdown bibliography row."""
+
+    match = re.match(
+        r"^\s*[-*]\s+(.+?)\s*\((\d{4}[a-z]?)\)\.\s*(.+)$",
+        line,
+        flags=re.IGNORECASE,
+    )
+    if match is None:
+        return None
+    authors, year, remainder = match.groups()
+    first_author = re.search(r"[A-Za-z][A-Za-z'-]+", authors)
+    title_match = re.search(r"(?:\*|_)([^*_]{3,260})(?:\*|_)", remainder)
+    if first_author is None or title_match is None:
+        return None
+    author_key = re.sub(r"[^a-z0-9]+", "", first_author.group(0).lower())
+    if not author_key:
+        return None
+    clean_authors = re.sub(r"\s+", " ", authors).strip(" .")
+    title = _markdown_cell_text(title_match.group(1)).strip(" .")
+    if not title:
+        return None
+    key = f"author_year:{author_key}:{year.lower()}"
+    return key, f"{clean_authors} ({year}), {title}"[:360]
 
 
 def _expanded_reference_aliases(
     reference: str,
     aliases: dict[str, str],
 ) -> tuple[str, ...]:
-    match = re.match(r"^([A-Z][A-Z0-9]{1,8})(?=$|[\s:-])", reference)
-    if match is None:
-        return ()
-    abbreviation = match.group(1)
-    expansion = aliases.get(abbreviation, "").strip()
-    if not expansion:
-        return ()
-    suffix = reference[len(abbreviation) :].lstrip(" :-")
-    expanded = " ".join(value for value in (expansion, suffix) if value)
-    return (expanded,) if expanded and expanded != reference else ()
+    expanded_rows: list[str] = []
+    abbreviation_match = re.match(
+        r"^([A-Z][A-Z0-9]{1,8})(?=$|[\s:-])",
+        reference,
+    )
+    if abbreviation_match is not None:
+        abbreviation = abbreviation_match.group(1)
+        expansion = aliases.get(abbreviation, "").strip()
+        suffix = reference[abbreviation_match.end() :].lstrip(" :-")
+        expanded = " ".join(value for value in (expansion, suffix) if value)
+        if expansion and expanded and expanded != reference:
+            expanded_rows.append(expanded)
+
+    citation_match = re.match(
+        r"^([A-Z][A-Za-z'-]+)(?:\s+et\s+al\.)?\s*\((\d{4}[a-z]?)\)",
+        reference,
+        flags=re.IGNORECASE,
+    )
+    if citation_match is not None:
+        author_key = re.sub(
+            r"[^a-z0-9]+",
+            "",
+            citation_match.group(1).lower(),
+        )
+        key = f"author_year:{author_key}:{citation_match.group(2).lower()}"
+        expansion = aliases.get(key, "").strip()
+        suffix = reference[citation_match.end() :].lstrip(" ,:-")
+        expanded = " ".join(value for value in (expansion, suffix) if value)
+        if expansion and expanded and expanded != reference:
+            expanded_rows.append(expanded)
+    return tuple(dict.fromkeys(expanded_rows))
 
 
 def _bind_declaration_references(

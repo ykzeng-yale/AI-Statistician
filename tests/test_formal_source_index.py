@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
@@ -16,6 +17,10 @@ from ai_statistician.formal_source_index import (
     search_formal_sources,
 )
 from ai_statistician.formal_source_hybrid import FormalSourceHybridRetriever
+from ai_statistician.formal_source_prompt_context import (
+    FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS,
+    compact_formal_source_grounding_hits_for_prompt,
+)
 from ai_statistician.formal_source_retrieval_benchmark import (
     audit_formal_source_reference_crosswalk,
 )
@@ -146,6 +151,81 @@ def test_source_authored_reference_alias_is_searchable_without_runtime_rule(
             "all_ok": True,
         }
     ]
+
+
+def test_source_bibliography_titles_join_three_book_reference_rows(
+    tmp_path: Path,
+) -> None:
+    source_root = tmp_path / "SLT"
+    source_root.mkdir()
+    (tmp_path / "README.md").write_text(
+        "| Lean name | Reference |\n"
+        "|---|---|\n"
+        "| `coveringBound` | Vershynin (2018), Corollary 4.2.13 |\n"
+        "| `masterError` | Wainwright (2019), Theorem 13.5 |\n"
+        "| `gaussianConcentration` | Boucheron et al. (2013), Theorem 5.6 |\n"
+        "\n"
+        "## References\n"
+        "\n"
+        "- Vershynin, R. (2018). *High-Dimensional Probability: An Introduction "
+        "with Applications in Data Science*. Cambridge University Press.\n"
+        "- Wainwright, M. J. (2019). *High-Dimensional Statistics: A "
+        "Non-Asymptotic Viewpoint*. Cambridge University Press.\n"
+        "- Boucheron, S., Lugosi, G., & Massart, P. (2013). *Concentration "
+        "Inequalities: A Nonasymptotic Theory of Independence*. Oxford "
+        "University Press.\n",
+        encoding="utf-8",
+    )
+    (source_root / "Books.lean").write_text(
+        "namespace Textbook\n"
+        "theorem coveringBound : True := by trivial\n"
+        "theorem masterError : True := by trivial\n"
+        "theorem gaussianConcentration : True := by trivial\n"
+        "end Textbook\n",
+        encoding="utf-8",
+    )
+    declarations = build_formal_source_index(
+        roots=(FormalSourceRoot("fixture_books", str(source_root)),)
+    )
+    by_name = {row.name: row for row in declarations}
+
+    assert "High-Dimensional Probability" in by_name[
+        "Textbook.coveringBound"
+    ].reference_aliases[0]
+    assert "Corollary 4.2.13" in by_name[
+        "Textbook.coveringBound"
+    ].reference_aliases[0]
+    assert "High-Dimensional Statistics" in by_name[
+        "Textbook.masterError"
+    ].reference_aliases[0]
+    assert "Theorem 13.5" in by_name[
+        "Textbook.masterError"
+    ].reference_aliases[0]
+    assert "Concentration Inequalities" in by_name[
+        "Textbook.gaussianConcentration"
+    ].reference_aliases[0]
+
+    retriever = FormalSourceRetriever(declarations)
+    queries = {
+        "Textbook.coveringBound": (
+            "High-Dimensional Probability Applications in Data Science "
+            "chapter 4 covering number"
+        ),
+        "Textbook.masterError": (
+            "High-Dimensional Statistics Non-Asymptotic Viewpoint "
+            "chapter 13"
+        ),
+        "Textbook.gaussianConcentration": (
+            "Concentration Inequalities Nonasymptotic Theory Independence "
+            "chapter 5"
+        ),
+    }
+    for expected_name, query in queries.items():
+        assert retriever.search(query, k=3)[0].declaration.name == expected_name
+
+    crosswalk = audit_formal_source_reference_crosswalk(retriever, k=3)
+    assert crosswalk["reference_alias_crosswalk"]["n_queries"] == 3
+    assert crosswalk["reference_alias_crosswalk"]["all_ok"] is True
 
 
 def test_module_summary_is_a_shared_low_weight_semantic_hint(
@@ -713,25 +793,41 @@ def test_formal_source_prompt_payload_omits_full_candidate_proof_body() -> None:
 
 def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     contract = formalizer_proof_construction_strategy_contract()
+    assert contract["schema_version"] == 5
     assert "smallest diagnostic" in contract["repair_cycle"]
+    assert "faithful natural-language statement" in contract["specification"]
     assert "qualified name/namespace/module/signature/import/reference" in contract[
-        "specification"
+        "context_policy"
     ]
-    assert "direct premise outlines first" in contract["specification"]
-    assert "bounded prior fallback" in contract["specification"]
-    assert "minimal explicit support-dependency plan" in contract["specification"]
-    assert "[] for a direct proof" in contract["specification"]
+    assert "direct premise outlines first" in contract["context_policy"]
+    assert "bounded prior fallback" in contract["context_policy"]
+    assert "no source files or proof bodies" in contract["context_policy"]
+    assert "dependency-ordered lemma dag" in contract["decomposition"].lower()
+    assert "bounded compiler-feedback episode" in contract[
+        "decomposition"
+    ]
+    assert "minimal explicit support-dependency plan" in contract[
+        "decomposition"
+    ]
+    assert "[] for a direct proof" in contract["decomposition"]
+    assert "preserve verified ancestors" in contract["decomposition"]
+    assert "fix errors one-by-one" in contract["repair_cycle"]
     assert "no unchanged retry" in contract["repair_cycle"]
+    assert "wholesale rewrite without evidence" in contract["repair_cycle"]
     assert "Independently recheck target fidelity" in contract[
         "persistent_failure_route"
     ]
     assert "counterexamples" in contract["persistent_failure_route"]
     assert "quantifiers" in contract["persistent_failure_route"]
     assert "exact active-project artifact" in contract["post_compile_hygiene"]
+    assert "Build missing infrastructure bottom-up" in contract["library_design"]
     assert "stable semantic Lean names" in contract["library_design"]
-    assert "source metadata" in contract["library_design"]
+    assert "source metadata rather than declaration identity" in contract[
+        "library_design"
+    ]
     assert "exact compatible imported declaration" in contract["reuse_policy"]
     assert "revalidate every selected declaration" in contract["reuse_policy"]
+    assert "opus" not in str(contract).lower()
 
     question = load_open_research_questions(
         Path("examples/research_questions.json")
@@ -747,7 +843,87 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
 
     assert "proof_construction_strategy_contract" in prompt
     assert "direct premise outlines first" in prompt
+    assert "dependency-ordered lemma dag" in prompt.lower()
     assert "no unchanged retry" in prompt
-    assert "fix the smallest diagnostic" in prompt
+    assert "fix errors one-by-one" in prompt
     assert "stable semantic Lean names" in prompt
     assert "exact compatible imported declaration" in prompt
+
+
+def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() -> None:
+    long_signature = "theorem target_bound " + "(h : True) " * 120 + ": True"
+    premise_rows = [
+        {
+            "dependency_scope": scope,
+            "name": name,
+            "signature": f"theorem {name.rsplit('.', 1)[-1]} " + "(h : True) " * 40 + ": True",
+        }
+        for scope, name in (
+            ("statement", "Library.TargetObject"),
+            ("statement", "Library.TargetDefinition"),
+            ("proof", "Library.KeyReduction"),
+            ("proof", "Library.ClosingLemma"),
+            ("proof", "Library.FinalBound"),
+        )
+    ]
+    groups = [
+        {
+            "query": "target query " * 80,
+            "query_role": "repair_context_seed",
+            "query_fingerprint": "a" * 64,
+            "hits": [
+                {
+                    "source_id": "fixture_library",
+                    "path": "Library/Target.lean",
+                    "line": 101,
+                    "kind": "theorem",
+                    "name": "Library.target_bound",
+                    "namespace": "Library",
+                    "signature": long_signature,
+                    "imports": ["Library.Foundation", "Library.Reduction"],
+                    "reference": "Source (2026), Theorem 1",
+                    "reference_aliases": ["Source Book Full Title Theorem 1"],
+                    "declaration_source_context": {
+                        "module": "Library.Target",
+                        "imports": ["Library.Foundation", "Library.Reduction"],
+                        "premise_declaration_outlines": premise_rows,
+                        "dependency_context": {
+                            "module_ancestry": ["Library", "Library.Target"],
+                            "source_snapshot": {
+                                "status": "BOUND_MATCH",
+                                "bound": True,
+                                "match": True,
+                                "metadata": {"source_git_commit": "b" * 40},
+                            },
+                        },
+                    },
+                },
+                {
+                    "source_id": "unrelated",
+                    "path": "Other.lean",
+                    "line": 1,
+                    "kind": "theorem",
+                    "name": "Other.large_candidate",
+                    "signature": long_signature * 3,
+                },
+            ],
+        }
+    ]
+
+    compact = compact_formal_source_grounding_hits_for_prompt(groups)
+    encoded = json.dumps(compact, separators=(",", ":"), ensure_ascii=False)
+    target = compact[0]["hits"][0]
+    context = target["declaration_source_context"]
+
+    assert len(encoded) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS
+    assert target["name"] == "Library.target_bound"
+    assert "Source Book Full Title" in target["reference_aliases"][0]
+    assert context["module"] == "Library.Target"
+    assert context["module_ancestry"] == ["Library", "Library.Target"]
+    assert context["source_snapshot"]["status"] == "BOUND_MATCH"
+    assert "Library.KeyReduction" in context["premise_names"]
+    assert {
+        row["dependency_scope"]
+        for row in context["premise_declaration_outlines"]
+    } == {"statement", "proof"}
+    assert "large_candidate" not in encoded

@@ -2377,9 +2377,11 @@ Declaration outlines stop before `:=`, so proof bodies, tactics, and placeholder
 do not enter prompt context. Root README tables with declaration and reference
 columns are parsed generically; this makes the AI4SLT crosswalk to Vershynin,
 Wainwright, and Boucheron-Lugosi-Massart searchable without encoding book-specific
-runtime rules. Source-authored citation abbreviations are expanded from those
-same documents, and bounded leading Lean module documentation provides the
-mathematical layer summary. Retrieval emits qualified name, namespace, module,
+runtime rules. Source-derived reference aliases are built from those same
+documents: explicit abbreviations are expanded, and unambiguous author/year
+rows are joined to their full bibliography titles. Bounded leading Lean module
+documentation provides the mathematical layer summary. Retrieval emits
+qualified name, namespace, module,
 imports, reference metadata, and a dependency-first outline: direct statement
 dependencies, then direct proof dependencies, then at most a small same-file
 prior-declaration fallback. Downstream declarations and proof bodies are omitted. Composite
@@ -2396,7 +2398,12 @@ revision also differs from the active project's revision, so version number alon
 does not authorize an import.
 Before the first Formalizer proposal, the exact theorem goal and theory
 formalization handoff seed at most three task-bound queries with at most two
-compact hits each. This follows AI4SLT's structured-specification discipline:
+hits each in the immutable retrieval artifact. The LLM prompt projects that
+artifact to the first target-bound hit with qualified identity, citation,
+module/snapshot provenance, all bounded premise names, and representative
+statement/proof signatures; secondary hits remain available for a later query
+after new Lean feedback instead of consuming first-turn context. This follows
+AI4SLT's structured-specification discipline:
 exact target and mathematical meaning, local declaration pointers, a semantic
 support-dependency plan when decomposition is needed (empty for a direct proof),
 and explicit boundaries. Each failed Lean/LSP attempt must evolve
@@ -2509,9 +2516,10 @@ inventing theorem-number names or flat proof snippets. Mathematical layers and
 Lean namespaces remain primary (`CoveringNumber`, `MetricEntropy`, `Chaining`,
 `Dudley`, `GaussianLSI`, and `LeastSquares`); textbook references remain
 separate citation metadata. The current source-derived declaration/citation
-audit covers all 47 README-bound declarations, including all 15 references whose
-source-authored `HDP` alias expands to Vershynin. The ICML paper-core subset
-contains 22 rows across Vershynin, Wainwright, and Boucheron-Lugosi-Massart. The
+audit covers all 47 README-bound declarations and 39 unambiguous aliases. Those
+aliases include the 15 explicit `HDP` rows and bibliography-title joins for all
+22 ICML paper-core rows across Vershynin, Wainwright, and
+Boucheron-Lugosi-Massart. The
 Novel training traces directly contain only four of those 22 major-result
 declarations, with at least one from each book family;
 the rest of the action traces may occur in the upstream validation/test splits.

@@ -9,6 +9,9 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
+from .formal_source_prompt_context import (
+    compact_formal_source_grounding_hits_for_prompt,
+)
 from .formalizer_repair_policy import (
     formalizer_validation_repair_policy,
     render_formalizer_validation_repair_policy_instructions,
@@ -106,35 +109,42 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
     """Context-efficient, feedback-driven policy for Lean proof construction."""
 
     return {
-        "schema_version": 4,
+        "schema_version": 5,
         "specification": (
-            "Exact self-contained Lean target; direct premise outlines first (qualified "
-            "name/namespace/module/signature/import/reference), bounded prior fallback, "
-            "no proof bodies; minimal explicit support-dependency plan when needed "
-            "([] for a direct proof); explicit assumptions/boundaries; no weakening."
+            "Exact Lean target plus faithful natural-language statement and "
+            "assumptions/boundaries; never weaken."
+        ),
+        "context_policy": (
+            "Target-bound qualified name/namespace/module/signature/import/reference "
+            "outlines only; direct premise outlines first, bounded prior fallback; no "
+            "source files or proof bodies."
+        ),
+        "decomposition": (
+            "Dependency-ordered lemma DAG; smallest blocked leaf per bounded "
+            "compiler-feedback episode; minimal explicit support-dependency plan ([] "
+            "for a direct proof); preserve verified ancestors."
         ),
         "repair_cycle": (
-            "Lean/LSP -> preserve valid structure -> fix the smallest diagnostic -> "
-            "refine the spec with new evidence -> rerun; no unchanged retry."
+            "Lean/LSP: fix errors one-by-one from the smallest diagnostic while "
+            "preserving structure; update from evidence; no unchanged retry or "
+            "wholesale rewrite without evidence."
         ),
         "library_design": (
-            "Use the narrowest mathematical module/namespace and stable semantic "
-            "Lean names; keep textbook numbers/citations as source metadata."
+            "Build missing infrastructure bottom-up in a narrow module/namespace with "
+            "stable semantic Lean names; citations are source metadata rather than "
+            "declaration identity."
         ),
         "reuse_policy": (
-            "Prefer an exact compatible imported declaration. Across toolchains, "
-            "retrieve signature/module/import/premise DAG only; revalidate every "
-            "selected declaration in the active project."
+            "Prefer an exact compatible imported declaration; cross-toolchain hits "
+            "use signatures/import DAG only and revalidate every selected "
+            "declaration."
         ),
         "persistent_failure_route": (
-            "Independently recheck target fidelity, quantifiers/domains/assumptions/"
-            "inequalities/counterexamples; do not weaken."
+            "Independently recheck target fidelity, quantifiers, domains, assumptions, "
+            "inequalities, and counterexamples; never weaken."
         ),
         "post_compile_hygiene": (
             "Remove warnings/dead facts; rerun the exact active-project artifact."
-        ),
-        "evidence_boundary": (
-            "RAG/candidates are not proof until active Lean/kernel verification."
         ),
     }
 
@@ -1209,10 +1219,11 @@ def build_formalizer_prompt(
             "tags": list(question.tags),
         },
         "prompt_mode": {
-            "mode": "compact_minimal_proof_target_triage",
-            "purpose": "choose minimal Lean/formal targets and proof-bank obligations before kernel gates",
+            "mode": "target_bound_formalization_specification",
+            "purpose": "prove/revise target from theory, outlines, and Lean feedback",
             "max_items_per_list": 3,
-            "do_not_expand_full_derivations": True,
+            "expand_target_bound_derivation": True,
+            "do_not_expand_unrelated_derivations": True,
         },
         "theory_packet_summary": {
             "packet_id": theory_packet.get("packet_id", ""),
@@ -11661,6 +11672,10 @@ def _source_theorem_candidate_materialization_contract(
 
 
 def _compact_value_for_key(key: Any, value: Any) -> Any:
+    if str(key) == "formal_source_grounding_hits":
+        return compact_formal_source_grounding_hits_for_prompt(value)
+    if str(key) == "retrieval_query_seeds" and isinstance(value, list | tuple):
+        return [str(item)[:400] for item in list(value)[:3] if str(item).strip()]
     if str(key) == "proof_state_trace_rag" and isinstance(value, Mapping):
         return _compact_mapping(
             value,

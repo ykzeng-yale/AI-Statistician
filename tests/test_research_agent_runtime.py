@@ -40337,6 +40337,10 @@ def test_first_formalizer_proposal_receives_task_bound_formal_source_grounding()
                         ),
                         imports=("SLT.LeastSquares.Localization",),
                         reference="Wainwright (2019), Theorem 13.5",
+                        reference_aliases=(
+                            "Wainwright, M. J. (2019), High-Dimensional "
+                            "Statistics: A Non-Asymptotic Viewpoint Theorem 13.5",
+                        ),
                     ),
                     score=1.0,
                     matched_terms=("least", "squares"),
@@ -40398,6 +40402,7 @@ def test_first_formalizer_proposal_receives_task_bound_formal_source_grounding()
     assert hit["namespace"] == "LeastSquares"
     assert hit["imports"] == ["SLT.LeastSquares.Localization"]
     assert hit["reference"] == "Wainwright (2019), Theorem 13.5"
+    assert "High-Dimensional Statistics" in hit["reference_aliases"][0]
     assert "kernel_verified" not in hit
     duplicate_groups = grounded["proofengineer_repair_context"][
         "formal_source_grounding_hits"
@@ -40423,7 +40428,8 @@ def test_first_formalizer_proposal_receives_task_bound_formal_source_grounding()
         environment_feedback=grounded,
     )
     assert "LeastSquares.master_error_bound" in prompt
-    assert "Wainwright (2019), Theorem 13.5" in prompt
+    assert "High-Dimensional Statistics" in prompt
+    assert "Theorem 13.5" in prompt
     assert len(prompt) < 16000
 
 
@@ -73520,8 +73526,9 @@ def test_formalizer_prompt_compacts_large_theory_context() -> None:
         ],
     )
 
-    assert "compact_minimal_proof_target_triage" in prompt
-    assert "do_not_expand_full_derivations" in prompt
+    assert "target_bound_formalization_specification" in prompt
+    assert "expand_target_bound_derivation" in prompt
+    assert "do_not_expand_unrelated_derivations" in prompt
     assert "theory:large" in prompt
     assert "T0" in prompt
     assert "T4" not in prompt

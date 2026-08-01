@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
@@ -16,6 +17,192 @@ FORMAL_SOURCE_OUTLINE_PROMPT_POLICY = (
     "or proof authority. Retrieved declarations remain candidate context "
     "until the exact target artifact passes active-project Lean/kernel checking."
 )
+FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS = 2600
+
+
+def compact_formal_source_grounding_hits_for_prompt(value: Any) -> list[dict[str, Any]]:
+    """Project full retrieval artifacts into one bounded target-first prompt view."""
+
+    if not isinstance(value, list | tuple):
+        return []
+    candidates = [
+        (group, hit)
+        for group in value[:3]
+        if isinstance(group, Mapping)
+        for hit in group.get("hits", []) or []
+        if isinstance(hit, Mapping)
+    ]
+    if not candidates:
+        return []
+    group, hit = next(
+        (
+            pair
+            for pair in candidates
+            if isinstance(pair[1].get("declaration_source_context"), Mapping)
+        ),
+        candidates[0],
+    )
+    projected_group: dict[str, Any] = {
+        "proof_evidence_status": str(
+            group.get("proof_evidence_status", "")
+            or "FORMAL_SOURCE_RETRIEVAL_GROUNDING_NOT_PROOF_EVIDENCE"
+        )[:120],
+        "hits": [_compact_formal_source_hit_for_prompt(hit)],
+    }
+    if group.get("source_scope_ids"):
+        projected_group["source_scope_ids"] = [
+            str(item)[:120]
+            for item in list(group.get("source_scope_ids", []))[:3]
+        ]
+    _fit_formal_source_prompt_projection(projected_group)
+    return [projected_group]
+
+
+def _compact_formal_source_hit_for_prompt(
+    hit: Mapping[str, Any],
+) -> dict[str, Any]:
+    payload = {
+        "source_id": str(hit.get("source_id", "") or "")[:120],
+        "path": str(hit.get("path", "") or "")[:240],
+        "kind": str(hit.get("kind", "") or "")[:40],
+        "name": str(hit.get("name", "") or "")[:240],
+    }
+    signature = str(hit.get("signature", "") or "")
+    if signature:
+        payload["signature"] = _head_tail_text(signature, 425)
+    aliases = [
+        str(item)[:260]
+        for item in list(hit.get("reference_aliases", []) or [])[:1]
+        if str(item).strip()
+    ]
+    if aliases:
+        payload["reference_aliases"] = aliases
+    else:
+        reference = str(hit.get("reference", "") or "")
+        if reference:
+            payload["reference"] = reference[:280]
+    context = hit.get("declaration_source_context", {})
+    if isinstance(context, Mapping):
+        payload["declaration_source_context"] = (
+            _compact_declaration_source_context_for_prompt(context)
+        )
+    return payload
+
+
+def _compact_declaration_source_context_for_prompt(
+    context: Any,
+) -> dict[str, Any]:
+    if not isinstance(context, Mapping):
+        return {}
+    dependency = (
+        context.get("dependency_context", {})
+        if isinstance(context.get("dependency_context", {}), Mapping)
+        else {}
+    )
+    premise_rows = [
+        row
+        for row in context.get("premise_declaration_outlines", []) or []
+        if isinstance(row, Mapping)
+    ][:6]
+    selected_rows: list[Mapping[str, Any]] = []
+    for scope, limit in (("statement", 1), ("proof", 2), ("unspecified", 1)):
+        scoped_rows = [
+            row
+            for row in premise_rows
+            if str(row.get("dependency_scope", "") or "") == scope
+        ]
+        selected_rows.extend(scoped_rows[:limit])
+    for row in premise_rows:
+        if len(selected_rows) >= 3:
+            break
+        if row not in selected_rows:
+            selected_rows.append(row)
+    selected_rows = selected_rows[:3]
+    signature_budget = 320
+    outlines: list[dict[str, Any]] = []
+    for row in selected_rows:
+        outline = {
+            "dependency_scope": str(row.get("dependency_scope", "") or "")[:20],
+            "name": str(row.get("name", "") or "")[:240],
+        }
+        signature = str(row.get("signature", "") or "")
+        if signature and signature_budget > 0:
+            compact_signature = _head_tail_text(
+                signature,
+                min(160, signature_budget),
+            )
+            outline["signature"] = compact_signature
+            signature_budget -= len(compact_signature)
+        outlines.append(outline)
+    payload: dict[str, Any] = {
+        "module": str(context.get("module", "") or "")[:240],
+        "module_ancestry": [
+            str(item)[:180]
+            for item in list(dependency.get("module_ancestry", []) or [])[:5]
+        ],
+        "imports": [
+            str(item)[:180]
+            for item in list(context.get("imports", []) or [])[:6]
+        ],
+        "premise_names": [
+            str(row.get("name", "") or "")[:240]
+            for row in premise_rows
+            if str(row.get("name", "") or "").strip()
+        ],
+        "premise_declaration_outlines": outlines,
+    }
+    snapshot = (
+        dependency.get("source_snapshot", {})
+        if isinstance(dependency.get("source_snapshot", {}), Mapping)
+        else {}
+    )
+    if snapshot:
+        compact_snapshot: dict[str, Any] = {
+            key: snapshot.get(key)
+            for key in ("status", "bound", "match")
+            if snapshot.get(key) not in (None, "")
+        }
+        payload["source_snapshot"] = compact_snapshot
+    return {
+        key: value
+        for key, value in payload.items()
+        if value not in (None, "", [], {})
+    }
+
+
+def _head_tail_text(value: str, limit: int) -> str:
+    if len(value) <= limit:
+        return value
+    head = max(1, limit // 2)
+    tail = max(1, limit - head - 5)
+    return value[:head].rstrip() + " ... " + value[-tail:].lstrip()
+
+
+def _fit_formal_source_prompt_projection(group: dict[str, Any]) -> None:
+    """Drop low-value duplicates only when an unusually large hit exceeds budget."""
+
+    hit = group["hits"][0]
+    context = hit.get("declaration_source_context", {})
+    if _prompt_json_chars([group]) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
+        return
+    context.pop("imports", None)
+    if _prompt_json_chars([group]) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
+        return
+    for row in context.get("premise_declaration_outlines", []) or []:
+        row.pop("signature", None)
+    if _prompt_json_chars([group]) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
+        return
+    hit["signature"] = _head_tail_text(str(hit.get("signature", "")), 240)
+    if _prompt_json_chars([group]) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
+        return
+    context["premise_names"] = list(context.get("premise_names", []))[:4]
+    if _prompt_json_chars([group]) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
+        return
+    context.pop("module_ancestry", None)
+
+
+def _prompt_json_chars(value: Any) -> int:
+    return len(json.dumps(value, separators=(",", ":"), ensure_ascii=False, default=str))
 
 
 def task_bound_formal_source_query_seeds(

@@ -101,7 +101,10 @@ EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK: tuple[
 ] = (
     FormalSourceRetrievalBenchmarkCase(
         query_id="slt_vershynin_euclidean_covering",
-        query="Vershynin 2018 Corollary 4.2.13 Euclidean ball covering number",
+        query=(
+            "High-Dimensional Probability An Introduction with Applications "
+            "in Data Science chapter 4 Euclidean ball covering number"
+        ),
         expected_name_fragments=("coveringNumber_euclideanBall_le",),
         expected_source_ids=("lean_stat_learning_theory",),
         rationale=(
@@ -111,14 +114,20 @@ EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK: tuple[
     ),
     FormalSourceRetrievalBenchmarkCase(
         query_id="slt_wainwright_master_error_bound",
-        query="Wainwright 2019 Theorem 13.5 localized least squares master error bound",
+        query=(
+            "High-Dimensional Statistics A Non-Asymptotic Viewpoint chapter 13 "
+            "localized least squares master error bound"
+        ),
         expected_name_fragments=("master_error_bound",),
         expected_source_ids=("lean_stat_learning_theory",),
         rationale="the Wainwright source crosswalk should be searchable formal RAG metadata",
     ),
     FormalSourceRetrievalBenchmarkCase(
         query_id="slt_wainwright_one_step_discretization",
-        query="Wainwright 2019 Proposition 5.17 one step discretization",
+        query=(
+            "High-Dimensional Statistics A Non-Asymptotic Viewpoint chapter 5 "
+            "one step discretization"
+        ),
         expected_name_fragments=("one_step_discretization_bound",),
         expected_source_ids=("lean_stat_learning_theory",),
         rationale=(
@@ -128,10 +137,16 @@ EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK: tuple[
     ),
     FormalSourceRetrievalBenchmarkCase(
         query_id="slt_boucheron_gaussian_concentration",
-        query="Boucheron Lugosi Massart 2013 Theorem 5.6 Gaussian Lipschitz concentration",
+        query=(
+            "Concentration Inequalities A Nonasymptotic Theory of Independence "
+            "chapter 5 Gaussian Lipschitz concentration"
+        ),
         expected_name_fragments=("gaussian_lipschitz_concentration",),
         expected_source_ids=("lean_stat_learning_theory",),
-        rationale="the BLM source crosswalk should retrieve the corresponding checked theorem",
+        rationale=(
+            "the source-derived BLM bibliography crosswalk should retrieve the "
+            "corresponding checked theorem"
+        ),
     ),
     FormalSourceRetrievalBenchmarkCase(
         query_id="formal_slt_stability_generalization",
