@@ -25303,6 +25303,105 @@ def _metric_sample_size_order_derivation_fixture(
     }
 
 
+def _accepted_theory_execution_preflight_payload(request) -> dict[str, object]:
+    properties = request.schema["properties"]
+    dimension_schema = properties["dimension_reviews"]
+    estimator_item = properties["estimator_execution_checks"]["items"][
+        "properties"
+    ]
+    dimensions = dimension_schema["required"]
+    estimator_ids = estimator_item["estimator_id"]["enum"]
+    evidence_refs = dimension_schema["properties"][dimensions[0]]["properties"][
+        "evidence_refs"
+    ]["items"]["enum"][:2]
+    return {
+        "dimension_reviews": {
+            dimension: {
+                "status": "PASS",
+                "rationale": (
+                    "The ideal object, finite observation, and requested regime "
+                    "are coherent in this fixture."
+                ),
+                "evidence_refs": evidence_refs,
+            }
+            for dimension in dimensions
+        },
+        "estimator_execution_checks": [
+            {
+                "estimator_id": estimator_id,
+                "ideal_procedure_semantics": "The source defines one ideal method.",
+                "executable_observation_semantics": (
+                    "The finite interface returns the same declared object."
+                ),
+                "ideal_to_executable_mapping_declared": True,
+                "termination_or_censoring_analysis": (
+                    "The fixture method is total on every admitted finite input."
+                ),
+                "total_or_typed_bounded_outcome_declared": True,
+                "guarantee_transport_analysis": (
+                    "No approximation changes the fixture estimand or guarantee."
+                ),
+                "guarantee_transport_argument_declared": True,
+                "boundary_or_counterexample": (
+                    "The smallest admitted finite input has a defined output."
+                ),
+                "status": "PASS",
+                "evidence_refs": evidence_refs,
+            }
+            for estimator_id in estimator_ids
+        ],
+        "findings": [],
+        "repair_instructions": [],
+    }
+
+
+def _preflight_ready_theory_informed_metric_context_fixture() -> dict[str, object]:
+    theory_packet = _structured_theory_packet_fixture(
+        "theory_derivation:structured"
+    )
+    theory_packet.update(
+        {
+            "problem_card": {
+                "observed_data": "A finite sample from the declared DGP.",
+                "dgp": "Independent observations from a generic sampling law.",
+                "estimand": "A finite scalar functional of that law.",
+                "assumptions": ["The estimator is defined on every finite sample."],
+            },
+            "estimator_specs": [
+                {
+                    "id": "generic_finite_estimator",
+                    "algorithm": "Evaluate T on the supplied finite sample.",
+                    "inputs": ["finite observations"],
+                    "outputs": ["one finite scalar"],
+                    "algorithm_sketch": "Return T(P_n) for every admitted input.",
+                    "required_assumptions": ["T is total on finite samples"],
+                }
+            ],
+            "simulation_ademp_spec": {
+                "dgps": ["Generate one finite sample from the declared law."],
+                "methods": ["Evaluate the generic finite estimator."],
+                "performance_measures": ["Record its finite scalar output."],
+            },
+        }
+    )
+    packet_id = str(theory_packet["packet_id"])
+    return {
+        "theory_packet_id": packet_id,
+        "architect_metric_protocol_theory_material": (
+            build_theory_informed_metric_protocol_material(
+                theory_packet=theory_packet,
+                theory_packet_id=packet_id,
+            )
+        ),
+        "architect_metric_protocol_gate": {
+            "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+            "source_theory_packet_id": packet_id,
+            "required_disposition": "PREEXECUTION_REVIEW_ACCEPTED",
+            "execution_authorized": False,
+        },
+    }
+
+
 def test_live_architect_preauthors_metric_contract_with_structured_substage() -> None:
     question = next(
         question
@@ -25371,7 +25470,14 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
 
         def generate(self, request):
             self.requests.append(request)
-            if request.metadata.get("subsystem") == "ArchitectMetricContractPlanner":
+            if request.metadata.get("review_stage") == "theory_execution_preflight":
+                payload = _accepted_theory_execution_preflight_payload(request)
+                metadata = {
+                    "provider_structured_output_requested": True,
+                    "provider_structured_output_applied": True,
+                    "json_prompt_hint_used": False,
+                }
+            elif request.metadata.get("subsystem") == "ArchitectMetricContractPlanner":
                 if request.metadata.get("json_repair_mode") == (
                     "typed_semantic_patch"
                 ):
@@ -25671,14 +25777,19 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         },
     )
 
-    assert len(backend.requests) == 5
+    assert len(backend.requests) == 6
     (
+        preflight_request,
         metric_request,
         first_patch_request,
         second_patch_request,
         review_request,
         architect_request,
     ) = backend.requests
+    assert preflight_request.metadata["review_stage"] == (
+        "theory_execution_preflight"
+    )
+    assert preflight_request.model == LIVE_EVALUATION_CLAUDE_MODEL
     assert metric_request.metadata["provider_structured_output"] is True
     assert metric_request.metadata["json_repair_progress_extension_allowed"] is True
     assert metric_request.model == LIVE_EVALUATION_CLAUDE_MODEL
@@ -26616,7 +26727,9 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
         def generate(self, request):
             self.requests.append(request)
             subsystem = request.metadata.get("subsystem")
-            if subsystem == "ArchitectMetricContractPlanner":
+            if request.metadata.get("review_stage") == "theory_execution_preflight":
+                payload = _accepted_theory_execution_preflight_payload(request)
+            elif subsystem == "ArchitectMetricContractPlanner":
                 self.planner_calls += 1
                 payload = {
                     "empirical_metric_requirements": (
@@ -26801,7 +26914,7 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
             )
 
     backend = ReviewRepairBackend()
-    context = _theory_informed_metric_context_fixture()
+    context = _preflight_ready_theory_informed_metric_context_fixture()
     theory_material = context["architect_metric_protocol_theory_material"]
     context["architect_metric_protocol_prior_rejection"] = {
         "artifact_kind": (
@@ -26853,6 +26966,10 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
             model=LIVE_EVALUATION_CLAUDE_MODEL,
             model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
             max_tokens=8000,
+            metric_semantic_reviewer_model=LIVE_EVALUATION_CLAUDE_MODEL,
+            metric_semantic_reviewer_model_tier=(
+                LIVE_EVALUATION_CLAUDE_MODEL_TIER
+            ),
             metric_semantic_reviewer_max_revisions=1,
         ),
     ).propose(
@@ -26868,13 +26985,17 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
     )
 
     assert [request.metadata.get("subsystem") for request in backend.requests] == [
+        "ArchitectMetricSemanticReviewer",
         "ArchitectMetricContractPlanner",
         "ArchitectMetricSemanticReviewer",
         "ArchitectMetricContractPlanner",
         "ArchitectMetricSemanticReviewer",
         "ArchitectCoordinator",
     ]
-    first_prompt = json.loads(backend.requests[0].user_prompt)
+    assert backend.requests[0].metadata["review_stage"] == (
+        "theory_execution_preflight"
+    )
+    first_prompt = json.loads(backend.requests[1].user_prompt)
     first_repair = first_prompt["independent_semantic_review_repair"]
     assert first_repair["revision_index"] == 0
     assert first_repair["rejected_empirical_metric_requirements"] == prior_rows
@@ -26895,7 +27016,7 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
     assert "do not replace the metric portfolio" in first_repair[
         "revision_policy"
     ]
-    repair_prompt = json.loads(backend.requests[2].user_prompt)
+    repair_prompt = json.loads(backend.requests[3].user_prompt)
     repair = repair_prompt["independent_semantic_review_repair"]
     assert repair["rejected_empirical_metric_requirements"] == (
         normalized_rejected_rows
@@ -26992,7 +27113,9 @@ def test_live_architect_stops_metric_rewrites_for_upstream_theory_gap() -> None:
         def generate(self, request):
             self.requests.append(request)
             subsystem = request.metadata.get("subsystem")
-            if subsystem == "ArchitectMetricContractPlanner":
+            if request.metadata.get("review_stage") == "theory_execution_preflight":
+                payload = _accepted_theory_execution_preflight_payload(request)
+            elif subsystem == "ArchitectMetricContractPlanner":
                 payload = {"empirical_metric_requirements": metric_rows}
             elif subsystem == "ArchitectMetricSemanticReviewer":
                 payload = {
@@ -27122,11 +27245,19 @@ def test_live_architect_stops_metric_rewrites_for_upstream_theory_gap() -> None:
                     model=LIVE_EVALUATION_CLAUDE_MODEL,
                     model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
                     max_tokens=8000,
+                    metric_semantic_reviewer_model=(
+                        LIVE_EVALUATION_CLAUDE_MODEL
+                    ),
+                    metric_semantic_reviewer_model_tier=(
+                        LIVE_EVALUATION_CLAUDE_MODEL_TIER
+                    ),
                     metric_semantic_reviewer_max_revisions=2,
                 ),
         ).propose(
             question=question,
-            architect_context=_theory_informed_metric_context_fixture(),
+            architect_context=(
+                _preflight_ready_theory_informed_metric_context_fixture()
+            ),
             runtime_config={
                 "evaluation_mode": "capability_eval",
                 "formal_verification_policy": "required",
@@ -27136,9 +27267,13 @@ def test_live_architect_stops_metric_rewrites_for_upstream_theory_gap() -> None:
         )
 
     assert [request.metadata.get("subsystem") for request in backend.requests] == [
+        "ArchitectMetricSemanticReviewer",
         "ArchitectMetricContractPlanner",
         "ArchitectMetricSemanticReviewer",
     ]
+    assert backend.requests[0].metadata["review_stage"] == (
+        "theory_execution_preflight"
+    )
     assert exc_info.value.recommended_repair_scope == "upstream_theory"
     assert len(exc_info.value.semantic_review_history) == 1
     assert exc_info.value.source_theory_packet_id == (
@@ -27196,7 +27331,9 @@ def test_live_architect_uses_artifact_router_to_correct_repair_owner() -> None:
         def generate(self, request):
             self.requests.append(request)
             subsystem = request.metadata.get("subsystem")
-            if subsystem == "ArchitectMetricContractPlanner":
+            if request.metadata.get("review_stage") == "theory_execution_preflight":
+                payload = _accepted_theory_execution_preflight_payload(request)
+            elif subsystem == "ArchitectMetricContractPlanner":
                 payload = {"empirical_metric_requirements": metric_rows}
             elif subsystem == "ArchitectMetricSemanticReviewer":
                 payload = {
@@ -27347,12 +27484,26 @@ def test_live_architect_uses_artifact_router_to_correct_repair_owner() -> None:
                 model=LIVE_EVALUATION_CLAUDE_MODEL,
                 model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
                 max_tokens=8000,
+                metric_semantic_reviewer_model=(
+                    LIVE_EVALUATION_CLAUDE_MODEL
+                ),
+                metric_semantic_reviewer_model_tier=(
+                    LIVE_EVALUATION_CLAUDE_MODEL_TIER
+                ),
                 metric_semantic_reviewer_max_revisions=2,
                 metric_repair_ownership_router_enabled=True,
+                metric_repair_ownership_router_model=(
+                    LIVE_EVALUATION_CLAUDE_MODEL
+                ),
+                metric_repair_ownership_router_model_tier=(
+                    LIVE_EVALUATION_CLAUDE_MODEL_TIER
+                ),
             ),
         ).propose(
             question=question,
-            architect_context=_theory_informed_metric_context_fixture(),
+            architect_context=(
+                _preflight_ready_theory_informed_metric_context_fixture()
+            ),
             runtime_config={
                 "evaluation_mode": "capability_eval",
                 "formal_verification_policy": "required",
@@ -27362,10 +27513,14 @@ def test_live_architect_uses_artifact_router_to_correct_repair_owner() -> None:
         )
 
     assert [request.metadata.get("subsystem") for request in backend.requests] == [
+        "ArchitectMetricSemanticReviewer",
         "ArchitectMetricContractPlanner",
         "ArchitectMetricSemanticReviewer",
         "ArchitectMetricRepairOwnershipRouter",
     ]
+    assert backend.requests[0].metadata["review_stage"] == (
+        "theory_execution_preflight"
+    )
     assert exc_info.value.recommended_repair_scope == "upstream_theory"
     history = exc_info.value.semantic_review_history
     assert len(history) == 1

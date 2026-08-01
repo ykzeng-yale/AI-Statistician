@@ -118,12 +118,19 @@ class ArchitectMetricSemanticReviewRejected(PacketValidationError):
             last_review.get("recommended_repair_scope", "")
             or ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_METRIC_CONTRACT
         )
+        review_stage = str(last_review.get("review_stage", "") or "")
+        failure_summary = (
+            "independent theory-to-execution preflight rejected the current "
+            "TheoryDeveloper handoff before metric authoring"
+            if review_stage == "theory_execution_preflight"
+            else "independent semantic reviewer did not accept any metric contract "
+            f"candidate after {len(history)} attempt(s)"
+        )
         super().__init__(
             validation_label="Architect pre-execution metric semantic review",
             attempts=len(history),
             errors=[
-                "independent semantic reviewer did not accept any metric contract "
-                f"candidate after {len(history)} attempt(s)",
+                failure_summary,
                 *[
                     str(value)
                     for value in last_review.get("repair_instructions", [])
@@ -1059,6 +1066,141 @@ def author_reviewed_architect_metric_requirements(
     upstream_research_contract["contract_fingerprint"] = stable_hash(
         upstream_research_contract
     )
+    theory_execution_preflight_packet: dict[str, Any] = {}
+    theory_execution_preflight = getattr(
+        semantic_reviewer,
+        "review_theory_execution_preflight",
+        None,
+    )
+    if callable(theory_execution_preflight):
+        with agent_runtime_substage(
+            "architect_theory_execution_preflight",
+            metadata={
+                "model_tier": str(
+                    getattr(
+                        getattr(semantic_reviewer, "config", None),
+                        "model_tier",
+                        "",
+                    )
+                    or ""
+                ),
+                "source_theory_packet_id": str(
+                    theory_material.get("source_theory_packet_id", "") or ""
+                ),
+                "execution_results_available": False,
+            },
+        ):
+            theory_execution_preflight_packet = theory_execution_preflight(
+                question=question,
+                theory_protocol_material=theory_material,
+                upstream_research_contract=upstream_research_contract,
+            )
+        if theory_execution_preflight_packet.get("overall_verdict") != "ACCEPT":
+            preflight_packet_hash = stable_hash(
+                theory_execution_preflight_packet
+            )
+            raise ArchitectMetricSemanticReviewRejected(
+                question_id=question.id,
+                semantic_review_history=[
+                    {
+                        "revision_index": 0,
+                        "review_stage": "theory_execution_preflight",
+                        "authoring_packet_id": "",
+                        "authoring_packet_hash": "",
+                        "empirical_metric_requirement_set_id": "",
+                        "source_theory_packet_id": str(
+                            theory_material.get("source_theory_packet_id", "")
+                            or ""
+                        ),
+                        "source_theory_packet_hash": str(
+                            theory_material.get("source_theory_packet_hash", "")
+                            or ""
+                        ),
+                        "semantic_review_packet_id": str(
+                            theory_execution_preflight_packet.get(
+                                "packet_id", ""
+                            )
+                            or ""
+                        ),
+                        "semantic_review_packet_hash": preflight_packet_hash,
+                        "semantic_review_model": str(
+                            theory_execution_preflight_packet.get("model", "")
+                            or ""
+                        ),
+                        "semantic_review_model_tier": str(
+                            theory_execution_preflight_packet.get(
+                                "model_tier", ""
+                            )
+                            or ""
+                        ),
+                        "independent_agent": bool(
+                            theory_execution_preflight_packet.get(
+                                "independent_agent"
+                            )
+                        ),
+                        "independent_invocation": bool(
+                            theory_execution_preflight_packet.get(
+                                "independent_invocation"
+                            )
+                        ),
+                        "overall_verdict": "REVISE",
+                        "semantic_reviewer_recommended_repair_scope": (
+                            ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
+                        ),
+                        "recommended_repair_scope": (
+                            ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
+                        ),
+                        "dimension_reviews": [
+                            dict(row)
+                            for row in theory_execution_preflight_packet.get(
+                                "dimension_reviews", []
+                            )
+                            or []
+                            if isinstance(row, Mapping)
+                        ],
+                        "estimator_execution_checks": [
+                            dict(row)
+                            for row in theory_execution_preflight_packet.get(
+                                "estimator_execution_checks", []
+                            )
+                            or []
+                            if isinstance(row, Mapping)
+                        ],
+                        "theory_execution_preflight_packet": deepcopy(
+                            theory_execution_preflight_packet
+                        ),
+                        "findings": [
+                            dict(row)
+                            for row in theory_execution_preflight_packet.get(
+                                "findings", []
+                            )
+                            or []
+                            if isinstance(row, Mapping)
+                        ],
+                        "repair_instructions": [
+                            str(value)
+                            for value in theory_execution_preflight_packet.get(
+                                "repair_instructions", []
+                            )
+                            or []
+                            if str(value).strip()
+                        ],
+                        "execution_authorized": False,
+                        "proof_evidence_status": str(
+                            theory_execution_preflight_packet.get(
+                                "proof_evidence_status", ""
+                            )
+                            or ""
+                        ),
+                    }
+                ],
+                source_theory_packet_id=str(
+                    theory_material.get("source_theory_packet_id", "") or ""
+                ),
+                source_theory_packet_hash=str(
+                    theory_material.get("source_theory_packet_hash", "") or ""
+                ),
+            )
     acceptance_authority_catalog = generated_metric_acceptance_authority_catalog(
         question=question_material,
         runtime_contract=runtime_contract,
@@ -1835,6 +1977,17 @@ def author_reviewed_architect_metric_requirements(
                 ),
                 "source_theory_packet_hash": str(
                     theory_material.get("source_theory_packet_hash", "") or ""
+                ),
+                "theory_execution_preflight_packet_id": str(
+                    theory_execution_preflight_packet.get("packet_id", "") or ""
+                ),
+                "theory_execution_preflight_packet_hash": (
+                    stable_hash(theory_execution_preflight_packet)
+                    if theory_execution_preflight_packet
+                    else ""
+                ),
+                "theory_execution_preflight_packet": deepcopy(
+                    theory_execution_preflight_packet
                 ),
                 "acceptance_authority_catalog_id": (
                     acceptance_authority_catalog_id

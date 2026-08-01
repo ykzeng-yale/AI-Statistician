@@ -7,10 +7,13 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence
 
-from .fingerprint import stable_hash
+from .architect_theory_execution_preflight import (
+    review_architect_theory_execution_preflight,
+)
 from .estimator_interface_contract import (
     sample_size_rate_errors,
 )
+from .fingerprint import stable_hash
 from .generated_metric_contract import (
     generated_metric_evaluator_certificate,
     generated_metric_semantic_pointer_locator_id,
@@ -1656,6 +1659,28 @@ class LLMArchitectMetricSemanticReviewerAgent:
     ) -> None:
         self.provider = provider
         self.config = config
+
+    def review_theory_execution_preflight(
+        self,
+        *,
+        question: OpenResearchQuestion,
+        theory_protocol_material: Mapping[str, Any],
+        upstream_research_contract: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Reject incoherent or non-executable theory before metric authoring."""
+
+        return review_architect_theory_execution_preflight(
+            provider=self.provider,
+            question=question,
+            theory_protocol_material=theory_protocol_material,
+            upstream_research_contract=upstream_research_contract,
+            model=self.config.model,
+            model_tier=self.config.model_tier,
+            max_tokens=self.config.max_tokens,
+            temperature=self.config.temperature,
+            provider_name=self.config.provider_name,
+            max_repair_attempts=self.config.max_repair_attempts,
+        )
 
     def review(
         self,

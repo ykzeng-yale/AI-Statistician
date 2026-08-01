@@ -618,6 +618,12 @@ def architect_preexecution_metric_protocol_rejection_result(
     context = dict(architect_context or {})
     history = [dict(row) for row in semantic_review_history]
     final_review = history[-1] if history else {}
+    preexecution_review_stage = str(
+        final_review.get("review_stage", "") or "metric_contract_review"
+    )
+    theory_execution_preflight_rejected = bool(
+        preexecution_review_stage == "theory_execution_preflight"
+    )
     manifest_id = "metric_protocol_preexecution_rejection:" + stable_hash(
         [question.id, task.task_id, history]
     )[:20]
@@ -668,7 +674,12 @@ def architect_preexecution_metric_protocol_rejection_result(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "question_id": question.id,
         "task_id": task.task_id,
-        "disposition": "METRIC_PROTOCOL_PREEXECUTION_REJECTED",
+        "disposition": (
+            "THEORY_EXECUTION_PREFLIGHT_REJECTED"
+            if theory_execution_preflight_rejected
+            else "METRIC_PROTOCOL_PREEXECUTION_REJECTED"
+        ),
+        "preexecution_review_stage": preexecution_review_stage,
         "semantic_review_attempts": len(history),
         "candidate_authoring_packet_ids": candidate_packet_ids,
         "semantic_review_packet_ids": review_packet_ids,
@@ -730,10 +741,19 @@ def architect_preexecution_metric_protocol_rejection_result(
     failure_classification = "architect_metric_protocol_preexecution_rejected"
     status = "BLOCKED"
     rationale = (
-        "Independent pre-execution semantic review rejected every bounded "
-        "metric-protocol candidate. Full candidate and review lineage is "
-        "preserved for a fresh theory-informed authoring turn; no coding or "
-        "simulation execution is authorized."
+        (
+            "Independent theory-to-execution preflight rejected the current "
+            "TheoryDeveloper handoff before metric authoring. Full review lineage "
+            "is preserved for a bounded theory revision; no coding or simulation "
+            "execution is authorized."
+        )
+        if theory_execution_preflight_rejected
+        else (
+            "Independent pre-execution semantic review rejected every bounded "
+            "metric-protocol candidate. Full candidate and review lineage is "
+            "preserved for a fresh theory-informed authoring turn; no coding or "
+            "simulation execution is authorized."
+        )
     )
     if route_upstream_theory:
         next_revision_count = upstream_theory_revision_count + 1
@@ -774,10 +794,15 @@ def architect_preexecution_metric_protocol_rejection_result(
                 else "ArchitectMetricSemanticReviewer"
             ),
             "feedback_type": "preexecution_metric_protocol_upstream_theory_revision",
+            "preexecution_review_stage": preexecution_review_stage,
             "trigger": (
                 "METRIC_PROTOCOL_REVIEW_REQUIRES_OWNER_CLARIFICATION"
                 if ownership_clarification_required
-                else "METRIC_PROTOCOL_REVIEW_REQUIRES_UPSTREAM_THEORY_REVISION"
+                else (
+                    "THEORY_EXECUTION_PREFLIGHT_REQUIRES_UPSTREAM_THEORY_REVISION"
+                    if theory_execution_preflight_rejected
+                    else "METRIC_PROTOCOL_REVIEW_REQUIRES_UPSTREAM_THEORY_REVISION"
+                )
             ),
             "failure_classification": (
                 "architect_metric_protocol_upstream_theory_revision_required"

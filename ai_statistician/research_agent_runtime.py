@@ -8296,9 +8296,10 @@ class ArchitectCoordinatorRuntimeSubsystem:
                         "ArchitectCoordinator",
                     ),
                 )
-            if exc.validation_label == (
-                "Architect metric semantic review packet"
-            ):
+            if exc.validation_label in {
+                "Architect metric semantic review packet",
+                "Architect theory-to-execution preflight review packet",
+            }:
                 return architect_metric_semantic_review_validation_failure_result(
                     task=task,
                     question=question,

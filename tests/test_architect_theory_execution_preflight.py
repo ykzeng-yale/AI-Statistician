@@ -1,0 +1,365 @@
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from ai_statistician.agent_runtime import AgentTask
+from ai_statistician.architect_metric_contract_authoring import (
+    ArchitectMetricContractAuthoringConfig,
+    ArchitectMetricSemanticReviewRejected,
+    author_reviewed_architect_metric_requirements,
+)
+from ai_statistician.architect_theory_execution_preflight import (
+    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS,
+    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL,
+    build_architect_theory_execution_preflight_material,
+    build_architect_theory_execution_preflight_prompt,
+    review_architect_theory_execution_preflight,
+    validate_architect_theory_execution_preflight_packet,
+)
+from ai_statistician.fingerprint import stable_hash
+from ai_statistician.evaluation_protocol_revision import (
+    architect_preexecution_metric_protocol_rejection_result,
+)
+from ai_statistician.metric_protocol_stage import (
+    METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED,
+)
+from ai_statistician.model_backend import GeneratorResponse
+from ai_statistician.research_schema import OpenResearchQuestion
+
+
+TEST_HAIKU_MODEL = "claude-haiku-4-5-20251001"
+
+
+class _Backend:
+    provider_name = "anthropic"
+
+    def __init__(self, payload: dict[str, object]) -> None:
+        self.payload = payload
+        self.requests = []
+
+    def generate(self, request):
+        self.requests.append(request)
+        return GeneratorResponse(
+            text=json.dumps(self.payload),
+            provider="anthropic",
+            model=request.model,
+            metadata={
+                "provider_structured_output_requested": True,
+                "provider_structured_output_applied": True,
+            },
+        )
+
+
+def _question() -> OpenResearchQuestion:
+    return OpenResearchQuestion(
+        id="generic_resource_bounded_procedure",
+        title="Review an ideal procedure and its finite observation",
+        description=(
+            "Develop and evaluate a statistical procedure whose ideal definition "
+            "may consume a data stream of unspecified length."
+        ),
+    )
+
+
+def _theory_material() -> dict[str, object]:
+    semantic_material = {
+        "problem_card": {
+            "observed_data": "A stream of observations from a declared sampling law.",
+            "dgp": "Independent observations under two declared parameter regimes.",
+            "estimand": "A risk and a resource-use functional of the ideal procedure.",
+            "assumptions": ["The ideal procedure is adapted to observed data."],
+        },
+        "estimator_specs": [
+            {
+                "id": "generic_stream_method",
+                "formula": "T = first index at which a declared event occurs",
+                "algorithm": "Read observations until the event occurs and return T.",
+                "inputs": ["a finite serialized observation array"],
+                "outputs": ["T"],
+                "sample_size_order": "The ideal procedure has unspecified duration.",
+                "estimator_interface_contract": {
+                    "request_fields": [
+                        {"name": "observations", "binding": "per_replicate_data"}
+                    ],
+                    "response_fields": [
+                        {"name": "T", "meaning": "ideal first-event index"}
+                    ],
+                },
+            }
+        ],
+        "simulation_ademp_spec": {
+            "dgps": ["Generate a fixed finite number of observations."],
+            "methods": ["Apply the ideal procedure."],
+            "performance_measures": ["Mean ideal resource use."],
+        },
+        "theory_derivation_packet": {
+            "derivation_steps": [
+                {
+                    "id": "claim_1",
+                    "claim": "The ideal procedure always returns.",
+                    "equation_or_argument": "The event is expected to occur eventually.",
+                }
+            ],
+            "equation_chain": [
+                {
+                    "step_id": "E1",
+                    "lhs": "E[T]",
+                    "rhs": "a finite quantity",
+                    "justification": "asserted from the event definition",
+                }
+            ],
+            "assumption_ledger": [
+                {"assumption": "eventual occurrence", "used_in": ["claim_1"]}
+            ],
+            "sanity_checks": [],
+        },
+        "theorem_cards": [
+            {"id": "theorem_1", "conclusion": "The ideal risk is controlled."}
+        ],
+        "lemma_cards": [],
+        "critic_findings": [],
+    }
+    return {
+        "artifact_kind": "RuntimeTheoryInformedMetricProtocolMaterial",
+        "source_theory_packet_id": "theory_derivation:generic",
+        "source_theory_packet_hash": stable_hash(semantic_material),
+        "theory_semantic_material": semantic_material,
+        "execution_results_available": False,
+    }
+
+
+def _payload(*, accept: bool) -> dict[str, object]:
+    status = "PASS" if accept else "FAIL"
+    return {
+        "dimension_reviews": [
+            {
+                "dimension": dimension,
+                "status": status,
+                "rationale": (
+                    "The primitive claim and finite observation agree."
+                    if accept
+                    else "The ideal object and finite observation are not aligned."
+                ),
+                "evidence_refs": [
+                    "theory.problem_card",
+                    "theory.estimator_specs",
+                ],
+            }
+            for dimension in ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
+        ],
+        "estimator_execution_checks": [
+            {
+                "estimator_id": "generic_stream_method",
+                "ideal_procedure_semantics": "The ideal method reads until an event.",
+                "executable_observation_semantics": (
+                    "A finite input exposes either the event or an explicit censored outcome."
+                    if accept
+                    else "The finite input has no output when the event is absent."
+                ),
+                "ideal_to_executable_mapping_declared": accept,
+                "termination_or_censoring_analysis": (
+                    "The interface explicitly returns a typed censored outcome."
+                    if accept
+                    else "No total return or typed censoring behavior is defined."
+                ),
+                "total_or_typed_bounded_outcome_declared": accept,
+                "guarantee_transport_analysis": (
+                    "The changed estimand and transport argument are explicit."
+                    if accept
+                    else "No argument connects the finite observation to the ideal risk."
+                ),
+                "guarantee_transport_argument_declared": accept,
+                "boundary_or_counterexample": (
+                    "The no-event finite input returns the censored outcome."
+                    if accept
+                    else "A finite input with no event makes the declared method undefined."
+                ),
+                "status": status,
+                "evidence_refs": [
+                    "theory.estimator_specs",
+                    "theory.simulation_ademp_spec",
+                ],
+            }
+        ],
+        "findings": (
+            []
+            if accept
+            else [
+                {
+                    "severity": "high",
+                    "category": "ideal_executable_semantic_mismatch",
+                    "summary": "The finite interface does not represent all ideal outcomes.",
+                    "required_change": (
+                        "Define a total executable outcome and the estimand induced by "
+                        "any resource bound or censoring rule."
+                    ),
+                    "evidence_refs": [
+                        "theory.estimator_specs",
+                        "theory.simulation_ademp_spec",
+                    ],
+                }
+            ]
+        ),
+        "repair_instructions": (
+            []
+            if accept
+            else [
+                "Revise the theory-to-execution interface before metric authoring."
+            ]
+        ),
+    }
+
+
+def _review(*, accept: bool):
+    backend = _Backend(_payload(accept=accept))
+    packet = review_architect_theory_execution_preflight(
+        provider=backend,
+        question=_question(),
+        theory_protocol_material=_theory_material(),
+        upstream_research_contract={
+            "formal_targets": [],
+            "simulation_targets": ["evaluate the declared risk"],
+        },
+        model=TEST_HAIKU_MODEL,
+        model_tier="haiku",
+        max_tokens=7000,
+        temperature=0.0,
+        provider_name="anthropic",
+        max_repair_attempts=0,
+    )
+    return packet, backend
+
+
+def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
+    material = build_architect_theory_execution_preflight_material(
+        question=_question(),
+        theory_protocol_material=_theory_material(),
+        upstream_research_contract={
+            "formal_targets": [],
+            "simulation_targets": ["evaluate the declared risk"],
+        },
+    )
+    prompt = build_architect_theory_execution_preflight_prompt(material)
+    packet, backend = _review(accept=True)
+
+    assert len(prompt) < 30_000
+    protocol = " ".join(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL)
+    for phrase in (
+        "full declared support",
+        "finite executable observation",
+        "typed outcome",
+        "not observed within a resource bound",
+        "neither automatically destroys nor automatically preserves",
+    ):
+        assert phrase in protocol
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["execution_authorized"] is False
+    assert packet["kernel_verified"] is False
+    assert packet["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
+    assert backend.requests[0].model == TEST_HAIKU_MODEL
+    assert backend.requests[0].metadata["model_tier"] == "haiku"
+    assert backend.requests[0].max_tokens == 3200
+    assert validate_architect_theory_execution_preflight_packet(
+        packet,
+        material=material,
+    ) == []
+
+
+def test_preflight_routes_semantic_mismatch_to_upstream_theory() -> None:
+    packet, _backend = _review(accept=False)
+
+    assert packet["overall_verdict"] == "REVISE"
+    assert packet["findings"][0]["repair_scope"] == "upstream_theory"
+    assert packet["generated_code_observed"] is False
+    assert packet["simulation_results_observed"] is False
+
+
+def test_rejected_preflight_skips_metric_author_and_execution_lineage() -> None:
+    rejected_packet, _backend = _review(accept=False)
+
+    class Reviewer:
+        config = type("Config", (), {"model_tier": "haiku"})()
+
+        def review_theory_execution_preflight(self, **_kwargs):
+            return rejected_packet
+
+    class NeverCalledProvider:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate(self, request):
+            self.requests.append(request)
+            raise AssertionError("metric author must not run after preflight rejection")
+
+    provider = NeverCalledProvider()
+    with pytest.raises(ArchitectMetricSemanticReviewRejected) as exc_info:
+        author_reviewed_architect_metric_requirements(
+            provider=provider,
+            config=ArchitectMetricContractAuthoringConfig(
+                model_tier="haiku",
+                max_repair_attempts=0,
+                metric_semantic_reviewer_max_revisions=0,
+            ),
+            request_model=TEST_HAIKU_MODEL,
+            semantic_reviewer=Reviewer(),  # type: ignore[arg-type]
+            repair_ownership_router=None,
+            question=_question(),
+            runtime_contract={
+                "capability_eval_requires_typed_metric_contracts": True,
+                "empirical_metric_requirements": [],
+                "empirical_metric_protocol_phase": (
+                    METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED
+                ),
+                "generated_sandbox_runtime_replicates": 17,
+                "simulation_targets": ["evaluate the declared risk"],
+            },
+            theory_protocol_material=_theory_material(),
+        )
+
+    history = exc_info.value.semantic_review_history
+    assert provider.requests == []
+    assert history[0]["review_stage"] == "theory_execution_preflight"
+    assert history[0]["authoring_packet_id"] == ""
+    assert history[0]["recommended_repair_scope"] == "upstream_theory"
+    assert history[0]["execution_authorized"] is False
+    assert history[0]["theory_execution_preflight_packet"] == rejected_packet
+
+    result = architect_preexecution_metric_protocol_rejection_result(
+        task=AgentTask(
+            task_id="architect:generic-preflight-rejection",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Route the rejected theory handoff before coding.",
+        ),
+        question=_question(),
+        semantic_review_history=history,
+        architect_context={
+            "theory_packet_id": "theory_derivation:generic",
+            "architect_metric_protocol_gate": {
+                "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+                "source_theory_packet_id": "theory_derivation:generic",
+                "upstream_theory_revision_count": 0,
+                "execution_authorized": False,
+            },
+        },
+        max_upstream_theory_revisions=1,
+    )
+    manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeArchitectMetricProtocolPreExecutionRejection"
+    )
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    assert manifest["disposition"] == "THEORY_EXECUTION_PREFLIGHT_REJECTED"
+    assert manifest["preexecution_review_stage"] == "theory_execution_preflight"
+    assert manifest["generated_code_observed"] is False
+    assert manifest["simulation_results_observed"] is False
+    assert result.next_task.inputs["environment_feedback"]["trigger"] == (
+        "THEORY_EXECUTION_PREFLIGHT_REQUIRES_UPSTREAM_THEORY_REVISION"
+    )
