@@ -58,10 +58,14 @@ def _write_dependency_db(path: Path, *, corpus: str) -> Path:
         conn.executemany(
             "INSERT INTO meta(key, value) VALUES (?, ?)",
             [
-                ("schema_version", "3"),
+                ("schema_version", "4"),
                 (
                     "declaration_identity_policy",
                     "unicode_lean_identifier_v1",
+                ),
+                (
+                    "declaration_reference_policy",
+                    "comment_string_free_explicit_names_v1",
                 ),
             ],
         )
@@ -577,10 +581,14 @@ def test_dependency_health_rejects_mismatch_and_exposes_matching_snapshot_contex
         conn.executemany(
             "INSERT INTO meta(key, value) VALUES (?, ?)",
             [
-                ("schema_version", "3"),
+                ("schema_version", "4"),
                 (
                     "declaration_identity_policy",
                     "unicode_lean_identifier_v1",
+                ),
+                (
+                    "declaration_reference_policy",
+                    "comment_string_free_explicit_names_v1",
                 ),
                 ("project_root", str(source_root)),
                 ("source_root", str(source_root / "SLT")),
@@ -639,6 +647,9 @@ def test_dependency_health_rejects_mismatch_and_exposes_matching_snapshot_contex
     assert snapshot["source_git_tree"] == "b" * 40
     assert snapshot["lean_toolchain"] == "leanprover/lean4:v4.32.0"
     assert snapshot["mathlib_revision"] == "c" * 40
+    assert snapshot["declaration_reference_policy"] == (
+        "comment_string_free_explicit_names_v1"
+    )
     assert "project_root" not in snapshot
     assert "source_root" not in snapshot
 
@@ -665,6 +676,27 @@ def test_bound_legacy_graph_schema_fails_closed(tmp_path: Path) -> None:
     assert health["graph_schema_version"] == "2"
     assert health["graph_schema_supported"] is False
     assert health["declaration_identity_policy_supported"] is False
+    assert health["declaration_reference_policy_supported"] is False
+    assert health["all_ok"] is False
+    assert retriever.search("master error bound", k=1) == []
+
+
+def test_graph_without_clean_reference_policy_fails_closed(tmp_path: Path) -> None:
+    db_path = _write_dependency_db(
+        tmp_path / "legacy-reference-policy.sqlite",
+        corpus="LegacyReference",
+    )
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "DELETE FROM meta WHERE key = 'declaration_reference_policy'"
+        )
+
+    retriever = LeanRagDependencyRetriever(db_path)
+    health = retriever.health_report()
+
+    assert health["graph_schema_supported"] is True
+    assert health["declaration_identity_policy_supported"] is True
+    assert health["declaration_reference_policy_supported"] is False
     assert health["all_ok"] is False
     assert retriever.search("master error bound", k=1) == []
 
@@ -682,6 +714,7 @@ def test_unversioned_graph_fails_closed(tmp_path: Path) -> None:
     assert health["graph_schema_version"] == ""
     assert health["graph_schema_supported"] is False
     assert health["declaration_identity_policy_supported"] is False
+    assert health["declaration_reference_policy_supported"] is False
     assert health["all_ok"] is False
 
 

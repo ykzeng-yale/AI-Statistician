@@ -2464,7 +2464,7 @@ meaning, qualified local infrastructure pointers, a formalization-oriented
 support/lemma plan when decomposition is needed (empty for a direct proof), and
 explicit scope, evidence, and success boundaries. Source docs, section
 summaries, module taxonomy, and local naming examples are bounded specification
-aids; only the target signature and active Lean state are authoritative. Each
+aids; only the task-bound target contract and active Lean state are authoritative. Each
 failed Lean/LSP attempt must evolve
 that specification using the new diagnostic, dependency, semantic, or
 proof-state evidence; an unchanged retry is not a repair. Persistent failure
@@ -2491,7 +2491,7 @@ signals, but broad module prose, README taxonomy, section summaries, nearby
 naming examples, and proof bodies are not copied into the Formalizer prompt. An
 initial source-scoped query may retain two ranked candidates because the intended
 public declaration can rank second; each candidate carries its qualified name,
-exact signature, source path, and separate module/import context. The primary
+bounded source signature, source path, and separate module/import context. The primary
 candidate may also carry one bounded source-authored declaration doc or citation.
 Once Lean has produced a goal or diagnostic, declaration retrieval reserves its
 bounded lanes for one live-state query, one unknown-API query when present, and
@@ -2503,6 +2503,14 @@ because the retriever is unavailable, stale hits are removed. Nested runtime
 proof-state rows use the same extractor as the train-only state-action retriever,
 so declaration RAG and trace RAG cannot silently reason from different Lean
 states.
+
+The base Formalizer output contract contains only the always-active target,
+dependency, proof-search, and routing fields. Optional retrieval, gap, critic,
+and action arrays may be empty; the runtime no longer fabricates generic rows
+when the model has no concrete work for those lanes. Source-to-bridge and PF/BV
+schemas are added only when their typed feedback activates them. Active lanes
+retain their validators and evidence boundary; this removes prompt and artifact
+noise without relaxing candidate or proof checks.
 
 Source binding is an allowlist, not merely a provider activation hint. When an
 upstream theorem target or formalization handoff supplies source provenance, the
@@ -2545,15 +2553,17 @@ python3 /path/to/EmpericalProcessLEAN/lean_rag/scripts/lean_graph_index.py build
   --no-include-root-file
 ```
 
-The source-identity and projection-resolution behavior used for the current
+The source-identity and declaration-reference behavior used for the current
 AI4SLT graph is pinned to EmpericalProcessLEAN RAG package revision
-`e3fc5234b2491ffc758f09631d0b45f3c0f81cef`. Schema 3 uses a shared
-Unicode-aware Lean identifier grammar for declarations, namespaces, imports,
-and declaration references, including declarations preceded by inline
-attributes. The current graph contains 2,018 nodes: all 2,010 named source-index
-declarations reconcile by exact identity and the other eight nodes are anonymous
-synthetic instances. This identity grammar belongs to source indexing only; it
-does not rewrite generated Lean or prescribe tactics.
+`7974eab68c16838963fe3ca02bfcaa131275854e`. Schema 4 uses a shared
+Unicode-aware Lean identifier grammar for declarations, namespaces, and imports,
+including declarations preceded by inline attributes. Declaration-reference
+edges are extracted only from comment- and string-free source text and resolve
+explicit visible names; receiver-style terms such as `h.foo` are left to the live
+Lean goal/elaborator rather than guessed from a globally unique `foo`. The current
+graph contains 2,018 nodes: all 2,010 named source-index declarations reconcile by
+exact identity and the other eight nodes are anonymous synthetic instances. These
+indexing policies do not rewrite generated Lean or prescribe tactics.
 
 The normal formal-source backend can fuse this graph with the signed
 StatInference graph. Dependency lookup is bound by corpus, declaration name,
@@ -2568,9 +2578,9 @@ carry full lexical weight during dependency search; terms found only in proof
 bodies are lower-weight fallback evidence, so repetition alone is not treated
 as equivalent to a semantic declaration match. Named and anonymous sections are
 tracked separately from namespaces, relative dotted declarations keep the full
-outer namespace, and `_root_.name` remains root-qualified. Projection-style
-calls such as `hA.someLemma` resolve only through a unique longest declaration
-suffix, without theorem-specific aliases.
+outer namespace, and `_root_.name` remains root-qualified. Static indexing does
+not guess the declaration behind projection-style calls such as `hA.someLemma`;
+proof-state retrieval and active-project Lean diagnostics resolve those terms.
 
 The default AgentRuntime factory uses this rich backend, and its outer composite
 preserves source-scoped search, declaration loading, and dependency context.
@@ -2603,10 +2613,11 @@ The retriever discovers
 `f4890ac3b0a18b35071e4cabf54dee8427463cd1`; activation fails closed unless the
 file SHA-256 is
 `43fdcda8b0558c9470ced9307e62970bfe7d62f19fad391ab077f55fac0ce695`.
-Shared graph schema version 3 records the Unicode declaration-identity policy,
-source Git commit and tree, source cleanliness, Lean toolchain, and Mathlib
-revision. An unversioned graph, older schema, or different identity policy fails
-runtime health instead of serving truncated declaration identities. The
+Shared graph schema version 4 records the Unicode declaration-identity policy,
+the comment/string-free explicit-reference policy, source Git commit and tree,
+source cleanliness, Lean toolchain, and Mathlib revision. An unversioned graph,
+older schema, or incompatible identity/reference policy fails runtime health
+instead of serving ambiguous declaration identities or false dependency edges. The
 current AI4SLT graph is
 bound to source tree `c881c15393cd5218b5d127017529d6f443f8cfa5` at commit
 `d0f506f0a695018265dccb33bcb05e2f5ca1c876`. Runtime health rejects a known

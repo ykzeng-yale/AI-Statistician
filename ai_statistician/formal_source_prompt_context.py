@@ -277,11 +277,16 @@ def _compact_declaration_source_context_for_prompt(
             (
                 "source_git_commit",
                 "source_git_tree",
+                "declaration_reference_policy",
                 "lean_toolchain",
                 "mathlib_revision",
             )
             if primary and not repair_focused
-            else ("lean_toolchain", "mathlib_revision")
+            else (
+                "declaration_reference_policy",
+                "lean_toolchain",
+                "mathlib_revision",
+            )
         )
         compact_metadata = {
             key: str(metadata.get(key, "") or "")[:160]
@@ -1308,6 +1313,9 @@ def _formal_source_dependency_context(
         ),
         "dependency_resolution_policy": str(
             getattr(context, "dependency_resolution_policy", "") or ""
+        ),
+        "declaration_reference_policy": str(
+            getattr(context, "declaration_reference_policy", "") or ""
         ),
         "dependency_kind": "source_visible_declaration_reference",
         "evidence_status": "SOURCE_DERIVED_DEPENDENCY_CONTEXT_NOT_PROOF_EVIDENCE",

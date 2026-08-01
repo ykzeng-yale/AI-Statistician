@@ -17,8 +17,11 @@ from .formal_source_index import (
 
 
 TOKEN_RE = re.compile(r"[\w']+", re.UNICODE)
-MIN_LEAN_RAG_GRAPH_SCHEMA_VERSION = 3
+MIN_LEAN_RAG_GRAPH_SCHEMA_VERSION = 4
 LEAN_RAG_DECLARATION_IDENTITY_POLICY = "unicode_lean_identifier_v1"
+LEAN_RAG_DECLARATION_REFERENCE_POLICY = (
+    "comment_string_free_explicit_names_v1"
+)
 STOP_TOKENS = {
     "the",
     "a",
@@ -53,6 +56,7 @@ class LeanRagDependencyContext:
     module_dependency_route: tuple[tuple[int, str], ...] = ()
     module_import_visibility_enforced: bool = False
     dependency_resolution_policy: str = ""
+    declaration_reference_policy: str = ""
     source_snapshot_status: str = "UNBOUND"
     source_snapshot_bound: bool = False
     source_snapshot_match: bool | None = None
@@ -135,6 +139,8 @@ class LeanRagDependencyRetriever:
             "graph_schema_supported": False,
             "declaration_identity_policy": "",
             "declaration_identity_policy_supported": False,
+            "declaration_reference_policy": "",
+            "declaration_reference_policy_supported": False,
             "all_ok": False,
         }
         if not self.db_path.exists():
@@ -209,6 +215,7 @@ class LeanRagDependencyRetriever:
             and search_probe_ok
             and report["graph_schema_supported"]
             and report["declaration_identity_policy_supported"]
+            and report["declaration_reference_policy_supported"]
             and report["source_snapshot_status"] != "BOUND_MISMATCH"
         )
         self._health_cache = dict(report)
@@ -326,6 +333,7 @@ class LeanRagDependencyRetriever:
         )
         prompt_snapshot_keys = (
             "schema_version",
+            "declaration_reference_policy",
             "source_git_commit",
             "source_git_tree",
             "source_git_dirty",
@@ -362,6 +370,9 @@ class LeanRagDependencyRetriever:
                     "neighbors are source-derived candidates without import-visibility "
                     "filtering and require active-project validation."
                 )
+            ),
+            declaration_reference_policy=str(
+                health.get("declaration_reference_policy", "") or ""
             ),
             source_snapshot_status=str(
                 health.get("source_snapshot_status", "UNBOUND") or "UNBOUND"
@@ -748,6 +759,7 @@ def _source_snapshot_report(metadata: dict[str, str]) -> dict[str, object]:
     snapshot_keys = (
         "schema_version",
         "declaration_identity_policy",
+        "declaration_reference_policy",
         "project_root",
         "source_root",
         "source_git_commit",
@@ -776,6 +788,13 @@ def _source_snapshot_report(metadata: dict[str, str]) -> dict[str, object]:
         "declaration_identity_policy_supported": (
             recorded.get("declaration_identity_policy", "")
             == LEAN_RAG_DECLARATION_IDENTITY_POLICY
+        ),
+        "declaration_reference_policy": recorded.get(
+            "declaration_reference_policy", ""
+        ),
+        "declaration_reference_policy_supported": (
+            recorded.get("declaration_reference_policy", "")
+            == LEAN_RAG_DECLARATION_REFERENCE_POLICY
         ),
         "source_snapshot_status": "UNBOUND",
         "source_snapshot_bound": bound,

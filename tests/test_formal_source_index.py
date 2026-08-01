@@ -1490,82 +1490,34 @@ def test_formal_source_prompt_payload_omits_full_candidate_proof_body() -> None:
 
 def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     contract = formalizer_proof_construction_strategy_contract()
-    assert contract["schema_version"] == 11
-    assert "smallest diagnostic" in contract["repair_cycle"]
-    assert "faithful natural-language statement" in contract["specification"]
-    assert "four-part structured specification" in contract[
-        "specification"
-    ].lower()
-    assert "qualified infrastructure pointers" in contract["specification"]
-    assert "formalization-oriented lemma/proof plan" in contract[
-        "specification"
-    ]
-    assert "hard evidence" in contract["specification"]
-    assert "source-local namespace/module role" in contract["context_policy"]
-    assert "source-authored declaration docs" in contract["context_policy"]
-    assert "initial API design and declaration placement" in contract[
-        "context_policy"
-    ]
+    assert contract["schema_version"] == 12
+    assert "exact Lean target" in contract["specification"]
+    assert "faithful mathematical statement" in contract["specification"]
+    assert "qualified local signatures" in contract["specification"]
+    assert "Never weaken" in contract["specification"]
+    assert "qualified signatures" in contract["context_policy"]
+    assert "active import visibility" in contract["context_policy"]
+    assert "module and namespace identity separate" in contract["context_policy"]
     assert "live Lean goal or diagnostic" in contract["context_policy"]
-    assert "only a few qualified signatures" in contract["context_policy"]
-    assert "do not resend taxonomy" in contract["context_policy"]
-    assert "active toolchain/version gates" in contract["context_policy"]
-    assert "may retain two ranked target signatures" in contract["context_policy"]
-    assert "other queries retain one" in contract["context_policy"]
-    assert "module/import identity separately" in contract["context_policy"]
-    assert "may differ" in contract["context_policy"]
-    assert "section/module taxonomy" in contract["context_policy"]
-    assert "naming, and citations may rank candidates" in contract["context_policy"]
-    assert "direct premise outlines first" in contract["context_policy"]
-    assert "bounded prior fallback" in contract["context_policy"]
-    assert "no source files or proof bodies" in contract["context_policy"]
-    assert "measurability" in contract["assumption_audit"]
-    assert "integrability" in contract["assumption_audit"]
-    assert "formal gap" in contract["assumption_audit"]
-    assert "do not silently invent" in contract["assumption_audit"]
-    assert "dependency-ordered lemma dag" in contract["decomposition"].lower()
-    assert "complete dependency-ordered lemma DAG" in contract["decomposition"]
-    assert "current active frontier slice" in contract["decomposition"]
-    assert "never merge unrelated obligations" in contract["decomposition"]
-    assert "later frontier slices" in contract["decomposition"]
+    assert "Never send source files or proof bodies" in contract["context_policy"]
+    assert "measurability" in contract["statement_audit"]
+    assert "counterexample review" in contract["statement_audit"]
+    assert "dependency-ordered frontier" in contract["decomposition"]
     assert "one semantic obligation per node" in contract["decomposition"]
-    assert "bounded compiler-feedback episode" in contract[
+    assert "empty lemma_dependency_plan for a direct proof" in contract[
         "decomposition"
     ]
-    assert "minimal explicit support-dependency plan" in contract[
-        "decomposition"
-    ]
-    assert "[] for a direct proof" in contract["decomposition"]
-    assert "preserve verified ancestors" in contract["decomposition"]
-    assert "fix errors one-by-one" in contract["repair_cycle"]
-    assert "no unchanged retry" in contract["repair_cycle"]
-    assert "wholesale rewrite without evidence" in contract["repair_cycle"]
-    assert "bind the failed candidate and diagnostic" in contract["repair_cycle"]
-    assert "Independently recheck target fidelity" in contract[
-        "persistent_failure_route"
-    ]
-    assert "counterexamples" in contract["persistent_failure_route"]
-    assert "evolve the specification" in contract[
-        "persistent_failure_route"
-    ]
-    assert "quantifiers" in contract["persistent_failure_route"]
-    assert "exact active-project artifact" in contract["post_compile_hygiene"]
+    assert "Preserve verified ancestors" in contract["decomposition"]
+    assert "Fix Lean errors one-by-one" in contract["feedback_loop"]
+    assert "failed candidate" in contract["feedback_loop"]
+    assert "unchanged attempt" in contract["feedback_loop"]
     assert "lowest reusable mathematical layer" in contract["library_design"]
-    assert "reusable mathematical dependency rather than textbook order" in contract[
+    assert "source-local namespace/module organization" in contract[
         "library_design"
     ]
-    assert "infer namespace, module placement, and naming style" in contract[
-        "library_design"
-    ]
-    assert "stable semantic Lean names" in contract["library_design"]
-    assert "avoid duplicate wrappers" in contract["library_design"]
-    assert "source metadata rather than declaration identity" in contract[
-        "library_design"
-    ]
-    assert "exact compatible imported declaration" in contract["reuse_policy"]
-    assert "non-visible-module hits are context only" in contract["reuse_policy"]
-    assert "exact active project" in contract["reuse_policy"]
-    assert "revalidate every selected declaration" in contract["reuse_policy"]
+    assert "textbook numbers" in contract["library_design"]
+    assert "Reuse exact visible declarations first" in contract["reuse_policy"]
+    assert "re-elaborate every selected declaration" in contract["reuse_policy"]
     assert "opus" not in str(contract).lower()
 
     question = load_open_research_questions(
@@ -1581,19 +1533,18 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     )
 
     assert "proof_construction_strategy_contract" in prompt
-    assert "direct premise outlines first" in prompt
-    assert "dependency-ordered lemma dag" in prompt.lower()
+    assert "dependency-ordered frontier" in prompt.lower()
     assert "one semantic obligation per node" in prompt
-    assert "no unchanged retry" in prompt
-    assert "fix errors one-by-one" in prompt
-    assert "stable semantic Lean names" in prompt
-    assert "do not silently invent" in prompt
-    assert "exact compatible imported declaration" in prompt
-    assert "four-part structured specification" in prompt.lower()
-    assert "source-authored declaration docs" in prompt
+    assert "unchanged attempt" in prompt
+    assert "Fix Lean errors one-by-one" in prompt
+    assert "stable semantic names" in prompt
+    assert "Reuse exact visible declarations first" in prompt
     assert "current-active-frontier" in prompt
-    assert "not a cap on the complete lemma DAG" in prompt
-    assert "do not merge unrelated obligations" in prompt
+    assert "Keep unrelated obligations separate" in prompt
+    assert "never invent scaffolding rows" in prompt
+    assert "source_to_bridge_premise_derivation_candidates" not in prompt
+    assert "pseudo_formal_proof_packets" not in prompt
+    assert len(prompt) < 9000
 
 
 def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() -> None:

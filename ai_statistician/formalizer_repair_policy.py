@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Mapping, Sequence
 
 
-FORMALIZER_REPAIR_POLICY_SCHEMA_VERSION = 1
+FORMALIZER_REPAIR_POLICY_SCHEMA_VERSION = 2
 
 FORMALIZER_VALIDATION_REPAIR_POLICY_BOUNDARY = (
     "Formalizer validation repair policy rows are contract and routing guardrails. "
@@ -297,26 +297,6 @@ FORMALIZER_VALIDATION_REPAIR_RULES: tuple[
         forbidden_resolution=(
             "Do not treat helper-only formal targets as proof of a pending "
             "source-to-bridge premise."
-        ),
-    ),
-    FormalizerValidationRepairRule(
-        rule_id="required_packet_scaffolding_fields",
-        violation_family="packet_schema_contract",
-        trigger_markers=("missing or empty field",),
-        prompt_directive=(
-            "Populate every missing required top-level planning field with concise "
-            "routing metadata: lemma_dependency_plan, retrieval_queries, "
-            "proof_search_plan, gap_taxonomy, critic_findings, and next_actions. "
-            "These rows may name blockers or retrieval/prover work, but they must "
-            "not claim proof or kernel verification."
-        ),
-        allowed_resolution=(
-            "Use compact non-proof planning rows when executable Lean is blocked "
-            "or when a safe candidate is emitted separately."
-        ),
-        forbidden_resolution=(
-            "Do not omit required packet scaffolding, and do not fill it with "
-            "fake proof claims or fabricated tool results."
         ),
     ),
     FormalizerValidationRepairRule(

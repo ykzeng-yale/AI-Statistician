@@ -92,6 +92,9 @@ from ai_statistician.architect_coordinator_llm import (
     build_architect_coordinator_prompt,
     validate_architect_coordinator_packet,
 )
+from ai_statistician.architect_metric_contract_authoring import (
+    _confirmatory_metric_requirement_rows,
+)
 from ai_statistician.architect_research_path_policy_eval import (
     run_architect_research_path_policy_eval,
     write_architect_research_path_policy_eval_failure_manifest,
@@ -1603,6 +1606,32 @@ def test_theory_interface_failure_routes_validated_core_checkpoint() -> None:
     ] is True
 
 
+def test_research_eval_metric_portfolio_omits_nonrequired_telemetry() -> None:
+    rows = [
+        {"requirement_id": "acceptance_gate", "required": True},
+        {"requirement_id": "optional_diagnostic", "required": False},
+    ]
+
+    kept, omitted = _confirmatory_metric_requirement_rows(
+        rows,
+        evaluation_mode="research_eval",
+    )
+
+    assert kept == [{"requirement_id": "acceptance_gate", "required": True}]
+    assert omitted == [
+        {
+            "requirement_id": "optional_diagnostic",
+            "reason": (
+                "nonrequired_row_is_simulation_telemetry_not_acceptance"
+            ),
+        }
+    ]
+    assert _confirmatory_metric_requirement_rows(
+        rows,
+        evaluation_mode="capability_eval",
+    ) == (rows, [])
+
+
 def test_theory_developer_routes_protocol_preflight_before_generated_code() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[0]
     theory_packet = _structured_theory_packet_fixture(
@@ -2969,6 +2998,83 @@ def test_architect_rehydrates_prior_metric_rejection_for_revised_theory() -> Non
     assert carry_forward["current_candidate_acceptance_eligible"] is False
     assert runtime_module.stable_hash(blackboard.artifacts[rejection_id]) == (
         rejection_hash_before
+    )
+
+
+def test_architect_rehydrates_prior_theory_preflight_finding_ledger() -> None:
+    current_theory_id = "theory_derivation:preflight-revision"
+    current_theory = _structured_theory_packet_fixture(current_theory_id)
+    current_material = build_theory_informed_metric_protocol_material(
+        theory_packet=current_theory,
+        theory_packet_id=current_theory_id,
+    )
+    finding_id = "metric_protocol_finding:preflight-gap"
+    finding = {
+        "finding_id": finding_id,
+        "severity": "high",
+        "category": "typed_outcome",
+        "summary": "A bounded failure branch is not typed.",
+        "required_change": "Expose the bounded failure as a typed output.",
+        "repair_scope": "upstream_theory",
+        "evidence_refs": ["theory.estimator_specs"],
+    }
+    ledger = [
+        {
+            "finding_id": finding_id,
+            "status": "UNRESOLVED",
+            "first_seen_revision_index": 0,
+            "latest_seen_revision_index": 0,
+            "source_review_packet_ids": ["preflight-review:prior"],
+            "finding": finding,
+        }
+    ]
+    rejection_id = "metric-protocol-rejection:preflight"
+    rejection = {
+        "artifact_kind": "RuntimeArchitectMetricProtocolPreExecutionRejection",
+        "manifest_id": rejection_id,
+        "feedback_reusable_for_fresh_preexecution_authoring": True,
+        "execution_authorized": False,
+        "semantic_review_history": [
+            {
+                "review_stage": "theory_execution_preflight",
+                "source_theory_packet_id": "theory_derivation:prior",
+                "source_theory_packet_hash": "prior-hash",
+                "semantic_review_packet_id": "preflight-review:prior",
+                "findings": [finding],
+                "cumulative_finding_ledger": ledger,
+            }
+        ],
+    }
+    blackboard = BlackboardState(
+        project_id="preflight-rehydration",
+        artifacts={
+            current_theory_id: current_theory,
+            rejection_id: rejection,
+        },
+    )
+
+    context = runtime_module._architect_context_with_rehydrated_metric_protocol_theory_material(
+        architect_context={
+            "theory_packet_id": current_theory_id,
+            "architect_metric_protocol_gate": {
+                "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+                "source_theory_packet_id": current_theory_id,
+                "rejection_manifest_ids": [rejection_id],
+                "upstream_theory_revision_count": 1,
+                "execution_authorized": False,
+            },
+        },
+        blackboard=blackboard,
+    )
+
+    carry_forward = context["architect_metric_protocol_prior_rejection"]
+    assert carry_forward["current_source_theory_packet_id"] == current_theory_id
+    assert carry_forward["current_source_theory_packet_hash"] == (
+        current_material["source_theory_packet_hash"]
+    )
+    assert carry_forward["cumulative_finding_ledger"] == ledger
+    assert carry_forward["final_review"]["review_stage"] == (
+        "theory_execution_preflight"
     )
 
 
@@ -26458,6 +26564,22 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert packet["metric_requirement_authoring"][
         "semantic_review_independent_model"
     ] is False
+    preflight_summary = packet["metric_requirement_authoring"][
+        "theory_execution_preflight"
+    ]
+    assert preflight_summary["packet_id"].startswith(
+        "architect_theory_execution_preflight:"
+    )
+    assert preflight_summary["packet_hash"]
+    assert preflight_summary["source_theory_packet_id"] == (
+        "theory_derivation:structured"
+    )
+    assert preflight_summary["overall_verdict"] == "ACCEPT"
+    assert preflight_summary["model"] == LIVE_EVALUATION_CLAUDE_MODEL
+    assert preflight_summary["model_tier"] == (
+        LIVE_EVALUATION_CLAUDE_MODEL_TIER
+    )
+    assert preflight_summary["n_findings"] == 0
     semantic_review_history = packet["metric_requirement_authoring"][
         "semantic_review_history"
     ]
@@ -32205,7 +32327,7 @@ def test_formalizer_repair_policy_covers_scaffolding_and_adapter_binders() -> No
 
     rule_ids = {row["rule_id"] for row in policy["rules"]}
 
-    assert "required_packet_scaffolding_fields" in rule_ids
+    assert "required_packet_scaffolding_fields" not in rule_ids
     assert "source_to_bridge_adapter_objects_not_binders" in rule_ids
 
 
@@ -32213,11 +32335,11 @@ def test_formalizer_lemma_plan_allows_direct_proof_and_rejects_fake_edges() -> N
     packet = {
         "formal_targets": [{"id": "target", "expected_status": "FORMAL_GAP"}],
         "lemma_dependency_plan": [],
-        "retrieval_queries": [{"query": "target"}],
-        "proof_search_plan": {"known_blockers": ["open"]},
-        "gap_taxonomy": [{"gap": "open"}],
-        "critic_findings": [{"finding": "open"}],
-        "next_actions": [{"action": "search"}],
+        "retrieval_queries": [],
+        "proof_search_plan": {},
+        "gap_taxonomy": [],
+        "critic_findings": [],
+        "next_actions": [],
         "proof_evidence_status": "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
         "kernel_verified": False,
         "full_frontier_theorem_proved": False,
@@ -32298,6 +32420,15 @@ def test_formalizer_normalizer_quarantines_bad_optional_bridge_candidate() -> No
         "next_actions",
     ]
     assert packet["lemma_dependency_plan"] == []
+    assert packet["retrieval_queries"] == []
+    assert packet["proof_search_plan"] == {}
+    assert packet["gap_taxonomy"] == []
+    assert len(packet["critic_findings"]) == 1
+    assert (
+        packet["critic_findings"][0]["proof_evidence_status"]
+        == "DROPPED_UNINSTANTIATED_SOURCE_TO_BRIDGE_CANDIDATE_NOT_PROOF_EVIDENCE"
+    )
+    assert packet["next_actions"] == []
     assert packet["source_to_bridge_premise_derivation_candidates"] == []
     dropped = packet["dropped_source_to_bridge_premise_derivation_candidates"]
     assert dropped[0]["failure_classification"] == (

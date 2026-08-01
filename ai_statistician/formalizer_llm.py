@@ -107,64 +107,44 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
     """Context-efficient, feedback-driven policy for Lean proof construction."""
 
     return {
-        "schema_version": 11,
+        "schema_version": 12,
         "specification": (
-            "Four-part structured specification: exact Lean target and faithful "
-            "natural-language statement/assumptions; qualified infrastructure "
-            "pointers; formalization-oriented lemma/proof plan; hard evidence, scope, "
-            "and success boundaries. Never weaken."
+            "Bind the exact Lean target to its faithful mathematical statement and "
+            "assumptions, qualified local signatures, current lemma frontier, and "
+            "verification boundary. Never weaken the target."
         ),
         "context_policy": (
-            "Initial authoring is signature-first: source-authored declaration docs, "
-            "section/module taxonomy, naming, and citations may rank candidates. For "
-            "initial API design and declaration placement, send qualified signatures/"
-            "imports, the source-local namespace/module role, one bounded doc/citation, "
-            "and the source import route. Repair ranks by the live Lean goal or "
-            "diagnostic; send only a few qualified signatures, direct premises, and "
-            "active toolchain/version gates; do not resend taxonomy. A source-bound "
-            "query may retain two ranked target signatures; other queries retain one. "
-            "Use direct premise outlines first, bounded prior fallback, and no source "
-            "files or proof bodies. Keep module/import identity separately from the "
-            "declaration namespace; they may differ."
+            "Use qualified signatures and active import visibility, keeping module and "
+            "namespace identity separate. Source docs, naming, and textbook citations "
+            "rank candidates only. Initial authoring may receive one bounded intent "
+            "anchor; repairs receive the live Lean goal or diagnostic and only relevant "
+            "premise signatures. Never send source files or proof bodies."
         ),
-        "assumption_audit": (
+        "statement_audit": (
             "Audit domain, measurability, integrability, finiteness, nonemptiness, "
-            "and topology; missing obligations are a formal gap; do not silently "
-            "invent or strengthen assumptions."
+            "topology, quantifiers, and nontrivial inequalities. Persistent failure "
+            "triggers independent statement and counterexample review."
         ),
         "decomposition": (
-            "Keep the complete dependency-ordered lemma DAG in artifacts; send only "
-            "the current active frontier slice. Keep one semantic obligation per node "
-            "and never merge unrelated obligations. For each bounded compiler-feedback "
-            "episode use the smallest leaf and a minimal explicit support-dependency "
-            "plan ([] for a direct proof); preserve verified ancestors and continue "
-            "with later frontier slices."
+            "Emit only the current dependency-ordered frontier. Keep one semantic "
+            "obligation per node, explicit support edges, and a leaf small enough for "
+            "one compiler-feedback episode. Preserve verified ancestors; use an empty "
+            "lemma_dependency_plan for a direct proof."
         ),
-        "repair_cycle": (
-            "Lean/LSP: fix errors one-by-one from the smallest diagnostic; no "
-            "unchanged retry or wholesale rewrite without evidence. Every retry must "
-            "bind the failed candidate and diagnostic, then update the target API, "
-            "infrastructure pointers, or proof plan from that new evidence."
+        "feedback_loop": (
+            "Fix Lean errors one-by-one from the smallest diagnostic. Every retry "
+            "binds the failed candidate and changed proof state; do not repeat an "
+            "unchanged attempt or rewrite a sound proof structure without evidence."
         ),
         "library_design": (
-            "Use the lowest reusable mathematical layer and organize by reusable "
-            "mathematical dependency rather than textbook order; infer namespace, "
-            "module placement, and naming style locally; use stable semantic Lean names "
-            "and avoid duplicate wrappers. Textbook numbers and citations are source "
-            "metadata rather than declaration identity."
+            "Build at the lowest reusable mathematical layer. Follow source-local "
+            "namespace/module organization and stable semantic names; textbook numbers "
+            "remain citation metadata, not declaration names."
         ),
         "reuse_policy": (
-            "Prefer an exact compatible imported declaration; cross-toolchain or "
-            "non-visible-module hits are context only; revalidate every selected "
-            "declaration and its import in the exact active project."
-        ),
-        "persistent_failure_route": (
-            "Independently recheck target fidelity, quantifiers, domains, assumptions, "
-            "inequalities, and counterexamples; evolve the specification from the new "
-            "evidence instead of repeating it; never weaken."
-        ),
-        "post_compile_hygiene": (
-            "Remove warnings/dead facts; rerun the exact active-project artifact."
+            "Reuse exact visible declarations first. Version-mismatched retrieval is "
+            "context only; re-elaborate every selected declaration and generated "
+            "candidate in the active project, then remove warnings and dead facts."
         ),
     }
 
@@ -1241,8 +1221,8 @@ def build_formalizer_prompt(
         "prompt_mode": {
             "mode": "target_bound_formalization_specification",
             "max_items_per_list": 3,
-            "list_scope": "current_active_frontier_slice_not_complete_lemma_dag",
-            "complete_lemma_dag_resides_in_artifacts": True,
+            "list_scope": "current_active_frontier_only",
+            "lemma_dependency_plan_scope": "current_packet_only",
             "do_not_merge_unrelated_obligations_to_fit_transport_cap": True,
             "expand_target_bound_derivation": True,
             "do_not_expand_unrelated_derivations": True,
@@ -1378,6 +1358,7 @@ def build_formalizer_prompt(
         ),
         "required_output_contract": _formalizer_output_contract_for_prompt(
             has_theory_trace=bool(theory_derivation_trace),
+            pseudo_formalization_active=pseudo_formalization_active,
             pseudo_formalization_required=pseudo_formalization_required,
             source_theorem_candidate_materialization_contract=(
                 source_theorem_candidate_materialization_contract
@@ -1513,8 +1494,8 @@ def build_formalizer_prompt(
         pseudo_formalization_instruction = ""
     return (
         "Return ONLY compact JSON matching required_output_contract, with at most 3 "
-        "current-active-frontier items/list. This transport cap is not a cap on the "
-        "complete lemma DAG: do not merge unrelated obligations. Treat "
+        "current-active-frontier items/list. Keep unrelated obligations separate "
+        "across later packets rather than merging them. Treat "
         "task_bound_formal_target_contract as semantic authority and follow only "
         "activated mode_specific_instructions. Retrieved declarations are support APIs "
         "unless exact lineage identifies the source theorem; preserve that target and "
@@ -1524,7 +1505,9 @@ def build_formalizer_prompt(
         "Do not use C-style comments, placeholder binder types, `sorry`, `admit`, "
         "`axiom`, `unsafe`, or `by?` in Lean sketches. Set candidate status to "
         "NEEDS_KERNEL_CHECK; use FORMAL_GAP only for an unrepaired source target with "
-        "no Lean source. Every next_actions entry must point to an artifact or candidate "
+        "no Lean source. Leave optional retrieval, gap, critic, and action lists empty "
+        "unless this packet has a concrete need; never invent scaffolding rows. Every "
+        "next_actions entry must point to an artifact or candidate "
         "actually emitted; otherwise record a typed blocker, not a phantom executable "
         "action. "
         + lean_candidate_instruction
@@ -1585,103 +1568,24 @@ FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
             "risk": "string",
         }
     ],
-    "retrieval_queries": [
-        {
-            "query": "string",
-            "target_library": "Mathlib|StatInference|LeanRAG|OpenProver|other",
-            "purpose": "string",
-        }
-    ],
+    "retrieval_queries": [],
     "proof_search_plan": {
         "preferred_tools": ["string"],
         "tactic_or_certificate_hints": ["string"],
         "kernel_check_plan": ["string"],
         "known_blockers": ["string"],
     },
-    "proof_bank_obligation_requests": [
-        {
-            "obligation_id": "string",
-            "target_theorem_card": "string",
-            "reason": "string",
-            "verification_priority": "high|medium|low",
-        }
-    ],
-    "source_to_bridge_premise_derivation_candidates": [
-        {
-            "premise_name": "policy_bridge_premise_name",
-            "premise_names": [
-                "policy_bridge_premise_name",
-                "policy_bridge_premise_name_2",
-            ],
-            "adapter_instantiation_group_id": "shared adapter instantiation group id when present",
-            "required_bridge_premise_names_for_shared_instantiation": [
-                "policy_bridge_premise_name",
-                "policy_bridge_premise_name_2",
-            ],
-            "target_theorem_name": "source_theorem_name_from_runtime_context",
-            "target_lean_declaration": "source_theorem_declaration_from_runtime_context",
-            "premise_candidate_declaration_name": (
-                "source_theorem_policy_bridge_premise_source_to_bridge_derivation"
-            ),
-            "premise_derivation_candidate_lean_source": (
-                "complete Lean source exporting the exact structured declaration "
-                "identity under source-local conventions"
-            ),
-            "reason": "derive the adapter premise from exact source theorem hypotheses",
-            "expected_status": "NEEDS_KERNEL_CHECK",
-        }
-    ],
-    "source_to_bridge_premise_derivation_candidate_requests": [
-        {
-            "candidate_request_id": "request:policy_bridge_premise_name",
-            "premise_name": "policy_bridge_premise_name",
-            "target_theorem_name": "source_theorem_name_from_runtime_context",
-            "target_lean_declaration": "source_theorem_declaration_from_runtime_context",
-            "premise_candidate_declaration_name": (
-                "source_theorem_policy_bridge_premise_source_to_bridge_derivation"
-            ),
-            "premise_candidate_artifact_path": (
-                "runtime generated Lean skeleton artifact path when present"
-            ),
-            "premise_derivation_candidate_skeleton_lean_source_excerpt": (
-                "optional bounded excerpt of the generated skeleton/header; use "
-                "as the theorem envelope to fill, not as proof evidence"
-            ),
-            "premise_target_type": "adapter premise Lean type",
-            "exact_source_theorem_binders": [
-                {"name": "source_anchor_binder", "type": "source hyp"}
-            ],
-            "premise_semantic_anchor_binders": [
-                {"name": "source_anchor_binder", "role": "anchor"}
-            ],
-            "premise_semantic_anchor_binder_names": ["source_anchor_binder"],
-            "required_semantic_anchor_reference_names": ["source_anchor_binder"],
-            "adapter_object_names_requiring_source_instantiation": [
-                "policy_adapter_object_name"
-            ],
-            "candidate_contract": "metadata only; not executable Lean",
-            "proof_evidence_status": "REQUEST_NOT_PROOF_EVIDENCE",
-        }
-    ],
-    "pseudo_formal_proof_packets": (
-        "optional list of pseudo-formal packets matching "
-        "pseudo_formalization_contract; planning only, not proof evidence"
-    ),
-    "gap_taxonomy": [
-        {"gap": "string", "kind": "formal_primitives|semantic_alignment|proof_search|source_theorem|other", "next_owner": "string"}
-    ],
-    "critic_findings": [
-        {"critic": "string", "finding": "string", "reroute_if_confirmed": "string"}
-    ],
-    "next_actions": [
-        {"owner_agent": "string", "action": "string", "acceptance_gate": "string"}
-    ],
+    "proof_bank_obligation_requests": [],
+    "gap_taxonomy": [],
+    "critic_findings": [],
+    "next_actions": [],
 }
 
 
 def _formalizer_output_contract_for_prompt(
     *,
     has_theory_trace: bool,
+    pseudo_formalization_active: bool = False,
     pseudo_formalization_required: bool = False,
     source_theorem_candidate_materialization_contract: Mapping[str, Any] | None = None,
     task_bound_formal_target_contract: Mapping[str, Any] | None = None,
@@ -1796,6 +1700,12 @@ def _formalizer_output_contract_for_prompt(
                 "expected_status": "NEEDS_KERNEL_CHECK",
             }
         ]
+        contract["source_to_bridge_premise_derivation_candidate_requests"] = []
+    if pseudo_formalization_active:
+        contract["pseudo_formal_proof_packets"] = (
+            "optional PF/BV routing packets; omit unless the active feedback "
+            "identifies a source-anchored structural block"
+        )
     if pseudo_formalization_required:
         contract["pseudo_formal_proof_packets"] = {
             "required": True,
@@ -1918,7 +1828,7 @@ FORMALIZER_JSON_SCHEMA: dict[str, Any] = {
                 },
             },
         },
-        "retrieval_queries": {"type": "array", "minItems": 1},
+        "retrieval_queries": {"type": "array"},
         "proof_search_plan": {"type": "object"},
         "proof_bank_obligation_requests": {"type": "array"},
         "source_to_bridge_premise_derivation_candidates": {"type": "array"},
@@ -1926,9 +1836,9 @@ FORMALIZER_JSON_SCHEMA: dict[str, Any] = {
             "type": "array"
         },
         "pseudo_formal_proof_packets": {"type": "array"},
-        "gap_taxonomy": {"type": "array", "minItems": 1},
-        "critic_findings": {"type": "array", "minItems": 1},
-        "next_actions": {"type": "array", "minItems": 1},
+        "gap_taxonomy": {"type": "array"},
+        "critic_findings": {"type": "array"},
+        "next_actions": {"type": "array"},
     },
 }
 
@@ -2135,16 +2045,18 @@ def _formal_target_role_contract_errors(
 
 def validate_formalizer_packet(packet: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
+    if packet.get("formal_targets") in (None, "", [], {}):
+        errors.append("missing or empty field: formal_targets")
     for field in (
-        "formal_targets",
         "retrieval_queries",
-        "proof_search_plan",
         "gap_taxonomy",
         "critic_findings",
         "next_actions",
     ):
-        if packet.get(field) in (None, "", [], {}):
-            errors.append(f"missing or empty field: {field}")
+        if not isinstance(packet.get(field), list):
+            errors.append(f"missing or invalid field: {field}")
+    if not isinstance(packet.get("proof_search_plan"), Mapping):
+        errors.append("missing or invalid field: proof_search_plan")
     lemma_plan = packet.get("lemma_dependency_plan")
     if not isinstance(lemma_plan, list):
         errors.append("missing or invalid field: lemma_dependency_plan")
@@ -4963,7 +4875,7 @@ def _normalize_pseudo_formal_proof_packets(packet: dict[str, Any]) -> None:
 
 
 def _normalize_required_formalizer_scaffolding_fields(packet: dict[str, Any]) -> None:
-    """Fill omitted non-proof routing scaffolding so safe candidates can proceed."""
+    """Normalize optional routing fields without fabricating work or findings."""
 
     normalized: list[str] = []
     if (
@@ -4972,65 +4884,40 @@ def _normalize_required_formalizer_scaffolding_fields(packet: dict[str, Any]) ->
     ):
         packet["lemma_dependency_plan"] = []
         normalized.append("lemma_dependency_plan")
-    if packet.get("retrieval_queries") in (None, "", [], {}):
-        packet["retrieval_queries"] = [
-            {
-                "query": "retrieve local Lean declarations and proof-state context for emitted formalizer candidate or blocker",
-                "target_library": "LeanRAG",
-                "purpose": "support bounded Formalizer/ProofEngineer repair before kernel checking",
-            }
-        ]
+    if "retrieval_queries" not in packet or packet.get("retrieval_queries") in (
+        None,
+        "",
+        {},
+    ):
+        packet["retrieval_queries"] = []
         normalized.append("retrieval_queries")
-    if packet.get("proof_search_plan") in (None, "", [], {}):
-        packet["proof_search_plan"] = {
-            "preferred_tools": ["local_lean", "lean_lsp_mcp"],
-            "tactic_or_certificate_hints": [],
-            "kernel_check_plan": [
-                "AgentRuntime must materialize and locally check any NEEDS_KERNEL_CHECK Lean candidate"
-            ],
-            "known_blockers": [
-                "LLM omitted proof_search_plan; runtime filled routing metadata only"
-            ],
-        }
+    if "proof_search_plan" not in packet or packet.get("proof_search_plan") in (
+        None,
+        "",
+        [],
+    ):
+        packet["proof_search_plan"] = {}
         normalized.append("proof_search_plan")
-    if packet.get("gap_taxonomy") in (None, "", [], {}):
-        packet["gap_taxonomy"] = [
-            {
-                "gap": (
-                    "Formalizer packet omitted gap taxonomy; keep proof claims "
-                    "proposal-only until verifier feedback is available"
-                ),
-                "kind": "other",
-                "next_owner": "FormalizerProofEngineer",
-            }
-        ]
+    if "gap_taxonomy" not in packet or packet.get("gap_taxonomy") in (
+        None,
+        "",
+        {},
+    ):
+        packet["gap_taxonomy"] = []
         normalized.append("gap_taxonomy")
-    if packet.get("critic_findings") in (None, "", [], {}):
-        packet["critic_findings"] = [
-            {
-                "critic": "local_formalizer_packet_normalizer",
-                "finding": (
-                    "Inserted missing non-proof packet scaffolding so validation "
-                    "can focus on candidate safety and verifier routing."
-                ),
-                "reroute_if_confirmed": "FormalizerProofEngineer",
-            }
-        ]
+    if "critic_findings" not in packet or packet.get("critic_findings") in (
+        None,
+        "",
+        {},
+    ):
+        packet["critic_findings"] = []
         normalized.append("critic_findings")
-    if packet.get("next_actions") in (None, "", [], {}):
-        packet["next_actions"] = [
-            {
-                "owner_agent": "AgentRuntime",
-                "action": (
-                    "Materialize verifier-eligible candidates or route explicit "
-                    "formal blockers back to Formalizer/ProofEngineer."
-                ),
-                "acceptance_gate": (
-                    "local validation accepts the packet; proof evidence still "
-                    "requires local Lean/AXLE or prover feedback"
-                ),
-            }
-        ]
+    if "next_actions" not in packet or packet.get("next_actions") in (
+        None,
+        "",
+        {},
+    ):
+        packet["next_actions"] = []
         normalized.append("next_actions")
     if not normalized:
         return
@@ -5043,7 +4930,7 @@ def _normalize_required_formalizer_scaffolding_fields(packet: dict[str, Any]) ->
         *normalized,
     ]
     packet["scaffolding_normalizer_proof_evidence_status"] = (
-        "AUTO_FILLED_ROUTING_SCAFFOLDING_NOT_PROOF_EVIDENCE"
+        "EMPTY_OPTIONAL_ROUTING_FIELDS_NOT_PROOF_EVIDENCE"
     )
 
 

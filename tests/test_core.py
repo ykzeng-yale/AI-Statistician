@@ -343,8 +343,12 @@ def _write_tiny_lean_rag_dependency_db(path: Path) -> Path:
         conn.executemany(
             "INSERT INTO meta(key, value) VALUES (?, ?)",
             [
-                ("schema_version", "3"),
+                ("schema_version", "4"),
                 ("declaration_identity_policy", "unicode_lean_identifier_v1"),
+                (
+                    "declaration_reference_policy",
+                    "comment_string_free_explicit_names_v1",
+                ),
             ],
         )
         rows = [
@@ -1137,8 +1141,12 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
             conn.executemany(
                 "INSERT INTO meta(key, value) VALUES (?, ?)",
                 [
-                    ("schema_version", "3"),
+                    ("schema_version", "4"),
                     ("declaration_identity_policy", "unicode_lean_identifier_v1"),
+                    (
+                        "declaration_reference_policy",
+                        "comment_string_free_explicit_names_v1",
+                    ),
                 ],
             )
             rows = [
@@ -1591,8 +1599,12 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
             conn.executemany(
                 "INSERT INTO meta(key, value) VALUES (?, ?)",
                 [
-                    ("schema_version", "3"),
+                    ("schema_version", "4"),
                     ("declaration_identity_policy", "unicode_lean_identifier_v1"),
+                    (
+                        "declaration_reference_policy",
+                        "comment_string_free_explicit_names_v1",
+                    ),
                 ],
             )
             rows = (
