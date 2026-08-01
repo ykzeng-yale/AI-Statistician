@@ -1666,6 +1666,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
         question: OpenResearchQuestion,
         theory_protocol_material: Mapping[str, Any],
         upstream_research_contract: Mapping[str, Any],
+        prior_finding_ledger: Sequence[Mapping[str, Any]] = (),
     ) -> dict[str, Any]:
         """Reject incoherent or non-executable theory before metric authoring."""
 
@@ -1680,6 +1681,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
             temperature=self.config.temperature,
             provider_name=self.config.provider_name,
             max_repair_attempts=self.config.max_repair_attempts,
+            prior_finding_ledger=prior_finding_ledger,
         )
 
     def review(

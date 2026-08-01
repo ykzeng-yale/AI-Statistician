@@ -14379,6 +14379,17 @@ def _apply_research_agent_runtime_research_eval_profile(
             or 0
         ),
     )
+    args.architect_metric_protocol_max_upstream_theory_revisions = max(
+        2,
+        int(
+            getattr(
+                args,
+                "architect_metric_protocol_max_upstream_theory_revisions",
+                0,
+            )
+            or 0
+        ),
+    )
     args.max_iterations = max(
         RESEARCH_EVAL_MIN_AGENT_RUNTIME_ITERATIONS,
         int(getattr(args, "max_iterations", 0) or 0),

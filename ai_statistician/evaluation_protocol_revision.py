@@ -650,6 +650,21 @@ def architect_preexecution_metric_protocol_rejection_result(
     ownership_clarification_required = bool(
         recommended_repair_scope == ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED
     )
+    prior_finding_resolution_summary = final_review.get(
+        "prior_finding_resolution_summary", {}
+    )
+    prior_finding_resolution_summary = (
+        dict(prior_finding_resolution_summary)
+        if isinstance(prior_finding_resolution_summary, Mapping)
+        else {}
+    )
+    preflight_revision_progressed = bool(
+        not theory_execution_preflight_rejected
+        or not prior_finding_resolution_summary.get(
+            "prior_active_finding_ids", []
+        )
+        or prior_finding_resolution_summary.get("progress_made") is True
+    )
     route_upstream_theory = bool(
         recommended_repair_scope
         in {
@@ -657,6 +672,7 @@ def architect_preexecution_metric_protocol_rejection_result(
             ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED,
         }
         and upstream_theory_revision_count < max_theory_revisions
+        and preflight_revision_progressed
     )
     source_theory_packet_id = str(
         final_review.get("source_theory_packet_id", "")
@@ -701,6 +717,12 @@ def architect_preexecution_metric_protocol_rejection_result(
             or []
             if str(value).strip()
         ],
+        "prior_finding_resolution_summary": prior_finding_resolution_summary,
+        "preflight_revision_progressed": preflight_revision_progressed,
+        "preflight_revision_stalled": bool(
+            theory_execution_preflight_rejected
+            and not preflight_revision_progressed
+        ),
         "recommended_repair_scope": recommended_repair_scope,
         "source_theory_packet_id": source_theory_packet_id,
         "source_theory_packet_hash": source_theory_packet_hash,
@@ -755,6 +777,14 @@ def architect_preexecution_metric_protocol_rejection_result(
             "simulation execution is authorized."
         )
     )
+    if theory_execution_preflight_rejected and not preflight_revision_progressed:
+        failure_classification = "architect_theory_execution_preflight_stalled"
+        rationale = (
+            "Fresh independent review closed none of the prior theory-preflight "
+            "findings. The runtime stops this lineage instead of spending another "
+            "model turn on semantically unchanged feedback; no coding or simulation "
+            "execution is authorized."
+        )
     if route_upstream_theory:
         next_revision_count = upstream_theory_revision_count + 1
         routed_finding_scope = (
@@ -832,6 +862,25 @@ def architect_preexecution_metric_protocol_rejection_result(
                 if isinstance(row, Mapping)
             ],
             "findings": upstream_findings,
+            "cumulative_finding_ledger": [
+                dict(row)
+                for row in final_review.get(
+                    "cumulative_finding_ledger", []
+                )
+                or []
+                if isinstance(row, Mapping)
+            ],
+            "active_unresolved_finding_ids": [
+                str(value)
+                for value in final_review.get(
+                    "active_unresolved_finding_ids", []
+                )
+                or []
+                if str(value).strip()
+            ],
+            "prior_finding_resolution_summary": (
+                prior_finding_resolution_summary
+            ),
             "repair_instructions": upstream_repair_instructions,
             "high_priority_agenda": upstream_findings,
             "required_revision": (

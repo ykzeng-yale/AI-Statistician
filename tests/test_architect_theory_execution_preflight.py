@@ -124,7 +124,12 @@ def _theory_material() -> dict[str, object]:
                         {"name": "observations", "binding": "per_replicate_data"}
                     ],
                     "response_fields": [
-                        {"name": "T", "meaning": "ideal first-event index"}
+                        {
+                            "name": "T",
+                            "meaning": "ideal first-event index",
+                            "normalization": "positive integer or typed censored outcome",
+                            "sample_size_order": "bounded by the serialized input length",
+                        }
                     ],
                 },
             }
@@ -360,16 +365,28 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
             {"name": "observations", "binding": "per_replicate_data"}
         ],
         "response_fields": [
-            {"name": "T", "meaning": "ideal first-event index"}
+            {
+                "name": "T",
+                "meaning": "ideal first-event index",
+                "normalization": "positive integer or typed censored outcome",
+                "sample_size_order": "bounded by the serialized input length",
+            }
         ],
     }
     assert backend.requests[0].model == TEST_HAIKU_MODEL
     assert backend.requests[0].metadata["model_tier"] == "haiku"
-    assert backend.requests[0].max_tokens == 3200
-    assert backend.requests[0].metadata["review_output_token_cap"] == 3200
+    assert backend.requests[0].max_tokens == 4000
+    assert backend.requests[0].metadata["review_output_token_cap"] == 4000
+    assert "not theorem peer review" in backend.requests[0].system_prompt
+    assert "Exclude downstream proof obligations" in (
+        backend.requests[0].schema["properties"]["findings"]["description"]
+    )
     assert backend.requests[0].schema["properties"]["dimension_reviews"][
         "type"
     ] == "object"
+    assert "prior_finding_reviews" not in backend.requests[0].schema[
+        "properties"
+    ]
     assert validate_architect_theory_execution_preflight_packet(
         packet,
         material=material,
@@ -442,7 +459,7 @@ def test_preflight_cannot_accept_an_unestablished_procedure_identity() -> None:
 
     assert any("established procedure identity" in error for error in errors)
     assert any(
-        "primitive mathematical consistency cannot PASS" in error
+        "consistency warnings mismatch" in error
         for error in errors
     )
     assert any("overall verdict is not runtime-derived" in error for error in errors)
@@ -468,7 +485,51 @@ def test_preflight_cannot_accept_invalid_theorem_application() -> None:
     )
 
     assert any("valid theorem applications" in error for error in errors)
-    assert any("procedure identity or theorem application" in error for error in errors)
+    assert any("consistency warnings mismatch" in error for error in errors)
+
+
+def test_preflight_does_not_repair_a_redundant_summary_conflict() -> None:
+    payload = _payload(accept=False)
+    payload["dimension_reviews"]["primitive_mathematical_consistency"] = {
+        "status": "PASS",
+        "rationale": "The primitive formulas are internally well formed.",
+        "evidence_refs": ["theory.estimator_specs"],
+    }
+    backend = _Backend(payload)
+
+    packet = review_architect_theory_execution_preflight(
+        provider=backend,
+        question=_question(),
+        theory_protocol_material=_theory_material(),
+        upstream_research_contract={
+            "formal_targets": [],
+            "simulation_targets": ["evaluate the declared risk"],
+        },
+        model=TEST_HAIKU_MODEL,
+        model_tier="haiku",
+        max_tokens=7000,
+        temperature=0.0,
+        provider_name="anthropic",
+        max_repair_attempts=1,
+    )
+    material = build_architect_theory_execution_preflight_material(
+        question=_question(),
+        theory_protocol_material=_theory_material(),
+        upstream_research_contract={
+            "formal_targets": [],
+            "simulation_targets": ["evaluate the declared risk"],
+        },
+    )
+
+    assert len(backend.requests) == 1
+    assert packet["overall_verdict"] == "REVISE"
+    assert packet["derived_consistency_warnings"][0]["warning_code"] == (
+        "primitive_summary_conflicts_with_estimator_checks"
+    )
+    assert validate_architect_theory_execution_preflight_packet(
+        packet,
+        material=material,
+    ) == []
 
 
 def test_preflight_routes_semantic_mismatch_to_upstream_theory() -> None:
@@ -478,6 +539,63 @@ def test_preflight_routes_semantic_mismatch_to_upstream_theory() -> None:
     assert packet["findings"][0]["repair_scope"] == "upstream_theory"
     assert packet["generated_code_observed"] is False
     assert packet["simulation_results_observed"] is False
+
+
+def test_preflight_closes_prior_findings_by_stable_identity() -> None:
+    rejected, _backend = _review(accept=False)
+    prior_ledger = rejected["cumulative_finding_ledger"]
+    prior_finding_ids = rejected["active_unresolved_finding_ids"]
+    assert len(prior_finding_ids) == 1
+    assert rejected["findings"][0]["finding_id"] == prior_finding_ids[0]
+
+    accepted_payload = _payload(accept=True)
+    accepted_payload["prior_finding_reviews"] = [
+        {
+            "finding_id": prior_finding_ids[0],
+            "status": "RESOLVED_BY_CURRENT_THEORY",
+            "rationale": (
+                "The current estimator interface now exposes the bounded outcome."
+            ),
+            "evidence_refs": ["theory.estimator_specs"],
+        }
+    ]
+    backend = _Backend(accepted_payload)
+    accepted = review_architect_theory_execution_preflight(
+        provider=backend,
+        question=_question(),
+        theory_protocol_material=_theory_material(),
+        upstream_research_contract={
+            "formal_targets": [],
+            "simulation_targets": ["evaluate the declared risk"],
+        },
+        model=TEST_HAIKU_MODEL,
+        model_tier="haiku",
+        max_tokens=7000,
+        temperature=0.0,
+        provider_name="anthropic",
+        max_repair_attempts=0,
+        prior_finding_ledger=prior_ledger,
+    )
+
+    prior_review_schema = backend.requests[0].schema["properties"][
+        "prior_finding_reviews"
+    ]
+    assert prior_review_schema["items"]["properties"]["finding_id"][
+        "enum"
+    ] == prior_finding_ids
+    assert accepted["overall_verdict"] == "ACCEPT"
+    assert accepted["active_unresolved_finding_ids"] == []
+    assert accepted["prior_finding_resolution_summary"] == {
+        "prior_active_finding_ids": prior_finding_ids,
+        "resolved_prior_finding_ids": prior_finding_ids,
+        "still_unresolved_prior_finding_ids": [],
+        "new_finding_ids": [],
+        "progress_made": True,
+        "stalled": False,
+    }
+    assert accepted["cumulative_finding_ledger"][0]["status"] == (
+        "RESOLVED_BY_CURRENT_THEORY"
+    )
 
 
 def test_rejected_preflight_skips_metric_author_and_execution_lineage() -> None:
@@ -567,3 +685,69 @@ def test_rejected_preflight_skips_metric_author_and_execution_lineage() -> None:
     assert result.next_task.inputs["environment_feedback"]["trigger"] == (
         "THEORY_EXECUTION_PREFLIGHT_REQUIRES_UPSTREAM_THEORY_REVISION"
     )
+
+
+def test_preflight_stops_when_a_revision_closes_no_prior_finding() -> None:
+    rejected_packet, _backend = _review(accept=False)
+    finding_id = rejected_packet["active_unresolved_finding_ids"][0]
+    history = [
+        {
+            "revision_index": 1,
+            "review_stage": "theory_execution_preflight",
+            "source_theory_packet_id": "theory_derivation:generic-revision",
+            "source_theory_packet_hash": "revised-theory-hash",
+            "semantic_review_packet_id": rejected_packet["packet_id"],
+            "semantic_review_packet_hash": stable_hash(rejected_packet),
+            "overall_verdict": "REVISE",
+            "recommended_repair_scope": "upstream_theory",
+            "dimension_reviews": rejected_packet["dimension_reviews"],
+            "estimator_execution_checks": rejected_packet[
+                "estimator_execution_checks"
+            ],
+            "findings": rejected_packet["findings"],
+            "repair_instructions": rejected_packet["repair_instructions"],
+            "cumulative_finding_ledger": rejected_packet[
+                "cumulative_finding_ledger"
+            ],
+            "active_unresolved_finding_ids": [finding_id],
+            "prior_finding_resolution_summary": {
+                "prior_active_finding_ids": [finding_id],
+                "resolved_prior_finding_ids": [],
+                "still_unresolved_prior_finding_ids": [finding_id],
+                "new_finding_ids": [],
+                "progress_made": False,
+                "stalled": True,
+            },
+        }
+    ]
+
+    result = architect_preexecution_metric_protocol_rejection_result(
+        task=AgentTask(
+            task_id="architect:generic-preflight-stalled",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Stop a semantically unchanged theory revision.",
+        ),
+        question=_question(),
+        semantic_review_history=history,
+        architect_context={
+            "theory_packet_id": "theory_derivation:generic-revision",
+            "architect_metric_protocol_gate": {
+                "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+                "source_theory_packet_id": (
+                    "theory_derivation:generic-revision"
+                ),
+                "upstream_theory_revision_count": 1,
+                "execution_authorized": False,
+            },
+        },
+        max_upstream_theory_revisions=2,
+    )
+
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
+    assert result.failure_classification == (
+        "architect_theory_execution_preflight_stalled"
+    )
+    manifest = next(iter(result.produced_artifacts.values()))
+    assert manifest["preflight_revision_stalled"] is True
+    assert manifest["upstream_theory_revision_routed"] is False

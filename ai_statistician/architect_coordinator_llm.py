@@ -601,6 +601,42 @@ def _architect_frozen_metric_protocol_rebinding_context(
     }
 
 
+def _architect_theory_execution_preflight_summary(
+    metric_authoring_packet: Mapping[str, Any],
+) -> dict[str, Any]:
+    preflight = metric_authoring_packet.get(
+        "theory_execution_preflight_packet", {}
+    )
+    if not isinstance(preflight, Mapping) or not preflight:
+        return {}
+    return {
+        "packet_id": str(preflight.get("packet_id", "") or ""),
+        "packet_hash": str(
+            metric_authoring_packet.get(
+                "theory_execution_preflight_packet_hash", ""
+            )
+            or ""
+        ),
+        "source_theory_packet_id": str(
+            preflight.get("source_theory_packet_id", "") or ""
+        ),
+        "source_theory_packet_hash": str(
+            preflight.get("source_theory_packet_hash", "") or ""
+        ),
+        "overall_verdict": str(preflight.get("overall_verdict", "") or ""),
+        "model": str(preflight.get("model", "") or ""),
+        "model_tier": str(preflight.get("model_tier", "") or ""),
+        "llm_json_repair_attempts": int(
+            preflight.get("llm_json_repair_attempts", 0) or 0
+        ),
+        "n_findings": len(preflight.get("findings", []) or []),
+        "proof_evidence_status": str(
+            preflight.get("proof_evidence_status", "") or ""
+        ),
+        "boundary": str(preflight.get("boundary", "") or ""),
+    }
+
+
 def _architect_context_with_metric_requirement_authoring(
     architect_context: Mapping[str, Any],
     metric_authoring_packet: Mapping[str, Any],
@@ -648,6 +684,11 @@ def _architect_context_with_metric_requirement_authoring(
                 Mapping,
             )
             else {},
+            "theory_execution_preflight": (
+                _architect_theory_execution_preflight_summary(
+                    metric_authoring_packet
+                )
+            ),
             "semantic_review_status": str(
                 metric_authoring_packet.get("semantic_review_status", "") or ""
             ),
@@ -758,6 +799,9 @@ def _architect_metric_requirement_authoring_summary(
             Mapping,
         )
         else {},
+        "theory_execution_preflight": (
+            _architect_theory_execution_preflight_summary(packet)
+        ),
         "llm_json_repair_attempts": int(
             packet.get("llm_json_repair_attempts", 0) or 0
         ),

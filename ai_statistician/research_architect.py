@@ -2939,6 +2939,28 @@ def _generate_targeted_theory_revision(
             raw_response=raw_text,
             theory_prompt_mode=THEORY_PROMPT_MODE_SERIOUS_REVISION,
         )
+        source_feedback = revision_inputs.get("feedback", {})
+        source_feedback = (
+            dict(source_feedback)
+            if isinstance(source_feedback, Mapping)
+            else {}
+        )
+        revision_obligations = [
+            {
+                key: deepcopy(value)
+                for key, value in finding.items()
+                if key
+                in {
+                    "finding_id",
+                    "category",
+                    "summary",
+                    "required_change",
+                    "evidence_refs",
+                }
+            }
+            for finding in source_feedback.get("findings", []) or []
+            if isinstance(finding, Mapping)
+        ]
         packet["theory_revision_transport"] = {
             "artifact_kind": "TheoryDeveloperTargetedRevisionTransport",
             "revision_binding_id": revision_inputs.get(
@@ -2955,6 +2977,15 @@ def _generate_targeted_theory_revision(
             "source_feedback_fingerprint": revision_inputs.get(
                 "source_feedback_fingerprint", ""
             ),
+            "revision_obligations": revision_obligations,
+            "active_unresolved_finding_ids": [
+                str(value)
+                for value in source_feedback.get(
+                    "active_unresolved_finding_ids", []
+                )
+                or []
+                if str(value).strip()
+            ],
             "source_review_packet_id": revision_inputs.get(
                 "source_review_packet_id", ""
             ),
@@ -3022,7 +3053,9 @@ The core mathematical workspace is frozen. Translate each frozen estimator into
 one typed request/response contract. Do not revise the estimand, formula,
 algorithm, assumptions, theorem, or derivation. Every response normalization and
 sample-size rate must cite an exact semantic id supplied in the prompt. This
-artifact is an executable handoff specification, not proof evidence.
+artifact is an executable handoff specification, not proof evidence. Preserve
+every declared input and output, including status, unavailable, censoring,
+stability, or resource-bound outcomes required by an active revision obligation.
 """
 
 
@@ -3300,6 +3333,8 @@ def _theory_estimator_interface_authoring_prompt(
                     "name",
                     "formula",
                     "algorithm_sketch",
+                    "inputs",
+                    "outputs",
                     "tuning",
                     "required_assumptions",
                 )
@@ -3327,6 +3362,19 @@ def _theory_estimator_interface_authoring_prompt(
             "allowed_semantic_reference_ids": sorted(
                 theory_semantic_reference_ids(core_packet)
             ),
+            "active_revision_obligations": [
+                deepcopy(dict(row))
+                for row in (
+                    core_packet.get("theory_revision_transport", {})
+                    if isinstance(
+                        core_packet.get("theory_revision_transport", {}),
+                        Mapping,
+                    )
+                    else {}
+                ).get("revision_obligations", [])
+                or []
+                if isinstance(row, Mapping)
+            ],
         },
         "required_output_schema": (
             _theory_estimator_interface_authoring_json_schema(core_packet)
@@ -3339,7 +3387,9 @@ def _theory_estimator_interface_authoring_prompt(
         "keys; each property value is that estimator's interface contract, without "
         "repeating estimator_id inside the value. Infer no "
         "new mathematics: request fields expose the frozen algorithm inputs and "
-        "lifecycle; response fields expose its outputs, normalization, and complete "
+        "lifecycle; response fields expose every frozen output and every typed "
+        "status or unavailable branch required by active_revision_obligations, plus "
+        "normalization and complete "
         "sample-size order. Use the typed primary-index polynomial/log projection, "
         "list signed contributions whose exponents sum exactly to that projection, "
         "and cite only ids in semantic_reference_catalog for derivation_ref and "

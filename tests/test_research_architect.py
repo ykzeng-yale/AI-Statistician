@@ -397,12 +397,16 @@ def _metric_theory_revision_context(
         "upstream_theory_revision_count": 1,
         "findings": [
             {
+                "finding_id": "metric_protocol_finding:bounded-outcome",
                 "severity": "high",
                 "category": "assumption audit",
                 "summary": "The bounded-outcome premise is not explicit.",
                 "required_change": "Revise the theory semantics and direct dependents.",
                 "repair_scope": "upstream_theory",
             }
+        ],
+        "active_unresolved_finding_ids": [
+            "metric_protocol_finding:bounded-outcome"
         ],
         "acceptance_gate": "Fresh theory must pass independent metric review.",
     }
@@ -824,6 +828,11 @@ def test_theory_developer_authors_interfaces_after_freezing_core_theory() -> Non
 
 def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -> None:
     parent = _serious_sample_response()
+    parent["estimator_specs"][0]["inputs"] = ["observations"]
+    parent["estimator_specs"][0]["outputs"] = [
+        "estimate",
+        "bounded_outcome_status",
+    ]
     question = OpenResearchQuestion(
         id="targeted_revision",
         title="Targeted theory revision",
@@ -914,6 +923,15 @@ def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -
     assert interface_request.metadata["theory_developer_phase"] == (
         "estimator_interface_authoring"
     )
+    interface_prompt = json.loads(interface_request.user_prompt.split("\n\n", 1)[1])
+    frozen_estimator = interface_prompt["frozen_core_theory"][
+        "estimator_specs"
+    ][0]
+    assert frozen_estimator["inputs"] == estimator["inputs"]
+    assert frozen_estimator["outputs"] == estimator["outputs"]
+    assert interface_prompt["frozen_core_theory"][
+        "active_revision_obligations"
+    ][0]["finding_id"] == "metric_protocol_finding:bounded-outcome"
     transport = packet["theory_revision_transport"]
     assert transport["source_theory_packet_id"] == (
         "theory_derivation:targeted-revision-parent"
@@ -923,6 +941,12 @@ def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -
     )
     assert transport["base_core_payload_fingerprint"] == base_fingerprint
     assert transport["applied_paths"] == [["problem_card", "assumptions"]]
+    assert transport["active_unresolved_finding_ids"] == [
+        "metric_protocol_finding:bounded-outcome"
+    ]
+    assert transport["revision_obligations"][0]["required_change"] == (
+        "Revise the theory semantics and direct dependents."
+    )
     assert transport["kernel_verified"] is False
 
 

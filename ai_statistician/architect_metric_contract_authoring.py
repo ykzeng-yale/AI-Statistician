@@ -475,6 +475,33 @@ class ArchitectMetricContractAuthoringConfig:
     metric_semantic_reviewer_max_revisions: int = 2
 
 
+def _confirmatory_metric_requirement_rows(
+    requirements: Any,
+    *,
+    evaluation_mode: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    rows = [
+        dict(row)
+        for row in requirements or []
+        if isinstance(row, Mapping)
+    ]
+    if str(evaluation_mode or "").strip() != "research_eval":
+        return rows, []
+    kept: list[dict[str, Any]] = []
+    omitted: list[dict[str, str]] = []
+    for row in rows:
+        if row.get("required") is True:
+            kept.append(row)
+            continue
+        omitted.append(
+            {
+                "requirement_id": str(row.get("requirement_id", "") or ""),
+                "reason": "nonrequired_row_is_simulation_telemetry_not_acceptance",
+            }
+        )
+    return kept, omitted
+
+
 def _metric_authoring_repair_priority_instructions(
     errors: Any,
 ) -> list[str]:
@@ -1035,6 +1062,10 @@ def author_reviewed_architect_metric_requirements(
     runtime_replicates = int(
         runtime_contract.get("generated_sandbox_runtime_replicates", 0) or 0
     )
+    evaluation_mode = str(
+        runtime_contract.get("evaluation_mode", "") or ""
+    ).strip()
+    confirmatory_required_rows_only = evaluation_mode == "research_eval"
     question_material = {
         "id": question.id,
         "title": question.title,
@@ -1067,6 +1098,34 @@ def author_reviewed_architect_metric_requirements(
         upstream_research_contract
     )
     theory_execution_preflight_packet: dict[str, Any] = {}
+    prior_rejection = (
+        dict(prior_rejection_context)
+        if isinstance(prior_rejection_context, Mapping)
+        else {}
+    )
+    prior_preflight_finding_ledger: list[dict[str, Any]] = []
+    if (
+        str(prior_rejection.get("current_source_theory_packet_id", "") or "")
+        == str(theory_material.get("source_theory_packet_id", "") or "")
+        and str(
+            prior_rejection.get("current_source_theory_packet_hash", "") or ""
+        )
+        == str(theory_material.get("source_theory_packet_hash", "") or "")
+    ):
+        prior_preflight_finding_ledger = [
+            dict(row)
+            for row in prior_rejection.get("cumulative_finding_ledger", []) or []
+            if isinstance(row, Mapping)
+        ]
+        if not prior_preflight_finding_ledger:
+            prior_preflight_finding_ledger = (
+                metric_protocol_finding_ledger_from_review_history(
+                    question_id=question.id,
+                    semantic_review_history=prior_rejection.get(
+                        "semantic_review_history", []
+                    ),
+                )
+            )
     theory_execution_preflight = getattr(
         semantic_reviewer,
         "review_theory_execution_preflight",
@@ -1094,6 +1153,7 @@ def author_reviewed_architect_metric_requirements(
                 question=question,
                 theory_protocol_material=theory_material,
                 upstream_research_contract=upstream_research_contract,
+                prior_finding_ledger=prior_preflight_finding_ledger,
             )
         if theory_execution_preflight_packet.get("overall_verdict") != "ACCEPT":
             preflight_packet_hash = stable_hash(
@@ -1166,6 +1226,41 @@ def author_reviewed_architect_metric_requirements(
                             or []
                             if isinstance(row, Mapping)
                         ],
+                        "prior_finding_reviews": [
+                            dict(row)
+                            for row in theory_execution_preflight_packet.get(
+                                "prior_finding_reviews", []
+                            )
+                            or []
+                            if isinstance(row, Mapping)
+                        ],
+                        "cumulative_finding_ledger": [
+                            dict(row)
+                            for row in theory_execution_preflight_packet.get(
+                                "cumulative_finding_ledger", []
+                            )
+                            or []
+                            if isinstance(row, Mapping)
+                        ],
+                        "cumulative_finding_ledger_fingerprint": str(
+                            theory_execution_preflight_packet.get(
+                                "cumulative_finding_ledger_fingerprint", ""
+                            )
+                            or ""
+                        ),
+                        "active_unresolved_finding_ids": [
+                            str(value)
+                            for value in theory_execution_preflight_packet.get(
+                                "active_unresolved_finding_ids", []
+                            )
+                            or []
+                            if str(value).strip()
+                        ],
+                        "prior_finding_resolution_summary": deepcopy(
+                            theory_execution_preflight_packet.get(
+                                "prior_finding_resolution_summary", {}
+                            )
+                        ),
                         "theory_execution_preflight_packet": deepcopy(
                             theory_execution_preflight_packet
                         ),
@@ -1380,6 +1475,7 @@ def author_reviewed_architect_metric_requirements(
         "acceptance_authority_catalog_id": acceptance_authority_catalog_id,
         "acceptance_authority_catalog": acceptance_authority_catalog,
         "runtime_owned_replicates": runtime_replicates,
+        "confirmatory_required_rows_only": confirmatory_required_rows_only,
         "runtime_owned_field_bindings": {
             "required_runtime_replicates": {
                 "source": (
@@ -1431,6 +1527,17 @@ def author_reviewed_architect_metric_requirements(
                 "confirmatory experiment. Every row must distinguish a failure mode not "
                 "already covered; do not add structural, calibration, or convenience "
                 "checks merely because they are measurable."
+            ),
+            *(
+                [
+                    "This research-eval packet is an acceptance portfolio, not a "
+                    "telemetry catalog. Return only required=true rows that can "
+                    "change the final empirical decision. Omit diagnostic_only and "
+                    "required=false rows; SimulationEngineer may still report those "
+                    "measurements as non-gating telemetry."
+                ]
+                if confirmatory_required_rows_only
+                else []
             ),
             (
                 "When an independent review shows that a row is ambiguous, fragile, "
@@ -1906,13 +2013,23 @@ def author_reviewed_architect_metric_requirements(
             )
             if frozen_rebinding:
                 return payload
-            payload["empirical_metric_requirements"] = [
+            materialized_rows = [
                 materialize_generated_metric_gate_field_authorities(row)
                 for row in payload.get(
                     "empirical_metric_requirements", []
                 )
                 if isinstance(row, Mapping)
             ]
+            (
+                payload["empirical_metric_requirements"],
+                omitted_nonrequired_rows,
+            ) = _confirmatory_metric_requirement_rows(
+                materialized_rows,
+                evaluation_mode=evaluation_mode,
+            )
+            payload["_runtime_omitted_nonrequired_requirements"] = (
+                omitted_nonrequired_rows
+            )
             return payload
 
         def build_packet(
@@ -1921,6 +2038,13 @@ def author_reviewed_architect_metric_requirements(
             _raw_text: str,
         ) -> dict[str, Any]:
             requirements = payload.get("empirical_metric_requirements", [])
+            omitted_nonrequired_rows = [
+                dict(row)
+                for row in payload.get(
+                    "_runtime_omitted_nonrequired_requirements", []
+                )
+                if isinstance(row, Mapping)
+            ]
             frozen_binding_errors: list[str] = []
             if frozen_rebinding:
                 (
@@ -2049,6 +2173,12 @@ def author_reviewed_architect_metric_requirements(
                         ),
                     },
                 },
+                "confirmatory_required_rows_only": (
+                    confirmatory_required_rows_only
+                ),
+                "omitted_nonrequired_requirements": (
+                    omitted_nonrequired_rows
+                ),
                 "empirical_metric_requirements": requirement_rows,
                 "empirical_metric_requirement_set_id": (
                     generated_metric_requirement_set_id(requirement_rows)

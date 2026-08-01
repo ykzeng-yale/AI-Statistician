@@ -9379,7 +9379,14 @@ def _architect_metric_protocol_prior_rejection_context(
         final_review = history[-1]
         if not isinstance(final_review, Mapping):
             continue
-        if not final_review.get("empirical_metric_requirements"):
+        theory_execution_preflight = bool(
+            str(final_review.get("review_stage", "") or "")
+            == "theory_execution_preflight"
+        )
+        if (
+            not theory_execution_preflight
+            and not final_review.get("empirical_metric_requirements")
+        ):
             continue
         return {
             "artifact_kind": (
@@ -9415,10 +9422,10 @@ def _architect_metric_protocol_prior_rejection_context(
                 "PRIOR_METRIC_REJECTION_CONTEXT_NOT_PROOF_EVIDENCE"
             ),
             "boundary": (
-                "This is immutable repair context from a rejected pre-execution "
-                "metric contract. The current revised theory is authoritative. "
-                "The prior candidate and review guide minimal re-authoring but do "
-                "not authorize execution or establish statistical or proof evidence."
+                "This is immutable repair context from a rejected theory preflight "
+                "or pre-execution metric contract. The current revised theory is "
+                "authoritative. Prior findings guide explicit resolution review but "
+                "do not authorize execution or establish statistical or proof evidence."
             ),
         }
     return {}
