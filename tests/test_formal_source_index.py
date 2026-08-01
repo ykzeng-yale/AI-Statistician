@@ -441,6 +441,31 @@ def test_source_docs_sections_and_module_taxonomy_are_searchable_and_persist(
     assert persisted.module_group_summary == tensorization.module_group_summary
 
 
+def test_overlapping_source_roots_index_each_physical_file_once(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "ProbabilityProject"
+    library_root = project_root / "ProbabilityLibrary"
+    library_root.mkdir(parents=True)
+    (library_root / "Bounds.lean").write_text(
+        "namespace Probability\n"
+        "theorem reusableBound : True := by trivial\n"
+        "end Probability\n",
+        encoding="utf-8",
+    )
+
+    declarations = build_formal_source_index(
+        roots=(
+            FormalSourceRoot("project_owner", str(project_root)),
+            FormalSourceRoot("nested_alias", str(library_root)),
+        )
+    )
+
+    assert [(row.source_id, row.name) for row in declarations] == [
+        ("project_owner", "Probability.reusableBound")
+    ]
+
+
 def test_module_taxonomy_normalization_uses_the_configured_source_root_name(
     tmp_path: Path,
 ) -> None:

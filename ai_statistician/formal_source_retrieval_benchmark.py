@@ -210,8 +210,8 @@ EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK: tuple[
     FormalSourceRetrievalBenchmarkCase(
         query_id="slt_semantic_vershynin_small_ball",
         query=(
-            "small ball probability lower bound from first and second moments "
-            "of a nonnegative random variable"
+            "small ball upper bound for a sum of independent nonnegative random "
+            "variables with bounded probability densities"
         ),
         expected_name_fragments=("small_ball_prob",),
         expected_source_ids=("lean_stat_learning_theory",),

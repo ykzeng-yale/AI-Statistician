@@ -738,6 +738,7 @@ def build_formal_source_index(
 
     rows: list[FormalDeclaration] = []
     seen_roots: set[Path] = set()
+    seen_source_files: set[Path] = set()
     for root in roots:
         location = Path(root.location).expanduser()
         if not location.exists():
@@ -758,7 +759,18 @@ def build_formal_source_index(
             location,
             max_file_bytes=max_file_bytes,
             max_files=max_files_per_root,
+            excluded_source_files=seen_source_files,
         ):
+            try:
+                source_file_identity = path.resolve()
+            except OSError:
+                source_file_identity = path.absolute()
+            # Configured roots may overlap (for example, a project root and one
+            # of its library subdirectories). Root order is the explicit source
+            # ownership priority; index each physical file only once.
+            if source_file_identity in seen_source_files:
+                continue
+            seen_source_files.add(source_file_identity)
             root_rows.extend(_declarations_in_file(root, path, location))
         referenced_rows = _bind_declaration_references(
             root_rows,
@@ -2913,6 +2925,7 @@ def _iter_formal_source_files(
     *,
     max_file_bytes: int,
     max_files: int,
+    excluded_source_files: set[Path] | None = None,
 ):
     """Yield source files for a configured prover family while pruning builds."""
 
@@ -2926,6 +2939,13 @@ def _iter_formal_source_files(
             path = Path(dirpath) / filename
             if _skip_path(path, base=location) or not _file_size_ok(path, max_file_bytes):
                 continue
+            if excluded_source_files:
+                try:
+                    source_file_identity = path.resolve()
+                except OSError:
+                    source_file_identity = path.absolute()
+                if source_file_identity in excluded_source_files:
+                    continue
             yield path
             n_files += 1
             if n_files >= max_files:
