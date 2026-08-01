@@ -447,7 +447,7 @@ def test_composite_runtime_preserves_three_book_dependency_context() -> None:
 
     assert scoped_calls
     assert groups[0]["source_scope_semantics"] == (
-        "provider_activation_hint_not_global_allowlist"
+        "main_retrieval_allowlist_with_anchor_scoped_support_corpora"
     )
     hit = groups[0]["hits"][0]
     assert hit["name"] == "LeastSquares.master_error_bound"

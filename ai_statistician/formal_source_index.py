@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import sqlite3
+import subprocess
 from collections import Counter
 from contextlib import closing
 from dataclasses import asdict, dataclass, replace
@@ -81,6 +82,7 @@ STOP_TOKENS = {
 _EMPTY_SEARCH_TOKENS: frozenset[str] = frozenset()
 MAX_SQLITE_FTS_QUERY_TOKENS = 24
 MODULE_SUMMARY_TOKEN_WEIGHT = 0.25
+FORMAL_SOURCE_SQLITE_SCHEMA_VERSION = "2"
 SKIPPED_PATH_PARTS = {
     ".git",
     ".lake",
@@ -206,7 +208,30 @@ class FormalSourceRetriever:
             )
 
     def search(self, query: str, *, k: int = 10) -> list[FormalSourceHit]:
+        return self._search(query, k=k, source_scope_ids=())
+
+    def search_with_source_scope(
+        self,
+        query: str,
+        *,
+        source_scope_ids: tuple[str, ...],
+        k: int = 10,
+    ) -> list[FormalSourceHit]:
+        return self._search(
+            query,
+            k=k,
+            source_scope_ids=source_scope_ids,
+        )
+
+    def _search(
+        self,
+        query: str,
+        *,
+        k: int,
+        source_scope_ids: tuple[str, ...],
+    ) -> list[FormalSourceHit]:
         q_tokens = _search_tokens(query)
+        allowed_source_ids = set(source_scope_ids)
         hits: list[FormalSourceHit] = []
         for (
             decl,
@@ -217,6 +242,8 @@ class FormalSourceRetriever:
             import_tokens,
             reference_tokens,
         ) in self._rows:
+            if allowed_source_ids and decl.source_id not in allowed_source_ids:
+                continue
             hit = _score_declaration(
                 decl,
                 q_tokens,
@@ -254,9 +281,15 @@ class FormalSourceSqliteIndex:
         self.db_path = Path(db_path)
 
     @classmethod
-    def build(cls, declarations: list[FormalDeclaration], db_path: Path | str) -> "FormalSourceSqliteIndex":
+    def build(
+        cls,
+        declarations: list[FormalDeclaration],
+        db_path: Path | str,
+        *,
+        source_snapshots: dict[str, object] | None = None,
+    ) -> "FormalSourceSqliteIndex":
         index = cls(db_path)
-        index.write(declarations)
+        index.write(declarations, source_snapshots=source_snapshots)
         return index
 
     def is_healthy(self) -> bool:
@@ -276,7 +309,11 @@ class FormalSourceSqliteIndex:
                         """
                     ).fetchall()
                 }
-                if "declarations" not in tables or "declarations_fts" not in tables:
+                if not {
+                    "declarations",
+                    "declarations_fts",
+                    "metadata",
+                }.issubset(tables):
                     return False
                 declaration_columns = {
                     row[1]
@@ -300,17 +337,35 @@ class FormalSourceSqliteIndex:
                     "module_summary",
                 }.issubset(fts_columns):
                     return False
+                schema_row = conn.execute(
+                    "SELECT value FROM metadata WHERE key = 'schema_version'"
+                ).fetchone()
+                if not schema_row or schema_row[0] != FORMAL_SOURCE_SQLITE_SCHEMA_VERSION:
+                    return False
                 conn.execute("SELECT COUNT(*) FROM declarations").fetchone()
                 conn.execute("SELECT COUNT(*) FROM declarations_fts").fetchone()
             return True
         except sqlite3.DatabaseError:
             return False
 
-    def write(self, declarations: list[FormalDeclaration]) -> None:
+    def write(
+        self,
+        declarations: list[FormalDeclaration],
+        *,
+        source_snapshots: dict[str, object] | None = None,
+    ) -> None:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         if self.db_path.exists():
             self.db_path.unlink()
         with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.execute(
+                """
+                CREATE TABLE metadata (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                )
+                """
+            )
             conn.execute(
                 """
                 CREATE TABLE declarations (
@@ -410,24 +465,112 @@ class FormalSourceSqliteIndex:
                     ),
                 )
             conn.execute("CREATE INDEX declarations_name_idx ON declarations(name)")
+            metadata = {
+                "schema_version": FORMAL_SOURCE_SQLITE_SCHEMA_VERSION,
+                "declaration_count": str(len(declarations)),
+                "declaration_fingerprint": stable_hash(
+                    [
+                        {
+                            "source_id": declaration.source_id,
+                            "path": declaration.path,
+                            "line": declaration.line,
+                            "name": declaration.name,
+                            "signature": declaration.signature,
+                            "reference": declaration.reference,
+                            "reference_aliases": declaration.reference_aliases,
+                        }
+                        for declaration in declarations
+                    ]
+                ),
+                "source_snapshots": json.dumps(
+                    source_snapshots or {},
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+            }
+            conn.executemany(
+                "INSERT INTO metadata (key, value) VALUES (?, ?)",
+                sorted(metadata.items()),
+            )
             conn.commit()
 
+    def metadata(self) -> dict[str, str]:
+        if not self.db_path.exists():
+            return {}
+        try:
+            with closing(sqlite3.connect(self.db_path)) as conn:
+                return {
+                    str(key): str(value)
+                    for key, value in conn.execute(
+                        "SELECT key, value FROM metadata"
+                    ).fetchall()
+                }
+        except sqlite3.DatabaseError:
+            return {}
+
+    def source_snapshots(self) -> dict[str, object]:
+        raw = self.metadata().get("source_snapshots", "")
+        if not raw:
+            return {}
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            return {}
+        return payload if isinstance(payload, dict) else {}
+
     def search(self, query: str, *, k: int = 10) -> list[FormalSourceHit]:
+        return self._search(query, k=k, source_scope_ids=())
+
+    def search_with_source_scope(
+        self,
+        query: str,
+        *,
+        source_scope_ids: tuple[str, ...],
+        k: int = 10,
+    ) -> list[FormalSourceHit]:
+        return self._search(
+            query,
+            k=k,
+            source_scope_ids=source_scope_ids,
+        )
+
+    def _search(
+        self,
+        query: str,
+        *,
+        k: int,
+        source_scope_ids: tuple[str, ...],
+    ) -> list[FormalSourceHit]:
         fts_query = _fts_query(query)
         if not fts_query:
             return []
         candidate_k = max(k * 12, 80)
+        allowed_source_ids = tuple(
+            dict.fromkeys(
+                str(source_id)
+                for source_id in source_scope_ids
+                if str(source_id)
+            )
+        )
+        source_clause = ""
+        params: list[object] = [fts_query]
+        if allowed_source_ids:
+            placeholders = ", ".join("?" for _ in allowed_source_ids)
+            source_clause = f" AND d.source_id IN ({placeholders})"
+            params.extend(allowed_source_ids)
+        params.append(candidate_k)
         with closing(sqlite3.connect(self.db_path)) as conn:
             rows = conn.execute(
-                """
+                f"""
                 SELECT d.*, bm25(declarations_fts) AS rank
                 FROM declarations_fts
                 JOIN declarations d ON d.id = declarations_fts.decl_id
                 WHERE declarations_fts MATCH ?
+                {source_clause}
                 ORDER BY rank
                 LIMIT ?
                 """,
-                (fts_query, candidate_k),
+                params,
             ).fetchall()
         q_tokens = _search_tokens(query)
         hits: list[FormalSourceHit] = []
@@ -582,6 +725,11 @@ def build_formal_source_search_backend(
     """
 
     cache_file = Path(cache_path) if cache_path is not None else None
+    source_snapshots = (
+        _formal_source_root_snapshots(roots)
+        if db_path is not None
+        else {}
+    )
     if db_path is not None:
         target_db = Path(db_path)
         if cache_file is not None and cache_file.exists() and not refresh_cache:
@@ -592,6 +740,10 @@ def build_formal_source_search_backend(
                 sqlite_index = FormalSourceSqliteIndex(target_db)
                 if not sqlite_index.is_healthy():
                     raise sqlite3.DatabaseError("formal-source SQLite cache is missing required tables")
+                if sqlite_index.source_snapshots() != source_snapshots:
+                    raise sqlite3.DatabaseError(
+                        "formal-source SQLite cache does not match the configured source snapshots"
+                    )
                 declarations = sqlite_index.load_declarations()
                 if not _cache_covers_configured_roots(declarations, roots):
                     raise sqlite3.DatabaseError(
@@ -629,7 +781,11 @@ def build_formal_source_search_backend(
 
     declarations = build_formal_source_index(roots=roots)
     if db_path is not None:
-        sqlite_index = FormalSourceSqliteIndex.build(declarations, db_path)
+        sqlite_index = FormalSourceSqliteIndex.build(
+            declarations,
+            db_path,
+            source_snapshots=source_snapshots,
+        )
         if cache_file is not None:
             cache_file.parent.mkdir(parents=True, exist_ok=True)
             if Path(db_path).resolve() != cache_file.resolve():
@@ -788,8 +944,6 @@ def _lean_rag_dependency_source_identity(
 ) -> tuple[str, tuple[str, ...]]:
     """Bind an auto-discovered graph to its formal-source corpus."""
 
-    if explicit:
-        return "lean_rag_dependency_graph", ()
     normalized = str(path).replace("\\", "/").lower()
     if (
         path.name == "stat_learning.sqlite"
@@ -804,6 +958,8 @@ def _lean_rag_dependency_source_identity(
                 "legacy_ai_statistician_statinference",
             ),
         )
+    if explicit:
+        return "lean_rag_dependency_graph", ()
     return "lean_rag_dependency_graph", ()
 
 
@@ -958,6 +1114,162 @@ def _cache_covers_configured_roots(
     return True
 
 
+def _formal_source_root_snapshots(
+    roots: tuple[FormalSourceRoot, ...],
+) -> dict[str, object]:
+    return {
+        root.id: _formal_source_root_snapshot(root)
+        for root in roots
+    }
+
+
+def _formal_source_root_snapshot(root: FormalSourceRoot) -> dict[str, object]:
+    location = Path(root.location).expanduser()
+    try:
+        resolved = location.resolve()
+    except OSError:
+        resolved = location.absolute()
+    snapshot: dict[str, object] = {
+        "location": str(resolved),
+        "source_type": root.source_type,
+        "exists": location.is_dir(),
+    }
+    if not location.is_dir():
+        return snapshot
+
+    git_snapshot = _git_formal_source_root_snapshot(root, location)
+    if git_snapshot is not None:
+        snapshot.update(git_snapshot)
+    else:
+        snapshot.update(
+            {
+                "mode": "filesystem_inventory",
+                "inventory_fingerprint": _formal_source_inventory_fingerprint(
+                    root,
+                    location,
+                ),
+            }
+        )
+    snapshot["support_file_fingerprints"] = _formal_source_support_file_fingerprints(
+        location
+    )
+    return snapshot
+
+
+def _git_formal_source_root_snapshot(
+    root: FormalSourceRoot,
+    location: Path,
+) -> dict[str, object] | None:
+    git_root_text = _run_git(location, "rev-parse", "--show-toplevel")
+    if not git_root_text:
+        return None
+    git_root = Path(git_root_text).resolve()
+    try:
+        relative = location.resolve().relative_to(git_root)
+    except (OSError, ValueError):
+        return None
+    relative_text = relative.as_posix()
+    tree = _run_git(
+        git_root,
+        "rev-parse",
+        "HEAD^{tree}" if not relative.parts else f"HEAD:{relative_text}",
+    )
+    if not tree:
+        return None
+    pathspec = relative_text or "."
+    status = _run_git(
+        git_root,
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+        "--",
+        pathspec,
+    )
+    if status is None:
+        return None
+    payload: dict[str, object] = {
+        "mode": "git_tree",
+        "git_root": str(git_root),
+        "git_commit": _run_git(git_root, "rev-parse", "HEAD") or "",
+        "git_tree": tree,
+        "git_dirty": bool(status),
+    }
+    if status:
+        payload["dirty_fingerprint"] = stable_hash(
+            {
+                "status": status,
+                "inventory": _formal_source_inventory_fingerprint(
+                    root,
+                    location,
+                ),
+            }
+        )
+    return payload
+
+
+def _run_git(cwd: Path, *args: str) -> str | None:
+    try:
+        completed = subprocess.run(
+            ("git", *args),
+            cwd=cwd,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return completed.stdout.strip() if completed.returncode == 0 else None
+
+
+def _formal_source_inventory_fingerprint(
+    root: FormalSourceRoot,
+    location: Path,
+) -> str:
+    rows = []
+    for path in _iter_formal_source_files(
+        root,
+        location,
+        max_file_bytes=2_000_000,
+        max_files=1500,
+    ):
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+        rows.append(
+            (
+                str(path.relative_to(location)),
+                stat.st_size,
+                stat.st_mtime_ns,
+            )
+        )
+    return stable_hash(rows)
+
+
+def _formal_source_support_file_fingerprints(
+    location: Path,
+) -> dict[str, str]:
+    candidates = set(_source_readme_paths(location))
+    for base in (location, location.parent):
+        candidates.update(
+            path
+            for path in (
+                base / "lean-toolchain",
+                base / "lake-manifest.json",
+            )
+            if path.is_file()
+        )
+    fingerprints: dict[str, str] = {}
+    for path in sorted(candidates):
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        fingerprints[str(path.resolve())] = stable_hash(text)
+    return fingerprints
+
+
 def _root_has_indexable_formal_source_file(root: FormalSourceRoot) -> bool:
     location = Path(root.location).expanduser()
     if not location.exists():
@@ -991,7 +1303,11 @@ def audit_formal_source_index(
         by_kind[decl.kind] = by_kind.get(decl.kind, 0) + 1
     db_path = out_dir / "formal_source_index.sqlite" if out_dir is not None else None
     if backend == "sqlite" and db_path is not None:
-        retriever = FormalSourceSqliteIndex.build(declarations, db_path)
+        retriever = FormalSourceSqliteIndex.build(
+            declarations,
+            db_path,
+            source_snapshots=_formal_source_root_snapshots(roots),
+        )
         search_backend = "sqlite_fts_hybrid"
     else:
         retriever = FormalSourceRetriever(declarations)
@@ -1063,7 +1379,8 @@ def _ordered_search_tokens(text: str) -> list[str]:
     camel_split = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", split_text)
     tokens: list[str] = []
     seen: set[str] = set()
-    for token in TOKEN_RE.findall(" ".join([split_text, camel_split, text])):
+
+    def add_token(token: str) -> None:
         normalized = token.lower()
         if (
             not normalized.strip()
@@ -1071,9 +1388,15 @@ def _ordered_search_tokens(text: str) -> list[str]:
             or not any(ch.isalnum() for ch in normalized)
             or normalized in seen
         ):
-            continue
+            return
         seen.add(normalized)
         tokens.append(normalized)
+
+    for token in TOKEN_RE.findall(" ".join([split_text, text])):
+        add_token(token)
+    for token in TOKEN_RE.findall(camel_split):
+        if len(token) >= 4 or (len(token) >= 2 and token.isupper()):
+            add_token(token)
     return tokens
 
 
@@ -1129,17 +1452,16 @@ def _score_declaration(
     )
     core_overlap = q_tokens & d_tokens
     module_overlap = q_tokens & m_tokens
-    overlap = core_overlap | module_overlap
+    reference_overlap = q_tokens & r_tokens
+    overlap = core_overlap | module_overlap | reference_overlap
     if not overlap:
         return None
     module_only_overlap = module_overlap - core_overlap
     name_bonus = 2.0 * len(q_tokens & n_tokens)
     shape_bonus = 1.5 * len(q_tokens & s_tokens)
-    import_bonus = 0.75 * len(q_tokens & i_tokens)
-    reference_bonus = 2.5 * len(q_tokens & r_tokens)
+    import_bonus = 0.25 * len(q_tokens & i_tokens)
+    reference_bonus = 2.5 * len(reference_overlap)
     exact_name_bonus = _exact_declaration_name_bonus(decl.name, query_text)
-    short_name = decl.name.rsplit(".", 1)[-1].lower()
-    short_name_anchor_bonus = 8.0 if short_name in q_tokens else 0.0
     source_bonus = 1.0 if decl.source_id.startswith("mathlib") else 1.5
     score = (
         len(core_overlap)
@@ -1149,7 +1471,6 @@ def _score_declaration(
         + import_bonus
         + reference_bonus
         + exact_name_bonus
-        + short_name_anchor_bonus
         + source_bonus
     )
     return FormalSourceHit(decl, score, tuple(sorted(overlap)[:16]))
@@ -1176,7 +1497,7 @@ def diversify_formal_source_hits(
     hits: list[FormalSourceHit],
     *,
     k: int,
-    max_sources: int = 3,
+    max_sources: int = 8,
     min_relative_score: float = 0.5,
     preserve_top_n: int = 1,
 ) -> list[FormalSourceHit]:
@@ -1254,9 +1575,6 @@ def _decl_core_search_text(decl: FormalDeclaration) -> str:
             decl.rhs_head,
             " ".join(decl.premise_heads),
             " ".join(decl.major_symbols),
-            " ".join(decl.imports),
-            decl.reference,
-            " ".join(decl.reference_aliases),
         ]
     )
 
@@ -1797,8 +2115,13 @@ def _declarations_in_file(
         if decl is None:
             continue
         kind, raw_name = decl
-        namespace = ".".join(namespace_stack)
-        name = raw_name if "." in raw_name or not namespace else f"{namespace}.{raw_name}"
+        active_namespace = ".".join(namespace_stack)
+        name = _qualified_declaration_name(
+            raw_name,
+            active_namespace,
+            language=language,
+        )
+        namespace = name.rsplit(".", 1)[0] if "." in name else ""
         signature = _declaration_signature(
             lines,
             idx - 1,
@@ -1826,6 +2149,19 @@ def _declarations_in_file(
             )
         )
     return rows
+
+
+def _qualified_declaration_name(
+    raw_name: str,
+    namespace: str,
+    *,
+    language: str,
+) -> str:
+    if language == "lean" and raw_name.startswith("_root_."):
+        return raw_name.removeprefix("_root_.")
+    if language != "lean" and "." in raw_name:
+        return raw_name
+    return f"{namespace}.{raw_name}" if namespace else raw_name
 
 
 def _line_starts_new_formal_item(line: str) -> bool:

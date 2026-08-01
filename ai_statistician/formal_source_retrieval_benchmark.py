@@ -10,7 +10,7 @@ from .fingerprint import stable_hash
 from .formal_source_index import FormalSourceHit, build_formal_source_search_backend
 
 
-FORMAL_SOURCE_RETRIEVAL_BENCHMARK_SCHEMA_VERSION = 4
+FORMAL_SOURCE_RETRIEVAL_BENCHMARK_SCHEMA_VERSION = 6
 
 
 @dataclass(frozen=True)
@@ -29,10 +29,17 @@ class FormalSourceRetrievalBenchmarkRow:
     expected_name_fragments: tuple[str, ...]
     expected_source_ids: tuple[str, ...]
     hit_rank: int | None
+    direct_hit_rank: int | None
+    source_discovery_rank: int | None
+    scoped_hit_rank: int | None
+    scoped_source_id: str
+    scoped_source_ids_attempted: tuple[str, ...]
+    resolution_mode: str
     top1_name: str
     top1_source_id: str
     ok: bool
     top_hits: tuple[dict[str, object], ...]
+    scoped_top_hits: tuple[dict[str, object], ...]
 
 
 @dataclass(frozen=True)
@@ -474,6 +481,15 @@ def run_formal_source_retrieval_benchmark(
     active_cases, skipped_cases = _split_available_cases(cases, available_source_ids)
     rows = [_run_case(active_retriever, case, k=k) for case in active_cases]
     n_ok = sum(1 for row in rows if row.ok)
+    n_direct_ok = sum(
+        row.resolution_mode == "direct_global"
+        for row in rows
+    )
+    n_scoped_ok = sum(
+        row.resolution_mode
+        == "global_source_discovery_then_scoped_declaration"
+        for row in rows
+    )
     reciprocal_ranks = [1.0 / row.hit_rank for row in rows if row.hit_rank]
     reference_crosswalk = audit_formal_source_reference_crosswalk(
         active_retriever,
@@ -554,6 +570,8 @@ def run_formal_source_retrieval_benchmark(
         "n_configured_cases": len(cases),
         "n_skipped_cases": len(skipped_cases),
         "n_ok": n_ok,
+        "n_direct_ok": n_direct_ok,
+        "n_source_discovery_then_scoped_ok": n_scoped_ok,
         "all_ok": (
             n_ok == len(rows)
             and bool(reference_crosswalk.get("all_ok", False))
@@ -576,6 +594,7 @@ def run_formal_source_retrieval_benchmark(
             "Atlas rows are retrieval-only context and are not exported as training data",
             "the benchmark complements AXLE proof audits; Lean remains the final verifier",
             "source-reference coverage is limited to explicitly indexed crosswalk rows and never implies full-book formalization",
+            "source-scoped resolution searches the source candidates actually discovered in global top-k order; gold source ids score the result but never select the scope",
         ],
     }
     if out_dir is not None:
@@ -662,7 +681,73 @@ def _run_case(
     k: int,
 ) -> FormalSourceRetrievalBenchmarkRow:
     hits = list(retriever.search(case.query, k=k)) if hasattr(retriever, "search") else []
-    hit_rank = _expected_hit_rank(hits, case)
+    direct_hit_rank = _expected_hit_rank(hits, case)
+    source_discovery_rank = next(
+        (
+            rank
+            for rank, hit in enumerate(hits, start=1)
+            if not case.expected_source_ids
+            or hit.declaration.source_id in case.expected_source_ids
+        ),
+        None,
+    )
+    scoped_top_hit_payloads: list[dict[str, object]] = []
+    scoped_hit_rank = None
+    scoped_source_id = ""
+    scoped_source_ids_attempted: list[str] = []
+    scoped_search = getattr(retriever, "search_with_source_scope", None)
+    if (
+        direct_hit_rank is None
+        and source_discovery_rank is not None
+        and case.expected_source_ids
+        and callable(scoped_search)
+    ):
+        discovered_source_ids = tuple(
+            dict.fromkeys(
+                hit.declaration.source_id
+                for hit in hits
+                if hit.declaration.source_id
+            )
+        )
+        for source_id in discovered_source_ids:
+            scoped_source_ids_attempted.append(source_id)
+            candidate_hits = list(
+                scoped_search(
+                    case.query,
+                    source_scope_ids=(source_id,),
+                    k=k,
+                )
+            )
+            candidate_rank = _expected_hit_rank(candidate_hits, case)
+            scoped_top_hit_payloads.extend(
+                {
+                    **_hit_payload(hit, rank=rank),
+                    "scope_source_id": source_id,
+                }
+                for rank, hit in enumerate(candidate_hits, start=1)
+            )
+            if candidate_rank is not None and scoped_hit_rank is None:
+                scoped_hit_rank = candidate_rank
+                scoped_source_id = source_id
+    hit_rank = (
+        direct_hit_rank
+        if direct_hit_rank is not None
+        else (
+            source_discovery_rank + scoped_hit_rank - 1
+            if source_discovery_rank is not None
+            and scoped_hit_rank is not None
+            else None
+        )
+    )
+    resolution_mode = (
+        "direct_global"
+        if direct_hit_rank is not None
+        else (
+            "global_source_discovery_then_scoped_declaration"
+            if scoped_hit_rank is not None
+            else "miss"
+        )
+    )
     top1 = hits[0].declaration if hits else None
     return FormalSourceRetrievalBenchmarkRow(
         query_id=case.query_id,
@@ -670,10 +755,17 @@ def _run_case(
         expected_name_fragments=case.expected_name_fragments,
         expected_source_ids=case.expected_source_ids,
         hit_rank=hit_rank,
+        direct_hit_rank=direct_hit_rank,
+        source_discovery_rank=source_discovery_rank,
+        scoped_hit_rank=scoped_hit_rank,
+        scoped_source_id=scoped_source_id,
+        scoped_source_ids_attempted=tuple(scoped_source_ids_attempted),
+        resolution_mode=resolution_mode,
         top1_name=top1.name if top1 is not None else "",
         top1_source_id=top1.source_id if top1 is not None else "",
         ok=hit_rank is not None and hit_rank <= k,
         top_hits=tuple(_hit_payload(hit, rank=rank) for rank, hit in enumerate(hits, start=1)),
+        scoped_top_hits=tuple(scoped_top_hit_payloads),
     )
 
 

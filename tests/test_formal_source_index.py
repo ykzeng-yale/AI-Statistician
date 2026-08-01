@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -12,18 +13,26 @@ from ai_statistician.formal_source_index import (
     FormalSourceRoot,
     FormalSourceSqliteIndex,
     _cache_covers_configured_roots,
+    _search_tokens,
     build_formal_source_index,
+    build_formal_source_search_backend,
     diversify_formal_source_hits,
     search_formal_sources,
 )
-from ai_statistician.formal_source_hybrid import FormalSourceHybridRetriever
+from ai_statistician.formal_source_hybrid import (
+    FormalSourceHybridRetriever,
+    _FusionAccumulator,
+)
+from ai_statistician.formal_source_graph import FormalSourceGraphRetriever
 from ai_statistician.formal_source_prompt_context import (
     FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS,
     compact_formal_source_grounding_hits_for_prompt,
     task_bound_formal_source_query_seeds,
 )
 from ai_statistician.formal_source_retrieval_benchmark import (
+    FormalSourceRetrievalBenchmarkCase,
     audit_formal_source_reference_crosswalk,
+    run_formal_source_retrieval_benchmark,
 )
 from ai_statistician.formalizer_llm import (
     build_formalizer_prompt,
@@ -67,6 +76,16 @@ def test_task_bound_formal_source_queries_keep_semantics_after_exact_name() -> N
         "Semantic title semantic mathematical statement",
         "Candidate.one",
     ]
+
+
+def test_camel_tokenization_keeps_semantics_without_short_fragments() -> None:
+    tokens = _search_tokens("subGaussian MGF boolToRademacherSign")
+
+    assert {"subgaussian", "gaussian", "mgf", "bool", "rademacher", "sign"}.issubset(
+        tokens
+    )
+    assert "sub" not in tokens
+    assert "to" not in tokens
 
 
 def test_readme_reference_is_searchable_and_persists_in_sqlite(
@@ -502,6 +521,53 @@ def test_sqlite_health_rejects_cache_without_reference_columns(
     assert not FormalSourceSqliteIndex(db_path).is_healthy()
 
 
+def test_formal_source_cache_is_bound_to_current_source_snapshot(
+    tmp_path: Path,
+) -> None:
+    source_root = tmp_path / "Source"
+    source_root.mkdir()
+    source_path = source_root / "Main.lean"
+    source_path.write_text(
+        "theorem first_cached_result : True := by trivial\n",
+        encoding="utf-8",
+    )
+    root = FormalSourceRoot("snapshot_fixture", str(source_root))
+    cache_path = tmp_path / "cache.sqlite"
+
+    first = build_formal_source_search_backend(
+        db_path=tmp_path / "first.sqlite",
+        roots=(root,),
+        cache_path=cache_path,
+        include_graph=False,
+    )
+    assert getattr(first, "cache_status") == "miss"
+    assert first.source_snapshots()["snapshot_fixture"]["exists"] is True
+
+    second = build_formal_source_search_backend(
+        db_path=tmp_path / "second.sqlite",
+        roots=(root,),
+        cache_path=cache_path,
+        include_graph=False,
+    )
+    assert getattr(second, "cache_status") == "hit"
+
+    source_path.write_text(
+        "theorem replacement_cached_result : True := by trivial\n",
+        encoding="utf-8",
+    )
+    rebuilt = build_formal_source_search_backend(
+        db_path=tmp_path / "rebuilt.sqlite",
+        roots=(root,),
+        cache_path=cache_path,
+        include_graph=False,
+    )
+
+    assert getattr(rebuilt, "cache_status") == "miss"
+    names = {row.name for row in rebuilt.load_declarations()}
+    assert "replacement_cached_result" in names
+    assert "first_cached_result" not in names
+
+
 def test_lean_sections_do_not_corrupt_namespace_and_long_outline_keeps_conclusion(
     tmp_path: Path,
 ) -> None:
@@ -521,6 +587,10 @@ def test_lean_sections_do_not_corrupt_namespace_and_long_outline_keeps_conclusio
         "noncomputable def linear_C₁ : Nat := 1\n"
         "theorem unicode_shape (h : avgθ = linear_C₁) : "
         "avgθ = linear_C₁ := by exact h\n"
+        "namespace IsSymmetric\n"
+        "theorem Property.bound : True := by trivial\n"
+        "end IsSymmetric\n"
+        "theorem _root_.global_scoped_result : True := by trivial\n"
         f"theorem after_section\n{arguments}\n"
         "    : True := by trivial\n"
         "end Matrix\n",
@@ -548,6 +618,11 @@ def test_lean_sections_do_not_corrupt_namespace_and_long_outline_keeps_conclusio
     assert unicode_shape.premise_heads == ("avgθ",)
     assert unicode_shape.conclusion_head == "avgθ"
     assert "linear_C₁" in unicode_shape.major_symbols
+    nested = by_name["Matrix.IsSymmetric.Property.bound"]
+    assert nested.namespace == "Matrix.IsSymmetric.Property"
+    assert "global_scoped_result" in by_name
+    assert "Matrix.global_scoped_result" not in by_name
+    assert by_name["global_scoped_result"].namespace == ""
     assert "Matrix.after_section" in by_name
     outline = by_name["Matrix.after_section"].signature
     assert outline.endswith(": True")
@@ -560,6 +635,57 @@ def test_lean_sections_do_not_corrupt_namespace_and_long_outline_keeps_conclusio
     )
     unicode_hits = sqlite_index.search("linear_δ_star", k=3)
     assert unicode_hits[0].declaration.name == "Matrix.linear_δ_star"
+
+
+def test_import_terms_only_rerank_semantically_grounded_formal_source_hits(
+    tmp_path: Path,
+) -> None:
+    declarations = [
+        FormalDeclaration(
+            source_id="fixture",
+            source_type="lean_library",
+            path="Unrelated.lean",
+            line=1,
+            kind="theorem",
+            name="Fixture.noise",
+            namespace="Fixture",
+            signature="theorem noise : True",
+            imports=("SLT.Dudley.Basic",),
+        ),
+        FormalDeclaration(
+            source_id="fixture",
+            source_type="lean_library",
+            path="Entropy.lean",
+            line=1,
+            kind="theorem",
+            name="Fixture.entropyBound",
+            namespace="Fixture",
+            signature="theorem entropyBound : True",
+            imports=("SLT.Dudley.Basic",),
+        ),
+    ]
+
+    retriever = FormalSourceRetriever(declarations)
+    assert retriever.search("Dudley", k=3) == []
+    hits = retriever.search("Dudley entropy", k=3)
+    assert hits[0].declaration.name == "Fixture.entropyBound"
+    assert hits[0].matched_terms == ("entropy",)
+
+    sqlite_index = FormalSourceSqliteIndex.build(
+        declarations,
+        tmp_path / "field-aware.sqlite",
+    )
+    assert sqlite_index.search("Dudley", k=3) == []
+    sqlite_hits = sqlite_index.search("Dudley entropy", k=3)
+    assert sqlite_hits[0].matched_terms == ("entropy",)
+
+    graph = FormalSourceGraphRetriever(declarations)
+    assert graph.search("Dudley", k=3) == []
+    graph_hits = graph.search("entropy", k=3)
+    assert all(
+        hit.declaration.name != "Fixture.noise"
+        for hit in graph_hits
+    )
 
 
 def test_source_diversification_preserves_top_hit_and_relevant_corpora() -> None:
@@ -610,6 +736,125 @@ def test_source_diversification_preserves_top_hit_and_relevant_corpora() -> None
     ]
     assert prompt_ranked[2].declaration.source_id == (
         "lean_stat_learning_theory"
+    )
+
+
+def test_source_scoped_search_filters_main_index_and_supports_two_stage_eval(
+    tmp_path: Path,
+) -> None:
+    declarations = [
+        FormalDeclaration(
+            source_id="source_a",
+            source_type="lean_library",
+            path="A.lean",
+            line=1,
+            kind="theorem",
+            name="A.semantic_bridge",
+            namespace="A",
+            signature="theorem semantic_bridge : True",
+        ),
+        FormalDeclaration(
+            source_id="source_b",
+            source_type="lean_library",
+            path="B.lean",
+            line=1,
+            kind="theorem",
+            name="B.semantic_bridge_copy",
+            namespace="B",
+            signature="theorem semantic_bridge_copy : True",
+        ),
+        FormalDeclaration(
+            source_id="source_a",
+            source_type="lean_library",
+            path="A.lean",
+            line=2,
+            kind="theorem",
+            name="A.semantic_target",
+            namespace="A",
+            signature="theorem semantic_target : True",
+        ),
+    ]
+    sqlite_index = FormalSourceSqliteIndex.build(
+        declarations,
+        tmp_path / "scoped.sqlite",
+    )
+    retriever = FormalSourceHybridRetriever(declarations, sqlite_index)
+
+    scoped = retriever.search_with_source_scope(
+        "semantic",
+        source_scope_ids=("source_a",),
+        k=2,
+    )
+    assert [hit.declaration.name for hit in scoped] == [
+        "A.semantic_bridge",
+        "A.semantic_target"
+    ]
+
+    payload = run_formal_source_retrieval_benchmark(
+        retriever=retriever,
+        cases=(
+            FormalSourceRetrievalBenchmarkCase(
+                query_id="two_stage",
+                query="semantic",
+                expected_name_fragments=("semantic_target",),
+                expected_source_ids=("source_a",),
+            ),
+        ),
+        k=2,
+    )
+    row = payload["rows"][0]
+    assert row["source_discovery_rank"] == 1
+    assert row["direct_hit_rank"] is None
+    assert row["scoped_hit_rank"] == 2
+    assert row["hit_rank"] == 2
+    assert row["scoped_source_id"] == "source_a"
+    assert row["scoped_source_ids_attempted"] == ("source_a", "source_b")
+    assert row["resolution_mode"] == (
+        "global_source_discovery_then_scoped_declaration"
+    )
+    assert payload["all_ok"] is True
+
+
+def test_provider_fusion_deduplicates_mirrors_without_score_multiplication() -> None:
+    canonical = FormalDeclaration(
+        source_id="current_source",
+        source_type="lean_library",
+        path="Current.lean",
+        line=1,
+        kind="theorem",
+        name="Demo.semantic_bound",
+        namespace="Demo",
+        signature="theorem semantic_bound : True",
+    )
+    mirror = replace(
+        canonical,
+        source_id="mirror_corpus",
+        path="Mirror.lean",
+    )
+    distinct_signature = replace(
+        mirror,
+        signature="theorem semantic_bound : False",
+    )
+    fusion = _FusionAccumulator()
+    fusion.add(canonical, score=10.0, matched_terms=("semantic",), provider="sqlite")
+    fusion.add(mirror, score=9.0, matched_terms=("bound",), provider="graph")
+    fusion.add(
+        distinct_signature,
+        score=8.0,
+        matched_terms=("semantic",),
+        provider="premise",
+    )
+
+    hits = fusion.hits()
+
+    assert len(hits) == 2
+    canonical_hit = next(
+        hit for hit in hits if hit.declaration.signature.endswith(": True")
+    )
+    assert canonical_hit.declaration is canonical
+    assert canonical_hit.score == 10.5
+    assert {"sqlite", "graph", "semantic", "bound"}.issubset(
+        canonical_hit.matched_terms
     )
 
 

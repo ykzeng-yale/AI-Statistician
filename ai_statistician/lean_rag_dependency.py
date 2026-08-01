@@ -11,6 +11,7 @@ from pathlib import Path
 from .formal_source_index import (
     FormalDeclaration,
     FormalSourceHit,
+    _search_tokens,
     diversify_formal_source_hits,
 )
 
@@ -94,11 +95,7 @@ class LeanRagDependencyRetriever:
 
     def supports_source_id(self, source_id: str) -> bool:
         requested = str(source_id or "").strip()
-        return (
-            not requested
-            or self.source_id == "lean_rag_dependency_graph"
-            or requested in self.source_aliases
-        )
+        return not requested or requested in self.source_aliases
 
     def is_healthy(self) -> bool:
         return bool(self.health_report().get("all_ok", False))
@@ -473,7 +470,7 @@ class LeanRagDependencyRetriever:
             + 2.0 * len(q_tokens & name_tokens)
             + min(fan_in, 10) / 20.0
             + min(fan_out, 10) / 40.0
-            + 10.0 / rank
+            + 2.0 / rank
         )
         if int(row["has_sorry"] or 0):
             score -= 3.0
@@ -511,6 +508,20 @@ class LeanRagDependencyRetriever:
             )
         )
         return FormalSourceHit(declaration=declaration, score=score, matched_terms=matched_terms)
+
+    def search_with_source_scope(
+        self,
+        query: str,
+        *,
+        source_scope_ids: tuple[str, ...],
+        k: int = 10,
+    ) -> list[FormalSourceHit]:
+        if source_scope_ids and not any(
+            self.supports_source_id(source_id)
+            for source_id in source_scope_ids
+        ):
+            return []
+        return self.search(query, k=k)
 
 
 class LeanRagDependencyMultiRetriever:
@@ -559,16 +570,49 @@ class LeanRagDependencyMultiRetriever:
         }
 
     def search(self, query: str, *, k: int = 10) -> list[FormalSourceHit]:
+        return self._search_retrievers(
+            query,
+            k=k,
+            retrievers=self.retrievers,
+        )
+
+    def search_with_source_scope(
+        self,
+        query: str,
+        *,
+        source_scope_ids: tuple[str, ...],
+        k: int = 10,
+    ) -> list[FormalSourceHit]:
+        if not source_scope_ids:
+            return self.search(query, k=k)
+        scoped_retrievers = tuple(
+            retriever
+            for retriever in self.retrievers
+            if any(
+                retriever.supports_source_id(source_id)
+                for source_id in source_scope_ids
+            )
+        )
+        return self._search_retrievers(
+            query,
+            k=k,
+            retrievers=scoped_retrievers,
+        )
+
+    @staticmethod
+    def _search_retrievers(
+        query: str,
+        *,
+        k: int,
+        retrievers: tuple[LeanRagDependencyRetriever, ...],
+    ) -> list[FormalSourceHit]:
         if k <= 0:
             return []
         by_key: dict[tuple[str, str, int, str], FormalSourceHit] = {}
         scores: dict[tuple[str, str, int, str], float] = {}
         matched: dict[tuple[str, str, int, str], set[str]] = {}
-        for retriever in self.retrievers:
-            for rank, hit in enumerate(
-                retriever.search(query, k=max(k * 2, 10)),
-                start=1,
-            ):
+        for retriever in retrievers:
+            for hit in retriever.search(query, k=max(k * 2, 10)):
                 declaration = hit.declaration
                 key = (
                     declaration.source_id,
@@ -577,7 +621,10 @@ class LeanRagDependencyMultiRetriever:
                     declaration.name,
                 )
                 by_key[key] = hit
-                scores[key] = scores.get(key, 0.0) + hit.score + 8.0 / rank
+                scores[key] = max(
+                    hit.score,
+                    scores.get(key, float("-inf")),
+                )
                 matched.setdefault(key, set()).update(hit.matched_terms)
                 matched[key].add(f"dependency_corpus={retriever.source_id}")
         ranked = [
@@ -814,21 +861,13 @@ def _command_output(args: tuple[str, ...], *, cwd: Path) -> str | None:
 
 
 def _tokens(text: str) -> set[str]:
-    split_text = re.sub(r"[_'.]", " ", text)
-    camel_split = re.sub(
-        r"([a-z0-9])([A-Z])",
-        r"\1 \2",
-        split_text,
-    )
     return {
-        token.lower()
-        for token in TOKEN_RE.findall(
-            " ".join((text, split_text, camel_split))
-        )
+        token
+        for token in _search_tokens(text)
         if (
             token
             and not token.isdigit()
-            and token.lower() not in STOP_TOKENS
+            and token not in STOP_TOKENS
             and any(ch.isalnum() for ch in token)
         )
     }

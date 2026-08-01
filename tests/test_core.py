@@ -1058,11 +1058,11 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
         )
         self.assertEqual(shape_hits[0].declaration.name, "Demo.variance_sum_indep")
         import_hits = search_formal_sources(
-            "Probability Moments Variance import",
+            "Probability Moments import",
             declarations=declarations,
             k=3,
         )
-        self.assertEqual(import_hits[0].declaration.name, "Demo.variance_sum_indep")
+        self.assertEqual(import_hits, [])
         sqlite_index = FormalSourceSqliteIndex.build(
             declarations,
             Path("runs/test_formal_source_index/formal_source_index.sqlite"),

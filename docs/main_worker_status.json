@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-08-01T05:33:08Z",
+  "updated_at": "2026-08-01T07:30:23Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "active_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
@@ -29,13 +29,17 @@
     "metric_review_transport": "The independent pre-execution reviewer receives a compact projection of immutable authority, a single typed array for variable-count theory-scope checks, and runtime-owned prior-finding identity/evidence binding. Local validators still check the full source material and exact coverage.",
     "semantic_audit": "Generic prompts require primitive DGP/estimand reconstruction, full-support expectation or probability expansion, normalization, boundary checks, and alignment with Architect formal/simulation targets. No statistical task formula was added.",
     "formalizer_strategy": "Exact target and assumptions, source-local namespace/module role, dependency-ordered lemma DAG, smallest blocked leaf, real Lean/LSP diagnostics, preservation of verified ancestors, and statement/assumption review after persistent failure. No Lean syntax or tactic repair rule was added.",
-    "formal_rag_queries": "When capacity permits, first-turn retrieval now keeps one exact qualified-name query and one separate semantic theorem query before additional exact/support queries. This prevents stale declaration hints from crowding out cross-task semantic retrieval."
+    "formal_rag_queries": "When capacity permits, first-turn retrieval keeps one exact qualified-name query and one separate semantic theorem query before additional exact/support queries. Imports remain visibility metadata rather than lexical hits, and relative dotted Lean declarations preserve their enclosing namespace.",
+    "formal_rag_fusion": "Providers are fused by declaration identity and normalized signature using strongest relevance plus a bounded corroboration bonus. Reindexing one source cannot multiply its score, while global corpus discovery can activate a SQL-enforced source scope for the resolution stage.",
+    "formal_rag_cache": "The persistent SQLite index is bound to schema version, declaration fingerprint, source-root snapshots, and README/toolchain metadata; changed source material rebuilds the index instead of serving stale declarations."
   },
   "ai4slt_formal_rag": {
     "repository": "https://github.com/YuanheZ/lean-stat-learning-theory",
     "paper": "https://arxiv.org/abs/2602.02285",
     "conference_page": "https://icml.cc/virtual/2026/poster/62752",
     "pinned_source_commit": "d0f506f0a695018265dccb33bcb05e2f5ca1c876",
+    "rag_infrastructure_repository": "https://github.com/ykzeng-yale/EmpericalProcessLEAN",
+    "rag_infrastructure_revision": "04bb9dac3fb58a2763024cc651fa748a15eae43a",
     "organization_reused": "Qualified semantic declaration names and layered modules/namespaces for CoveringNumber, MetricEntropy/Chaining/Dudley, Gaussian concentration/LSI, LeastSquares, MatrixInfra, and RMT. Textbook numbers remain citation metadata rather than Lean names or proof policy.",
     "three_book_crosswalk": [
       "Vershynin (2018)",
@@ -45,7 +49,7 @@
     "source_graph": {
       "declarations": 2006,
       "import_edges": 278,
-      "declaration_reference_edges": 6362,
+      "declaration_reference_edges": 6948,
       "snapshot_status": "BOUND_MATCH",
       "proof_status": "NON_PROOF_RETRIEVAL_CONTEXT"
     },
@@ -64,16 +68,22 @@
       "proof_status": "NON_PROOF_ANALOGICAL_CONTEXT"
     },
     "semantic_benchmark": {
-      "manifest": "runs/main_worker_ai4slt_semantic_default_composite_20260801_v13/formal_source_retrieval_benchmark_manifest.json",
-      "cases_passed": "16/16",
+      "manifest": "runs/current_ai4slt_three_book_rag_benchmark_20260801_v5/formal_source_retrieval_benchmark_manifest.json",
+      "cases_passed": "22/22",
       "recall_at_8": 1.0,
-      "mean_reciprocal_rank": 0.7994791666666666,
-      "new_three_book_queries": {
-        "euclidean_covering": "coveringNumber_euclideanBall_le at rank 1",
-        "localized_least_squares": "LeastSquares.master_error_bound at rank 1",
-        "dudley_entropy": "dudley-family declaration at rank 1",
-        "gaussian_concentration": "GaussianLipConcen.gaussian_lipschitz_concentration at rank 1"
-      }
+      "mean_reciprocal_rank": 0.7280844155844156,
+      "direct_global_resolutions": 19,
+      "global_discovery_then_scoped_resolutions": 3,
+      "citation_crosswalk": "47/47 README-bound declaration queries at top 8: 19 Vershynin, 7 Wainwright, and 11 Boucheron-Lugosi-Massart"
+    },
+    "formalizer_transport_probe": {
+      "target": "LinearMap.IsSymmetric.davisKahan_eigenvector_angle_hdp",
+      "source": "lean_stat_learning_theory/MatrixInfra/Perturb.lean",
+      "source_snapshot": "BOUND_MATCH",
+      "retrieved_direct_proof_dependency": "LinearMap.IsSymmetric.davisKahan_eigenvector_angle_of_gap_le",
+      "train_only_state_action_analogies": 3,
+      "compact_prompt_projection_chars": 1889,
+      "proof_status": "RUNTIME_CONTEXT_TRANSPORT_ONLY_NOT_THEOREM_PROOF"
     },
     "boundary": "AI4SLT source, citation, signature, dependency, and train-state hits are candidate context. Toolchain/snapshot identity is disclosed, and every selected declaration or generated action must be re-elaborated in the exact active project before it can contribute to kernel evidence."
   },
@@ -119,13 +129,13 @@
     "Keep PCA and extremes sealed until both development families satisfy the frozen protocol."
   ],
   "verification": {
-    "core_suite": "291 passed, 3 skipped, 6 subtests passed",
-    "current_affected_file_panel": "96 passed",
+    "core_suite": "291 passed, 3 skipped, 6 subtests passed in 2183.57 seconds",
+    "current_affected_file_panel": "45 formal-RAG/proof-state tests, 6 targeted core tests, 4 runtime transport tests, and 6 external indexer tests passed",
     "model_and_test_environment_policy": "27 passed",
     "exact_and_semantic_query_regression": "2 passed",
     "benchmark_registration_regression": "1 passed",
-    "ai4slt_semantic_retrieval": "16/16 at recall@8=1.0",
-    "git_diff_check": "passed before final documentation update",
+    "ai4slt_semantic_retrieval": "22/22 at recall@8=1.0; 19 direct and 3 globally discovered then source-scoped",
+    "git_diff_check": "passed before final Git synchronization",
     "provider_evaluation_policy": "V165 topology reports eight enabled agents at exact Haiku, zero policy violations, and no Opus call"
   },
   "proof_boundary": "Theory, simulation, code execution, reviewer acceptance, RAG hits, pseudo-formal blocks, external source compilation, and support-lemma compilation are not proof of the intended theorem. Only exact active-project Lean/kernel verification can close a theorem.",

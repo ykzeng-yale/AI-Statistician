@@ -573,6 +573,45 @@ def test_auto_discovery_activates_multiple_healthy_corpus_graphs(
     assert "empirical_process_lean" in retriever.source_ids
 
 
+def test_source_scoped_dependency_search_queries_only_bound_corpus_graphs(
+    tmp_path: Path,
+) -> None:
+    ai4slt_path = _write_dependency_db(
+        tmp_path / "stat_learning.sqlite",
+        corpus="AI4SLT",
+    )
+    stat_path = _write_dependency_db(
+        tmp_path / "stat_inference.sqlite",
+        corpus="StatInference",
+    )
+    ai4slt = LeanRagDependencyRetriever(
+        ai4slt_path,
+        source_id="lean_stat_learning_theory",
+    )
+    stat = LeanRagDependencyRetriever(
+        stat_path,
+        source_id="empirical_process_lean",
+    )
+    retriever = LeanRagDependencyMultiRetriever((ai4slt, stat))
+
+    hits = retriever.search_with_source_scope(
+        "master error bound",
+        source_scope_ids=("lean_stat_learning_theory",),
+        k=4,
+    )
+
+    assert hits
+    assert {hit.declaration.source_id for hit in hits} == {
+        "lean_stat_learning_theory"
+    }
+    generic = LeanRagDependencyRetriever(ai4slt_path)
+    assert generic.search_with_source_scope(
+        "master error bound",
+        source_scope_ids=("lean_stat_learning_theory",),
+        k=4,
+    ) == []
+
+
 def test_short_name_fallback_refuses_ambiguous_declarations(
     tmp_path: Path,
 ) -> None:

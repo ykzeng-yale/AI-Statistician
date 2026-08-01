@@ -2414,15 +2414,22 @@ documentation provides the mathematical layer summary. Retrieval emits
 qualified name, namespace, module,
 imports, reference metadata, and a dependency-first outline: direct statement
 dependencies, then direct proof dependencies, then at most a small same-file
-prior-declaration fallback. Downstream declarations and proof bodies are omitted. Composite
-provider retrieval keeps reciprocal-rank fusion and resolves exact RRF ties by
-the number of provider-reported match terms actually present in the query, not
-by declaration-name ordering. Every result remains candidate-only until the exact
+prior-declaration fallback. Downstream declarations and proof bodies are omitted.
+Imports remain visibility context but cannot create a lexical hit or symbol-graph
+edge by themselves. Composite retrieval deduplicates declarations by qualified
+name and signature, takes the strongest provider relevance score, and applies
+only a bounded multi-provider support bonus; repeated indexes of one source
+cannot multiply a declaration's score. Every result remains candidate-only until the exact
 artifact compiles in the active pinned Lean project. In particular, the external
 SLT v4.32 checkout is not assumed compatible with the current v4.31 proof target.
 The production SQLite hybrid constructs its exhaustive Python token fallback
 only after a database error; healthy repeated searches do not pay for two full
 candidate indexes.
+The persistent SQLite cache records its schema, declaration fingerprint, and a
+snapshot for each configured source root. Clean Git roots bind to the source
+tree; non-Git or dirty roots use a bounded filesystem inventory, and source
+README/toolchain metadata is fingerprinted separately. Source or crosswalk
+changes therefore rebuild the cache instead of silently serving stale rows.
 The upstream `v4.31.0` tag is a useful promotion candidate, but its pinned Mathlib
 revision also differs from the active project's revision, so version number alone
 does not authorize an import.
@@ -2477,6 +2484,10 @@ python3 /path/to/EmpericalProcessLEAN/lean_rag/scripts/lean_graph_index.py build
   --no-include-root-file
 ```
 
+The source-identity and projection-resolution behavior used for the current
+AI4SLT graph is pinned to EmpericalProcessLEAN RAG package revision
+`04bb9dac3fb58a2763024cc651fa748a15eae43a`.
+
 The normal formal-source backend can fuse this graph with the signed
 StatInference graph. Dependency lookup is bound by corpus, declaration name,
 and source path; exact qualified names win, and a short-name fallback is used
@@ -2488,7 +2499,11 @@ module or import the target transitively. This removes globally unique-basename
 edges to declarations that Lean could not see. Qualified names and signatures
 carry full lexical weight during dependency search; terms found only in proof
 bodies are lower-weight fallback evidence, so repetition alone is not treated
-as equivalent to a semantic declaration match.
+as equivalent to a semantic declaration match. Named and anonymous sections are
+tracked separately from namespaces, relative dotted declarations keep the full
+outer namespace, and `_root_.name` remains root-qualified. Projection-style
+calls such as `hA.someLemma` resolve only through a unique longest declaration
+suffix, without theorem-specific aliases.
 
 The default AgentRuntime factory uses this rich backend, and its outer composite
 preserves source-scoped search, declaration loading, and dependency context.
@@ -2496,11 +2511,13 @@ preserves source-scoped search, declaration loading, and dependency context.
 scoped premise-corpus health, and proof-state trace availability in the runtime
 manifest; each row is explicitly non-proof context.
 Dedicated retrieval benchmarks are not evidence of runtime integration unless
-the same capabilities reach the Formalizer packet. Source scopes activate
-companion providers; they are not global source allowlists, so ordinary
-cross-source retrieval remains possible and any unscoped provider fallback is
-recorded in diagnostics. Qualified declaration identity and import visibility
-govern reuse. Name patterns and textbook citations are retrieval hints only.
+the same capabilities reach the Formalizer packet. Retrieval is hierarchical:
+an unscoped query discovers candidate corpora, then each candidate can activate
+a SQL source allowlist plus explicitly anchored companion corpora. The benchmark
+searches only source candidates that actually appeared in global top-k order;
+gold source ids score the result but never select a scope. Qualified declaration
+identity and import visibility govern reuse. Name patterns and textbook
+citations are retrieval hints only.
 
 The version-pinned
 `yuanhezhang/lean4-stat-learning-theory-corpus` snapshot adds 3,021 premise
@@ -2546,10 +2563,11 @@ inventing theorem-number names or flat proof snippets. Mathematical layers and
 Lean namespaces remain primary (`CoveringNumber`, `MetricEntropy`, `Chaining`,
 `Dudley`, `GaussianLSI`, and `LeastSquares`); textbook references remain
 separate citation metadata. The current source-derived declaration/citation
-audit covers all 47 README-bound declarations and 39 unambiguous aliases. Those
-aliases include the 15 explicit `HDP` rows and bibliography-title joins for all
-22 ICML paper-core rows across Vershynin, Wainwright, and
-Boucheron-Lugosi-Massart. The
+audit covers all 47 README-bound declarations and 39 unambiguous aliases. The
+three-book families include 19 Vershynin, 7 Wainwright, and 11
+Boucheron-Lugosi-Massart citation queries, all recovered at top 8. The combined
+22-case semantic benchmark passes 22/22: 19 declarations resolve directly and
+3 resolve after global corpus discovery followed by source-scoped search. The
 Novel training traces directly contain only four of those 22 major-result
 declarations, with at least one from each book family;
 the rest of the action traces may occur in the upstream validation/test splits.

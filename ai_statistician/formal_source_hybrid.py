@@ -22,6 +22,59 @@ class _AccumulatedHit:
     matched_terms: tuple[str, ...]
 
 
+class _FusionAccumulator:
+    """Fuse equivalent declarations without rewarding duplicate indexes."""
+
+    def __init__(self) -> None:
+        self.by_key: dict[tuple[str, str, str], FormalDeclaration] = {}
+        self.score_by_key: dict[tuple[str, str, str], float] = {}
+        self.matched_by_key: dict[tuple[str, str, str], set[str]] = defaultdict(set)
+        self.providers_by_key: dict[tuple[str, str, str], set[str]] = defaultdict(set)
+
+    def add(
+        self,
+        declaration: FormalDeclaration,
+        *,
+        score: float,
+        matched_terms: tuple[str, ...],
+        provider: str,
+    ) -> None:
+        key = _fusion_key(declaration)
+        self.by_key.setdefault(key, declaration)
+        self.score_by_key[key] = max(
+            float(score),
+            self.score_by_key.get(key, float("-inf")),
+        )
+        self.matched_by_key[key].update(matched_terms)
+        self.matched_by_key[key].add(provider)
+        self.providers_by_key[key].add(provider)
+
+    def hits(self) -> list[FormalSourceHit]:
+        rows = [
+            _AccumulatedHit(
+                declaration=declaration,
+                score=float(self.score_by_key[key])
+                + min(
+                    1.5,
+                    0.5 * max(0, len(self.providers_by_key[key]) - 1),
+                ),
+                matched_terms=tuple(sorted(self.matched_by_key[key])[:20]),
+            )
+            for key, declaration in self.by_key.items()
+        ]
+        rows.sort(
+            key=lambda row: (
+                -row.score,
+                row.declaration.source_id,
+                row.declaration.name,
+            )
+        )
+        return [
+            FormalSourceHit(row.declaration, row.score, row.matched_terms)
+            for row in rows
+        ]
+
+
 class FormalSourceHybridRetriever:
     """Fuse SQLite FTS/Lean-shape retrieval with declaration-symbol graph RAG.
 
@@ -106,16 +159,23 @@ class FormalSourceHybridRetriever:
     ) -> list[FormalSourceHit]:
         sqlite_candidate_k = max(k * 5, 20)
         try:
-            sqlite_hits = self.sqlite_index.search(query, k=sqlite_candidate_k)
+            sqlite_hits = _search_provider(
+                self.sqlite_index,
+                query=query,
+                k=sqlite_candidate_k,
+                source_scope_ids=source_scope_ids,
+            )
             sqlite_error = ""
         except sqlite3.DatabaseError as exc:
             if self.fallback_retriever is None:
                 self.fallback_retriever = FormalSourceRetriever(
                     self.declarations
                 )
-            sqlite_hits = self.fallback_retriever.search(
-                query,
+            sqlite_hits = _search_provider(
+                self.fallback_retriever,
+                query=query,
                 k=sqlite_candidate_k,
+                source_scope_ids=source_scope_ids,
             )
             sqlite_error = f"{type(exc).__name__}: {exc}"
             setattr(self, "last_sqlite_search_error", sqlite_error)
@@ -124,7 +184,12 @@ class FormalSourceHybridRetriever:
         # research loop and should stay on the faster FTS/shape path.
         try:
             graph_hits = (
-                self.graph_retriever.search(query, k=max(k * 2, 10))
+                _search_provider(
+                    self.graph_retriever,
+                    query=query,
+                    k=max(k * 2, 10),
+                    source_scope_ids=source_scope_ids,
+                )
                 if k >= 5 and not sqlite_error
                 else []
             )
@@ -133,9 +198,12 @@ class FormalSourceHybridRetriever:
             setattr(self, "last_graph_search_error", f"{type(exc).__name__}: {exc}")
         dependency_hits = []
         if self.dependency_retriever is not None:
-            search = getattr(self.dependency_retriever, "search", None)
-            if callable(search):
-                dependency_hits = search(query, k=max(k * 2, 10))
+            dependency_hits = _search_provider(
+                self.dependency_retriever,
+                query=query,
+                k=max(k * 2, 10),
+                source_scope_ids=source_scope_ids,
+            )
         scoped_premise_hits = _search_scoped_premise_retrievers(
             self.scoped_premise_retrievers,
             query=query,
@@ -144,24 +212,23 @@ class FormalSourceHybridRetriever:
             k=max(k * 2, 10),
         )
 
-        by_key: dict[tuple[str, str, int, str], FormalDeclaration] = {}
-        score_by_key: dict[tuple[str, str, int, str], float] = defaultdict(float)
-        matched_by_key: dict[tuple[str, str, int, str], set[str]] = defaultdict(set)
+        fusion = _FusionAccumulator()
 
         for rank, hit in enumerate(sqlite_hits, start=1):
-            key = _decl_key(hit.declaration)
-            by_key[key] = hit.declaration
-            score_by_key[key] += hit.score + 12.0 / rank
-            matched_by_key[key].update(hit.matched_terms)
-            matched_by_key[key].add("sqlite_fts")
+            fusion.add(
+                hit.declaration,
+                score=hit.score + 2.0 / rank,
+                matched_terms=hit.matched_terms,
+                provider="sqlite_fts",
+            )
 
         for rank, hit in enumerate(graph_hits, start=1):
-            key = _decl_key(hit.declaration)
-            by_key[key] = hit.declaration
-            score_by_key[key] += hit.score + 8.0 / rank
-            matched_by_key[key].update(hit.matched_terms)
-            matched_by_key[key].update(hit.graph_symbols[:8])
-            matched_by_key[key].add("symbol_graph")
+            fusion.add(
+                hit.declaration,
+                score=hit.score + 1.0 / rank,
+                matched_terms=(*hit.matched_terms, *hit.graph_symbols[:8]),
+                provider="symbol_graph",
+            )
 
         for rank, hit in enumerate(dependency_hits, start=1):
             local_matches = _local_declarations_for_dependency_hit(
@@ -169,26 +236,14 @@ class FormalSourceHybridRetriever:
                 by_name=self._declarations_by_name,
                 by_short_name=self._declarations_by_short_name,
             )
-            target_declarations = local_matches[:2]
+            target_declarations = local_matches[:2] or [hit.declaration]
             for declaration in target_declarations:
-                key = _decl_key(declaration)
-                by_key[key] = declaration
-                score_by_key[key] += hit.score + 10.0 / rank
-                matched_by_key[key].update(hit.matched_terms)
-                matched_by_key[key].add("lean_rag_dependency_graph")
-
-        for rank, hit in enumerate(dependency_hits, start=1):
-            if _local_declarations_for_dependency_hit(
-                hit.declaration.name,
-                by_name=self._declarations_by_name,
-                by_short_name=self._declarations_by_short_name,
-            ):
-                continue
-            key = _decl_key(hit.declaration)
-            by_key[key] = hit.declaration
-            score_by_key[key] += hit.score + 10.0 / rank
-            matched_by_key[key].update(hit.matched_terms)
-            matched_by_key[key].add("lean_rag_dependency_graph")
+                fusion.add(
+                    declaration,
+                    score=hit.score + 1.0 / rank,
+                    matched_terms=hit.matched_terms,
+                    provider="lean_rag_dependency_graph",
+                )
 
         for rank, hit in scoped_premise_hits:
             local_matches = _local_declarations_for_scoped_premise_hit(
@@ -197,32 +252,18 @@ class FormalSourceHybridRetriever:
             )
             target_declarations = local_matches[:1] or [hit.declaration]
             for declaration in target_declarations:
-                key = _decl_key(declaration)
-                by_key[key] = declaration
-                score_by_key[key] += hit.score + 4.0 / rank
-                matched_by_key[key].update(hit.matched_terms)
-                matched_by_key[key].add("source_scoped_premise_corpus")
+                fusion.add(
+                    declaration,
+                    score=hit.score + 0.5 / rank,
+                    matched_terms=hit.matched_terms,
+                    provider="source_scoped_premise_corpus",
+                )
 
-        rows = [
-            _AccumulatedHit(
-                declaration=decl,
-                score=score_by_key[key],
-                matched_terms=tuple(sorted(matched_by_key[key])[:20]),
-            )
-            for key, decl in by_key.items()
-        ]
-        rows.sort(key=lambda row: (-row.score, row.declaration.source_id, row.declaration.name))
-        hits = [
-            FormalSourceHit(row.declaration, row.score, row.matched_terms)
-            for row in rows
-        ]
-        # Symbol-graph support can multiply a declaration's fused score. Use a
-        # wider relevance window so an independently strong source is not hidden
-        # solely because one corpus received several graph-support legs.
+        hits = fusion.hits()
         return diversify_formal_source_hits(
             hits,
             k=k,
-            min_relative_score=0.35,
+            min_relative_score=0.25,
             preserve_top_n=2,
         )
 
@@ -305,10 +346,18 @@ class FormalSourceDependencyHybridRetriever:
         k: int,
         source_scope_ids: tuple[str, ...],
     ) -> list[FormalSourceHit]:
-        base_search = getattr(self.base_retriever, "search", None)
-        base_hits = base_search(query, k=max(k * 3, 10)) if callable(base_search) else []
-        dependency_search = getattr(self.dependency_retriever, "search", None)
-        dependency_hits = dependency_search(query, k=max(k * 2, 10)) if callable(dependency_search) else []
+        base_hits = _search_provider(
+            self.base_retriever,
+            query=query,
+            k=max(k * 3, 10),
+            source_scope_ids=source_scope_ids,
+        )
+        dependency_hits = _search_provider(
+            self.dependency_retriever,
+            query=query,
+            k=max(k * 2, 10),
+            source_scope_ids=source_scope_ids,
+        )
         scoped_premise_hits = _search_scoped_premise_retrievers(
             self.scoped_premise_retrievers,
             query=query,
@@ -317,16 +366,15 @@ class FormalSourceDependencyHybridRetriever:
             k=max(k * 2, 10),
         )
 
-        by_key: dict[tuple[str, str, int, str], FormalDeclaration] = {}
-        score_by_key: dict[tuple[str, str, int, str], float] = defaultdict(float)
-        matched_by_key: dict[tuple[str, str, int, str], set[str]] = defaultdict(set)
+        fusion = _FusionAccumulator()
 
         for rank, hit in enumerate(base_hits, start=1):
-            key = _decl_key(hit.declaration)
-            by_key[key] = hit.declaration
-            score_by_key[key] += hit.score + 8.0 / rank
-            matched_by_key[key].update(hit.matched_terms)
-            matched_by_key[key].add("python_shape")
+            fusion.add(
+                hit.declaration,
+                score=hit.score + 2.0 / rank,
+                matched_terms=hit.matched_terms,
+                provider="python_shape",
+            )
 
         for rank, hit in enumerate(dependency_hits, start=1):
             local_matches = _local_declarations_for_dependency_hit(
@@ -336,17 +384,19 @@ class FormalSourceDependencyHybridRetriever:
             )
             if local_matches:
                 for declaration in local_matches[:2]:
-                    key = _decl_key(declaration)
-                    by_key[key] = declaration
-                    score_by_key[key] += hit.score + 10.0 / rank
-                    matched_by_key[key].update(hit.matched_terms)
-                    matched_by_key[key].add("lean_rag_dependency_graph")
+                    fusion.add(
+                        declaration,
+                        score=hit.score + 1.0 / rank,
+                        matched_terms=hit.matched_terms,
+                        provider="lean_rag_dependency_graph",
+                    )
                 continue
-            key = _decl_key(hit.declaration)
-            by_key[key] = hit.declaration
-            score_by_key[key] += hit.score + 10.0 / rank
-            matched_by_key[key].update(hit.matched_terms)
-            matched_by_key[key].add("lean_rag_dependency_graph")
+            fusion.add(
+                hit.declaration,
+                score=hit.score + 1.0 / rank,
+                matched_terms=hit.matched_terms,
+                provider="lean_rag_dependency_graph",
+            )
 
         for rank, hit in scoped_premise_hits:
             local_matches = _local_declarations_for_scoped_premise_hit(
@@ -355,34 +405,71 @@ class FormalSourceDependencyHybridRetriever:
             )
             target_declarations = local_matches[:1] or [hit.declaration]
             for declaration in target_declarations:
-                key = _decl_key(declaration)
-                by_key[key] = declaration
-                score_by_key[key] += hit.score + 4.0 / rank
-                matched_by_key[key].update(hit.matched_terms)
-                matched_by_key[key].add("source_scoped_premise_corpus")
+                fusion.add(
+                    declaration,
+                    score=hit.score + 0.5 / rank,
+                    matched_terms=hit.matched_terms,
+                    provider="source_scoped_premise_corpus",
+                )
 
-        rows = [
-            _AccumulatedHit(
-                declaration=decl,
-                score=score_by_key[key],
-                matched_terms=tuple(sorted(matched_by_key[key])[:20]),
-            )
-            for key, decl in by_key.items()
-        ]
-        rows.sort(key=lambda row: (-row.score, row.declaration.source_id, row.declaration.name))
-        hits = [
-            FormalSourceHit(row.declaration, row.score, row.matched_terms)
-            for row in rows
-        ]
+        hits = fusion.hits()
         return diversify_formal_source_hits(
             hits,
             k=k,
+            min_relative_score=0.25,
             preserve_top_n=2,
         )
 
 
 def _decl_key(decl: FormalDeclaration) -> tuple[str, str, int, str]:
     return (decl.source_id, decl.path, decl.line, decl.name)
+
+
+def _search_provider(
+    provider: object | None,
+    *,
+    query: str,
+    k: int,
+    source_scope_ids: tuple[str, ...],
+) -> list[Any]:
+    if provider is None or k <= 0:
+        return []
+    scoped_search = getattr(provider, "search_with_source_scope", None)
+    if source_scope_ids and callable(scoped_search):
+        return list(
+            scoped_search(
+                query,
+                source_scope_ids=source_scope_ids,
+                k=k,
+            )
+        )
+    search = getattr(provider, "search", None)
+    if not callable(search):
+        return []
+    hits = list(search(query, k=k))
+    if not source_scope_ids:
+        return hits
+    allowed = set(source_scope_ids)
+    supports_source_id = getattr(provider, "supports_source_id", None)
+    provider_supports_scope = callable(supports_source_id) and any(
+        bool(supports_source_id(source_id))
+        for source_id in source_scope_ids
+    )
+    if provider_supports_scope:
+        return hits
+    return [
+        hit
+        for hit in hits
+        if hit.declaration.source_id in allowed
+    ]
+
+
+def _fusion_key(decl: FormalDeclaration) -> tuple[str, str, str]:
+    return (
+        decl.kind,
+        decl.name,
+        " ".join(decl.signature.split()),
+    )
 
 
 def _formal_source_hybrid_descriptor(retriever: object) -> dict[str, object]:
