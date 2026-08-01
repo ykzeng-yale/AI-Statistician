@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-08-01T12:02:44Z",
+  "updated_at": "2026-08-01T12:37:40Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "active_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
@@ -29,11 +29,11 @@
     "theory_transport": "The same TheoryDeveloper and task now use two bounded provider calls: first a core mathematical workspace, then an executable estimator interface constrained to frozen estimator and semantic-reference IDs. The merged packet is rehashed and validated as one theory artifact. This is transport decomposition, not another agent or scheduler.",
     "metric_review_transport": "The independent pre-execution reviewer receives a compact projection of immutable authority, a single typed array for variable-count theory-scope checks, and runtime-owned prior-finding identity/evidence binding. Local validators still check the full source material and exact coverage.",
     "semantic_audit": "Generic prompts require primitive DGP/estimand reconstruction, full-support expectation or probability expansion, normalization, boundary checks, and alignment with Architect formal/simulation targets. No statistical task formula was added.",
-    "formalizer_strategy": "Exact target and assumptions, source-local module and namespace as distinct identities, dependency-ordered lemma DAG, smallest blocked leaf, real Lean/LSP diagnostics, preservation of verified ancestors, and statement/assumption review after persistent failure. Initial API design may use bounded module/naming context; compiler repair receives only live-state-ranked qualified signatures, direct premises, imports, and version gates. No Lean syntax or tactic repair rule was added.",
+    "formalizer_strategy": "Exact target and assumptions, source-local module and namespace as distinct identities, dependency-ordered lemma DAG, smallest blocked leaf, real Lean/LSP diagnostics, preservation of verified ancestors, and statement/assumption review after persistent failure. Initial API design and compiler repair receive bounded qualified signatures, direct premises, module/import context, and version gates; broad source prose remains a retrieval signal, with at most one bounded primary declaration doc or citation for disambiguation. No Lean syntax or tactic repair rule was added.",
     "formal_rag_queries": "Initial retrieval keeps an exact qualified-name query first, then consumes an explicit upstream source citation/query when present, then theorem semantics and required definitions/lemmas within the bounded query budget. Explicit source ids or source-target provenance are carried into the Formalizer instead of guessed by the runtime. Once Lean feedback exists, the three bounded lanes become one live goal/diagnostic, one unknown API when present, and one semantic target. Repeated declarations across query groups are removed. Imports remain visibility metadata rather than lexical hits, and relative dotted Lean declarations preserve their enclosing namespace.",
     "formal_rag_fusion": "Providers are fused by declaration identity and normalized signature using strongest relevance plus a bounded corroboration bonus. Reindexing one source cannot multiply its score. A source-bound request is now a real main-source allowlist: providers without scoped search have out-of-scope hits removed and counted, while explicitly declared anchor-scoped companion corpora remain provider-owned support context.",
     "formal_rag_cache": "The persistent SQLite index is bound to schema version, declaration fingerprint, source-root snapshots, and README/toolchain metadata; changed source material rebuilds the index instead of serving stale declarations.",
-    "formal_rag_source_architecture": "The generic Lean index keeps source-authored declaration docs and active section summaries, binds README layer/module tables by longest module-path prefix derived from each configured source root, and exposes bounded nearby semantic naming examples. There is no SLT package-name special case. Module/import identity and declaration namespace stay separate. Signatures and active Lean proof state retain higher authority; docs, taxonomy, names, and citations are planning hints only, and proof bodies remain excluded.",
+    "formal_rag_source_architecture": "The generic Lean index keeps source-authored declaration docs, active section summaries, README layer/module tables, and nearby semantic names as retrieval metadata, with no SLT package-name special case. Generic ranking rewards source-cited or source-outlined public declarations and semantic declaration-name coverage without encoding any theorem name. The actual Formalizer packet is signature-first: a source-scoped query may carry its top two qualified signatures with separate module/import context, while broad module prose, README taxonomy, section summaries, nearby naming examples, and proof bodies are excluded.",
     "formal_rag_trace_alignment": "AI4SLT declaration hits supply bounded exact theorem-name and exact module anchors to train-only proof-state retrieval. Declaration and trace RAG now share nested runtime goal/diagnostic extraction. Live proof-state overlap remains mandatory and receives first token priority; unrelated source ids are ignored. Changed state/query-role/source-scope fingerprints refresh both layers, and stale declaration hits are removed if no retriever is available. This creates neither a tactic template nor proof evidence.",
     "formal_rag_declaration_identity": "The shared source parser and runtime graph adapter now preserve complete Unicode Lean declaration identities, including inline-attributed declarations, and reject unversioned, pre-v3, or identity-policy-incompatible graphs before retrieval. AI4SLT's 2,010 named source-index declarations reconcile 2,010/2,010 with the dependency graph; eight additional graph nodes are explicitly anonymous synthetic instances. This is a generic source-identity contract, not a Lean grammar repair rule or theorem-family policy."
   },
@@ -69,7 +69,7 @@
       "declarations_with_section_summaries": 1334,
       "declarations_bound_to_readme_layers": 1996,
       "readme_layers": 8,
-      "prompt_policy": "Initial authoring may carry bounded source architecture and naming context. Repair uses one live-state, one unknown-API, and one semantic query when available, with qualified signatures, direct premises, imports, and version gates only; current Lean state is authoritative and proof bodies are excluded."
+      "prompt_policy": "Source architecture, docs, citations, and naming are retrieval signals. Initial source-scoped authoring may carry two qualified candidate signatures with module/import context and a bounded primary declaration doc/citation; broad module prose, README taxonomy, section summaries, nearby naming examples, and proof bodies are excluded. Repair uses one live-state, one unknown-API, and one semantic query when available; current Lean state is authoritative."
     },
     "signature_corpus": {
       "declarations": 3021,
@@ -88,19 +88,19 @@
       "proof_status": "NON_PROOF_ANALOGICAL_CONTEXT"
     },
     "semantic_benchmark": {
-      "manifest": "runs/current_ai4slt_three_book_rag_benchmark_20260801_v8_prover_context_precision/formal_source_retrieval_benchmark_manifest.json",
-      "discovery_recall_cases_passed": "23/23",
-      "source_scoped_prover_context_cases_passed": "21/23",
-      "ai4slt_source_scoped_prover_context_cases_passed": "9/9",
+      "manifest": "runs/current_ai4slt_three_book_rag_benchmark_20260801_v9_source_prominence/formal_source_retrieval_benchmark_manifest.json",
+      "discovery_recall_cases_passed": "28/28",
+      "source_scoped_prover_context_cases_passed": "27/28",
+      "ai4slt_source_scoped_prover_context_cases_passed": "14/14",
       "source_scoped_prover_context_k": 2,
       "source_scope_leaks_in_ai4slt_cases": 0,
       "strict_all_ok": false,
       "recall_at_8": 1.0,
-      "mean_reciprocal_rank": 0.7272256728778467,
-      "direct_global_resolutions": 19,
-      "global_discovery_then_scoped_resolutions": 4,
+      "mean_reciprocal_rank": 0.7833758503401361,
+      "direct_global_resolutions": 27,
+      "global_discovery_then_scoped_resolutions": 1,
       "source_authored_outline_case": "dudley_chaining_bound_core ranks 2 globally and 1 inside the AI4SLT source for a semantic telescoping/base/increment query",
-      "strict_residuals": "The Mathlib finite-union target ranks 3 in its scoped source and the old martingale gold fragment ranks 3 behind two more semantically direct backwards-martingale declarations. They remain visible evaluation residuals; no runtime theorem alias or ranking exception was added.",
+      "strict_residuals": "The only strict top-2 residual is the pre-existing SciLean Gaussian-calculus case. Every AI4SLT case passes; no runtime theorem alias, book mapping, or ranking exception was added.",
       "citation_crosswalk": "47/47 README-bound declaration queries at top 8: 19 Vershynin, 7 Wainwright, 11 Boucheron-Lugosi-Massart, and 10 other source references"
     },
     "formalizer_transport_probe": {
@@ -120,6 +120,20 @@
       "module_namespace_distinction_preserved": true,
       "active_project_revalidation_gate_present": true,
       "compact_prompt_projection_chars": 5480,
+      "proof_bodies_present": false,
+      "proof_status": "RUNTIME_CONTEXT_TRANSPORT_ONLY_NOT_THEOREM_PROOF"
+    },
+    "rank_two_formalizer_transport_probe": {
+      "query": "small ball probability lower bound from first and second moments of a nonnegative random variable",
+      "ranked_candidates": [
+        "RMT.norm_random_matrices_lower_bound_hdp_of_pos",
+        "SmallBallProbability.small_ball_prob"
+      ],
+      "expected_public_declaration_rank": 2,
+      "both_signatures_present": true,
+      "both_module_import_contexts_present": true,
+      "compact_prompt_projection_chars": 1942,
+      "broad_module_prose_present": false,
       "proof_bodies_present": false,
       "proof_status": "RUNTIME_CONTEXT_TRANSPORT_ONLY_NOT_THEOREM_PROOF"
     },
@@ -157,7 +171,7 @@
       "proof_bodies_present": false,
       "proof_status": "LIVE_STATE_RANKED_RUNTIME_CONTEXT_NOT_THEOREM_PROOF"
     },
-    "boundary": "AI4SLT source docs, section summaries, README taxonomy, naming examples, citations, signatures, dependencies, and train-state hits are candidate context. Toolchain/snapshot identity is disclosed, and every selected declaration or generated action must be re-elaborated in the exact active project before it can contribute to kernel evidence."
+    "boundary": "AI4SLT source docs, section summaries, README taxonomy, naming examples, and citations may rank candidate declarations, but the Formalizer receives a bounded signature-first projection rather than broad source prose; only one bounded primary declaration doc or citation may disambiguate intent. Signatures, dependency context, and train-state hits remain non-proof candidate context. Toolchain/snapshot identity is disclosed, and every selected declaration or generated action must be re-elaborated in the exact active project before it can contribute to kernel evidence."
   },
   "latest_live_research_eval": {
     "run": "runs/main_worker_research_eval_20260801_v167_theory_preflight_haiku_sequential",
@@ -204,15 +218,15 @@
   ],
   "verification": {
     "core_suite": "291 passed, 3 skipped, 6 subtests passed in 2183.57 seconds",
-    "current_affected_file_panel": "63 formal-source, scoped-corpus, proof-state, provider, focused AgentRuntime transport, and core integration tests passed; no provider call",
+    "current_affected_file_panel": "68 formal-source, scoped-corpus, proof-state, provider, focused AgentRuntime transport, and core integration tests passed; no provider call",
     "shared_lean_graph_indexer_panel": "7 parser, declaration-identity, dependency-edge, metadata, and FTS tests passed; no provider call",
     "current_declaration_trace_alignment_panel": "62 focused proof-state, formal-source, scoped-corpus, proof-bank, Lean-provider, and offline AgentRuntime transport tests passed; no provider call",
     "model_and_test_environment_policy": "39 model-backend and research-eval policy tests passed; no provider call",
     "exact_semantic_support_query_regression": "exact, semantic, and required-support queries retain independent first-turn capacity",
     "benchmark_registration_regression": "1 passed",
-    "ai4slt_semantic_retrieval": "Discovery remains 23/23 at recall@8=1.0, but the stricter source-bound top-2 Formalizer-context gate is honestly 21/23, so aggregate all_ok=false. AI4SLT-specific source-scoped cases are 9/9 with zero out-of-scope hits; both auto-discovered dependency graphs satisfy schema 3, unicode_lean_identifier_v1, and BOUND_MATCH; source-authored Dudley outline ranks 2 globally and 1 source-scoped.",
+    "ai4slt_semantic_retrieval": "Discovery is 28/28 at recall@8=1.0 and the source-bound top-2 Formalizer-context gate is 27/28, so aggregate all_ok remains false because of one pre-existing SciLean miss. AI4SLT-specific source-scoped cases are 14/14 with zero out-of-scope hits; the five added semantic cases span the three cited book families. Both auto-discovered dependency graphs satisfy schema 3, unicode_lean_identifier_v1, and BOUND_MATCH; source-authored Dudley outline ranks 2 globally and 1 source-scoped.",
     "ai4slt_three_book_crosswalk": "47/47 source-reference queries at top 8: 19 Vershynin, 7 Wainwright, 11 Boucheron-Lugosi-Massart, and 10 other references",
-    "ai4slt_prompt_transport": "Initial three-book authoring transport remains 3/3 under 5480 characters. A real live-state repair probe ranked LeastSquares.master_error_bound first and linear_critical_inequality second, projected 2345 characters, retained dependency/version gates, and included neither declaration prose nor proof bodies.",
+    "ai4slt_prompt_transport": "Initial three-book authoring transport remains 3/3. The current signature-first runtime probe retained both source-scoped candidates when SmallBallProbability.small_ball_prob ranked second, attached separate module/import context to both, projected 1942 characters, and included neither broad declaration/module prose nor proof bodies.",
     "ai4slt_source_project_execution": "SLT/CoveringNumber.lean compiled successfully in the pinned AI4SLT Lean v4.32 project after provisioning its official Mathlib cache",
     "cross_project_import_gate": "The configured Lean v4.31 proof project rejects SLT.CoveringNumber as unavailable, so the runtime cannot silently promote the cross-toolchain RAG hit to executable reuse",
     "git_diff_check": "passed before final Git synchronization",

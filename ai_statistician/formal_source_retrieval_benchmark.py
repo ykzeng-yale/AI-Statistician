@@ -208,6 +208,62 @@ EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK: tuple[
         ),
     ),
     FormalSourceRetrievalBenchmarkCase(
+        query_id="slt_semantic_vershynin_small_ball",
+        query=(
+            "small ball probability lower bound from first and second moments "
+            "of a nonnegative random variable"
+        ),
+        expected_name_fragments=("small_ball_prob",),
+        expected_source_ids=("lean_stat_learning_theory",),
+        rationale=(
+            "a source-scoped Formalizer packet should retain a foundational "
+            "small-ball theorem even when another high-dimensional lower bound "
+            "ranks first"
+        ),
+    ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="slt_semantic_wainwright_finite_subgaussian_max",
+        query=(
+            "expected maximum of finitely many centered subGaussian random "
+            "variables"
+        ),
+        expected_name_fragments=("subGaussian_finite_max_bound",),
+        expected_source_ids=("lean_stat_learning_theory",),
+        rationale=(
+            "the reusable finite-maximum concentration primitive should be "
+            "reachable from theorem meaning alone"
+        ),
+    ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="slt_semantic_boucheron_efron_stein",
+        query="Efron Stein variance inequality for independent coordinates",
+        expected_name_fragments=("efronStein",),
+        expected_source_ids=("lean_stat_learning_theory",),
+        rationale=(
+            "the source-authored public theorem should outrank application helpers"
+        ),
+    ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="slt_semantic_boucheron_entropy_duality",
+        query="entropy variational duality exponential moment inequality",
+        expected_name_fragments=("entropy_duality",),
+        expected_source_ids=("lean_stat_learning_theory",),
+        rationale=(
+            "the entropy infrastructure should be available without a Lean name "
+            "or book citation"
+        ),
+    ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="slt_semantic_boucheron_gaussian_log_sobolev",
+        query="Gaussian log Sobolev inequality for a product measure",
+        expected_name_fragments=("gaussian_logSobolev_W12_pi",),
+        expected_source_ids=("lean_stat_learning_theory",),
+        rationale=(
+            "the tensorized public theorem should outrank source-local analytic "
+            "helpers in the bounded prover context"
+        ),
+    ),
+    FormalSourceRetrievalBenchmarkCase(
         query_id="slt_source_authored_dudley_core_outline",
         query=(
             "telescope a finite dyadic net into a base term and successive "

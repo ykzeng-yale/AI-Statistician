@@ -34366,12 +34366,15 @@ def _proofengineer_formal_source_grounding_hit_groups(
             group["hits"] = []
             group["retrieval_error"] = type(exc).__name__ + ": " + str(exc)[:240]
         else:
+            context_hit_limit = 2 if normalized_source_scopes else 1
             unique_hits, duplicate_hit_count = unique_formal_source_hit_payloads(
                 [
                     _formal_source_hit_to_json(
                         hit,
                         formal_source_retriever=(
-                            formal_source_retriever if index == 0 else None
+                            formal_source_retriever
+                            if index < context_hit_limit
+                            else None
                         ),
                     )
                     for index, hit in enumerate(hits)

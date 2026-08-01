@@ -2485,19 +2485,24 @@ with the
 the implementation reuses their organization and feedback strategy, not their
 generated proof answers or historical model configuration.
 
-The prompt projection is stage-aware. Initial declaration/API design may use
-the bounded module taxonomy, source docs, section summaries, local naming
-examples, and citation metadata above. Once Lean has produced a goal or
-diagnostic, declaration retrieval instead reserves its first bounded lanes for
-one live-state query, one unknown-API query when present, and one semantic target
-query. Repair prompts keep qualified signatures, direct premise signatures,
-module/import visibility, and toolchain/version gates while dropping taxonomy,
-naming examples, and citation prose. Query fingerprints bind the live text,
-role, and source scope: an unchanged state may reuse its hits; a changed state
-refreshes them; and if refresh is impossible because the retriever is unavailable,
-stale hits are removed. Nested runtime proof-state rows use the same extractor as
-the train-only state-action retriever, so declaration RAG and trace RAG cannot
-silently reason from different Lean states.
+The prompt projection is stage-aware and signature-first. Source architecture,
+docs, citations, section summaries, and semantic naming remain useful retrieval
+signals, but broad module prose, README taxonomy, section summaries, nearby
+naming examples, and proof bodies are not copied into the Formalizer prompt. An
+initial source-scoped query may retain two ranked candidates because the intended
+public declaration can rank second; each candidate carries its qualified name,
+exact signature, source path, and separate module/import context. The primary
+candidate may also carry one bounded source-authored declaration doc or citation.
+Once Lean has produced a goal or diagnostic, declaration retrieval reserves its
+bounded lanes for one live-state query, one unknown-API query when present, and
+one semantic target query. Repair prompts retain qualified signatures, direct
+premise signatures, module/import visibility, and toolchain/version gates. Query
+fingerprints bind the live text, role, and source scope: an unchanged state may
+reuse its hits; a changed state refreshes them; and if refresh is impossible
+because the retriever is unavailable, stale hits are removed. Nested runtime
+proof-state rows use the same extractor as the train-only state-action retriever,
+so declaration RAG and trace RAG cannot silently reason from different Lean
+states.
 
 Source binding is an allowlist, not merely a provider activation hint. When an
 upstream theorem target or formalization handoff supplies source provenance, the
@@ -2509,6 +2514,12 @@ diagnostics. The retrieval benchmark therefore separates global discovery
 recall from the packet the prover can actually consume: the strict context gate
 requires the expected declaration in source-scoped top 2 and zero undeclared
 source leakage.
+
+The top-two contract applies to the runtime packet, not only to benchmark
+scoring. Both retained source-scoped candidates receive independently derived
+module/import context before prompt compaction. This prevents a rank-two public
+theorem from passing retrieval evaluation while reaching the Formalizer as an
+unimportable bare name.
 
 Research benchmark traces also attach the top local declaration hits to every
 `FORMAL_GAP` subclaim and copy them into the generated Lean skeleton comments,
@@ -2628,13 +2639,16 @@ current source-derived declaration/citation audit covers all 47 README-bound
 declarations and 39 unambiguous aliases. The three-book families include 19
 Vershynin, 7 Wainwright, and 11
 Boucheron-Lugosi-Massart citation queries, all recovered at top 8; the other ten
-README crosswalk rows also recover at top 8. The combined 23-case semantic
-benchmark passes 23/23: 19 declarations resolve directly and 4 resolve after
-global corpus discovery followed by source-scoped search. Its source-authored
+README crosswalk rows also recover at top 8. The combined 28-case semantic
+benchmark passes 28/28 at discovery recall@8: 27 declarations resolve directly
+and one resolves after global corpus discovery followed by source-scoped search.
+The strict source-scoped top-two packet gate is 27/28 overall and 14/14 for
+AI4SLT, with no AI4SLT source leakage; the sole strict residual is an existing
+SciLean case. Its source-authored
 Dudley outline query ranks `dudley_chaining_bound_core` second globally and first
 inside AI4SLT, demonstrating that proof-plan prose is searchable without loading
-the proof body. The Novel training traces directly contain only four of those
-23 major-result declarations, with at least one from each book family;
+the proof body. The Novel training traces directly contain only four of the
+original 23 major-result declarations, with at least one from each book family;
 the rest of the action traces may occur in the upstream validation/test splits.
 Those splits are deliberately excluded to avoid turning held-out proofs into
 retrieval answers. The train split still supplies reusable state-action examples

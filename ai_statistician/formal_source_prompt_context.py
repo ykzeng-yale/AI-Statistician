@@ -8,12 +8,11 @@ from .research_schema import OpenResearchQuestion
 
 
 FORMAL_SOURCE_OUTLINE_PROMPT_POLICY = (
-    "Bounded direct statement/proof premise signatures first, then at most a small "
-    "same-file prior-declaration fallback; downstream declarations and proof bodies "
-    "are omitted. Bounded source-authored declaration docs, section/module summaries, "
-    "README module taxonomy, local naming examples, and citation aliases may describe "
-    "mathematical intent and library organization but never replace the declaration "
-    "signature or active proof state. "
+    "Bounded qualified target and direct statement/proof premise signatures are the "
+    "prompt authority; source-scoped queries may retain two ranked target candidates. "
+    "Downstream declarations, proof bodies, broad module prose, README taxonomy, and "
+    "nearby naming examples are omitted. A bounded source-authored declaration doc and "
+    "citation may disambiguate intent but never replace a signature or active proof state. "
     "Qualified declaration identity and active import visibility govern reuse; "
     "declaration-name patterns and source citations are retrieval hints, not semantic "
     "or proof authority. Retrieved declarations remain candidate context "
@@ -35,9 +34,14 @@ def compact_formal_source_grounding_hits_for_prompt(value: Any) -> list[dict[str
     if not isinstance(value, list | tuple):
         return []
     groups = [group for group in value[:3] if isinstance(group, Mapping)]
-    selected: list[tuple[Mapping[str, Any], Mapping[str, Any]]] = []
+    selected: list[
+        tuple[Mapping[str, Any], list[Mapping[str, Any]]]
+    ] = []
     seen_hits: set[tuple[str, str, int, str, str]] = set()
     for group in groups:
+        source_scoped = bool(group.get("source_scope_ids"))
+        hit_limit = 2 if source_scoped else 1
+        group_hits: list[Mapping[str, Any]] = []
         for hit in group.get("hits", []) or []:
             if not isinstance(hit, Mapping):
                 continue
@@ -45,14 +49,18 @@ def compact_formal_source_grounding_hits_for_prompt(value: Any) -> list[dict[str
             if identity in seen_hits:
                 continue
             seen_hits.add(identity)
-            selected.append((group, hit))
-            break
+            group_hits.append(hit)
+            if len(group_hits) >= hit_limit:
+                break
+        if group_hits:
+            selected.append((group, group_hits))
     if not selected:
         return []
 
     projected_groups: list[dict[str, Any]] = []
-    for index, (group, hit) in enumerate(selected):
+    for group_index, (group, hits) in enumerate(selected):
         query_role = str(group.get("query_role", "") or "")[:120]
+        repair_focused = query_role in PROOFENGINEER_REPAIR_QUERY_ROLES
         projected_group: dict[str, Any] = {
             "query_role": query_role,
             "query_fingerprint": str(
@@ -65,11 +73,10 @@ def compact_formal_source_grounding_hits_for_prompt(value: Any) -> list[dict[str
             "hits": [
                 _compact_formal_source_hit_for_prompt(
                     hit,
-                    primary=index == 0,
-                    repair_focused=(
-                        query_role in PROOFENGINEER_REPAIR_QUERY_ROLES
-                    ),
+                    primary=group_index == 0 and hit_index == 0,
+                    repair_focused=repair_focused,
                 )
+                for hit_index, hit in enumerate(hits)
             ],
         }
         unknown_identifier = str(
@@ -77,7 +84,7 @@ def compact_formal_source_grounding_hits_for_prompt(value: Any) -> list[dict[str
         ).strip()
         if unknown_identifier:
             projected_group["unknown_identifier"] = unknown_identifier[:240]
-        if index == 0 and group.get("source_scope_ids"):
+        if group_index == 0 and group.get("source_scope_ids"):
             projected_group["source_scope_ids"] = [
                 str(item)[:120]
                 for item in list(group.get("source_scope_ids", []))[:3]
@@ -135,12 +142,6 @@ def _compact_formal_source_hit_for_prompt(
             declaration_doc,
             440,
         )
-    section_summary = str(hit.get("section_summary", "") or "")
-    if primary and not repair_focused and section_summary:
-        payload["section_summary"] = _head_tail_text(
-            section_summary,
-            220,
-        )
     aliases = [
         str(item)[:260]
         for item in list(hit.get("reference_aliases", []) or [])[:1]
@@ -186,7 +187,7 @@ def _compact_declaration_source_context_for_prompt(
         for row in context.get("premise_declaration_outlines", []) or []
         if isinstance(row, Mapping)
     ][:6]
-    module_ancestry_limit = 0 if repair_focused else 5 if primary else 3
+    module_ancestry_limit = 0 if repair_focused else 4 if primary else 2
     import_limit = 4 if repair_focused else 6 if primary else 3
     selected_rows: list[Mapping[str, Any]] = []
     if primary:
@@ -221,11 +222,6 @@ def _compact_declaration_source_context_for_prompt(
         outlines.append(outline)
     payload: dict[str, Any] = {
         "module": str(context.get("module", "") or "")[:240],
-        "module_group": (
-            ""
-            if repair_focused
-            else str(context.get("module_group", "") or "")[:120]
-        ),
         "module_ancestry": [
             str(item)[:180]
             for item in list(
@@ -258,23 +254,6 @@ def _compact_declaration_source_context_for_prompt(
     if primary and not repair_focused:
         payload.update(
             {
-                "module_summary": _head_tail_text(
-                    str(context.get("module_summary", "") or ""),
-                    320,
-                ),
-                "module_group_summary": _head_tail_text(
-                    str(context.get("module_group_summary", "") or ""),
-                    240,
-                ),
-                "local_naming_examples": [
-                    {
-                        "kind": str(row.get("kind", "") or "")[:40],
-                        "name": str(row.get("name", "") or "")[:240],
-                    }
-                    for row in list(context.get("local_naming_examples", []) or [])[:4]
-                    if isinstance(row, Mapping)
-                    and str(row.get("name", "") or "").strip()
-                ],
                 "direct_module_imports": [
                     str(item)[:180]
                     for item in list(
@@ -333,7 +312,7 @@ def _head_tail_text(value: str, limit: int) -> str:
 
 
 def _fit_formal_source_prompt_projection(groups: list[dict[str, Any]]) -> None:
-    """Drop lower-value detail while preserving one hit per query when possible."""
+    """Drop lower-value detail while preserving scoped target alternatives."""
 
     if not groups:
         return
@@ -342,11 +321,13 @@ def _fit_formal_source_prompt_projection(groups: list[dict[str, Any]]) -> None:
     if _prompt_json_chars(groups) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
         return
     for group in groups[1:]:
-        secondary = group["hits"][0]
-        secondary.pop("declaration_doc", None)
-        secondary.pop("section_summary", None)
-        secondary_context = secondary.get("declaration_source_context", {})
-        secondary_context.pop("imports", None)
+        for secondary in group["hits"]:
+            secondary.pop("declaration_doc", None)
+            secondary_context = secondary.get(
+                "declaration_source_context",
+                {},
+            )
+            secondary_context.pop("imports", None)
     if _prompt_json_chars(groups) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
         return
     context.pop("imports", None)
@@ -365,15 +346,6 @@ def _fit_formal_source_prompt_projection(groups: list[dict[str, Any]]) -> None:
     context.pop("module_ancestry", None)
     if _prompt_json_chars(groups) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
         return
-    context.pop("local_naming_examples", None)
-    if _prompt_json_chars(groups) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
-        return
-    hit.pop("section_summary", None)
-    if _prompt_json_chars(groups) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
-        return
-    context.pop("module_group_summary", None)
-    if _prompt_json_chars(groups) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
-        return
     if hit.get("declaration_doc"):
         hit["declaration_doc"] = _head_tail_text(
             str(hit["declaration_doc"]),
@@ -381,10 +353,13 @@ def _fit_formal_source_prompt_projection(groups: list[dict[str, Any]]) -> None:
         )
     if _prompt_json_chars(groups) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
         return
-    context["module_summary"] = _head_tail_text(
-        str(context.get("module_summary", "")),
-        160,
-    )
+    for group in reversed(groups[1:]):
+        while (
+            _prompt_json_chars(groups)
+            > FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS
+            and len(group.get("hits", [])) > 1
+        ):
+            group["hits"].pop()
     while (
         _prompt_json_chars(groups) > FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS
         and len(groups) > 1
@@ -397,12 +372,8 @@ def _fit_formal_source_prompt_projection(groups: list[dict[str, Any]]) -> None:
     primary_hit = primary_group["hits"][0]
     primary_context = primary_hit.get("declaration_source_context", {})
     primary_hit.pop("declaration_doc", None)
-    primary_hit.pop("section_summary", None)
     primary_hit.pop("reference_aliases", None)
     for key in (
-        "module_summary",
-        "module_group_summary",
-        "local_naming_examples",
         "direct_module_imports",
         "premise_names",
         "premise_declaration_outlines",
@@ -413,6 +384,14 @@ def _fit_formal_source_prompt_projection(groups: list[dict[str, Any]]) -> None:
         str(primary_hit.get("signature", "")),
         180,
     )
+    if _prompt_json_chars(groups) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
+        return
+
+    while (
+        _prompt_json_chars(groups) > FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS
+        and len(primary_group.get("hits", [])) > 1
+    ):
+        primary_group["hits"].pop()
     if _prompt_json_chars(groups) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
         return
 
@@ -864,6 +843,8 @@ def formal_source_context_for_hit(
 
     if not any(
         (
+            path,
+            imports,
             premise_outline_rows,
             outline_rows,
             dependency_context,

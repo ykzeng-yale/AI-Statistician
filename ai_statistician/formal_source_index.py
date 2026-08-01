@@ -85,6 +85,10 @@ MODULE_SUMMARY_TOKEN_WEIGHT = 0.25
 DECLARATION_DOC_TOKEN_WEIGHT = 1.0
 SECTION_SUMMARY_TOKEN_WEIGHT = 0.5
 MODULE_GROUP_TOKEN_WEIGHT = 0.25
+SOURCE_REFERENCE_PROMINENCE_BONUS = 3.5
+SOURCE_OUTLINE_PROMINENCE_BONUS = 0.75
+DECLARATION_NAME_CONCEPT_ANCHOR_BONUS = 3.0
+DECLARATION_NAME_COVERAGE_BONUS_CAP = 4.0
 FORMAL_SOURCE_SQLITE_SCHEMA_VERSION = "4"
 SKIPPED_PATH_PARTS = {
     ".git",
@@ -224,6 +228,7 @@ class FormalSourceRetriever:
                         if decl.reference or decl.reference_aliases
                         else _EMPTY_SEARCH_TOKENS
                     ),
+                    _source_authored_declaration_prominence_bonus(decl),
                 )
             )
 
@@ -251,6 +256,7 @@ class FormalSourceRetriever:
         source_scope_ids: tuple[str, ...],
     ) -> list[FormalSourceHit]:
         q_tokens = _search_tokens(query)
+        query_lookup_key = _declaration_lookup_key(query)
         allowed_source_ids = set(source_scope_ids)
         hits: list[FormalSourceHit] = []
         for (
@@ -264,6 +270,7 @@ class FormalSourceRetriever:
             shape_tokens,
             import_tokens,
             reference_tokens,
+            source_prominence_bonus,
         ) in self._rows:
             if allowed_source_ids and decl.source_id not in allowed_source_ids:
                 continue
@@ -280,6 +287,8 @@ class FormalSourceRetriever:
                 shape_tokens=shape_tokens,
                 import_tokens=import_tokens,
                 reference_tokens=reference_tokens,
+                query_lookup_key=query_lookup_key,
+                source_prominence_bonus=source_prominence_bonus,
             )
             if hit is not None:
                 hits.append(hit)
@@ -630,10 +639,16 @@ class FormalSourceSqliteIndex:
                 params,
             ).fetchall()
         q_tokens = _search_tokens(query)
+        query_lookup_key = _declaration_lookup_key(query)
         hits: list[FormalSourceHit] = []
         for row in rows:
             decl = _decl_from_sqlite_row(row)
-            hit = _score_declaration(decl, q_tokens, query_text=query)
+            hit = _score_declaration(
+                decl,
+                q_tokens,
+                query_text=query,
+                query_lookup_key=query_lookup_key,
+            )
             if hit is not None:
                 hits.append(hit)
         ordered = sorted(
@@ -1502,6 +1517,8 @@ def _score_declaration(
     shape_tokens: set[str] | None = None,
     import_tokens: set[str] | None = None,
     reference_tokens: set[str] | None = None,
+    query_lookup_key: str = "",
+    source_prominence_bonus: float | None = None,
 ) -> FormalSourceHit | None:
     d_tokens = (
         declaration_tokens
@@ -1608,7 +1625,26 @@ def _score_declaration(
     shape_bonus = 1.5 * len(q_tokens & s_tokens)
     import_bonus = 0.25 * len(q_tokens & i_tokens)
     reference_bonus = 2.5 * len(reference_overlap)
-    exact_name_bonus = _exact_declaration_name_bonus(decl.name, query_text)
+    resolved_query_lookup_key = (
+        query_lookup_key or _declaration_lookup_key(query_text)
+    )
+    exact_name_bonus = _exact_declaration_name_bonus(
+        decl.name,
+        query_text,
+        query_lookup_key=resolved_query_lookup_key,
+    )
+    semantic_name_bonus = _semantic_declaration_name_bonus(
+        decl.name,
+        q_tokens=q_tokens,
+        name_tokens=n_tokens,
+        query_text=query_text,
+        query_lookup_key=resolved_query_lookup_key,
+    )
+    source_authored_prominence_bonus = (
+        source_prominence_bonus
+        if source_prominence_bonus is not None
+        else _source_authored_declaration_prominence_bonus(decl)
+    )
     source_bonus = 1.0 if decl.source_id.startswith("mathlib") else 1.5
     score = (
         len(core_overlap)
@@ -1627,18 +1663,75 @@ def _score_declaration(
         + import_bonus
         + reference_bonus
         + exact_name_bonus
+        + semantic_name_bonus
+        + source_authored_prominence_bonus
         + source_bonus
     )
     return FormalSourceHit(decl, score, tuple(sorted(overlap)[:16]))
 
 
-def _exact_declaration_name_bonus(name: str, query: str) -> float:
-    query_key = _declaration_lookup_key(query)
+def _exact_declaration_name_bonus(
+    name: str,
+    query: str,
+    *,
+    query_lookup_key: str = "",
+) -> float:
+    query_key = query_lookup_key or _declaration_lookup_key(query)
     if not query_key:
         return 0.0
     full_key = _declaration_lookup_key(name)
     short_key = _declaration_lookup_key(name.rsplit(".", 1)[-1])
     return 16.0 if query_key in {full_key, short_key} else 0.0
+
+
+def _semantic_declaration_name_bonus(
+    name: str,
+    *,
+    q_tokens: set[str],
+    name_tokens: set[str],
+    query_text: str,
+    query_lookup_key: str = "",
+) -> float:
+    """Reward source naming that closely expresses the requested concept."""
+
+    overlap_count = len(q_tokens & name_tokens)
+    coverage_bonus = (
+        min(
+            DECLARATION_NAME_COVERAGE_BONUS_CAP,
+            float(overlap_count * overlap_count) / max(len(q_tokens), 1),
+        )
+        if overlap_count >= 2
+        else 0.0
+    )
+    short_key = _declaration_lookup_key(name.rsplit(".", 1)[-1])
+    query_key = query_lookup_key or _declaration_lookup_key(query_text)
+    concept_anchor_bonus = (
+        DECLARATION_NAME_CONCEPT_ANCHOR_BONUS
+        if len(short_key) >= 6 and short_key in query_key
+        else 0.0
+    )
+    return coverage_bonus + concept_anchor_bonus
+
+
+def _source_authored_declaration_prominence_bonus(
+    decl: FormalDeclaration,
+) -> float:
+    """Use source-authored public-API signals without encoding theorem names."""
+
+    bonus = (
+        SOURCE_REFERENCE_PROMINENCE_BONUS
+        if decl.reference or decl.reference_aliases
+        else 0.0
+    )
+    short_key = _declaration_lookup_key(decl.name.rsplit(".", 1)[-1])
+    module_summary_key = _declaration_lookup_key(decl.module_summary)
+    if (
+        len(short_key) >= 6
+        and module_summary_key
+        and short_key in module_summary_key
+    ):
+        bonus += SOURCE_OUTLINE_PROMINENCE_BONUS
+    return bonus
 
 
 def _declaration_lookup_key(value: str) -> str:

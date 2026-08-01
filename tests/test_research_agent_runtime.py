@@ -153,6 +153,7 @@ from ai_statistician.pseudo_formalization import (
 )
 from ai_statistician.formal_source_index import FormalDeclaration, FormalSourceHit
 from ai_statistician.formal_source_prompt_context import (
+    compact_formal_source_grounding_hits_for_prompt,
     formalizer_feedback_with_task_bound_formal_source_queries,
 )
 from ai_statistician.lean_agent_providers import ExternalFormalSourceHit
@@ -40708,6 +40709,85 @@ def test_first_formalizer_proposal_receives_task_bound_formal_source_grounding()
     assert "High-Dimensional Statistics" in prompt
     assert "Theorem 13.5" in prompt
     assert len(prompt) < 16000
+
+
+def test_source_scoped_runtime_carries_context_for_both_ranked_candidates() -> None:
+    declarations = (
+        FormalDeclaration(
+            source_id="fixture_library",
+            source_type="lean_library",
+            path="Library/FirstCandidate.lean",
+            line=11,
+            kind="theorem",
+            name="Library.first_candidate",
+            namespace="Library",
+            signature="theorem first_candidate : True",
+            imports=("Library.Foundation",),
+        ),
+        FormalDeclaration(
+            source_id="fixture_library",
+            source_type="lean_library",
+            path="Library/SecondCandidate.lean",
+            line=17,
+            kind="theorem",
+            name="Library.second_candidate",
+            namespace="Library",
+            signature="theorem second_candidate : True",
+            imports=("Library.Foundation", "Library.Reduction"),
+        ),
+    )
+
+    class DummyFormalSourceRetriever:
+        def __init__(self) -> None:
+            self.declarations = declarations
+
+        def search_with_source_scope(
+            self,
+            query: str,
+            *,
+            source_scope_ids: tuple[str, ...],
+            k: int,
+        ) -> list[FormalSourceHit]:
+            assert query == "bounded theorem declaration"
+            assert source_scope_ids == ("fixture_library",)
+            assert k == 2
+            return [
+                FormalSourceHit(declarations[0], 2.0, ("bounded",)),
+                FormalSourceHit(declarations[1], 1.0, ("theorem",)),
+            ]
+
+    groups = runtime_module._proofengineer_formal_source_grounding_hit_groups(
+        DummyFormalSourceRetriever(),
+        query_seeds=["bounded theorem declaration"],
+        unknown_identifiers=[],
+        source_scope_ids=["fixture_library"],
+        k=2,
+        max_groups=1,
+    )
+
+    assert [row["name"] for row in groups[0]["hits"]] == [
+        "Library.first_candidate",
+        "Library.second_candidate",
+    ]
+    assert [
+        row["declaration_source_context"]["module"]
+        for row in groups[0]["hits"]
+    ] == [
+        "Library.FirstCandidate",
+        "Library.SecondCandidate",
+    ]
+    compact = compact_formal_source_grounding_hits_for_prompt(groups)
+    assert [row["name"] for row in compact[0]["hits"]] == [
+        "Library.first_candidate",
+        "Library.second_candidate",
+    ]
+    assert compact[0]["hits"][1]["signature"] == (
+        "theorem second_candidate : True"
+    )
+    assert compact[0]["hits"][1]["declaration_source_context"]["imports"] == [
+        "Library.Foundation",
+        "Library.Reduction",
+    ]
 
 
 def test_planner_action_search_requests_drive_formal_source_grounding() -> None:

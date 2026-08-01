@@ -563,6 +563,60 @@ def test_repeated_source_metadata_does_not_multiply_retrieval_score() -> None:
     assert scores["Fixture.docOnly"] == scores["Fixture.repeated"]
 
 
+def test_source_authored_public_api_and_semantic_name_outrank_helper_prose() -> None:
+    public_theorem = FormalDeclaration(
+        source_id="fixture",
+        source_type="lean_library",
+        path="Probability/Tensorized.lean",
+        line=90,
+        kind="theorem",
+        name="Probability.gaussianLogSobolev",
+        namespace="Probability",
+        signature=(
+            "theorem gaussianLogSobolev (f : Real -> Real) : True"
+        ),
+        reference="Source Book (2026), Theorem 5.4",
+        module_summary=(
+            "Main results: Probability.gaussianLogSobolev gives the public "
+            "dimension-free inequality."
+        ),
+    )
+    helper = FormalDeclaration(
+        source_id="fixture",
+        source_type="lean_library",
+        path="Probability/Density.lean",
+        line=12,
+        kind="lemma",
+        name="Probability.gaussianSobolevNormSq_add_le_of_diff",
+        namespace="Probability",
+        signature=(
+            "lemma gaussianSobolevNormSq_add_le_of_diff : True"
+        ),
+        declaration_doc=(
+            "Technical Gaussian log Sobolev inequality helper for a density "
+            "argument."
+        ),
+    )
+    unrelated_public_theorem = replace(
+        public_theorem,
+        path="Probability/Other.lean",
+        name="Probability.matrixBernstein",
+        signature="theorem matrixBernstein : True",
+        reference="Other Book (2026), Theorem 1",
+        module_summary="Main results: Probability.matrixBernstein.",
+    )
+
+    hits = FormalSourceRetriever(
+        [helper, unrelated_public_theorem, public_theorem]
+    ).search("Gaussian log Sobolev inequality", k=3)
+
+    assert hits[0].declaration.name == "Probability.gaussianLogSobolev"
+    assert all(
+        hit.declaration.name != "Probability.matrixBernstein"
+        for hit in hits
+    )
+
+
 def test_sqlite_hybrid_builds_python_fallback_only_after_database_failure(
     tmp_path: Path,
     monkeypatch,
@@ -1661,15 +1715,13 @@ def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() ->
     assert "reusable local concentration lemma" in target[
         "declaration_doc"
     ]
-    assert "localized comparison" in target["section_summary"]
+    assert "section_summary" not in target
     assert "Source Book Full Title" in target["reference_aliases"][0]
     assert context["module"] == "Library.Target"
-    assert "reusable Library reduction layer" in context["module_summary"]
-    assert context["module_group"] == "Localized applications"
-    assert "capacity layers" in context["module_group_summary"]
-    assert context["local_naming_examples"][0]["name"] == (
-        "Library.target_local_reduction"
-    )
+    assert "module_summary" not in context
+    assert "module_group" not in context
+    assert "module_group_summary" not in context
+    assert "local_naming_examples" not in context
     assert context["module_ancestry"] == ["Library", "Library.Target"]
     assert context["source_snapshot"]["status"] == "BOUND_MATCH"
     assert context["source_snapshot"]["metadata"]["source_git_commit"] == "b" * 40
@@ -1688,6 +1740,79 @@ def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() ->
         "Library.Semantic"
     )
     assert compact[1]["hits"][0]["namespace"] == "Statistics"
+
+
+def test_source_scoped_prompt_keeps_two_ranked_signatures_without_library_prose() -> None:
+    common_context = {
+        "module": "Library.Target",
+        "module_summary": "Broad repeated module prose that belongs in retrieval only.",
+        "module_group": "Application layer",
+        "module_group_summary": "Broad README taxonomy.",
+        "imports": ["Library.Foundation"],
+        "local_naming_examples": [
+            {"kind": "lemma", "name": "Library.nearbyHelper"}
+        ],
+        "premise_declaration_outlines": [
+            {
+                "dependency_scope": "proof",
+                "name": "Library.directPremise",
+                "signature": "lemma directPremise : True",
+            }
+        ],
+        "dependency_context": {
+            "module_ancestry": ["Library", "Library.Target"],
+            "direct_module_imports": ["Library.Foundation"],
+            "module_import_visibility_enforced": True,
+        },
+    }
+    hits = [
+        {
+            "source_id": "fixture_library",
+            "source_type": "lean_library",
+            "path": f"Library/Candidate{index}.lean",
+            "line": index,
+            "kind": "theorem",
+            "name": name,
+            "signature": f"theorem {name.rsplit('.', 1)[-1]} : True",
+            "declaration_doc": "A bounded source-authored intent description.",
+            "section_summary": "Section prose omitted from the prover packet.",
+            "candidate_proof_body": "by exact hiddenProof",
+            "declaration_source_context": common_context,
+        }
+        for index, name in enumerate(
+            (
+                "Library.bestCandidate",
+                "Library.secondCandidate",
+                "Library.thirdCandidate",
+            ),
+            start=1,
+        )
+    ]
+
+    compact = compact_formal_source_grounding_hits_for_prompt(
+        [
+            {
+                "query_role": "initial_formalization_context",
+                "query_fingerprint": "s" * 64,
+                "source_scope_ids": ["fixture_library"],
+                "hits": hits,
+            }
+        ]
+    )
+    encoded = json.dumps(compact, separators=(",", ":"), ensure_ascii=False)
+
+    assert [row["name"] for row in compact[0]["hits"]] == [
+        "Library.bestCandidate",
+        "Library.secondCandidate",
+    ]
+    assert all("signature" in row for row in compact[0]["hits"])
+    assert compact[0]["source_scope_ids"] == ["fixture_library"]
+    assert "thirdCandidate" not in encoded
+    assert "hiddenProof" not in encoded
+    assert "Section prose" not in encoded
+    assert "Broad repeated module prose" not in encoded
+    assert "nearbyHelper" not in encoded
+    assert len(encoded) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS
 
 
 def test_formal_source_repair_prompt_keeps_signatures_not_library_prose() -> None:
