@@ -10,7 +10,7 @@ from .fingerprint import stable_hash
 from .formal_source_index import FormalSourceHit, build_formal_source_search_backend
 
 
-FORMAL_SOURCE_RETRIEVAL_BENCHMARK_SCHEMA_VERSION = 6
+FORMAL_SOURCE_RETRIEVAL_BENCHMARK_SCHEMA_VERSION = 7
 
 
 @dataclass(frozen=True)
@@ -196,6 +196,19 @@ EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK: tuple[
         rationale=(
             "the concentration layer should be accessible without source citation "
             "or exact Lean syntax"
+        ),
+    ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="slt_source_authored_dudley_core_outline",
+        query=(
+            "telescope a finite dyadic net into a base term and successive "
+            "increments to bound the expected supremum"
+        ),
+        expected_name_fragments=("dudley_chaining_bound_core",),
+        expected_source_ids=("lean_stat_learning_theory",),
+        rationale=(
+            "source-authored declaration docs should retrieve the reusable proof "
+            "architecture without exposing the candidate proof body"
         ),
     ),
     FormalSourceRetrievalBenchmarkCase(
@@ -797,6 +810,10 @@ def _hit_payload(hit: FormalSourceHit, *, rank: int) -> dict[str, object]:
         "reference": decl.reference,
         "reference_aliases": decl.reference_aliases,
         "module_summary": decl.module_summary,
+        "declaration_doc": decl.declaration_doc,
+        "section_summary": decl.section_summary,
+        "module_group": decl.module_group,
+        "module_group_summary": decl.module_group_summary,
         "score": hit.score,
         "matched_terms": hit.matched_terms,
         "binder_count": decl.binder_count,

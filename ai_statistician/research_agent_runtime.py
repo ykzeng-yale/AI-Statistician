@@ -105733,6 +105733,10 @@ def _formal_source_hit_to_json(
         "reference": declaration.reference,
         "reference_aliases": list(declaration.reference_aliases),
         "module_summary": declaration.module_summary,
+        "declaration_doc": declaration.declaration_doc,
+        "section_summary": declaration.section_summary,
+        "module_group": declaration.module_group,
+        "module_group_summary": declaration.module_group_summary,
         "score": round(hit.score, 4),
         "matched_terms": list(hit.matched_terms),
     }

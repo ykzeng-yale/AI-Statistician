@@ -10,8 +10,10 @@ from .research_schema import OpenResearchQuestion
 FORMAL_SOURCE_OUTLINE_PROMPT_POLICY = (
     "Bounded direct statement/proof premise signatures first, then at most a small "
     "same-file prior-declaration fallback; downstream declarations and proof bodies "
-    "are omitted. A bounded source-authored module summary and citation aliases may "
-    "describe library organization but never replace the declaration signature. "
+    "are omitted. Bounded source-authored declaration docs, section/module summaries, "
+    "README module taxonomy, local naming examples, and citation aliases may describe "
+    "mathematical intent and library organization but never replace the declaration "
+    "signature or active proof state. "
     "Qualified declaration identity and active import visibility govern reuse; "
     "declaration-name patterns and source citations are retrieval hints, not semantic "
     "or proof authority. Retrieved declarations remain candidate context "
@@ -73,6 +75,18 @@ def _compact_formal_source_hit_for_prompt(
     signature = str(hit.get("signature", "") or "")
     if signature:
         payload["signature"] = _head_tail_text(signature, 425)
+    declaration_doc = str(hit.get("declaration_doc", "") or "")
+    if declaration_doc:
+        payload["declaration_doc"] = _head_tail_text(
+            declaration_doc,
+            440,
+        )
+    section_summary = str(hit.get("section_summary", "") or "")
+    if section_summary:
+        payload["section_summary"] = _head_tail_text(
+            section_summary,
+            220,
+        )
     aliases = [
         str(item)[:260]
         for item in list(hit.get("reference_aliases", []) or [])[:1]
@@ -143,6 +157,20 @@ def _compact_declaration_source_context_for_prompt(
             str(context.get("module_summary", "") or ""),
             320,
         ),
+        "module_group": str(context.get("module_group", "") or "")[:120],
+        "module_group_summary": _head_tail_text(
+            str(context.get("module_group_summary", "") or ""),
+            240,
+        ),
+        "local_naming_examples": [
+            {
+                "kind": str(row.get("kind", "") or "")[:40],
+                "name": str(row.get("name", "") or "")[:240],
+            }
+            for row in list(context.get("local_naming_examples", []) or [])[:4]
+            if isinstance(row, Mapping)
+            and str(row.get("name", "") or "").strip()
+        ],
         "module_ancestry": [
             str(item)[:180]
             for item in list(dependency.get("module_ancestry", []) or [])[:5]
@@ -206,6 +234,28 @@ def _fit_formal_source_prompt_projection(group: dict[str, Any]) -> None:
     if _prompt_json_chars([group]) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
         return
     context.pop("module_ancestry", None)
+    if _prompt_json_chars([group]) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
+        return
+    context.pop("local_naming_examples", None)
+    if _prompt_json_chars([group]) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
+        return
+    hit.pop("section_summary", None)
+    if _prompt_json_chars([group]) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
+        return
+    context.pop("module_group_summary", None)
+    if _prompt_json_chars([group]) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
+        return
+    if hit.get("declaration_doc"):
+        hit["declaration_doc"] = _head_tail_text(
+            str(hit["declaration_doc"]),
+            220,
+        )
+    if _prompt_json_chars([group]) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
+        return
+    context["module_summary"] = _head_tail_text(
+        str(context.get("module_summary", "")),
+        160,
+    )
 
 
 def _prompt_json_chars(value: Any) -> int:
@@ -469,6 +519,26 @@ def formal_source_context_for_hit(
             str(getattr(row, "name", "") or ""),
         )
     )
+    local_naming_rows = sorted(
+        prior_same_file,
+        key=lambda row: (
+            (
+                target_line - int(getattr(row, "line", 0) or 0)
+                if target_line > 0
+                else int(getattr(row, "line", 0) or 0)
+            ),
+            str(getattr(row, "name", "") or ""),
+        ),
+    )[:4]
+    local_naming_examples = [
+        {
+            "kind": str(getattr(row, "kind", "") or ""),
+            "name": str(getattr(row, "name", "") or ""),
+            "namespace": str(getattr(row, "namespace", "") or ""),
+        }
+        for row in local_naming_rows
+        if str(getattr(row, "name", "") or "").strip()
+    ]
     outline_rows: list[dict[str, Any]] = []
     outline_chars = 0
     for row in same_file:
@@ -499,7 +569,16 @@ def formal_source_context_for_hit(
         outline_chars += len(signature)
     outline_rows.sort(key=lambda row: (int(row["line"]), str(row["name"])))
 
-    if not premise_outline_rows and not outline_rows and not dependency_context:
+    if not any(
+        (
+            premise_outline_rows,
+            outline_rows,
+            dependency_context,
+            getattr(declaration, "declaration_doc", ""),
+            getattr(declaration, "section_summary", ""),
+            getattr(declaration, "module_group", ""),
+        )
+    ):
         return {}
     module = str(dependency_context.get("module", "") or "").strip()
     if not module:
@@ -509,10 +588,17 @@ def formal_source_context_for_hit(
         "module_summary": str(
             getattr(declaration, "module_summary", "") or ""
         )[:800],
+        "module_group": str(
+            getattr(declaration, "module_group", "") or ""
+        )[:240],
+        "module_group_summary": str(
+            getattr(declaration, "module_group_summary", "") or ""
+        )[:800],
         "path": path,
         "imports": imports[:12],
         "premise_declaration_outlines": premise_outline_rows,
         "nearby_declaration_outlines": outline_rows,
+        "local_naming_examples": local_naming_examples,
         "n_same_file_declarations": len(all_same_file),
         "n_prior_same_file_declarations": len(prior_same_file),
         "n_direct_premise_declaration_outlines": len(

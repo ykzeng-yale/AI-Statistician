@@ -2410,8 +2410,17 @@ Wainwright, and Boucheron-Lugosi-Massart searchable without encoding book-specif
 runtime rules. Source-derived reference aliases are built from those same
 documents: explicit abbreviations are expanded, and unambiguous author/year
 rows are joined to their full bibliography titles. Bounded leading Lean module
-documentation provides the mathematical layer summary. Retrieval emits
-qualified name, namespace, module,
+documentation provides the file-level mathematical summary. Source-authored
+declaration docs and the active section summary add proof architecture and
+mathematical intent without exposing the declaration's proof body. Generic
+README tables whose columns describe a layer/group/category and its
+modules/files/paths are bound to declarations by longest module-path prefix.
+This recovers AI4SLT's eight library layers without a book- or theorem-specific
+registry. Nearby prior declarations contribute bounded `kind`/qualified-name
+examples so the Formalizer can follow the source's semantic naming style. These
+descriptive fields are scored below exact names, signatures, and current
+proof-state evidence; a term repeated across descriptive fields is credited
+only once at its strongest tier. Retrieval emits qualified name, namespace, module,
 imports, reference metadata, and a dependency-first outline: direct statement
 dependencies, then direct proof dependencies, then at most a small same-file
 prior-declaration fallback. Downstream declarations and proof bodies are omitted.
@@ -2440,10 +2449,13 @@ artifact to the first target-bound hit with qualified identity, citation,
 module/snapshot provenance, all bounded premise names, and representative
 statement/proof signatures; secondary hits remain available for a later query
 after new Lean feedback instead of consuming first-turn context. This follows
-AI4SLT's structured-specification discipline:
-exact target and mathematical meaning, local declaration pointers, a semantic
-support-dependency plan when decomposition is needed (empty for a direct proof),
-and explicit boundaries. Each failed Lean/LSP attempt must evolve
+AI4SLT's structured-specification discipline: exact target and mathematical
+meaning, qualified local infrastructure pointers, a formalization-oriented
+support/lemma plan when decomposition is needed (empty for a direct proof), and
+explicit scope, evidence, and success boundaries. Source docs, section
+summaries, module taxonomy, and local naming examples are bounded specification
+aids; only the target signature and active Lean state are authoritative. Each
+failed Lean/LSP attempt must evolve
 that specification using the new diagnostic, dependency, semantic, or
 proof-state evidence; an unchanged retry is not a repair. Persistent failure
 routes back to independent target-fidelity and counterexample review before any
@@ -2559,17 +2571,23 @@ unchanged retrieval on the next repair turn; a changed goal/diagnostic refreshes
 the packet, and a no-hit refresh removes stale transitions.
 
 This layer follows the upstream large-formalization organization instead of
-inventing theorem-number names or flat proof snippets. Mathematical layers and
-Lean namespaces remain primary (`CoveringNumber`, `MetricEntropy`, `Chaining`,
-`Dudley`, `GaussianLSI`, and `LeastSquares`); textbook references remain
-separate citation metadata. The current source-derived declaration/citation
-audit covers all 47 README-bound declarations and 39 unambiguous aliases. The
-three-book families include 19 Vershynin, 7 Wainwright, and 11
-Boucheron-Lugosi-Massart citation queries, all recovered at top 8. The combined
-22-case semantic benchmark passes 22/22: 19 declarations resolve directly and
-3 resolve after global corpus discovery followed by source-scoped search. The
-Novel training traces directly contain only four of those 22 major-result
-declarations, with at least one from each book family;
+inventing theorem-number names or flat proof snippets. The current source index
+contains 2,010 AI4SLT declarations: 1,501 have source-authored declaration docs,
+1,334 inherit an active section summary, and 1,996 bind to one of the eight
+README-defined library layers. Mathematical layers and Lean namespaces remain
+primary (`CoveringNumber`, `MetricEntropy`, `Chaining`, `Dudley`, `GaussianLSI`,
+and `LeastSquares`); textbook references remain separate citation metadata. The
+current source-derived declaration/citation audit covers all 47 README-bound
+declarations and 39 unambiguous aliases. The three-book families include 19
+Vershynin, 7 Wainwright, and 11
+Boucheron-Lugosi-Massart citation queries, all recovered at top 8; the other ten
+README crosswalk rows also recover at top 8. The combined 23-case semantic
+benchmark passes 23/23: 19 declarations resolve directly and 4 resolve after
+global corpus discovery followed by source-scoped search. Its source-authored
+Dudley outline query ranks `dudley_chaining_bound_core` second globally and first
+inside AI4SLT, demonstrating that proof-plan prose is searchable without loading
+the proof body. The Novel training traces directly contain only four of those
+23 major-result declarations, with at least one from each book family;
 the rest of the action traces may occur in the upstream validation/test splits.
 Those splits are deliberately excluded to avoid turning held-out proofs into
 retrieval answers. The train split still supplies reusable state-action examples

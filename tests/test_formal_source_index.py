@@ -284,6 +284,98 @@ def test_source_bibliography_titles_join_three_book_reference_rows(
     assert crosswalk["reference_alias_crosswalk"]["all_ok"] is True
 
 
+def test_source_docs_sections_and_module_taxonomy_are_searchable_and_persist(
+    tmp_path: Path,
+) -> None:
+    source_root = tmp_path / "SLT"
+    target_dir = source_root / "GaussianLSI"
+    target_dir.mkdir(parents=True)
+    (tmp_path / "README.md").write_text(
+        "| Layer | Modules | What's inside |\n"
+        "|---|---|---|\n"
+        "| Entropy & log-Sobolev | `GaussianLSI/` | Entropy duality, "
+        "tensorization, and Gaussian log-Sobolev inequalities. |\n",
+        encoding="utf-8",
+    )
+    (target_dir / "Tensorization.lean").write_text(
+        "/-!\n"
+        "# Entropy Tensorization\n"
+        "Reusable entropy infrastructure.\n"
+        "\n"
+        "theorem fakeDeclarationInsideModuleDoc : False := by trivial\n"
+        "-/\n"
+        "namespace LogSobolev\n"
+        "/-- Universal coordinate-resampling transfer used by Fubini and tower "
+        "arguments. -/\n"
+        "lemma coordinateResamplingTransfer : True := by trivial\n"
+        "set_option pp.universes true in /- outer comment\n"
+        "  /- nested comment -/\n"
+        "  theorem fakeNestedCommentDeclaration : False := by trivial\n"
+        "-/\n"
+        "/-!\n"
+        "## Tensorization bridge\n"
+        "Move from one-coordinate entropy control to a product measure.\n"
+        "-/\n"
+        "/-- Close the product-space inequality by summing conditional entropy "
+        "terms. -/\n"
+        "theorem entropyTensorization : True := by trivial\n"
+        "end LogSobolev\n",
+        encoding="utf-8",
+    )
+
+    declarations = build_formal_source_index(
+        roots=(FormalSourceRoot("fixture_taxonomy", str(source_root)),)
+    )
+    by_name = {row.name: row for row in declarations}
+
+    assert "fakeDeclarationInsideModuleDoc" not in by_name
+    assert "LogSobolev.fakeNestedCommentDeclaration" not in by_name
+    transfer = by_name["LogSobolev.coordinateResamplingTransfer"]
+    tensorization = by_name["LogSobolev.entropyTensorization"]
+    assert transfer.declaration_doc == (
+        "Universal coordinate-resampling transfer used by Fubini and tower "
+        "arguments."
+    )
+    assert transfer.section_summary == ""
+    assert tensorization.declaration_doc == (
+        "Close the product-space inequality by summing conditional entropy terms."
+    )
+    assert tensorization.section_summary == (
+        "Tensorization bridge Move from one-coordinate entropy control to a "
+        "product measure."
+    )
+    assert tensorization.module_group == "Entropy & log-Sobolev"
+    assert tensorization.module_group_summary == (
+        "Entropy duality, tensorization, and Gaussian log-Sobolev inequalities."
+    )
+
+    retriever = FormalSourceRetriever(declarations)
+    doc_hits = retriever.search(
+        "product-space inequality conditional entropy terms",
+        k=3,
+    )
+    assert doc_hits[0].declaration.name == "LogSobolev.entropyTensorization"
+    section_hits = retriever.search(
+        "one-coordinate entropy control product measure",
+        k=3,
+    )
+    assert section_hits[0].declaration.name == "LogSobolev.entropyTensorization"
+
+    sqlite_index = FormalSourceSqliteIndex.build(
+        declarations,
+        tmp_path / "formal_source.sqlite",
+    )
+    assert sqlite_index.is_healthy()
+    persisted = sqlite_index.search(
+        "product-space inequality conditional entropy terms",
+        k=1,
+    )[0].declaration
+    assert persisted.declaration_doc == tensorization.declaration_doc
+    assert persisted.section_summary == tensorization.section_summary
+    assert persisted.module_group == tensorization.module_group
+    assert persisted.module_group_summary == tensorization.module_group_summary
+
+
 def test_module_summary_is_a_shared_low_weight_semantic_hint(
     monkeypatch,
 ) -> None:
@@ -341,6 +433,38 @@ def test_module_summary_is_a_shared_low_weight_semantic_hint(
     assert hits[0].declaration.name == (
         "MeasureTheory.projectiveFamilyContent"
     )
+
+
+def test_repeated_source_metadata_does_not_multiply_retrieval_score() -> None:
+    doc_only = FormalDeclaration(
+        source_id="fixture",
+        source_type="lean_library",
+        path="DocOnly.lean",
+        line=1,
+        kind="theorem",
+        name="Fixture.docOnly",
+        namespace="Fixture",
+        signature="theorem docOnly : True",
+        declaration_doc="entropy tensorization",
+    )
+    repeated = replace(
+        doc_only,
+        path="Repeated.lean",
+        name="Fixture.repeated",
+        signature="theorem repeated : True",
+        module_summary="entropy tensorization",
+        section_summary="entropy tensorization",
+        module_group="entropy tensorization",
+        module_group_summary="entropy tensorization",
+    )
+
+    hits = FormalSourceRetriever([doc_only, repeated]).search(
+        "entropy tensorization",
+        k=2,
+    )
+
+    scores = {hit.declaration.name: hit.score for hit in hits}
+    assert scores["Fixture.docOnly"] == scores["Fixture.repeated"]
 
 
 def test_sqlite_hybrid_builds_python_fallback_only_after_database_failure(
@@ -874,6 +998,14 @@ def test_formal_source_hit_context_keeps_outline_and_nonproof_boundary() -> None
         module_summary=(
             "Master error bound for localized least-squares regression."
         ),
+        declaration_doc=(
+            "Convert a localized Gaussian complexity bound into prediction error."
+        ),
+        section_summary="Localized least-squares master theorem.",
+        module_group="Least squares",
+        module_group_summary=(
+            "Localized least-squares framework and sharp regression rates."
+        ),
     )
     payload = _formal_source_hit_to_json(
         FormalSourceHit(declaration, 9.0, ("wainwright", "13.5"))
@@ -890,6 +1022,16 @@ def test_formal_source_hit_context_keeps_outline_and_nonproof_boundary() -> None
     ]
     assert payload["module_summary"] == (
         "Master error bound for localized least-squares regression."
+    )
+    assert payload["declaration_doc"] == (
+        "Convert a localized Gaussian complexity bound into prediction error."
+    )
+    assert payload["section_summary"] == (
+        "Localized least-squares master theorem."
+    )
+    assert payload["module_group"] == "Least squares"
+    assert payload["module_group_summary"] == (
+        "Localized least-squares framework and sharp regression rates."
     )
     assert "kernel_verified" not in payload
 
@@ -908,6 +1050,10 @@ def test_formal_source_hit_context_adds_bounded_outline_and_dependency_neighbors
             imports=("SLT.LeastSquares.Localization", "SLT.GaussianLipConcen"),
             module_summary=(
                 "Master error bound for localized least-squares regression."
+            ),
+            module_group="Least squares",
+            module_group_summary=(
+                "Localized least-squares framework and sharp regression rates."
             ),
         )
         for line, kind, name, signature in (
@@ -974,6 +1120,10 @@ def test_formal_source_hit_context_adds_bounded_outline_and_dependency_neighbors
         "SLT.LeastSquares.Localization",
         "SLT.GaussianLipConcen",
     ]
+    assert context["module_group"] == "Least squares"
+    assert context["module_group_summary"] == (
+        "Localized least-squares framework and sharp regression rates."
+    )
     assert [
         row["name"]
         for row in context["premise_declaration_outlines"]
@@ -982,6 +1132,10 @@ def test_formal_source_hit_context_adds_bounded_outline_and_dependency_neighbors
     ]
     assert [row["name"] for row in context["nearby_declaration_outlines"]] == [
         "LeastSquares.goodEvent",
+    ]
+    assert [row["name"] for row in context["local_naming_examples"]] == [
+        "LeastSquares.goodEvent",
+        "LeastSquares.bad_event_probability_bound",
     ]
     assert context["n_same_file_declarations"] == 4
     assert context["n_prior_same_file_declarations"] == 2
@@ -1075,10 +1229,21 @@ def test_formal_source_prompt_payload_omits_full_candidate_proof_body() -> None:
 
 def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     contract = formalizer_proof_construction_strategy_contract()
-    assert contract["schema_version"] == 6
+    assert contract["schema_version"] == 7
     assert "smallest diagnostic" in contract["repair_cycle"]
     assert "faithful natural-language statement" in contract["specification"]
+    assert "four-part structured specification" in contract[
+        "specification"
+    ].lower()
+    assert "qualified infrastructure pointers" in contract["specification"]
+    assert "formalization-oriented lemma/proof plan" in contract[
+        "specification"
+    ]
+    assert "hard evidence" in contract["specification"]
     assert "source-local namespace/module role" in contract["context_policy"]
+    assert "source-authored declaration docs" in contract["context_policy"]
+    assert "README module taxonomy" in contract["context_policy"]
+    assert "local naming examples" in contract["context_policy"]
     assert "direct premise outlines first" in contract["context_policy"]
     assert "bounded prior fallback" in contract["context_policy"]
     assert "no source files or proof bodies" in contract["context_policy"]
@@ -1103,6 +1268,9 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
         "persistent_failure_route"
     ]
     assert "counterexamples" in contract["persistent_failure_route"]
+    assert "evolve the specification" in contract[
+        "persistent_failure_route"
+    ]
     assert "quantifiers" in contract["persistent_failure_route"]
     assert "exact active-project artifact" in contract["post_compile_hygiene"]
     assert "lowest reusable mathematical layer" in contract["library_design"]
@@ -1139,6 +1307,8 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     assert "stable semantic Lean names" in prompt
     assert "do not silently invent" in prompt
     assert "exact compatible imported declaration" in prompt
+    assert "four-part structured specification" in prompt.lower()
+    assert "source-authored declaration docs" in prompt
 
 
 def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() -> None:
@@ -1171,6 +1341,11 @@ def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() ->
                     "name": "Library.target_bound",
                     "namespace": "Library",
                     "signature": long_signature,
+                    "declaration_doc": (
+                        "Reduce the target to one reusable local concentration lemma "
+                        "and close with the imported comparison theorem."
+                    ),
+                    "section_summary": "Final localized comparison theorem.",
                     "imports": ["Library.Foundation", "Library.Reduction"],
                     "reference": "Source (2026), Theorem 1",
                     "reference_aliases": ["Source Book Full Title Theorem 1"],
@@ -1179,6 +1354,21 @@ def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() ->
                         "module_summary": (
                             "Target theorem for the reusable Library reduction layer."
                         ),
+                        "module_group": "Localized applications",
+                        "module_group_summary": (
+                            "Application theorems built from reusable concentration "
+                            "and capacity layers."
+                        ),
+                        "local_naming_examples": [
+                            {
+                                "kind": "lemma",
+                                "name": "Library.target_local_reduction",
+                            },
+                            {
+                                "kind": "theorem",
+                                "name": "Library.target_comparison_bound",
+                            },
+                        ],
                         "imports": ["Library.Foundation", "Library.Reduction"],
                         "premise_declaration_outlines": premise_rows,
                         "dependency_context": {
@@ -1212,9 +1402,18 @@ def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() ->
     assert len(encoded) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS
     assert target["name"] == "Library.target_bound"
     assert target["namespace"] == "Library"
+    assert "reusable local concentration lemma" in target[
+        "declaration_doc"
+    ]
+    assert "localized comparison" in target["section_summary"]
     assert "Source Book Full Title" in target["reference_aliases"][0]
     assert context["module"] == "Library.Target"
     assert "reusable Library reduction layer" in context["module_summary"]
+    assert context["module_group"] == "Localized applications"
+    assert "capacity layers" in context["module_group_summary"]
+    assert context["local_naming_examples"][0]["name"] == (
+        "Library.target_local_reduction"
+    )
     assert context["module_ancestry"] == ["Library", "Library.Target"]
     assert context["source_snapshot"]["status"] == "BOUND_MATCH"
     assert "Library.KeyReduction" in context["premise_names"]

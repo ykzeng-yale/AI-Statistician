@@ -109,15 +109,18 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
     """Context-efficient, feedback-driven policy for Lean proof construction."""
 
     return {
-        "schema_version": 6,
+        "schema_version": 7,
         "specification": (
-            "Exact Lean target; faithful natural-language statement and assumptions; "
-            "never weaken."
+            "Four-part structured specification: exact Lean target plus faithful "
+            "natural-language statement and assumptions; qualified infrastructure "
+            "pointers; a formalization-oriented lemma/proof plan; and hard evidence, "
+            "scope, and success boundaries. Never weaken."
         ),
         "context_policy": (
             "Target-bound qualified names/signatures/imports; source-local "
-            "namespace/module role; direct premise outlines first; bounded prior "
-            "fallback; no source files or proof bodies."
+            "namespace/module role; bounded source-authored declaration docs, section "
+            "and README module taxonomy, and local naming examples; direct premise "
+            "outlines first; bounded prior fallback; no source files or proof bodies."
         ),
         "assumption_audit": (
             "Audit domain, measurability, integrability, finiteness, nonemptiness, "
@@ -146,7 +149,8 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
         ),
         "persistent_failure_route": (
             "Independently recheck target fidelity, quantifiers, domains, assumptions, "
-            "inequalities, and counterexamples; never weaken."
+            "inequalities, and counterexamples; evolve the specification from the new "
+            "evidence instead of repeating it; never weaken."
         ),
         "post_compile_hygiene": (
             "Remove warnings/dead facts; rerun the exact active-project artifact."

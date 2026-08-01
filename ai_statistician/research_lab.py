@@ -9558,6 +9558,10 @@ def _formal_source_hit_payload(hit: FormalSourceHit) -> dict[str, Any]:
         "reference": decl.reference,
         "reference_aliases": list(decl.reference_aliases),
         "module_summary": decl.module_summary,
+        "declaration_doc": decl.declaration_doc,
+        "section_summary": decl.section_summary,
+        "module_group": decl.module_group,
+        "module_group_summary": decl.module_group_summary,
         "score": round(hit.score, 4),
         "matched_terms": list(hit.matched_terms),
     }

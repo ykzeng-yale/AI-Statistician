@@ -270,6 +270,10 @@ def _source_hit_payload(hit: FormalSourceHit) -> dict[str, object]:
         "signature": decl.signature[:500],
         "imports": decl.imports,
         "reference": decl.reference,
+        "declaration_doc": decl.declaration_doc,
+        "section_summary": decl.section_summary,
+        "module_group": decl.module_group,
+        "module_group_summary": decl.module_group_summary,
     }
 
 

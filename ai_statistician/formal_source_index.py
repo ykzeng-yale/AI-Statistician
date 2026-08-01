@@ -82,7 +82,10 @@ STOP_TOKENS = {
 _EMPTY_SEARCH_TOKENS: frozenset[str] = frozenset()
 MAX_SQLITE_FTS_QUERY_TOKENS = 24
 MODULE_SUMMARY_TOKEN_WEIGHT = 0.25
-FORMAL_SOURCE_SQLITE_SCHEMA_VERSION = "2"
+DECLARATION_DOC_TOKEN_WEIGHT = 1.0
+SECTION_SUMMARY_TOKEN_WEIGHT = 0.5
+MODULE_GROUP_TOKEN_WEIGHT = 0.25
+FORMAL_SOURCE_SQLITE_SCHEMA_VERSION = "3"
 SKIPPED_PATH_PARTS = {
     ".git",
     ".lake",
@@ -148,6 +151,17 @@ class FormalDeclaration:
     reference: str = ""
     reference_aliases: tuple[str, ...] = ()
     module_summary: str = ""
+    declaration_doc: str = ""
+    section_summary: str = ""
+    module_group: str = ""
+    module_group_summary: str = ""
+
+
+@dataclass(frozen=True)
+class _FormalModuleGroup:
+    name: str
+    module_patterns: tuple[str, ...]
+    summary: str = ""
 
 
 @dataclass(frozen=True)
@@ -162,29 +176,35 @@ class FormalSourceRetriever:
 
     def __init__(self, declarations: list[FormalDeclaration] | None = None) -> None:
         self.declarations = declarations if declarations is not None else build_formal_source_index()
-        module_tokens_by_file: dict[
-            tuple[str, str, str], frozenset[str]
-        ] = {}
+        semantic_tokens_by_text: dict[str, frozenset[str]] = {}
+
+        def cached_tokens(value: str) -> frozenset[str]:
+            if not value:
+                return _EMPTY_SEARCH_TOKENS
+            tokens = semantic_tokens_by_text.get(value)
+            if tokens is None:
+                tokens = frozenset(_search_tokens(value))
+                semantic_tokens_by_text[value] = tokens
+            return tokens
+
         self._rows = []
         for decl in self.declarations:
-            module_key = (
-                decl.source_id,
-                decl.path,
-                decl.module_summary,
-            )
-            module_tokens = module_tokens_by_file.get(module_key)
-            if module_tokens is None:
-                module_tokens = frozenset(
-                    _search_tokens(decl.module_summary)
-                    if decl.module_summary
-                    else _EMPTY_SEARCH_TOKENS
+            module_group_text = " ".join(
+                value
+                for value in (
+                    decl.module_group,
+                    decl.module_group_summary,
                 )
-                module_tokens_by_file[module_key] = module_tokens
+                if value
+            )
             self._rows.append(
                 (
                     decl,
                     _search_tokens(_decl_core_search_text(decl)),
-                    module_tokens,
+                    cached_tokens(decl.module_summary),
+                    cached_tokens(decl.declaration_doc),
+                    cached_tokens(decl.section_summary),
+                    cached_tokens(module_group_text),
                     _search_tokens(decl.name),
                     _search_tokens(
                         " ".join(
@@ -237,6 +257,9 @@ class FormalSourceRetriever:
             decl,
             d_tokens,
             module_tokens,
+            declaration_doc_tokens,
+            section_summary_tokens,
+            module_group_tokens,
             name_tokens,
             shape_tokens,
             import_tokens,
@@ -250,6 +273,9 @@ class FormalSourceRetriever:
                 query_text=query,
                 declaration_tokens=d_tokens,
                 module_summary_tokens=module_tokens,
+                declaration_doc_tokens=declaration_doc_tokens,
+                section_summary_tokens=section_summary_tokens,
+                module_group_tokens=module_group_tokens,
                 name_tokens=name_tokens,
                 shape_tokens=shape_tokens,
                 import_tokens=import_tokens,
@@ -331,10 +357,18 @@ class FormalSourceSqliteIndex:
                     "reference",
                     "reference_aliases",
                     "module_summary",
+                    "declaration_doc",
+                    "section_summary",
+                    "module_group",
+                    "module_group_summary",
                 }.issubset(declaration_columns) or not {
                     "reference",
                     "reference_aliases",
                     "module_summary",
+                    "declaration_doc",
+                    "section_summary",
+                    "module_group",
+                    "module_group_summary",
                 }.issubset(fts_columns):
                     return False
                 schema_row = conn.execute(
@@ -387,7 +421,11 @@ class FormalSourceSqliteIndex:
                     imports TEXT NOT NULL,
                     reference TEXT NOT NULL,
                     reference_aliases TEXT NOT NULL,
-                    module_summary TEXT NOT NULL
+                    module_summary TEXT NOT NULL,
+                    declaration_doc TEXT NOT NULL,
+                    section_summary TEXT NOT NULL,
+                    module_group TEXT NOT NULL,
+                    module_group_summary TEXT NOT NULL
                 )
                 """
             )
@@ -403,14 +441,18 @@ class FormalSourceSqliteIndex:
                     imports,
                     reference,
                     reference_aliases,
-                    module_summary
+                    module_summary,
+                    declaration_doc,
+                    section_summary,
+                    module_group,
+                    module_group_summary
                 )
                 """
             )
             for idx, decl in enumerate(declarations, start=1):
                 conn.execute(
                     """
-                    INSERT INTO declarations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO declarations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         idx,
@@ -432,14 +474,20 @@ class FormalSourceSqliteIndex:
                         decl.reference,
                         json.dumps(decl.reference_aliases),
                         decl.module_summary,
+                        decl.declaration_doc,
+                        decl.section_summary,
+                        decl.module_group,
+                        decl.module_group_summary,
                     ),
                 )
                 conn.execute(
                     """
                     INSERT INTO declarations_fts (
                         decl_id, name, signature, shape, path, source_id, imports,
-                        reference, reference_aliases, module_summary
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        reference, reference_aliases, module_summary,
+                        declaration_doc, section_summary, module_group,
+                        module_group_summary
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         idx,
@@ -462,6 +510,10 @@ class FormalSourceSqliteIndex:
                         _fts_text(decl.reference),
                         _fts_text(" ".join(decl.reference_aliases)),
                         _fts_text(decl.module_summary),
+                        _fts_text(decl.declaration_doc),
+                        _fts_text(decl.section_summary),
+                        _fts_text(decl.module_group),
+                        _fts_text(decl.module_group_summary),
                     ),
                 )
             conn.execute("CREATE INDEX declarations_name_idx ON declarations(name)")
@@ -478,6 +530,11 @@ class FormalSourceSqliteIndex:
                             "signature": declaration.signature,
                             "reference": declaration.reference,
                             "reference_aliases": declaration.reference_aliases,
+                            "module_summary": declaration.module_summary,
+                            "declaration_doc": declaration.declaration_doc,
+                            "section_summary": declaration.section_summary,
+                            "module_group": declaration.module_group,
+                            "module_group_summary": declaration.module_group_summary,
                         }
                         for declaration in declarations
                     ]
@@ -679,6 +736,7 @@ def build_formal_source_index(
         seen_roots.add(resolved)
         declaration_references = _declaration_references_from_markdown(location)
         reference_aliases = _reference_aliases_from_markdown(location)
+        module_groups = _module_groups_from_markdown(location)
         root_rows: list[FormalDeclaration] = []
         for path in _iter_formal_source_files(
             root,
@@ -687,11 +745,15 @@ def build_formal_source_index(
             max_files=max_files_per_root,
         ):
             root_rows.extend(_declarations_in_file(root, path, location))
+        referenced_rows = _bind_declaration_references(
+            root_rows,
+            declaration_references,
+            reference_aliases=reference_aliases,
+        )
         rows.extend(
-            _bind_declaration_references(
-                root_rows,
-                declaration_references,
-                reference_aliases=reference_aliases,
+            _bind_module_groups(
+                referenced_rows,
+                module_groups,
             )
         )
     return rows
@@ -1298,9 +1360,14 @@ def audit_formal_source_index(
     declarations = build_formal_source_index(roots=roots)
     by_source: dict[str, int] = {}
     by_kind: dict[str, int] = {}
+    by_module_group: dict[str, int] = {}
     for decl in declarations:
         by_source[decl.source_id] = by_source.get(decl.source_id, 0) + 1
         by_kind[decl.kind] = by_kind.get(decl.kind, 0) + 1
+        if decl.module_group:
+            by_module_group[decl.module_group] = (
+                by_module_group.get(decl.module_group, 0) + 1
+            )
     db_path = out_dir / "formal_source_index.sqlite" if out_dir is not None else None
     if backend == "sqlite" and db_path is not None:
         retriever = FormalSourceSqliteIndex.build(
@@ -1331,6 +1398,16 @@ def audit_formal_source_index(
         "n_declarations": len(declarations),
         "by_source": dict(sorted(by_source.items())),
         "by_kind": dict(sorted(by_kind.items())),
+        "by_module_group": dict(sorted(by_module_group.items())),
+        "n_declarations_with_docs": sum(
+            1 for decl in declarations if decl.declaration_doc
+        ),
+        "n_declarations_with_section_summaries": sum(
+            1 for decl in declarations if decl.section_summary
+        ),
+        "n_declarations_with_module_groups": sum(
+            1 for decl in declarations if decl.module_group
+        ),
         "n_queries": len(query_rows),
         "n_query_ok": sum(1 for row in query_rows if row["ok"]),
         "all_queries_ok": all(row["ok"] for row in query_rows),
@@ -1368,6 +1445,10 @@ def formal_source_index_fingerprint(declarations: list[FormalDeclaration] | None
             "reference": decl.reference,
             "reference_aliases": decl.reference_aliases,
             "module_summary": decl.module_summary,
+            "declaration_doc": decl.declaration_doc,
+            "section_summary": decl.section_summary,
+            "module_group": decl.module_group,
+            "module_group_summary": decl.module_group_summary,
         }
         for decl in decls
     ]
@@ -1413,6 +1494,9 @@ def _score_declaration(
     query_text: str = "",
     declaration_tokens: set[str] | None = None,
     module_summary_tokens: set[str] | frozenset[str] | None = None,
+    declaration_doc_tokens: set[str] | frozenset[str] | None = None,
+    section_summary_tokens: set[str] | frozenset[str] | None = None,
+    module_group_tokens: set[str] | frozenset[str] | None = None,
     name_tokens: set[str] | None = None,
     shape_tokens: set[str] | None = None,
     import_tokens: set[str] | None = None,
@@ -1430,6 +1514,38 @@ def _score_declaration(
             _search_tokens(decl.module_summary)
             if decl.module_summary
             else _EMPTY_SEARCH_TOKENS
+        )
+    )
+    ddoc_tokens = (
+        declaration_doc_tokens
+        if declaration_doc_tokens is not None
+        else (
+            _search_tokens(decl.declaration_doc)
+            if decl.declaration_doc
+            else _EMPTY_SEARCH_TOKENS
+        )
+    )
+    section_tokens = (
+        section_summary_tokens
+        if section_summary_tokens is not None
+        else (
+            _search_tokens(decl.section_summary)
+            if decl.section_summary
+            else _EMPTY_SEARCH_TOKENS
+        )
+    )
+    group_tokens = (
+        module_group_tokens
+        if module_group_tokens is not None
+        else _search_tokens(
+            " ".join(
+                value
+                for value in (
+                    decl.module_group,
+                    decl.module_group_summary,
+                )
+                if value
+            )
         )
     )
     n_tokens = name_tokens if name_tokens is not None else _search_tokens(decl.name)
@@ -1452,11 +1568,41 @@ def _score_declaration(
     )
     core_overlap = q_tokens & d_tokens
     module_overlap = q_tokens & m_tokens
+    declaration_doc_overlap = q_tokens & ddoc_tokens
+    section_summary_overlap = q_tokens & section_tokens
+    module_group_overlap = q_tokens & group_tokens
     reference_overlap = q_tokens & r_tokens
-    overlap = core_overlap | module_overlap | reference_overlap
+    overlap = (
+        core_overlap
+        | module_overlap
+        | declaration_doc_overlap
+        | section_summary_overlap
+        | module_group_overlap
+        | reference_overlap
+    )
     if not overlap:
         return None
-    module_only_overlap = module_overlap - core_overlap
+    # Repeated prose across docs, sections, and README taxonomy is corroboration,
+    # not extra lexical evidence. Credit each metadata token at its strongest tier.
+    declaration_doc_only_overlap = declaration_doc_overlap - core_overlap
+    section_summary_only_overlap = (
+        section_summary_overlap
+        - core_overlap
+        - declaration_doc_overlap
+    )
+    module_only_overlap = (
+        module_overlap
+        - core_overlap
+        - declaration_doc_overlap
+        - section_summary_overlap
+    )
+    module_group_only_overlap = (
+        module_group_overlap
+        - core_overlap
+        - declaration_doc_overlap
+        - section_summary_overlap
+        - module_overlap
+    )
     name_bonus = 2.0 * len(q_tokens & n_tokens)
     shape_bonus = 1.5 * len(q_tokens & s_tokens)
     import_bonus = 0.25 * len(q_tokens & i_tokens)
@@ -1466,6 +1612,15 @@ def _score_declaration(
     score = (
         len(core_overlap)
         + MODULE_SUMMARY_TOKEN_WEIGHT * len(module_only_overlap)
+        + DECLARATION_DOC_TOKEN_WEIGHT * len(
+            declaration_doc_only_overlap
+        )
+        + SECTION_SUMMARY_TOKEN_WEIGHT * len(
+            section_summary_only_overlap
+        )
+        + MODULE_GROUP_TOKEN_WEIGHT * len(
+            module_group_only_overlap
+        )
         + name_bonus
         + shape_bonus
         + import_bonus
@@ -1621,6 +1776,10 @@ def _decl_from_sqlite_row(row) -> FormalDeclaration:
             tuple(json.loads(row[17])) if len(row) > 17 else ()
         ),
         module_summary=str(row[18]) if len(row) > 18 else "",
+        declaration_doc=str(row[19]) if len(row) > 19 else "",
+        section_summary=str(row[20]) if len(row) > 20 else "",
+        module_group=str(row[21]) if len(row) > 21 else "",
+        module_group_summary=str(row[22]) if len(row) > 22 else "",
     )
 
 
@@ -1864,6 +2023,154 @@ def _reference_aliases_from_markdown(root: Path) -> dict[str, str]:
     return aliases
 
 
+def _module_groups_from_markdown(root: Path) -> tuple[_FormalModuleGroup, ...]:
+    """Extract source-authored module layers from README overview tables.
+
+    The parser is intentionally generic: a formal library can call the first
+    column layer, group, or category, and can list files or directory prefixes
+    in the modules column. These rows describe organization only; they never
+    authorize a declaration or proof.
+    """
+
+    groups: list[_FormalModuleGroup] = []
+    seen: set[tuple[str, tuple[str, ...], str]] = set()
+    for path in _source_readme_paths(root):
+        try:
+            lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except OSError:
+            continue
+        for idx in range(len(lines) - 2):
+            headers = _markdown_table_cells(lines[idx])
+            separator = _markdown_table_cells(lines[idx + 1])
+            if not headers or not _markdown_table_separator(separator, len(headers)):
+                continue
+            normalized_headers = [
+                re.sub(r"[^a-z0-9]+", "", header.lower())
+                for header in headers
+            ]
+            group_index = next(
+                (
+                    pos
+                    for pos, value in enumerate(normalized_headers)
+                    if value in {"layer", "group", "category", "modulegroup"}
+                ),
+                None,
+            )
+            modules_index = next(
+                (
+                    pos
+                    for pos, value in enumerate(normalized_headers)
+                    if value in {"module", "modules", "files", "paths"}
+                ),
+                None,
+            )
+            summary_index = next(
+                (
+                    pos
+                    for pos, value in enumerate(normalized_headers)
+                    if value
+                    in {
+                        "whatsinside",
+                        "description",
+                        "contents",
+                        "role",
+                        "summary",
+                    }
+                ),
+                None,
+            )
+            if group_index is None or modules_index is None:
+                continue
+            row_index = idx + 2
+            while row_index < len(lines):
+                cells = _markdown_table_cells(lines[row_index])
+                if len(cells) != len(headers):
+                    break
+                name = _markdown_cell_text(cells[group_index])
+                patterns = _markdown_module_patterns(cells[modules_index])
+                summary = (
+                    _markdown_cell_text(cells[summary_index])
+                    if summary_index is not None
+                    else ""
+                )
+                key = (name, patterns, summary)
+                if name and patterns and key not in seen:
+                    seen.add(key)
+                    groups.append(
+                        _FormalModuleGroup(
+                            name=name,
+                            module_patterns=patterns,
+                            summary=summary,
+                        )
+                    )
+                row_index += 1
+    return tuple(groups)
+
+
+def _markdown_module_patterns(cell: str) -> tuple[str, ...]:
+    code_values = re.findall(r"`([^`]+)`", cell)
+    raw_values = code_values or re.split(r"[,;]", _markdown_cell_text(cell))
+    patterns = [
+        normalized
+        for value in raw_values
+        if (normalized := _normalize_module_pattern(value))
+    ]
+    return tuple(dict.fromkeys(patterns))
+
+
+def _normalize_module_pattern(value: str) -> str:
+    pattern = str(value or "").strip().replace("\\", "/")
+    pattern = re.sub(r"\s+", "", pattern)
+    if pattern.startswith("SLT."):
+        pattern = pattern.replace(".", "/")
+    pattern = pattern.removeprefix("SLT/")
+    pattern = pattern.removesuffix(".lean")
+    return pattern.strip("` ")
+
+
+def _bind_module_groups(
+    declarations: list[FormalDeclaration],
+    groups: tuple[_FormalModuleGroup, ...],
+) -> list[FormalDeclaration]:
+    if not groups:
+        return declarations
+    bound: list[FormalDeclaration] = []
+    for declaration in declarations:
+        group = _module_group_for_path(declaration.path, groups)
+        if group is None:
+            bound.append(declaration)
+            continue
+        bound.append(
+            replace(
+                declaration,
+                module_group=group.name,
+                module_group_summary=group.summary,
+            )
+        )
+    return bound
+
+
+def _module_group_for_path(
+    path: str,
+    groups: tuple[_FormalModuleGroup, ...],
+) -> _FormalModuleGroup | None:
+    path_key = str(path or "").replace("\\", "/").removeprefix("SLT/")
+    path_key = path_key.removesuffix(".lean")
+    matches: list[tuple[int, _FormalModuleGroup]] = []
+    for group in groups:
+        for raw_pattern in group.module_patterns:
+            pattern = _normalize_module_pattern(raw_pattern)
+            prefix = pattern.rstrip("/")
+            if not prefix:
+                continue
+            if path_key == prefix or path_key.startswith(prefix + "/"):
+                matches.append((len(prefix), group))
+    if not matches:
+        return None
+    matches.sort(key=lambda row: (-row[0], row[1].name))
+    return matches[0][1]
+
+
 def _markdown_bibliography_alias(line: str) -> tuple[str, str] | None:
     """Return an author/year key and title from one Markdown bibliography row."""
 
@@ -2029,6 +2336,138 @@ def _markdown_declaration_name(cell: str) -> str:
     return text.split()[0] if text else ""
 
 
+def _clean_lean_doc_text(text: str, *, max_chars: int) -> str:
+    text = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", text)
+    text = re.sub(r"(?m)^\s*#{1,6}\s*", "", text)
+    text = re.sub(r"(?m)^\s*[-*+]\s*", "", text)
+    text = re.sub(r"```(?:lean4?|text)?", " ", text, flags=re.IGNORECASE)
+    text = text.replace("```", " ").replace("`", "")
+    text = text.replace("**", "")
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[: max(0, int(max_chars))]
+
+
+def _lean_block_doc_from_start(
+    lines: list[str],
+    start_idx: int,
+    *,
+    marker: str,
+    max_chars: int,
+    max_lines: int = 160,
+) -> str:
+    fragments: list[str] = []
+    for offset in range(max(1, int(max_lines))):
+        pos = start_idx + offset
+        if pos >= len(lines):
+            break
+        line = lines[pos]
+        if offset == 0:
+            marker_pos = line.find(marker)
+            if marker_pos < 0:
+                return ""
+            line = line[marker_pos + len(marker) :]
+        end = line.find("-/")
+        if end >= 0:
+            fragments.append(line[:end])
+            return _clean_lean_doc_text(
+                "\n".join(fragments),
+                max_chars=max_chars,
+            )
+        fragments.append(line)
+    return ""
+
+
+def _lean_declaration_doc(
+    lines: list[str],
+    start_idx: int,
+    *,
+    max_chars: int = 1600,
+) -> str:
+    """Return the bounded `/-- ... -/` doc immediately governing a declaration."""
+
+    pos = start_idx - 1
+    while pos >= 0:
+        stripped = lines[pos].strip()
+        if not stripped or re.match(r"^(?:omit|include)\b.*\bin$", stripped):
+            pos -= 1
+            continue
+        if stripped.startswith("@["):
+            pos -= 1
+            continue
+        break
+    if pos < 0 or "-/" not in lines[pos]:
+        return ""
+    end_idx = pos
+    for pos in range(end_idx, max(-1, end_idx - 160), -1):
+        line = lines[pos]
+        if "/-!" in line:
+            return ""
+        marker_pos = line.find("/--")
+        if marker_pos < 0:
+            continue
+        raw = "\n".join(lines[pos : end_idx + 1])
+        raw = raw[raw.find("/--") + 3 :]
+        raw = raw[: raw.rfind("-/")]
+        return _clean_lean_doc_text(raw, max_chars=max_chars)
+    return ""
+
+
+def _lean_source_without_comments_preserve_lines(source: str) -> str:
+    """Mask nested Lean comments and strings while preserving source lines."""
+
+    output: list[str] = []
+    index = 0
+    block_depth = 0
+    in_string = False
+    while index < len(source):
+        char = source[index]
+        next_char = source[index + 1] if index + 1 < len(source) else ""
+        if block_depth:
+            if char == "/" and next_char == "-":
+                block_depth += 1
+                output.extend("  ")
+                index += 2
+                continue
+            if char == "-" and next_char == "/":
+                block_depth -= 1
+                output.extend("  ")
+                index += 2
+                continue
+            output.append("\n" if char == "\n" else " ")
+            index += 1
+            continue
+        if in_string:
+            output.append("\n" if char == "\n" else " ")
+            if char == "\\" and index + 1 < len(source):
+                escaped = source[index + 1]
+                output.append("\n" if escaped == "\n" else " ")
+                index += 2
+                continue
+            if char == '"':
+                in_string = False
+            index += 1
+            continue
+        if char == "-" and next_char == "-":
+            while index < len(source) and source[index] != "\n":
+                output.append(" ")
+                index += 1
+            continue
+        if char == "/" and next_char == "-":
+            block_depth = 1
+            output.extend("  ")
+            index += 2
+            continue
+        if char == '"':
+            in_string = True
+            output.append(" ")
+            index += 1
+            continue
+        output.append(char)
+        index += 1
+    return "".join(output)
+
+
 def _lean_module_summary(
     lines: list[str],
     *,
@@ -2054,13 +2493,10 @@ def _lean_module_summary(
         fragments.append(line)
     if not fragments:
         return ""
-    text = "\n".join(fragments)
-    text = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", text)
-    text = re.sub(r"(?m)^\s*#{1,6}\s*", "", text)
-    text = re.sub(r"(?m)^\s*[-*+]\s*", "", text)
-    text = re.sub(r"<[^>]+>", " ", text)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text[: max(0, int(max_chars))]
+    return _clean_lean_doc_text(
+        "\n".join(fragments),
+        max_chars=max_chars,
+    )
 
 
 def _declarations_in_file(
@@ -2069,22 +2505,43 @@ def _declarations_in_file(
     base: Path,
 ) -> list[FormalDeclaration]:
     try:
-        lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+        source = path.read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return []
+    lines = source.splitlines()
     rel = str(path.relative_to(base))
     language = _formal_source_language(root, path)
+    parse_lines = (
+        _lean_source_without_comments_preserve_lines(source).splitlines()
+        if language == "lean"
+        else lines
+    )
     module_summary = _lean_module_summary(lines) if language == "lean" else ""
+    current_section_summary = ""
+    saw_declaration = False
     namespace_stack: list[str] = []
     lean_scope_stack: list[tuple[str, str, tuple[str, ...]]] = []
     imports: list[str] = []
     rows: list[FormalDeclaration] = []
     for idx, line in enumerate(lines, start=1):
-        import_items = _imports_from_line(line, language)
+        zero_idx = idx - 1
+        parse_line = parse_lines[zero_idx] if zero_idx < len(parse_lines) else ""
+        if language == "lean":
+            module_doc_pos = line.find("/-!")
+            if module_doc_pos >= 0 and not line[:module_doc_pos].strip():
+                if saw_declaration:
+                    current_section_summary = _lean_block_doc_from_start(
+                        lines,
+                        zero_idx,
+                        marker="/-!",
+                        max_chars=800,
+                    )
+        source_line = parse_line if language == "lean" else line
+        import_items = _imports_from_line(source_line, language)
         if import_items:
             imports.extend(import_items)
             continue
-        namespace_name = _namespace_open_from_line(line, language)
+        namespace_name = _namespace_open_from_line(source_line, language)
         if namespace_name:
             namespace_parts = tuple(namespace_name.split("."))
             namespace_stack.extend(namespace_parts)
@@ -2094,13 +2551,13 @@ def _declarations_in_file(
                 )
             continue
         if language == "lean":
-            section_match = SECTION_RE.match(line)
+            section_match = SECTION_RE.match(source_line)
             if section_match:
                 lean_scope_stack.append(
                     ("section", section_match.group(1) or "", ())
                 )
                 continue
-        end_name = _namespace_close_from_line(line, language)
+        end_name = _namespace_close_from_line(source_line, language)
         if end_name is not None:
             if language == "lean":
                 _close_lean_scope(
@@ -2111,7 +2568,7 @@ def _declarations_in_file(
             elif namespace_stack:
                 _pop_namespace(namespace_stack, end_name)
             continue
-        decl = _declaration_from_line(line, language)
+        decl = _declaration_from_line(source_line, language)
         if decl is None:
             continue
         kind, raw_name = decl
@@ -2123,7 +2580,7 @@ def _declarations_in_file(
         )
         namespace = name.rsplit(".", 1)[0] if "." in name else ""
         signature = _declaration_signature(
-            lines,
+            parse_lines,
             idx - 1,
             language=language,
         )
@@ -2146,8 +2603,15 @@ def _declarations_in_file(
                 major_symbols=compressed["major_symbols"],
                 imports=tuple(imports),
                 module_summary=module_summary,
+                declaration_doc=(
+                    _lean_declaration_doc(lines, zero_idx)
+                    if language == "lean"
+                    else ""
+                ),
+                section_summary=current_section_summary,
             )
         )
+        saw_declaration = True
     return rows
 
 
@@ -2394,6 +2858,10 @@ def _hit_payload(hit: FormalSourceHit) -> dict[str, object]:
         "reference": hit.declaration.reference,
         "reference_aliases": hit.declaration.reference_aliases,
         "module_summary": hit.declaration.module_summary,
+        "declaration_doc": hit.declaration.declaration_doc,
+        "section_summary": hit.declaration.section_summary,
+        "module_group": hit.declaration.module_group,
+        "module_group_summary": hit.declaration.module_group_summary,
         "score": hit.score,
         "matched_terms": hit.matched_terms,
         "binder_count": hit.declaration.binder_count,

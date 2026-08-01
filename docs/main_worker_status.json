@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-08-01T07:30:23Z",
+  "updated_at": "2026-08-01T08:19:43Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "active_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
@@ -31,7 +31,8 @@
     "formalizer_strategy": "Exact target and assumptions, source-local namespace/module role, dependency-ordered lemma DAG, smallest blocked leaf, real Lean/LSP diagnostics, preservation of verified ancestors, and statement/assumption review after persistent failure. No Lean syntax or tactic repair rule was added.",
     "formal_rag_queries": "When capacity permits, first-turn retrieval keeps one exact qualified-name query and one separate semantic theorem query before additional exact/support queries. Imports remain visibility metadata rather than lexical hits, and relative dotted Lean declarations preserve their enclosing namespace.",
     "formal_rag_fusion": "Providers are fused by declaration identity and normalized signature using strongest relevance plus a bounded corroboration bonus. Reindexing one source cannot multiply its score, while global corpus discovery can activate a SQL-enforced source scope for the resolution stage.",
-    "formal_rag_cache": "The persistent SQLite index is bound to schema version, declaration fingerprint, source-root snapshots, and README/toolchain metadata; changed source material rebuilds the index instead of serving stale declarations."
+    "formal_rag_cache": "The persistent SQLite index is bound to schema version, declaration fingerprint, source-root snapshots, and README/toolchain metadata; changed source material rebuilds the index instead of serving stale declarations.",
+    "formal_rag_source_architecture": "The generic Lean index now keeps source-authored declaration docs and active section summaries, binds README layer/module tables to declarations by longest module-path prefix, and exposes bounded nearby semantic naming examples. Signatures and active Lean proof state retain higher authority; docs, taxonomy, names, and citations are planning hints only, and proof bodies remain excluded."
   },
   "ai4slt_formal_rag": {
     "repository": "https://github.com/YuanheZ/lean-stat-learning-theory",
@@ -53,6 +54,14 @@
       "snapshot_status": "BOUND_MATCH",
       "proof_status": "NON_PROOF_RETRIEVAL_CONTEXT"
     },
+    "source_authored_architecture": {
+      "source_index_declarations": 2010,
+      "declarations_with_docs": 1501,
+      "declarations_with_section_summaries": 1334,
+      "declarations_bound_to_readme_layers": 1996,
+      "readme_layers": 8,
+      "prompt_policy": "bounded planning context; signatures and current Lean state are authoritative; proof bodies excluded"
+    },
     "signature_corpus": {
       "declarations": 3021,
       "files": 470,
@@ -68,13 +77,14 @@
       "proof_status": "NON_PROOF_ANALOGICAL_CONTEXT"
     },
     "semantic_benchmark": {
-      "manifest": "runs/current_ai4slt_three_book_rag_benchmark_20260801_v5/formal_source_retrieval_benchmark_manifest.json",
-      "cases_passed": "22/22",
+      "manifest": "runs/current_ai4slt_three_book_rag_benchmark_20260801_v6_source_docs/formal_source_retrieval_benchmark_manifest.json",
+      "cases_passed": "23/23",
       "recall_at_8": 1.0,
-      "mean_reciprocal_rank": 0.7280844155844156,
+      "mean_reciprocal_rank": 0.7236024844720497,
       "direct_global_resolutions": 19,
-      "global_discovery_then_scoped_resolutions": 3,
-      "citation_crosswalk": "47/47 README-bound declaration queries at top 8: 19 Vershynin, 7 Wainwright, and 11 Boucheron-Lugosi-Massart"
+      "global_discovery_then_scoped_resolutions": 4,
+      "source_authored_outline_case": "dudley_chaining_bound_core ranks 2 globally and 1 inside the AI4SLT source for a semantic telescoping/base/increment query",
+      "citation_crosswalk": "47/47 README-bound declaration queries at top 8: 19 Vershynin, 7 Wainwright, 11 Boucheron-Lugosi-Massart, and 10 other source references"
     },
     "formalizer_transport_probe": {
       "target": "LinearMap.IsSymmetric.davisKahan_eigenvector_angle_hdp",
@@ -85,7 +95,7 @@
       "compact_prompt_projection_chars": 1889,
       "proof_status": "RUNTIME_CONTEXT_TRANSPORT_ONLY_NOT_THEOREM_PROOF"
     },
-    "boundary": "AI4SLT source, citation, signature, dependency, and train-state hits are candidate context. Toolchain/snapshot identity is disclosed, and every selected declaration or generated action must be re-elaborated in the exact active project before it can contribute to kernel evidence."
+    "boundary": "AI4SLT source docs, section summaries, README taxonomy, naming examples, citations, signatures, dependencies, and train-state hits are candidate context. Toolchain/snapshot identity is disclosed, and every selected declaration or generated action must be re-elaborated in the exact active project before it can contribute to kernel evidence."
   },
   "latest_live_research_eval": {
     "run": "runs/main_worker_research_eval_20260801_v165_compact_scope_schema_haiku_sequential",
@@ -130,11 +140,12 @@
   ],
   "verification": {
     "core_suite": "291 passed, 3 skipped, 6 subtests passed in 2183.57 seconds",
-    "current_affected_file_panel": "45 formal-RAG/proof-state tests, 6 targeted core tests, 4 runtime transport tests, and 6 external indexer tests passed",
-    "model_and_test_environment_policy": "27 passed",
+    "current_affected_file_panel": "92 formal-source, scoped-corpus, dependency-graph, proof-bank, adapter, Formalizer, offline-AgentRuntime, and model-policy tests passed",
+    "model_and_test_environment_policy": "27 current model-policy tests included; no provider call",
     "exact_and_semantic_query_regression": "2 passed",
     "benchmark_registration_regression": "1 passed",
-    "ai4slt_semantic_retrieval": "22/22 at recall@8=1.0; 19 direct and 3 globally discovered then source-scoped",
+    "ai4slt_semantic_retrieval": "23/23 at recall@8=1.0; 19 direct and 4 globally discovered then source-scoped; source-authored Dudley outline ranks 2 globally and 1 source-scoped",
+    "ai4slt_three_book_crosswalk": "47/47 source-reference queries at top 8: 19 Vershynin, 7 Wainwright, 11 Boucheron-Lugosi-Massart, and 10 other references",
     "git_diff_check": "passed before final Git synchronization",
     "provider_evaluation_policy": "V165 topology reports eight enabled agents at exact Haiku, zero policy violations, and no Opus call"
   },
