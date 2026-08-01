@@ -60,6 +60,10 @@ from ai_statistician.research_lab import (
 from ai_statistician.research_loop import ResearchLoopCoordinator
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.theory_proposal import GeneratorTheoryProposer
+from ai_statistician.theory_revision_lineage import (
+    THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
+    build_theory_developer_revision_binding,
+)
 
 
 class SequentialGeneratorBackend:
@@ -927,6 +931,97 @@ def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -
     assert transport["base_core_payload_fingerprint"] == base_fingerprint
     assert transport["applied_paths"] == [["problem_card", "assumptions"]]
     assert transport["kernel_verified"] is False
+
+
+def test_postexecution_theory_revision_uses_current_parent_bound_feedback() -> None:
+    parent = _serious_sample_response()
+    stale_parent = _serious_sample_response()
+    stale_parent["problem_card"] = {
+        **stale_parent["problem_card"],
+        "estimand": "a stale target that must not be revised",
+    }
+    question = OpenResearchQuestion(
+        id="generic_postexecution_revision",
+        title="Generic post-execution theory revision",
+        description="Revise the reviewed parent without copying execution outcomes.",
+    )
+    parent_id = "theory_derivation:current-reviewed-parent"
+    material = build_theory_informed_metric_protocol_material(
+        theory_packet=parent,
+        theory_packet_id=parent_id,
+    )
+    feedback = {
+        "feedback_id": "generated-review-feedback:generic",
+        "feedback_type": "generated_code_semantic_review_feedback",
+        "repair_scope": "upstream_theory",
+        "semantic_review_packet_id": "generated-review:generic",
+        "semantic_review_execution_id": "generated-review-execution:generic",
+        "findings": [
+            {
+                "severity": "high",
+                "category": "assumption audit",
+                "summary": "The parent omits one independently identified premise.",
+                "required_change": "Revise the parent semantics and direct dependents.",
+                "repair_scope": "upstream_theory",
+            }
+        ],
+        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+    }
+    binding = build_theory_developer_revision_binding(
+        revision_source="generated_code_semantic_review_postexecution",
+        question_id=question.id,
+        source_feedback=feedback,
+        theory_material=material,
+        feedback_id=feedback["feedback_id"],
+        upstream_theory_revision_count=2,
+        max_upstream_theory_revisions=2,
+        execution_results_observed=True,
+        source_review_packet_id=feedback["semantic_review_packet_id"],
+        source_review_execution_id=feedback["semantic_review_execution_id"],
+    )
+    context = {
+        THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY: binding,
+        "environment_feedback": feedback,
+        "metric_protocol_prior_theory_material": (
+            build_theory_informed_metric_protocol_material(
+                theory_packet=stale_parent,
+                theory_packet_id="theory_derivation:stale-preflight-parent",
+            )
+        ),
+    }
+
+    feedback["findings"][0]["summary"] = "mutated after binding"
+    parent["problem_card"]["estimand"] = "mutated after binding"
+    revision_inputs = build_theory_developer_revision_inputs(
+        context,
+        question=question,
+    )
+
+    assert revision_inputs["revision_source"] == (
+        "generated_code_semantic_review_postexecution"
+    )
+    assert revision_inputs["source_theory_packet_id"] == parent_id
+    assert revision_inputs["execution_results_observed"] is True
+    assert revision_inputs["feedback"]["findings"][0]["summary"] == (
+        "The parent omits one independently identified premise."
+    )
+    assert revision_inputs["base_core_payload"]["problem_card"]["estimand"] == (
+        "psi = E[m_1(X)-m_0(X)]"
+    )
+    prompt = build_theory_developer_prompt(question, architect_context=context)
+    assert "serious_upstream_theory_revision" in prompt
+    assert "generated_code_semantic_review_postexecution" in prompt
+    assert "theory_derivation:stale-preflight-parent" not in prompt
+
+    tampered_context = json.loads(json.dumps(context))
+    tampered_context[THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY][
+        "source_theory_packet_hash"
+    ] = "stale-hash"
+    with pytest.raises(PacketValidationError, match="fingerprint does not match"):
+        build_theory_developer_revision_inputs(
+            tampered_context,
+            question=question,
+        )
 
 
 def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:

@@ -363,6 +363,12 @@ from .research_architect import (
     THEORY_MIN_EQUATION_CHAIN_STEPS,
     theory_developer_source_environment_feedback,
 )
+from .theory_revision_lineage import (
+    THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
+    build_postexecution_theory_revision_binding,
+    build_theory_developer_revision_binding,
+    theory_developer_revision_binding_errors,
+)
 from .research_lab import FormalSubclaimProver, ProblemFormalizer, ResearchSimulator, TheoryPlanner
 from .research_knowledge import retrieve_problem_knowledge
 from .research_paper_index import retrieve_paper_sources
@@ -12421,6 +12427,69 @@ def _runtime_metric_protocol_authoring_required(
     return not accepted_protocol
 
 
+def _theory_developer_revision_binding_blocked_result(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    validation_errors: Sequence[str],
+) -> AgentStepResult:
+    errors = [str(value) for value in validation_errors if str(value).strip()]
+    artifact_id = "theory_developer_revision_binding_blocked:" + stable_hash(
+        [task.task_id, question.id, errors]
+    )[:20]
+    boundary = (
+        "The runtime rejected an ambiguous or stale upstream-theory revision "
+        "lineage before any TheoryDeveloper model call. This control decision is "
+        "not statistical acceptance or proof evidence."
+    )
+    artifact = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeTheoryDeveloperRevisionBindingBlocked",
+        "block_id": artifact_id,
+        "question_id": question.id,
+        "task_id": task.task_id,
+        "validation_errors": errors,
+        "model_call_authorized": False,
+        "execution_authorized": False,
+        "proof_evidence_status": (
+            "THEORY_DEVELOPER_REVISION_BINDING_BLOCKED_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": boundary,
+    }
+    evidence = EvidenceLedgerEntry(
+        evidence_id="evidence:" + stable_hash([task.task_id, artifact_id])[:20],
+        task_id=task.task_id,
+        artifact_id=artifact_id,
+        evidence_type="theory_developer_revision_binding_rejection",
+        status="BLOCKED_BEFORE_THEORY_MODEL_CALL",
+        boundary=boundary,
+        payload={
+            "validation_errors": errors,
+            "proof_evidence_status": artifact["proof_evidence_status"],
+        },
+    )
+    return AgentStepResult(
+        status="BLOCKED",
+        rationale=(
+            "TheoryDeveloper revision feedback did not identify one exact immutable "
+            "parent and review lineage."
+        ),
+        produced_artifacts={artifact_id: artifact},
+        observations=(
+            EnvironmentObservation(
+                observation_type="theory_developer_revision_binding_rejected",
+                summary="TheoryDeveloper revision lineage failed closed",
+                payload={
+                    "block_id": artifact_id,
+                    "validation_errors": errors,
+                },
+            ),
+        ),
+        evidence_entries=(evidence,),
+        failure_classification="theory_developer_revision_binding_invalid",
+    )
+
+
 class TheoryDeveloperRuntimeSubsystem:
     name = "TheoryDeveloper"
 
@@ -12503,11 +12572,63 @@ class TheoryDeveloperRuntimeSubsystem:
                     feedback=metric_protocol_revision_feedback,
                     validation_errors=feedback_errors,
                 )
-            context["metric_protocol_prior_theory_material"] = (
-                build_theory_informed_metric_protocol_material(
-                    theory_packet=parent_theory_packet,
-                    theory_packet_id=parent_theory_packet_id,
+            prior_theory_material = build_theory_informed_metric_protocol_material(
+                theory_packet=parent_theory_packet,
+                theory_packet_id=parent_theory_packet_id,
+            )
+            context["metric_protocol_prior_theory_material"] = prior_theory_material
+            revision_binding = build_theory_developer_revision_binding(
+                revision_source="metric_protocol_preexecution_review",
+                question_id=question.id,
+                source_feedback=metric_protocol_revision_feedback,
+                theory_material=prior_theory_material,
+                feedback_id=str(
+                    metric_protocol_revision_feedback.get("feedback_id", "") or ""
+                ),
+                upstream_theory_revision_count=int(
+                    metric_protocol_revision_feedback.get(
+                        "upstream_theory_revision_count", 0
+                    )
+                    or 0
+                ),
+                max_upstream_theory_revisions=int(
+                    metric_protocol_revision_feedback.get(
+                        "max_upstream_theory_revisions", 0
+                    )
+                    or 0
+                ),
+                execution_results_observed=False,
+            )
+            binding_errors = theory_developer_revision_binding_errors(
+                revision_binding,
+                question_id=question.id,
+            )
+            if binding_errors:
+                return _theory_developer_revision_binding_blocked_result(
+                    task=task,
+                    question=question,
+                    validation_errors=binding_errors,
                 )
+            context[THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY] = (
+                revision_binding
+            )
+        elif upstream_theory_revision_state["active"]:
+            revision_binding, binding_errors = (
+                build_postexecution_theory_revision_binding(
+                    architect_context=context,
+                    question_id=question.id,
+                    artifacts=blackboard.artifacts,
+                    budget_state=upstream_theory_revision_state,
+                )
+            )
+            if binding_errors:
+                return _theory_developer_revision_binding_blocked_result(
+                    task=task,
+                    question=question,
+                    validation_errors=binding_errors,
+                )
+            context[THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY] = (
+                revision_binding
             )
         validation_retry_attempt = _runtime_safe_int(
             task.inputs.get("theory_developer_validation_retry_attempt", 0)
@@ -12550,14 +12671,31 @@ class TheoryDeveloperRuntimeSubsystem:
                 context=context,
                 exc=exc,
             )
-        if metric_protocol_revision_feedback:
+        active_revision_binding = context.get(
+            THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY, {}
+        )
+        active_revision_binding = (
+            dict(active_revision_binding)
+            if isinstance(active_revision_binding, Mapping)
+            else {}
+        )
+        if active_revision_binding:
             packet = dict(packet)
             packet["parent_theory_packet_id"] = str(
-                metric_protocol_revision_feedback.get(
-                    "source_theory_packet_id", ""
-                )
-                or ""
+                active_revision_binding.get("source_theory_packet_id", "") or ""
             )
+            packet["theory_developer_revision_binding_id"] = str(
+                active_revision_binding.get("binding_id", "") or ""
+            )
+            packet["theory_developer_revision_source"] = str(
+                active_revision_binding.get("revision_source", "") or ""
+            )
+            packet["theory_developer_revision_feedback_id"] = str(
+                active_revision_binding.get("feedback_id", "") or ""
+            )
+            packet["runtime_revision_artifact"] = True
+        if metric_protocol_revision_feedback:
+            packet = dict(packet)
             packet["metric_protocol_upstream_theory_revision_feedback_id"] = str(
                 metric_protocol_revision_feedback.get("feedback_id", "") or ""
             )
@@ -12574,6 +12712,8 @@ class TheoryDeveloperRuntimeSubsystem:
                 or 0
             )
             packet["runtime_revision_artifact"] = True
+        context.pop(THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY, None)
+        context.pop("theory_developer_source_environment_feedback", None)
         theory_control = _architect_control_payload(context, "TheoryDeveloper")
         packet["runtime_architect_control"] = theory_control
         packet_id = _unique_runtime_artifact_id(

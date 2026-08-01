@@ -2195,29 +2195,43 @@ def test_revised_theory_invalidates_prior_metric_execution_authority() -> None:
     accepted_context["previous_theory_packet_id"] = str(
         prior_theory["packet_id"]
     )
-    accepted_context["runtime_generated_code_semantic_review_replan"] = {
-        "artifact_kind": "RuntimeGeneratedCodeSemanticReviewReplanContext",
+    review_packet_id = "generated_code_semantic_review:upstream"
+    review_execution_id = "generated_code_semantic_review_execution:upstream"
+    review_feedback = {
+        "feedback_id": "generated_sandbox_feedback:invalidate-authority",
+        "feedback_type": "generated_code_semantic_review_feedback",
+        "semantic_review_packet_id": review_packet_id,
+        "semantic_review_execution_id": review_execution_id,
         "source_subsystem": "AlgorithmEngineer",
         "source_manifest_id": "algorithm_sandbox_manifest:rejected",
-        "review_packet_id": "generated_code_semantic_review:upstream",
-        "review_execution_id": (
-            "generated_code_semantic_review_execution:upstream"
-        ),
         "repair_scope": "upstream_theory",
+    }
+    accepted_context["runtime_generated_code_semantic_review_replan"] = {
+        "artifact_kind": "RuntimeGeneratedCodeSemanticReviewReplanContext",
+        "question_id": question.id,
+        "source_subsystem": "AlgorithmEngineer",
+        "source_manifest_id": "algorithm_sandbox_manifest:rejected",
+        "review_packet_id": review_packet_id,
+        "review_execution_id": review_execution_id,
+        "repair_scope": "upstream_theory",
+        "theory_packet_hash": accepted_context[
+            "architect_metric_protocol_theory_material"
+        ]["source_theory_packet_hash"],
         "pending_artifact_ids": {
             "theory_packet_id": str(prior_theory["packet_id"]),
         },
     }
-    accepted_context["environment_feedback"] = {
-        "semantic_review_execution_id": (
-            "generated_code_semantic_review_execution:upstream"
-        ),
+    accepted_context["environment_feedback"] = review_feedback
+    accepted_context["architect_typed_repair_dispatch"] = {
+        "artifact_kind": "RuntimeArchitectTypedRepairDispatch",
+        "question_id": question.id,
         "repair_scope": "upstream_theory",
+        "review_packet_id": review_packet_id,
+        "review_execution_id": review_execution_id,
+        "feedback_fingerprint": runtime_module.stable_hash(review_feedback),
     }
     accepted_context["runtime_feedback_loop"] = {
-        "semantic_review_execution_id": (
-            "generated_code_semantic_review_execution:upstream"
-        ),
+        "semantic_review_execution_id": review_execution_id,
     }
 
     class RevisedTheoryDeveloper:
@@ -2387,6 +2401,289 @@ def test_theory_developer_blocks_exhausted_upstream_review_before_model_call(
     assert result.status == "BLOCKED"
     assert result.failure_classification == (
         "generated_code_semantic_review_upstream_theory_revision_budget_exhausted"
+    )
+
+
+def test_postexecution_theory_revision_binds_current_parent_and_global_budget() -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    current_parent_id = "theory_derivation:current-reviewed-parent"
+    stale_parent_id = "theory_derivation:stale-preflight-parent"
+    revised_packet_id = "theory_derivation:postexecution-revised"
+    current_parent = _targetable_theory_packet_fixture(current_parent_id)
+    stale_parent = _targetable_theory_packet_fixture(stale_parent_id)
+    revised_packet = _structured_theory_packet_fixture(revised_packet_id)
+    current_material = build_theory_informed_metric_protocol_material(
+        theory_packet=current_parent,
+        theory_packet_id=current_parent_id,
+    )
+    stale_material = build_theory_informed_metric_protocol_material(
+        theory_packet=stale_parent,
+        theory_packet_id=stale_parent_id,
+    )
+    review_packet_id = "generated_code_semantic_review:generic-theory"
+    review_execution_id = (
+        "generated_code_semantic_review_execution:generic-theory"
+    )
+    feedback = {
+        "feedback_id": "generated_sandbox_feedback:generic-theory",
+        "feedback_type": "generated_code_semantic_review_feedback",
+        "semantic_review_packet_id": review_packet_id,
+        "semantic_review_execution_id": review_execution_id,
+        "source_subsystem": "SimulationEvaluator",
+        "source_manifest_id": "simulation_manifest:generic-rejected",
+        "repair_scope": "upstream_theory",
+        "repair_owner_agent": "ArchitectCoordinator",
+        "findings": [
+            {
+                "severity": "high",
+                "category": "generic theory premise",
+                "summary": "The reviewed theory premise is incomplete.",
+                "required_change": "Revise the exact reviewed parent theory.",
+                "repair_scope": "upstream_theory",
+            }
+        ],
+        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+    }
+    replan = {
+        "artifact_kind": "RuntimeGeneratedCodeSemanticReviewReplanContext",
+        "question_id": question.id,
+        "source_subsystem": "SimulationEvaluator",
+        "source_manifest_id": feedback["source_manifest_id"],
+        "source_review_task_id": "semantic-review:generic-theory",
+        "review_packet_id": review_packet_id,
+        "review_execution_id": review_execution_id,
+        "repair_scope": "upstream_theory",
+        "theory_packet_hash": current_material["source_theory_packet_hash"],
+        "pending_artifact_ids": {"theory_packet_id": current_parent_id},
+        "findings": feedback["findings"],
+    }
+    dispatch = {
+        "artifact_kind": "RuntimeArchitectTypedRepairDispatch",
+        "dispatch_id": "architect_typed_repair_dispatch:generic-theory",
+        "question_id": question.id,
+        "repair_scope": "upstream_theory",
+        "review_packet_id": review_packet_id,
+        "review_execution_id": review_execution_id,
+        "feedback_fingerprint": runtime_module.stable_hash(feedback),
+        "repair_target_subsystem": "RetrievalMemory",
+    }
+    context = {
+        "theory_packet_id": current_parent_id,
+        "previous_theory_packet_id": stale_parent_id,
+        "architect_metric_protocol_theory_material": current_material,
+        "metric_protocol_prior_theory_material": stale_material,
+        "architect_metric_protocol_gate": {
+            "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+            "source_theory_packet_id": current_parent_id,
+            "source_theory_packet_hash": current_material[
+                "source_theory_packet_hash"
+            ],
+            "upstream_theory_revision_count": 1,
+            "max_upstream_theory_revisions": 1,
+            "execution_authorized": True,
+        },
+        "architect_runtime_plan": {
+            "subsystem_execution_plan": [],
+            "evidence_contract": {"evaluation_mode": "debug"},
+        },
+        "environment_feedback": feedback,
+        "runtime_generated_code_semantic_review_replan": replan,
+        "architect_typed_repair_dispatch": dispatch,
+    }
+    captured_context: dict[str, Any] = {}
+
+    class CapturingTheoryDeveloper:
+        calls = 0
+
+        def derive(self, *_args: object, **kwargs: object) -> dict[str, object]:
+            self.calls += 1
+            captured_context.update(kwargs.get("architect_context", {}))
+            return copy.deepcopy(revised_packet)
+
+    theory_developer = CapturingTheoryDeveloper()
+    result = TheoryDeveloperRuntimeSubsystem(
+        theory_developer=theory_developer,  # type: ignore[arg-type]
+        n_runs=11,
+        seed=20260801,
+        max_generated_code_semantic_review_upstream_theory_revisions=1,
+    ).run(
+        AgentTask(
+            task_id="theory:generic-postexecution-revision",
+            owner_subsystem="TheoryDeveloper",
+            objective="Revise the exact parent named by independent review.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": context,
+            },
+        ),
+        BlackboardState(
+            project_id="generic-postexecution-revision",
+            artifacts={
+                current_parent_id: current_parent,
+                stale_parent_id: stale_parent,
+            },
+        ),
+    )
+
+    assert theory_developer.calls == 1
+    binding = captured_context[
+        runtime_module.THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY
+    ]
+    assert binding["revision_source"] == (
+        "generated_code_semantic_review_postexecution"
+    )
+    assert binding["source_theory_packet_id"] == current_parent_id
+    assert binding["source_theory_packet_hash"] == current_material[
+        "source_theory_packet_hash"
+    ]
+    assert binding["upstream_theory_revision_count"] == 2
+    assert binding["max_upstream_theory_revisions"] == 2
+    assert binding["execution_results_observed"] is True
+    packet = result.produced_artifacts[revised_packet_id]
+    assert packet["parent_theory_packet_id"] == current_parent_id
+    assert packet["theory_developer_revision_source"] == (
+        "generated_code_semantic_review_postexecution"
+    )
+    assert result.next_task is not None
+    routed_context = result.next_task.inputs["architect_context"]
+    assert (
+        runtime_module.THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY
+        not in routed_context
+    )
+    resolution = routed_context[
+        "runtime_generated_code_semantic_review_replan_resolution"
+    ]
+    assert resolution["upstream_theory_revisions_used"] == 2
+    assert resolution["max_upstream_theory_revisions"] == 2
+    ledger = routed_context[
+        "runtime_generated_code_semantic_review_upstream_theory_revision_ledger"
+    ]
+    ledger_row = next(iter(ledger.values()))
+    assert ledger_row["revisions_used"] == 1
+    assert ledger_row["preexecution_revisions_used"] == 1
+    assert ledger_row["global_revisions_used"] == 2
+    repeated_state = (
+        runtime_module.generated_code_semantic_review_upstream_theory_revision_state(
+            architect_context={
+                **routed_context,
+                "runtime_generated_code_semantic_review_replan": replan,
+            },
+            question_id=question.id,
+            max_revisions=1,
+        )
+    )
+    assert repeated_state["revisions_used"] == 2
+    assert repeated_state["max_revisions"] == 2
+    assert repeated_state["generated_code_budget_exhausted"] is True
+    assert repeated_state["global_budget_exhausted"] is True
+    assert repeated_state["budget_exhausted"] is True
+    source_limited_context = copy.deepcopy(routed_context)
+    source_limited_context["architect_metric_protocol_gate"][
+        "upstream_theory_revision_count"
+    ] = 0
+    source_limited_context["runtime_generated_code_semantic_review_replan"] = replan
+    source_limited_state = (
+        runtime_module.generated_code_semantic_review_upstream_theory_revision_state(
+            architect_context=source_limited_context,
+            question_id=question.id,
+            max_revisions=1,
+        )
+    )
+    assert source_limited_state["revisions_used"] == 1
+    assert source_limited_state["global_budget_exhausted"] is False
+    assert source_limited_state["generated_code_budget_exhausted"] is True
+    assert source_limited_state["budget_exhausted"] is True
+
+
+def test_postexecution_theory_revision_rejects_stale_parent_before_model() -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[1]
+    parent_id = "theory_derivation:reviewed-parent"
+    parent = _targetable_theory_packet_fixture(parent_id)
+    material = build_theory_informed_metric_protocol_material(
+        theory_packet=parent,
+        theory_packet_id=parent_id,
+    )
+    feedback = {
+        "feedback_id": "generated_sandbox_feedback:stale-parent",
+        "feedback_type": "generated_code_semantic_review_feedback",
+        "semantic_review_packet_id": "generated-review:stale-parent",
+        "semantic_review_execution_id": "generated-execution:stale-parent",
+        "source_subsystem": "AlgorithmEngineer",
+        "source_manifest_id": "algorithm:stale-parent",
+        "repair_scope": "upstream_theory",
+    }
+    context = {
+        "theory_packet_id": parent_id,
+        "architect_metric_protocol_theory_material": material,
+        "environment_feedback": feedback,
+        "runtime_generated_code_semantic_review_replan": {
+            "artifact_kind": "RuntimeGeneratedCodeSemanticReviewReplanContext",
+            "question_id": question.id,
+            "source_subsystem": "AlgorithmEngineer",
+            "source_manifest_id": feedback["source_manifest_id"],
+            "review_packet_id": feedback["semantic_review_packet_id"],
+            "review_execution_id": feedback[
+                "semantic_review_execution_id"
+            ],
+            "repair_scope": "upstream_theory",
+            "theory_packet_hash": "stale-theory-hash",
+            "pending_artifact_ids": {"theory_packet_id": parent_id},
+        },
+        "architect_typed_repair_dispatch": {
+            "artifact_kind": "RuntimeArchitectTypedRepairDispatch",
+            "question_id": question.id,
+            "repair_scope": "upstream_theory",
+            "review_packet_id": feedback["semantic_review_packet_id"],
+            "review_execution_id": feedback[
+                "semantic_review_execution_id"
+            ],
+            "feedback_fingerprint": runtime_module.stable_hash(feedback),
+        },
+    }
+
+    class MustNotRunTheoryDeveloper:
+        calls = 0
+
+        def derive(self, *_args: object, **_kwargs: object) -> dict[str, object]:
+            self.calls += 1
+            raise AssertionError("stale post-execution parent reached the model")
+
+    theory_developer = MustNotRunTheoryDeveloper()
+    result = TheoryDeveloperRuntimeSubsystem(
+        theory_developer=theory_developer,  # type: ignore[arg-type]
+        n_runs=11,
+        seed=20260801,
+        max_generated_code_semantic_review_upstream_theory_revisions=1,
+    ).run(
+        AgentTask(
+            task_id="theory:stale-postexecution-parent",
+            owner_subsystem="TheoryDeveloper",
+            objective="Reject stale parent lineage.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": context,
+            },
+        ),
+        BlackboardState(
+            project_id="stale-postexecution-parent",
+            artifacts={parent_id: parent},
+        ),
+    )
+
+    assert theory_developer.calls == 0
+    assert result.status == "BLOCKED"
+    assert result.failure_classification == (
+        "theory_developer_revision_binding_invalid"
+    )
+    artifact = next(iter(result.produced_artifacts.values()))
+    assert artifact["model_call_authorized"] is False
+    assert any(
+        "parent theory hash does not match" in error
+        for error in artifact["validation_errors"]
     )
 
 

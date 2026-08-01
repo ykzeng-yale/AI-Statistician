@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-08-01T15:27:09Z",
+  "updated_at": "2026-08-01T16:09:32Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "active_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
@@ -27,7 +27,8 @@
   "current_change": {
     "theory_execution_preflight": "Before metric authoring or coding, the independent reviewer now recomputes each guarantee-carrying procedure identity from the primitive DGP, audits data-dependent operators and theorem hypotheses under the conclusion measure, checks finite typed returns, and verifies ideal-to-executable guarantee transport. Runtime-derived booleans gate acceptance; reviewer wording is not parsed as a mathematical rule. A rejection routes through the existing typed TheoryDeveloper task with immutable finding lineage; no second scheduler or task-specific formula was added.",
     "theory_transport": "The same TheoryDeveloper and task now use two bounded provider calls: first a core mathematical workspace, then an executable estimator interface constrained to frozen estimator and semantic-reference IDs. The merged packet is rehashed and validated as one theory artifact. This is transport decomposition, not another agent or scheduler.",
-    "theory_revision_transport": "Independent pre-execution findings now return to the same TheoryDeveloper as a lineage-bound typed semantic delta against one immutable parent core. The runtime verifies exact parent packet id/hash and feedback id, applies at most 20 updates only to existing parent paths, preserves every unmentioned field, revalidates the complete core, and records applied paths plus before/after fingerprints. No task formula, theorem alias, or deterministic answer is encoded.",
+    "theory_revision_transport": "Independent pre- or post-execution upstream-theory findings now return to the same TheoryDeveloper through one parent-bound revision contract. The runtime verifies exact parent packet id/hash, feedback fingerprint, reviewer packet/execution identity, and Architect dispatch before applying at most 20 typed updates only to existing parent paths. Every unmentioned field remains immutable, the complete core is revalidated, and no task formula, theorem alias, deterministic answer, or second scheduler is encoded.",
+    "postexecution_theory_revision_transport": "Generated-code semantic review now binds execution diagnostics to the exact current TheoryDeveloper packet in blackboard and the current metric-theory handoff. Stale preflight material may remain as history but cannot be selected. The shared revision budget accumulates pre-execution and post-execution revisions across the question, and invalid or stale lineage blocks before any model call. A v174 exact-artifact replay plus live exact-Haiku component probe used the current b7c819 parent, completed targeted core revision and estimator-interface authoring in 64.361 seconds, and preserved parent ID/hash and binding ID. This is component evidence, not integrated research or proof completion.",
     "theory_stage_recovery": "A locally valid core is checkpointed when only estimator-interface authoring fails. Runtime retries resume that exact hash-bound phase instead of regenerating the completed core. Interface prompts and repairs receive the core's actual semantic-reference IDs; one bounded strict-progress patch extension remains available after truncation or a smaller residual. A live exact-Haiku replay resumed the v171 checkpoint and passed in one interface call with zero validation errors.",
     "theory_gate_scope": "Self-critique remains useful serious-workspace content but is not a standalone hard execution gate. V173 showed that requiring a non-empty reflection list caused four repairs and 180 seconds of waste while an independent semantic reviewer already owned substantive criticism; that cosmetic validator and its test were removed.",
     "metric_review_transport": "The independent pre-execution reviewer receives a compact projection of immutable authority, a single typed array for variable-count theory-scope checks, and runtime-owned prior-finding identity/evidence binding. Local validators still check the full source material and exact coverage.",
@@ -201,15 +202,32 @@
     "strict_formal_lane_executed": false,
     "result": "The initial survival theory was rejected before execution, then a parent-bound 19-path semantic delta plus fresh interface passed a second independent preflight. AlgorithmEngineer generated and sandboxed fresh unregistered code, repaired packet and execution failures from real diagnostics, and received independent semantic acceptance. Two generated simulations executed but failed frozen metric gates. Their review identified both implementation defects and an upstream theory/protocol inconsistency, so Architect invalidated prior authority and requested a fresh theory candidate without changing post-result gates. That candidate failed the next preflight after the one allowed upstream revision. The run is meaningful integrated mechanism progress but remains BLOCKED and is not research-loop or theorem completion."
   },
+  "latest_component_replay": {
+    "run": "runs/main_worker_theory_postexecution_targeted_replay_20260801_v175_haiku",
+    "source_runtime_result": "runs/main_worker_research_eval_20260801_v174_shared_revision_haiku_survival/right_censored_survival_km_runtime_result.json",
+    "evaluation_model": "claude-haiku-4-5-20251001",
+    "status": "PASS",
+    "elapsed_seconds": 64.361,
+    "provider_calls": 2,
+    "provider_phases": [
+      "targeted_core_revision",
+      "estimator_interface_authoring"
+    ],
+    "binding_errors": 0,
+    "parent_lineage_preserved": true,
+    "upstream_theory_revision_budget": "2/2 cross-stage revisions consumed",
+    "kernel_verified": false,
+    "evidence_scope": "component replay only; not integrated research-loop or theorem evidence"
+  },
   "current_readiness": {
     "fully_end_to_end_ready": false,
     "development_research_loop_current_mechanism": "0/2 completed after the current transport change",
     "exact_source_theorem_kernel_closure": "0/2",
     "held_out_generalization": "not run",
-    "primary_blocker": "Cross-stage statistical semantic quality under low-cost Haiku evaluation: post-execution findings can require a fresh full TheoryDeveloper packet, and the next independent preflight can still reject unsupported or internally inconsistent assumptions",
+    "primary_blocker": "Cross-stage statistical semantic quality under low-cost Haiku evaluation: targeted revisions now preserve the exact current parent efficiently, but fresh independent review can still reject unsupported or internally inconsistent theory, DGP, estimator, or metric semantics",
     "secondary_blockers": [
       "research completion correctly ignores artifacts tied to a superseded theory, but a separate historical progress projection is still needed to expose earlier sandbox and reviewer passes",
-      "post-execution TheoryDeveloper repair still regenerates a full core instead of using the same immutable-parent targeted delta/checkpoint transport",
+      "the post-execution targeted revision has component and deterministic replay evidence but still needs a fresh integrated cross-family AgentRuntime run",
       "accepted metric-protocol preflight still performs metric author, independent reviewer, and final Architect plan calls serially",
       "some proof continuation still lives in legacy post-runtime processing",
       "the prover has bounded state-action RAG but no mature learned tactic-state policy/search tree",
@@ -217,7 +235,7 @@
     ]
   },
   "next_main_worker_actions": [
-    "Extend immutable-parent targeted TheoryDeveloper revision to typed post-execution feedback without changing the one-scheduler design or adding task formulas.",
+    "Run fresh exact-Haiku development evaluations across both survival and sequential families to verify that post-execution feedback consumes the shared targeted revision path inside AgentRuntime.",
     "Reduce accepted preflight cost by reusing the already validated plan skeleton when attaching an immutable metric protocol; preserve the independent reviewer and authority boundary.",
     "Record historical partial-stage progress separately from final active-candidate completion so superseded evidence remains visible but cannot satisfy the gate.",
     "Require repeatable survival plus sequential research-loop closure before opening strict formal continuation; keep PCA and extremes sealed.",
@@ -227,7 +245,7 @@
   ],
   "verification": {
     "core_suite": "291 passed, 3 skipped, 6 subtests passed in 2183.57 seconds",
-    "current_affected_file_panel": "78 TheoryDeveloper JSON-repair/architect and broader AgentRuntime theory/metric/interface revision tests passed; no provider call",
+    "current_affected_file_panel": "32/32 research_architect tests plus 23 focused AgentRuntime TheoryDeveloper, metric-protocol, and generated-code semantic-review cases passed; no provider call",
     "shared_lean_graph_indexer_panel": "7 parser, declaration-identity, dependency-edge, metadata, and FTS tests passed; no provider call",
     "current_declaration_trace_alignment_panel": "62 focused proof-state, formal-source, scoped-corpus, proof-bank, Lean-provider, and offline AgentRuntime transport tests passed; no provider call",
     "model_and_test_environment_policy": "39 model-backend and research-eval policy tests passed; no provider call",
@@ -241,6 +259,7 @@
     "git_diff_check": "passed before final Git synchronization",
     "ai4slt_current_integration_panel": "6 three-book crosswalk, source-scoped dependency, Formalizer prompt, and live proof-state transport tests passed; no provider call",
     "checkpoint_live_replay": "V172 resumed the hash-bound V171 targeted core and completed estimator-interface authoring with exact claude-haiku-4-5-20251001 in one provider call, zero repairs, and zero validation errors. This is component evidence only.",
+    "postexecution_targeted_revision_live_replay": "V175 replayed the exact V174 post-execution reviewer lineage with claude-haiku-4-5-20251001. One targeted-core call and one estimator-interface call passed in 64.361 seconds with zero binding or packet validation errors; current parent ID/hash and revision binding ID were preserved. This remains component evidence only.",
     "provider_evaluation_policy": "V174 topology reports eight enabled agents at exact claude-haiku-4-5-20251001, zero policy violations, and no Opus call; production remains hard-capped at Sonnet"
   },
   "proof_boundary": "Theory, simulation, code execution, reviewer acceptance, RAG hits, pseudo-formal blocks, external source compilation, and support-lemma compilation are not proof of the intended theorem. Only exact active-project Lean/kernel verification can close a theorem.",

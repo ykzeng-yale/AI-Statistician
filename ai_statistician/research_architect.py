@@ -33,6 +33,11 @@ from .llm_json_repair import (
     typed_semantic_patch_schema,
 )
 from .research_schema import OpenResearchQuestion, ResearchReport
+from .theory_revision_lineage import (
+    THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
+    build_theory_developer_revision_binding,
+    theory_developer_revision_binding_errors,
+)
 
 
 ARCHITECT_SCHEMA_VERSION = 1
@@ -659,6 +664,11 @@ def build_theory_developer_prompt(
 def _theory_developer_prompt_mode(
     architect_context: Mapping[str, Any],
 ) -> str:
+    revision_binding = architect_context.get(
+        THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY, {}
+    )
+    if isinstance(revision_binding, Mapping) and revision_binding:
+        return THEORY_PROMPT_MODE_SERIOUS_REVISION
     environment_feedback = theory_developer_source_environment_feedback(
         architect_context
     )
@@ -780,6 +790,10 @@ def _theory_developer_recovered_core_checkpoint(
                 errors.append("recovered targeted core parent packet hash changed")
             if transport.get("feedback_id") != revision_inputs.get("feedback_id"):
                 errors.append("recovered targeted core feedback lineage changed")
+            if transport.get("revision_binding_id") != revision_inputs.get(
+                "revision_binding_id"
+            ):
+                errors.append("recovered targeted core revision binding changed")
 
     if errors:
         raise PacketValidationError(
@@ -2485,6 +2499,65 @@ def _normalize_theory_packet(
     }
 
 
+def _theory_developer_revision_binding_from_context(
+    architect_context: Mapping[str, Any],
+    *,
+    question: OpenResearchQuestion,
+) -> dict[str, Any]:
+    """Normalize legacy and current feedback into one parent-bound contract."""
+
+    raw_binding = architect_context.get(
+        THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY, {}
+    )
+    if isinstance(raw_binding, Mapping) and raw_binding:
+        binding = deepcopy(dict(raw_binding))
+    else:
+        feedback = theory_developer_source_environment_feedback(architect_context)
+        material = architect_context.get("metric_protocol_prior_theory_material", {})
+        if not (
+            isinstance(feedback, Mapping)
+            and feedback.get("artifact_kind")
+            == "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback"
+        ):
+            raise PacketValidationError(
+                validation_label="TheoryDeveloper targeted revision inputs",
+                attempts=0,
+                errors=[
+                    "revision feedback must be a parent-bound TheoryDeveloper "
+                    "revision binding or RuntimeMetricProtocolUpstreamTheoryRevisionFeedback"
+                ],
+                history=[],
+            )
+        material = material if isinstance(material, Mapping) else {}
+        binding = build_theory_developer_revision_binding(
+            revision_source="metric_protocol_preexecution_review",
+            question_id=question.id,
+            source_feedback=feedback,
+            theory_material=material,
+            feedback_id=str(feedback.get("feedback_id", "") or ""),
+            upstream_theory_revision_count=int(
+                feedback.get("upstream_theory_revision_count", 0) or 0
+            ),
+            max_upstream_theory_revisions=int(
+                feedback.get("max_upstream_theory_revisions", 0) or 0
+            ),
+            execution_results_observed=False,
+        )
+
+    errors = theory_developer_revision_binding_errors(
+        binding,
+        question_id=question.id,
+    )
+    if errors:
+        raise PacketValidationError(
+            validation_label="TheoryDeveloper targeted revision inputs",
+            attempts=0,
+            errors=errors,
+            history=[],
+        )
+    return binding
+
+
 def build_theory_developer_revision_inputs(
     architect_context: Mapping[str, Any],
     *,
@@ -2492,58 +2565,22 @@ def build_theory_developer_revision_inputs(
 ) -> dict[str, Any]:
     """Bind an upstream-theory revision to one immutable accepted parent packet."""
 
-    feedback = theory_developer_source_environment_feedback(architect_context)
-    material = architect_context.get("metric_protocol_prior_theory_material", {})
+    binding = _theory_developer_revision_binding_from_context(
+        architect_context,
+        question=question,
+    )
+    feedback = binding.get("source_feedback", {})
+    feedback = dict(feedback) if isinstance(feedback, Mapping) else {}
+    material = binding.get("theory_material", {})
+    material = dict(material) if isinstance(material, Mapping) else {}
     errors: list[str] = []
-    if (
-        not isinstance(feedback, Mapping)
-        or feedback.get("artifact_kind")
-        != "RuntimeMetricProtocolUpstreamTheoryRevisionFeedback"
-    ):
-        errors.append(
-            "revision feedback must be RuntimeMetricProtocolUpstreamTheoryRevisionFeedback"
-        )
-        feedback = {}
-    if (
-        not isinstance(material, Mapping)
-        or material.get("artifact_kind")
-        != "RuntimeTheoryInformedMetricProtocolMaterial"
-    ):
-        errors.append(
-            "metric_protocol_prior_theory_material must be an immutable theory handoff"
-        )
-        material = {}
-    if material.get("execution_results_available") is not False:
-        errors.append("prior theory material must not contain execution results")
-    if feedback.get("execution_authorized") is True:
-        errors.append("upstream theory revision feedback cannot authorize execution")
 
-    feedback_packet_id = str(
-        feedback.get("source_theory_packet_id", "") or ""
-    ).strip()
     material_packet_id = str(
         material.get("source_theory_packet_id", "") or ""
-    ).strip()
-    feedback_packet_hash = str(
-        feedback.get("source_theory_packet_hash", "") or ""
     ).strip()
     material_packet_hash = str(
         material.get("source_theory_packet_hash", "") or ""
     ).strip()
-    if not feedback_packet_id or feedback_packet_id != material_packet_id:
-        errors.append("revision feedback and prior material source packet ids must match")
-    if not feedback_packet_hash or feedback_packet_hash != material_packet_hash:
-        errors.append(
-            "revision feedback and prior material source packet hashes must match"
-        )
-    feedback_question_id = str(feedback.get("question_id", "") or "").strip()
-    if feedback_question_id and feedback_question_id != question.id:
-        errors.append("revision feedback question_id does not match the active question")
-    target_consumer = str(
-        feedback.get("target_consumer_subsystem", "") or ""
-    ).strip()
-    if target_consumer and target_consumer != "TheoryDeveloper":
-        errors.append("revision feedback is not routed to TheoryDeveloper")
 
     semantic_material = material.get("theory_semantic_material", {})
     if not isinstance(semantic_material, Mapping) or not semantic_material:
@@ -2617,11 +2654,28 @@ def build_theory_developer_revision_inputs(
         else {}
     )
     return {
+        "revision_binding_id": str(binding.get("binding_id", "") or ""),
+        "revision_source": str(binding.get("revision_source", "") or ""),
         "source_theory_packet_id": material_packet_id,
         "source_theory_packet_hash": material_packet_hash,
-        "feedback_id": str(feedback.get("feedback_id", "") or "").strip(),
-        "upstream_theory_revision_count": feedback.get(
-            "upstream_theory_revision_count", ""
+        "feedback_id": str(binding.get("feedback_id", "") or "").strip(),
+        "source_feedback_fingerprint": str(
+            binding.get("source_feedback_fingerprint", "") or ""
+        ),
+        "source_review_packet_id": str(
+            binding.get("source_review_packet_id", "") or ""
+        ),
+        "source_review_execution_id": str(
+            binding.get("source_review_execution_id", "") or ""
+        ),
+        "execution_results_observed": bool(
+            binding.get("execution_results_observed") is True
+        ),
+        "upstream_theory_revision_count": binding.get(
+            "upstream_theory_revision_count", 0
+        ),
+        "max_upstream_theory_revisions": binding.get(
+            "max_upstream_theory_revisions", 0
         ),
         "feedback": deepcopy(dict(feedback)),
         "transport_feedback": transport_feedback,
@@ -2657,6 +2711,10 @@ def _build_targeted_theory_revision_prompt(
         },
         "revision_mode": THEORY_PROMPT_MODE_SERIOUS_REVISION,
         "lineage": {
+            "revision_binding_id": revision_inputs.get(
+                "revision_binding_id", ""
+            ),
+            "revision_source": revision_inputs.get("revision_source", ""),
             "source_theory_packet_id": revision_inputs.get(
                 "source_theory_packet_id", ""
             ),
@@ -2664,6 +2722,18 @@ def _build_targeted_theory_revision_prompt(
                 "source_theory_packet_hash", ""
             ),
             "feedback_id": revision_inputs.get("feedback_id", ""),
+            "source_feedback_fingerprint": revision_inputs.get(
+                "source_feedback_fingerprint", ""
+            ),
+            "source_review_packet_id": revision_inputs.get(
+                "source_review_packet_id", ""
+            ),
+            "source_review_execution_id": revision_inputs.get(
+                "source_review_execution_id", ""
+            ),
+            "execution_results_observed": revision_inputs.get(
+                "execution_results_observed", False
+            ),
             "base_core_payload_fingerprint": base_fingerprint,
         },
         "routed_feedback": _compact_environment_feedback_for_prompt(
@@ -2782,6 +2852,10 @@ def _generate_targeted_theory_revision(
             "source_theory_packet_id": revision_inputs.get(
                 "source_theory_packet_id", ""
             ),
+            "revision_binding_id": revision_inputs.get(
+                "revision_binding_id", ""
+            ),
+            "revision_source": revision_inputs.get("revision_source", ""),
             "base_core_payload_fingerprint": revision_inputs.get(
                 "base_core_payload_fingerprint", ""
             ),
@@ -2825,6 +2899,10 @@ def _generate_targeted_theory_revision(
         )
         packet["theory_revision_transport"] = {
             "artifact_kind": "TheoryDeveloperTargetedRevisionTransport",
+            "revision_binding_id": revision_inputs.get(
+                "revision_binding_id", ""
+            ),
+            "revision_source": revision_inputs.get("revision_source", ""),
             "source_theory_packet_id": revision_inputs.get(
                 "source_theory_packet_id", ""
             ),
@@ -2832,8 +2910,23 @@ def _generate_targeted_theory_revision(
                 "source_theory_packet_hash", ""
             ),
             "feedback_id": revision_inputs.get("feedback_id", ""),
+            "source_feedback_fingerprint": revision_inputs.get(
+                "source_feedback_fingerprint", ""
+            ),
+            "source_review_packet_id": revision_inputs.get(
+                "source_review_packet_id", ""
+            ),
+            "source_review_execution_id": revision_inputs.get(
+                "source_review_execution_id", ""
+            ),
+            "execution_results_observed": revision_inputs.get(
+                "execution_results_observed", False
+            ),
             "upstream_theory_revision_count": revision_inputs.get(
                 "upstream_theory_revision_count", ""
+            ),
+            "max_upstream_theory_revisions": revision_inputs.get(
+                "max_upstream_theory_revisions", ""
             ),
             "base_core_payload_fingerprint": base_fingerprint,
             "patched_core_payload_fingerprint": (

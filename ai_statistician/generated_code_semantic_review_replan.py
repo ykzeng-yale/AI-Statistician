@@ -38,7 +38,7 @@ def generated_code_semantic_review_upstream_theory_revision_state(
     question_id: str,
     max_revisions: int,
 ) -> dict[str, Any]:
-    """Read one question-global budget across all generated-code review lanes."""
+    """Read one question-global budget across pre/post-execution review lanes."""
 
     replan = _mapping(
         architect_context.get("runtime_generated_code_semantic_review_replan")
@@ -101,14 +101,28 @@ def generated_code_semantic_review_upstream_theory_revision_state(
         for _, row in budget_rows
     ]
     if canonical_row:
-        revisions_used = max(recorded_revision_counts or [0])
+        generated_code_revisions_used = max(recorded_revision_counts or [0])
     elif consumed_review_execution_ids:
-        revisions_used = max(
+        generated_code_revisions_used = max(
             len(consumed_review_execution_ids),
             max(recorded_revision_counts or [0]),
         )
     else:
-        revisions_used = sum(recorded_revision_counts)
+        generated_code_revisions_used = sum(recorded_revision_counts)
+    metric_gate = _mapping(
+        architect_context.get("architect_metric_protocol_gate")
+    )
+    preexecution_revisions_used = max(
+        0,
+        int(metric_gate.get("upstream_theory_revision_count", 0) or 0),
+    )
+    preexecution_revision_limit = max(
+        preexecution_revisions_used,
+        int(metric_gate.get("max_upstream_theory_revisions", 0) or 0),
+    )
+    revisions_used = (
+        preexecution_revisions_used + generated_code_revisions_used
+    )
     source_subsystems = list(
         dict.fromkeys(
             str(value)
@@ -127,12 +141,21 @@ def generated_code_semantic_review_upstream_theory_revision_state(
             "question_id": question_id,
             "repair_scope": "upstream_theory",
             "budget_scope": "question_global",
-            "revisions_used": revisions_used,
+            "revisions_used": generated_code_revisions_used,
+            "global_revisions_used": revisions_used,
+            "preexecution_revisions_used": preexecution_revisions_used,
             "consumed_review_execution_ids": consumed_review_execution_ids,
             "source_subsystems": source_subsystems,
         }
     )
-    revision_limit = max(0, int(max_revisions or 0))
+    generated_code_revision_limit = max(0, int(max_revisions or 0))
+    revision_limit = (
+        preexecution_revision_limit + generated_code_revision_limit
+    )
+    generated_code_budget_exhausted = bool(
+        generated_code_revisions_used >= generated_code_revision_limit
+    )
+    global_budget_exhausted = bool(revisions_used >= revision_limit)
     return {
         "active": active,
         "lineage_key": lineage_key,
@@ -143,9 +166,16 @@ def generated_code_semantic_review_upstream_theory_revision_state(
         "row": prior,
         "replan": replan,
         "revisions_used": revisions_used,
+        "generated_code_revisions_used": generated_code_revisions_used,
+        "preexecution_revisions_used": preexecution_revisions_used,
+        "preexecution_revision_limit": preexecution_revision_limit,
+        "generated_code_revision_limit": generated_code_revision_limit,
         "max_revisions": revision_limit,
+        "generated_code_budget_exhausted": generated_code_budget_exhausted,
+        "global_budget_exhausted": global_budget_exhausted,
         "budget_exhausted": bool(
-            active and revision_limit > 0 and revisions_used >= revision_limit
+            active
+            and (generated_code_budget_exhausted or global_budget_exhausted)
         ),
     }
 
@@ -192,10 +222,15 @@ def consume_generated_code_semantic_review_upstream_theory_replan(
         for value in prior_row.get("consumed_review_execution_ids", []) or []
         if str(value).strip()
     ]
-    revisions_used = int(state["revisions_used"])
+    generated_code_revisions_used = int(
+        state.get("generated_code_revisions_used", 0) or 0
+    )
     if review_execution_id not in consumed_review_execution_ids:
         consumed_review_execution_ids.append(review_execution_id)
-        revisions_used += 1
+        generated_code_revisions_used += 1
+    revisions_used = int(
+        state.get("preexecution_revisions_used", 0) or 0
+    ) + generated_code_revisions_used
     source_subsystems = list(
         dict.fromkeys(
             [
@@ -214,9 +249,16 @@ def consume_generated_code_semantic_review_upstream_theory_replan(
         "source_subsystem": str(replan.get("source_subsystem", "") or ""),
         "source_subsystems": source_subsystems,
         "repair_scope": "upstream_theory",
-        "budget_scope": "question_global",
-        "revisions_used": revisions_used,
-        "max_revisions": int(state["max_revisions"]),
+        "budget_scope": "question_global_cross_review_phase",
+        "revisions_used": generated_code_revisions_used,
+        "global_revisions_used": revisions_used,
+        "preexecution_revisions_used": int(
+            state.get("preexecution_revisions_used", 0) or 0
+        ),
+        "max_revisions": int(
+            state.get("generated_code_revision_limit", 0) or 0
+        ),
+        "global_max_revisions": int(state["max_revisions"]),
         "consumed_review_execution_ids": consumed_review_execution_ids,
         "last_prior_theory_packet_id": prior_theory_packet_id,
         "last_revised_theory_packet_id": revised_theory_packet_id,
