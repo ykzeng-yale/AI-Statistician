@@ -18,6 +18,7 @@ from ai_statistician.lean_proof_state_trace_rag import (
     ai4slt_proof_state_trace_rag_descriptor,
     attach_ai4slt_proof_state_trace_rag,
     discover_ai4slt_proof_state_trace_retriever,
+    proof_state_retrieval_query_parts,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
 
@@ -455,6 +456,48 @@ def test_trace_context_requires_live_proof_state_and_is_non_evidence(
         trace_retriever=provider,
     )
     assert "proof_state_trace_rag" not in no_match
+
+
+def test_nested_runtime_feedback_drives_live_proof_state_retrieval(
+    tmp_path: Path,
+) -> None:
+    provider = _trace_retriever(
+        _write_trace_fixture(tmp_path / "novel-train.jsonl")
+    )
+    residual_goal = (
+        "betaHat : Fin d -> Real\n"
+        "\u22a2 excessRisk betaHat <= rate"
+    )
+    context = {
+        "proof_state_feedback_rows": [
+            {"residual_goal_excerpt": residual_goal}
+        ],
+        "retrieval_query_seeds": [
+            "least squares excess risk basic inequality"
+        ],
+    }
+
+    query_parts, query_roles = proof_state_retrieval_query_parts(context)
+
+    assert query_parts == [residual_goal]
+    assert query_roles == ["proof_state_feedback_rows"]
+    assert proof_state_retrieval_query_parts(
+        {
+            "retrieval_query_seeds": ["semantic context only"],
+            "live_proof_state_requests": [
+                {"target_lean_declaration": "semanticTarget"}
+            ],
+        }
+    ) == ([], [])
+
+    attached = attach_ai4slt_proof_state_trace_rag(
+        context,
+        trace_retriever=provider,
+    )
+    assert attached["proof_state_trace_rag"]["n_hits"] >= 1
+    assert attached["proof_state_trace_rag"]["hits"][0][
+        "source_theorem_name"
+    ] == "leastSquares_excessRisk"
 
 
 def test_runtime_and_external_search_carry_trace_context(

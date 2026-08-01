@@ -297,6 +297,7 @@ from .formal_source_prompt_context import (
 from .lean_proof_state_trace_rag import (
     ai4slt_proof_state_trace_rag_descriptor,
     attach_ai4slt_proof_state_trace_rag,
+    proof_state_retrieval_query_parts,
 )
 from .lean_agent_providers import (
     LEAN_PROVIDER_BOUNDARY,
@@ -33517,6 +33518,7 @@ def _proofengineer_repair_context_from_diagnostics(
         context,
         formal_source_retriever=formal_source_retriever,
         unknown_identifiers=unknown_identifiers,
+        proof_state_feedback=diagnostics,
     )
 
 
@@ -33934,6 +33936,7 @@ def _formalizer_environment_feedback_with_formal_source_grounding(
                 "unknown_identifiers",
                 [],
             ),
+            proof_state_feedback=payload.get("candidate_diagnostics", []),
         )
     )
     return payload
@@ -34130,42 +34133,83 @@ def _proofengineer_repair_context_with_formal_source_grounding(
     *,
     formal_source_retriever: Any | None = None,
     unknown_identifiers: Sequence[Any] = (),
+    proof_state_feedback: Any = None,
 ) -> dict[str, Any]:
     """Ground a repair context in formal-source hits without treating hits as proof."""
 
     payload = dict(context) if isinstance(context, Mapping) else {}
-    if payload.get("formal_source_grounding_hits"):
+    query_seeds = [
+        str(seed).strip()
+        for seed in payload.get("retrieval_query_seeds", []) or []
+        if str(seed).strip()
+    ]
+    retrieval_context = dict(payload)
+    if proof_state_feedback not in (None, "", [], {}):
+        retrieval_context["candidate_diagnostics"] = proof_state_feedback
+    proof_state_query_seeds, _proof_state_query_roles = (
+        proof_state_retrieval_query_parts(retrieval_context)
+    )
+    proof_state_query_seeds = [
+        seed for seed in proof_state_query_seeds if seed not in query_seeds
+    ]
+    unknowns = [
+        str(value).strip()
+        for value in unknown_identifiers
+        or payload.get("unknown_identifiers", [])
+        or []
+        if str(value).strip()
+    ]
+    source_scope_ids = _proofengineer_formal_source_scope_ids(payload)
+    semantic_query_role = (
+        "initial_formalization_context"
+        if str(payload.get("context_kind", "") or "")
+        == "task_bound_formal_source_grounding"
+        and not proof_state_query_seeds
+        and not unknowns
+        else "repair_context_seed"
+    )
+    query_rows = _proofengineer_formal_source_query_rows(
+        proof_state_query_seeds=proof_state_query_seeds,
+        query_seeds=query_seeds,
+        unknown_identifiers=unknowns,
+        semantic_query_role=semantic_query_role,
+    )
+    existing_groups = [
+        dict(group)
+        for group in payload.get("formal_source_grounding_hits", []) or []
+        if isinstance(group, Mapping)
+    ]
+    existing_groups_are_current = (
+        existing_groups
+        and _proofengineer_formal_source_grounding_matches_query_rows(
+            existing_groups,
+            query_rows=query_rows,
+            source_scope_ids=source_scope_ids,
+        )
+    )
+    if existing_groups and existing_groups_are_current:
         grounded = _proofengineer_repair_context_ordered_with_formal_source_grounding(
             payload,
-            immediate_fields={
-                "formal_source_grounding_hits": payload.get(
-                    "formal_source_grounding_hits"
-                )
-            },
+            immediate_fields={"formal_source_grounding_hits": existing_groups},
         )
         return attach_ai4slt_proof_state_trace_rag(
             grounded,
             formal_source_retriever=formal_source_retriever,
         )
     if formal_source_retriever is None:
+        if existing_groups and query_rows:
+            payload.pop("formal_source_grounding_hits", None)
+            payload["formal_source_grounding_status"] = (
+                "stale_hits_removed_retriever_unavailable"
+            )
         return attach_ai4slt_proof_state_trace_rag(payload)
-    query_seeds = [
-        str(seed).strip()
-        for seed in payload.get("retrieval_query_seeds", []) or []
-        if str(seed).strip()
-    ]
-    unknowns = [
-        str(value).strip()
-        for value in unknown_identifiers or payload.get("unknown_identifiers", []) or []
-        if str(value).strip()
-    ]
     groups = _proofengineer_formal_source_grounding_hit_groups(
         formal_source_retriever,
+        proof_state_query_seeds=proof_state_query_seeds,
         query_seeds=query_seeds,
         unknown_identifiers=unknowns,
-        source_scope_ids=_proofengineer_formal_source_scope_ids(
-            payload,
-        ),
+        source_scope_ids=source_scope_ids,
+        semantic_query_role=semantic_query_role,
     )
     if not groups:
         return attach_ai4slt_proof_state_trace_rag(
@@ -34239,27 +34283,18 @@ def _proofengineer_formal_source_grounding_hit_groups(
     *,
     query_seeds: Sequence[str],
     unknown_identifiers: Sequence[str],
+    proof_state_query_seeds: Sequence[str] = (),
     source_scope_ids: Sequence[str] = (),
+    semantic_query_role: str = "repair_context_seed",
     k: int = 2,
     max_groups: int = 3,
 ) -> list[dict[str, Any]]:
-    query_rows: list[dict[str, str]] = []
-    for identifier in unknown_identifiers:
-        query_rows.append(
-            {
-                "query": f"{identifier} Lean declaration identifier",
-                "query_role": "unknown_identifier_api_repair",
-                "unknown_identifier": identifier,
-            }
-        )
-    for seed in query_seeds:
-        query_rows.append(
-            {
-                "query": seed,
-                "query_role": "repair_context_seed",
-                "unknown_identifier": "",
-            }
-        )
+    query_rows = _proofengineer_formal_source_query_rows(
+        proof_state_query_seeds=proof_state_query_seeds,
+        query_seeds=query_seeds,
+        unknown_identifiers=unknown_identifiers,
+        semantic_query_role=semantic_query_role,
+    )
     groups: list[dict[str, Any]] = []
     seen_queries: set[str] = set()
     seen_hit_keys: set[tuple[str, str, str, str]] = set()
@@ -34328,6 +34363,101 @@ def _proofengineer_formal_source_grounding_hit_groups(
         if len(groups) >= max_groups:
             break
     return groups
+
+
+def _proofengineer_formal_source_query_rows(
+    *,
+    proof_state_query_seeds: Sequence[str],
+    query_seeds: Sequence[str],
+    unknown_identifiers: Sequence[str],
+    semantic_query_role: str = "repair_context_seed",
+) -> list[dict[str, str]]:
+    """Prioritize one live state, one API diagnostic, and one semantic query."""
+
+    proof_state_rows = [
+        {
+            "query": str(seed).strip(),
+            "query_role": "live_proof_state_or_diagnostic",
+            "unknown_identifier": "",
+        }
+        for seed in proof_state_query_seeds
+        if str(seed).strip()
+    ]
+    unknown_rows = [
+        {
+            "query": f"{str(identifier).strip()} Lean declaration identifier",
+            "query_role": "unknown_identifier_api_repair",
+            "unknown_identifier": str(identifier).strip(),
+        }
+        for identifier in unknown_identifiers
+        if str(identifier).strip()
+    ]
+    semantic_rows = [
+        {
+            "query": str(seed).strip(),
+            "query_role": str(semantic_query_role).strip()
+            or "repair_context_seed",
+            "unknown_identifier": "",
+        }
+        for seed in query_seeds
+        if str(seed).strip()
+    ]
+    rows: list[dict[str, str]] = []
+    buckets = (proof_state_rows, unknown_rows, semantic_rows)
+    for bucket in buckets:
+        if bucket:
+            rows.append(bucket[0])
+    for bucket in buckets:
+        rows.extend(bucket[1:])
+    unique_rows: list[dict[str, str]] = []
+    seen_queries: set[str] = set()
+    for row in rows:
+        query = row["query"]
+        if query in seen_queries:
+            continue
+        seen_queries.add(query)
+        unique_rows.append(row)
+    return unique_rows
+
+
+def _proofengineer_formal_source_grounding_matches_query_rows(
+    groups: Sequence[Mapping[str, Any]],
+    *,
+    query_rows: Sequence[Mapping[str, Any]],
+    source_scope_ids: Sequence[str],
+    max_groups: int = 3,
+) -> bool:
+    """Reject carried declaration hits when the live Lean query has changed."""
+
+    expected_rows = list(query_rows[: max(0, int(max_groups))])
+    if not expected_rows:
+        return True
+    observed_rows = list(groups[: len(expected_rows)])
+    if len(observed_rows) != len(expected_rows):
+        return False
+    expected_scopes = tuple(
+        dict.fromkeys(
+            str(value).strip()
+            for value in source_scope_ids
+            if str(value).strip()
+        )
+    )
+    for observed, expected in zip(observed_rows, expected_rows, strict=True):
+        query = str(expected.get("query", "") or "").strip()
+        if str(observed.get("query_fingerprint", "") or "") != stable_hash(query):
+            return False
+        if str(observed.get("query_role", "") or "") != str(
+            expected.get("query_role", "") or ""
+        ):
+            return False
+        observed_scopes = tuple(
+            str(value).strip()
+            for value in observed.get("source_scope_ids", []) or []
+            if str(value).strip()
+        )
+        if observed_scopes != expected_scopes:
+            return False
+    return True
 
 
 def _proofengineer_formal_source_scope_ids(

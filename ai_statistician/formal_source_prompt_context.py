@@ -20,6 +20,13 @@ FORMAL_SOURCE_OUTLINE_PROMPT_POLICY = (
     "until the exact target artifact passes active-project Lean/kernel checking."
 )
 FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS = 5600
+PROOFENGINEER_REPAIR_QUERY_ROLES = frozenset(
+    {
+        "live_proof_state_or_diagnostic",
+        "repair_context_seed",
+        "unknown_identifier_api_repair",
+    }
+)
 
 
 def compact_formal_source_grounding_hits_for_prompt(value: Any) -> list[dict[str, Any]]:
@@ -45,8 +52,9 @@ def compact_formal_source_grounding_hits_for_prompt(value: Any) -> list[dict[str
 
     projected_groups: list[dict[str, Any]] = []
     for index, (group, hit) in enumerate(selected):
+        query_role = str(group.get("query_role", "") or "")[:120]
         projected_group: dict[str, Any] = {
-            "query_role": str(group.get("query_role", "") or "")[:120],
+            "query_role": query_role,
             "query_fingerprint": str(
                 group.get("query_fingerprint", "") or ""
             )[:96],
@@ -58,6 +66,9 @@ def compact_formal_source_grounding_hits_for_prompt(value: Any) -> list[dict[str
                 _compact_formal_source_hit_for_prompt(
                     hit,
                     primary=index == 0,
+                    repair_focused=(
+                        query_role in PROOFENGINEER_REPAIR_QUERY_ROLES
+                    ),
                 )
             ],
         }
@@ -99,6 +110,7 @@ def _compact_formal_source_hit_for_prompt(
     hit: Mapping[str, Any],
     *,
     primary: bool,
+    repair_focused: bool,
 ) -> dict[str, Any]:
     payload = {
         "source_id": str(hit.get("source_id", "") or "")[:120],
@@ -118,13 +130,13 @@ def _compact_formal_source_hit_for_prompt(
     if signature:
         payload["signature"] = _head_tail_text(signature, 500 if primary else 360)
     declaration_doc = str(hit.get("declaration_doc", "") or "")
-    if primary and declaration_doc:
+    if primary and not repair_focused and declaration_doc:
         payload["declaration_doc"] = _head_tail_text(
             declaration_doc,
             440,
         )
     section_summary = str(hit.get("section_summary", "") or "")
-    if primary and section_summary:
+    if primary and not repair_focused and section_summary:
         payload["section_summary"] = _head_tail_text(
             section_summary,
             220,
@@ -134,9 +146,9 @@ def _compact_formal_source_hit_for_prompt(
         for item in list(hit.get("reference_aliases", []) or [])[:1]
         if str(item).strip()
     ]
-    if aliases:
+    if aliases and not repair_focused:
         payload["reference_aliases"] = aliases
-    else:
+    elif not repair_focused:
         reference = str(hit.get("reference", "") or "")
         if reference:
             payload["reference"] = reference[:280]
@@ -146,6 +158,7 @@ def _compact_formal_source_hit_for_prompt(
             _compact_declaration_source_context_for_prompt(
                 context,
                 primary=primary,
+                repair_focused=repair_focused,
             )
         )
     return {
@@ -159,6 +172,7 @@ def _compact_declaration_source_context_for_prompt(
     context: Any,
     *,
     primary: bool,
+    repair_focused: bool,
 ) -> dict[str, Any]:
     if not isinstance(context, Mapping):
         return {}
@@ -172,6 +186,8 @@ def _compact_declaration_source_context_for_prompt(
         for row in context.get("premise_declaration_outlines", []) or []
         if isinstance(row, Mapping)
     ][:6]
+    module_ancestry_limit = 0 if repair_focused else 5 if primary else 3
+    import_limit = 4 if repair_focused else 6 if primary else 3
     selected_rows: list[Mapping[str, Any]] = []
     if primary:
         for scope, limit in (("statement", 1), ("proof", 2), ("unspecified", 1)):
@@ -205,29 +221,41 @@ def _compact_declaration_source_context_for_prompt(
         outlines.append(outline)
     payload: dict[str, Any] = {
         "module": str(context.get("module", "") or "")[:240],
-        "module_group": str(context.get("module_group", "") or "")[:120],
+        "module_group": (
+            ""
+            if repair_focused
+            else str(context.get("module_group", "") or "")[:120]
+        ),
         "module_ancestry": [
             str(item)[:180]
-            for item in list(dependency.get("module_ancestry", []) or [])[
-                : 5 if primary else 3
-            ]
+            for item in list(
+                dependency.get("module_ancestry", []) or []
+            )[:module_ancestry_limit]
         ],
         "imports": [
             str(item)[:180]
-            for item in list(context.get("imports", []) or [])[
-                : 6 if primary else 3
-            ]
+            for item in list(context.get("imports", []) or [])[:import_limit]
         ],
         "premise_names": [
             str(row.get("name", "") or "")[:240]
             for row in premise_rows[:6]
             if str(row.get("name", "") or "").strip()
         ]
-        if primary
+        if primary and not repair_focused
         else [],
         "premise_declaration_outlines": outlines,
+        "module_import_visibility_enforced": bool(
+            dependency.get("module_import_visibility_enforced", False)
+        ),
     }
-    if primary:
+    if repair_focused:
+        payload["direct_module_imports"] = [
+            str(item)[:180]
+            for item in list(
+                dependency.get("direct_module_imports", []) or []
+            )[:4]
+        ]
+    if primary and not repair_focused:
         payload.update(
             {
                 "module_summary": _head_tail_text(
@@ -253,9 +281,6 @@ def _compact_declaration_source_context_for_prompt(
                         dependency.get("direct_module_imports", []) or []
                     )[:4]
                 ],
-                "module_import_visibility_enforced": bool(
-                    dependency.get("module_import_visibility_enforced", False)
-                ),
             }
         )
     snapshot = (
@@ -281,7 +306,7 @@ def _compact_declaration_source_context_for_prompt(
                 "lean_toolchain",
                 "mathlib_revision",
             )
-            if primary
+            if primary and not repair_focused
             else ("lean_toolchain", "mathlib_revision")
         )
         compact_metadata = {

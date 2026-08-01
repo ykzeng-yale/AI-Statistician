@@ -2484,6 +2484,21 @@ with the
 [Lean source library](https://github.com/YuanheZ/lean-stat-learning-theory);
 the implementation reuses their organization and feedback strategy, not their
 generated proof answers or historical model configuration.
+
+The prompt projection is stage-aware. Initial declaration/API design may use
+the bounded module taxonomy, source docs, section summaries, local naming
+examples, and citation metadata above. Once Lean has produced a goal or
+diagnostic, declaration retrieval instead reserves its first bounded lanes for
+one live-state query, one unknown-API query when present, and one semantic target
+query. Repair prompts keep qualified signatures, direct premise signatures,
+module/import visibility, and toolchain/version gates while dropping taxonomy,
+naming examples, and citation prose. Query fingerprints bind the live text,
+role, and source scope: an unchanged state may reuse its hits; a changed state
+refreshes them; and if refresh is impossible because the retriever is unavailable,
+stale hits are removed. Nested runtime proof-state rows use the same extractor as
+the train-only state-action retriever, so declaration RAG and trace RAG cannot
+silently reason from different Lean states.
+
 Research benchmark traces also attach the top local declaration hits to every
 `FORMAL_GAP` subclaim and copy them into the generated Lean skeleton comments,
 so a gap is always accompanied by concrete local source candidates rather than

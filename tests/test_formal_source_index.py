@@ -1261,7 +1261,7 @@ def test_formal_source_prompt_payload_omits_full_candidate_proof_body() -> None:
 
 def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     contract = formalizer_proof_construction_strategy_contract()
-    assert contract["schema_version"] == 8
+    assert contract["schema_version"] == 9
     assert "smallest diagnostic" in contract["repair_cycle"]
     assert "faithful natural-language statement" in contract["specification"]
     assert "four-part structured specification" in contract[
@@ -1274,6 +1274,13 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     assert "hard evidence" in contract["specification"]
     assert "source-local namespace/module role" in contract["context_policy"]
     assert "source-authored declaration docs" in contract["context_policy"]
+    assert "initial API design and declaration placement" in contract[
+        "context_policy"
+    ]
+    assert "live Lean goal or diagnostic" in contract["context_policy"]
+    assert "only a few qualified signatures" in contract["context_policy"]
+    assert "do not resend taxonomy" in contract["context_policy"]
+    assert "active toolchain/version gates" in contract["context_policy"]
     assert "one unique top signature per independent retrieval query" in contract[
         "context_policy"
     ]
@@ -1369,7 +1376,7 @@ def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() ->
     groups = [
         {
             "query": "target query " * 80,
-            "query_role": "repair_context_seed",
+            "query_role": "initial_formalization_context",
             "query_fingerprint": "a" * 64,
             "hits": [
                 {
@@ -1514,7 +1521,7 @@ def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() ->
     assert len(encoded) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS
     assert len(compact) == 3
     assert [group["query_role"] for group in compact] == [
-        "repair_context_seed",
+        "initial_formalization_context",
         "semantic_target",
         "support_dependency",
     ]
@@ -1557,6 +1564,121 @@ def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() ->
         "Library.Semantic"
     )
     assert compact[1]["hits"][0]["namespace"] == "Statistics"
+
+
+def test_formal_source_repair_prompt_keeps_signatures_not_library_prose() -> None:
+    hit = {
+        "source_id": "lean_stat_learning_theory",
+        "source_type": "lean_library",
+        "path": "SLT/LeastSquares/MasterErrorBound.lean",
+        "line": 88,
+        "kind": "theorem",
+        "name": "LeastSquares.master_error_bound",
+        "namespace": "LeastSquares",
+        "signature": (
+            "theorem master_error_bound (h : LocalizedCondition betaHat) : "
+            "excessRisk betaHat <= rate"
+        ),
+        "declaration_doc": "Long mathematical explanation for initial authoring.",
+        "section_summary": "Localized least-squares application layer.",
+        "reference_aliases": ["Book theorem and page metadata"],
+        "declaration_source_context": {
+            "module": "SLT.LeastSquares.MasterErrorBound",
+            "module_group": "Least-squares applications",
+            "module_summary": "Long module design prose.",
+            "module_group_summary": "Long library taxonomy prose.",
+            "imports": ["SLT.LeastSquares.Localization"],
+            "local_naming_examples": [
+                {
+                    "kind": "lemma",
+                    "name": "LeastSquares.localized_reduction",
+                }
+            ],
+            "premise_declaration_outlines": [
+                {
+                    "dependency_scope": "proof",
+                    "name": "LeastSquares.localized_reduction",
+                    "signature": (
+                        "lemma localized_reduction : "
+                        "LocalizedCondition betaHat"
+                    ),
+                }
+            ],
+            "dependency_context": {
+                "module_ancestry": ["SLT", "SLT.LeastSquares"],
+                "direct_module_imports": [
+                    "SLT.LeastSquares.Localization"
+                ],
+                "module_import_visibility_enforced": True,
+                "source_snapshot": {
+                    "status": "BOUND_MATCH",
+                    "bound": True,
+                    "match": True,
+                    "metadata": {
+                        "source_git_commit": "a" * 40,
+                        "lean_toolchain": "leanprover/lean4:v4.32.0",
+                        "mathlib_revision": "b" * 40,
+                    },
+                },
+            },
+        },
+    }
+    initial = compact_formal_source_grounding_hits_for_prompt(
+        [
+            {
+                "query_role": "initial_formalization_context",
+                "query_fingerprint": "i" * 64,
+                "hits": [hit],
+            }
+        ]
+    )
+    repair = compact_formal_source_grounding_hits_for_prompt(
+        [
+            {
+                "query_role": "live_proof_state_or_diagnostic",
+                "query_fingerprint": "r" * 64,
+                "hits": [hit],
+            }
+        ]
+    )
+
+    initial_hit = initial[0]["hits"][0]
+    repair_hit = repair[0]["hits"][0]
+    repair_context = repair_hit["declaration_source_context"]
+    assert "declaration_doc" in initial_hit
+    assert "declaration_doc" not in repair_hit
+    assert "section_summary" not in repair_hit
+    assert "reference_aliases" not in repair_hit
+    assert repair_hit["name"] == "LeastSquares.master_error_bound"
+    assert "excessRisk betaHat" in repair_hit["signature"]
+    assert repair_context["module"] == (
+        "SLT.LeastSquares.MasterErrorBound"
+    )
+    assert repair_context["imports"] == [
+        "SLT.LeastSquares.Localization"
+    ]
+    assert repair_context["direct_module_imports"] == [
+        "SLT.LeastSquares.Localization"
+    ]
+    assert repair_context["premise_declaration_outlines"][0]["name"] == (
+        "LeastSquares.localized_reduction"
+    )
+    assert "LocalizedCondition betaHat" in repair_context[
+        "premise_declaration_outlines"
+    ][0]["signature"]
+    assert repair_context["module_import_visibility_enforced"] is True
+    assert repair_context["source_snapshot"]["metadata"] == {
+        "lean_toolchain": "leanprover/lean4:v4.32.0",
+        "mathlib_revision": "b" * 40,
+    }
+    assert "module_group" not in repair_context
+    assert "module_summary" not in repair_context
+    assert "module_group_summary" not in repair_context
+    assert "local_naming_examples" not in repair_context
+    assert "module_ancestry" not in repair_context
+    assert len(json.dumps(repair, sort_keys=True)) < len(
+        json.dumps(initial, sort_keys=True)
+    )
 
 
 def test_formal_source_prompt_projection_has_a_hard_pathological_input_cap() -> None:

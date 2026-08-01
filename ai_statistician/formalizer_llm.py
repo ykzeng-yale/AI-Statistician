@@ -109,7 +109,7 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
     """Context-efficient, feedback-driven policy for Lean proof construction."""
 
     return {
-        "schema_version": 8,
+        "schema_version": 9,
         "specification": (
             "Four-part structured specification: exact Lean target plus faithful "
             "natural-language statement and assumptions; qualified infrastructure "
@@ -117,12 +117,18 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
             "scope, and success boundaries. Never weaken."
         ),
         "context_policy": (
-            "Target-bound qualified names/signatures/imports; source-local "
-            "namespace/module role; bounded source-authored declaration docs, section "
-            "and README module taxonomy, and local naming examples; direct premise "
-            "outlines first; one unique top signature per independent retrieval query; "
-            "bounded prior fallback; no source files or proof bodies. Treat module/import "
-            "identity separately from declaration namespace because they may differ."
+            "Stage context by purpose. For initial API design and declaration "
+            "placement, use target-bound qualified names/signatures/imports, the "
+            "source-local namespace/module role, bounded source-authored declaration "
+            "docs, section and README module taxonomy, and local naming examples. "
+            "For compiler/tactic repair, rank by the live Lean goal or diagnostic and "
+            "send only a few qualified signatures, direct premise signatures, module "
+            "imports, and active toolchain/version gates; do not resend taxonomy, "
+            "naming examples, or citation prose. In both stages use one unique top "
+            "signature per independent retrieval query, direct premise outlines first, "
+            "bounded prior fallback, and no source files or proof bodies. Treat "
+            "module/import identity separately from declaration namespace because they "
+            "may differ."
         ),
         "assumption_audit": (
             "Audit domain, measurability, integrability, finiteness, nonemptiness, "

@@ -39784,14 +39784,20 @@ def test_formalizer_lean_candidate_repair_feedback_uses_formal_source_grounding(
     )
 
     assert feedback is not None
-    assert retriever.queries[0] == ("Nat.ceil Lean declaration identifier", 2)
+    assert retriever.queries[0] == (
+        "error(lean.unknownIdentifier): Unknown constant `Nat.ceil`",
+        2,
+    )
+    assert retriever.queries[1] == ("Nat.ceil Lean declaration identifier", 2)
     repair_contract = feedback["local_lean_repair_contract"]
     assert repair_contract["unknown_identifiers"] == ["Nat.ceil"]
     proofengineer_context = feedback["proofengineer_repair_context"]
     assert proofengineer_context["formal_source_grounding_status"] == "retrieved_hits"
     grounding_group = proofengineer_context["formal_source_grounding_hits"][0]
-    assert grounding_group["query_role"] == "unknown_identifier_api_repair"
-    assert grounding_group["unknown_identifier"] == "Nat.ceil"
+    assert grounding_group["query_role"] == "live_proof_state_or_diagnostic"
+    unknown_group = proofengineer_context["formal_source_grounding_hits"][1]
+    assert unknown_group["query_role"] == "unknown_identifier_api_repair"
+    assert unknown_group["unknown_identifier"] == "Nat.ceil"
     assert grounding_group["proof_evidence_status"] == (
         "FORMAL_SOURCE_RETRIEVAL_GROUNDING_NOT_PROOF_EVIDENCE"
     )
@@ -40466,6 +40472,121 @@ def test_carried_proofengineer_feedback_is_enriched_with_formal_source_grounding
     assert "rank_threshold_bridge" in summary["top_hit_names"]
     assert summary["proof_evidence_status"] == (
         "FORMAL_SOURCE_RETRIEVAL_GROUNDING_NOT_PROOF_EVIDENCE"
+    )
+
+
+def test_proofengineer_grounding_refreshes_when_live_lean_state_changes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class DummyFormalSourceRetriever:
+        def __init__(self) -> None:
+            self.queries: list[str] = []
+
+        def search(self, query: str, *, k: int = 10) -> list[FormalSourceHit]:
+            self.queries.append(query)
+            return [
+                FormalSourceHit(
+                    declaration=FormalDeclaration(
+                        source_id="lean_stat_learning_theory",
+                        source_type="lean_library",
+                        path="SLT/Foundations/Fixture.lean",
+                        line=9,
+                        kind="lemma",
+                        name="SLT.fixture_api",
+                        namespace="SLT",
+                        signature="lemma fixture_api (p : Prop) : p -> p := id",
+                    ),
+                    score=0.9,
+                    matched_terms=("fixture",),
+                )
+            ]
+
+    monkeypatch.setattr(
+        runtime_module,
+        "attach_ai4slt_proof_state_trace_rag",
+        lambda context, **_kwargs: dict(context),
+    )
+    retriever = DummyFormalSourceRetriever()
+    stale_context = {
+        "retrieval_query_seeds": ["semantic theorem target"],
+        "formal_source_grounding_hits": [
+            {
+                "query_role": "repair_context_seed",
+                "query_fingerprint": runtime_module.stable_hash(
+                    "obsolete residual goal"
+                ),
+                "hits": [],
+            }
+        ],
+    }
+    first_diagnostic = [
+        {
+            "local_lean_stdout_excerpt": (
+                "error: application type mismatch\n"
+                "\u22a2 excessRisk betaHat <= rate"
+            )
+        }
+    ]
+    first = runtime_module._proofengineer_repair_context_with_formal_source_grounding(
+        stale_context,
+        formal_source_retriever=retriever,
+        unknown_identifiers=["LeastSquares.missing_api"],
+        proof_state_feedback=first_diagnostic,
+    )
+
+    assert retriever.queries == [
+        "error: application type mismatch\n\u22a2 excessRisk betaHat <= rate",
+        "LeastSquares.missing_api Lean declaration identifier",
+        "semantic theorem target",
+    ]
+    assert [
+        group["query_role"]
+        for group in first["formal_source_grounding_hits"]
+    ] == [
+        "live_proof_state_or_diagnostic",
+        "unknown_identifier_api_repair",
+        "repair_context_seed",
+    ]
+
+    repeated = runtime_module._proofengineer_repair_context_with_formal_source_grounding(
+        first,
+        formal_source_retriever=retriever,
+        unknown_identifiers=["LeastSquares.missing_api"],
+        proof_state_feedback=first_diagnostic,
+    )
+    assert len(retriever.queries) == 3
+    assert repeated["formal_source_grounding_hits"] == first[
+        "formal_source_grounding_hits"
+    ]
+
+    changed_diagnostic = [
+        {
+            "local_lean_stdout_excerpt": (
+                "error: unsolved goals\n"
+                "\u22a2 localizedComplexity r <= threshold"
+            )
+        }
+    ]
+    refreshed = runtime_module._proofengineer_repair_context_with_formal_source_grounding(
+        repeated,
+        formal_source_retriever=retriever,
+        unknown_identifiers=["LeastSquares.missing_api"],
+        proof_state_feedback=changed_diagnostic,
+    )
+    assert retriever.queries[3] == (
+        "error: unsolved goals\n\u22a2 localizedComplexity r <= threshold"
+    )
+    assert refreshed["formal_source_grounding_hits"][0][
+        "query_fingerprint"
+    ] != first["formal_source_grounding_hits"][0]["query_fingerprint"]
+
+    unavailable = runtime_module._proofengineer_repair_context_with_formal_source_grounding(
+        first,
+        proof_state_feedback=changed_diagnostic,
+    )
+    assert "formal_source_grounding_hits" not in unavailable
+    assert unavailable["formal_source_grounding_status"] == (
+        "stale_hits_removed_retriever_unavailable"
     )
 
 

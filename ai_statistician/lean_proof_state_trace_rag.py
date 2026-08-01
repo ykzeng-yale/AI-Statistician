@@ -69,6 +69,7 @@ _STOP_TOKENS = {
     "with",
 }
 _PROOF_STATE_SIGNAL_KEYS = {
+    "compiler_diagnostics",
     "compiler_feedback",
     "diagnostics",
     "error",
@@ -77,9 +78,12 @@ _PROOF_STATE_SIGNAL_KEYS = {
     "first_error",
     "lean_diagnostic_messages",
     "lean_goal",
+    "local_lean_stderr_excerpt",
     "local_lean_stderr",
+    "local_lean_stdout_excerpt",
     "local_lean_stdout",
     "message",
+    "precheck_errors",
     "prior_exact_candidate_feedback",
     "proof_state",
     "residual_goal_excerpt",
@@ -88,6 +92,15 @@ _PROOF_STATE_SIGNAL_KEYS = {
     "state_before",
     "stderr",
     "stdout",
+}
+_PROOF_STATE_SIGNAL_CONTAINER_KEYS = {
+    "candidate_diagnostics",
+    "candidate_proof_state_feedback_rows",
+    "deferred_structural_route_revision_rows",
+    "lineage_blocked_candidate_rows",
+    "parent_formalizer_proof_state_feedback",
+    "proof_state_feedback_rows",
+    "structural_route_revision_rows",
 }
 
 
@@ -1189,6 +1202,8 @@ def _current_declaration_candidates(
 
 def _proof_state_query_parts(
     context: Mapping[str, Any],
+    *,
+    include_contextual_targets: bool = True,
 ) -> tuple[list[str], list[str]]:
     parts: list[str] = []
     roles: list[str] = []
@@ -1207,25 +1222,74 @@ def _proof_state_query_parts(
     for key in sorted(_PROOF_STATE_SIGNAL_KEYS):
         if key in context:
             add(context.get(key), key)
-    for row in context.get("live_proof_state_requests", []) or []:
-        if not isinstance(row, Mapping):
+    for key in sorted(_PROOF_STATE_SIGNAL_CONTAINER_KEYS):
+        if key not in context:
             continue
-        add(row.get("target_lean_declaration", ""), "target_lean_declaration")
-    openprover_task = context.get("openprover_task", {})
-    if isinstance(openprover_task, Mapping):
-        add(
-            openprover_task.get("target_theorem_statement", ""),
-            "target_theorem_statement",
-        )
-        add(
-            openprover_task.get("target_lean_declaration", ""),
-            "target_lean_declaration",
-        )
+        for text in _nested_proof_state_signal_strings(context.get(key)):
+            add(text, key)
+    if include_contextual_targets:
+        for row in context.get("live_proof_state_requests", []) or []:
+            if not isinstance(row, Mapping):
+                continue
+            add(
+                row.get("target_lean_declaration", ""),
+                "target_lean_declaration",
+            )
+        openprover_task = context.get("openprover_task", {})
+        if isinstance(openprover_task, Mapping):
+            add(
+                openprover_task.get("target_theorem_statement", ""),
+                "target_theorem_statement",
+            )
+            add(
+                openprover_task.get("target_lean_declaration", ""),
+                "target_lean_declaration",
+            )
     if not parts:
         return [], []
-    add(context.get("retrieval_query_seeds", []), "retrieval_query_seed")
-    add(context.get("target_theorem_statement", ""), "target_theorem_statement")
+    if include_contextual_targets:
+        add(context.get("retrieval_query_seeds", []), "retrieval_query_seed")
+        add(
+            context.get("target_theorem_statement", ""),
+            "target_theorem_statement",
+        )
     return parts[:12], roles
+
+
+def proof_state_retrieval_query_parts(
+    context: Mapping[str, Any],
+) -> tuple[list[str], list[str]]:
+    """Return the live Lean signals shared by declaration and trace retrieval."""
+
+    return _proof_state_query_parts(
+        context,
+        include_contextual_targets=False,
+    )
+
+
+def _nested_proof_state_signal_strings(value: Any) -> list[str]:
+    """Read only proof-state fields from nested runtime feedback containers."""
+
+    if isinstance(value, Mapping):
+        rows: list[str] = []
+        for key in sorted(value, key=str):
+            child = value[key]
+            if str(key) in _PROOF_STATE_SIGNAL_KEYS:
+                rows.extend(_nested_strings(child))
+            elif isinstance(child, Mapping):
+                rows.extend(_nested_proof_state_signal_strings(child))
+            elif isinstance(child, (list, tuple)):
+                for item in child[:12]:
+                    if isinstance(item, Mapping):
+                        rows.extend(_nested_proof_state_signal_strings(item))
+        return rows
+    if isinstance(value, (list, tuple)):
+        rows: list[str] = []
+        for child in value[:12]:
+            if isinstance(child, Mapping):
+                rows.extend(_nested_proof_state_signal_strings(child))
+        return rows
+    return []
 
 
 def _nested_strings(value: Any) -> list[str]:

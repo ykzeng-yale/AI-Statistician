@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-08-01T10:01:06Z",
+  "updated_at": "2026-08-01T10:48:24Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "active_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
@@ -29,12 +29,12 @@
     "theory_transport": "The same TheoryDeveloper and task now use two bounded provider calls: first a core mathematical workspace, then an executable estimator interface constrained to frozen estimator and semantic-reference IDs. The merged packet is rehashed and validated as one theory artifact. This is transport decomposition, not another agent or scheduler.",
     "metric_review_transport": "The independent pre-execution reviewer receives a compact projection of immutable authority, a single typed array for variable-count theory-scope checks, and runtime-owned prior-finding identity/evidence binding. Local validators still check the full source material and exact coverage.",
     "semantic_audit": "Generic prompts require primitive DGP/estimand reconstruction, full-support expectation or probability expansion, normalization, boundary checks, and alignment with Architect formal/simulation targets. No statistical task formula was added.",
-    "formalizer_strategy": "Exact target and assumptions, source-local module and namespace as distinct identities, dependency-ordered lemma DAG, smallest blocked leaf, real Lean/LSP diagnostics, preservation of verified ancestors, and statement/assumption review after persistent failure. One unique top signature from each independent query is retained under a hard prompt budget. No Lean syntax or tactic repair rule was added.",
-    "formal_rag_queries": "When available, first-turn retrieval keeps one exact qualified-name query, one separate semantic theorem query, and one required definition/lemma query before extra candidates. Repeated declarations across query groups are removed. Imports remain visibility metadata rather than lexical hits, and relative dotted Lean declarations preserve their enclosing namespace.",
+    "formalizer_strategy": "Exact target and assumptions, source-local module and namespace as distinct identities, dependency-ordered lemma DAG, smallest blocked leaf, real Lean/LSP diagnostics, preservation of verified ancestors, and statement/assumption review after persistent failure. Initial API design may use bounded module/naming context; compiler repair receives only live-state-ranked qualified signatures, direct premises, imports, and version gates. No Lean syntax or tactic repair rule was added.",
+    "formal_rag_queries": "Initial retrieval keeps one exact qualified-name query, one separate semantic theorem query, and one required definition/lemma query before extra candidates. Once Lean feedback exists, the three bounded lanes become one live goal/diagnostic, one unknown API when present, and one semantic target. Repeated declarations across query groups are removed. Imports remain visibility metadata rather than lexical hits, and relative dotted Lean declarations preserve their enclosing namespace.",
     "formal_rag_fusion": "Providers are fused by declaration identity and normalized signature using strongest relevance plus a bounded corroboration bonus. Reindexing one source cannot multiply its score, while global corpus discovery can activate a SQL-enforced source scope for the resolution stage.",
     "formal_rag_cache": "The persistent SQLite index is bound to schema version, declaration fingerprint, source-root snapshots, and README/toolchain metadata; changed source material rebuilds the index instead of serving stale declarations.",
     "formal_rag_source_architecture": "The generic Lean index keeps source-authored declaration docs and active section summaries, binds README layer/module tables by longest module-path prefix derived from each configured source root, and exposes bounded nearby semantic naming examples. There is no SLT package-name special case. Module/import identity and declaration namespace stay separate. Signatures and active Lean proof state retain higher authority; docs, taxonomy, names, and citations are planning hints only, and proof bodies remain excluded.",
-    "formal_rag_trace_alignment": "AI4SLT declaration hits now supply bounded exact theorem-name and exact module anchors to train-only proof-state retrieval. Live proof-state overlap remains mandatory and receives first token priority; unrelated source ids are ignored. The source-derived bonus is capped at 20% of the proof-state base score, its signals refresh the retrieval fingerprint, and it creates neither a tactic template nor proof evidence."
+    "formal_rag_trace_alignment": "AI4SLT declaration hits supply bounded exact theorem-name and exact module anchors to train-only proof-state retrieval. Declaration and trace RAG now share nested runtime goal/diagnostic extraction. Live proof-state overlap remains mandatory and receives first token priority; unrelated source ids are ignored. Changed state/query-role/source-scope fingerprints refresh both layers, and stale declaration hits are removed if no retriever is available. This creates neither a tactic template nor proof evidence."
   },
   "ai4slt_formal_rag": {
     "repository": "https://github.com/YuanheZ/lean-stat-learning-theory",
@@ -63,7 +63,7 @@
       "declarations_with_section_summaries": 1334,
       "declarations_bound_to_readme_layers": 1996,
       "readme_layers": 8,
-      "prompt_policy": "at most one unique top declaration per independent query under 5600 characters; the primary hit carries dependency signatures, secondary hits carry minimal architecture/version context; current Lean state is authoritative; proof bodies excluded"
+      "prompt_policy": "Initial authoring may carry bounded source architecture and naming context. Repair uses one live-state, one unknown-API, and one semantic query when available, with qualified signatures, direct premises, imports, and version gates only; current Lean state is authoritative and proof bodies are excluded."
     },
     "signature_corpus": {
       "declarations": 3021,
@@ -130,43 +130,60 @@
       "trace_toolchain": "leanprover/lean4:v4.27.0-rc1",
       "proof_status": "PROOF_STATE_TRACE_RETRIEVAL_CONTEXT_NOT_PROOF_EVIDENCE"
     },
+    "live_state_declaration_transport_probe": {
+      "query_role_order": [
+        "live_proof_state_or_diagnostic",
+        "repair_context_seed"
+      ],
+      "top_live_state_hits": [
+        "LeastSquares.master_error_bound",
+        "LeastSquares.linear_critical_inequality"
+      ],
+      "dependency_graph_enabled": true,
+      "compact_prompt_projection_chars": 2345,
+      "declaration_docs_present": false,
+      "proof_bodies_present": false,
+      "proof_status": "LIVE_STATE_RANKED_RUNTIME_CONTEXT_NOT_THEOREM_PROOF"
+    },
     "boundary": "AI4SLT source docs, section summaries, README taxonomy, naming examples, citations, signatures, dependencies, and train-state hits are candidate context. Toolchain/snapshot identity is disclosed, and every selected declaration or generated action must be re-elaborated in the exact active project before it can contribute to kernel evidence."
   },
   "latest_live_research_eval": {
-    "run": "runs/main_worker_research_eval_20260801_v165_compact_scope_schema_haiku_sequential",
+    "run": "runs/main_worker_research_eval_20260801_v167_theory_preflight_haiku_sequential",
     "task_family": "sequential development task",
     "evaluation_model": "claude-haiku-4-5-20251001",
     "enabled_llm_agents_at_exact_haiku": 8,
     "llm_topology_policy_ok": true,
     "status": "BLOCKED",
-    "terminal_classification": "generated_code_semantic_review_lineage_budget_exhausted",
-    "agent_runtime_tasks": 18,
-    "task_handoffs": 17,
-    "runtime_tool_calls": 14,
-    "theory_packets": 2,
-    "independent_metric_reviews_accepted": 2,
-    "algorithm_sandbox_executions": 4,
-    "algorithm_sandbox_execution_passes": 4,
+    "terminal_classification": "architect_metric_protocol_preexecution_rejected",
+    "agent_runtime_iterations": 7,
+    "task_handoffs": 6,
+    "runtime_tool_calls": 1,
+    "theory_revision_attempted": true,
+    "independent_preexecution_reviews_accepted": 0,
+    "algorithm_sandbox_executions": 0,
+    "algorithm_sandbox_execution_passes": 0,
     "research_loops_complete": "0/1",
     "kernel_verified_subclaims": 0,
     "strict_formal_lane_executed": false,
-    "result": "The two-phase theory path and compact reviewer schema completed without the earlier output-truncation, opaque prior-ID, or Anthropic grammar-size failure. A typed upstream-theory replan completed, then the global code-review lineage budget stopped repeated AlgorithmEngineer repairs instead of resetting a local counter. This is mechanism evidence, not end-to-end success."
+    "result": "The pre-execution gate rejected the initial theory packet before any coding, routed one typed upstream TheoryDeveloper revision, and independently rejected the still-incomplete revised estimator/guarantee interface. One truncated estimator-interface response recovered through the bounded task retry, and a transient Anthropic 529 recovered through provider retry. Zero generated code or simulation ran. This is correct fail-closed mechanism evidence, not end-to-end success."
   },
   "current_readiness": {
     "fully_end_to_end_ready": false,
     "development_research_loop_current_mechanism": "0/2 completed after the current transport change",
     "exact_source_theorem_kernel_closure": "0/2",
     "held_out_generalization": "not run",
-    "primary_blocker": "AlgorithmEngineer packet and generated-code semantic quality under the frozen theory/interface contract",
+    "primary_blocker": "TheoryDeveloper mathematical and executable estimator-interface quality under the frozen pre-execution contract",
     "secondary_blockers": [
       "partial-stage evidence is underreported when no final accepted Critic manifest exists",
+      "the estimator-interface provider call can still truncate before its bounded retry succeeds",
       "some proof continuation still lives in legacy post-runtime processing",
       "the prover has bounded state-action RAG but no mature learned tactic-state policy/search tree",
       "the full core suite rebuilds large real retrieval indexes and is too slow for the normal commit gate"
     ]
   },
   "next_main_worker_actions": [
-    "Improve AlgorithmEngineer through shared frozen-context transport, candidate generation, executable diagnostics, and independent semantic feedback; do not add sequential-task formulas or output patches.",
+    "Improve TheoryDeveloper through shared critic feedback, candidate comparison, explicit equation/lemma dependencies, and executable estimator-interface transport; do not add sequential-task formulas or output patches.",
+    "After theory preflight passes, improve AlgorithmEngineer through shared frozen-context transport, candidate generation, executable diagnostics, and independent semantic feedback.",
     "Record partial research-stage evidence independently of final Critic acceptance while keeping the completion gate unchanged.",
     "Run a fresh exact-Haiku sequential development evaluation, then require repeatable survival plus sequential research-loop closure before opening strict formal continuation.",
     "Use AI4SLT qualified declarations, dependency context, and train-only state-action analogies inside the existing Formalizer/ProofEngineer feedback loop; require active-project Lean/kernel closure.",
@@ -175,18 +192,18 @@
   ],
   "verification": {
     "core_suite": "291 passed, 3 skipped, 6 subtests passed in 2183.57 seconds",
-    "current_affected_file_panel": "97 formal-source, scoped-corpus, proof-state, dependency-graph, proof-bank, Lean-provider, model-policy, and offline AgentRuntime transport tests passed; no provider call",
+    "current_affected_file_panel": "52 complete formal-source, scoped-corpus, proof-state, and multi-dependency tests plus 5 focused offline AgentRuntime transport tests passed; no provider call",
     "current_declaration_trace_alignment_panel": "62 focused proof-state, formal-source, scoped-corpus, proof-bank, Lean-provider, and offline AgentRuntime transport tests passed; no provider call",
     "model_and_test_environment_policy": "39 model-backend and research-eval policy tests passed; no provider call",
     "exact_semantic_support_query_regression": "exact, semantic, and required-support queries retain independent first-turn capacity",
     "benchmark_registration_regression": "1 passed",
     "ai4slt_semantic_retrieval": "23/23 at recall@8=1.0; 19 direct and 4 globally discovered then source-scoped; source-authored Dudley outline ranks 2 globally and 1 source-scoped",
     "ai4slt_three_book_crosswalk": "47/47 source-reference queries at top 8: 19 Vershynin, 7 Wainwright, 11 Boucheron-Lugosi-Massart, and 10 other references",
-    "ai4slt_prompt_transport": "3/3 query-diverse declarations projected in 5480 characters with BOUND_MATCH v4.32 source identity, module/namespace separation, active-project reuse gates, and zero proof bodies",
+    "ai4slt_prompt_transport": "Initial three-book authoring transport remains 3/3 under 5480 characters. A real live-state repair probe ranked LeastSquares.master_error_bound first and linear_critical_inequality second, projected 2345 characters, retained dependency/version gates, and included neither declaration prose nor proof bodies.",
     "ai4slt_source_project_execution": "SLT/CoveringNumber.lean compiled successfully in the pinned AI4SLT Lean v4.32 project after provisioning its official Mathlib cache",
     "cross_project_import_gate": "The configured Lean v4.31 proof project rejects SLT.CoveringNumber as unavailable, so the runtime cannot silently promote the cross-toolchain RAG hit to executable reuse",
     "git_diff_check": "passed before final Git synchronization",
-    "provider_evaluation_policy": "V165 topology reports eight enabled agents at exact Haiku, zero policy violations, and no Opus call"
+    "provider_evaluation_policy": "V167 topology reports eight enabled agents at exact claude-haiku-4-5-20251001, zero policy violations, and no Opus call; six focused model-policy tests also passed offline"
   },
   "proof_boundary": "Theory, simulation, code execution, reviewer acceptance, RAG hits, pseudo-formal blocks, external source compilation, and support-lemma compilation are not proof of the intended theorem. Only exact active-project Lean/kernel verification can close a theorem.",
   "history_policy": "This file contains current coordination state only. Superseded audits, runs, and validation logs remain available in Git history and immutable run manifests instead of being recopied here."
