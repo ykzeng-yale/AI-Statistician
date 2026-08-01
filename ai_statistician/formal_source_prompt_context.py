@@ -67,6 +67,9 @@ def _compact_formal_source_hit_for_prompt(
         "kind": str(hit.get("kind", "") or "")[:40],
         "name": str(hit.get("name", "") or "")[:240],
     }
+    namespace = str(hit.get("namespace", "") or "")[:240]
+    if namespace:
+        payload["namespace"] = namespace
     signature = str(hit.get("signature", "") or "")
     if signature:
         payload["signature"] = _head_tail_text(signature, 425)
@@ -136,6 +139,10 @@ def _compact_declaration_source_context_for_prompt(
         outlines.append(outline)
     payload: dict[str, Any] = {
         "module": str(context.get("module", "") or "")[:240],
+        "module_summary": _head_tail_text(
+            str(context.get("module_summary", "") or ""),
+            320,
+        ),
         "module_ancestry": [
             str(item)[:180]
             for item in list(dependency.get("module_ancestry", []) or [])[:5]
@@ -212,29 +219,44 @@ def task_bound_formal_source_query_seeds(
     theorem_goals: Sequence[Mapping[str, Any]],
     max_queries: int = 3,
 ) -> list[str]:
-    """Derive bounded semantic and declaration-name queries without domain rules."""
+    """Derive exact-name-first, bounded semantic queries without domain rules."""
 
-    candidates: list[str] = []
+    exact_candidates: list[str] = []
+    semantic_candidates: list[str] = []
+    support_candidates: list[str] = []
 
-    def add_row(row: Mapping[str, Any], fields: Sequence[str]) -> None:
+    def add_row(
+        destination: list[str],
+        row: Mapping[str, Any],
+        fields: Sequence[str],
+    ) -> None:
         parts = [
             str(row.get(field, "") or "").strip()
             for field in fields
             if str(row.get(field, "") or "").strip()
         ]
         if parts:
-            candidates.append(" ".join(parts)[:1800])
+            destination.append(" ".join(parts)[:1800])
 
-    for row in theorem_goals[:1]:
-        if isinstance(row, Mapping):
-            add_row(row, ("title", "claim", "statement", "conclusion"))
+    def add_values(destination: list[str], values: Any) -> None:
+        rows = values if isinstance(values, (list, tuple)) else [values]
+        for value in rows:
+            text = str(value or "").strip()
+            if text:
+                destination.append(text[:1000])
 
-    for row in theory_packet.get("formalization_requests", []) or []:
+    # A source-authored declaration identity is the most context-efficient
+    # query when one is available. It is still only a retrieval hint: the
+    # returned signature/import must be checked in the active project.
+    for row in theorem_goals[:2]:
         if not isinstance(row, Mapping):
             continue
-        add_row(row, ("target", "claim", "statement", "reason"))
-        if len(candidates) >= 2:
-            break
+        for field in (
+            "target_lean_declaration",
+            "candidate_lean_declaration",
+            "lean_declaration",
+        ):
+            add_values(exact_candidates, row.get(field, ""))
 
     derivation = theory_packet.get("theory_derivation_packet", {})
     handoff = (
@@ -244,29 +266,57 @@ def task_bound_formal_source_query_seeds(
     )
     if not isinstance(handoff, Mapping):
         handoff = {}
+    add_values(exact_candidates, handoff.get("candidate_lean_targets", []))
+
+    # Keep the natural-language theorem meaning separate from exact names. A
+    # failed or stale declaration hint therefore cannot crowd semantic search
+    # out of the bounded first-turn query set.
+    for row in theorem_goals[:1]:
+        if isinstance(row, Mapping):
+            add_row(
+                semantic_candidates,
+                row,
+                ("title", "claim", "statement", "conclusion"),
+            )
+
+    for row in theory_packet.get("formalization_requests", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        add_row(
+            semantic_candidates,
+            row,
+            ("target", "claim", "statement", "reason"),
+        )
+        if semantic_candidates:
+            break
+
     for field in (
-        "candidate_lean_targets",
         "required_definitions",
         "lemma_dependencies",
     ):
-        for value in handoff.get(field, []) or []:
-            text = str(value).strip()
-            if text:
-                candidates.append(text[:1000])
+        add_values(support_candidates, handoff.get(field, []))
 
-    if not candidates:
-        candidates.append(
+    if not exact_candidates and not semantic_candidates and not support_candidates:
+        semantic_candidates.append(
             " ".join(
                 value
                 for value in (question.title.strip(), question.description.strip())
                 if value
             )[:1800]
         )
-    return [
-        value
-        for value in dict.fromkeys(candidates)
-        if value
-    ][: max(0, int(max_queries))]
+
+    limit = max(0, int(max_queries))
+    if limit == 0:
+        return []
+    ordered: list[str] = []
+    if exact_candidates:
+        ordered.append(exact_candidates[0])
+    if semantic_candidates and len(ordered) < limit:
+        ordered.append(semantic_candidates[0])
+    ordered.extend(exact_candidates[1:])
+    ordered.extend(semantic_candidates[1:])
+    ordered.extend(support_candidates)
+    return [value for value in dict.fromkeys(ordered) if value][:limit]
 
 
 def formalizer_feedback_with_task_bound_formal_source_queries(

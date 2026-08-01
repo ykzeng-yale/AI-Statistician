@@ -40392,7 +40392,8 @@ def test_first_formalizer_proposal_receives_task_bound_formal_source_grounding()
     assert grounded["feedback_type"] == (
         "formalizer_task_bound_formal_source_context"
     )
-    assert retriever.queries[0] == (
+    assert retriever.queries[0] == "LeastSquares.master_error_bound"
+    assert retriever.queries[1] == (
         "Localized error bound Control the estimator by localized complexity."
     )
     hit = grounded["proofengineer_repair_context"][

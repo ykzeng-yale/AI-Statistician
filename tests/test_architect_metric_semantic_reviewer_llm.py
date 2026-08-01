@@ -357,6 +357,7 @@ def test_preexecution_metric_reviewer_accepts_only_with_independent_lineage() ->
         "upstream_theory",
         "metric_contract",
         "AgentRuntime derives the overall verdict",
+        "full declared support",
     ):
         assert required_contract in protocol_text
     assert packet["runtime_evaluator_certificate_set_id"].startswith(
@@ -383,14 +384,39 @@ def test_metric_reviewer_six_gate_prompt_and_scope_schema_stay_compact() -> None
                 "source_theory_packet_id": "theory:six-gate",
                 "source_theory_packet_hash": "six-gate-hash",
                 "theory_semantic_material": {
+                    "problem_card": {
+                        "dgp": "generic sampling law",
+                        "estimand": "generic target",
+                    },
                     "theorem_cards": [
                         {
                             "id": "theorem:generic",
                             "conclusion": "The generic claims hold.",
                         }
-                    ]
+                    ],
+                    "proof_plan": {
+                        "unused_large_formal_context": "omit-me-" + ("x" * 5000)
+                    },
                 },
             },
+            "acceptance_authority_catalog": [
+                *[
+                    {
+                        "anchor_id": f"theory:generic-gate-{index}",
+                        "authority_kind": "theory_derived",
+                        "content": f"cited gate {index}",
+                    }
+                    for index in range(6)
+                ],
+                *[
+                    {
+                        "anchor_id": f"theory:unrelated-{index}",
+                        "authority_kind": "diagnostic_only",
+                        "content": "unrelated-catalog-row-" + ("z" * 200),
+                    }
+                    for index in range(120)
+                ],
+            ],
         }
     )
     question = OpenResearchQuestion(
@@ -403,18 +429,33 @@ def test_metric_reviewer_six_gate_prompt_and_scope_schema_stay_compact() -> None
         review_material=material,
     )
     schema = architect_metric_semantic_review_json_schema(material)
-    scope_properties = schema["properties"]["theory_scope_checks"][
-        "properties"
-    ]
+    scope_schema = schema["properties"]["theory_scope_checks"]
+    scope_properties = scope_schema["items"]["properties"]
+    prompt_payload = json.loads(prompt.split("\n\n", 1)[1])
+    projected_material = prompt_payload["review_material"]
 
     assert len(prompt) < 20_000
+    assert len(projected_material["acceptance_authority_catalog"]) == 6
+    assert projected_material["prompt_projection"][
+        "acceptance_authority_catalog_rows_total"
+    ] == 126
+    assert "theory:unrelated-0" not in prompt
+    assert "unused_large_formal_context" not in prompt
+    assert "generic sampling law" in prompt
     assert len(json.dumps(schema, separators=(",", ":"))) < 12_000
-    assert len(scope_properties) == 6
-    assert all(
-        set(row["properties"])
-        == {"claim_ref", "recomputation", "result", "verdict", "evidence_refs"}
-        for row in scope_properties.values()
-    )
+    assert scope_schema["minItems"] == 6
+    assert scope_schema["maxItems"] == 6
+    assert set(scope_properties) == {
+        "requirement_id",
+        "claim_ref",
+        "recomputation",
+        "result",
+        "verdict",
+        "evidence_refs",
+    }
+    assert scope_properties["requirement_id"]["enum"] == [
+        f"generic_gate_{index}" for index in range(6)
+    ]
 
 
 def test_metric_reviewer_derives_verdict_from_granular_judgments() -> None:
@@ -701,8 +742,9 @@ def test_theory_bound_metric_review_requires_scope_consistency_check() -> None:
     assert "theory:generic-sanity" in str(missing_anchor_exc.value)
 
     payload = _review_payload(accept=True)
-    payload["theory_scope_checks"] = {
-        "generic_gate": {
+    payload["theory_scope_checks"] = [
+        {
+            "requirement_id": "generic_gate",
             "claim_ref": "theory:generic-gate",
             "recomputation": "Compare the stated and checked parameter scopes.",
             "result": "The checked scope covers the stated scope.",
@@ -712,7 +754,7 @@ def test_theory_bound_metric_review_requires_scope_consistency_check() -> None:
                 "theory:generic-sanity",
             ],
         }
-    }
+    ]
     packet, backend, _ = _review(
         accept=True,
         payload=payload,
@@ -724,8 +766,9 @@ def test_theory_bound_metric_review_requires_scope_consistency_check() -> None:
     assert validate_architect_metric_semantic_review_packet(packet) == []
     scope_schema = backend.requests[0].schema["properties"][
         "theory_scope_checks"
-    ]["properties"]["generic_gate"]
+    ]["items"]
     assert set(scope_schema["properties"]) == {
+        "requirement_id",
         "claim_ref",
         "recomputation",
         "result",
@@ -764,6 +807,10 @@ def test_metric_review_requires_primitive_identity_audit_before_coding() -> None
                 {"theory": "primitive-check"}
             ),
             "theory_semantic_material": {
+                "problem_card": {
+                    "dgp": "Y is generated from the declared sampling law.",
+                    "estimand": "theta is the target functional of that law.",
+                },
                 "estimator_specs": [
                     {
                         "id": "generic_estimator",
@@ -791,7 +838,7 @@ def test_metric_review_requires_primitive_identity_audit_before_coding() -> None
             ),
             "result": "The primitive reconstruction matches the proposed formula.",
             "evidence_refs": [
-                "theory#/estimator_specs/0/required_assumptions"
+                "theory#/estimator_specs/0/required_assumptions",
             ],
         }
     )
@@ -823,6 +870,11 @@ def test_metric_review_requires_primitive_identity_audit_before_coding() -> None
         row for row in packet["claim_checks"] if row["claim_ref"] == formula_ref
     )
     assert bound_check["evidence_refs"][0] == formula_ref
+    assert {
+        "theory#/problem_card/dgp",
+        "theory#/problem_card/estimand",
+        "theory#/estimator_specs/0/algorithm_sketch",
+    }.issubset(set(bound_check["evidence_refs"]))
     assert enriched_material["metric_claim_check_contract"][
         "foundational_identity_rows"
     ] == foundational_rows
@@ -872,7 +924,9 @@ def test_metric_review_requires_primitive_identity_audit_before_coding() -> None
     assert "Preserve unresolved_assumptions" in repair_instructions
     assert "foundational identity mapping" in repair_instructions
     assert "distinct zero-based indices" in repair_instructions
-    assert "exact required_claim_ref" in repair_instructions
+    assert "runtime binds exact foundational claim/context refs" in (
+        repair_instructions
+    )
     assert "current_candidate as immutable authority" in repair_instructions
     assert "requirement_schema" not in repair_context
     assert len(json.dumps(repair_context, separators=(",", ":"))) < 12_000
@@ -1000,6 +1054,9 @@ def test_metric_review_audits_every_estimator_response_semantic_independently() 
             "verdict": "PASS",
         }
     ]
+    payload["foundational_identity_claim_check_indices"] = {
+        "generic_estimator": 0
+    }
 
     packet, backend, _ = _review(
         accept=True,
@@ -1095,9 +1152,12 @@ def test_metric_review_audits_every_estimator_response_semantic_independently() 
         missing_exc.value
     )
 
-    assert packet["metric_claim_check_contract"][
+    foundational_rows = packet["metric_claim_check_contract"][
         "foundational_identity_rows"
-    ] == []
+    ]
+    assert len(foundational_rows) == 1
+    assert foundational_rows[0]["estimator_id"] == "generic_estimator"
+    assert foundational_rows[0]["required_claim_ref"] == formula_ref
     assert formula_ref == response_row["estimator_formula_ref"]
 
 
@@ -1418,6 +1478,122 @@ def test_metric_reviewer_repair_preserves_exact_active_finding_context() -> None
         expected_ids
     )
     assert packet["llm_json_repair_attempts"] == 1
+    assert validate_architect_metric_semantic_review_packet(packet) == []
+
+
+def test_metric_reviewer_allows_one_progressive_typed_repair_extension() -> None:
+    second_requirement = _generic_requirement(
+        requirement_id="second_gate",
+        source_anchors=["theory:second-gate"],
+    )
+    material = architect_metric_review_material_with_runtime_evaluator_certificate(
+        {
+            "review_stage": "pre_execution_metric_contract_review",
+            "execution_results_available": False,
+            "empirical_metric_requirements": [
+                _generic_requirement(),
+                second_requirement,
+            ],
+        }
+    )
+    initial_payload = _review_payload(accept=True)
+    second_check = deepcopy(initial_payload["claim_checks"][0])
+    second_check.update(
+        {
+            "requirement_id": "second_gate",
+            "claim_ref": "requirement:second_gate.metric_semantics",
+            "check_type": "diagnostic_boundary",
+            "evidence_refs": ["requirement:second_gate.metric_semantics"],
+        }
+    )
+    second_check["normalization_reconstruction"].update(
+        {
+            "protocol_expression_ref": (
+                "requirement:second_gate.metric_semantics"
+            ),
+            "protocol_expression": second_requirement["metric_semantics"],
+        }
+    )
+    second_check["sample_size_order_derivation"]["primitive_orders"][0][
+        "evidence_ref"
+    ] = "requirement:second_gate.metric_semantics"
+
+    def add_missing_requirement(request):
+        repair_request = json.loads(request.user_prompt.split("\n\n", 1)[1])
+        return {
+            "base_payload_fingerprint": repair_request[
+                "base_payload_fingerprint"
+            ],
+            "updates": [
+                {
+                    "path": ["claim_checks"],
+                    "replacement_json": json.dumps(
+                        [*initial_payload["claim_checks"], second_check]
+                    ),
+                }
+            ],
+        }
+
+    def repair_new_check_type(request):
+        repair_request = json.loads(request.user_prompt.split("\n\n", 1)[1])
+        return {
+            "base_payload_fingerprint": repair_request[
+                "base_payload_fingerprint"
+            ],
+            "updates": [
+                {
+                    "path": ["claim_checks", 2, "check_type"],
+                    "replacement": "direct_substitution",
+                }
+            ],
+        }
+
+    backend = _SequenceBackend(
+        [initial_payload, add_missing_requirement, repair_new_check_type]
+    )
+    packet = LLMArchitectMetricSemanticReviewerAgent(
+        provider=backend,
+        config=ArchitectMetricSemanticReviewerConfig(
+            provider_name="anthropic",
+            model=TEST_HAIKU_MODEL,
+            model_tier="haiku",
+            max_repair_attempts=1,
+        ),
+    ).review(
+        question=OpenResearchQuestion(
+            id="q_metric_progressive_repair",
+            title="Review two generic statistical gates",
+            description="Check two independent pre-execution metric contracts.",
+        ),
+        review_material=material,
+        trusted_lineage={
+            "authoring_packet_id": "metric-authoring:progressive-repair",
+            "authoring_packet_hash": stable_hash(
+                {"candidate": "progressive-repair"}
+            ),
+            "empirical_metric_requirement_set_id": (
+                generated_metric_requirement_set_id(
+                    material["empirical_metric_requirements"]
+                )
+            ),
+            "source_agent": "ArchitectMetricContractPlanner",
+            "source_model": TEST_HAIKU_MODEL,
+            "source_model_tier": "haiku",
+        },
+    )
+
+    assert len(backend.requests) == 3
+    assert [
+        request.metadata["json_repair_progress_extension_attempt"]
+        for request in backend.requests
+    ] == [0, 0, 1]
+    assert backend.requests[2].metadata["json_repair_mode"] == (
+        "typed_semantic_patch"
+    )
+    assert packet["llm_json_repair_attempts"] == 2
+    assert {
+        row["requirement_id"] for row in packet["claim_checks"]
+    } == {"generic_gate", "second_gate"}
     assert validate_architect_metric_semantic_review_packet(packet) == []
 
 
@@ -2038,6 +2214,67 @@ def test_metric_reviewer_runtime_carries_forward_unresolved_prior_finding() -> N
     assert validate_architect_metric_semantic_review_packet(packet) == []
 
 
+def test_metric_reviewer_runtime_owns_prior_snapshot_identity_transport() -> None:
+    finding_id = "metric-finding:runtime-bound-snapshot"
+    evidence_ref = "requirement:generic_gate.operator"
+    material = {
+        "review_stage": "pre_execution_metric_contract_review",
+        "execution_results_available": False,
+        "active_prior_finding_ledger": [
+            {
+                "finding_id": finding_id,
+                "status": "UNRESOLVED",
+                "finding": {
+                    "severity": "high",
+                    "category": "generic_operator",
+                    "summary": "The candidate operator remains inconsistent.",
+                    "required_change": "Repair the candidate-owned operator.",
+                    "repair_scope": "metric_contract",
+                    "evidence_refs": [evidence_ref],
+                },
+            }
+        ],
+        "empirical_metric_requirements": [_generic_requirement()],
+    }
+    snapshot = architect_metric_active_prior_finding_current_evidence(
+        material
+    )[0]
+    payload = _review_payload(accept=False)
+    payload["prior_finding_reviews"] = [
+        {
+            "finding_id": finding_id,
+            "status": "UNRESOLVED",
+            "runtime_contract_evidence_id": "",
+            "rationale": "The current candidate still has this semantic defect.",
+            "evidence_refs": [],
+        }
+    ]
+    payload["findings"] = []
+
+    packet, backend, _ = _review(
+        accept=False,
+        payload=payload,
+        material=material,
+    )
+
+    request_schema = backend.requests[0].schema
+    prior_evidence_schema = request_schema["properties"][
+        "prior_finding_reviews"
+    ]["items"]["properties"]["evidence_refs"]
+    new_finding_schema = request_schema["properties"]["findings"][
+        "items"
+    ]["properties"]
+    assert prior_evidence_schema["maxItems"] == 0
+    assert new_finding_schema["prior_finding_id"]["enum"] == [""]
+    assert new_finding_schema["new_finding_rationale"]["minLength"] == 1
+    prior_review = packet["prior_finding_reviews"][0]
+    assert prior_review["evidence_refs"] == [snapshot["snapshot_id"]]
+    assert packet["runtime_carried_forward_prior_finding_ids"] == [finding_id]
+    assert packet["findings"][0]["finding_id"] == finding_id
+    assert evidence_ref in packet["findings"][0]["evidence_refs"]
+    assert validate_architect_metric_semantic_review_packet(packet) == []
+
+
 def test_metric_reviewer_does_not_trust_unlinked_model_finding_id() -> None:
     payload = _review_payload(accept=False)
     payload["findings"][0]["finding_id"] = "model-forged-finding-id"
@@ -2154,17 +2391,23 @@ def test_metric_review_schema_transforms_for_anthropic_structured_output() -> No
     ]["enum"] == ["", "generated_metric_evaluator_certificate:test"]
     assert transformed["properties"]["findings"]["items"]["properties"][
         "prior_finding_id"
-    ]["enum"] == ["", "finding:one", "finding:two"]
-    transformed_scope_schema = transformed["properties"][
-        "theory_scope_checks"
-    ]
-    assert transformed_scope_schema["required"] == ["gate:one"]
-    assert transformed_scope_schema["properties"]["gate:one"][
+    ]["enum"] == [""]
+    assert dynamic_schema["properties"]["prior_finding_reviews"]["items"][
         "properties"
-    ]["evidence_refs"]["items"]["enum"] == ["theory:gate-one"]
-    assert transformed_scope_schema["properties"]["gate:one"][
-        "properties"
-    ]["evidence_refs"]["minItems"] == 1
+    ]["evidence_refs"]["maxItems"] == 0
+    assert "maxItems: 0" in transformed_prior_schema["items"]["properties"][
+        "evidence_refs"
+    ]["description"]
+    transformed_scope_schema = transformed["properties"]["theory_scope_checks"]
+    assert transformed_scope_schema["items"]["properties"]["requirement_id"][
+        "enum"
+    ] == ["gate:one"]
+    assert transformed_scope_schema["items"]["properties"]["evidence_refs"][
+        "items"
+    ]["enum"] == ["theory:gate-one"]
+    assert transformed_scope_schema["items"]["properties"]["evidence_refs"][
+        "minItems"
+    ] == 1
     assert transformed["properties"]["claim_checks"]["items"]["properties"][
         "requirement_id"
     ]["enum"] == ["gate:one"]

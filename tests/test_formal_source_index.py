@@ -20,6 +20,7 @@ from ai_statistician.formal_source_hybrid import FormalSourceHybridRetriever
 from ai_statistician.formal_source_prompt_context import (
     FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS,
     compact_formal_source_grounding_hits_for_prompt,
+    task_bound_formal_source_query_seeds,
 )
 from ai_statistician.formal_source_retrieval_benchmark import (
     audit_formal_source_reference_crosswalk,
@@ -30,6 +31,42 @@ from ai_statistician.formalizer_llm import (
 )
 from ai_statistician.research_agent_runtime import _formal_source_hit_to_json
 from ai_statistician.research_lab import load_open_research_questions
+from ai_statistician.research_schema import OpenResearchQuestion
+
+
+def test_task_bound_formal_source_queries_keep_semantics_after_exact_name() -> None:
+    queries = task_bound_formal_source_query_seeds(
+        question=OpenResearchQuestion(
+            id="generic_formal_source_query",
+            title="Generic theorem",
+            description="Find reusable formal support.",
+        ),
+        theory_packet={
+            "theory_derivation_packet": {
+                "formalization_handoff": {
+                    "candidate_lean_targets": [
+                        "Candidate.one",
+                        "Candidate.two",
+                        "Candidate.three",
+                    ]
+                }
+            }
+        },
+        theorem_goals=[
+            {
+                "target_lean_declaration": "Exact.target",
+                "title": "Semantic title",
+                "claim": "semantic mathematical statement",
+            }
+        ],
+        max_queries=3,
+    )
+
+    assert queries == [
+        "Exact.target",
+        "Semantic title semantic mathematical statement",
+        "Candidate.one",
+    ]
 
 
 def test_readme_reference_is_searchable_and_persists_in_sqlite(
@@ -793,16 +830,19 @@ def test_formal_source_prompt_payload_omits_full_candidate_proof_body() -> None:
 
 def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     contract = formalizer_proof_construction_strategy_contract()
-    assert contract["schema_version"] == 5
+    assert contract["schema_version"] == 6
     assert "smallest diagnostic" in contract["repair_cycle"]
     assert "faithful natural-language statement" in contract["specification"]
-    assert "qualified name/namespace/module/signature/import/reference" in contract[
-        "context_policy"
-    ]
+    assert "source-local namespace/module role" in contract["context_policy"]
     assert "direct premise outlines first" in contract["context_policy"]
     assert "bounded prior fallback" in contract["context_policy"]
     assert "no source files or proof bodies" in contract["context_policy"]
+    assert "measurability" in contract["assumption_audit"]
+    assert "integrability" in contract["assumption_audit"]
+    assert "formal gap" in contract["assumption_audit"]
+    assert "do not silently invent" in contract["assumption_audit"]
     assert "dependency-ordered lemma dag" in contract["decomposition"].lower()
+    assert "one semantic obligation per node" in contract["decomposition"]
     assert "bounded compiler-feedback episode" in contract[
         "decomposition"
     ]
@@ -820,8 +860,12 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     assert "counterexamples" in contract["persistent_failure_route"]
     assert "quantifiers" in contract["persistent_failure_route"]
     assert "exact active-project artifact" in contract["post_compile_hygiene"]
-    assert "Build missing infrastructure bottom-up" in contract["library_design"]
+    assert "lowest reusable mathematical layer" in contract["library_design"]
+    assert "infer namespace, module placement, and naming style" in contract[
+        "library_design"
+    ]
     assert "stable semantic Lean names" in contract["library_design"]
+    assert "avoid duplicate wrappers" in contract["library_design"]
     assert "source metadata rather than declaration identity" in contract[
         "library_design"
     ]
@@ -844,9 +888,11 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     assert "proof_construction_strategy_contract" in prompt
     assert "direct premise outlines first" in prompt
     assert "dependency-ordered lemma dag" in prompt.lower()
+    assert "one semantic obligation per node" in prompt
     assert "no unchanged retry" in prompt
     assert "fix errors one-by-one" in prompt
     assert "stable semantic Lean names" in prompt
+    assert "do not silently invent" in prompt
     assert "exact compatible imported declaration" in prompt
 
 
@@ -885,6 +931,9 @@ def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() ->
                     "reference_aliases": ["Source Book Full Title Theorem 1"],
                     "declaration_source_context": {
                         "module": "Library.Target",
+                        "module_summary": (
+                            "Target theorem for the reusable Library reduction layer."
+                        ),
                         "imports": ["Library.Foundation", "Library.Reduction"],
                         "premise_declaration_outlines": premise_rows,
                         "dependency_context": {
@@ -917,8 +966,10 @@ def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() ->
 
     assert len(encoded) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS
     assert target["name"] == "Library.target_bound"
+    assert target["namespace"] == "Library"
     assert "Source Book Full Title" in target["reference_aliases"][0]
     assert context["module"] == "Library.Target"
+    assert "reusable Library reduction layer" in context["module_summary"]
     assert context["module_ancestry"] == ["Library", "Library.Target"]
     assert context["source_snapshot"]["status"] == "BOUND_MATCH"
     assert "Library.KeyReduction" in context["premise_names"]

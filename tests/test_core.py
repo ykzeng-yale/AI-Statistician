@@ -1467,6 +1467,19 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
             optional_query_ids,
         )
         self.assertIn("slt_boucheron_gaussian_concentration", optional_query_ids)
+        self.assertIn(
+            "slt_semantic_vershynin_euclidean_covering",
+            optional_query_ids,
+        )
+        self.assertIn(
+            "slt_semantic_wainwright_localized_least_squares",
+            optional_query_ids,
+        )
+        self.assertIn("slt_semantic_boucheron_dudley", optional_query_ids)
+        self.assertIn(
+            "slt_semantic_boucheron_gaussian_concentration",
+            optional_query_ids,
+        )
         source_ids = {
             source_id
             for case in EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK

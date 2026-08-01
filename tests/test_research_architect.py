@@ -455,6 +455,32 @@ def test_theory_validation_reports_allowed_rate_justification_references() -> No
     assert "orthogonal_expansion" in unresolved
 
 
+def test_theory_validation_accepts_existing_lemma_as_interface_justification() -> None:
+    packet = _sample_response()
+    estimator = dict(packet["estimator_specs"][0])
+    contract = dict(estimator["estimator_interface_contract"])
+    response_fields = [dict(row) for row in contract["response_fields"]]
+    response_fields[0]["derivation_ref"] = "second_order_remainder_bound"
+    rate = dict(response_fields[0]["sample_size_rate"])
+    contributions = [dict(row) for row in rate["contributions"]]
+    contributions[0]["justification_ref"] = "second_order_remainder_bound"
+    rate["contributions"] = contributions
+    response_fields[0]["sample_size_rate"] = rate
+    contract["response_fields"] = response_fields
+    estimator["estimator_interface_contract"] = contract
+    estimator["estimator_interface_contract_id"] = (
+        estimator_interface_contract_id(contract)
+    )
+    packet["estimator_specs"] = [estimator]
+    packet["proof_evidence_status"] = THEORY_DERIVATION_NOT_PROOF_EVIDENCE
+    packet["kernel_verified"] = False
+
+    errors = validate_theory_packet(packet)
+
+    assert not any("unresolved derivation_ref" in row for row in errors)
+    assert not any("unresolved justification_ref" in row for row in errors)
+
+
 def test_theory_validation_rejects_inconsistent_signed_rate_sum() -> None:
     packet = _sample_response()
     estimator = dict(packet["estimator_specs"][0])
@@ -563,6 +589,24 @@ def test_capability_theory_mode_requires_deeper_equation_trace(
     assert "never insert or remove an n or sqrt(n) factor implicitly" in (
         request.user_prompt
     )
+    assert "derive it from the primitive DGP mass/density and estimand" in (
+        request.user_prompt
+    )
+    assert "one-observation or boundary value" in request.user_prompt
+    assert "full declared support" in request.user_prompt
+    assert "one outcome or integrand branch is not the expectation" in (
+        request.user_prompt
+    )
+    assert "multiple probability laws or regimes" in request.user_prompt
+    assert "never transfer an identity or expectation across them" in (
+        request.user_prompt
+    )
+    assert "preserve the direction of every divergence or inequality" in (
+        request.user_prompt.lower()
+    )
+    assert "available Architect formal_target and simulation_target" in (
+        request.user_prompt
+    )
 
 
 def test_theory_developer_anthropic_request_uses_structured_output() -> None:
@@ -597,16 +641,88 @@ def test_theory_developer_anthropic_request_uses_structured_output() -> None:
     )
     assert provider.requests[0].metadata["provider_structured_output"] is True
     assert provider.requests[0].schema is not None
-    interface_schema = provider.requests[0].schema["properties"][
+    estimator_schema = provider.requests[0].schema["properties"][
         "estimator_specs"
-    ]["items"]["properties"]["estimator_interface_contract"]
-    assert interface_schema["properties"]["request_fields"]["minItems"] == 1
-    assert interface_schema["properties"]["response_fields"]["minItems"] == 1
-    response_schema = interface_schema["properties"]["response_fields"]["items"]
-    assert "sample_size_rate" in response_schema["required"]
-    assert interface_schema["properties"]["request_fields"]["items"][
+    ]["items"]
+    assert "estimator_interface_contract" not in estimator_schema["properties"]
+    assert "estimator_interface_contract" not in estimator_schema["required"]
+    assert provider.requests[0].metadata["theory_developer_phase"] == (
+        "core_theory_workspace"
+    )
+    assert len(provider.requests) == 1
+
+
+def test_theory_developer_authors_interfaces_after_freezing_core_theory() -> None:
+    class AnthropicReplayBackend(SequentialGeneratorBackend):
+        provider_name = "anthropic"
+
+    core_response = _sample_response()
+    core_estimators = [dict(row) for row in core_response["estimator_specs"]]
+    expected_contract = core_estimators[0].pop("estimator_interface_contract")
+    core_response["estimator_specs"] = core_estimators
+    interface_response = {
+        "interfaces": [
+            {
+                "estimator_id": "crossfit_aipw",
+                "estimator_interface_contract": expected_contract,
+            }
+        ]
+    }
+    provider = AnthropicReplayBackend([core_response, interface_response])
+    developer = LLMTheoryDeveloperAgent(
+        provider=provider,
+        config=ResearchArchitectConfig(
+            provider_name="anthropic",
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+            max_repair_attempts=0,
+        ),
+    )
+
+    packet = developer.derive(
+        OpenResearchQuestion(
+            id="two_phase_theory",
+            title="Two-phase theory authoring",
+            description="Freeze theory before authoring executable interfaces.",
+        )
+    )
+
+    assert packet["ok"] is True
+    assert validate_theory_packet(packet) == []
+    assert len(provider.requests) == 2
+    assert [request.model for request in provider.requests] == [
+        "claude-haiku-4-5-20251001",
+        "claude-haiku-4-5-20251001",
+    ]
+    assert [
+        request.metadata["theory_developer_phase"]
+        for request in provider.requests
+    ] == ["core_theory_workspace", "estimator_interface_authoring"]
+    interface_schema = provider.requests[1].schema["properties"]["interfaces"]
+    assert interface_schema["minItems"] == 1
+    assert interface_schema["maxItems"] == 1
+    assert interface_schema["items"]["properties"]["estimator_id"]["enum"] == [
+        "crossfit_aipw"
+    ]
+    contract_schema = interface_schema["items"]["properties"][
+        "estimator_interface_contract"
+    ]
+    assert contract_schema["properties"]["request_fields"]["minItems"] == 1
+    assert contract_schema["properties"]["response_fields"]["minItems"] == 1
+    assert contract_schema["properties"]["request_fields"]["items"][
         "properties"
     ]["binding"]["enum"] == list(ESTIMATOR_REQUEST_BINDINGS)
+    estimator = packet["estimator_specs"][0]
+    assert estimator["estimator_interface_contract"] == expected_contract
+    assert estimator["estimator_interface_contract_id"] == (
+        estimator_interface_contract_id(expected_contract)
+    )
+    assert packet["estimator_interface_authoring"]["n_interfaces"] == 1
+    assert packet["estimator_interface_authoring"]["model_tier"] == "haiku"
+    assert [row["phase"] for row in packet["theory_generation_phases"]] == [
+        "core_theory_workspace",
+        "estimator_interface_authoring",
+    ]
 
 
 def test_theory_developer_opts_into_one_strict_progress_patch(

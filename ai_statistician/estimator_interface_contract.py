@@ -144,6 +144,13 @@ def theory_semantic_reference_ids(theory_packet: Mapping[str, Any]) -> set[str]:
             value = str(row.get(field, "") or "").strip()
             if value:
                 references.add(value)
+    for collection in ("theorem_cards", "lemma_cards"):
+        for row in theory_packet.get(collection, []) or []:
+            if not isinstance(row, Mapping):
+                continue
+            value = str(row.get("id", "") or "").strip()
+            if value:
+                references.add(value)
     return references
 
 

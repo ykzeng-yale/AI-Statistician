@@ -1034,6 +1034,31 @@ def author_reviewed_architect_metric_requirements(
         "description": question.description,
         "tags": list(question.tags),
     }
+    def upstream_target_rows(field: str) -> list[Any]:
+        value = runtime_contract.get(field, [])
+        values = value if isinstance(value, (list, tuple)) else [value]
+        return [
+            deepcopy(row)
+            for row in values
+            if row not in (None, "", [], {})
+        ]
+
+    upstream_research_contract = {
+        "formal_targets": upstream_target_rows("formal_targets"),
+        "simulation_targets": upstream_target_rows("simulation_targets"),
+        "source": "architect_runtime_plan.evidence_contract",
+        "proof_evidence_status": (
+            "ARCHITECT_UPSTREAM_RESEARCH_CONTRACT_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": (
+            "These Architect-authored targets define the requested research scope "
+            "for independent alignment review. They are proposals, not theorem "
+            "proof, implementation, or simulation evidence."
+        ),
+    }
+    upstream_research_contract["contract_fingerprint"] = stable_hash(
+        upstream_research_contract
+    )
     acceptance_authority_catalog = generated_metric_acceptance_authority_catalog(
         question=question_material,
         runtime_contract=runtime_contract,
@@ -1208,6 +1233,7 @@ def author_reviewed_architect_metric_requirements(
             "by the AI Statistician confirmatory simulation agent."
         ),
         "question": question_material,
+        "upstream_research_contract": upstream_research_contract,
         "theory_developer_protocol_material": theory_material,
         "acceptance_authority_catalog_id": acceptance_authority_catalog_id,
         "acceptance_authority_catalog": acceptance_authority_catalog,
@@ -2034,6 +2060,7 @@ def author_reviewed_architect_metric_requirements(
                 ),
             },
             "theory_developer_protocol_material": theory_material,
+            "upstream_research_contract": upstream_research_contract,
             "fresh_candidate_revision_context": fresh_revision,
             "frozen_metric_protocol_theory_rebinding": frozen_rebinding,
             "active_prior_finding_ledger": active_finding_ledger,

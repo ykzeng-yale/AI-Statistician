@@ -149,6 +149,49 @@ EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK: tuple[
         ),
     ),
     FormalSourceRetrievalBenchmarkCase(
+        query_id="slt_semantic_vershynin_euclidean_covering",
+        query="Euclidean ball covering number in a finite dimensional normed space",
+        expected_name_fragments=("coveringNumber_euclideanBall_le",),
+        expected_source_ids=("lean_stat_learning_theory",),
+        rationale=(
+            "a fresh Formalizer query will usually contain mathematical meaning, "
+            "not a book title, theorem number, or Lean declaration name"
+        ),
+    ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="slt_semantic_wainwright_localized_least_squares",
+        query=(
+            "localized least squares error bound from critical inequality and "
+            "star shaped class"
+        ),
+        expected_name_fragments=("master_error_bound",),
+        expected_source_ids=("lean_stat_learning_theory",),
+        rationale=(
+            "semantic retrieval should reach the application layer through its "
+            "statistical assumptions without citation aliases"
+        ),
+    ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="slt_semantic_boucheron_dudley",
+        query="Dudley entropy integral for a subGaussian process",
+        expected_name_fragments=("dudley",),
+        expected_source_ids=("lean_stat_learning_theory",),
+        rationale=(
+            "the empirical-process foundation should be retrievable from theorem "
+            "semantics alone"
+        ),
+    ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="slt_semantic_boucheron_gaussian_concentration",
+        query="Gaussian Lipschitz function concentration around its mean",
+        expected_name_fragments=("gaussian_lipschitz_concentration",),
+        expected_source_ids=("lean_stat_learning_theory",),
+        rationale=(
+            "the concentration layer should be accessible without source citation "
+            "or exact Lean syntax"
+        ),
+    ),
+    FormalSourceRetrievalBenchmarkCase(
         query_id="formal_slt_stability_generalization",
         query="turn uniform stability into expected generalization gap for a finite product sample ERM learner",
         expected_name_fragments=("expectedFiniteGeneralizationGap", "uniformStability", "finiteProduct"),

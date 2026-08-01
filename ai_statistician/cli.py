@@ -14344,7 +14344,7 @@ def _apply_research_agent_runtime_research_eval_profile(
     )
     args.serious_theory_model_tier = LIVE_EVALUATION_CLAUDE_MODEL_TIER
     args.architect_metric_semantic_reviewer_max_tokens = max(
-        12000,
+        16000,
         int(
             getattr(
                 args,

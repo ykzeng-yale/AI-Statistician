@@ -109,35 +109,40 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
     """Context-efficient, feedback-driven policy for Lean proof construction."""
 
     return {
-        "schema_version": 5,
+        "schema_version": 6,
         "specification": (
-            "Exact Lean target plus faithful natural-language statement and "
-            "assumptions/boundaries; never weaken."
+            "Exact Lean target; faithful natural-language statement and assumptions; "
+            "never weaken."
         ),
         "context_policy": (
-            "Target-bound qualified name/namespace/module/signature/import/reference "
-            "outlines only; direct premise outlines first, bounded prior fallback; no "
-            "source files or proof bodies."
+            "Target-bound qualified names/signatures/imports; source-local "
+            "namespace/module role; direct premise outlines first; bounded prior "
+            "fallback; no source files or proof bodies."
+        ),
+        "assumption_audit": (
+            "Audit domain, measurability, integrability, finiteness, nonemptiness, "
+            "and topology; missing obligations are a formal gap; do not silently "
+            "invent or strengthen assumptions."
         ),
         "decomposition": (
-            "Dependency-ordered lemma DAG; smallest blocked leaf per bounded "
-            "compiler-feedback episode; minimal explicit support-dependency plan ([] "
-            "for a direct proof); preserve verified ancestors."
+            "Dependency-ordered lemma DAG; one semantic obligation per node; smallest "
+            "leaf per bounded compiler-feedback episode; minimal explicit "
+            "support-dependency plan ([] for a direct proof); preserve verified "
+            "ancestors; reuse library abstractions."
         ),
         "repair_cycle": (
-            "Lean/LSP: fix errors one-by-one from the smallest diagnostic while "
-            "preserving structure; update from evidence; no unchanged retry or "
-            "wholesale rewrite without evidence."
+            "Lean/LSP: fix errors one-by-one from the smallest diagnostic; no "
+            "unchanged retry or wholesale rewrite without evidence."
         ),
         "library_design": (
-            "Build missing infrastructure bottom-up in a narrow module/namespace with "
-            "stable semantic Lean names; citations are source metadata rather than "
+            "Use the lowest reusable mathematical layer; infer namespace, module "
+            "placement, and naming style locally; use stable semantic Lean names; "
+            "avoid duplicate wrappers; citations are source metadata rather than "
             "declaration identity."
         ),
         "reuse_policy": (
             "Prefer an exact compatible imported declaration; cross-toolchain hits "
-            "use signatures/import DAG only and revalidate every selected "
-            "declaration."
+            "are context only; revalidate every selected declaration."
         ),
         "persistent_failure_route": (
             "Independently recheck target fidelity, quantifiers, domains, assumptions, "

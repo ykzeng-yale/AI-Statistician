@@ -390,7 +390,7 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
     assert args.recommended_research_path == "simulation_first"
     assert args.architect_metric_repair_ownership_router is True
     assert args.architect_max_tokens == 8000
-    assert args.architect_metric_semantic_reviewer_max_tokens == 12000
+    assert args.architect_metric_semantic_reviewer_max_tokens == 16000
     assert args.serious_theory_model_tier == "haiku"
     assert args.evaluation_claude_model_tier == "haiku"
     assert args.evaluation_claude_model == "claude-haiku-4-5-20251001"

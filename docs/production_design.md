@@ -1212,6 +1212,36 @@ Trace audit applies the same grounding contract per run: each normalized
 problem class must include its primary statistical-method card, at least one
 local Lean/stat formal source, and at least one retrieval/search-system source.
 
+Canonical live research loop:
+
+`research-agent-runtime --research-eval` exercises the LLM-owned research path,
+not the deterministic benchmark templates. One Architect-visible runtime owns
+task routing and immutable lineage. TheoryDeveloper first emits a core
+mathematical workspace; after that packet validates, the same agent and task
+authors a bounded estimator request/response interface using only frozen
+estimator and semantic-reference IDs. The runtime merges, rehashes, and validates
+the result as one theory packet. This two-call transport keeps a large nested
+interface grammar from crowding out mathematical reasoning; it does not create a
+second TheoryDeveloper, scheduler, or source of statistical semantics.
+
+Before code execution, an independent semantic reviewer receives a compact
+projection of the full immutable question, Architect targets, theory packet,
+metric requirements, and authority catalog. Provider schemas constrain identity
+selection, while deterministic code binds opaque prior-finding IDs and current
+artifact snapshots after the model has made the semantic decision. Full local
+validation still checks every requirement and source anchor. Defects route to
+their owning agent through typed tasks, and retry budgets are keyed to immutable
+theory/candidate/finding lineage so an Architect replan cannot silently reset a
+local loop.
+
+All provider-backed tests and evaluations use exact
+`claude-haiku-4-5-20251001`; production may use Haiku or Sonnet, and executable
+Opus requests are rejected. Research-eval ends at its typed research endpoint
+and does not enter legacy formal post-processing. A passed research loop still
+is not theorem evidence: strict formal continuation separately requires
+task-bound RAG, live Lean/LSP feedback, exact active-project elaboration, and a
+kernel-verified target theorem.
+
 Research multi-seed evaluation:
 
 ```bash
