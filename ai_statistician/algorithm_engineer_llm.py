@@ -38,8 +38,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 from .semantic_review_feedback import compact_semantic_review_feedback
 from .scientific_sandbox import (
-    PYTHON_SCIENTIFIC_DEPENDENCIES,
-    R_SCIENTIFIC_DEPENDENCIES,
+    generated_code_draft_json_schema,
     generated_code_execution_contract_errors,
     normalized_generated_code_language,
     normalized_generated_code_profile,
@@ -181,9 +180,16 @@ class LLMAlgorithmEngineerAgent:
                     _canonical_implementation_gap_ids(implementation_gaps)
                 ),
                 "metric_contracts_required": False,
+                "generated_code_execution_profiles": scientific_sandbox_contract()[
+                    "profiles"
+                ],
                 "repair_prompt_priority_instructions": [
                     "Preserve every canonical estimator_id unchanged.",
                     "Repair the exact packet or generated-code defect.",
+                    (
+                        "For stdlib Python omit dependencies from the raw transport; "
+                        "for scientific_wasm include only packages actually imported."
+                    ),
                     "Return metric_contracts as an empty array.",
                 ],
                 "boundary": ALGORITHM_ENGINEER_BOUNDARY,
@@ -1003,7 +1009,10 @@ def _algorithm_engineer_output_contract(*, requires_generated_code: bool) -> dic
                 ),
                 "language": "python",
                 "execution_profile": "stdlib or scientific_wasm",
-                "dependencies": [],
+                "dependencies": (
+                    "omit this transport field for stdlib; include only packages "
+                    "actually imported for scientific_wasm"
+                ),
                 "entrypoint": "run_sandbox",
                 "code": (
                     "def run_sandbox(seed: int, replicates: int) -> dict:\n"
@@ -1071,46 +1080,12 @@ def _algorithm_engineer_response_schema(
             "sandbox_code_drafts": {
                 "type": "array",
                 "minItems": required_artifact_rows,
-                "items": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "required": [
-                        "estimator_id",
-                        "language",
-                        "execution_profile",
-                        "dependencies",
-                        "entrypoint",
-                        "code",
-                    ],
-                    "properties": {
+                "items": generated_code_draft_json_schema(
+                    artifact_required=["estimator_id"],
+                    artifact_properties={
                         "estimator_id": estimator_id_schema,
-                        "language": {"type": "string", "enum": ["python", "r"]},
-                        "execution_profile": {
-                            "type": "string",
-                            "enum": ["stdlib", "scientific_wasm"],
-                        },
-                        "dependencies": {
-                            "type": "array",
-                            "uniqueItems": True,
-                            "items": {
-                                "type": "string",
-                                "enum": list(
-                                    PYTHON_SCIENTIFIC_DEPENDENCIES
-                                    + R_SCIENTIFIC_DEPENDENCIES
-                                ),
-                            },
-                        },
-                        "entrypoint": {
-                            "type": "string",
-                            "enum": ["run_sandbox"],
-                        },
-                        "code": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 12000,
-                        },
                     },
-                },
+                ),
             },
             "metric_contracts": {
                 "type": "array",

@@ -19,6 +19,7 @@ from ai_statistician.scientific_sandbox import (
     ScientificSandboxRuntime,
     discover_scientific_sandbox_runtime,
     execute_scientific_sandbox,
+    generated_code_draft_json_schema,
     generated_code_execution_contract_errors,
     normalized_generated_code_profile,
     scientific_python_safety_errors,
@@ -54,6 +55,30 @@ def test_generated_code_contract_keeps_stdlib_default_and_requires_r_wasm() -> N
             }
         )
     )
+
+
+def test_generated_code_schema_makes_profile_dependency_choice_structural() -> None:
+    schema = generated_code_draft_json_schema(
+        artifact_properties={"artifact_id": {"type": "string"}},
+        artifact_required=["artifact_id"],
+    )
+
+    stdlib, scientific_python, scientific_r = schema["anyOf"]
+    assert stdlib["properties"]["execution_profile"]["enum"] == ["stdlib"]
+    assert stdlib["properties"]["language"]["enum"] == ["python"]
+    assert "dependencies" not in stdlib["properties"]
+    assert "dependencies" not in stdlib["required"]
+    assert scientific_python["properties"]["dependencies"]["items"]["enum"] == [
+        "numpy",
+        "scipy",
+        "pandas",
+        "scikit-learn",
+        "statsmodels",
+    ]
+    assert scientific_r["properties"]["language"]["enum"] == ["r"]
+    assert scientific_r["properties"]["execution_profile"]["enum"] == [
+        "scientific_wasm"
+    ]
 
 
 def test_scientific_python_guard_requires_declared_packages_and_blocks_bridges() -> None:

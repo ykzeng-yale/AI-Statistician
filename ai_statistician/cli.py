@@ -5049,7 +5049,7 @@ def _build_simulation_engineer_agent_from_args(args: argparse.Namespace, *, defa
         config=SimulationEngineerConfig(
             model=model,
             model_tier=model_tier,
-            max_tokens=getattr(args, "simulation_max_tokens", 5000),
+            max_tokens=getattr(args, "simulation_max_tokens", 8000),
             temperature=getattr(args, "simulation_temperature", 0.1),
             provider_name=provider_name,
         ),
@@ -22135,7 +22135,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="model name for SimulatorEngineer proposals; Anthropic defaults to Claude Sonnet 4.6",
     )
-    research_agent_runtime.add_argument("--simulation-max-tokens", type=int, default=5000)
+    research_agent_runtime.add_argument("--simulation-max-tokens", type=int, default=8000)
     research_agent_runtime.add_argument("--simulation-temperature", type=float, default=0.1)
     research_agent_runtime.add_argument(
         "--algorithm-engineer-provider",

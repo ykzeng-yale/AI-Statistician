@@ -6,7 +6,7 @@ from copy import deepcopy
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping, Protocol
+from typing import Any, Mapping, Protocol, Sequence
 
 from .fingerprint import stable_hash
 from .estimator_interface_contract import (
@@ -894,6 +894,7 @@ def _theory_developer_json_repair_context(
     *,
     original_user_prompt: str,
     bad_response: str,
+    invalid_payload: Mapping[str, Any] | None = None,
     invalid_packet: Mapping[str, Any] | None = None,
     errors: list[str],
     validation_label: str,
@@ -903,7 +904,7 @@ def _theory_developer_json_repair_context(
         f'"mode":"{mode}"' in original_user_prompt
         for mode in THEORY_SERIOUS_PROMPT_MODES
     )
-    del bad_response, invalid_packet, validation_label
+    del bad_response, invalid_payload, invalid_packet, validation_label
     return {
         "subsystem": "TheoryDeveloper",
         "truncation_detected": bool(truncation_detected),
@@ -3030,10 +3031,19 @@ def _complete_theory_estimator_interfaces(
         response: Any,
         raw_text: str,
     ) -> dict[str, Any]:
-        interfaces = deepcopy(raw_payload.get("interfaces", []))
+        raw_interfaces = raw_payload.get("interfaces", [])
+        interfaces = _canonical_theory_estimator_interface_rows(
+            raw_interfaces,
+            estimator_ids=_theory_estimator_ids(core_packet),
+        )
         body = {
             "source_theory_packet_id": str(core_packet.get("packet_id", "")),
             "interfaces": interfaces,
+            "interface_transport_shape": (
+                "exact_key_object"
+                if isinstance(raw_interfaces, Mapping)
+                else "invalid_non_object"
+            ),
             "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
             "kernel_verified": False,
         }
@@ -3209,28 +3219,22 @@ def _theory_estimator_interface_authoring_json_schema(
     )
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$defs": {
+            "estimator_interface_contract": contract_schema,
+        },
         "type": "object",
         "additionalProperties": False,
         "required": ["interfaces"],
         "properties": {
             "interfaces": {
-                "type": "array",
-                "minItems": len(estimator_ids),
-                "maxItems": len(estimator_ids),
-                "items": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "required": [
-                        "estimator_id",
-                        "estimator_interface_contract",
-                    ],
-                    "properties": {
-                        "estimator_id": {
-                            "type": "string",
-                            "enum": estimator_ids,
-                        },
-                        "estimator_interface_contract": contract_schema,
-                    },
+                "type": "object",
+                "additionalProperties": False,
+                "required": estimator_ids,
+                "properties": {
+                    estimator_id: {
+                        "$ref": "#/$defs/estimator_interface_contract"
+                    }
+                    for estimator_id in estimator_ids
                 },
             }
         },
@@ -3290,7 +3294,9 @@ def _theory_estimator_interface_authoring_prompt(
     }
     return (
         "Return ONLY one JSON object matching required_output_schema. Emit exactly "
-        "one interface row for every frozen estimator_id and no other ids. Infer no "
+        "one interfaces object property for every frozen estimator_id and no other "
+        "keys; each property value is that estimator's interface contract, without "
+        "repeating estimator_id inside the value. Infer no "
         "new mathematics: request fields expose the frozen algorithm inputs and "
         "lifecycle; response fields expose its outputs, normalization, and complete "
         "sample-size order. Use the typed primary-index polynomial/log projection, "
@@ -3362,6 +3368,25 @@ def _theory_semantic_reference_catalog(
     return rows
 
 
+def _canonical_theory_estimator_interface_rows(
+    raw: Any,
+    *,
+    estimator_ids: Sequence[str],
+) -> Any:
+    """Convert the exact-key provider transport into the canonical row shape."""
+
+    if not isinstance(raw, Mapping):
+        return deepcopy(raw)
+    return [
+        {
+            "estimator_id": str(estimator_id),
+            "estimator_interface_contract": deepcopy(raw.get(estimator_id)),
+        }
+        for estimator_id in estimator_ids
+        if estimator_id in raw
+    ]
+
+
 def _theory_estimator_ids(packet: Mapping[str, Any]) -> list[str]:
     return [
         str(row.get("id", "") or "").strip()
@@ -3376,6 +3401,8 @@ def _validate_theory_estimator_interface_authoring_packet(
     core_packet: Mapping[str, Any],
 ) -> list[str]:
     errors: list[str] = []
+    if packet.get("interface_transport_shape") != "exact_key_object":
+        errors.append("interface transport must be an exact-key object")
     expected_ids = _theory_estimator_ids(core_packet)
     if len(expected_ids) != len(set(expected_ids)):
         errors.append("frozen core estimator ids must be unique")
@@ -3424,12 +3451,19 @@ def _theory_estimator_interface_repair_context(
     core_packet: Mapping[str, Any],
     original_user_prompt: str,
     bad_response: str,
+    invalid_payload: Mapping[str, Any] | None = None,
     invalid_packet: Mapping[str, Any] | None = None,
     errors: list[str],
     validation_label: str,
     truncation_detected: bool,
 ) -> dict[str, Any]:
-    del original_user_prompt, bad_response, invalid_packet, validation_label
+    del (
+        original_user_prompt,
+        bad_response,
+        invalid_payload,
+        invalid_packet,
+        validation_label,
+    )
     return {
         "subsystem": "TheoryDeveloper.estimator_interface_authoring",
         "truncation_detected": bool(truncation_detected),
@@ -3437,9 +3471,14 @@ def _theory_estimator_interface_repair_context(
         "allowed_semantic_reference_ids": sorted(
             theory_semantic_reference_ids(core_packet)
         ),
+        "interface_object_paths": {
+            estimator_id: ["interfaces", estimator_id]
+            for estimator_id in _theory_estimator_ids(core_packet)
+        },
         "required_behavior": (
-            "Regenerate only the complete interfaces object. Preserve every frozen "
-            "estimator id and copy derivation_ref and justification_ref only from "
+            "Repair only the exact-key interfaces object. Preserve every frozen "
+            "estimator property and use interface_object_paths for typed patches. "
+            "Copy derivation_ref and justification_ref only from "
             "allowed_semantic_reference_ids."
         ),
         "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,

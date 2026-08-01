@@ -1004,23 +1004,36 @@ def review_architect_theory_execution_preflight(
             raw_response=raw_text,
         )
 
-    return generate_validated_json_packet(
-        provider=provider,
-        request=request,
-        extract_payload=extract_json_object,
-        build_packet=build_packet,
-        validate_packet=lambda packet: validate_architect_theory_execution_preflight_packet(
-            packet,
-            material=material,
-        ),
-        validation_label="Architect theory-to-execution preflight review packet",
-        max_repair_attempts=max_repair_attempts,
-        repair_context_builder=lambda **kwargs: {
+    def build_repair_context(**kwargs: Any) -> dict[str, Any]:
+        invalid_payload = kwargs.get("invalid_payload", {})
+        raw_estimator_rows = (
+            invalid_payload.get("estimator_execution_checks", [])
+            if isinstance(invalid_payload, Mapping)
+            else []
+        )
+        estimator_paths = [
+            {
+                "estimator_id": str(row.get("estimator_id", "") or ""),
+                "path": ["estimator_execution_checks", index],
+            }
+            for index, row in enumerate(raw_estimator_rows or [])
+            if isinstance(row, Mapping)
+            and str(row.get("estimator_id", "") or "").strip()
+        ]
+        return {
             "task": "Repair only the invalid fields in the preflight review packet.",
             "local_validation_errors": [
                 str(value) for value in kwargs.get("errors", [])
             ],
-            "current_invalid_packet": kwargs.get("invalid_packet", {}),
+            "typed_patch_path_basis": (
+                "raw provider transport payload; do not use indices from the "
+                "normalized review artifact"
+            ),
+            "dimension_review_patch_paths": {
+                dimension: ["dimension_reviews", dimension]
+                for dimension in ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
+            },
+            "estimator_execution_check_patch_paths": estimator_paths,
             "required_dimensions": list(
                 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
             ),
@@ -1044,6 +1057,11 @@ def review_architect_theory_execution_preflight(
             ),
             "repair_prompt_priority_instructions": [
                 (
+                    "Copy typed patch path prefixes exactly from "
+                    "dimension_review_patch_paths or "
+                    "estimator_execution_check_patch_paths."
+                ),
+                (
                     "Treat source_interface_inventories as exact source facts. Do not "
                     "label listed outputs or request/response fields MISSING; describe "
                     "only the unresolved semantic mapping."
@@ -1054,7 +1072,20 @@ def review_architect_theory_execution_preflight(
                     "finding must preserve the same mathematical reason."
                 ),
             ],
-        },
+        }
+
+    return generate_validated_json_packet(
+        provider=provider,
+        request=request,
+        extract_payload=extract_json_object,
+        build_packet=build_packet,
+        validate_packet=lambda packet: validate_architect_theory_execution_preflight_packet(
+            packet,
+            material=material,
+        ),
+        validation_label="Architect theory-to-execution preflight review packet",
+        max_repair_attempts=max_repair_attempts,
+        repair_context_builder=build_repair_context,
         semantic_patch_repair=True,
         allow_progress_repair_extension=True,
     )

@@ -100,6 +100,11 @@ _TYPED_SEMANTIC_PATCH_NONLOCAL_SHAPE_ERROR_PATTERNS = (
         re.IGNORECASE,
     ),
     re.compile(
+        r"\bexactly one\b.*\b(?:for each|for every)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\btransport must be an exact-key object\b", re.IGNORECASE),
+    re.compile(
         r"\b(?:array|list|collection)\b.*\b(?:cardinality|length|size)\b",
         re.IGNORECASE,
     ),
@@ -351,6 +356,11 @@ def generate_validated_json_packet(
                 repair_context_builder(
                     original_user_prompt=original_user_prompt,
                     bad_response=raw_text,
+                    invalid_payload=(
+                        deepcopy(dict(payload))
+                        if isinstance(payload, Mapping)
+                        else None
+                    ),
                     invalid_packet=(dict(packet) if packet is not None else None),
                     errors=last_errors,
                     validation_label=validation_label,

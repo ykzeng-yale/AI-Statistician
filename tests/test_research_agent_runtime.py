@@ -30125,7 +30125,8 @@ def test_simulation_engineer_uses_structured_binding_envelope_for_anthropic() ->
         provider=backend,
         config=SimulationEngineerConfig(
             provider_name="anthropic",
-            model="claude-sonnet-4-6",
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
         ),
     ).propose(
         question=question,
@@ -30147,6 +30148,7 @@ def test_simulation_engineer_uses_structured_binding_envelope_for_anthropic() ->
 
     request = backend.requests[0]
     assert request.metadata["provider_structured_output"] is True
+    assert request.max_tokens == 8000
     binding_schema = request.schema["properties"]["metric_contracts"]["items"]
     assert set(binding_schema["properties"]) == {
         "contract_id",
@@ -30154,6 +30156,16 @@ def test_simulation_engineer_uses_structured_binding_envelope_for_anthropic() ->
         "artifact_id",
         "metric_path",
     }
+    draft_branches = request.schema["properties"]["simulation_code_drafts"][
+        "items"
+    ]["anyOf"]
+    stdlib_branch = next(
+        row
+        for row in draft_branches
+        if row["properties"]["execution_profile"]["enum"] == ["stdlib"]
+    )
+    assert "dependencies" not in stdlib_branch["properties"]
+    assert "dependencies" not in stdlib_branch["required"]
     contract = packet["metric_contracts"][0]
     assert contract["authority_binding_mode"] == (
         "runtime_joined_frozen_requirement"
@@ -30228,7 +30240,8 @@ def test_simulation_engineer_exploration_uses_code_envelope_without_gates() -> N
         provider=backend,
         config=SimulationEngineerConfig(
             provider_name="anthropic",
-            model="claude-sonnet-4-6",
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
         ),
     ).propose(
         question=question,

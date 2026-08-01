@@ -11,6 +11,7 @@ from ai_statistician.llm_json_repair import (
     _format_generation_error,
     _repair_attempt_max_tokens,
     _repair_prompt,
+    _typed_semantic_patch_fits_update_budget,
     _typed_semantic_patch_schema,
     extract_json_object,
     generate_validated_json_packet,
@@ -41,6 +42,12 @@ def test_truncation_repair_never_reduces_a_large_output_budget() -> None:
         20000,
         truncation_repair_mode=True,
     ) == 20000
+
+
+def test_exact_key_cardinality_error_requires_full_regeneration() -> None:
+    assert not _typed_semantic_patch_fits_update_budget(
+        ["interfaces must contain exactly one row for every frozen estimator id"]
+    )
 
 
 def test_compact_response_metadata_preserves_structured_output_fallback() -> None:
@@ -317,6 +324,7 @@ def test_generate_validated_json_packet_includes_subsystem_repair_context() -> N
         repair_context_builder=lambda **kwargs: {
             "context_kind": "subsystem_repair_context",
             "errors_seen": kwargs["errors"],
+            "invalid_payload_seen": kwargs["invalid_payload"],
             "invalid_packet_seen": kwargs["invalid_packet"],
             "required_field": "semantic_anchor",
             "repair_prompt_priority_instructions": [
@@ -330,6 +338,7 @@ def test_generate_validated_json_packet_includes_subsystem_repair_context() -> N
     assert repair_payload["subsystem_repair_context"] == {
         "context_kind": "subsystem_repair_context",
         "errors_seen": ["missing subsystem-specific field"],
+        "invalid_payload_seen": {"ok": False},
         "invalid_packet_seen": {"ok": False},
         "required_field": "semantic_anchor",
         "repair_prompt_priority_instructions": [

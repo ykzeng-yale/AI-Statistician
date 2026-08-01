@@ -760,12 +760,7 @@ def test_theory_developer_authors_interfaces_after_freezing_core_theory() -> Non
     expected_contract = core_estimators[0].pop("estimator_interface_contract")
     core_response["estimator_specs"] = core_estimators
     interface_response = {
-        "interfaces": [
-            {
-                "estimator_id": "crossfit_aipw",
-                "estimator_interface_contract": expected_contract,
-            }
-        ]
+        "interfaces": {"crossfit_aipw": expected_contract}
     }
     provider = AnthropicReplayBackend([core_response, interface_response])
     developer = LLMTheoryDeveloperAgent(
@@ -798,12 +793,14 @@ def test_theory_developer_authors_interfaces_after_freezing_core_theory() -> Non
         for request in provider.requests
     ] == ["core_theory_workspace", "estimator_interface_authoring"]
     interface_schema = provider.requests[1].schema["properties"]["interfaces"]
-    assert interface_schema["minItems"] == 1
-    assert interface_schema["maxItems"] == 1
-    assert interface_schema["items"]["properties"]["estimator_id"]["enum"] == [
-        "crossfit_aipw"
-    ]
-    contract_schema = interface_schema["items"]["properties"][
+    assert interface_schema["type"] == "object"
+    assert interface_schema["additionalProperties"] is False
+    assert interface_schema["required"] == ["crossfit_aipw"]
+    assert list(interface_schema["properties"]) == ["crossfit_aipw"]
+    assert interface_schema["properties"]["crossfit_aipw"] == {
+        "$ref": "#/$defs/estimator_interface_contract"
+    }
+    contract_schema = provider.requests[1].schema["$defs"][
         "estimator_interface_contract"
     ]
     assert contract_schema["properties"]["request_fields"]["minItems"] == 1
@@ -864,14 +861,9 @@ def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -
     }
     estimator = parent["estimator_specs"][0]
     interface_response = {
-        "interfaces": [
-            {
-                "estimator_id": estimator["id"],
-                "estimator_interface_contract": estimator[
-                    "estimator_interface_contract"
-                ],
-            }
-        ]
+        "interfaces": {
+            estimator["id"]: estimator["estimator_interface_contract"]
+        }
     }
     provider = SequentialGeneratorBackend(
         [invalid_patch, valid_patch, interface_response]
@@ -1058,12 +1050,7 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
     expected_exponent = float(invalid_rate["polynomial_exponent"])
     invalid_rate["polynomial_exponent"] = expected_exponent + 1.0
     invalid_interface = {
-        "interfaces": [
-            {
-                "estimator_id": estimator["id"],
-                "estimator_interface_contract": invalid_contract,
-            }
-        ]
+        "interfaces": {estimator["id"]: invalid_contract}
     }
     still_invalid_patch = {
         "base_payload_fingerprint": typed_semantic_patch_payload_fingerprint(
@@ -1073,8 +1060,7 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
             {
                 "path": [
                     "interfaces",
-                    0,
-                    "estimator_interface_contract",
+                    estimator["id"],
                     "response_fields",
                     0,
                     "sample_size_rate",
@@ -1131,12 +1117,7 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
         "recovery_checkpoint": checkpoint,
     }
     valid_interface = {
-        "interfaces": [
-            {
-                "estimator_id": estimator["id"],
-                "estimator_interface_contract": expected_contract,
-            }
-        ]
+        "interfaces": {estimator["id"]: expected_contract}
     }
     retry_provider = SequentialGeneratorBackend([valid_interface])
     retry_developer = LLMTheoryDeveloperAgent(

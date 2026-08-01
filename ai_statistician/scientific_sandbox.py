@@ -349,6 +349,84 @@ def scientific_sandbox_contract(
     }
 
 
+def generated_code_draft_json_schema(
+    *,
+    artifact_properties: Mapping[str, Any],
+    artifact_required: Sequence[str],
+    code_max_length: int = 12000,
+) -> dict[str, Any]:
+    """Bind generated-code metadata to one executable sandbox profile."""
+
+    common_required = [
+        *[str(value) for value in artifact_required],
+        "language",
+        "execution_profile",
+        "entrypoint",
+        "code",
+    ]
+    common_properties = {
+        **dict(artifact_properties),
+        "entrypoint": {"type": "string", "enum": ["run_sandbox"]},
+        "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": max(1, int(code_max_length)),
+        },
+    }
+
+    def branch(
+        *,
+        language: str,
+        execution_profile: str,
+        dependencies: Sequence[str] | None,
+    ) -> dict[str, Any]:
+        properties = {
+            **common_properties,
+            "language": {"type": "string", "enum": [language]},
+            "execution_profile": {
+                "type": "string",
+                "enum": [execution_profile],
+            },
+        }
+        required = list(common_required)
+        if dependencies is not None:
+            properties["dependencies"] = {
+                "type": "array",
+                "uniqueItems": True,
+                "items": {
+                    "type": "string",
+                    "enum": [str(value) for value in dependencies],
+                },
+            }
+            required.append("dependencies")
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "required": required,
+            "properties": properties,
+        }
+
+    return {
+        "anyOf": [
+            branch(
+                language="python",
+                execution_profile=STDLIB_SANDBOX_PROFILE,
+                dependencies=None,
+            ),
+            branch(
+                language="python",
+                execution_profile=SCIENTIFIC_WASM_SANDBOX_PROFILE,
+                dependencies=PYTHON_SCIENTIFIC_DEPENDENCIES,
+            ),
+            branch(
+                language="r",
+                execution_profile=SCIENTIFIC_WASM_SANDBOX_PROFILE,
+                dependencies=R_SCIENTIFIC_DEPENDENCIES,
+            ),
+        ]
+    }
+
+
 def discover_scientific_sandbox_runtime(
     *,
     project_root: Path | None = None,

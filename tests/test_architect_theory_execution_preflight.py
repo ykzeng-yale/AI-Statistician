@@ -52,6 +52,46 @@ class _Backend:
         )
 
 
+class _SequencedBackend:
+    provider_name = "anthropic"
+
+    def __init__(self, initial_payload: dict[str, object]) -> None:
+        self.initial_payload = initial_payload
+        self.requests = []
+
+    def generate(self, request):
+        self.requests.append(request)
+        if len(self.requests) == 1:
+            payload = self.initial_payload
+        else:
+            repair_payload = json.loads(request.user_prompt.split("\n\n", 1)[1])
+            path = repair_payload["subsystem_repair_context"][
+                "dimension_review_patch_paths"
+            ]["primitive_mathematical_consistency"]
+            payload = {
+                "base_payload_fingerprint": repair_payload[
+                    "base_payload_fingerprint"
+                ],
+                "updates": [
+                    {
+                        "path": [*path, "evidence_refs"],
+                        "replacement_json": json.dumps(
+                            ["theory.estimator_specs"]
+                        ),
+                    }
+                ],
+            }
+        return GeneratorResponse(
+            text=json.dumps(payload),
+            provider="anthropic",
+            model=request.model,
+            metadata={
+                "provider_structured_output_requested": True,
+                "provider_structured_output_applied": True,
+            },
+        )
+
+
 def _question() -> OpenResearchQuestion:
     return OpenResearchQuestion(
         id="generic_resource_bounded_procedure",
@@ -151,9 +191,8 @@ def _theory_material() -> dict[str, object]:
 def _payload(*, accept: bool) -> dict[str, object]:
     status = "PASS" if accept else "FAIL"
     return {
-        "dimension_reviews": [
-            {
-                "dimension": dimension,
+        "dimension_reviews": {
+            dimension: {
                 "status": status,
                 "rationale": (
                     "The primitive claim and finite observation agree."
@@ -166,7 +205,7 @@ def _payload(*, accept: bool) -> dict[str, object]:
                 ],
             }
             for dimension in ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
-        ],
+        },
         "estimator_execution_checks": [
             {
                 "estimator_id": "generic_stream_method",
@@ -328,10 +367,58 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     assert backend.requests[0].metadata["model_tier"] == "haiku"
     assert backend.requests[0].max_tokens == 3200
     assert backend.requests[0].metadata["review_output_token_cap"] == 3200
+    assert backend.requests[0].schema["properties"]["dimension_reviews"][
+        "type"
+    ] == "object"
     assert validate_architect_theory_execution_preflight_packet(
         packet,
         material=material,
     ) == []
+
+
+def test_preflight_patch_paths_follow_raw_exact_key_transport() -> None:
+    initial_payload = _payload(accept=False)
+    initial_payload["dimension_reviews"]["primitive_mathematical_consistency"][
+        "evidence_refs"
+    ] = ["unknown.anchor"]
+    backend = _SequencedBackend(initial_payload)
+
+    packet = review_architect_theory_execution_preflight(
+        provider=backend,
+        question=_question(),
+        theory_protocol_material=_theory_material(),
+        upstream_research_contract={
+            "formal_targets": [],
+            "simulation_targets": ["evaluate the declared risk"],
+        },
+        model=TEST_HAIKU_MODEL,
+        model_tier="haiku",
+        max_tokens=7000,
+        temperature=0.0,
+        provider_name="anthropic",
+        max_repair_attempts=1,
+    )
+
+    repair_payload = json.loads(backend.requests[1].user_prompt.split("\n\n", 1)[1])
+    context = repair_payload["subsystem_repair_context"]
+    assert "current_invalid_packet" not in context
+    assert context["dimension_review_patch_paths"][
+        "primitive_mathematical_consistency"
+    ] == ["dimension_reviews", "primitive_mathematical_consistency"]
+    assert context["estimator_execution_check_patch_paths"] == [
+        {
+            "estimator_id": "generic_stream_method",
+            "path": ["estimator_execution_checks", 0],
+        }
+    ]
+    assert packet["overall_verdict"] == "REVISE"
+    assert packet["llm_json_repair_history"][1]["patched_paths"] == [
+        [
+            "dimension_reviews",
+            "primitive_mathematical_consistency",
+            "evidence_refs",
+        ]
+    ]
 
 
 def test_preflight_cannot_accept_an_unestablished_procedure_identity() -> None:

@@ -34,8 +34,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 from .semantic_review_feedback import compact_semantic_review_feedback
 from .scientific_sandbox import (
-    PYTHON_SCIENTIFIC_DEPENDENCIES,
-    R_SCIENTIFIC_DEPENDENCIES,
+    generated_code_draft_json_schema,
     generated_code_execution_contract_errors,
     normalized_generated_code_language,
     normalized_generated_code_profile,
@@ -64,7 +63,7 @@ SIMULATION_ENGINEER_BOUNDARY = (
 class SimulationEngineerConfig:
     model: str = ""
     model_tier: str = "sonnet"
-    max_tokens: int = 5000
+    max_tokens: int = 8000
     temperature: float = 0.1
     provider_name: str = "anthropic"
     max_repair_attempts: int = 1
@@ -229,13 +228,24 @@ class LLMSimulationEngineerAgent:
             return sorted(set(errors))
 
         def build_repair_context(**_kwargs: Any) -> dict[str, Any]:
-            return generated_metric_authority_repair_context(
+            context = generated_metric_authority_repair_context(
                 authoritative_metric_requirements,
                 target_subsystem="SimulationEngineer",
                 artifact_id_label=(
                     "simulation_code_drafts[*].simulation_id from the corrected packet"
                 ),
             )
+            context["generated_code_execution_profiles"] = (
+                scientific_sandbox_contract()["profiles"]
+            )
+            context["repair_prompt_priority_instructions"] = [
+                *context.get("repair_prompt_priority_instructions", []),
+                (
+                    "For stdlib Python omit dependencies from the raw transport; "
+                    "for scientific_wasm include only packages actually imported."
+                ),
+            ]
+            return context
 
         return generate_validated_json_packet(
             provider=self.provider,
@@ -394,6 +404,9 @@ def build_simulation_engineer_prompt(
         "source anchors; do not repeat or rewrite those authority fields. "
         "AgentRuntime rejects invented or weakened required gates. Do not ask "
         "AgentRuntime to infer a metric from prose or metric names. "
+        "For stdlib Python omit dependencies from the raw provider transport; "
+        "AgentRuntime normalizes the omission to an empty list. For "
+        "scientific_wasm include only packages actually imported. "
         "Return raw finite measurements at every metric_path whenever an underlying "
         "numeric quantity exists. For identity/mean/min/max, AgentRuntime aggregates "
         "then compares once. For all/any/at_least_count/at_least_fraction, it applies "
@@ -1333,7 +1346,10 @@ SIMULATION_ENGINEER_OUTPUT_CONTRACT: dict[str, Any] = {
             ],
             "language": "python",
             "execution_profile": "stdlib or scientific_wasm",
-            "dependencies": [],
+            "dependencies": (
+                "omit this transport field for stdlib; include only packages "
+                "actually imported for scientific_wasm"
+            ),
             "entrypoint": "run_sandbox",
             "code": "optional safe Python or R code",
         }
@@ -1435,19 +1451,12 @@ def _simulation_engineer_response_schema(
                 "type": "array",
                 "minItems": 1,
                 "maxItems": 1,
-                "items": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "required": [
+                "items": generated_code_draft_json_schema(
+                    artifact_required=[
                         "simulation_id",
                         "required_estimator_ids",
-                        "language",
-                        "execution_profile",
-                        "dependencies",
-                        "entrypoint",
-                        "code",
                     ],
-                    "properties": {
+                    artifact_properties={
                         "simulation_id": {"type": "string", "minLength": 1},
                         "required_estimator_ids": {
                             "type": "array",
@@ -1468,33 +1477,8 @@ def _simulation_engineer_response_schema(
                                 }
                             ),
                         },
-                        "language": {"type": "string", "enum": ["python", "r"]},
-                        "execution_profile": {
-                            "type": "string",
-                            "enum": ["stdlib", "scientific_wasm"],
-                        },
-                        "dependencies": {
-                            "type": "array",
-                            "uniqueItems": True,
-                            "items": {
-                                "type": "string",
-                                "enum": list(
-                                    PYTHON_SCIENTIFIC_DEPENDENCIES
-                                    + R_SCIENTIFIC_DEPENDENCIES
-                                ),
-                            },
-                        },
-                        "entrypoint": {
-                            "type": "string",
-                            "enum": ["run_sandbox"],
-                        },
-                        "code": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 12000,
-                        },
                     },
-                },
+                ),
             },
             "metric_contracts": {
                 "type": "array",
