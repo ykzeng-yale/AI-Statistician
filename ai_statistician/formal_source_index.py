@@ -85,7 +85,7 @@ MODULE_SUMMARY_TOKEN_WEIGHT = 0.25
 DECLARATION_DOC_TOKEN_WEIGHT = 1.0
 SECTION_SUMMARY_TOKEN_WEIGHT = 0.5
 MODULE_GROUP_TOKEN_WEIGHT = 0.25
-FORMAL_SOURCE_SQLITE_SCHEMA_VERSION = "3"
+FORMAL_SOURCE_SQLITE_SCHEMA_VERSION = "4"
 SKIPPED_PATH_PARTS = {
     ".git",
     ".lake",
@@ -754,6 +754,7 @@ def build_formal_source_index(
             _bind_module_groups(
                 referenced_rows,
                 module_groups,
+                source_root_name=location.name,
             )
         )
     return rows
@@ -2087,7 +2088,10 @@ def _module_groups_from_markdown(root: Path) -> tuple[_FormalModuleGroup, ...]:
                 if len(cells) != len(headers):
                     break
                 name = _markdown_cell_text(cells[group_index])
-                patterns = _markdown_module_patterns(cells[modules_index])
+                patterns = _markdown_module_patterns(
+                    cells[modules_index],
+                    source_root_name=root.name,
+                )
                 summary = (
                     _markdown_cell_text(cells[summary_index])
                     if summary_index is not None
@@ -2107,36 +2111,59 @@ def _module_groups_from_markdown(root: Path) -> tuple[_FormalModuleGroup, ...]:
     return tuple(groups)
 
 
-def _markdown_module_patterns(cell: str) -> tuple[str, ...]:
+def _markdown_module_patterns(
+    cell: str,
+    *,
+    source_root_name: str = "",
+) -> tuple[str, ...]:
     code_values = re.findall(r"`([^`]+)`", cell)
     raw_values = code_values or re.split(r"[,;]", _markdown_cell_text(cell))
     patterns = [
         normalized
         for value in raw_values
-        if (normalized := _normalize_module_pattern(value))
+        if (
+            normalized := _normalize_module_pattern(
+                value,
+                source_root_name=source_root_name,
+            )
+        )
     ]
     return tuple(dict.fromkeys(patterns))
 
 
-def _normalize_module_pattern(value: str) -> str:
+def _normalize_module_pattern(
+    value: str,
+    *,
+    source_root_name: str = "",
+) -> str:
     pattern = str(value or "").strip().replace("\\", "/")
     pattern = re.sub(r"\s+", "", pattern)
-    if pattern.startswith("SLT."):
+    pattern = pattern.removeprefix("./").removesuffix(".lean").strip("` /")
+    if "/" not in pattern:
         pattern = pattern.replace(".", "/")
-    pattern = pattern.removeprefix("SLT/")
-    pattern = pattern.removesuffix(".lean")
-    return pattern.strip("` ")
+    root_prefix = str(source_root_name or "").strip().replace(".", "/").strip("/")
+    if root_prefix and pattern == root_prefix:
+        pattern = ""
+    elif root_prefix and pattern.startswith(root_prefix + "/"):
+        pattern = pattern[len(root_prefix) + 1 :]
+    return pattern.strip("` /")
 
 
 def _bind_module_groups(
     declarations: list[FormalDeclaration],
     groups: tuple[_FormalModuleGroup, ...],
+    *,
+    source_root_name: str = "",
 ) -> list[FormalDeclaration]:
     if not groups:
         return declarations
     bound: list[FormalDeclaration] = []
     for declaration in declarations:
-        group = _module_group_for_path(declaration.path, groups)
+        group = _module_group_for_path(
+            declaration.path,
+            groups,
+            source_root_name=source_root_name,
+        )
         if group is None:
             bound.append(declaration)
             continue
@@ -2153,13 +2180,20 @@ def _bind_module_groups(
 def _module_group_for_path(
     path: str,
     groups: tuple[_FormalModuleGroup, ...],
+    *,
+    source_root_name: str = "",
 ) -> _FormalModuleGroup | None:
-    path_key = str(path or "").replace("\\", "/").removeprefix("SLT/")
-    path_key = path_key.removesuffix(".lean")
+    path_key = _normalize_module_pattern(
+        path,
+        source_root_name=source_root_name,
+    )
     matches: list[tuple[int, _FormalModuleGroup]] = []
     for group in groups:
         for raw_pattern in group.module_patterns:
-            pattern = _normalize_module_pattern(raw_pattern)
+            pattern = _normalize_module_pattern(
+                raw_pattern,
+                source_root_name=source_root_name,
+            )
             prefix = pattern.rstrip("/")
             if not prefix:
                 continue

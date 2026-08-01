@@ -109,7 +109,7 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
     """Context-efficient, feedback-driven policy for Lean proof construction."""
 
     return {
-        "schema_version": 7,
+        "schema_version": 8,
         "specification": (
             "Four-part structured specification: exact Lean target plus faithful "
             "natural-language statement and assumptions; qualified infrastructure "
@@ -120,7 +120,9 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
             "Target-bound qualified names/signatures/imports; source-local "
             "namespace/module role; bounded source-authored declaration docs, section "
             "and README module taxonomy, and local naming examples; direct premise "
-            "outlines first; bounded prior fallback; no source files or proof bodies."
+            "outlines first; one unique top signature per independent retrieval query; "
+            "bounded prior fallback; no source files or proof bodies. Treat module/import "
+            "identity separately from declaration namespace because they may differ."
         ),
         "assumption_audit": (
             "Audit domain, measurability, integrability, finiteness, nonemptiness, "
@@ -144,8 +146,9 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
             "declaration identity."
         ),
         "reuse_policy": (
-            "Prefer an exact compatible imported declaration; cross-toolchain hits "
-            "are context only; revalidate every selected declaration."
+            "Prefer an exact compatible imported declaration; cross-toolchain or "
+            "non-visible-module hits are context only; revalidate every selected "
+            "declaration and its import in the exact active project."
         ),
         "persistent_failure_route": (
             "Independently recheck target fidelity, quantifiers, domains, assumptions, "

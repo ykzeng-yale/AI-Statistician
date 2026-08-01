@@ -2415,9 +2415,14 @@ declaration docs and the active section summary add proof architecture and
 mathematical intent without exposing the declaration's proof body. Generic
 README tables whose columns describe a layer/group/category and its
 modules/files/paths are bound to declarations by longest module-path prefix.
-This recovers AI4SLT's eight library layers without a book- or theorem-specific
-registry. Nearby prior declarations contribute bounded `kind`/qualified-name
-examples so the Formalizer can follow the source's semantic naming style. These
+The path normalizer derives an optional module prefix from each configured source
+root; it does not special-case `SLT` or another package name. This recovers
+AI4SLT's eight library layers without a book- or theorem-specific registry and
+works for other Lean library roots. Nearby prior declarations contribute bounded
+`kind`/qualified-name examples so the Formalizer can follow the source's semantic
+naming style. Lean module/import identity and declaration namespace are retained
+as separate fields because a file such as `SLT.RMT.Covariance` can declare names
+under `RMT` or another namespace. These
 descriptive fields are scored below exact names, signatures, and current
 proof-state evidence; a term repeated across descriptive fields is credited
 only once at its strongest tier. Retrieval emits qualified name, namespace, module,
@@ -2444,11 +2449,16 @@ revision also differs from the active project's revision, so version number alon
 does not authorize an import.
 Before the first Formalizer proposal, the exact theorem goal and theory
 formalization handoff seed at most three task-bound queries with at most two
-hits each in the immutable retrieval artifact. The LLM prompt projects that
-artifact to the first target-bound hit with qualified identity, citation,
-module/snapshot provenance, all bounded premise names, and representative
-statement/proof signatures; secondary hits remain available for a later query
-after new Lean feedback instead of consuming first-turn context. This follows
+hits each in the immutable retrieval artifact. The first-turn query order keeps
+one exact identity, one independent semantic statement, and one required
+definition/lemma query before additional candidates when those lanes exist. The
+LLM prompt then retains one unique top declaration per independent query group,
+deduplicating repeated declarations across groups. The primary declaration carries
+qualified identity, citation, module/snapshot provenance, bounded premise names,
+and representative statement/proof signatures; secondary groups carry exact
+qualified signatures plus minimal module, namespace, snapshot, and reuse-gate
+context. The entire projection has a hard 5,600-character limit and a fail-small
+identity-only fallback. It never includes source files or proof bodies. This follows
 AI4SLT's structured-specification discipline: exact target and mathematical
 meaning, qualified local infrastructure pointers, a formalization-oriented
 support/lemma plan when decomposition is needed (empty for a direct proof), and
@@ -2480,7 +2490,9 @@ so a gap is always accompanied by concrete local source candidates rather than
 only a free-text missing-primitive label.
 
 AI4SLT's scalable library organization is reused as retrieval structure, not as
-hard-coded proof policy. Modules follow mathematical layers (`CoveringNumber`,
+hard-coded proof policy. The repository formalizes substantial selected material
+cross-referenced to three statistical-learning texts; it is not evidence that all
+three books have been formalized. Modules follow mathematical layers (`CoveringNumber`,
 `MetricEntropy`, `Dudley`, `GaussianLSI/`, `LeastSquares/`, `MatrixInfra/`,
 `RMT/`); declarations use semantic Lean names such as `dudley` and
 `LeastSquares.master_error_bound`; theorem numbers from Vershynin, Wainwright,

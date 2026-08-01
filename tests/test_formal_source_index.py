@@ -57,7 +57,8 @@ def test_task_bound_formal_source_queries_keep_semantics_after_exact_name() -> N
                         "Candidate.one",
                         "Candidate.two",
                         "Candidate.three",
-                    ]
+                    ],
+                    "required_definitions": ["Support.definition"],
                 }
             }
         },
@@ -74,7 +75,7 @@ def test_task_bound_formal_source_queries_keep_semantics_after_exact_name() -> N
     assert queries == [
         "Exact.target",
         "Semantic title semantic mathematical statement",
-        "Candidate.one",
+        "Support.definition",
     ]
 
 
@@ -374,6 +375,37 @@ def test_source_docs_sections_and_module_taxonomy_are_searchable_and_persist(
     assert persisted.section_summary == tensorization.section_summary
     assert persisted.module_group == tensorization.module_group
     assert persisted.module_group_summary == tensorization.module_group_summary
+
+
+def test_module_taxonomy_normalization_uses_the_configured_source_root_name(
+    tmp_path: Path,
+) -> None:
+    source_root = tmp_path / "ProbabilityLibrary"
+    target_dir = source_root / "Concentration"
+    target_dir.mkdir(parents=True)
+    (tmp_path / "README.md").write_text(
+        "| Layer | Modules | Description |\n"
+        "|---|---|---|\n"
+        "| Concentration core | `ProbabilityLibrary.Concentration/` | "
+        "Reusable concentration inequalities. |\n",
+        encoding="utf-8",
+    )
+    (target_dir / "Bounds.lean").write_text(
+        "namespace Probability\n"
+        "theorem reusableBound : True := by trivial\n"
+        "end Probability\n",
+        encoding="utf-8",
+    )
+
+    declarations = build_formal_source_index(
+        roots=(FormalSourceRoot("generic_probability", str(source_root)),)
+    )
+
+    assert len(declarations) == 1
+    assert declarations[0].module_group == "Concentration core"
+    assert declarations[0].module_group_summary == (
+        "Reusable concentration inequalities."
+    )
 
 
 def test_module_summary_is_a_shared_low_weight_semantic_hint(
@@ -1229,7 +1261,7 @@ def test_formal_source_prompt_payload_omits_full_candidate_proof_body() -> None:
 
 def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     contract = formalizer_proof_construction_strategy_contract()
-    assert contract["schema_version"] == 7
+    assert contract["schema_version"] == 8
     assert "smallest diagnostic" in contract["repair_cycle"]
     assert "faithful natural-language statement" in contract["specification"]
     assert "four-part structured specification" in contract[
@@ -1242,6 +1274,11 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     assert "hard evidence" in contract["specification"]
     assert "source-local namespace/module role" in contract["context_policy"]
     assert "source-authored declaration docs" in contract["context_policy"]
+    assert "one unique top signature per independent retrieval query" in contract[
+        "context_policy"
+    ]
+    assert "module/import identity separately" in contract["context_policy"]
+    assert "may differ" in contract["context_policy"]
     assert "README module taxonomy" in contract["context_policy"]
     assert "local naming examples" in contract["context_policy"]
     assert "direct premise outlines first" in contract["context_policy"]
@@ -1283,6 +1320,8 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
         "library_design"
     ]
     assert "exact compatible imported declaration" in contract["reuse_policy"]
+    assert "non-visible-module hits are context only" in contract["reuse_policy"]
+    assert "exact active project" in contract["reuse_policy"]
     assert "revalidate every selected declaration" in contract["reuse_policy"]
     assert "opus" not in str(contract).lower()
 
@@ -1335,6 +1374,7 @@ def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() ->
             "hits": [
                 {
                     "source_id": "fixture_library",
+                    "source_type": "lean_library",
                     "path": "Library/Target.lean",
                     "line": 101,
                     "kind": "theorem",
@@ -1381,6 +1421,7 @@ def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() ->
                             },
                         },
                     },
+                    "candidate_proof_body": "by exact hiddenProof",
                 },
                 {
                     "source_id": "unrelated",
@@ -1391,7 +1432,78 @@ def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() ->
                     "signature": long_signature * 3,
                 },
             ],
-        }
+        },
+        {
+            "query": "semantic theorem meaning",
+            "query_role": "semantic_target",
+            "query_fingerprint": "c" * 64,
+            "hits": [
+                {
+                    "source_id": "fixture_library",
+                    "path": "Library/Target.lean",
+                    "line": 101,
+                    "kind": "theorem",
+                    "name": "Library.target_bound",
+                    "signature": long_signature,
+                },
+                {
+                    "source_id": "fixture_library",
+                    "source_type": "lean_library",
+                    "path": "Library/Semantic.lean",
+                    "line": 44,
+                    "kind": "lemma",
+                    "name": "Statistics.semantic_reduction",
+                    "namespace": "Statistics",
+                    "signature": "lemma semantic_reduction (x : Nat) : x = x",
+                    "reference": "Source (2026), Lemma 2",
+                    "declaration_source_context": {
+                        "module": "Library.Semantic",
+                        "module_group": "Reusable reductions",
+                        "imports": ["Library.Foundation"],
+                        "premise_declaration_outlines": [],
+                        "dependency_context": {
+                            "module_ancestry": ["Library", "Library.Semantic"],
+                            "source_snapshot": {
+                                "status": "BOUND_MATCH",
+                                "bound": True,
+                                "match": True,
+                                "metadata": {
+                                    "lean_toolchain": "leanprover/lean4:v4.32.0"
+                                },
+                            },
+                        },
+                    },
+                },
+            ],
+        },
+        {
+            "query": "support definition",
+            "query_role": "support_dependency",
+            "query_fingerprint": "d" * 64,
+            "source_scope_ids": ["fixture_library"],
+            "hits": [
+                {
+                    "source_id": "fixture_library",
+                    "source_type": "lean_library",
+                    "path": "Library/Foundation.lean",
+                    "line": 12,
+                    "kind": "def",
+                    "name": "Foundation.supportObject",
+                    "namespace": "Foundation",
+                    "signature": "def supportObject : Type := Nat",
+                    "declaration_source_context": {
+                        "module": "Library.Foundation",
+                        "module_group": "Foundations",
+                        "imports": [],
+                        "premise_declaration_outlines": [],
+                        "dependency_context": {
+                            "module_ancestry": ["Library", "Library.Foundation"]
+                        },
+                    },
+                    "candidate_proof_body": "by exact forbiddenBody",
+                }
+            ],
+        },
     ]
 
     compact = compact_formal_source_grounding_hits_for_prompt(groups)
@@ -1400,7 +1512,20 @@ def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() ->
     context = target["declaration_source_context"]
 
     assert len(encoded) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS
+    assert len(compact) == 3
+    assert [group["query_role"] for group in compact] == [
+        "repair_context_seed",
+        "semantic_target",
+        "support_dependency",
+    ]
+    assert [group["hits"][0]["name"] for group in compact] == [
+        "Library.target_bound",
+        "Statistics.semantic_reduction",
+        "Foundation.supportObject",
+    ]
     assert target["name"] == "Library.target_bound"
+    assert target["source_type"] == "lean_library"
+    assert target["line"] == 101
     assert target["namespace"] == "Library"
     assert "reusable local concentration lemma" in target[
         "declaration_doc"
@@ -1416,9 +1541,89 @@ def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() ->
     )
     assert context["module_ancestry"] == ["Library", "Library.Target"]
     assert context["source_snapshot"]["status"] == "BOUND_MATCH"
+    assert context["source_snapshot"]["metadata"]["source_git_commit"] == "b" * 40
+    assert target["active_project_reuse_status"] == (
+        "REQUIRES_IMPORT_VISIBILITY_AND_SIGNATURE_REVALIDATION"
+    )
     assert "Library.KeyReduction" in context["premise_names"]
     assert {
         row["dependency_scope"]
         for row in context["premise_declaration_outlines"]
     } == {"statement", "proof"}
     assert "large_candidate" not in encoded
+    assert "hiddenProof" not in encoded
+    assert "forbiddenBody" not in encoded
+    assert compact[1]["hits"][0]["declaration_source_context"]["module"] == (
+        "Library.Semantic"
+    )
+    assert compact[1]["hits"][0]["namespace"] == "Statistics"
+
+
+def test_formal_source_prompt_projection_has_a_hard_pathological_input_cap() -> None:
+    huge = "x" * 100_000
+    groups = [
+        {
+            "query": huge,
+            "query_role": "pathological_fixture",
+            "query_fingerprint": str(index) * 64,
+            "source_scope_ids": [huge, huge, huge],
+            "hits": [
+                {
+                    "source_id": huge,
+                    "source_type": huge,
+                    "path": huge,
+                    "line": index + 1,
+                    "kind": "theorem",
+                    "name": huge,
+                    "namespace": huge,
+                    "signature": huge,
+                    "declaration_doc": huge,
+                    "section_summary": huge,
+                    "reference_aliases": [huge],
+                    "candidate_proof_body": huge,
+                    "declaration_source_context": {
+                        "module": huge,
+                        "module_summary": huge,
+                        "module_group": huge,
+                        "module_group_summary": huge,
+                        "imports": [huge] * 10,
+                        "local_naming_examples": [
+                            {"kind": "lemma", "name": huge}
+                        ]
+                        * 10,
+                        "premise_declaration_outlines": [
+                            {
+                                "dependency_scope": "proof",
+                                "name": huge,
+                                "signature": huge,
+                            }
+                        ]
+                        * 10,
+                        "dependency_context": {
+                            "module_ancestry": [huge] * 10,
+                            "direct_module_imports": [huge] * 10,
+                            "source_snapshot": {
+                                "status": "BOUND_MATCH",
+                                "bound": True,
+                                "match": True,
+                                "metadata": {
+                                    "source_git_commit": huge,
+                                    "source_git_tree": huge,
+                                    "lean_toolchain": huge,
+                                    "mathlib_revision": huge,
+                                },
+                            },
+                        },
+                    },
+                }
+            ],
+        }
+        for index in range(3)
+    ]
+
+    compact = compact_formal_source_grounding_hits_for_prompt(groups)
+    encoded = json.dumps(compact, separators=(",", ":"), ensure_ascii=False)
+
+    assert len(encoded) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS
+    assert compact
+    assert "candidate_proof_body" not in encoded
