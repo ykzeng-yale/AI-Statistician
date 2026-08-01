@@ -40,6 +40,8 @@ AI4SLT_TRACE_MATHLIB_REVISION = (
     "d68c4dc09f5e000d3c968adae8def120a0758729"
 )
 AI4SLT_TRACE_INDEX_SCHEMA_VERSION = 1
+AI4SLT_DECLARATION_ALIGNMENT_PER_SIGNAL = 0.1
+AI4SLT_DECLARATION_ALIGNMENT_MAX_FRACTION = 0.2
 
 _TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9_']*|[0-9]+")
 _STOP_TOKENS = {
@@ -102,6 +104,9 @@ class LeanProofStateTraceHit:
     state_after: str
     premise_provenance: tuple[dict[str, str], ...]
     score: float
+    base_score: float = 0.0
+    declaration_alignment_bonus: float = 0.0
+    declaration_alignment_signals: tuple[str, ...] = ()
 
 
 class LeanProofStateTraceRetriever:
@@ -265,6 +270,8 @@ class LeanProofStateTraceRetriever:
         *,
         k: int = 3,
         source_scope_ids: Sequence[str] = (),
+        preferred_theorem_names: Sequence[str] = (),
+        preferred_modules: Sequence[str] = (),
     ) -> list[LeanProofStateTraceHit]:
         if (
             k <= 0
@@ -272,7 +279,19 @@ class LeanProofStateTraceRetriever:
             or not self.ensure_index()
         ):
             return []
-        fts_query = _fts_query(query)
+        theorem_anchors = _bounded_unique_strings(preferred_theorem_names)
+        module_anchors = _bounded_unique_strings(preferred_modules)
+        # Candidate generation may use declaration-RAG anchors, while the
+        # proof-state query remains the semantic scoring authority below.
+        fts_query = _fts_query(
+            "\n".join(
+                (
+                    query,
+                    *theorem_anchors,
+                    *module_anchors,
+                )
+            )
+        )
         query_tokens = set(_ordered_tokens(query))
         if not fts_query or not query_tokens:
             return []
@@ -330,14 +349,26 @@ class LeanProofStateTraceRetriever:
             )
             if weighted_overlap <= 0:
                 continue
-            score = weighted_overlap / math.sqrt(
+            base_score = weighted_overlap / math.sqrt(
                 max(1, len(query_tokens))
                 * max(
                     1,
                     len(state_tokens | theorem_tokens | premise_tokens),
                 )
             )
-            score += 1.0 / (20.0 + rank)
+            base_score += 1.0 / (20.0 + rank)
+            alignment_signals = _declaration_alignment_signals(
+                theorem_name=str(row["theorem_name"] or ""),
+                module=str(row["module"] or ""),
+                preferred_theorem_names=theorem_anchors,
+                preferred_modules=module_anchors,
+            )
+            alignment_bonus = base_score * min(
+                AI4SLT_DECLARATION_ALIGNMENT_MAX_FRACTION,
+                AI4SLT_DECLARATION_ALIGNMENT_PER_SIGNAL
+                * len(alignment_signals),
+            )
+            score = base_score + alignment_bonus
             ranked.append(
                 LeanProofStateTraceHit(
                     trace_id=str(row["trace_id"] or ""),
@@ -351,6 +382,9 @@ class LeanProofStateTraceRetriever:
                     state_after=str(row["state_after"] or ""),
                     premise_provenance=tuple(provenance_rows),
                     score=score,
+                    base_score=base_score,
+                    declaration_alignment_bonus=alignment_bonus,
+                    declaration_alignment_signals=alignment_signals,
                 )
             )
         ranked.sort(
@@ -707,7 +741,21 @@ def attach_ai4slt_proof_state_trace_rag(
     query_parts, query_roles = _proof_state_query_parts(payload)
     if not query_parts:
         return payload
-    query_fingerprint = stable_hash(query_parts)
+    anchor_source_ids = (
+        tuple(trace_retriever.anchor_source_ids)
+        if trace_retriever is not None
+        else AI4SLT_TRACE_ANCHOR_SOURCE_IDS
+    )
+    declaration_anchors = _formal_source_trace_anchors(
+        payload,
+        allowed_source_ids=anchor_source_ids,
+    )
+    query_fingerprint = stable_hash(
+        {
+            "proof_state_query_parts": query_parts,
+            "declaration_anchors": declaration_anchors,
+        }
+    )
     existing = payload.get("proof_state_trace_rag", {})
     expected_source_id = (
         trace_retriever.source_id
@@ -744,6 +792,8 @@ def attach_ai4slt_proof_state_trace_rag(
         "\n".join(query_parts),
         k=max(0, int(max_hits)),
         source_scope_ids=source_scope_ids,
+        preferred_theorem_names=declaration_anchors["theorem_names"],
+        preferred_modules=declaration_anchors["modules"],
     )
     if not hits:
         payload.pop("proof_state_trace_rag", None)
@@ -793,11 +843,17 @@ def attach_ai4slt_proof_state_trace_rag(
         "mathlib_revision": provider.mathlib_revision,
         "query_fingerprint": query_fingerprint,
         "query_roles": query_roles,
+        "declaration_rag_anchors": declaration_anchors,
         "n_hits": len(hit_payloads),
         "n_target_name_overlap_hits": n_target_name_overlap_hits,
+        "n_declaration_aligned_hits": sum(
+            bool(hit.get("declaration_rag_alignment", {}).get("signals"))
+            for hit in hit_payloads
+        ),
         "hits": hit_payloads,
         "selection_policy": (
-            "proof_state_similarity_with_at_most_one_transition_per_source_theorem"
+            "proof_state_similarity_with_soft_source_derived_declaration_"
+            "and_module_alignment_and_at_most_one_transition_per_source_theorem"
         ),
         "use_policy": (
             "Treat each transition as an analogy for the current local goal, not a "
@@ -862,6 +918,107 @@ def _declaration_name_overlap(left: str, right: str) -> str:
     return ""
 
 
+def _formal_source_trace_anchors(
+    context: Mapping[str, Any],
+    *,
+    allowed_source_ids: Sequence[str],
+) -> dict[str, list[str]]:
+    """Join declaration RAG to traces through source-derived identities only."""
+
+    allowed = {
+        str(value).strip()
+        for value in allowed_source_ids
+        if str(value).strip()
+    }
+    theorem_names: list[str] = []
+    modules: list[str] = []
+    source_ids: list[str] = []
+    groups = context.get("formal_source_grounding_hits", []) or []
+    if not isinstance(groups, (list, tuple)):
+        groups = []
+    for group in groups[:6]:
+        if not isinstance(group, Mapping):
+            continue
+        hits = group.get("hits", []) or []
+        if not isinstance(hits, (list, tuple)):
+            continue
+        for hit in hits[:3]:
+            if not isinstance(hit, Mapping):
+                continue
+            source_id = str(hit.get("source_id", "") or "").strip()
+            if not source_id or source_id not in allowed:
+                continue
+            _append_unique(source_ids, source_id)
+            _append_unique(
+                theorem_names,
+                str(hit.get("name", "") or "").strip(),
+            )
+            source_context = hit.get("declaration_source_context", {})
+            if not isinstance(source_context, Mapping):
+                source_context = {}
+            dependency_context = source_context.get("dependency_context", {})
+            if not isinstance(dependency_context, Mapping):
+                dependency_context = {}
+            module = str(source_context.get("module", "") or "").strip()
+            if not module:
+                module = str(dependency_context.get("module", "") or "").strip()
+            if not module:
+                module = _lean_module_from_path(
+                    str(hit.get("path", "") or "")
+                )
+            _append_unique(modules, module)
+    return {
+        "source_ids": source_ids[:6],
+        "theorem_names": theorem_names[:6],
+        "modules": modules[:6],
+    }
+
+
+def _append_unique(values: list[str], value: str) -> None:
+    normalized = str(value or "").strip()
+    if normalized and normalized not in values:
+        values.append(normalized)
+
+
+def _bounded_unique_strings(
+    values: Sequence[str],
+    *,
+    limit: int = 6,
+) -> tuple[str, ...]:
+    rows: list[str] = []
+    for value in values:
+        normalized = str(value or "").strip()
+        if not normalized or normalized in rows:
+            continue
+        rows.append(normalized[:240])
+        if len(rows) >= max(0, int(limit)):
+            break
+    return tuple(rows)
+
+
+def _declaration_alignment_signals(
+    *,
+    theorem_name: str,
+    module: str,
+    preferred_theorem_names: Sequence[str],
+    preferred_modules: Sequence[str],
+) -> tuple[str, ...]:
+    signals: list[str] = []
+    names = [str(value or "").strip() for value in preferred_theorem_names]
+    if theorem_name in names:
+        signals.append("EXACT_SOURCE_THEOREM_NAME")
+
+    normalized_module = str(module or "").strip().strip(".")
+    modules = [
+        str(value or "").strip().strip(".")
+        for value in preferred_modules
+        if str(value or "").strip().strip(".")
+    ]
+    if normalized_module in modules:
+        signals.append("EXACT_SOURCE_MODULE")
+    return tuple(signals)
+
+
 def _trace_hit_prompt_payload(
     hit: LeanProofStateTraceHit,
     *,
@@ -871,7 +1028,7 @@ def _trace_hit_prompt_payload(
         hit.premise_provenance,
         formal_source_retriever=formal_source_retriever,
     )
-    return {
+    payload = {
         "trace_id": hit.trace_id,
         "source_theorem_name": hit.theorem_name,
         "source_module": hit.module,
@@ -887,6 +1044,16 @@ def _trace_hit_prompt_payload(
             "ANALOGICAL_STATE_ACTION_REQUIRES_CURRENT_PROJECT_REVALIDATION"
         ),
     }
+    if hit.declaration_alignment_signals:
+        payload["declaration_rag_alignment"] = {
+            "signals": list(hit.declaration_alignment_signals),
+            "soft_ranking_bonus": round(hit.declaration_alignment_bonus, 6),
+            "proof_state_base_score": round(hit.base_score, 6),
+            "authority": (
+                "SOURCE_DERIVED_RETRIEVAL_PRIOR_NOT_TACTIC_OR_PROOF_AUTHORITY"
+            ),
+        }
+    return payload
 
 
 def _bind_premises_to_current_declarations(

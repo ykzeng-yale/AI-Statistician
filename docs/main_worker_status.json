@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-08-01T09:39:32Z",
+  "updated_at": "2026-08-01T10:01:06Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "active_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
@@ -33,7 +33,8 @@
     "formal_rag_queries": "When available, first-turn retrieval keeps one exact qualified-name query, one separate semantic theorem query, and one required definition/lemma query before extra candidates. Repeated declarations across query groups are removed. Imports remain visibility metadata rather than lexical hits, and relative dotted Lean declarations preserve their enclosing namespace.",
     "formal_rag_fusion": "Providers are fused by declaration identity and normalized signature using strongest relevance plus a bounded corroboration bonus. Reindexing one source cannot multiply its score, while global corpus discovery can activate a SQL-enforced source scope for the resolution stage.",
     "formal_rag_cache": "The persistent SQLite index is bound to schema version, declaration fingerprint, source-root snapshots, and README/toolchain metadata; changed source material rebuilds the index instead of serving stale declarations.",
-    "formal_rag_source_architecture": "The generic Lean index keeps source-authored declaration docs and active section summaries, binds README layer/module tables by longest module-path prefix derived from each configured source root, and exposes bounded nearby semantic naming examples. There is no SLT package-name special case. Module/import identity and declaration namespace stay separate. Signatures and active Lean proof state retain higher authority; docs, taxonomy, names, and citations are planning hints only, and proof bodies remain excluded."
+    "formal_rag_source_architecture": "The generic Lean index keeps source-authored declaration docs and active section summaries, binds README layer/module tables by longest module-path prefix derived from each configured source root, and exposes bounded nearby semantic naming examples. There is no SLT package-name special case. Module/import identity and declaration namespace stay separate. Signatures and active Lean proof state retain higher authority; docs, taxonomy, names, and citations are planning hints only, and proof bodies remain excluded.",
+    "formal_rag_trace_alignment": "AI4SLT declaration hits now supply bounded exact theorem-name and exact module anchors to train-only proof-state retrieval. Live proof-state overlap remains mandatory and receives first token priority; unrelated source ids are ignored. The source-derived bonus is capped at 20% of the proof-state base score, its signals refresh the retrieval fingerprint, and it creates neither a tactic template nor proof evidence."
   },
   "ai4slt_formal_rag": {
     "repository": "https://github.com/YuanheZ/lean-stat-learning-theory",
@@ -76,6 +77,8 @@
       "premise_provenance_steps": 2845,
       "split": "novel/train only",
       "held_out_splits_excluded": true,
+      "declaration_alignment": "exact source-derived theorem-name and module soft prior",
+      "proof_state_overlap_required": true,
       "proof_status": "NON_PROOF_ANALOGICAL_CONTEXT"
     },
     "semantic_benchmark": {
@@ -107,6 +110,25 @@
       "compact_prompt_projection_chars": 5480,
       "proof_bodies_present": false,
       "proof_status": "RUNTIME_CONTEXT_TRANSPORT_ONLY_NOT_THEOREM_PROOF"
+    },
+    "declaration_trace_alignment_probe": {
+      "targets": [
+        "isENet_of_maximal",
+        "subGaussian_finite_max_bound",
+        "GaussianLipConcen.gaussian_lipschitz_concentration"
+      ],
+      "book_families": [
+        "Vershynin (2018)",
+        "Wainwright (2019)",
+        "Boucheron-Lugosi-Massart (2013)"
+      ],
+      "top_ranked_exact_alignment": "3/3",
+      "signals": [
+        "EXACT_SOURCE_THEOREM_NAME",
+        "EXACT_SOURCE_MODULE"
+      ],
+      "trace_toolchain": "leanprover/lean4:v4.27.0-rc1",
+      "proof_status": "PROOF_STATE_TRACE_RETRIEVAL_CONTEXT_NOT_PROOF_EVIDENCE"
     },
     "boundary": "AI4SLT source docs, section summaries, README taxonomy, naming examples, citations, signatures, dependencies, and train-state hits are candidate context. Toolchain/snapshot identity is disclosed, and every selected declaration or generated action must be re-elaborated in the exact active project before it can contribute to kernel evidence."
   },
@@ -154,7 +176,8 @@
   "verification": {
     "core_suite": "291 passed, 3 skipped, 6 subtests passed in 2183.57 seconds",
     "current_affected_file_panel": "97 formal-source, scoped-corpus, proof-state, dependency-graph, proof-bank, Lean-provider, model-policy, and offline AgentRuntime transport tests passed; no provider call",
-    "model_and_test_environment_policy": "27 current model-policy tests included; no provider call",
+    "current_declaration_trace_alignment_panel": "62 focused proof-state, formal-source, scoped-corpus, proof-bank, Lean-provider, and offline AgentRuntime transport tests passed; no provider call",
+    "model_and_test_environment_policy": "39 model-backend and research-eval policy tests passed; no provider call",
     "exact_semantic_support_query_regression": "exact, semantic, and required-support queries retain independent first-turn capacity",
     "benchmark_registration_regression": "1 passed",
     "ai4slt_semantic_retrieval": "23/23 at recall@8=1.0; 19 direct and 4 globally discovered then source-scoped; source-authored Dudley outline ranks 2 globally and 1 source-scoped",

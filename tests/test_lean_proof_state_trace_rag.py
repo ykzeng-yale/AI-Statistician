@@ -87,6 +87,42 @@ def _write_trace_fixture(path: Path) -> Path:
     return path
 
 
+def _write_module_alignment_trace_fixture(path: Path) -> Path:
+    rows = [
+        {
+            "file_path": "SLT/Unrelated/Bridge.lean",
+            "full_name": "Axioms.generic_bound",
+            "theorem_statement": "theorem generic_bound : bound x",
+            "traced_tactics": [
+                {
+                    "state_before": "x : Real\n⊢ bound x",
+                    "tactic": "exact generic_bound_of_nonneg x",
+                    "state_after": "no goals",
+                    "annotated_tactic_provenances": [],
+                }
+            ],
+        },
+        {
+            "file_path": "SLT/LeastSquares/Target.lean",
+            "full_name": "LeastSquares.localized_bound",
+            "theorem_statement": "theorem localized_bound : bound x",
+            "traced_tactics": [
+                {
+                    "state_before": "x : Real\n⊢ bound x",
+                    "tactic": "exact localized_bound_of_basic_inequality x",
+                    "state_after": "no goals",
+                    "annotated_tactic_provenances": [],
+                }
+            ],
+        },
+    ]
+    path.write_text(
+        "".join(json.dumps(row) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+    return path
+
+
 def _trace_retriever(path: Path) -> LeanProofStateTraceRetriever:
     return LeanProofStateTraceRetriever(
         path,
@@ -165,6 +201,30 @@ def test_trace_index_searches_states_and_preserves_provenance(
     assert descriptor["proof_evidence_status"] == (
         "PROOF_STATE_TRACE_RETRIEVAL_TOPOLOGY_NOT_PROOF_EVIDENCE"
     )
+
+
+def test_trace_search_uses_declaration_module_as_a_soft_ranking_prior(
+    tmp_path: Path,
+) -> None:
+    provider = _trace_retriever(
+        _write_module_alignment_trace_fixture(tmp_path / "module-traces.jsonl")
+    )
+
+    baseline = provider.search("x : Real bound x", k=2)
+    aligned = provider.search(
+        "x : Real bound x",
+        k=2,
+        preferred_modules=("SLT.LeastSquares.Target",),
+    )
+
+    assert baseline[0].theorem_name == "Axioms.generic_bound"
+    assert aligned[0].theorem_name == "LeastSquares.localized_bound"
+    assert aligned[0].base_score > 0
+    assert aligned[0].declaration_alignment_bonus > 0
+    assert aligned[0].declaration_alignment_bonus <= (
+        0.2 * aligned[0].base_score
+    )
+    assert aligned[0].declaration_alignment_signals == ("EXACT_SOURCE_MODULE",)
 
 
 def test_trace_retrieval_is_source_scoped_and_checksum_guarded(
@@ -266,6 +326,28 @@ def test_trace_context_requires_live_proof_state_and_is_non_evidence(
             ],
             "retrieval_query_seeds": ["Gaussian concentration"],
             "formal_source_scope_ids": ["lean_stat_learning_theory"],
+            "formal_source_grounding_hits": [
+                {
+                    "query_role": "semantic_target",
+                    "hits": [
+                        {
+                            "source_id": "lean_stat_learning_theory",
+                            "name": "gaussian_lipschitz_tail",
+                            "namespace": "Gaussian",
+                            "path": "SLT/Gaussian/Concentration.lean",
+                            "declaration_source_context": {
+                                "module": "SLT.Gaussian.Concentration"
+                            },
+                        },
+                        {
+                            "source_id": "unrelated_formal_source",
+                            "name": "Unrelated.lookalike",
+                            "namespace": "Unrelated",
+                            "path": "Other/Lookalike.lean",
+                        },
+                    ],
+                }
+            ],
         },
         formal_source_retriever=formal_sources,
         trace_retriever=provider,
@@ -273,6 +355,18 @@ def test_trace_context_requires_live_proof_state_and_is_non_evidence(
 
     trace_context = attached["proof_state_trace_rag"]
     assert trace_context["n_hits"] >= 1
+    assert trace_context["declaration_rag_anchors"] == {
+        "source_ids": ["lean_stat_learning_theory"],
+        "theorem_names": ["gaussian_lipschitz_tail"],
+        "modules": ["SLT.Gaussian.Concentration"],
+    }
+    assert trace_context["n_declaration_aligned_hits"] >= 1
+    assert "EXACT_SOURCE_THEOREM_NAME" in trace_context["hits"][0][
+        "declaration_rag_alignment"
+    ]["signals"]
+    assert trace_context["hits"][0]["declaration_rag_alignment"][
+        "authority"
+    ].endswith("NOT_TACTIC_OR_PROOF_AUTHORITY")
     assert len(trace_context["trace_sha256"]) == 64
     assert trace_context["n_target_name_overlap_hits"] == 1
     assert trace_context["hits"][0]["target_name_overlap"] == (
@@ -320,6 +414,22 @@ def test_trace_context_requires_live_proof_state_and_is_non_evidence(
             "retrieval_query_seeds": [
                 "leastSquares excessRisk basic inequality"
             ],
+            "formal_source_grounding_hits": [
+                {
+                    "query_role": "semantic_target",
+                    "hits": [
+                        {
+                            "source_id": "lean_stat_learning_theory",
+                            "name": "leastSquares_excessRisk",
+                            "namespace": "LeastSquares",
+                            "path": "SLT/LeastSquares/Basic.lean",
+                            "declaration_source_context": {
+                                "module": "SLT.LeastSquares.Basic"
+                            },
+                        }
+                    ],
+                }
+            ],
         },
         formal_source_retriever=formal_sources,
         trace_retriever=provider,
@@ -330,6 +440,9 @@ def test_trace_context_requires_live_proof_state_and_is_non_evidence(
     assert refreshed["proof_state_trace_rag"]["hits"][0][
         "source_theorem_name"
     ] == "leastSquares_excessRisk"
+    assert refreshed["proof_state_trace_rag"]["declaration_rag_anchors"][
+        "modules"
+    ] == ["SLT.LeastSquares.Basic"]
 
     no_match = attach_ai4slt_proof_state_trace_rag(
         {
@@ -422,6 +535,12 @@ def test_formalizer_compaction_preserves_bounded_trace_states() -> None:
             "context_kind": "exact_source_theorem_whole_proof_repair",
             "proof_state_trace_rag": {
                 "provider": "fixture_trace_provider",
+                "declaration_rag_anchors": {
+                    "source_ids": ["lean_stat_learning_theory"],
+                    "theorem_names": ["prior"],
+                    "modules": ["SLT.Prior"],
+                },
+                "n_declaration_aligned_hits": 1,
                 "hits": [
                     {
                         "source_theorem_statement": "theorem prior : p",
@@ -443,6 +562,8 @@ def test_formalizer_compaction_preserves_bounded_trace_states() -> None:
 
     trace = compact["proof_state_trace_rag"]
     assert trace["provider"] == "fixture_trace_provider"
+    assert trace["declaration_rag_anchors"]["modules"] == ["SLT.Prior"]
+    assert trace["n_declaration_aligned_hits"] == 1
     assert trace["hits"][0]["state_before"] == state
     assert trace["proof_evidence_status"].endswith(
         "NOT_PROOF_EVIDENCE"

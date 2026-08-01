@@ -2609,6 +2609,18 @@ theorem and the current target is recorded in the packet. Production reuse may
 consume it, but it must be disclosed and excluded from held-out generalization
 claims.
 
+Declaration retrieval and proof-state retrieval are joined without creating a
+second proof policy. Bounded AI4SLT declaration hits contribute only exact
+qualified theorem-name and exact source-module anchors to trace candidate
+generation and a disclosed soft ranking bonus capped at 20% of the proof-state
+base score. Tokens from the live goal or
+diagnostic retain first priority, and a trace must still overlap the live
+proof-state query before it can be returned. Hits from unrelated source ids are
+ignored, and the declaration anchors are part of the query fingerprint so a
+changed source-grounding packet cannot reuse stale trace context. These anchors
+are neither hard filters nor tactic templates; the old-toolchain transition
+remains analogical context requiring active-project Lean revalidation.
+
 The trace file is discovered at
 `~/.codex/external/lean-stat-learning-theory-traces/novel-train.jsonl` or through
 `AI_STATISTICIAN_AI4SLT_PROOF_STATE_TRACES`; its optional SQLite location can be
