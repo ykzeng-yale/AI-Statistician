@@ -24,11 +24,11 @@ makes them port guidance rather than an importable proof dependency.
 | --- | --- | --- |
 | Mathlib | `81343555dae873c8de2de2b27bbabf7bc4d8d97a` | Kernel-checked mathematical foundation |
 | StatLib | `6575d611b5d32ef6013e9560d30b1a82a1972fb6` | Pinned reusable statistics API |
-| EmpericalProcessLEAN | `dab7000b3d7a1fb4809347cf622cfd3a115746b4` | Active downstream statistics/proof library |
+| EmpericalProcessLEAN | `2a22e0050efe363b88c31de3adf64d9bcdb5b7eb` | Active downstream statistics/proof library |
 | AI4SLT | `d0f506f0a695018265dccb33bcb05e2f5ca1c876` | Version-bound external retrieval and port corpus |
 
 `EmpericalProcessLEAN/main` and `codex/statlib-foundation-20260801` both point
-to `dab7000b`. The merge retains source history from the VdVW and WDSM branches,
+to `2a22e005`. The merge retains source history from the VdVW and WDSM branches,
 then resolves their public ownership on the StatLib-backed foundation. It also
 absorbs the later Chewi, Durrett, and van der Vaart proof branches and connects
 their standalone modules to the canonical entry module.
@@ -48,22 +48,31 @@ surface. Private, local, and anonymous generated declarations are excluded.
 
 Current schema-v5 graphs:
 
-| Corpus | Modules | Declarations | Duplicate names | Snapshot |
+| Corpus | Lean files | Declarations | Duplicate names | Snapshot |
 | --- | ---: | ---: | ---: | --- |
-| StatInference canonical closure | 630 | 39,176 | 0 | `BOUND_MATCH` |
+| StatInference canonical closure | 1,185 | 51,982 | 0 | `BOUND_MATCH` |
 | Pinned StatLib closure | 3 | 32 | 0 | `BOUND_MATCH` |
 | AI4SLT public source | 65 | 2,000 | 0 | `BOUND_MATCH` |
 
-The all-source StatInference audit still contains 481 duplicate names in
-divergent historical/experimental branches. They are retained for review but
-cannot enter the production RAG corpus. Eighty exactly identical top-level WDSM
-mirrors were reduced to compatibility imports; non-identical pairs were not
-mechanically merged.
+The canonical entry now reaches every unique source module, including all 489
+verified `StatInference.Matching.WDSM` modules. The 151 top-level
+`StatInference.Matching.*` compatibility mirrors remain outside production RAG;
+their 481 declarations duplicate the WDSM owners. Structural tests fail if a
+new unique module is orphaned or a compatibility mirror enters the closure.
+
+Both vendored historical snapshots were reconciled against this closure. Every
+historical file has a current path; changed qualified declarations retain
+current short-name owners except four trivial `0 = 0` demo markers and one
+obsolete reverse bridge whose semantics changed. The snapshots remain
+audit/training inputs and are no longer competing live Formalizer providers.
 
 ## Verification
 
 - `lake build StatInference` completed all 9,817 jobs on Lean `v4.30.0`.
 - `lake env lean StatInference.lean` completed successfully.
+- The canonical import closure covers 1,185 Lean files and all 489 WDSM modules.
+- The production graph indexes 51,982 public declarations and 209,985
+  declaration-reference edges, with zero duplicate names and zero `sorry`.
 - Namespace-aware `#print axioms` scans covered 4,718 changed foundation and
   WDSM declarations with zero unexpected axioms.
 - An incremental scan covered 83 declarations in the four newly merged proof
@@ -79,6 +88,8 @@ mechanically merged.
   ranking metadata. No book or theorem name is encoded in this ranking path.
   The natural-language Newton-decrement query now ranks the semantic
   `SelfConcordantOn` theorem first while retaining historical surfaces below it.
+- Natural-language WDSM construction and finite-cell covariance queries retrieve
+  their newly exposed qualified declarations from the bound production graph.
 
 Build success and retrieval success are not theorem-completion evidence. Only a
 candidate elaborated in the exact active target project and accepted by Lean's

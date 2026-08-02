@@ -231,6 +231,7 @@ LEAN_BLUEPRINT_ROOT = _resolve_source_root(
 LOCAL_STATINFERENCE_ROOT = _resolve_source_root(
     "AI_STATISTICIAN_LOCAL_STATINFERENCE_ROOT",
     (
+        EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT / "StatInference",
         VENDORED_EMPIRICAL_PROCESS_ROOT / "StatInference",
         LEGACY_AI_STATISTICIAN_ROOT / "StatInference",
         Path.home() / ".codex" / "wdsm-lean-gate" / "StatInference",
@@ -471,10 +472,11 @@ SOURCE_INVENTORY_TARGETS: tuple[SourceInventoryTarget, ...] = (
     ),
     SourceInventoryTarget(
         id="legacy_ai_statistician_statinference",
-        source_type="lean_library",
+        source_type="historical_lean_snapshot",
         location=str(LEGACY_AI_STATISTICIAN_ROOT / "StatInference"),
         required_extensions=(".lean",),
         keywords=("Asymptotic", "Estimator", "EmpiricalProcess", "Causal", "Semiparametric", "WDSM"),
+        usage_policy="historical_audit_and_training_only_no_live_retrieval",
     ),
     SourceInventoryTarget(
         id="legacy_ai_statistician_benchmarks",

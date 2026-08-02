@@ -927,6 +927,7 @@ def test_auto_discovery_activates_multiple_healthy_corpus_graphs(
     assert retriever.db_paths == (ai4slt, stat_inference, statlib)
     assert "lean_stat_learning_theory" in retriever.source_ids
     assert "empirical_process_lean" in retriever.source_ids
+    assert "legacy_ai_statistician_statinference" not in retriever.source_ids
     assert "statlib" in retriever.source_ids
     assert "statistical_foundation" in retriever.source_ids
 

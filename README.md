@@ -110,9 +110,11 @@ source pool in `legacy_sources/ai_statistician/`, the local
 `ykzeng-yale/atlas-lean` probability/statistics/analysis/Fourier/functional-
 analysis/differential-analysis/projection subtrees, the local
 `ykzeng-yale/autoform-bot` harness checkout, and OpenProver. These
-vendored Lean/stat source pools are not the active runtime; they are registered
-as retrieval, proof-bank expansion, benchmark, and training material. Atlas and
-AutoformBot use the user-owned local mirrors for retrieval and harness
+vendored Lean/stat source pools are not the active runtime. Their benchmarks,
+schemas, provenance, and proof trajectories remain audit/training material, but
+their superseded Lean declarations are excluded from live Formalizer retrieval;
+the current StatLib-founded `EmpericalProcessLEAN/main` graph owns that surface.
+Atlas and AutoformBot use the user-owned local mirrors for retrieval and harness
 integration. Training exporters omit their declaration payloads by default for
 provenance hygiene; set `AI_STATISTICIAN_INCLUDE_EXTERNAL_TRAINING_SOURCES=1`
 when an owner-authorized local training export should include every registered

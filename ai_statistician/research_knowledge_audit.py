@@ -52,7 +52,6 @@ LOCAL_FORMAL_SOURCE_KNOWLEDGE = {
     "brownian_motion_lean",
     "kolmogorov_extension_lean",
     "scilean_calculus",
-    "legacy_ai_statistician_statinference",
 }
 
 FORMAL_SEARCH_KNOWLEDGE = {

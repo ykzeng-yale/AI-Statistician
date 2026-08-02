@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from ai_statistician.formal_source_index import (
+    DEFAULT_FORMAL_SOURCE_ROOTS,
     FormalDeclaration,
     FormalSourceHit,
     FormalSourceRetriever,
@@ -43,6 +44,13 @@ from ai_statistician.formalizer_llm import (
 from ai_statistician.research_agent_runtime import _formal_source_hit_to_json
 from ai_statistician.research_lab import load_open_research_questions
 from ai_statistician.research_schema import OpenResearchQuestion
+
+
+def test_default_formal_source_roots_exclude_historical_snapshots() -> None:
+    source_ids = {root.id for root in DEFAULT_FORMAL_SOURCE_ROOTS}
+
+    assert "empirical_process_lean" in source_ids
+    assert "legacy_ai_statistician_statinference" not in source_ids
 
 
 def test_task_bound_formal_source_queries_keep_semantics_after_exact_name() -> None:

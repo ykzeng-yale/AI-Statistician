@@ -52,7 +52,7 @@ TARGET_LEAN_SOURCE_COVERAGE: tuple[dict[str, object], ...] = (
     {
         "target_id": "legacy_ai_statistician_statinference",
         "display_name": "Legacy AI-Statistician StatInference",
-        "role": "legacy proof reuse corpus",
+        "role": "historical proof provenance and training corpus",
         "aliases": (
             "legacy-ai-statistician-statinference",
             "legacy-statinference",
@@ -62,7 +62,10 @@ TARGET_LEAN_SOURCE_COVERAGE: tuple[dict[str, object], ...] = (
         "registry_candidate": {
             "name": "legacy-ai-statistician-statinference",
             "local_path": str(LEGACY_AI_STATISTICIAN_ROOT / "StatInference"),
-            "trust": "candidate search only; local Lean must verify imported uses",
+            "trust": (
+                "historical audit/training only; superseded by canonical "
+                "StatInference for live retrieval"
+            ),
         },
         "source_evidence_urls": (),
         "source_evidence_status": f"local path observed at {LEGACY_AI_STATISTICIAN_ROOT / 'StatInference'}",

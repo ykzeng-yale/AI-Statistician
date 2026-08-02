@@ -37,7 +37,6 @@ LOCAL_FORMAL_SOURCE_KNOWLEDGE = {
     "local_statinference_repo",
     "empirical_process_lean",
     "lean_stat_learning_theory",
-    "legacy_ai_statistician_statinference",
 }
 
 FORMAL_SEARCH_KNOWLEDGE = {

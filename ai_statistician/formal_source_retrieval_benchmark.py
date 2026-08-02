@@ -104,7 +104,6 @@ DEFAULT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK: tuple[FormalSourceRetrievalBenchmarkC
         expected_name_fragments=("hajekRatio_eq_populationTarget",),
         expected_source_ids=(
             "empirical_process_lean",
-            "legacy_ai_statistician_statinference",
             "local_statinference_repo",
         ),
         rationale="survey/IPW theory revision should recover existing StatInference ratio identities",

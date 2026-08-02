@@ -16,12 +16,12 @@ has the frontier benchmark, research traces, simulation diagnostics, proof-bank
 audit, formal-gap audit, release-style system audit, and registry-gated
 algorithms.
 
-Do reuse the legacy repo as a source pool. Its useful assets are now vendored
-under `legacy_sources/ai_statistician/` and registered in the current source
-inventory and formal-source index:
+Do reuse the legacy repo as a historical source pool. Its useful assets are
+vendored under `legacy_sources/ai_statistician/` and registered in the source
+inventory, but its Lean snapshot is not a live Formalizer source:
 
-- `legacy_ai_statistician_statinference`: Lean declarations from the old
-  `StatInference/` tree.
+- `legacy_ai_statistician_statinference`: historical Lean provenance and
+  owner-authorized training material from the old `StatInference/` tree.
 - `legacy_ai_statistician_benchmarks`: theorem-hole and formal benchmark seeds.
 - `legacy_ai_statistician_schemas`: JSON contracts for Lean tasks, proof
   attempts, benchmark tasks, and verification reports.
@@ -35,18 +35,12 @@ inventory and formal-source index:
   treated read-only until intentionally reconciled.
 - The old `StatInference/` tree contains 401 Lean files and no detected
   `sorry`, `admit`, `unsafe`, or top-level `axiom` shortcuts in `.lean` files.
-- The current formal-source index extracts 5,088 Lean declarations from the
-  legacy `StatInference` tree.
-- The combined local formal-source index now covers 40,592 declarations across
-  7 sources:
-  Mathlib Probability, Mathlib MeasureTheory, EmpiricalProcessLEAN,
-  local StatInference, lean-stat-learning-theory, external EmpiricalProcessLEAN,
-  and the legacy AI-Statistician StatInference tree.
+- A historical audit extracted 5,088 Lean declarations from the legacy
+  `StatInference` tree. This is snapshot evidence, not the current live index.
 
 ## High-Value Legacy Hits
 
-The legacy tree gives useful retrieval anchors for frontier statistical theory
-planning:
+The legacy tree identified useful proof surfaces during reconciliation:
 
 - `StatInference.IndexedAsymptoticLinearCLTRoute.asymptoticNormal_via_bridge`
   for asymptotic-normality bridge planning.
@@ -63,27 +57,32 @@ planning:
 
 ## Current Integration
 
-The following commands now include the legacy repo:
+The knowledge audit still inventories the legacy repo:
 
 ```bash
 python3 -m ai_statistician.cli research-knowledge-audit \
   --out runs/research_knowledge_audit_legacy_sources
-
-python3 -m ai_statistician.cli formal-source-audit \
-  --out runs/formal_source_index_legacy_sources
 ```
 
-Observed audit status after integration:
+The 2026-08-02 reconciliation compared both vendored snapshots with the current
+StatLib-founded `EmpericalProcessLEAN/main` tree:
 
-- Research knowledge audit: `all_ok=True`, source inventory `11/11`.
-- Formal source index: 40,592 declarations, 7 sources, theorem-mining query
-  coverage `14/14`.
+- All 830 historical Lean file paths have current owners.
+- All 1,412 declarations whose qualified names changed from the vendored
+  EmpericalProcessLEAN snapshot retain the same declaration short name in the
+  current canonical graph.
+- Of 142 changed legacy AI-Statistician declaration names, 137 retain current
+  short-name owners. Four discarded declarations were `0 = 0` demo markers;
+  the fifth was a reverse outer-to-ordinary almost-sure bridge invalidated by a
+  later semantic definition change.
+- The current graph is the only live StatInference provider: 1,185 files,
+  51,982 declarations, zero duplicate names, zero `sorry`, and `BOUND_MATCH`.
 
 ## Reuse Boundary
 
 Reusable now:
 
-- Lean declarations and theorem/interface names for retrieval.
+- Historical theorem/interface names for provenance and training comparison.
 - Theorem-hole benchmark and curation artifacts as future training/evaluation
   data.
 - Schema ideas for future proof-attempt and verification-report artifacts.
@@ -93,6 +92,7 @@ Reusable now:
 
 Not reused as active runtime:
 
+- The two superseded Lean snapshots as live Formalizer retrieval providers.
 - The old Python orchestration stack.
 - The old worktree manager.
 - The old Lake verifier wrapper.

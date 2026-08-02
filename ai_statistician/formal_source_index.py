@@ -1063,7 +1063,6 @@ def _lean_rag_dependency_source_identity(
             "empirical_process_lean",
             (
                 "local_statinference_repo",
-                "legacy_ai_statistician_statinference",
             ),
         )
     if (

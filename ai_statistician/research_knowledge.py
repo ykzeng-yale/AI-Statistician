@@ -822,14 +822,14 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
     ),
     KnowledgeCard(
         id="legacy_ai_statistician_statinference",
-        title="Legacy AI-Statistician StatInference source pool",
-        source_type="local_repo",
+        title="Legacy AI-Statistician StatInference history",
+        source_type="historical_snapshot",
         location=str(LEGACY_AI_STATISTICIAN_ROOT / "StatInference"),
         summary=(
-            "Vendored legacy AI-Statistician StatInference Lean tree reused as "
-            "a read-only declaration source for asymptotic-normality bridges, "
-            "AIPW/IPW routes, Glivenko-Cantelli/bracketing interfaces, "
-            "weak-convergence anchors, and theorem-hole planning."
+            "Vendored legacy AI-Statistician StatInference tree retained for "
+            "provenance audits, benchmark history, and owner-authorized training. "
+            "Its genuine proof surface has current StatInference owners, so this "
+            "snapshot is excluded from live Formalizer retrieval."
         ),
         tags=(
             "legacy_ai_statistician",
@@ -838,7 +838,7 @@ KNOWLEDGE_CARDS: tuple[KnowledgeCard, ...] = (
             "asymptotic",
             "causal",
             "empirical_process",
-            "retrieval",
+            "historical_provenance",
         ),
     ),
     KnowledgeCard(
@@ -888,7 +888,6 @@ FORMAL_INFRASTRUCTURE_KNOWLEDGE: tuple[str, ...] = (
     "local_statinference_repo",
     "empirical_process_lean",
     "lean_stat_learning_theory",
-    "legacy_ai_statistician_statinference",
     "lean_finder",
     "leandojo_reprover",
     "loogle",

@@ -39,3 +39,16 @@ def test_statlib_inventory_recognizes_the_public_module_layout() -> None:
     if Path(target.location).exists():
         assert row.availability_status == "local_ready"
         assert row.ok is True
+
+
+def test_legacy_statinference_is_inventory_not_live_library() -> None:
+    target = next(
+        target
+        for target in SOURCE_INVENTORY_TARGETS
+        if target.id == "legacy_ai_statistician_statinference"
+    )
+
+    assert target.source_type == "historical_lean_snapshot"
+    assert target.usage_policy == (
+        "historical_audit_and_training_only_no_live_retrieval"
+    )

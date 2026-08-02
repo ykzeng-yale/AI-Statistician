@@ -142,11 +142,12 @@ allows only a non-helper, evidence-eligible, path/hash/declaration/target-bound
 generated formal target into semantic review. It remains unknown and ineligible
 for kernel promotion until the independent reviewer accepts that exact statement;
 only then can the existing OpenProver/Lean loop run, and only a kernel rerun can
-prove it. Review-first runs also disable legacy post-runtime source-semantic,
-promotion, and exact-definition execution. Those queues may remain visible as
-formal debt, but any verifier or repair side effect must run through an
-Architect-visible typed AgentRuntime worker. The `full-live` preset no longer
-enables or requires the live staged gap planner.
+prove it. Every run disables legacy post-runtime source-semantic, promotion,
+exact-definition, proof-body, and Lean-repair execution. After AgentRuntime
+terminates, those queues may be projected as immutable formal debt, but any
+retrieval, authoring, verifier, proof-search, local Lean, or promotion side
+effect must run through an Architect-visible typed AgentRuntime worker. The
+`full-live` preset no longer enables or requires the live staged gap planner.
 
 Under the superseded pre-ceiling policy, fresh v39 exercised this correction end
 to end with six bounded Opus reviews across the two tasks. Those historical calls
@@ -1190,11 +1191,12 @@ source pool in `legacy_sources/ai_statistician/`, the local
 `ykzeng-yale/atlas-lean` probability/statistics/analysis/Fourier/functional-
 analysis/differential-analysis/projection subtrees, the local
 `ykzeng-yale/autoform-bot` harness checkout, and OpenProver. The vendored
-Lean/stat files are treated as source pools, not as the active runtime:
-EmpericalProcessLEAN contributes current shared probability/asymptotics/
-empirical-process foundations, while legacy AI-Statistician contributes
-theorem-hole benchmark JSONL, schemas, and proof-training artifacts. Atlas is
-used as retrieval evidence for theorem planning/proof-bank expansion, and
+Lean/stat files are treated as source pools, not as the active runtime. Live
+Formalizer retrieval uses the current StatLib-founded EmpericalProcessLEAN
+canonical graph; superseded vendored Lean snapshots remain provenance and
+training inputs, not competing declaration owners. Legacy AI-Statistician
+contributes theorem-hole benchmark JSONL, schemas, and proof-training artifacts.
+Atlas is used as retrieval evidence for theorem planning/proof-bank expansion, and
 AutoformBot is used as a harness integration target for statement extraction,
 Lean checking, dependency-graph evaluation, proof-checker wrappers, REPL/LSP
 tooling, Lean proof-pattern skill docs, evaluation, and visualization. The
