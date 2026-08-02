@@ -14520,9 +14520,11 @@ def _apply_research_agent_runtime_capability_eval_preset(
         getattr(args, "source_theorem_exact_semantic_definition_source_root", [])
         or []
     )
-    default_source_root = Path("legacy_sources/ai_statistician")
-    if not roots and default_source_root.exists():
-        roots.append(str(default_source_root))
+    if not roots:
+        roots.extend(
+            str(root)
+            for root in _capability_eval_default_exact_semantic_source_roots()
+        )
     args.source_theorem_exact_semantic_definition_source_root = roots
     if (
         preset == "minimal-live"
@@ -14821,7 +14823,7 @@ def _apply_research_agent_runtime_capability_eval_preset(
 def _apply_research_agent_runtime_live_lean_defaults(
     args: argparse.Namespace,
 ) -> None:
-    """Attach the vendored Lake project to live Formalizer/ProofEngineer checks.
+    """Attach the canonical Lake project to live Formalizer/ProofEngineer checks.
 
     This is intentionally narrower than the capability-eval preset: it does not
     enable registered proof-bank local Lean gates or broad source-theorem proof
@@ -14960,12 +14962,16 @@ def _research_agent_runtime_static_subsystem_config_errors(
 
 
 def _capability_eval_default_lean_project_candidates() -> tuple[Path, ...]:
-    from .research_source_inventory import VENDORED_EMPIRICAL_PROCESS_ROOT
+    from .research_source_inventory import (
+        EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT,
+        VENDORED_EMPIRICAL_PROCESS_ROOT,
+    )
 
     project_root = Path(__file__).resolve().parents[1]
     relative_vendored_project = Path("legacy_sources/emperical_process_lean")
     repo_vendored_project = project_root / relative_vendored_project
     candidates = (
+        EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT,
         relative_vendored_project,
         repo_vendored_project,
         VENDORED_EMPIRICAL_PROCESS_ROOT,
@@ -14979,6 +14985,29 @@ def _capability_eval_default_lean_project_candidates() -> tuple[Path, ...]:
             continue
         seen.add(key)
         unique.append(candidate)
+    return tuple(unique)
+
+
+def _capability_eval_default_exact_semantic_source_roots() -> tuple[Path, ...]:
+    """Return the live StatInference/Statlib sources used by the Lean project."""
+
+    from .research_source_inventory import LOCAL_STATINFERENCE_ROOT, STATLIB_ROOT
+
+    candidates = (
+        LOCAL_STATINFERENCE_ROOT,
+        STATLIB_ROOT / "Statlib",
+    )
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        expanded = candidate.expanduser()
+        if not expanded.is_dir():
+            continue
+        key = str(expanded.resolve())
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(expanded)
     return tuple(unique)
 
 

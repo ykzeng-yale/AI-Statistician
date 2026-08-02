@@ -19,6 +19,7 @@ import ai_statistician.exact_source_theorem_proof_body_executor as exact_executo
 import ai_statistician.formalizer_llm as formalizer_module
 import ai_statistician.research_agent_runtime as runtime_module
 import ai_statistician.research_agent_runtime_audit as audit_module
+import ai_statistician.research_source_inventory as source_inventory_module
 from ai_statistician.cli import (
     _load_runtime_capability_gap_routing,
     _load_runtime_learning_memory,
@@ -103542,7 +103543,12 @@ def test_capability_eval_minimal_live_preset_populates_required_runtime_paths() 
     assert args.formalizer_provider == "same"
     assert args.critic_evaluator_provider == "same"
     assert args.local_lean is True
-    assert args.lean_project == "legacy_sources/emperical_process_lean"
+    expected_lean_project = next(
+        str(path)
+        for path in cli_module._capability_eval_default_lean_project_candidates()
+        if cli_module._is_lake_project(path)
+    )
+    assert args.lean_project == expected_lean_project
     assert args.formalizer_candidate_local_lean is True
     assert args.formalizer_candidate_lean_project == args.lean_project
     assert args.pseudo_formal_block_verifier_runtime is True
@@ -103551,7 +103557,8 @@ def test_capability_eval_minimal_live_preset_populates_required_runtime_paths() 
     assert args.formalization_gap_planner_live_model_tier == "haiku"
     assert _research_agent_runtime_evaluation_model_policy_errors(args) == []
     assert args.source_theorem_exact_semantic_definition_source_root == [
-        "legacy_sources/ai_statistician"
+        str(root)
+        for root in cli_module._capability_eval_default_exact_semantic_source_roots()
     ]
     assert args.source_theorem_exact_semantic_definition_authoring_worker is False
     assert (
@@ -103574,6 +103581,22 @@ def test_capability_eval_minimal_live_preset_populates_required_runtime_paths() 
     assert args.simulation_evaluator_generated_code_repair_yield_after_attempts == 1
     assert _research_agent_runtime_capability_config_errors(args) == []
     assert _research_agent_runtime_local_lean_preflight_errors(args) == []
+
+
+def test_capability_eval_prefers_current_formal_foundation_over_snapshots() -> None:
+    candidates = cli_module._capability_eval_default_lean_project_candidates()
+    source_roots = (
+        cli_module._capability_eval_default_exact_semantic_source_roots()
+    )
+
+    assert candidates[0] == (
+        source_inventory_module.EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT
+    )
+    assert source_inventory_module.LOCAL_STATINFERENCE_ROOT in source_roots
+    statlib_source = source_inventory_module.STATLIB_ROOT / "Statlib"
+    if statlib_source.is_dir():
+        assert statlib_source in source_roots
+    assert source_inventory_module.LEGACY_AI_STATISTICIAN_ROOT not in source_roots
 
 
 def test_capability_eval_local_lean_preflight_rejects_unbuilt_mathlib(
@@ -103621,7 +103644,12 @@ def test_live_runtime_defaults_formalizer_candidate_local_lean_project() -> None
 
     _apply_research_agent_runtime_live_lean_defaults(args)
 
-    assert args.lean_project == "legacy_sources/emperical_process_lean"
+    expected_lean_project = next(
+        str(path)
+        for path in cli_module._capability_eval_default_lean_project_candidates()
+        if cli_module._is_lake_project(path)
+    )
+    assert args.lean_project == expected_lean_project
     assert args.formalizer_candidate_lean_project == args.lean_project
     assert args.formalizer_candidate_local_lean is True
     assert args.source_to_bridge_premise_derivation_proofengineer_bridge is True

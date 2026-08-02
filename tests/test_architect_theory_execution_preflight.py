@@ -375,8 +375,8 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     }
     assert backend.requests[0].model == TEST_HAIKU_MODEL
     assert backend.requests[0].metadata["model_tier"] == "haiku"
-    assert backend.requests[0].max_tokens == 4000
-    assert backend.requests[0].metadata["review_output_token_cap"] == 4000
+    assert backend.requests[0].max_tokens == 5600
+    assert backend.requests[0].metadata["review_output_token_cap"] == 5600
     assert "not theorem peer review" in backend.requests[0].system_prompt
     assert "Exclude downstream proof obligations" in (
         backend.requests[0].schema["properties"]["findings"]["description"]
@@ -596,6 +596,113 @@ def test_preflight_closes_prior_findings_by_stable_identity() -> None:
     assert accepted["cumulative_finding_ledger"][0]["status"] == (
         "RESOLVED_BY_CURRENT_THEORY"
     )
+
+
+def test_preflight_repairs_unresolved_prior_finding_with_typed_link() -> None:
+    rejected, _backend = _review(accept=False)
+    prior_ledger = rejected["cumulative_finding_ledger"]
+    prior_finding_id = rejected["active_unresolved_finding_ids"][0]
+    initial_payload = _payload(accept=False)
+    initial_payload["prior_finding_reviews"] = [
+        {
+            "finding_id": prior_finding_id,
+            "status": "UNRESOLVED",
+            "rationale": "The revised source still leaves the finite branch undefined.",
+            "evidence_refs": ["theory.estimator_specs"],
+        }
+    ]
+    initial_payload["findings"][0]["summary"] = (
+        "The revised finite interface still omits one declared outcome."
+    )
+
+    class PriorFindingLinkBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+            self.repair_context = {}
+
+        def generate(self, request):
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                payload = initial_payload
+            else:
+                repair_payload = json.loads(request.user_prompt.split("\n\n", 1)[1])
+                self.repair_context = repair_payload["subsystem_repair_context"]
+                prior_path = self.repair_context["current_finding_patch_paths"][0][
+                    "prior_finding_id_path"
+                ]
+                payload = {
+                    "base_payload_fingerprint": repair_payload[
+                        "base_payload_fingerprint"
+                    ],
+                    "updates": [
+                        {
+                            "path": prior_path,
+                            "replacement_json": json.dumps(prior_finding_id),
+                        }
+                    ],
+                }
+            return GeneratorResponse(
+                text=json.dumps(payload),
+                provider="anthropic",
+                model=request.model,
+                metadata={
+                    "provider_structured_output_requested": True,
+                    "provider_structured_output_applied": True,
+                },
+            )
+
+    backend = PriorFindingLinkBackend()
+    packet = review_architect_theory_execution_preflight(
+        provider=backend,
+        question=_question(),
+        theory_protocol_material=_theory_material(),
+        upstream_research_contract={
+            "formal_targets": [],
+            "simulation_targets": ["evaluate the declared risk"],
+        },
+        model=TEST_HAIKU_MODEL,
+        model_tier="haiku",
+        max_tokens=7000,
+        temperature=0.0,
+        provider_name="anthropic",
+        max_repair_attempts=1,
+        prior_finding_ledger=prior_ledger,
+    )
+
+    finding_schema = backend.requests[0].schema["properties"]["findings"][
+        "items"
+    ]
+    assert "prior_finding_id" in finding_schema["required"]
+    assert finding_schema["properties"]["prior_finding_id"]["enum"] == [
+        "",
+        prior_finding_id,
+    ]
+    assert backend.repair_context["current_finding_patch_paths"] == [
+        {
+            "finding_index": 0,
+            "path": ["findings", 0],
+            "prior_finding_id_path": ["findings", 0, "prior_finding_id"],
+        }
+    ]
+    assert packet["findings"][0]["prior_finding_id"] == prior_finding_id
+    assert packet["findings"][0]["finding_id"] == prior_finding_id
+    assert packet["prior_finding_resolution_summary"][
+        "still_unresolved_prior_finding_ids"
+    ] == [prior_finding_id]
+    assert validate_architect_theory_execution_preflight_packet(
+        packet,
+        material=build_architect_theory_execution_preflight_material(
+            question=_question(),
+            theory_protocol_material=_theory_material(),
+            upstream_research_contract={
+                "formal_targets": [],
+                "simulation_targets": ["evaluate the declared risk"],
+            },
+            prior_finding_ledger=prior_ledger,
+        ),
+    ) == []
 
 
 def test_rejected_preflight_skips_metric_author_and_execution_lineage() -> None:

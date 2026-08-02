@@ -482,10 +482,22 @@ def architect_theory_execution_preflight_json_schema(
         },
         "evidence_refs": evidence_refs,
     }
+    finding_required_fields = [
+        "severity",
+        "category",
+        "summary",
+        "required_change",
+        "evidence_refs",
+    ]
     if active_prior_finding_ids:
+        finding_required_fields.append("prior_finding_id")
         finding_properties["prior_finding_id"] = {
             "type": "string",
-            "enum": active_prior_finding_ids,
+            "enum": ["", *active_prior_finding_ids],
+            "description": (
+                "Use the exact active prior finding_id when this row continues "
+                "that defect; use the empty string only for a genuinely new defect."
+            ),
         }
     schema = {
         "type": "object",
@@ -700,13 +712,7 @@ def architect_theory_execution_preflight_json_schema(
                 "items": {
                     "type": "object",
                     "additionalProperties": False,
-                    "required": [
-                        "severity",
-                        "category",
-                        "summary",
-                        "required_change",
-                        "evidence_refs",
-                    ],
+                    "required": finding_required_fields,
                     "properties": finding_properties,
                 },
             },
@@ -1320,8 +1326,8 @@ def review_architect_theory_execution_preflight(
     schema = architect_theory_execution_preflight_json_schema(material)
     review_estimator_count = len(material.get("required_estimator_ids", []) or [])
     review_output_token_cap = min(
-        5600,
-        4000 + 1200 * max(0, review_estimator_count - 1),
+        8000,
+        5600 + 1200 * max(0, review_estimator_count - 1),
     )
     request = GeneratorRequest(
         system_prompt=ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT,
@@ -1392,6 +1398,24 @@ def review_architect_theory_execution_preflight(
             if isinstance(row, Mapping)
             and str(row.get("finding_id", "") or "").strip()
         ]
+        raw_findings = (
+            invalid_payload.get("findings", [])
+            if isinstance(invalid_payload, Mapping)
+            else []
+        )
+        current_finding_paths = [
+            {
+                "finding_index": index,
+                "path": ["findings", index],
+                "prior_finding_id_path": [
+                    "findings",
+                    index,
+                    "prior_finding_id",
+                ],
+            }
+            for index, row in enumerate(raw_findings or [])
+            if isinstance(row, Mapping)
+        ]
         return {
             "task": "Repair only the invalid fields in the preflight review packet.",
             "local_validation_errors": [
@@ -1407,6 +1431,7 @@ def review_architect_theory_execution_preflight(
             },
             "estimator_execution_check_patch_paths": estimator_paths,
             "prior_finding_review_patch_paths": prior_finding_paths,
+            "current_finding_patch_paths": current_finding_paths,
             "required_dimensions": list(
                 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
             ),
@@ -1439,7 +1464,14 @@ def review_architect_theory_execution_preflight(
                     "Copy typed patch path prefixes exactly from "
                     "dimension_review_patch_paths or "
                     "estimator_execution_check_patch_paths or "
-                    "prior_finding_review_patch_paths."
+                    "prior_finding_review_patch_paths or "
+                    "current_finding_patch_paths."
+                ),
+                (
+                    "For every prior_finding_reviews row whose status is UNRESOLVED, "
+                    "set exactly one current findings row's prior_finding_id to that "
+                    "exact finding_id. Use prior_finding_id='', not an invented link "
+                    "field, for a genuinely new finding. Runtime owns finding_id."
                 ),
                 (
                     "Treat source_interface_inventories as exact source facts. Do not "
