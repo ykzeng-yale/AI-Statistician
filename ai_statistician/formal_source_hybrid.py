@@ -634,12 +634,17 @@ def _compact_dependency_health(value: Mapping[str, Any]) -> dict[str, Any]:
         "source_snapshot_bound",
         "source_snapshot_match",
         "graph_schema_version",
+        "entry_module",
+        "corpus_scope_policy",
+        "canonical_import_closure",
     )
     compact = {field: value[field] for field in fields if field in value}
     metadata = value.get("source_snapshot_metadata", {})
     if isinstance(metadata, Mapping):
         metadata_fields = (
             "schema_version",
+            "entry_module",
+            "corpus_scope_policy",
             "source_git_commit",
             "source_git_tree",
             "source_git_dirty",

@@ -227,13 +227,14 @@ class LeanRagDependencyRetriever:
     def search(self, query: str, *, k: int = 10) -> list[FormalSourceHit]:
         if k <= 0 or not self.is_healthy():
             return []
+        candidate_limit = max(k * 20, 160)
         try:
-            candidate_rows = self._search_fts(query, limit=max(k * 8, 40))
+            candidate_rows = self._search_fts(query, limit=candidate_limit)
         except sqlite3.DatabaseError:
             candidate_rows = []
         if not candidate_rows:
             try:
-                candidate_rows = self._search_like(query, limit=max(k * 8, 40))
+                candidate_rows = self._search_like(query, limit=candidate_limit)
             except sqlite3.DatabaseError:
                 candidate_rows = []
         q_tokens = _tokens(query)
@@ -341,6 +342,8 @@ class LeanRagDependencyRetriever:
         prompt_snapshot_keys = (
             "schema_version",
             "declaration_reference_policy",
+            "entry_module",
+            "corpus_scope_policy",
             "source_git_commit",
             "source_git_tree",
             "source_git_dirty",
@@ -407,12 +410,17 @@ class LeanRagDependencyRetriever:
             conn.row_factory = sqlite3.Row
             if not _table_exists(conn, "decl_fts"):
                 return []
+            quality_projection = _declaration_quality_projection(
+                conn,
+                alias="d",
+            )
             try:
                 return conn.execute(
-                    """
+                    f"""
                     SELECT d.id, d.name, d.short_name, d.kind, d.module, d.path,
                            d.line_start, d.line_end, d.namespace, d.signature,
                            d.proof, d.has_proof, d.has_sorry,
+                           {quality_projection}
                            COALESCE((
                              SELECT sum(e.weight)
                              FROM declaration_edges e
@@ -451,11 +459,16 @@ class LeanRagDependencyRetriever:
         try:
             with closing(sqlite3.connect(self.db_path)) as conn:
                 conn.row_factory = sqlite3.Row
+                quality_projection = _declaration_quality_projection(
+                    conn,
+                    alias="declarations",
+                )
                 return conn.execute(
                     f"""
                     SELECT id, name, short_name, kind, module, path, line_start,
                            line_end, namespace, signature, proof, has_proof,
                            has_sorry,
+                           {quality_projection}
                            COALESCE((
                              SELECT sum(e.weight)
                              FROM declaration_edges e
@@ -498,6 +511,9 @@ class LeanRagDependencyRetriever:
             return None
         fan_in = int(row["fan_in"] or 0)
         fan_out = int(row["fan_out"] or 0)
+        quality_metadata_present = bool(row["quality_metadata_present"])
+        quality_score = _bounded_quality_score(row["quality_score"])
+        quality_flags = _quality_flags(str(row["quality_flags"] or ""))
         score = (
             len(semantic_overlap)
             + 0.5 * len(proof_only_overlap)
@@ -505,6 +521,7 @@ class LeanRagDependencyRetriever:
             + min(fan_in, 10) / 20.0
             + min(fan_out, 10) / 40.0
             + 2.0 / rank
+            + (2.0 * quality_score / 100.0 if quality_metadata_present else 0.0)
         )
         if int(row["has_sorry"] or 0):
             score -= 3.0
@@ -535,6 +552,16 @@ class LeanRagDependencyRetriever:
                 f"fan_in={fan_in}",
                 f"fan_out={fan_out}",
             ]
+            + (
+                [f"declaration_quality={quality_score}"]
+                if quality_metadata_present
+                else []
+            )
+            + (
+                [f"declaration_quality_flags={','.join(quality_flags)}"]
+                if quality_metadata_present and quality_flags
+                else []
+            )
             + (
                 ["proof_body_only_match"]
                 if proof_only_overlap and not semantic_overlap
@@ -764,11 +791,62 @@ def _table_exists(conn: sqlite3.Connection, table: str) -> bool:
     )
 
 
+def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    return {
+        str(row[1])
+        for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
+    }
+
+
+def _declaration_quality_projection(
+    conn: sqlite3.Connection,
+    *,
+    alias: str,
+) -> str:
+    columns = _table_columns(conn, "declarations")
+    if {"quality_score", "quality_flags"}.issubset(columns):
+        return (
+            f"{alias}.quality_score AS quality_score, "
+            f"{alias}.quality_flags AS quality_flags, "
+            "1 AS quality_metadata_present,"
+        )
+    return (
+        "100 AS quality_score, '[]' AS quality_flags, "
+        "0 AS quality_metadata_present,"
+    )
+
+
+def _quality_flags(value: str) -> tuple[str, ...]:
+    try:
+        parsed = json.loads(value or "[]")
+    except json.JSONDecodeError:
+        return ()
+    if not isinstance(parsed, list):
+        return ()
+    return tuple(
+        dict.fromkeys(
+            str(flag).strip()
+            for flag in parsed
+            if str(flag).strip()
+        )
+    )
+
+
+def _bounded_quality_score(value: object) -> int:
+    try:
+        score = int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+    return max(0, min(100, score))
+
+
 def _source_snapshot_report(metadata: dict[str, str]) -> dict[str, object]:
     snapshot_keys = (
         "schema_version",
         "declaration_identity_policy",
         "declaration_reference_policy",
+        "entry_module",
+        "corpus_scope_policy",
         "project_root",
         "source_root",
         "source_git_commit",
@@ -809,6 +887,13 @@ def _source_snapshot_report(metadata: dict[str, str]) -> dict[str, object]:
         "source_snapshot_bound": bound,
         "source_snapshot_match": None,
         "source_snapshot_metadata": recorded,
+        "entry_module": recorded.get("entry_module", ""),
+        "corpus_scope_policy": recorded.get("corpus_scope_policy", ""),
+        "canonical_import_closure": bool(
+            recorded.get("entry_module")
+            and recorded.get("corpus_scope_policy")
+            == "recursive_import_closure_v1"
+        ),
     }
     if not bound:
         return report

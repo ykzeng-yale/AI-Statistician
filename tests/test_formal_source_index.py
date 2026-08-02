@@ -1373,6 +1373,8 @@ def test_formal_source_hit_context_adds_bounded_outline_and_dependency_neighbors
                 source_snapshot_metadata=(
                     ("source_git_commit", "a" * 40),
                     ("lean_toolchain", "leanprover/lean4:v4.32.0"),
+                    ("entry_module", "SLT"),
+                    ("corpus_scope_policy", "recursive_import_closure_v1"),
                 ),
             )
 
@@ -1451,9 +1453,21 @@ def test_formal_source_hit_context_adds_bounded_outline_and_dependency_neighbors
         "metadata": {
             "source_git_commit": "a" * 40,
             "lean_toolchain": "leanprover/lean4:v4.32.0",
+            "entry_module": "SLT",
+            "corpus_scope_policy": "recursive_import_closure_v1",
         },
         "evidence_status": (
             "SOURCE_SNAPSHOT_IDENTITY_NOT_ACTIVE_PROJECT_PROOF_EVIDENCE"
+        ),
+    }
+    assert context["dependency_context"]["candidate_use_policy"] == {
+        "classification": "version_bound_canonical_import_closure_candidate",
+        "snapshot_meaning": (
+            "source freshness only; not active-project compatibility or proof"
+        ),
+        "activation_gate": (
+            "require target-project import visibility and exact local Lean "
+            "re-elaboration before reuse"
         ),
     }
     assert context["dependency_context"]["statement_uses"] == [
@@ -1528,7 +1542,7 @@ def test_formal_source_prompt_payload_omits_full_candidate_proof_body() -> None:
 
 def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     contract = formalizer_proof_construction_strategy_contract()
-    assert contract["schema_version"] == 13
+    assert contract["schema_version"] == 14
     assert "exact Lean target" in contract["specification"]
     assert "faithful mathematical statement" in contract["specification"]
     assert "qualified local signatures" in contract["specification"]
@@ -1559,6 +1573,13 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     assert "citations are disambiguation metadata" in contract["library_design"]
     assert "Reuse exact visible declarations first" in contract["reuse_policy"]
     assert "re-elaborate every selected declaration" in contract["reuse_policy"]
+    assert "BOUND_MATCH as corpus freshness only" in contract[
+        "source_compatibility"
+    ]
+    assert "canonical import closure" in contract["source_compatibility"]
+    assert "Lean toolchain" in contract["source_compatibility"]
+    assert "Mathlib revision differs" in contract["source_compatibility"]
+    assert "exact local re-elaboration" in contract["source_compatibility"]
     assert "opus" not in str(contract).lower()
 
     question = load_open_research_questions(

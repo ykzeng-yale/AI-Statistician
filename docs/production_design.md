@@ -1212,6 +1212,32 @@ Trace audit applies the same grounding contract per run: each normalized
 problem class must include its primary statistical-method card, at least one
 local Lean/stat formal source, and at least one retrieval/search-system source.
 
+Canonical statistical Lean foundation:
+
+- Mathlib owns general mathematics, measure theory, and probability.
+- StatLib is the pinned reusable statistics API. `StatInference.Foundation`
+  publicly re-exports its inference-model and QMD modules.
+- `StatInference` owns larger empirical-process, asymptotic-statistics, and
+  research-specific developments downstream of StatLib. New overlapping
+  abstractions must extend the StatLib API instead of creating a parallel core.
+- The production dependency graph follows the recursive import closure of the
+  library entry module and excludes private, local, anonymous, and unreachable
+  branch declarations. Full-tree graphs are audit corpora, not production RAG.
+- A graph's `BOUND_MATCH` status proves only that it matches its own source
+  snapshot. Toolchain- or Mathlib-mismatched sources such as an external
+  statistical-learning library provide port guidance until a declaration is
+  import-visible and re-elaborates in the exact active target project.
+- Source-corpus declaration-quality metadata is a soft retrieval signal.
+  Semantic APIs rank ahead of numbered, generated, thin-wrapper, or oversized
+  surfaces, but lower-quality declarations remain available for repair and
+  provenance. The classifier is structural and does not list books, theorem
+  families, or expected answers.
+
+This layering follows the [StatLib roadmap](https://stat-lib.github.io/roadmap.html)
+without pretending that downstream source has already been accepted upstream.
+Current revisions and build evidence are recorded in
+`docs/statlib_foundation_integration_20260802.md`.
+
 Canonical live research loop:
 
 `research-agent-runtime --research-eval` exercises the LLM-owned research path,

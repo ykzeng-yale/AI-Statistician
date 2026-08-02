@@ -107,7 +107,7 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
     """Context-efficient, feedback-driven policy for Lean proof construction."""
 
     return {
-        "schema_version": 13,
+        "schema_version": 14,
         "specification": (
             "Bind the exact Lean target to its faithful mathematical statement and "
             "assumptions, qualified local signatures, current lemma frontier, and "
@@ -147,6 +147,14 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
             "Reuse exact visible declarations first. Version-mismatched retrieval is "
             "context only; re-elaborate every selected declaration and generated "
             "candidate in the active project, then remove warnings and dead facts."
+        ),
+        "source_compatibility": (
+            "Treat source-snapshot BOUND_MATCH as corpus freshness only, never as "
+            "active-target compatibility or proof. Prefer the canonical import closure "
+            "of the active project and its pinned dependencies. If the Lean toolchain "
+            "or Mathlib revision differs, use signatures, organization, and proof-state "
+            "context only as port guidance. Require target-project import visibility "
+            "and exact local re-elaboration before reuse."
         ),
     }
 

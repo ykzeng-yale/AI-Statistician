@@ -623,6 +623,107 @@ def test_dependency_search_prefers_name_and_signature_over_proof_chatter(
     assert "proof_body_only_match" in noisy.matched_terms
 
 
+def test_dependency_search_uses_corpus_quality_as_soft_ranking_signal(
+    tmp_path: Path,
+) -> None:
+    db_path = _write_dependency_db(
+        tmp_path / "quality-ranked.sqlite",
+        corpus="StatInference",
+    )
+    rows = [
+        (
+            5,
+            "Theory.variance_concentration",
+            "variance_concentration",
+            "theorem",
+            "Theory.Legacy",
+            "Theory/Legacy.lean",
+            10,
+            12,
+            "Theory",
+            "[]",
+            "theorem variance_concentration : True",
+            "by trivial",
+            1,
+            0,
+            "legacy",
+            0,
+            '["generated_surface_name"]',
+        ),
+        (
+            6,
+            "Theory.gaussian_variance_concentration_bound",
+            "gaussian_variance_concentration_bound",
+            "theorem",
+            "Theory.Concentration",
+            "Theory/Concentration.lean",
+            20,
+            24,
+            "Theory",
+            "[]",
+            "theorem gaussian_variance_concentration_bound : True",
+            "by trivial",
+            1,
+            0,
+            "canonical",
+            100,
+            "[]",
+        ),
+    ]
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "ALTER TABLE declarations ADD COLUMN quality_score INTEGER NOT NULL DEFAULT 100"
+        )
+        conn.execute(
+            "ALTER TABLE declarations ADD COLUMN quality_flags TEXT NOT NULL DEFAULT '[]'"
+        )
+        conn.executemany(
+            "INSERT INTO declarations VALUES "
+            "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            rows,
+        )
+        conn.executemany(
+            """
+            INSERT INTO decl_fts(
+              rowid, name, short_name, kind, module, namespace, signature, proof
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    row[0],
+                    row[1],
+                    row[2],
+                    row[3],
+                    row[4],
+                    row[8],
+                    row[10],
+                    row[11],
+                )
+                for row in rows
+            ],
+        )
+
+    hits = LeanRagDependencyRetriever(db_path).search(
+        "variance concentration",
+        k=2,
+    )
+
+    assert hits[0].declaration.name == (
+        "Theory.gaussian_variance_concentration_bound"
+    )
+    assert "declaration_quality=100" in hits[0].matched_terms
+    legacy = next(
+        hit
+        for hit in hits
+        if hit.declaration.name == "Theory.variance_concentration"
+    )
+    assert legacy.score < hits[0].score
+    assert (
+        "declaration_quality_flags=generated_surface_name"
+        in legacy.matched_terms
+    )
+
+
 def test_dependency_health_rejects_mismatch_and_exposes_matching_snapshot_context(
     tmp_path: Path,
     monkeypatch,
@@ -655,6 +756,8 @@ def test_dependency_health_rejects_mismatch_and_exposes_matching_snapshot_contex
                     "declaration_reference_policy",
                     "comment_string_free_explicit_names_v1",
                 ),
+                ("entry_module", "SLT"),
+                ("corpus_scope_policy", "recursive_import_closure_v1"),
                 ("project_root", str(source_root)),
                 ("source_root", str(source_root / "SLT")),
                 ("source_git_commit", "a" * 40),
@@ -682,6 +785,9 @@ def test_dependency_health_rejects_mismatch_and_exposes_matching_snapshot_contex
     assert health["source_snapshot_bound"] is True
     assert health["source_snapshot_match"] is False
     assert health["source_snapshot_status"] == "BOUND_MISMATCH"
+    assert health["entry_module"] == "SLT"
+    assert health["corpus_scope_policy"] == "recursive_import_closure_v1"
+    assert health["canonical_import_closure"] is True
     assert health["all_ok"] is False
     assert retriever.search("master error bound", k=1) == []
 
@@ -712,6 +818,8 @@ def test_dependency_health_rejects_mismatch_and_exposes_matching_snapshot_contex
     assert snapshot["source_git_tree"] == "b" * 40
     assert snapshot["lean_toolchain"] == "leanprover/lean4:v4.32.0"
     assert snapshot["mathlib_revision"] == "c" * 40
+    assert snapshot["entry_module"] == "SLT"
+    assert snapshot["corpus_scope_policy"] == "recursive_import_closure_v1"
     assert snapshot["declaration_reference_policy"] == (
         "comment_string_free_explicit_names_v1"
     )

@@ -1174,6 +1174,28 @@ def _formal_source_dependency_context(
                 "SOURCE_SNAPSHOT_IDENTITY_NOT_ACTIVE_PROJECT_PROOF_EVIDENCE"
             ),
         }
+        canonical_import_closure = bool(
+            snapshot_status == "BOUND_MATCH"
+            and snapshot_metadata.get("entry_module")
+            and snapshot_metadata.get("corpus_scope_policy")
+            == "recursive_import_closure_v1"
+        )
+        payload["candidate_use_policy"] = {
+            "classification": (
+                "version_bound_canonical_import_closure_candidate"
+                if canonical_import_closure
+                else "version_bound_external_source_candidate"
+                if snapshot_status == "BOUND_MATCH"
+                else "unbound_or_stale_source_candidate"
+            ),
+            "snapshot_meaning": (
+                "source freshness only; not active-project compatibility or proof"
+            ),
+            "activation_gate": (
+                "require target-project import visibility and exact local Lean "
+                "re-elaboration before reuse"
+            ),
+        }
     statement_uses = [
         str(value)
         for value in getattr(context, "statement_uses", ()) or ()
