@@ -153,6 +153,32 @@ def test_camel_tokenization_keeps_semantics_without_short_fragments() -> None:
     assert "to" not in tokens
 
 
+def test_lean_index_keeps_public_imports_and_excludes_private_api(
+    tmp_path: Path,
+) -> None:
+    source_root = tmp_path / "Statlib"
+    source_root.mkdir()
+    (source_root / "QMD.lean").write_text(
+        "public import Mathlib.MeasureTheory.Measure.Decomposition.IntegralRNDeriv\n"
+        "namespace QMD\n"
+        "private lemma internal_transport : True := by trivial\n"
+        "theorem integral_score_eq_zero : True := by trivial\n"
+        "end QMD\n",
+        encoding="utf-8",
+    )
+
+    declarations = build_formal_source_index(
+        roots=(FormalSourceRoot("statlib", str(source_root)),)
+    )
+
+    assert [row.name for row in declarations] == [
+        "QMD.integral_score_eq_zero"
+    ]
+    assert declarations[0].imports == (
+        "Mathlib.MeasureTheory.Measure.Decomposition.IntegralRNDeriv",
+    )
+
+
 def test_readme_reference_is_searchable_and_persists_in_sqlite(
     tmp_path: Path,
 ) -> None:
@@ -872,7 +898,7 @@ def test_lean_sections_do_not_corrupt_namespace_and_long_outline_keeps_conclusio
 ) -> None:
     arguments = "\n".join(
         f"    (h{idx} : True) -- explanatory comment {idx}"
-        for idx in range(12)
+        for idx in range(100)
     )
     (tmp_path / "Scoped.lean").write_text(
         "namespace Matrix\n"
@@ -925,6 +951,9 @@ def test_lean_sections_do_not_corrupt_namespace_and_long_outline_keeps_conclusio
     assert "Matrix.after_section" in by_name
     outline = by_name["Matrix.after_section"].signature
     assert outline.endswith(": True")
+    assert len(outline) > 900
+    assert " ... " not in outline
+    assert "(h99 : True)" in outline
     assert "explanatory comment" not in outline
     assert "trivial" not in outline
 
@@ -1433,6 +1462,15 @@ def test_formal_source_hit_context_adds_bounded_outline_and_dependency_neighbors
     assert context["dependency_context"]["proof_uses"] == [
         "LeastSquares.bad_event_probability_bound"
     ]
+    assert context["dependency_context"]["proof_dependency_origin"] == (
+        "explicit_references_extracted_from_target_source_proof"
+    )
+    assert context["dependency_context"][
+        "proof_dependency_evaluation_policy"
+    ] == (
+        "permitted_for_production_source_reuse_but_excluded_from_held_out_"
+        "or_from_scratch_prover_generalization_claims"
+    )
     assert context["dependency_context"][
         "n_downstream_declarations_omitted"
     ] == 1
@@ -1490,13 +1528,14 @@ def test_formal_source_prompt_payload_omits_full_candidate_proof_body() -> None:
 
 def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     contract = formalizer_proof_construction_strategy_contract()
-    assert contract["schema_version"] == 12
+    assert contract["schema_version"] == 13
     assert "exact Lean target" in contract["specification"]
     assert "faithful mathematical statement" in contract["specification"]
     assert "qualified local signatures" in contract["specification"]
     assert "Never weaken" in contract["specification"]
-    assert "qualified signatures" in contract["context_policy"]
-    assert "active import visibility" in contract["context_policy"]
+    assert "bounded local signature bundle" in contract["context_policy"]
+    assert "direct imports" in contract["context_policy"]
+    assert "premise modules" in contract["context_policy"]
     assert "module and namespace identity separate" in contract["context_policy"]
     assert "live Lean goal or diagnostic" in contract["context_policy"]
     assert "Never send source files or proof bodies" in contract["context_policy"]
@@ -1515,7 +1554,9 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     assert "source-local namespace/module organization" in contract[
         "library_design"
     ]
-    assert "textbook numbers" in contract["library_design"]
+    assert "source-identifying suffix" in contract["library_design"]
+    assert "local API" in contract["library_design"]
+    assert "citations are disambiguation metadata" in contract["library_design"]
     assert "Reuse exact visible declarations first" in contract["reuse_policy"]
     assert "re-elaborate every selected declaration" in contract["reuse_policy"]
     assert "opus" not in str(contract).lower()
@@ -1552,6 +1593,7 @@ def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() ->
     premise_rows = [
         {
             "dependency_scope": scope,
+            "module": f"Library.{name.rsplit('.', 1)[-1]}",
             "name": name,
             "signature": f"theorem {name.rsplit('.', 1)[-1]} " + "(h : True) " * 40 + ": True",
         }
@@ -1737,53 +1779,51 @@ def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() ->
         "Foundation.supportObject",
     ]
     assert target["name"] == "Library.target_bound"
-    assert target["source_type"] == "lean_library"
-    assert target["line"] == 101
-    assert target["namespace"] == "Library"
-    assert "reusable local concentration lemma" in target[
-        "declaration_doc"
-    ]
-    assert "section_summary" not in target
-    assert "Source Book Full Title" in target["reference_aliases"][0]
+    assert target["source_id"] == "fixture_library"
+    assert target["signature"] == long_signature
     assert context["module"] == "Library.Target"
+    assert context["imports"] == ["Library.Foundation", "Library.Reduction"]
     assert "module_summary" not in context
     assert "module_group" not in context
     assert "module_group_summary" not in context
     assert "local_naming_examples" not in context
     assert "module_ancestry" not in context
     assert "direct_module_imports" not in context
-    assert context["source_architecture_route"] == {
-        "target_layer": "Localized applications",
-        "upstream_layers": [
-            {
-                "min_depth": 1,
-                "modules": ["Library.Reduction"],
-                "layer": "Reusable reductions",
-            },
-            {
-                "min_depth": 2,
-                "modules": ["Library.Foundation"],
-                "layer": "Foundations",
-            },
-        ],
-    }
-    assert context["source_snapshot"]["status"] == "BOUND_MATCH"
-    assert context["source_snapshot"]["metadata"]["source_git_commit"] == "b" * 40
-    assert target["active_project_reuse_status"] == (
-        "REQUIRES_IMPORT_VISIBILITY_AND_SIGNATURE_REVALIDATION"
-    )
-    assert "Library.KeyReduction" in context["premise_names"]
+    assert "source_architecture_route" not in context
+    assert "source_snapshot" not in context
+    assert "premise_names" not in context
+    for omitted in (
+        "source_type",
+        "path",
+        "line",
+        "kind",
+        "namespace",
+        "declaration_doc",
+        "reference_aliases",
+        "active_project_reuse_status",
+    ):
+        assert omitted not in target
     assert {
         row["dependency_scope"]
         for row in context["premise_declaration_outlines"]
     } == {"statement", "proof"}
+    assert all(
+        row["module"].startswith("Library.")
+        for row in context["premise_declaration_outlines"]
+    )
+    assert all(
+        " ... " not in row["signature"]
+        for row in context["premise_declaration_outlines"]
+    )
     assert "large_candidate" not in encoded
     assert "hiddenProof" not in encoded
     assert "forbiddenBody" not in encoded
     assert compact[1]["hits"][0]["declaration_source_context"]["module"] == (
         "Library.Semantic"
     )
-    assert compact[1]["hits"][0]["namespace"] == "Statistics"
+    assert "namespace" not in compact[1]["hits"][0]
+    assert all("query_fingerprint" not in group for group in compact)
+    assert all("proof_evidence_status" not in group for group in compact)
 
 
 def test_source_scoped_prompt_keeps_two_ranked_signatures_without_library_prose() -> None:
@@ -1799,6 +1839,7 @@ def test_source_scoped_prompt_keeps_two_ranked_signatures_without_library_prose(
         "premise_declaration_outlines": [
             {
                 "dependency_scope": "proof",
+                "module": "Library.Foundation",
                 "name": "Library.directPremise",
                 "signature": "lemma directPremise : True",
             }
@@ -1850,7 +1891,7 @@ def test_source_scoped_prompt_keeps_two_ranked_signatures_without_library_prose(
         "Library.secondCandidate",
     ]
     assert all("signature" in row for row in compact[0]["hits"])
-    assert compact[0]["source_scope_ids"] == ["fixture_library"]
+    assert "source_scope_ids" not in compact[0]
     assert "thirdCandidate" not in encoded
     assert "hiddenProof" not in encoded
     assert "Section prose" not in encoded
@@ -1905,6 +1946,7 @@ def test_formal_source_repair_prompt_keeps_signatures_not_library_prose() -> Non
             "premise_declaration_outlines": [
                 {
                     "dependency_scope": "proof",
+                    "module": "SLT.LeastSquares.Localization",
                     "name": "LeastSquares.localized_reduction",
                     "signature": (
                         "lemma localized_reduction : "
@@ -1964,12 +2006,13 @@ def test_formal_source_repair_prompt_keeps_signatures_not_library_prose() -> Non
     initial_hit = initial[0]["hits"][0]
     repair_hit = repair[0]["hits"][0]
     repair_context = repair_hit["declaration_source_context"]
-    assert "declaration_doc" in initial_hit
+    assert "declaration_doc" not in initial_hit
     assert "declaration_doc" not in repair_hit
     assert "section_summary" not in repair_hit
     assert "reference_aliases" not in repair_hit
     assert repair_hit["name"] == "LeastSquares.master_error_bound"
     assert "excessRisk betaHat" in repair_hit["signature"]
+    assert repair_hit["signature"] == hit["signature"]
     assert repair_context["module"] == (
         "SLT.LeastSquares.MasterErrorBound"
     )
@@ -1977,29 +2020,27 @@ def test_formal_source_repair_prompt_keeps_signatures_not_library_prose() -> Non
         "SLT.LeastSquares.Localization"
     ]
     assert "direct_module_imports" not in repair_context
-    assert "source_architecture_route" in initial_hit[
+    assert "source_architecture_route" not in initial_hit[
         "declaration_source_context"
     ]
     assert "source_architecture_route" not in repair_context
     assert repair_context["premise_declaration_outlines"][0]["name"] == (
         "LeastSquares.localized_reduction"
     )
+    assert repair_context["premise_declaration_outlines"][0]["module"] == (
+        "SLT.LeastSquares.Localization"
+    )
     assert "LocalizedCondition betaHat" in repair_context[
         "premise_declaration_outlines"
     ][0]["signature"]
-    assert repair_context["module_import_visibility_enforced"] is True
-    assert repair_context["source_snapshot"]["metadata"] == {
-        "lean_toolchain": "leanprover/lean4:v4.32.0",
-        "mathlib_revision": "b" * 40,
-    }
+    assert "module_import_visibility_enforced" not in repair_context
+    assert "source_snapshot" not in repair_context
     assert "module_group" not in repair_context
     assert "module_summary" not in repair_context
     assert "module_group_summary" not in repair_context
     assert "local_naming_examples" not in repair_context
     assert "module_ancestry" not in repair_context
-    assert len(json.dumps(repair, sort_keys=True)) < len(
-        json.dumps(initial, sort_keys=True)
-    )
+    assert initial_hit["declaration_source_context"] == repair_context
 
 
 def test_formal_source_prompt_projection_has_a_hard_pathological_input_cap() -> None:
@@ -2070,3 +2111,7 @@ def test_formal_source_prompt_projection_has_a_hard_pathological_input_cap() -> 
     assert len(encoded) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS
     assert compact
     assert "candidate_proof_body" not in encoded
+    assert " ... " not in encoded
+    assert compact[0]["hits"][0]["signature_status"] == (
+        "OMITTED_EXCEEDS_PROMPT_BOUND_QUERY_ACTIVE_LEAN_OUTLINE"
+    )

@@ -109,6 +109,38 @@ def test_composite_retriever_breaks_rrf_ties_by_query_evidence() -> None:
     )
 
 
+def test_composite_retriever_exposes_enabled_provider_rag_capabilities() -> None:
+    class Provider:
+        name = "capability_provider"
+        lean_rag_dependency_graph_enabled = True
+        lean_rag_dependency_graph_path = "graph.sqlite"
+        lean_rag_dependency_graph_paths = ("graph.sqlite",)
+        lean_rag_dependency_graph_source_ids = ("source_library",)
+        lean_rag_dependency_graph_auto_discovered = True
+        lean_rag_dependency_graph_health_status = "active_healthy"
+        lean_rag_dependency_graph_health = {"all_ok": True}
+        scoped_premise_corpus_enabled = True
+        scoped_premise_corpus_source_ids = ("companion_corpus",)
+        scoped_premise_corpus_anchor_source_ids = ("source_library",)
+        scoped_premise_corpus_health = ({"all_ok": True},)
+
+        def search(self, _query: str, *, k: int = 10):
+            return []
+
+    retriever = CompositeFormalSourceRetriever((Provider(),))
+
+    assert retriever.lean_rag_dependency_graph_enabled is True
+    assert retriever.lean_rag_dependency_graph_paths == ("graph.sqlite",)
+    assert retriever.lean_rag_dependency_graph_source_ids == ("source_library",)
+    assert retriever.lean_rag_dependency_graph_health == {"all_ok": True}
+    assert retriever.scoped_premise_corpus_enabled is True
+    assert retriever.scoped_premise_corpus_source_ids == ("companion_corpus",)
+    assert retriever.scoped_premise_corpus_health == ({"all_ok": True},)
+    descriptor = retriever.descriptor()
+    assert descriptor["lean_rag_dependency_graph_enabled"] is True
+    assert descriptor["scoped_premise_corpus_enabled"] is True
+
+
 def test_composite_source_scope_filters_unscoped_provider_fallback() -> None:
     @dataclass
     class Provider:

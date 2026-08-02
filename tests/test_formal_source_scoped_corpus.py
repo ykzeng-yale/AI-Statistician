@@ -522,21 +522,11 @@ def test_composite_runtime_preserves_three_book_dependency_context() -> None:
     initial_groups = [dict(groups[0], query_role="initial_formalization_context")]
     compact = compact_formal_source_grounding_hits_for_prompt(initial_groups)
     compact_context = compact[0]["hits"][0]["declaration_source_context"]
-    assert compact_context["source_architecture_route"] == {
-        "target_layer": "Least squares",
-        "upstream_layers": [
-            {
-                "min_depth": 1,
-                "modules": ["SLT.GaussianLipConcen"],
-                "layer": "Gaussian concentration",
-            },
-            {
-                "min_depth": 1,
-                "modules": ["SLT.CoveringNumber"],
-                "layer": "Metric entropy",
-            },
-        ],
-    }
+    assert "source_architecture_route" not in compact_context
+    assert [
+        row["module"]
+        for row in compact_context["premise_declaration_outlines"]
+    ] == ["SLT.CoveringNumber", "SLT.GaussianLipConcen"]
     assert "module_ancestry" not in compact_context
     assert "direct_module_imports" not in compact_context
     repair = compact_formal_source_grounding_hits_for_prompt(groups)

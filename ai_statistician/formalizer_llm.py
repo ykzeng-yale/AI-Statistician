@@ -107,18 +107,19 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
     """Context-efficient, feedback-driven policy for Lean proof construction."""
 
     return {
-        "schema_version": 12,
+        "schema_version": 13,
         "specification": (
             "Bind the exact Lean target to its faithful mathematical statement and "
             "assumptions, qualified local signatures, current lemma frontier, and "
             "verification boundary. Never weaken the target."
         ),
         "context_policy": (
-            "Use qualified signatures and active import visibility, keeping module and "
-            "namespace identity separate. Source docs, naming, and textbook citations "
-            "rank candidates only. Initial authoring may receive one bounded intent "
-            "anchor; repairs receive the live Lean goal or diagnostic and only relevant "
-            "premise signatures. Never send source files or proof bodies."
+            "Use the bounded local signature bundle: exact target module, qualified "
+            "declaration name and signature, direct imports, and dependency-ordered "
+            "premise modules, names, and signatures. Keep module and namespace identity "
+            "separate. Source docs, architecture summaries, naming examples, and textbook "
+            "citations rank retrieval outside the model prompt. Repairs add the live Lean "
+            "goal or diagnostic. Never send source files or proof bodies."
         ),
         "statement_audit": (
             "Audit domain, measurability, integrability, finiteness, nonemptiness, "
@@ -138,8 +139,9 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
         ),
         "library_design": (
             "Build at the lowest reusable mathematical layer. Follow source-local "
-            "namespace/module organization and stable semantic names; textbook numbers "
-            "remain citation metadata, not declaration names."
+            "namespace/module organization and stable semantic names. Use a source-"
+            "identifying suffix only when the retrieved local API already establishes "
+            "that convention; citations are disambiguation metadata, never authority."
         ),
         "reuse_policy": (
             "Reuse exact visible declarations first. Version-mismatched retrieval is "
@@ -7522,10 +7524,10 @@ def _formalizer_mode_specific_instructions(
             )
     if formal_source_grounding_available:
         instructions.append(
-            "Formal-source grounding hits are available: use qualified names and "
-            "premise_declaration_outlines in dependency order; use "
-            "nearby_declaration_outlines only as bounded fallback. Names, citations, "
-            "and the source architecture route are orientation, not authority. "
+            "Formal-source grounding is a bounded local signature bundle. Import the "
+            "target or premise module actually supplied, use each qualified name with "
+            "its exact signature, and consume premise_declaration_outlines in dependency "
+            "order. Do not invent an API from a citation or declaration-name pattern. "
             "Revalidate every selection in the exact local Lean/AXLE project; emit "
             "FORMAL_GAP when the required API is unavailable."
         )

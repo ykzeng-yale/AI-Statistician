@@ -8,16 +8,14 @@ from .research_schema import OpenResearchQuestion
 
 
 FORMAL_SOURCE_OUTLINE_PROMPT_POLICY = (
-    "Bounded qualified target and direct statement/proof premise signatures are the "
-    "prompt authority; source-scoped queries may retain two ranked target candidates. "
-    "A compact source-derived module dependency route may orient initial authoring. "
-    "Downstream declarations, proof bodies, broad module prose, and nearby naming "
-    "examples are omitted. A bounded source-authored declaration doc and citation may "
-    "disambiguate intent but never replace a signature or active proof state. "
-    "Qualified declaration identity and active import visibility govern reuse; "
-    "declaration-name patterns and source citations are retrieval hints, not semantic "
-    "or proof authority. Retrieved declarations remain candidate context "
-    "until the exact target artifact passes active-project Lean/kernel checking."
+    "The model receives a bounded local signature bundle: the qualified target, its "
+    "Lean module, direct imports, and dependency-ordered premise modules, names, and "
+    "signatures. Source-scoped queries may retain two ranked target candidates. Rich "
+    "provenance, source prose, citation crosswalks, architecture summaries, nearby "
+    "naming examples, downstream declarations, and proof bodies remain in runtime "
+    "artifacts but are omitted from the model prompt. Retrieved declarations remain "
+    "candidate context until the exact target artifact passes active-project "
+    "Lean/kernel checking."
 )
 FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS = 5600
 PROOFENGINEER_REPAIR_QUERY_ROLES = frozenset(
@@ -65,13 +63,6 @@ def compact_formal_source_grounding_hits_for_prompt(value: Any) -> list[dict[str
         repair_focused = query_role in PROOFENGINEER_REPAIR_QUERY_ROLES
         projected_group: dict[str, Any] = {
             "query_role": query_role,
-            "query_fingerprint": str(
-                group.get("query_fingerprint", "") or ""
-            )[:96],
-            "proof_evidence_status": str(
-                group.get("proof_evidence_status", "")
-                or "FORMAL_SOURCE_RETRIEVAL_GROUNDING_NOT_PROOF_EVIDENCE"
-            )[:120],
             "hits": [
                 _compact_formal_source_hit_for_prompt(
                     hit,
@@ -86,11 +77,6 @@ def compact_formal_source_grounding_hits_for_prompt(value: Any) -> list[dict[str
         ).strip()
         if unknown_identifier:
             projected_group["unknown_identifier"] = unknown_identifier[:240]
-        if group_index == 0 and group.get("source_scope_ids"):
-            projected_group["source_scope_ids"] = [
-                str(item)[:120]
-                for item in list(group.get("source_scope_ids", []))[:3]
-            ]
         projected_groups.append(
             {
                 key: child
@@ -135,38 +121,11 @@ def _compact_formal_source_hit_for_prompt(
 ) -> dict[str, Any]:
     payload = {
         "source_id": str(hit.get("source_id", "") or "")[:120],
-        "source_type": str(hit.get("source_type", "") or "")[:120],
-        "path": str(hit.get("path", "") or "")[:240],
-        "line": int(hit.get("line", 0) or 0),
-        "kind": str(hit.get("kind", "") or "")[:40],
         "name": str(hit.get("name", "") or "")[:240],
-        "active_project_reuse_status": (
-            "REQUIRES_IMPORT_VISIBILITY_AND_SIGNATURE_REVALIDATION"
-        ),
     }
-    namespace = str(hit.get("namespace", "") or "")[:240]
-    if namespace:
-        payload["namespace"] = namespace
     signature = str(hit.get("signature", "") or "")
     if signature:
-        payload["signature"] = _head_tail_text(signature, 500 if primary else 360)
-    declaration_doc = str(hit.get("declaration_doc", "") or "")
-    if primary and not repair_focused and declaration_doc:
-        payload["declaration_doc"] = _head_tail_text(
-            declaration_doc,
-            440,
-        )
-    aliases = [
-        str(item)[:260]
-        for item in list(hit.get("reference_aliases", []) or [])[:1]
-        if str(item).strip()
-    ]
-    if aliases and not repair_focused:
-        payload["reference_aliases"] = aliases
-    elif not repair_focused:
-        reference = str(hit.get("reference", "") or "")
-        if reference:
-            payload["reference"] = reference[:280]
+        payload["signature"] = signature
     context = hit.get("declaration_source_context", {})
     if isinstance(context, Mapping):
         payload["declaration_source_context"] = (
@@ -191,11 +150,6 @@ def _compact_declaration_source_context_for_prompt(
 ) -> dict[str, Any]:
     if not isinstance(context, Mapping):
         return {}
-    dependency = (
-        context.get("dependency_context", {})
-        if isinstance(context.get("dependency_context", {}), Mapping)
-        else {}
-    )
     premise_rows = [
         row
         for row in context.get("premise_declaration_outlines", []) or []
@@ -217,21 +171,19 @@ def _compact_declaration_source_context_for_prompt(
             if row not in selected_rows:
                 selected_rows.append(row)
         selected_rows = selected_rows[:3]
-    signature_budget = 320 if primary else 0
+    signature_budget = 3200 if primary else 0
     outlines: list[dict[str, Any]] = []
     for row in selected_rows:
+        signature = str(row.get("signature", "") or "")
+        if not signature or len(signature) > signature_budget:
+            continue
         outline = {
             "dependency_scope": str(row.get("dependency_scope", "") or "")[:20],
+            "module": str(row.get("module", "") or "")[:240],
             "name": str(row.get("name", "") or "")[:240],
+            "signature": signature,
         }
-        signature = str(row.get("signature", "") or "")
-        if signature and signature_budget > 0:
-            compact_signature = _head_tail_text(
-                signature,
-                min(160, signature_budget),
-            )
-            outline["signature"] = compact_signature
-            signature_budget -= len(compact_signature)
+        signature_budget -= len(signature)
         outlines.append(outline)
     payload: dict[str, Any] = {
         "module": str(context.get("module", "") or "")[:240],
@@ -239,63 +191,8 @@ def _compact_declaration_source_context_for_prompt(
             str(item)[:180]
             for item in list(context.get("imports", []) or [])[:import_limit]
         ],
-        "premise_names": [
-            str(row.get("name", "") or "")[:240]
-            for row in premise_rows[:6]
-            if str(row.get("name", "") or "").strip()
-        ]
-        if primary and not repair_focused
-        else [],
         "premise_declaration_outlines": outlines,
-        "module_import_visibility_enforced": bool(
-            dependency.get("module_import_visibility_enforced", False)
-        ),
     }
-    if primary and not repair_focused:
-        payload["source_architecture_route"] = (
-            _compact_source_architecture_route_for_prompt(
-                context.get("source_architecture_route", {})
-            )
-        )
-    snapshot = (
-        dependency.get("source_snapshot", {})
-        if isinstance(dependency.get("source_snapshot", {}), Mapping)
-        else {}
-    )
-    if snapshot:
-        compact_snapshot: dict[str, Any] = {
-            key: snapshot.get(key)
-            for key in ("status", "bound", "match")
-            if snapshot.get(key) not in (None, "")
-        }
-        metadata = (
-            snapshot.get("metadata", {})
-            if isinstance(snapshot.get("metadata", {}), Mapping)
-            else {}
-        )
-        metadata_keys = (
-            (
-                "source_git_commit",
-                "source_git_tree",
-                "declaration_reference_policy",
-                "lean_toolchain",
-                "mathlib_revision",
-            )
-            if primary and not repair_focused
-            else (
-                "declaration_reference_policy",
-                "lean_toolchain",
-                "mathlib_revision",
-            )
-        )
-        compact_metadata = {
-            key: str(metadata.get(key, "") or "")[:160]
-            for key in metadata_keys
-            if str(metadata.get(key, "") or "").strip()
-        }
-        if compact_metadata:
-            compact_snapshot["metadata"] = compact_metadata
-        payload["source_snapshot"] = compact_snapshot
     return {
         key: value
         for key, value in payload.items()
@@ -303,16 +200,8 @@ def _compact_declaration_source_context_for_prompt(
     }
 
 
-def _head_tail_text(value: str, limit: int) -> str:
-    if len(value) <= limit:
-        return value
-    head = max(1, limit // 2)
-    tail = max(1, limit - head - 5)
-    return value[:head].rstrip() + " ... " + value[-tail:].lstrip()
-
-
 def _fit_formal_source_prompt_projection(groups: list[dict[str, Any]]) -> None:
-    """Drop lower-value detail while preserving scoped target alternatives."""
+    """Drop complete lower-value rows without emitting malformed signatures."""
 
     if not groups:
         return
@@ -322,7 +211,6 @@ def _fit_formal_source_prompt_projection(groups: list[dict[str, Any]]) -> None:
         return
     for group in groups[1:]:
         for secondary in group["hits"]:
-            secondary.pop("declaration_doc", None)
             secondary_context = secondary.get(
                 "declaration_source_context",
                 {},
@@ -331,26 +219,6 @@ def _fit_formal_source_prompt_projection(groups: list[dict[str, Any]]) -> None:
     if _prompt_json_chars(groups) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
         return
     context.pop("imports", None)
-    if _prompt_json_chars(groups) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
-        return
-    for row in context.get("premise_declaration_outlines", []) or []:
-        row.pop("signature", None)
-    if _prompt_json_chars(groups) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
-        return
-    hit["signature"] = _head_tail_text(str(hit.get("signature", "")), 240)
-    if _prompt_json_chars(groups) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
-        return
-    context["premise_names"] = list(context.get("premise_names", []))[:4]
-    if _prompt_json_chars(groups) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
-        return
-    context.pop("source_architecture_route", None)
-    if _prompt_json_chars(groups) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
-        return
-    if hit.get("declaration_doc"):
-        hit["declaration_doc"] = _head_tail_text(
-            str(hit["declaration_doc"]),
-            220,
-        )
     if _prompt_json_chars(groups) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
         return
     for group in reversed(groups[1:]):
@@ -371,27 +239,31 @@ def _fit_formal_source_prompt_projection(groups: list[dict[str, Any]]) -> None:
     primary_group = groups[0]
     primary_hit = primary_group["hits"][0]
     primary_context = primary_hit.get("declaration_source_context", {})
-    primary_hit.pop("declaration_doc", None)
-    primary_hit.pop("reference_aliases", None)
-    for key in (
-        "source_architecture_route",
-        "premise_names",
-        "premise_declaration_outlines",
-    ):
-        primary_context.pop(key, None)
-    primary_group.pop("source_scope_ids", None)
-    primary_hit["signature"] = _head_tail_text(
-        str(primary_hit.get("signature", "")),
-        180,
-    )
-    if _prompt_json_chars(groups) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
-        return
-
     while (
         _prompt_json_chars(groups) > FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS
         and len(primary_group.get("hits", [])) > 1
     ):
         primary_group["hits"].pop()
+    if _prompt_json_chars(groups) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
+        return
+
+    premise_rows = primary_context.get("premise_declaration_outlines", []) or []
+    while (
+        _prompt_json_chars(groups) > FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS
+        and premise_rows
+    ):
+        premise_rows.pop()
+    if _prompt_json_chars(groups) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
+        return
+
+    primary_context.pop("premise_declaration_outlines", None)
+    if _prompt_json_chars(groups) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
+        return
+
+    if primary_hit.pop("signature", None):
+        primary_hit["signature_status"] = (
+            "OMITTED_EXCEEDS_PROMPT_BOUND_QUERY_ACTIVE_LEAN_OUTLINE"
+        )
     if _prompt_json_chars(groups) <= FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS:
         return
 
@@ -401,17 +273,15 @@ def _fit_formal_source_prompt_projection(groups: list[dict[str, Any]]) -> None:
         if key
         in {
             "source_id",
-            "source_type",
-            "path",
-            "line",
-            "kind",
             "name",
-            "namespace",
             "signature",
-            "active_project_reuse_status",
+            "signature_status",
         }
         and value not in (None, "", [], {})
     }
+    module = str(primary_context.get("module", "") or "").strip()
+    if module:
+        minimal_hit["declaration_source_context"] = {"module": module[:240]}
     groups[:] = [
         {
             key: value
@@ -419,8 +289,7 @@ def _fit_formal_source_prompt_projection(groups: list[dict[str, Any]]) -> None:
             if key
             in {
                 "query_role",
-                "query_fingerprint",
-                "proof_evidence_status",
+                "unknown_identifier",
             }
             and value not in (None, "", [], {})
         }
@@ -430,46 +299,6 @@ def _fit_formal_source_prompt_projection(groups: list[dict[str, Any]]) -> None:
 
 def _prompt_json_chars(value: Any) -> int:
     return len(json.dumps(value, separators=(",", ":"), ensure_ascii=False, default=str))
-
-
-def _compact_source_architecture_route_for_prompt(value: Any) -> dict[str, Any]:
-    if not isinstance(value, Mapping):
-        return {}
-    target_layer = str(value.get("target_layer", "") or "").strip()
-    grouped: dict[str, dict[str, Any]] = {}
-    for raw_row in list(value.get("upstream_layers", []) or [])[:8]:
-        if not isinstance(raw_row, Mapping):
-            continue
-        modules = [str(module)[:180] for module in raw_row.get("modules", []) or []]
-        modules = [module for module in modules if module.strip()]
-        if not modules:
-            continue
-        layer = str(raw_row.get("layer", "") or "").strip()
-        depth = max(1, int(raw_row.get("depth", 1) or 1))
-        row = grouped.setdefault(
-            layer,
-            {"min_depth": depth, "modules": []},
-        )
-        row["min_depth"] = min(int(row["min_depth"]), depth)
-        if not row["modules"]:
-            row["modules"].append(modules[0])
-    upstream_rows = []
-    for layer, row in sorted(
-        grouped.items(),
-        key=lambda item: (int(item[1]["min_depth"]), item[0]),
-    )[:4]:
-        compact_row = dict(row)
-        if layer:
-            compact_row["layer"] = layer[:160]
-        upstream_rows.append(compact_row)
-    if not upstream_rows and not target_layer:
-        return {}
-    payload: dict[str, Any] = {}
-    if upstream_rows:
-        payload["upstream_layers"] = upstream_rows
-    if target_layer:
-        payload["target_layer"] = target_layer[:160]
-    return payload
 
 
 def task_bound_formal_source_query_seeds(
@@ -1016,6 +845,8 @@ def _formal_source_dependency_outline_rows(
     seen: set[tuple[str, str, int, str]] = set()
     used_chars = 0
     scope_limit = max(1, int(max_declarations) // 2)
+    target_module = str(dependency_context.get("module", "") or "").strip()
+    module_root = target_module.split(".", 1)[0] if target_module else ""
     for dependency_scope, field in (
         ("statement", "statement_uses"),
         ("proof", "proof_uses"),
@@ -1075,7 +906,8 @@ def _formal_source_dependency_outline_rows(
             remaining = max(0, int(max_chars) - used_chars)
             if not signature or remaining <= 0:
                 return rows
-            signature = signature[: min(1800, remaining)]
+            if len(signature) > min(1800, remaining):
+                continue
             seen.add(key)
             used_chars += len(signature)
             n_scope_rows += 1
@@ -1093,7 +925,11 @@ def _formal_source_dependency_outline_rows(
                     "namespace": str(
                         getattr(declaration, "namespace", "") or ""
                     ),
-                    "module": _formal_source_module_name(key[1], imports),
+                    "module": _formal_source_module_name(
+                        key[1],
+                        imports,
+                        module_root=module_root,
+                    ),
                     "path": key[1],
                     "signature": signature,
                     "reference": str(
@@ -1349,6 +1185,14 @@ def _formal_source_dependency_context(
     if statement_uses or proof_uses:
         payload["statement_uses"] = statement_uses
         payload["proof_uses"] = proof_uses
+        if proof_uses:
+            payload["proof_dependency_origin"] = (
+                "explicit_references_extracted_from_target_source_proof"
+            )
+            payload["proof_dependency_evaluation_policy"] = (
+                "permitted_for_production_source_reuse_but_excluded_from_held_out_"
+                "or_from_scratch_prover_generalization_claims"
+            )
     else:
         payload["uses"] = [
             str(value)
@@ -1357,7 +1201,12 @@ def _formal_source_dependency_context(
     return payload
 
 
-def _formal_source_module_name(path: str, imports: Sequence[str]) -> str:
+def _formal_source_module_name(
+    path: str,
+    imports: Sequence[str],
+    *,
+    module_root: str = "",
+) -> str:
     normalized = path.replace("\\", "/").strip("/")
     if normalized.endswith(".lean"):
         normalized = normalized[:-5]
@@ -1367,8 +1216,10 @@ def _formal_source_module_name(path: str, imports: Sequence[str]) -> str:
         for value in imports
         if "." in value and value.split(".", 1)[0]
     }
-    if len(import_roots) == 1:
+    root = str(module_root or "").strip().split(".", 1)[0]
+    if not root and len(import_roots) == 1:
         root = next(iter(import_roots))
+    if root:
         if module != root and not module.startswith(root + "."):
             module = root + "." + module
     return module

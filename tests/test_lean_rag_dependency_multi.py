@@ -210,6 +210,71 @@ def test_multi_retriever_routes_dependency_context_to_requested_corpus(
     )
 
 
+def test_dependency_graph_does_not_expose_private_declarations(
+    tmp_path: Path,
+) -> None:
+    db_path = _write_dependency_db(
+        tmp_path / "private-declaration.sqlite",
+        corpus="Visible",
+    )
+    private_row = (
+        5,
+        "Theory.hidden_transport",
+        "hidden_transport",
+        "lemma",
+        "Visible.Helpers",
+        "Visible/Helpers.lean",
+        14,
+        16,
+        "Theory",
+        "[]",
+        "private lemma hidden_transport : True",
+        "by trivial",
+        1,
+        0,
+        "private-helper",
+    )
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "INSERT INTO declarations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            private_row,
+        )
+        conn.execute(
+            """
+            INSERT INTO decl_fts(
+              rowid, name, short_name, kind, module, namespace, signature, proof
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                private_row[0],
+                private_row[1],
+                private_row[2],
+                private_row[3],
+                private_row[4],
+                private_row[8],
+                private_row[10],
+                private_row[11],
+            ),
+        )
+        conn.execute(
+            """
+            INSERT INTO declaration_edges(
+              src_decl_id, dst_decl_id, edge_type, match_kind, scope, weight
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (1, 5, "explicit_source", "unique_basename", "proof", 2),
+        )
+
+    retriever = LeanRagDependencyRetriever(db_path)
+
+    assert retriever.search("hidden transport", k=3) == []
+    assert retriever.dependency_context("Theory.hidden_transport") is None
+    context = retriever.dependency_context("Theory.master_error_bound")
+    assert context is not None
+    assert "Theory.hidden_transport" not in context.proof_uses
+    assert context.proof_uses == ("Theory.Visible_proof_dependency",)
+
+
 def test_dependency_graph_preserves_unicode_declaration_identity(
     tmp_path: Path,
 ) -> None:
@@ -734,10 +799,16 @@ def test_auto_discovery_activates_multiple_healthy_corpus_graphs(
         / "stat_inference.sqlite",
         corpus="StatInference",
     )
+    statlib = _write_dependency_db(
+        tmp_path
+        / "current_status_statlib_lean_rag_dependency_graph"
+        / "statlib.sqlite",
+        corpus="Statlib",
+    )
     monkeypatch.setattr(
         formal_source_index,
         "_auto_lean_rag_db_candidates",
-        lambda: (ai4slt, stat_inference),
+        lambda: (ai4slt, stat_inference, statlib),
     )
 
     retriever = formal_source_index._optional_lean_rag_dependency_retriever(
@@ -745,9 +816,38 @@ def test_auto_discovery_activates_multiple_healthy_corpus_graphs(
     )
 
     assert isinstance(retriever, LeanRagDependencyMultiRetriever)
-    assert retriever.db_paths == (ai4slt, stat_inference)
+    assert retriever.db_paths == (ai4slt, stat_inference, statlib)
     assert "lean_stat_learning_theory" in retriever.source_ids
     assert "empirical_process_lean" in retriever.source_ids
+    assert "statlib" in retriever.source_ids
+    assert "statistical_foundation" in retriever.source_ids
+
+
+def test_auto_discovery_uses_one_snapshot_per_canonical_source(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    current = _write_dependency_db(
+        tmp_path / "current" / "stat_inference.sqlite",
+        corpus="Current",
+    )
+    stale = _write_dependency_db(
+        tmp_path / "stale" / "stat_inference.sqlite",
+        corpus="Stale",
+    )
+    monkeypatch.setattr(
+        formal_source_index,
+        "_auto_lean_rag_db_candidates",
+        lambda: (current, stale),
+    )
+
+    retriever = formal_source_index._optional_lean_rag_dependency_retriever(
+        None
+    )
+
+    assert isinstance(retriever, LeanRagDependencyRetriever)
+    assert retriever.db_path == current
+    assert retriever.source_id == "empirical_process_lean"
 
 
 def test_source_scoped_dependency_search_queries_only_bound_corpus_graphs(

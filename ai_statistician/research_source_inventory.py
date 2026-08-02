@@ -18,6 +18,14 @@ DEFAULT_EXTERNAL_ROOT = Path.home() / ".codex" / "external"
 EXTERNAL_ROOT = Path(os.environ.get("AI_STATISTICIAN_EXTERNAL_ROOT", DEFAULT_EXTERNAL_ROOT)).expanduser()
 PROJECT_EXTERNAL_ROOT = PROJECT_ROOT / "external"
 LAKE_PACKAGES_ROOT = VENDORED_EMPIRICAL_PROCESS_ROOT / ".lake" / "packages"
+EMPIRICAL_PROCESS_LEAN_ROOT_CANDIDATES = (
+    PROJECT_EXTERNAL_ROOT / "EmpericalProcessLEAN-main",
+    EXTERNAL_ROOT / "EmpericalProcessLEAN-main",
+    PROJECT_EXTERNAL_ROOT / "EmpericalProcessLEAN-reuse",
+    EXTERNAL_ROOT / "EmpericalProcessLEAN-reuse",
+    PROJECT_EXTERNAL_ROOT / "EmpericalProcessLEAN-rag",
+    EXTERNAL_ROOT / "EmpericalProcessLEAN-rag",
+)
 
 MATHLIB_URL = "https://github.com/leanprover-community/mathlib4"
 LEANSEARCH_CLIENT_URL = "https://github.com/leanprover-community/LeanSearchClient"
@@ -33,6 +41,7 @@ KOLMOGOROV_EXTENSION_URL = "https://github.com/RemyDegenne/kolmogorov_extension4
 SCILEAN_URL = "https://github.com/lecopivo/SciLean"
 LEAN_BLUEPRINT_URL = "https://github.com/PatrickMassot/leanblueprint"
 LEAN_STAT_LEARNING_THEORY_URL = "https://github.com/YuanheZ/lean-stat-learning-theory"
+STATLIB_URL = "https://github.com/stat-lib/statlib"
 CODEXPROVER_URL = "https://github.com/ykzeng-yale/CodexProver"
 EMPIRICAL_PROCESS_LEAN_URL = "https://github.com/ykzeng-yale/EmpericalProcessLEAN"
 PSEUDO_FORMALIZATION_URL = "https://github.com/Slim205/pseudo-formalization"
@@ -57,17 +66,36 @@ def _resolve_source_root(env_vars: str | tuple[str, ...], candidates: tuple[Path
     return candidates[0].expanduser()
 
 
+EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT = _resolve_source_root(
+    "AI_STATISTICIAN_EMPIRICAL_PROCESS_LEAN_EXTERNAL_ROOT",
+    EMPIRICAL_PROCESS_LEAN_ROOT_CANDIDATES,
+)
+
+
+def _mathlib_root_candidates(empirical_process_root: Path) -> tuple[Path, ...]:
+    return (
+        empirical_process_root / ".lake" / "packages" / "mathlib" / "Mathlib",
+        LAKE_PACKAGES_ROOT / "mathlib" / "Mathlib",
+        PROJECT_ROOT / ".lake" / "packages" / "mathlib" / "Mathlib",
+        Path.home() / "LeanProjects" / "LeanPractice" / ".lake" / "packages" / "mathlib" / "Mathlib",
+    )
+
+
+def _statlib_root_candidates(empirical_process_root: Path) -> tuple[Path, ...]:
+    return (
+        empirical_process_root / ".lake" / "packages" / "Statlib",
+        PROJECT_EXTERNAL_ROOT / "statlib",
+        EXTERNAL_ROOT / "statlib",
+    )
+
+
 def _resolve_mathlib_root() -> Path:
     configured = _env_path("AI_STATISTICIAN_MATHLIB_ROOT", "MATHLIB_ROOT")
     if configured is not None:
         return configured / "Mathlib" if (configured / "Mathlib").exists() else configured
     return _resolve_source_root(
         (),
-        (
-            LAKE_PACKAGES_ROOT / "mathlib" / "Mathlib",
-            PROJECT_ROOT / ".lake" / "packages" / "mathlib" / "Mathlib",
-            Path.home() / "LeanProjects" / "LeanPractice" / ".lake" / "packages" / "mathlib" / "Mathlib",
-        ),
+        _mathlib_root_candidates(EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT),
     )
 
 
@@ -113,15 +141,6 @@ CODEXPROVER_ROOT = _resolve_source_root(
         EXTERNAL_ROOT / "CodexProver",
     ),
 )
-EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT = _resolve_source_root(
-    "AI_STATISTICIAN_EMPIRICAL_PROCESS_LEAN_EXTERNAL_ROOT",
-    (
-        PROJECT_EXTERNAL_ROOT / "EmpericalProcessLEAN-reuse",
-        EXTERNAL_ROOT / "EmpericalProcessLEAN-reuse",
-        PROJECT_EXTERNAL_ROOT / "EmpericalProcessLEAN-rag",
-        EXTERNAL_ROOT / "EmpericalProcessLEAN-rag",
-    ),
-)
 PSEUDO_FORMALIZATION_ROOT = _resolve_source_root(
     "AI_STATISTICIAN_PSEUDO_FORMALIZATION_ROOT",
     (
@@ -153,6 +172,10 @@ LEAN_STAT_LEARNING_THEORY_ROOT = _resolve_source_root(
         PROJECT_EXTERNAL_ROOT / "lean-stat-learning-theory",
         EXTERNAL_ROOT / "lean-stat-learning-theory",
     ),
+)
+STATLIB_ROOT = _resolve_source_root(
+    "AI_STATISTICIAN_STATLIB_ROOT",
+    _statlib_root_candidates(EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT),
 )
 FORMAL_SLT_ROOT = _resolve_source_root(
     "AI_STATISTICIAN_FORMAL_SLT_ROOT",
@@ -324,7 +347,7 @@ SOURCE_INVENTORY_TARGETS: tuple[SourceInventoryTarget, ...] = (
     SourceInventoryTarget(
         id="empirical_process_lean",
         source_type="lean_library",
-        location=str(VENDORED_EMPIRICAL_PROCESS_ROOT),
+        location=str(EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT),
         required_extensions=(".lean",),
         keywords=(
             "StatInference",
@@ -353,6 +376,26 @@ SOURCE_INVENTORY_TARGETS: tuple[SourceInventoryTarget, ...] = (
         license_policy="Apache-2.0",
         usage_policy="retrieval_only_no_training_export",
         remote_url=LEAN_STAT_LEARNING_THEORY_URL,
+        local_required=False,
+    ),
+    SourceInventoryTarget(
+        id="statlib",
+        source_type="lean_library",
+        location=str(STATLIB_ROOT / "Statlib"),
+        required_extensions=(".lean",),
+        keywords=(
+            "Inference",
+            "QMD",
+            "InferenceModelofMeasure",
+            "InferenceModelofKernel",
+            "QuadraticMean",
+            "Hadamard",
+            "conditionalRisk",
+            "score",
+        ),
+        license_policy="Apache-2.0",
+        usage_policy="retrieval_and_training_allowed",
+        remote_url=STATLIB_URL,
         local_required=False,
     ),
     SourceInventoryTarget(

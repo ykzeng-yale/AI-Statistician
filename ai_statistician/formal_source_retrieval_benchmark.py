@@ -10,7 +10,7 @@ from .fingerprint import stable_hash
 from .formal_source_index import FormalSourceHit, build_formal_source_search_backend
 
 
-FORMAL_SOURCE_RETRIEVAL_BENCHMARK_SCHEMA_VERSION = 8
+FORMAL_SOURCE_RETRIEVAL_BENCHMARK_SCHEMA_VERSION = 9
 FORMAL_SOURCE_PROVER_CONTEXT_K = 2
 
 
@@ -339,6 +339,32 @@ EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK: tuple[
         rationale=(
             "calculus/optimization theorem mining should recover SciLean retrieval-only source context "
             "without exporting WIP code as proof evidence"
+        ),
+    ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="statlib_qmd_mean_zero_score",
+        query=(
+            "quadratic mean differentiability Hadamard local path mean zero "
+            "score integral"
+        ),
+        expected_name_fragments=("integral_score_eq_zero",),
+        expected_source_ids=("statlib",),
+        rationale=(
+            "QMD and local asymptotic theory should reuse StatLib's public "
+            "statistical foundation before introducing a parallel definition"
+        ),
+    ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="statlib_measure_inference_model",
+        query=(
+            "measure based statistical inference model randomized decision "
+            "rule measurable loss conditional risk"
+        ),
+        expected_name_fragments=("InferenceModelofMeasure", "conditionalRisk"),
+        expected_source_ids=("statlib",),
+        rationale=(
+            "general statistical model formalization should discover StatLib's "
+            "public inference abstraction"
         ),
     ),
 )
@@ -688,6 +714,7 @@ def run_formal_source_retrieval_benchmark(
             "source-reference coverage is limited to explicitly indexed crosswalk rows and never implies full-book formalization",
             "source-scoped resolution searches the source candidates actually discovered in global top-k order; gold source ids score the result but never select the scope",
             "the prover-context gate separately uses gold source provenance to model an already source-bound Formalizer request; it requires the target in scoped top-2 and rejects out-of-scope provider leakage",
+            "source-proof dependency edges expose premise selection from an existing proof and are valid only for production source reuse; they cannot support held-out or from-scratch prover-generalization claims",
         ],
     }
     if out_dir is not None:

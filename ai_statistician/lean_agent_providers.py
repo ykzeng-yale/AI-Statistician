@@ -109,6 +109,57 @@ class CompositeFormalSourceRetriever:
         if not self.providers:
             raise ValueError("CompositeFormalSourceRetriever requires at least one provider")
         self._runtime_diagnostics: list[dict[str, Any]] = []
+        graph_provider = next(
+            (
+                provider
+                for provider in self.providers
+                if bool(
+                    getattr(
+                        provider,
+                        "lean_rag_dependency_graph_enabled",
+                        False,
+                    )
+                )
+            ),
+            None,
+        )
+        self.lean_rag_dependency_graph_enabled = graph_provider is not None
+        for name, default in (
+            ("lean_rag_dependency_graph_path", ""),
+            ("lean_rag_dependency_graph_paths", ()),
+            ("lean_rag_dependency_graph_source_ids", ()),
+            ("lean_rag_dependency_graph_auto_discovered", False),
+            ("lean_rag_dependency_graph_health_status", "disabled"),
+            ("lean_rag_dependency_graph_health", {}),
+        ):
+            setattr(
+                self,
+                name,
+                getattr(graph_provider, name, default)
+                if graph_provider is not None
+                else default,
+            )
+        corpus_provider = next(
+            (
+                provider
+                for provider in self.providers
+                if bool(getattr(provider, "scoped_premise_corpus_enabled", False))
+            ),
+            None,
+        )
+        self.scoped_premise_corpus_enabled = corpus_provider is not None
+        for name in (
+            "scoped_premise_corpus_source_ids",
+            "scoped_premise_corpus_anchor_source_ids",
+            "scoped_premise_corpus_health",
+        ):
+            setattr(
+                self,
+                name,
+                getattr(corpus_provider, name, ())
+                if corpus_provider is not None
+                else (),
+            )
 
     def reset_runtime_diagnostics(self) -> None:
         self._runtime_diagnostics.clear()
@@ -146,6 +197,12 @@ class CompositeFormalSourceRetriever:
                     )
                 )
                 for provider in self.providers
+            ),
+            "lean_rag_dependency_graph_enabled": (
+                self.lean_rag_dependency_graph_enabled
+            ),
+            "scoped_premise_corpus_enabled": (
+                self.scoped_premise_corpus_enabled
             ),
             "boundary": LEAN_PROVIDER_BOUNDARY,
         }

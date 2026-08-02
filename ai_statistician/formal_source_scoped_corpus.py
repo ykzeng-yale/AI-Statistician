@@ -273,7 +273,6 @@ def _load_lean_jsonl_premise_declarations_cached(
                 signature = _declaration_signature(
                     code.splitlines(),
                     0,
-                    max_chars=1200,
                 )
                 if not name or not signature:
                     continue

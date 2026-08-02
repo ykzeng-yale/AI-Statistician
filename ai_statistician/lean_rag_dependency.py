@@ -38,6 +38,9 @@ STOP_TOKENS = {
     "lemma",
     "def",
 }
+LEAN_DECLARATION_KIND_RE = re.compile(
+    r"\b(?:theorem|lemma|def|abbrev|structure|class|inductive|opaque|instance|axiom)\b"
+)
 
 
 @dataclass(frozen=True)
@@ -258,7 +261,7 @@ class LeanRagDependencyRetriever:
                 conn.row_factory = sqlite3.Row
                 candidate_rows = conn.execute(
                     """
-                    SELECT id, name, short_name, module, path, line_start
+                    SELECT id, name, short_name, module, path, line_start, signature
                     FROM declarations
                     WHERE name = ? OR short_name = ?
                     ORDER BY CASE WHEN name = ? THEN 0 ELSE 1 END,
@@ -277,6 +280,10 @@ class LeanRagDependencyRetriever:
                     normalized_path=normalized_path,
                 )
                 if row is None:
+                    return None
+                if not _is_externally_reusable_signature(
+                    str(row["signature"] or "")
+                ):
                     return None
                 decl_id = int(row["id"])
                 module = str(row["module"] or "")
@@ -471,6 +478,8 @@ class LeanRagDependencyRetriever:
 
     def _hit_for_row(self, row: sqlite3.Row, *, q_tokens: set[str], rank: int) -> FormalSourceHit | None:
         signature = str(row["signature"] or "")
+        if not _is_externally_reusable_signature(signature):
+            return None
         proof = str(row["proof"] or "")
         name = str(row["name"] or "")
         module_text = " ".join(
@@ -948,6 +957,19 @@ def _symbolish_tokens(signature: str, name: str) -> set[str]:
     }
 
 
+def _is_externally_reusable_signature(signature: str) -> bool:
+    """Reject module-private declarations from cross-module RAG context."""
+
+    kind_match = LEAN_DECLARATION_KIND_RE.search(signature)
+    if kind_match is None:
+        return True
+    qualifier_tokens = {
+        token.casefold()
+        for token in re.findall(r"[A-Za-z_]+", signature[: kind_match.start()])
+    }
+    return "private" not in qualifier_tokens
+
+
 def _conclusion_head(signature: str) -> str:
     if ":" not in signature:
         return ""
@@ -1003,7 +1025,7 @@ def _neighbor_names(
                   JOIN reachable r ON mi.src_module = r.module
                   WHERE mi.is_local_dst = 1
                 )
-                SELECT dst.name
+                SELECT dst.name, dst.signature
                 FROM declaration_edges e
                 JOIN declarations dst ON dst.id = e.dst_decl_id
                 WHERE e.src_decl_id = ?
@@ -1019,14 +1041,18 @@ def _neighbor_names(
                     *scopes,
                     module,
                     line_start,
-                    bounded_limit,
+                    bounded_limit * 4,
                 ],
             ).fetchall()
-            return tuple(str(row[0]) for row in rows)
-        params.append(bounded_limit)
+            return tuple(
+                str(row[0])
+                for row in rows
+                if _is_externally_reusable_signature(str(row[1] or ""))
+            )[:bounded_limit]
+        params.append(bounded_limit * 4)
         rows = conn.execute(
             f"""
-            SELECT dst.name
+            SELECT dst.name, dst.signature
             FROM declaration_edges e
             JOIN declarations dst ON dst.id = e.dst_decl_id
             WHERE e.src_decl_id = ?
@@ -1048,7 +1074,7 @@ def _neighbor_names(
                   JOIN consumers c ON mi.dst_module = c.module
                   WHERE mi.is_local_dst = 1
                 )
-                SELECT src.name
+                SELECT src.name, src.signature
                 FROM declaration_edges e
                 JOIN declarations src ON src.id = e.src_decl_id
                 WHERE e.dst_decl_id = ?
@@ -1064,14 +1090,18 @@ def _neighbor_names(
                     *scopes,
                     module,
                     line_start,
-                    bounded_limit,
+                    bounded_limit * 4,
                 ],
             ).fetchall()
-            return tuple(str(row[0]) for row in rows)
-        params.append(bounded_limit)
+            return tuple(
+                str(row[0])
+                for row in rows
+                if _is_externally_reusable_signature(str(row[1] or ""))
+            )[:bounded_limit]
+        params.append(bounded_limit * 4)
         rows = conn.execute(
             f"""
-            SELECT src.name
+            SELECT src.name, src.signature
             FROM declaration_edges e
             JOIN declarations src ON src.id = e.src_decl_id
             WHERE e.dst_decl_id = ?
@@ -1081,7 +1111,11 @@ def _neighbor_names(
             """,
             params,
         ).fetchall()
-    return tuple(str(row[0]) for row in rows)
+    return tuple(
+        str(row[0])
+        for row in rows
+        if _is_externally_reusable_signature(str(row[1] or ""))
+    )[:bounded_limit]
 
 
 def _direct_local_module_imports(

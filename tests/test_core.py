@@ -1536,6 +1536,7 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
         self.assertIn("kolmogorov_extension_lean", source_ids)
         self.assertIn("scilean_calculus", source_ids)
         self.assertIn("lean_stat_learning_theory", source_ids)
+        self.assertIn("statlib", source_ids)
 
     def test_formal_source_retrieval_ablation_measures_lean_rag_new_hit(self) -> None:
         fixture = Path("runs/test_formal_source_retrieval_ablation_fixture")
@@ -9686,6 +9687,7 @@ class SystemTests(unittest.TestCase):
         self.assertIn("brownian_motion_lean", source_inventory_ids)
         self.assertIn("kolmogorov_extension_lean", source_inventory_ids)
         self.assertIn("scilean_calculus", source_inventory_ids)
+        self.assertIn("statlib", source_inventory_ids)
         slt = next(
             row
             for row in source_inventory["rows"]
@@ -9695,6 +9697,16 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(
             slt["usage_policy"],
             "retrieval_only_no_training_export",
+        )
+        statlib = next(
+            row
+            for row in source_inventory["rows"]
+            if row["source_id"] == "statlib"
+        )
+        self.assertEqual(statlib["license_policy"], "Apache-2.0")
+        self.assertEqual(
+            statlib["usage_policy"],
+            "retrieval_and_training_allowed",
         )
         self.assertGreater(source_inventory["n_local_ready"], 0)
         self.assertEqual(source_inventory["n_missing_required"], 0)

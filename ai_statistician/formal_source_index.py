@@ -49,7 +49,7 @@ SECTION_RE = re.compile(
 END_RE = re.compile(
     rf"^\s*end(?:\s+({LEAN_IDENTIFIER_PATTERN}){LEAN_IDENTIFIER_END})?"
 )
-IMPORT_RE = re.compile(r"^\s*import\s+(.+)$")
+IMPORT_RE = re.compile(r"^\s*(?:public\s+)?import\s+(.+)$")
 ROCQ_NAMESPACE_RE = re.compile(
     r"^\s*(?:Module|Section)\s+([A-Za-z_][A-Za-z0-9_']*)\b"
 )
@@ -89,7 +89,7 @@ SOURCE_REFERENCE_PROMINENCE_BONUS = 3.5
 SOURCE_OUTLINE_PROMINENCE_BONUS = 0.75
 DECLARATION_NAME_CONCEPT_ANCHOR_BONUS = 3.0
 DECLARATION_NAME_COVERAGE_BONUS_CAP = 4.0
-FORMAL_SOURCE_SQLITE_SCHEMA_VERSION = "4"
+FORMAL_SOURCE_SQLITE_SCHEMA_VERSION = "6"
 SKIPPED_PATH_PARTS = {
     ".git",
     ".lake",
@@ -108,6 +108,12 @@ DEFAULT_LEAN_RAG_DB_RELATIVE_PATH = Path(
 )
 DEFAULT_AI4SLT_LEAN_RAG_DB_RELATIVE_PATH = Path(
     "runs/current_status_ai4slt_lean_rag_dependency_graph/stat_learning.sqlite"
+)
+DEFAULT_STATLIB_LEAN_RAG_DB_RELATIVE_PATH = Path(
+    "runs/current_status_statlib_lean_rag_dependency_graph/statlib.sqlite"
+)
+DEFAULT_EMPIRICAL_PROCESS_MAIN_LEAN_RAG_DB_RELATIVE_PATH = Path(
+    "runs/current_status_empirical_process_main_lean_rag_dependency_graph/stat_inference.sqlite"
 )
 # Tests and downstream orchestration can prepend project-specific candidates
 # without changing the global auto-discovery rule.
@@ -947,11 +953,14 @@ def _optional_lean_rag_dependency_retriever(lean_rag_db_path: Path | str | None)
         )
 
         healthy_retrievers = []
+        selected_source_ids: set[str] = set()
         for candidate in candidate_paths:
             source_id, source_aliases = _lean_rag_dependency_source_identity(
                 candidate,
                 explicit=bool(explicit_path),
             )
+            if source_id in selected_source_ids:
+                continue
             retriever = LeanRagDependencyRetriever(
                 candidate,
                 source_id=source_id,
@@ -962,6 +971,7 @@ def _optional_lean_rag_dependency_retriever(lean_rag_db_path: Path | str | None)
                 setattr(retriever, "auto_discovered", not bool(explicit_path))
                 setattr(retriever, "health_payload", health)
                 healthy_retrievers.append(retriever)
+                selected_source_ids.add(source_id)
                 if explicit_path:
                     break
         if not healthy_retrievers:
@@ -1002,6 +1012,14 @@ def _auto_lean_rag_db_candidates() -> tuple[Path, ...]:
         *(root / DEFAULT_LEAN_RAG_DB_RELATIVE_PATH for root in search_roots),
         *(
             root / DEFAULT_AI4SLT_LEAN_RAG_DB_RELATIVE_PATH
+            for root in search_roots
+        ),
+        *(
+            root / DEFAULT_STATLIB_LEAN_RAG_DB_RELATIVE_PATH
+            for root in search_roots
+        ),
+        *(
+            root / DEFAULT_EMPIRICAL_PROCESS_MAIN_LEAN_RAG_DB_RELATIVE_PATH
             for root in search_roots
         ),
         (
@@ -1048,6 +1066,11 @@ def _lean_rag_dependency_source_identity(
                 "legacy_ai_statistician_statinference",
             ),
         )
+    if (
+        path.name == "statlib.sqlite"
+        or "current_status_statlib_lean_rag_dependency_graph" in normalized
+    ):
+        return "statlib", ("stat_lib", "statistical_foundation")
     if explicit:
         return "lean_rag_dependency_graph", ()
     return "lean_rag_dependency_graph", ()
@@ -1894,21 +1917,18 @@ def _declaration_signature(
     start_idx: int,
     *,
     language: str = "lean",
-    max_lines: int = 64,
-    max_chars: int = 900,
 ) -> str:
-    """Return a compact multi-line declaration header for retrieval.
+    """Return the complete multi-line declaration header for retrieval.
 
     The index is intentionally parser-light, but single-line signatures lose
-    most theorem shape information. Capturing the short header block gives the
-    retriever access to premise heads, conclusion symbols, and target shape.
+    most theorem shape information. The proof body is excluded, while the
+    declaration header remains exact so downstream agents can use it as a Lean
+    API rather than as a display-only outline.
     """
 
     chunks: list[str] = []
-    for offset in range(max_lines):
-        pos = start_idx + offset
-        if pos >= len(lines):
-            break
+    for pos in range(start_idx, len(lines)):
+        offset = pos - start_idx
         line = lines[pos]
         if offset > 0 and _line_starts_new_formal_item(line):
             break
@@ -1933,8 +1953,7 @@ def _declaration_signature(
         ):
             break
     signature = " ".join(chunk for chunk in chunks if chunk)
-    signature = re.sub(r"\s+", " ", signature).strip()
-    return _bounded_outline(signature, max_chars=max_chars)
+    return re.sub(r"\s+", " ", signature).strip()
 
 
 def _lean_body_delimiter(code_line: str) -> int:
@@ -1945,16 +1964,6 @@ def _lean_body_delimiter(code_line: str) -> int:
     if stripped.startswith(("let ", "letI ")):
         return -1
     return code_line.rfind(":=")
-
-
-def _bounded_outline(value: str, *, max_chars: int) -> str:
-    if len(value) <= max_chars:
-        return value
-    marker = " ... "
-    available = max(max_chars - len(marker), 2)
-    head_chars = available // 2
-    tail_chars = available - head_chars
-    return value[:head_chars].rstrip() + marker + value[-tail_chars:].lstrip()
 
 
 def _compress_signature(signature: str) -> dict[str, object]:
@@ -2710,6 +2719,8 @@ def _declarations_in_file(
         decl = _declaration_from_line(source_line, language)
         if decl is None:
             continue
+        if language == "lean" and _lean_declaration_is_private(source_line):
+            continue
         kind, raw_name = decl
         active_namespace = ".".join(namespace_stack)
         name = _qualified_declaration_name(
@@ -2892,6 +2903,15 @@ def _declaration_from_line(line: str, language: str) -> tuple[str, str] | None:
         return "signature", name
     match = DECL_RE.match(line)
     return match.groups() if match else None
+
+
+def _lean_declaration_is_private(line: str) -> bool:
+    """Return whether a parsed Lean declaration is module-private."""
+
+    match = DECL_RE.match(line)
+    if match is None:
+        return False
+    return bool(re.search(r"\bprivate\b", line[: match.start(1)]))
 
 
 def _parse_imports(import_tail: str) -> list[str]:
