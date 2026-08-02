@@ -1164,6 +1164,36 @@ def _formal_source_dependency_context(
     snapshot_status = str(
         getattr(context, "source_snapshot_status", "") or ""
     )
+    topology_id = str(getattr(context, "source_topology_id", "") or "")
+    source_role = str(getattr(context, "source_role", "") or "")
+    source_relation = str(
+        getattr(context, "source_relation_to_active_project", "") or ""
+    )
+    compatibility_status = str(
+        getattr(context, "source_compatibility_status", "") or ""
+    )
+    source_reuse_policy = str(
+        getattr(context, "source_reuse_policy", "") or ""
+    )
+    if topology_id:
+        payload["source_topology"] = {
+            "topology_id": topology_id,
+            "role": source_role,
+            "relation_to_active_project": source_relation,
+            "compatibility_status": compatibility_status,
+            "reuse_policy": source_reuse_policy,
+            "identity_basis": [
+                str(value)
+                for value in (
+                    getattr(context, "source_topology_identity_basis", ()) or ()
+                )
+                if str(value).strip()
+            ],
+            "evidence_status": str(
+                getattr(context, "source_topology_evidence_status", "")
+                or "SOURCE_TOPOLOGY_NOT_PROOF_EVIDENCE"
+            ),
+        }
     if snapshot_status or snapshot_metadata:
         payload["source_snapshot"] = {
             "status": snapshot_status or "UNBOUND",
@@ -1180,21 +1210,35 @@ def _formal_source_dependency_context(
             and snapshot_metadata.get("corpus_scope_policy")
             == "recursive_import_closure_v1"
         )
+        classification = (
+            "version_bound_canonical_import_closure_candidate"
+            if canonical_import_closure
+            else "version_bound_external_source_candidate"
+            if snapshot_status == "BOUND_MATCH"
+            else "unbound_or_stale_source_candidate"
+        )
+        activation_gate = (
+            "require target-project import visibility and exact local Lean "
+            "re-elaboration before reuse"
+        )
+        if topology_id and snapshot_status == "BOUND_MATCH":
+            if source_relation == "active_project":
+                classification = "active_project_import_closure_candidate"
+            elif source_relation == "direct_lake_dependency":
+                classification = "direct_dependency_import_closure_candidate"
+            elif source_relation == "external_companion":
+                classification = "external_companion_port_candidate"
+                activation_gate = (
+                    "port into the active Lean and Mathlib toolchain, expose through "
+                    "the target import closure, and exactly re-elaborate locally "
+                    "before reuse"
+                )
         payload["candidate_use_policy"] = {
-            "classification": (
-                "version_bound_canonical_import_closure_candidate"
-                if canonical_import_closure
-                else "version_bound_external_source_candidate"
-                if snapshot_status == "BOUND_MATCH"
-                else "unbound_or_stale_source_candidate"
-            ),
+            "classification": classification,
             "snapshot_meaning": (
                 "source freshness only; not active-project compatibility or proof"
             ),
-            "activation_gate": (
-                "require target-project import visibility and exact local Lean "
-                "re-elaboration before reuse"
-            ),
+            "activation_gate": activation_gate,
         }
     statement_uses = [
         str(value)

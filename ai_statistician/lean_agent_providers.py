@@ -131,6 +131,7 @@ class CompositeFormalSourceRetriever:
             ("lean_rag_dependency_graph_auto_discovered", False),
             ("lean_rag_dependency_graph_health_status", "disabled"),
             ("lean_rag_dependency_graph_health", {}),
+            ("lean_rag_source_topology", ()),
         ):
             setattr(
                 self,
@@ -201,6 +202,7 @@ class CompositeFormalSourceRetriever:
             "lean_rag_dependency_graph_enabled": (
                 self.lean_rag_dependency_graph_enabled
             ),
+            "lean_rag_source_topology": self.lean_rag_source_topology,
             "scoped_premise_corpus_enabled": (
                 self.scoped_premise_corpus_enabled
             ),

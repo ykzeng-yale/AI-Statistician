@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "topology_id": "statlib_centered_statistics_sources_v1",
+  "active_project_source_id": "empirical_process_lean",
+  "sources": [
+    {
+      "source_id": "statlib",
+      "aliases": [
+        "stat_lib",
+        "statistical_foundation"
+      ],
+      "role": "canonical_statistics_foundation",
+      "relation_to_active_project": "direct_lake_dependency",
+      "entry_modules": [
+        "Statlib"
+      ],
+      "git_remotes": [
+        "github.com/stat-lib/statlib"
+      ],
+      "reuse_policy": "reuse_public_api_through_target_import_closure_then_reelaborate_locally"
+    },
+    {
+      "source_id": "empirical_process_lean",
+      "aliases": [
+        "local_statinference_repo"
+      ],
+      "role": "active_research_library",
+      "relation_to_active_project": "active_project",
+      "entry_modules": [
+        "StatInference"
+      ],
+      "git_remotes": [
+        "github.com/ykzeng-yale/empericalprocesslean"
+      ],
+      "reuse_policy": "require_target_import_visibility_then_reelaborate_exact_candidate_locally"
+    },
+    {
+      "source_id": "lean_stat_learning_theory",
+      "aliases": [
+        "ai4slt"
+      ],
+      "role": "verified_companion_library",
+      "relation_to_active_project": "external_companion",
+      "entry_modules": [],
+      "git_remotes": [
+        "github.com/yuanhez/lean-stat-learning-theory"
+      ],
+      "source_root_names": [
+        "SLT"
+      ],
+      "reuse_policy": "port_into_target_toolchain_and_import_closure_then_reelaborate_locally"
+    }
+  ]
+}

@@ -635,6 +635,15 @@ def run_formal_source_retrieval_benchmark(
                 (),
             )
         ),
+        "lean_rag_source_topology": tuple(
+            dict(row)
+            for row in getattr(
+                active_retriever,
+                "lean_rag_source_topology",
+                (),
+            )
+            if isinstance(row, dict)
+        ),
         "lean_rag_dependency_graph_auto_discovered": bool(
             getattr(active_retriever, "lean_rag_dependency_graph_auto_discovered", False)
         ),

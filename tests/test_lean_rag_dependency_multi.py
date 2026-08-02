@@ -724,6 +724,104 @@ def test_dependency_search_uses_corpus_quality_as_soft_ranking_signal(
     )
 
 
+def test_dependency_search_hides_oversized_names_except_exact_lookup(
+    tmp_path: Path,
+) -> None:
+    db_path = _write_dependency_db(
+        tmp_path / "oversized-name-policy.sqlite",
+        corpus="StatInference",
+    )
+    oversized_name = (
+        "Theory.variance_concentration_generated_with_every_assumption_"
+        "encoded_into_the_public_declaration_identifier"
+    )
+    rows = [
+        (
+            5,
+            oversized_name,
+            oversized_name.rsplit(".", 1)[-1],
+            "theorem",
+            "Theory.Generated",
+            "Theory/Generated.lean",
+            10,
+            12,
+            "Theory",
+            "[]",
+            "theorem generated_variance_concentration : True",
+            "by trivial",
+            1,
+            0,
+            "oversized",
+            35,
+            '["oversized_name"]',
+        ),
+        (
+            6,
+            "Theory.variance_concentration",
+            "variance_concentration",
+            "theorem",
+            "Theory.Concentration",
+            "Theory/Concentration.lean",
+            20,
+            24,
+            "Theory",
+            "[]",
+            "theorem variance_concentration : True",
+            "by trivial",
+            1,
+            0,
+            "canonical",
+            100,
+            "[]",
+        ),
+    ]
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "ALTER TABLE declarations ADD COLUMN quality_score INTEGER NOT NULL DEFAULT 100"
+        )
+        conn.execute(
+            "ALTER TABLE declarations ADD COLUMN quality_flags TEXT NOT NULL DEFAULT '[]'"
+        )
+        conn.executemany(
+            "INSERT INTO declarations VALUES "
+            "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            rows,
+        )
+        conn.executemany(
+            """
+            INSERT INTO decl_fts(
+              rowid, name, short_name, kind, module, namespace, signature, proof
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    row[0],
+                    row[1],
+                    row[2],
+                    row[3],
+                    row[4],
+                    row[8],
+                    row[10],
+                    row[11],
+                )
+                for row in rows
+            ],
+        )
+
+    retriever = LeanRagDependencyRetriever(db_path)
+
+    semantic_hits = retriever.search("variance concentration", k=10)
+    exact_hits = retriever.search(oversized_name, k=10)
+
+    assert oversized_name not in {
+        hit.declaration.name for hit in semantic_hits
+    }
+    exact = next(
+        hit for hit in exact_hits if hit.declaration.name == oversized_name
+    )
+    assert "oversized_name_exact_lookup" in exact.matched_terms
+
+
 def test_dependency_health_rejects_mismatch_and_exposes_matching_snapshot_context(
     tmp_path: Path,
     monkeypatch,
@@ -957,6 +1055,71 @@ def test_auto_discovery_uses_one_snapshot_per_canonical_source(
     assert isinstance(retriever, LeanRagDependencyRetriever)
     assert retriever.db_path == current
     assert retriever.source_id == "empirical_process_lean"
+
+
+def test_explicit_renamed_graph_uses_snapshot_metadata_identity(
+    tmp_path: Path,
+) -> None:
+    graph = _write_dependency_db(
+        tmp_path / "renamed-without-corpus-hint.sqlite",
+        corpus="StatlibMetadata",
+    )
+    with sqlite3.connect(graph) as conn:
+        conn.executemany(
+            "INSERT INTO meta(key, value) VALUES (?, ?)",
+            [
+                ("entry_module", "Statlib"),
+                (
+                    "source_git_remote",
+                    "https://github.com/stat-lib/statlib.git",
+                ),
+                ("lean_toolchain", "leanprover/lean4:v4.30.0"),
+                ("mathlib_revision", "a" * 40),
+            ],
+        )
+
+    retriever = formal_source_index._optional_lean_rag_dependency_retriever(
+        graph
+    )
+
+    assert isinstance(retriever, LeanRagDependencyRetriever)
+    assert retriever.source_id == "statlib"
+    assert retriever.source_topology is not None
+    assert retriever.source_topology.identity_basis == (
+        "source_git_remote",
+        "entry_module",
+    )
+    assert retriever.health_payload["source_topology"]["role"] == (
+        "canonical_statistics_foundation"
+    )
+
+
+def test_unrecognized_remote_cannot_claim_statlib_by_database_name(
+    tmp_path: Path,
+) -> None:
+    graph = _write_dependency_db(
+        tmp_path / "statlib.sqlite",
+        corpus="UntrustedStatlibFork",
+    )
+    with sqlite3.connect(graph) as conn:
+        conn.executemany(
+            "INSERT INTO meta(key, value) VALUES (?, ?)",
+            [
+                ("entry_module", "Statlib"),
+                (
+                    "source_git_remote",
+                    "https://github.com/example/statlib-fork.git",
+                ),
+            ],
+        )
+
+    retriever = formal_source_index._optional_lean_rag_dependency_retriever(
+        graph
+    )
+
+    assert isinstance(retriever, LeanRagDependencyRetriever)
+    assert retriever.source_id == "lean_rag_dependency_graph"
+    assert retriever.source_topology is None
 
 
 def test_source_scoped_dependency_search_queries_only_bound_corpus_graphs(

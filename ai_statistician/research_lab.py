@@ -9235,6 +9235,15 @@ async def run_research_benchmark(
                     (),
                 )
             ),
+            "lean_rag_source_topology": tuple(
+                dict(row)
+                for row in getattr(
+                    formal_source_retriever,
+                    "lean_rag_source_topology",
+                    (),
+                )
+                if isinstance(row, dict)
+            ),
             "lean_rag_auto_discovered": getattr(
                 formal_source_retriever,
                 "lean_rag_dependency_graph_auto_discovered",

@@ -13,6 +13,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .fingerprint import stable_hash
+from .formal_source_topology import (
+    fallback_formal_source_topology,
+    identify_formal_source_topology,
+    read_lean_rag_graph_metadata,
+    resolve_formal_source_topologies,
+)
 from .research_source_inventory import (
     EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT,
     SOURCE_INVENTORY_TARGETS,
@@ -955,27 +961,69 @@ def _optional_lean_rag_dependency_retriever(lean_rag_db_path: Path | str | None)
         healthy_retrievers = []
         selected_source_ids: set[str] = set()
         for candidate in candidate_paths:
-            source_id, source_aliases = _lean_rag_dependency_source_identity(
-                candidate,
-                explicit=bool(explicit_path),
+            graph_metadata = read_lean_rag_graph_metadata(candidate)
+            source_topology = identify_formal_source_topology(graph_metadata)
+            identity_metadata_rejected = bool(
+                source_topology is None
+                and any(
+                    str(graph_metadata.get(key, "") or "").strip()
+                    for key in ("source_git_remote", "entry_module")
+                )
             )
+            if identity_metadata_rejected:
+                source_id, source_aliases = (
+                    "lean_rag_dependency_graph",
+                    (),
+                )
+            else:
+                source_id, source_aliases = _lean_rag_dependency_source_identity(
+                    candidate,
+                    explicit=bool(explicit_path),
+                    source_topology=source_topology,
+                )
+            if source_topology is None and not identity_metadata_rejected:
+                source_topology = fallback_formal_source_topology(source_id)
+                if source_topology is not None:
+                    source_topology = replace(
+                        source_topology,
+                        identity_basis=("legacy_db_path",),
+                    )
             if source_id in selected_source_ids:
                 continue
             retriever = LeanRagDependencyRetriever(
                 candidate,
                 source_id=source_id,
                 source_aliases=source_aliases,
+                source_topology=source_topology,
             )
             health = retriever.health_report()
             if health.get("all_ok"):
                 setattr(retriever, "auto_discovered", not bool(explicit_path))
-                setattr(retriever, "health_payload", health)
                 healthy_retrievers.append(retriever)
                 selected_source_ids.add(source_id)
                 if explicit_path:
                     break
         if not healthy_retrievers:
             return None
+        configured_topologies = tuple(
+            topology
+            for topology in (
+                getattr(retriever, "source_topology", None)
+                for retriever in healthy_retrievers
+            )
+            if topology is not None
+        )
+        resolved_topologies = {
+            topology.source_id: topology
+            for topology in resolve_formal_source_topologies(
+                configured_topologies
+            )
+        }
+        for retriever in healthy_retrievers:
+            topology = resolved_topologies.get(retriever.source_id)
+            if topology is not None:
+                retriever.bind_source_topology(topology)
+            setattr(retriever, "health_payload", retriever.health_report())
         if len(healthy_retrievers) == 1:
             return healthy_retrievers[0]
         retriever = LeanRagDependencyMultiRetriever(tuple(healthy_retrievers))
@@ -1049,8 +1097,19 @@ def _lean_rag_dependency_source_identity(
     path: Path,
     *,
     explicit: bool,
+    source_topology: object | None = None,
 ) -> tuple[str, tuple[str, ...]]:
     """Bind an auto-discovered graph to its formal-source corpus."""
+
+    topology_source_id = str(
+        getattr(source_topology, "source_id", "") or ""
+    ).strip()
+    if topology_source_id:
+        return topology_source_id, tuple(
+            str(value)
+            for value in getattr(source_topology, "aliases", ()) or ()
+            if str(value).strip()
+        )
 
     normalized = str(path).replace("\\", "/").lower()
     if (
@@ -1122,6 +1181,18 @@ def _attach_lean_rag_metadata(retriever: object, dependency_retriever: object | 
         retriever,
         "lean_rag_dependency_graph_health",
         getattr(dependency_retriever, "health_payload", {}) if dependency_retriever is not None else {},
+    )
+    setattr(
+        retriever,
+        "lean_rag_source_topology",
+        tuple(
+            topology.as_prompt_payload()
+            for topology in (
+                getattr(dependency_retriever, "source_topologies", ())
+                if dependency_retriever is not None
+                else ()
+            )
+        ),
     )
 
 

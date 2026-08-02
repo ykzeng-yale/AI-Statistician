@@ -14,6 +14,10 @@ from .formal_source_index import (
     _search_tokens,
     diversify_formal_source_hits,
 )
+from .formal_source_topology import (
+    FORMAL_SOURCE_TOPOLOGY_EVIDENCE_STATUS,
+    FormalSourceTopology,
+)
 
 
 TOKEN_RE = re.compile(r"[\w']+", re.UNICODE)
@@ -21,6 +25,9 @@ MIN_LEAN_RAG_GRAPH_SCHEMA_VERSION = 4
 LEAN_RAG_DECLARATION_IDENTITY_POLICY = "unicode_lean_identifier_v1"
 LEAN_RAG_DECLARATION_REFERENCE_POLICY = (
     "comment_string_free_explicit_names_v1"
+)
+LEAN_RAG_DEFAULT_SEARCH_QUALITY_POLICY = (
+    "oversized_declaration_names_require_exact_lookup_v1"
 )
 STOP_TOKENS = {
     "the",
@@ -64,6 +71,13 @@ class LeanRagDependencyContext:
     source_snapshot_bound: bool = False
     source_snapshot_match: bool | None = None
     source_snapshot_metadata: tuple[tuple[str, str], ...] = ()
+    source_topology_id: str = ""
+    source_role: str = ""
+    source_relation_to_active_project: str = ""
+    source_compatibility_status: str = ""
+    source_reuse_policy: str = ""
+    source_topology_identity_basis: tuple[str, ...] = ()
+    source_topology_evidence_status: str = ""
 
 
 class LeanRagDependencyRetriever:
@@ -83,6 +97,7 @@ class LeanRagDependencyRetriever:
         *,
         source_id: str = "lean_rag_dependency_graph",
         source_aliases: tuple[str, ...] = (),
+        source_topology: FormalSourceTopology | None = None,
     ) -> None:
         self.db_path = Path(db_path).expanduser()
         self.source_id = source_id
@@ -93,6 +108,7 @@ class LeanRagDependencyRetriever:
                 if str(value).strip()
             )
         )
+        self.source_topology = source_topology
         self._health_cache: dict[str, object] | None = None
 
     @property
@@ -102,6 +118,22 @@ class LeanRagDependencyRetriever:
     @property
     def source_ids(self) -> tuple[str, ...]:
         return self.source_aliases
+
+    @property
+    def source_topologies(self) -> tuple[FormalSourceTopology, ...]:
+        return (
+            (self.source_topology,)
+            if self.source_topology is not None
+            else ()
+        )
+
+    def bind_source_topology(self, topology: FormalSourceTopology) -> None:
+        if topology.source_id != self.source_id:
+            raise ValueError(
+                "formal source topology id does not match dependency corpus"
+            )
+        self.source_topology = topology
+        self._health_cache = None
 
     def supports_source_id(self, source_id: str) -> bool:
         requested = str(source_id or "").strip()
@@ -144,6 +176,14 @@ class LeanRagDependencyRetriever:
             "declaration_identity_policy_supported": False,
             "declaration_reference_policy": "",
             "declaration_reference_policy_supported": False,
+            "default_search_quality_policy": (
+                LEAN_RAG_DEFAULT_SEARCH_QUALITY_POLICY
+            ),
+            "source_topology": (
+                self.source_topology.as_prompt_payload()
+                if self.source_topology is not None
+                else {}
+            ),
             "all_ok": False,
         }
         if not self.db_path.exists():
@@ -240,7 +280,12 @@ class LeanRagDependencyRetriever:
         q_tokens = _tokens(query)
         hits = []
         for rank, row in enumerate(candidate_rows, start=1):
-            hit = self._hit_for_row(row, q_tokens=q_tokens, rank=rank)
+            hit = self._hit_for_row(
+                row,
+                query=query,
+                q_tokens=q_tokens,
+                rank=rank,
+            )
             if hit is not None:
                 hits.append(hit)
         return sorted(hits, key=lambda hit: (-hit.score, hit.declaration.name))[:k]
@@ -400,6 +445,41 @@ class LeanRagDependencyRetriever:
                 for key in prompt_snapshot_keys
                 if str(snapshot_metadata.get(key, "") or "")
             ),
+            source_topology_id=(
+                self.source_topology.topology_id
+                if self.source_topology is not None
+                else ""
+            ),
+            source_role=(
+                self.source_topology.role
+                if self.source_topology is not None
+                else ""
+            ),
+            source_relation_to_active_project=(
+                self.source_topology.relation_to_active_project
+                if self.source_topology is not None
+                else ""
+            ),
+            source_compatibility_status=(
+                self.source_topology.compatibility_status
+                if self.source_topology is not None
+                else ""
+            ),
+            source_reuse_policy=(
+                self.source_topology.reuse_policy
+                if self.source_topology is not None
+                else ""
+            ),
+            source_topology_identity_basis=(
+                self.source_topology.identity_basis
+                if self.source_topology is not None
+                else ()
+            ),
+            source_topology_evidence_status=(
+                FORMAL_SOURCE_TOPOLOGY_EVIDENCE_STATUS
+                if self.source_topology is not None
+                else ""
+            ),
         )
 
     def _search_fts(self, query: str, *, limit: int) -> list[sqlite3.Row]:
@@ -489,12 +569,20 @@ class LeanRagDependencyRetriever:
         except sqlite3.DatabaseError:
             return []
 
-    def _hit_for_row(self, row: sqlite3.Row, *, q_tokens: set[str], rank: int) -> FormalSourceHit | None:
+    def _hit_for_row(
+        self,
+        row: sqlite3.Row,
+        *,
+        query: str,
+        q_tokens: set[str],
+        rank: int,
+    ) -> FormalSourceHit | None:
         signature = str(row["signature"] or "")
         if not _is_externally_reusable_signature(signature):
             return None
         proof = str(row["proof"] or "")
         name = str(row["name"] or "")
+        short_name = str(row["short_name"] or "")
         module_text = " ".join(
             [str(row["module"] or ""), str(row["path"] or "")]
         )
@@ -514,6 +602,21 @@ class LeanRagDependencyRetriever:
         quality_metadata_present = bool(row["quality_metadata_present"])
         quality_score = _bounded_quality_score(row["quality_score"])
         quality_flags = _quality_flags(str(row["quality_flags"] or ""))
+        oversized_exact_lookup = bool(
+            quality_metadata_present
+            and "oversized_name" in quality_flags
+            and _is_exact_declaration_query(
+                query,
+                name=name,
+                short_name=short_name,
+            )
+        )
+        if (
+            quality_metadata_present
+            and "oversized_name" in quality_flags
+            and not oversized_exact_lookup
+        ):
+            return None
         score = (
             len(semantic_overlap)
             + 0.5 * len(proof_only_overlap)
@@ -567,6 +670,11 @@ class LeanRagDependencyRetriever:
                 if proof_only_overlap and not semantic_overlap
                 else []
             )
+            + (
+                ["oversized_name_exact_lookup"]
+                if oversized_exact_lookup
+                else []
+            )
         )
         return FormalSourceHit(declaration=declaration, score=score, matched_terms=matched_terms)
 
@@ -606,6 +714,11 @@ class LeanRagDependencyMultiRetriever:
                 for source_id in retriever.source_ids
             )
         )
+        self.source_topologies = tuple(
+            topology
+            for retriever in self.retrievers
+            for topology in retriever.source_topologies
+        )
         self.auto_discovered = all(
             bool(getattr(retriever, "auto_discovered", False))
             for retriever in self.retrievers
@@ -627,6 +740,10 @@ class LeanRagDependencyMultiRetriever:
             "n_providers": len(providers),
             "db_paths": tuple(str(path) for path in self.db_paths),
             "source_ids": self.source_ids,
+            "source_topology": tuple(
+                topology.as_prompt_payload()
+                for topology in self.source_topologies
+            ),
             "providers": providers,
         }
 
@@ -838,6 +955,16 @@ def _bounded_quality_score(value: object) -> int:
     except (TypeError, ValueError):
         return 0
     return max(0, min(100, score))
+
+
+def _is_exact_declaration_query(
+    query: str,
+    *,
+    name: str,
+    short_name: str,
+) -> bool:
+    requested = " ".join(str(query or "").strip().split())
+    return bool(requested and requested in {name, short_name})
 
 
 def _source_snapshot_report(metadata: dict[str, str]) -> dict[str, object]:
