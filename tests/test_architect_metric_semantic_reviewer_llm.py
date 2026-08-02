@@ -1097,6 +1097,41 @@ def test_metric_review_audits_every_estimator_response_semantic_independently() 
     assert "normalization_reconstruction" not in compact_schema
     assert validate_architect_metric_semantic_review_packet(packet) == []
 
+    not_indexed_material = deepcopy(material)
+    not_indexed_rate = not_indexed_material[
+        "theory_developer_protocol_material"
+    ]["theory_semantic_material"]["estimator_specs"][0][
+        "estimator_interface_contract"
+    ]["response_fields"][0]["sample_size_rate"]
+    not_indexed_rate.clear()
+    not_indexed_rate["scale"] = "not_indexed"
+    not_indexed_enriched = (
+        architect_metric_review_material_with_runtime_evaluator_certificate(
+            not_indexed_material
+        )
+    )
+    not_indexed_audit_id = not_indexed_enriched[
+        "metric_claim_check_contract"
+    ]["response_identity_rows"][0]["response_identity_audit_id"]
+    not_indexed_payload = deepcopy(payload)
+    not_indexed_check = not_indexed_payload["response_identity_checks"][0]
+    not_indexed_check["response_identity_audit_id"] = not_indexed_audit_id
+    not_indexed_check.pop("derived_polynomial_exponent")
+    not_indexed_check.pop("derived_log_exponent")
+
+    not_indexed_packet, _, _ = _review(
+        accept=True,
+        payload=not_indexed_payload,
+        material=not_indexed_material,
+    )
+
+    assert not_indexed_packet["response_identity_checks"][0][
+        "derived_rate_matches_declared"
+    ] is True
+    assert validate_architect_metric_semantic_review_packet(
+        not_indexed_packet
+    ) == []
+
     inconsistent_material = deepcopy(material)
     inconsistent_rate = inconsistent_material[
         "theory_developer_protocol_material"

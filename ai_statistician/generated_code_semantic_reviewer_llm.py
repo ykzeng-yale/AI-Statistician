@@ -298,6 +298,7 @@ def generated_code_semantic_review_authority_contract(
     identity_fields = (
         "estimator_id",
         "simulation_id",
+        "procedure_id",
         "target_id",
         "id",
     )
@@ -1066,7 +1067,8 @@ def generated_code_semantic_review_prompt_projection(
             result_projection = _compact_generated_code_review_value(
                 result_projection
             )
-        artifact["exact_result"] = {
+        artifact["exact_result"] = result_projection
+        artifact["exact_result_prompt_projection"] = {
             "artifact_kind": "HashBoundGeneratedResultPromptProjection",
             "full_result_in_prompt": False,
             "full_result_path": result_path,
@@ -1074,12 +1076,13 @@ def generated_code_semantic_review_prompt_projection(
                 artifact.get("exact_result_hash", "") or ""
             ),
             "full_result_json_chars": len(serialized_result),
-            "projection": result_projection,
             "boundary": (
                 "The full exact result remains immutable at full_result_path and is "
                 "bound by full_result_hash for lineage only. The reviewer cannot inspect "
-                "omitted items from that path. This prompt view preserves scalar values "
-                "and generic array summaries without claiming to expose every item."
+                "omitted items from that path. exact_result preserves canonical paths "
+                "for visible scalar values and generic array summaries without claiming "
+                "to expose every item. This metadata is lineage context, not a result "
+                "value."
             ),
         }
         return artifact
@@ -1318,6 +1321,21 @@ def _generated_code_semantic_review_row_cited_values(
                 effective_locator = effective_locator[len(prefix):]
                 break
         resolved, value = _json_pointer_value(root, effective_locator)
+        canonical_locator = effective_locator
+        if not resolved and role == "generated_source_artifact":
+            legacy_projection_marker = "/exact_result/projection"
+            marker_index = effective_locator.find(legacy_projection_marker)
+            if marker_index >= 0:
+                candidate_locator = (
+                    effective_locator[:marker_index]
+                    + "/exact_result"
+                    + effective_locator[
+                        marker_index + len(legacy_projection_marker) :
+                    ]
+                )
+                resolved, value = _json_pointer_value(root, candidate_locator)
+                if resolved:
+                    canonical_locator = candidate_locator
         if (
             not resolved
             and role == "generated_source_artifact"
@@ -1351,6 +1369,7 @@ def _generated_code_semantic_review_row_cited_values(
             {
                 "artifact_role": role,
                 "locator": locator,
+                "canonical_locator": canonical_locator,
                 "resolved": resolved,
                 "value": (
                     _generated_code_semantic_review_cited_value_projection(value)

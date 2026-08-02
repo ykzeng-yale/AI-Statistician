@@ -44555,7 +44555,6 @@ def run_research_agent_runtime(
     )
     source_theorem_exact_semantic_definition_authoring_retry_worker_enabled = bool(
         config.source_theorem_exact_semantic_definition_authoring_worker
-        or source_theorem_exact_semantic_definition_authoring_retry_worker_auto_requested
     )
     source_theorem_exact_semantic_definition_authoring_retry_candidate_materializer_manifest: (
         dict[str, Any] | None
@@ -53987,6 +53986,8 @@ def run_research_agent_runtime(
         and not source_theorem_exact_semantic_definition_authoring_retry_task_rows
         else "no_retryable_authoring_tasks"
         if not source_theorem_exact_semantic_definition_authoring_retry_task_rows
+        else "post_runtime_typed_agent_task_required"
+        if source_theorem_exact_semantic_definition_authoring_retry_worker_auto_requested
         else "authoring_worker_disabled"
         if not source_theorem_exact_semantic_definition_authoring_retry_worker_enabled
         else "authoring_retry_worker_not_run"

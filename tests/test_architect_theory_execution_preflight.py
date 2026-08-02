@@ -549,16 +549,15 @@ def test_preflight_closes_prior_findings_by_stable_identity() -> None:
     assert rejected["findings"][0]["finding_id"] == prior_finding_ids[0]
 
     accepted_payload = _payload(accept=True)
-    accepted_payload["prior_finding_reviews"] = [
-        {
-            "finding_id": prior_finding_ids[0],
+    accepted_payload["prior_finding_reviews"] = {
+        prior_finding_ids[0]: {
             "status": "RESOLVED_BY_CURRENT_THEORY",
             "rationale": (
                 "The current estimator interface now exposes the bounded outcome."
             ),
             "evidence_refs": ["theory.estimator_specs"],
         }
-    ]
+    }
     backend = _Backend(accepted_payload)
     accepted = review_architect_theory_execution_preflight(
         provider=backend,
@@ -580,9 +579,13 @@ def test_preflight_closes_prior_findings_by_stable_identity() -> None:
     prior_review_schema = backend.requests[0].schema["properties"][
         "prior_finding_reviews"
     ]
-    assert prior_review_schema["items"]["properties"]["finding_id"][
-        "enum"
-    ] == prior_finding_ids
+    assert prior_review_schema["type"] == "object"
+    assert prior_review_schema["required"] == prior_finding_ids
+    assert prior_review_schema["additionalProperties"] is False
+    assert set(prior_review_schema["properties"]) == set(prior_finding_ids)
+    assert "finding_id" not in prior_review_schema["properties"][
+        prior_finding_ids[0]
+    ]["properties"]
     assert accepted["overall_verdict"] == "ACCEPT"
     assert accepted["active_unresolved_finding_ids"] == []
     assert accepted["prior_finding_resolution_summary"] == {
@@ -603,14 +606,13 @@ def test_preflight_repairs_unresolved_prior_finding_with_typed_link() -> None:
     prior_ledger = rejected["cumulative_finding_ledger"]
     prior_finding_id = rejected["active_unresolved_finding_ids"][0]
     initial_payload = _payload(accept=False)
-    initial_payload["prior_finding_reviews"] = [
-        {
-            "finding_id": prior_finding_id,
+    initial_payload["prior_finding_reviews"] = {
+        prior_finding_id: {
             "status": "UNRESOLVED",
             "rationale": "The revised source still leaves the finite branch undefined.",
             "evidence_refs": ["theory.estimator_specs"],
         }
-    ]
+    }
     initial_payload["findings"][0]["summary"] = (
         "The revised finite interface still omits one declared outcome."
     )
@@ -684,6 +686,12 @@ def test_preflight_repairs_unresolved_prior_finding_with_typed_link() -> None:
             "finding_index": 0,
             "path": ["findings", 0],
             "prior_finding_id_path": ["findings", 0, "prior_finding_id"],
+        }
+    ]
+    assert backend.repair_context["prior_finding_review_patch_paths"] == [
+        {
+            "finding_id": prior_finding_id,
+            "path": ["prior_finding_reviews", prior_finding_id],
         }
     ]
     assert packet["findings"][0]["prior_finding_id"] == prior_finding_id

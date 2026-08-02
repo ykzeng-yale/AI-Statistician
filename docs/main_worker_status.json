@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-08-02T18:39:00Z",
+  "updated_at": "2026-08-02T21:34:00Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "active_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
@@ -25,11 +25,13 @@
     "enforcement": "Opus is rejected before Anthropic client construction. Research and capability evaluation override every enabled LLM subsystem to the exact Haiku model."
   },
   "current_change": {
-    "preflight_finding_lineage_transport": "When a pre-execution review has active prior findings, every current finding now carries a required prior_finding_id transport field: the exact prior id means the defect continues and the empty string means a genuinely new defect. Typed repair context exposes the exact raw finding path and forbids invented link fields; runtime still owns canonical finding_id and validates one-to-one unresolved lineage. The one-estimator initial output cap is 5,600 tokens so a complete structured review is not predictably truncated and regenerated. No statistical formula or task-family rule was added.",
+    "preflight_finding_lineage_transport": "When a pre-execution review has active prior findings, provider transport now uses one exact-key object whose required keys are the runtime-owned finding IDs. The LLM judges each keyed finding but no longer recopies IDs into an array, so duplicate or omitted identities are structurally impossible. Current findings still carry prior_finding_id, runtime still derives the canonical ledger, and validators still require exactly one continuation for every UNRESOLVED prior finding and none for a resolved one. V199 crossed the survival second preflight that V198 blocked on duplicate/missing IDs. No statistical formula, task-family rule, or validator relaxation was added.",
+    "audit_rerun_foundation_binding": "Capability-audit rerun and resume commands now copy the active manifest's formalizer_candidate_lean_project and exact-semantic source roots. They no longer advertise a legacy Lean checkout after a run that actually used canonical EmpericalProcessLEAN plus pinned Statlib.",
     "canonical_full_live_foundation": "Capability/full-live and ordinary live Formalizer defaults now select the current EmpericalProcessLEAN Lake project before vendored snapshots. Exact-semantic lookup uses the current StatInference source plus the pinned Statlib source; explicit CLI roots remain authoritative and historical snapshots remain fallback/inventory only. Retrieval, compilation, and kernel evidence therefore share one live foundation.",
     "theory_execution_preflight": "Before metric authoring or coding, the independent reviewer now recomputes each guarantee-carrying procedure identity from the primitive DGP, audits data-dependent operators and theorem hypotheses under the conclusion measure, checks finite typed returns, and verifies ideal-to-executable guarantee transport. Runtime-derived booleans gate acceptance; reviewer wording is not parsed as a mathematical rule. A rejection routes through the existing typed TheoryDeveloper task with immutable finding lineage; no second scheduler or task-specific formula was added.",
     "theory_transport": "The same TheoryDeveloper and task now use two bounded provider calls: first a core mathematical workspace, then an executable estimator interface constrained to frozen estimator and semantic-reference IDs. The merged packet is rehashed and validated as one theory artifact. This is transport decomposition, not another agent or scheduler.",
     "theory_interface_transport": "Estimator interfaces now cross the provider boundary as an exact-key object whose required properties are the frozen estimator IDs. Runtime converts that transport into canonical rows in frozen-ID order. This prevents schema descriptions from weakening exact cardinality and prevents duplicated or missing rows without encoding estimator semantics.",
+    "estimator_interface_authoring_contract": "TheoryDeveloper now authors only primitive per-output scale semantics. A non-indexed output is exactly {scale:not_indexed}; indexed outputs carry their contribution rate, while runtime derives aggregate exponent summaries and strips legacy synthetic zero fields. Frozen output cardinality and identities remain exact. This removes redundant arithmetic copying from the LLM without hardcoding an estimator formula.",
     "repair_path_transport": "Generic JSON repair now exposes both the raw provider payload and the normalized packet. Preflight typed-patch paths are derived from the raw exact-key transport, while semantic validation remains on the canonical artifact. No numeric-to-key path guessing or validator relaxation was added.",
     "theory_revision_transport": "Independent pre- or post-execution upstream-theory findings now return to the same TheoryDeveloper through one parent-bound revision contract. The runtime verifies exact parent packet id/hash, feedback fingerprint, reviewer packet/execution identity, and Architect dispatch before applying at most 20 typed updates only to existing parent paths. Every unmentioned field remains immutable, the complete core is revalidated, and no task formula, theorem alias, deterministic answer, or second scheduler is encoded.",
     "postexecution_theory_revision_transport": "Generated-code semantic review now binds execution diagnostics to the exact current TheoryDeveloper packet in blackboard and the current metric-theory handoff. Stale preflight material may remain as history but cannot be selected. The shared revision budget accumulates pre-execution and post-execution revisions across the question, and invalid or stale lineage blocks before any model call. A v174 exact-artifact replay plus live exact-Haiku component probe used the current b7c819 parent, completed targeted core revision and estimator-interface authoring in 64.361 seconds, and preserved parent ID/hash and binding ID. This is component evidence, not integrated research or proof completion.",
@@ -41,6 +43,7 @@
     "statlib_foundation": "EmpericalProcessLEAN pins and publicly re-exports Statlib.Inference and Statlib.QMD through StatInference.Foundation. The VdVW, empirical-process, WDSM, later Chewi, Durrett, and van der Vaart proof work builds on that dependency while retaining downstream namespaces; reusable APIs move upstream only after abstraction and review. EmpericalProcessLEAN main and the integration branch point to 2a22e005. A 9,817-job canonical build passed. All 489 WDSM modules and every other unique source module are now reachable from StatInference; 151 declaration-duplicating Matching compatibility mirrors remain excluded.",
     "formal_rag_canonical_scope": "Schema-v5 production graphs follow the canonical Lean entry-module import closure and exclude private, local, anonymous, and compatibility-mirror declarations. The bound StatInference graph has 1,185 canonical Lean files and 51,982 declarations with zero duplicate names or sorry/admit; pinned StatLib has 32 declarations and AI4SLT has 2,000. Source-agnostic structural quality metadata softly prioritizes semantic APIs over numbered/generated/thin surfaces without deleting repair candidates. BOUND_MATCH means corpus freshness only; target-project import visibility and exact local re-elaboration remain mandatory.",
     "post_runtime_formal_execution": "After AgentRuntime terminates, formal queues are projection-only. Retrieval, LLM authoring, semantic bridges, proof search, local Lean, kernel checks, and promotion can execute only as Architect-visible typed AgentTasks. Runtime config suppression is unconditional across modes; projected debt cannot become proof evidence.",
+    "typed_only_authoring_retry": "An auto-requested exact-semantic authoring retry now means that the next Architect-visible typed task is required; it no longer enables a post-runtime authoring worker, materializer, Lean executor, or verifier side effect. Skipped manifests record post_runtime_typed_agent_task_required.",
     "legacy_lean_reconciliation": "Both vendored StatInference snapshots were compared with current EmpericalProcessLEAN. All 830 historical Lean paths have current owners. All 1,412 changed vendored-EmpericalProcess declarations retain current short-name owners; 137/142 changed legacy-AI declarations do likewise. The five exclusions are four trivial 0=0 demo markers and one obsolete reverse outer-to-ordinary almost-sure bridge. Historical snapshots remain inventory/training assets and are excluded from live Formalizer retrieval.",
     "theory_formal_rag_projection": "TheoryDeveloper now compares the top three ranked qualified declaration signatures so a direct semantic match at rank three is not discarded. Only the primary candidate may carry one bounded source-authored declaration doc or citation; secondary prose, broad module summaries, and every proof body are omitted. Architect proof skeletons are routing proposals rather than mathematical authority, so the LLM may choose a more direct retrieved declaration while preserving the exact target and evidence gates.",
     "research_eval_metric_semantics": "Research completion now follows the frozen metric contract's required flag: at least one authority-bound metric must execute and pass, and all required metrics must pass. Failed optional diagnostics remain explicit failed observations but do not masquerade as required-gate failure. No threshold, task metric, or observed value was changed.",
@@ -54,7 +57,8 @@
     "formal_rag_trace_alignment": "AI4SLT declaration hits supply bounded exact theorem-name and exact module anchors to train-only proof-state retrieval. Declaration and trace RAG now share nested runtime goal/diagnostic extraction. Live proof-state overlap remains mandatory and receives first token priority; unrelated source ids are ignored. Changed state/query-role/source-scope fingerprints refresh both layers, and stale declaration hits are removed if no retriever is available. This creates neither a tactic template nor proof evidence.",
     "formal_rag_declaration_identity": "The shared source parser and runtime graph adapter preserve complete Unicode Lean declaration identities, including inline-attributed declarations, and reject unversioned, pre-v4, identity-policy-incompatible, or reference-policy-incompatible graphs before retrieval. Schema 5 strips comments and strings, excludes private/local/anonymous generated declarations, follows an optional canonical entry-module import closure, and does not guess receiver-style h.foo projections. This is a generic source-index contract, not a Lean grammar repair rule or theorem-family policy.",
     "formal_source_physical_identity": "Overlapping configured source roots index each resolved physical Lean file once, with configured root order defining ownership. Superseded vendored snapshots are inventory/training inputs rather than live roots. Dependency graphs remain separate version-bound corpora: StatInference 51,982, StatLib 32, and AI4SLT 2,000 retrievable public declarations.",
-    "generated_code_profile_transport": "AlgorithmEngineer and SimulationEngineer share one provider schema with three structural branches: Python stdlib omits dependencies, while Python or R scientific_wasm declares only supported imported packages. Runtime still performs the authoritative safety and execution checks. Simulation output budget is 8,000 tokens to avoid predictable code-plus-metrics truncation."
+    "generated_code_profile_transport": "AlgorithmEngineer and SimulationEngineer share one provider schema with three structural branches: Python stdlib omits dependencies, while Python or R scientific_wasm declares only supported imported packages. Runtime still performs the authoritative safety and execution checks. Simulation output budget is 8,000 tokens to avoid predictable code-plus-metrics truncation.",
+    "generated_code_review_provenance": "Independent generated-code review treats procedure_id as an immutable authority identity and keeps large execution projections under canonical exact_result. Historical /exact_result/projection locators remain readable only through an explicit canonical_locator compatibility projection. Review acceptance therefore binds the exact procedure, source, arguments, results, theory packet, and frozen metric protocol rather than a nearby artifact."
   },
   "ai4slt_formal_rag": {
     "repository": "https://github.com/YuanheZ/lean-stat-learning-theory",
@@ -203,6 +207,35 @@
     },
     "boundary": "AI4SLT source docs, section summaries, README taxonomy, naming examples, and citations may rank candidate declarations, but TheoryDeveloper and Formalizer receive role-specific bounded signature-first projections rather than broad source prose; only one bounded primary declaration doc or citation may disambiguate intent. Signatures, dependency context, and train-state hits remain non-proof candidate context. Toolchain/snapshot identity is disclosed, and every selected declaration or generated action must be re-elaborated in the exact active project before it can contribute to kernel evidence."
   },
+  "latest_full_live_development_eval": {
+    "run": "runs/main_worker_cross_family_development_20260802_v199_exact_key_prior_lineage_exact_haiku",
+    "panel": "frozen development panel: right_censored_survival_km and sequential_anytime_bernoulli",
+    "evaluation_model": "claude-haiku-4-5-20251001",
+    "enabled_llm_agents_at_exact_haiku": 10,
+    "llm_topology_policy_ok": true,
+    "status_counts": {
+      "BLOCKED": 2
+    },
+    "capability_scorecard": "95/121",
+    "capability_ready_for_full_ai_statistician": false,
+    "survival_path": "Completed fresh Architect, Retrieval, TheoryDeveloper, independent theory preflight with one bounded theory revision, metric author and independent review, generated AlgorithmEngineer execution and review, generated SimulationEngineer failed-then-passed repair and review, FormalizationEvaluator, formal-target semantic review, three local Lean candidate checks, one live Lean/LSP proof-state call, and structural replan into FormalizationGapPlanner.",
+    "survival_terminal_blocker": "The route planner's 45k-input/9k-output monolithic response truncated, then its route_core_compaction staged fragment remained contract-invalid after one repair. Four staged sections could not assemble because the first dependency stage never passed. No invalid route was promoted.",
+    "sequential_path": "Completed fresh Architect, Retrieval, TheoryDeveloper, independent theory preflight with one bounded theory revision, then reached metric authoring.",
+    "sequential_terminal_blocker": "Metric authority repair reduced seven numeric-authority defects to one but exhausted the bounded repair budget after incorrectly relabeling the remaining alpha=0.05 threshold as theory_derived instead of preserving a valid field-level source owner or architect preregistration. Generated execution remained unauthorized.",
+    "generated_code_sandbox_executions": 3,
+    "generated_code_sandbox_passes": 3,
+    "generated_simulation_sandbox_executions": 1,
+    "generated_simulation_sandbox_passes": 1,
+    "generated_simulation_failed_then_passed_sequences": 1,
+    "formal_gaps": 2,
+    "formalizer_local_lean_checks": 3,
+    "formalizer_local_lean_compiles": 0,
+    "lean_lsp_mcp_live_calls": 1,
+    "formalizer_proof_state_feedback_rows": 3,
+    "exact_source_theorem_kernel_closure": "0/2",
+    "held_out_panel": "sealed; PCA and extremes were not run",
+    "evidence_boundary": "95/121 is integrated capability coverage, not theorem completion. RAG hits, generated code, simulations, failed Lean candidates, and route plans remain non-proof evidence."
+  },
   "latest_live_research_eval": {
     "run": "runs/main_worker_research_eval_20260802_v196_exact_haiku_sequential",
     "task_family": "anytime-valid sequential Bernoulli development task",
@@ -265,18 +298,21 @@
     "development_research_loop_current_mechanism": "2/2 completed in fresh exact-Haiku runs: V191 survival and V196 sequential accepted at the typed research_eval endpoint",
     "exact_source_theorem_kernel_closure": "0/2",
     "held_out_generalization": "not run",
-    "primary_blocker": "Neither development family has completed the frozen full-live path through task-bound formal RAG, LLM Lean authoring, local Lean/LSP feedback, bounded repair, and exact source-theorem active-project kernel closure",
+    "primary_blocker": "V199 survival reached canonical Statlib/StatInference RAG, three active-project Lean checks, live Lean/LSP feedback, and structural replan, but the oversized FormalizationGapPlanner route-core contract truncated and then failed its first staged dependency after bounded repair. Exact source-theorem closure remains zero.",
     "secondary_blockers": [
+      "V199 sequential reached accepted revised theory but metric authoring exhausted repair with one field-level numeric-authority mismatch; code execution correctly remained unauthorized",
+      "the live gap route planner consumes about 45k input tokens and up to 9k output tokens before falling back to four dependent staged fragments; the first fragment currently carries too much cost/DAG/action-witness structure for reliable Haiku transport",
       "research completion correctly ignores artifacts tied to a superseded theory, but a separate historical progress projection is still needed to expose earlier sandbox and reviewer passes",
       "accepted metric-protocol preflight still performs metric author, independent reviewer, and final Architect plan calls serially",
-      "the fresh two-family full-live development panel has not yet been run on the canonical StatInference/Statlib project",
       "legacy post-runtime formal side effects are disabled, but their dead control-flow branches still need mechanical extraction from the central runtime",
-      "the prover has bounded state-action RAG but no mature learned tactic-state policy/search tree",
+      "the prover now has live bounded state-action RAG and structural replan evidence, but no mature learned tactic-state policy/search tree",
       "the full core suite rebuilds large real retrieval indexes and is too slow for the normal commit gate"
     ]
   },
   "next_main_worker_actions": [
-    "Run the frozen fresh development full-live panel on both survival and sequential using exact Haiku and the canonical current StatInference/Statlib Lake project; classify the first formal closure blocker without adding task answers or Lean repair rules.",
+    "Replace the 45k-input monolithic gap-route response with a genuinely compact route-core decision followed by independently bounded realization/cost/prover stages; keep every stage typed and require target-prover replay before adoption, but stop duplicating the full DAG, cost model, registry, and action witnesses in the first provider turn.",
+    "Make metric-authority repair continue only while the exact residual error set strictly shrinks, and represent unmatched field-owner decisions with exact-key choices so Haiku cannot move a candidate-owned number between invalid source-owner labels. Do not infer or rewrite the numeric gate deterministically.",
+    "Rerun the frozen fresh development full-live panel after those two shared transport changes; require both tasks to pass the same gates without changing task formulas, expected outputs, or held-out data.",
     "Reduce accepted preflight cost by reusing the already validated plan skeleton when attaching an immutable metric protocol; preserve the independent reviewer and authority boundary.",
     "Record historical partial-stage progress separately from final active-candidate completion so superseded evidence remains visible but cannot satisfy the gate.",
     "Require exact source-theorem active-project kernel closure for both development tasks before opening PCA or extremes; keep both held-out tasks sealed.",
@@ -285,6 +321,9 @@
     "Keep PCA and extremes sealed until both development families satisfy the frozen protocol."
   ],
   "verification": {
+    "v199_full_live_development_panel": "Both frozen development tasks ran fresh with all 10 enabled Anthropic agents at exact claude-haiku-4-5-20251001 and zero topology violations. Survival crossed theory, metric, generated code/simulation, independent reviews, formal-target review, local Lean/LSP feedback, and structural replan before a typed gap-route contract blocker. Sequential crossed revised theory preflight before a metric-authority blocker. Status is BLOCKED 2/2, capability audit is 95/121 ready=false, and exact theorem closure is 0/2.",
+    "v199_live_formal_foundation": "The runtime topology loaded a healthy three-provider schema-v5 dependency graph: current StatInference 51,982 declarations at 2a22e005, pinned Statlib 32 declarations at 6575d611, and AI4SLT 2,000 declarations at d0f506f. OpenProver used llm_zero_shot_with_lean_compile_feedback in /Users/yukangzengcmac/.codex/external/EmpericalProcessLEAN-main; three local Lean checks, twelve proof-state tool calls, and one live Lean/LSP session produced zero compiles and zero proof claims.",
+    "current_contract_regression": "152 preflight, metric-review, generated-code-review, and TheoryDeveloper contract tests passed with 2 skipped; 6 high-risk typed-only post-runtime tests passed with 1,182 deselected in 187.35 seconds; 11 exact-key preflight and manifest-bound rerun-command tests passed. Compileall and git diff --check passed.",
     "final_fast_gate": "206 passed, 2 skipped in 35.62 seconds across research preflight/ownership, model policy, formal-source/RAG, three-book prompt transport, and selected AgentRuntime active-lane contracts; no provider call",
     "core_suite": "All 307 collected tests in tests/test_core.py plus tests/test_lean_rag_dependency_multi.py passed. This panel rebuilds large real indexes and took more than 30 minutes, so it remains a periodic integration gate rather than the fast edit loop.",
     "current_affected_file_panel": "170 focused runtime, independent-reviewer, source-ownership, scoped-RAG, model-policy, knowledge/trace, and package-audit tests passed; no provider call.",

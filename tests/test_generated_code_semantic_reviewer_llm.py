@@ -28,6 +28,7 @@ from ai_statistician.generated_code_semantic_reviewer_llm import (
     generated_code_semantic_review_repair_scope,
     generated_code_semantic_review_repair_scopes,
     validate_generated_code_semantic_review_packet,
+    _generated_code_semantic_review_row_cited_values,
 )
 from ai_statistician.generated_code_semantic_review_replan import (
     GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY,
@@ -125,13 +126,16 @@ def test_large_generated_results_use_hash_bound_prompt_projection() -> None:
     assert review_material["exact_executed_artifacts"][0]["exact_result"] is exact_result
     assert projected_artifact["exact_source_code"] == exact_source
     assert "metrics" not in projected_artifact["source_row"]
-    assert projected_result["full_result_in_prompt"] is False
-    assert projected_result["full_result_hash"] == result_hash
-    assert projected_result["projection"]["trajectory"]["length"] == 80_000
-    assert projected_result["projection"]["trajectory"]["numeric_summary"][
+    projection_metadata = projected_artifact[
+        "exact_result_prompt_projection"
+    ]
+    assert projection_metadata["full_result_in_prompt"] is False
+    assert projection_metadata["full_result_hash"] == result_hash
+    assert projected_result["trajectory"]["length"] == 80_000
+    assert projected_result["trajectory"]["numeric_summary"][
         "count"
     ] == 80_000
-    assert "lineage only" in projected_result["boundary"]
+    assert "lineage only" in projection_metadata["boundary"]
     assert len(prompt) < 100_000
     assert "def run_sandbox" in prompt
     assert "Do not treat omitted values as inspected" in prompt
@@ -384,10 +388,50 @@ def test_large_integer_projection_does_not_overflow_numeric_summary() -> None:
     )
 
     values = projection["exact_executed_artifacts"][0]["exact_result"][
-        "projection"
-    ]["values"]
+        "values"
+    ]
     assert values["length"] == 80
     assert "numeric_summary" not in values
+
+
+def test_legacy_projected_result_locator_resolves_to_canonical_value() -> None:
+    review_material = {
+        "exact_executed_artifacts": [
+            {
+                "artifact_id": "simulation:one",
+                "exact_result": {"rejection_rate": 0.075},
+            }
+        ]
+    }
+    cited = _generated_code_semantic_review_row_cited_values(
+        review_material=review_material,
+        row={
+            "evidence_citations": [
+                {
+                    "artifact_role": "generated_source_artifact",
+                    "locator": (
+                        "/exact_executed_artifacts/0/exact_result/"
+                        "projection/rejection_rate"
+                    ),
+                }
+            ]
+        },
+    )
+
+    assert cited == [
+        {
+            "artifact_role": "generated_source_artifact",
+            "locator": (
+                "/exact_executed_artifacts/0/exact_result/"
+                "projection/rejection_rate"
+            ),
+            "canonical_locator": (
+                "/exact_executed_artifacts/0/exact_result/rejection_rate"
+            ),
+            "resolved": True,
+            "value": 0.075,
+        }
+    ]
 
 
 def _model_evidence_citations(
@@ -2294,6 +2338,12 @@ def test_review_authority_is_task_bound_and_repair_scope_specific() -> None:
                     },
                 }
             ],
+            "simulation_targets": [
+                {
+                    "procedure_id": "sim_1_generic_procedure",
+                    "simulation_goal": "Evaluate the frozen procedure.",
+                }
+            ],
             "theory_trace_alignment_contract": {
                 "supported_derivation_steps": ["derivation:one"],
             },
@@ -2307,6 +2357,9 @@ def test_review_authority_is_task_bound_and_repair_scope_specific() -> None:
     assert "requirement:metric:simulation-only" not in rows
     assert "implementation_gap:generated-estimator" not in rows
     assert rows["implementation_target:generated-estimator"][
+        "allowed_repair_scopes"
+    ] == ["source_code"]
+    assert rows["simulation_target:sim_1_generic_procedure"][
         "allowed_repair_scopes"
     ] == ["source_code"]
     assert rows["requirement:metric:algorithm-owned"][

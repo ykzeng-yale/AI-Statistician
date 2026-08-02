@@ -1801,8 +1801,8 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
         "distinct zero-based claim_checks index. Emit one response_identity_check "
         "per response_identity_row; reconstruct its meaning, normalization, and "
         "sample-size order from primitives and test a boundary or defining invariant. "
-        "Audit signed primary-index/log(index), aggregation cardinality, and "
-        "transformations; name omitted or mis-signed primitive terms and FAIL."
+        "Audit indexed rate contributions; FAIL omitted or mis-signed terms. For "
+        "not_indexed, verify classification and omit exponents."
     ),
     (
         "Each claim check must cite current fields, show a substitution, arithmetic, "
@@ -2359,8 +2359,6 @@ _RESPONSE_IDENTITY_CHECK_SCHEMA: dict[str, Any] = {
         "response_identity_audit_id",
         "primitive_reconstruction",
         "independently_derived_sample_size_order",
-        "derived_polynomial_exponent",
-        "derived_log_exponent",
         "convention_consistent",
         "unresolved_conflicts",
         "verdict",
@@ -3500,12 +3498,17 @@ def validate_architect_metric_semantic_review_packet(
                 f"response identity audit {audit_id} missing independently "
                 "derived sample-size order"
             )
+        rate_is_not_indexed = str(
+            required_sample_size_rate.get("scale", "") or ""
+        ).strip() == "not_indexed"
         derived_rate: dict[str, float] = {}
         for field in (
             "derived_polynomial_exponent",
             "derived_log_exponent",
         ):
             raw_value = check.get(field)
+            if rate_is_not_indexed and raw_value is None:
+                continue
             if (
                 isinstance(raw_value, bool)
                 or not isinstance(raw_value, (int, float))
@@ -3517,6 +3520,13 @@ def validate_architect_metric_semantic_review_packet(
                 )
                 continue
             derived_rate[field] = float(raw_value)
+        if rate_is_not_indexed and any(
+            abs(value) > 1e-12 for value in derived_rate.values()
+        ):
+            errors.append(
+                f"response identity audit {audit_id} must not assign nonzero "
+                "exponents to a not_indexed response"
+            )
         if primitive_reconstruction in {
             str(required_row.get("meaning", "") or "").strip(),
             str(required_row.get("normalization", "") or "").strip(),
@@ -3539,13 +3549,19 @@ def validate_architect_metric_semantic_review_packet(
                 "log_exponent"
             ),
         }
-        rate_matches = len(derived_rate) == 2 and all(
-            isinstance(declared_rate[field], (int, float))
-            and not isinstance(declared_rate[field], bool)
-            and math.isfinite(float(declared_rate[field]))
-            and abs(derived_rate[field] - float(declared_rate[field])) <= 1e-9
-            for field in derived_rate
-        )
+        if rate_is_not_indexed:
+            rate_matches = not declared_rate_errors and not any(
+                abs(value) > 1e-12 for value in derived_rate.values()
+            )
+        else:
+            rate_matches = len(derived_rate) == 2 and all(
+                isinstance(declared_rate[field], (int, float))
+                and not isinstance(declared_rate[field], bool)
+                and math.isfinite(float(declared_rate[field]))
+                and abs(derived_rate[field] - float(declared_rate[field]))
+                <= 1e-9
+                for field in derived_rate
+            )
         if check.get("derived_rate_matches_declared") is not rate_matches:
             errors.append(
                 f"response identity audit {audit_id} has an invalid runtime-bound "
@@ -4132,23 +4148,36 @@ def _normalize_architect_metric_semantic_review_packet(
             else {}
         )
         declared_rate = check["declared_sample_size_rate"]
-        derived_values = {
-            "polynomial_exponent": check.get("derived_polynomial_exponent"),
-            "log_exponent": check.get("derived_log_exponent"),
-        }
-        check["derived_rate_matches_declared"] = all(
-            isinstance(derived_values[field], (int, float))
-            and not isinstance(derived_values[field], bool)
-            and math.isfinite(float(derived_values[field]))
-            and isinstance(declared_rate.get(field), (int, float))
-            and not isinstance(declared_rate.get(field), bool)
-            and math.isfinite(float(declared_rate[field]))
-            and abs(
-                float(derived_values[field]) - float(declared_rate[field])
+        if str(declared_rate.get("scale", "") or "").strip() == "not_indexed":
+            check["derived_rate_matches_declared"] = not any(
+                isinstance(check.get(field), (int, float))
+                and not isinstance(check.get(field), bool)
+                and abs(float(check[field])) > 1e-12
+                for field in (
+                    "derived_polynomial_exponent",
+                    "derived_log_exponent",
+                )
             )
-            <= 1e-9
-            for field in ("polynomial_exponent", "log_exponent")
-        )
+        else:
+            derived_values = {
+                "polynomial_exponent": check.get(
+                    "derived_polynomial_exponent"
+                ),
+                "log_exponent": check.get("derived_log_exponent"),
+            }
+            check["derived_rate_matches_declared"] = all(
+                isinstance(derived_values[field], (int, float))
+                and not isinstance(derived_values[field], bool)
+                and math.isfinite(float(derived_values[field]))
+                and isinstance(declared_rate.get(field), (int, float))
+                and not isinstance(declared_rate.get(field), bool)
+                and math.isfinite(float(declared_rate[field]))
+                and abs(
+                    float(derived_values[field]) - float(declared_rate[field])
+                )
+                <= 1e-9
+                for field in ("polynomial_exponent", "log_exponent")
+            )
         bound_response_identity_checks.append(check)
     body.pop("response_identity_claim_check_indices", None)
     body["response_identity_checks"] = bound_response_identity_checks

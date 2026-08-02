@@ -12583,6 +12583,15 @@ def test_capability_feedback_commands_keep_fresh_rerun_free_of_prior_memory(
         ),
         "runtime_resume_manifest_has_pending_task": False,
         "question_ids": ["split_conformal_q1"],
+        "config": {
+            "formalizer_candidate_lean_project": (
+                "/tmp/canonical-statinference-project"
+            ),
+            "source_theorem_exact_semantic_definition_source_roots": [
+                "/tmp/canonical-statinference-project/StatInference",
+                "/tmp/canonical-statinference-project/.lake/packages/Statlib/Statlib",
+            ],
+        },
     }
 
     rerun_command = _capability_full_live_rerun_command(payload)
@@ -12614,6 +12623,19 @@ def test_capability_feedback_commands_keep_fresh_rerun_free_of_prior_memory(
     for flag in required_full_live_flags:
         assert flag in rerun_command
         assert flag in resume_command
+
+    for command in (rerun_command, resume_command):
+        assert "--lean-project /tmp/canonical-statinference-project" in command
+        assert (
+            "--source-theorem-exact-semantic-definition-source-root "
+            "/tmp/canonical-statinference-project/StatInference"
+        ) in command
+        assert (
+            "--source-theorem-exact-semantic-definition-source-root "
+            "/tmp/canonical-statinference-project/.lake/packages/Statlib/Statlib"
+        ) in command
+        assert "legacy_sources/emperical_process_lean" not in command
+        assert "legacy_sources/ai_statistician" not in command
 
     for command in (rerun_command, resume_command):
         argv = shlex.split(command)
@@ -66712,10 +66734,7 @@ def test_runtime_consumes_authoring_retry_memory_with_authoring_worker(
         ),
     )
 
-    assert len(authoring_calls) == 1
-    assert authoring_calls[0]["provider"] is None
-    assert authoring_calls[0]["provider_name"] == "none"
-    assert authoring_calls[0]["dry_run"] is True
+    assert authoring_calls == []
     assert manifest[
         "source_theorem_exact_semantic_definition_authoring_retry_tasks_required"
     ] is True
@@ -66723,17 +66742,20 @@ def test_runtime_consumes_authoring_retry_memory_with_authoring_worker(
         manifest["source_theorem_exact_semantic_definition_authoring_retry_n_tasks"]
         == 1
     )
-    assert (
-        manifest[
-            "source_theorem_exact_semantic_definition_authoring_retry_worker_ran"
-        ]
-        is True
-    )
+    assert manifest[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_ran"
+    ] is False
+    assert manifest[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_auto_requested"
+    ] is True
+    assert manifest[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_skipped_reason"
+    ] == "post_runtime_typed_agent_task_required"
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets"
         ]
-        == 1
+        == 0
     )
     assert (
         manifest[
@@ -66746,66 +66768,31 @@ def test_runtime_consumes_authoring_retry_memory_with_authoring_worker(
             "runtime_source_theorem_exact_semantic_definition_authoring_retry_tasks_jsonl"
         ]
     ).exists()
-    assert Path(
-        manifest["artifacts"][
-            "runtime_source_theorem_exact_semantic_definition_authoring_retry_worker_manifest"
-        ]
-    ).exists()
-    agenda_rows = [
+    task_rows = [
         json.loads(line)
         for line in Path(
-            manifest["artifacts"]["runtime_next_action_agenda_jsonl"]
+            manifest["artifacts"][
+                "runtime_source_theorem_exact_semantic_definition_authoring_retry_tasks_jsonl"
+            ]
         )
         .read_text(encoding="utf-8")
         .splitlines()
         if line.strip()
     ]
-    backend_rows = [
-        row
-        for row in agenda_rows
-        if row.get("trigger")
-        == "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_BACKEND_REQUIRED"
-    ]
-    assert len(backend_rows) == 1
-    assert backend_rows[0]["owner_subsystem"] == "Formalizer/ProofEngineer"
-    assert backend_rows[0]["source_prompt_packet_id"] == (
-        "source_theorem_exact_semantic_definition_authoring_prompt:rank"
-    )
-    assert backend_rows[0]["source_authoring_task_id"] == "authoring-task:rank"
-    assert backend_rows[0]["candidate_definition_request"][
+    assert len(task_rows) == 1
+    assert task_rows[0]["candidate_definition_request"][
         "required_anchor_names"
     ] == ["n2", "s", "q_hat", "hq"]
-    assert backend_rows[0]["candidate_definition_request"][
+    assert task_rows[0]["candidate_definition_request"][
         "missing_required_anchor_names"
     ] == []
-    assert backend_rows[0]["runtime_queue_status"] == (
-        "PENDING_LIVE_LLM_EXACT_SEMANTIC_DEFINITION_AUTHORING"
+    assert manifest["runtime_post_runtime_formal_execution_policy"] == (
+        "typed_agent_runtime_only"
     )
-    assert "approved authoring backend" in backend_rows[0]["acceptance_gate"]
-    runtime_learning_rows = [
-        json.loads(line)
-        for line in Path(
-            manifest["artifacts"]["runtime_learning_rows_jsonl"]
-        )
-        .read_text(encoding="utf-8")
-        .splitlines()
-        if line.strip()
-    ]
-    assert any(
-        row.get("learning_task") == "generated_next_action_routing"
-        and row.get("input_summary", {}).get("trigger")
-        == "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_BACKEND_REQUIRED"
-        and row.get("input_summary", {}).get("source_prompt_packet_id")
-        == "source_theorem_exact_semantic_definition_authoring_prompt:rank"
-        and row.get("input_summary", {})
-        .get("candidate_definition_request", {})
-        .get("required_anchor_names")
-        == ["n2", "s", "q_hat", "hq"]
-        for row in runtime_learning_rows
-    )
+    assert manifest["runtime_post_runtime_formal_side_effects_allowed"] is False
 
 
-def test_runtime_auto_runs_authoring_retry_worker_when_retry_tasks_exist(
+def test_runtime_does_not_auto_run_authoring_retry_worker_post_runtime(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -67001,73 +66988,65 @@ def test_runtime_auto_runs_authoring_retry_worker_when_retry_tasks_exist(
         ),
     )
 
-    assert len(authoring_calls) == 1
-    assert authoring_calls[0]["provider"] is None
-    assert authoring_calls[0]["provider_name"] == "none"
-    assert authoring_calls[0]["dry_run"] is True
+    assert authoring_calls == []
     assert manifest[
         "source_theorem_exact_semantic_definition_authoring_retry_tasks_required"
     ] is True
-    assert (
-        manifest[
-            "source_theorem_exact_semantic_definition_authoring_retry_worker_requested"
-        ]
-        is True
-    )
+    assert manifest[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_requested"
+    ] is False
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_authoring_retry_worker_auto_requested"
         ]
         is True
     )
+    assert manifest[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_ran"
+    ] is False
+    assert manifest[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_skipped_reason"
+    ] == "post_runtime_typed_agent_task_required"
     assert (
         manifest[
-            "source_theorem_exact_semantic_definition_authoring_retry_worker_ran"
-        ]
-        is True
-    )
-    assert (
-        manifest[
-            "source_theorem_exact_semantic_definition_authoring_retry_worker_skipped_reason"
+            "source_theorem_exact_semantic_definition_authoring_retry_worker_proof_evidence_status"
         ]
         == ""
     )
     assert (
         manifest[
-            "source_theorem_exact_semantic_definition_authoring_retry_worker_proof_evidence_status"
-        ]
-        == "EXACT_SEMANTIC_DEFINITION_AUTHORING_WORKER_NOT_PROOF_EVIDENCE"
-    )
-    assert (
-        manifest[
             "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets"
         ]
-        == 1
+        == 0
     )
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets_with_source_theorem_binders"
         ]
-        == 1
+        == 0
     )
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets_with_required_anchor_bindings"
         ]
-        == 1
+        == 0
     )
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets_with_complete_required_anchors"
         ]
-        == 1
+        == 0
     )
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets_with_source_grounded_authoring_handoff"
         ]
-        == 1
+        == 0
     )
+    assert manifest["runtime_post_runtime_formal_execution_policy"] == (
+        "typed_agent_runtime_only"
+    )
+    assert manifest["runtime_post_runtime_formal_side_effects_allowed"] is False
 
 
 def test_runtime_consumes_verifier_gate_repair_memory_with_authoring_worker(
@@ -67308,10 +67287,7 @@ def test_runtime_consumes_verifier_gate_repair_memory_with_authoring_worker(
         ),
     )
 
-    assert len(authoring_calls) == 1
-    assert authoring_calls[0]["provider"] is None
-    assert authoring_calls[0]["provider_name"] == "none"
-    assert authoring_calls[0]["dry_run"] is True
+    assert authoring_calls == []
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_authoring_repair_tasks_required"
@@ -67322,17 +67298,20 @@ def test_runtime_consumes_verifier_gate_repair_memory_with_authoring_worker(
         manifest["source_theorem_exact_semantic_definition_authoring_repair_n_tasks"]
         == 1
     )
-    assert (
-        manifest[
-            "source_theorem_exact_semantic_definition_authoring_retry_worker_ran"
-        ]
-        is True
-    )
+    assert manifest[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_ran"
+    ] is False
+    assert manifest[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_auto_requested"
+    ] is True
+    assert manifest[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_skipped_reason"
+    ] == "post_runtime_typed_agent_task_required"
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_authoring_retry_worker_n_prompt_packets"
         ]
-        == 1
+        == 0
     )
     task_rows = [
         json.loads(line)
@@ -67352,6 +67331,10 @@ def test_runtime_consumes_verifier_gate_repair_memory_with_authoring_worker(
     assert task_rows[0]["proof_evidence_status"] == (
         "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
     )
+    assert manifest["runtime_post_runtime_formal_execution_policy"] == (
+        "typed_agent_runtime_only"
+    )
+    assert manifest["runtime_post_runtime_formal_side_effects_allowed"] is False
 
 
 def test_runtime_consumes_authoring_repair_memory_with_authoring_worker(
@@ -67746,10 +67729,7 @@ def test_runtime_consumes_authoring_repair_memory_with_authoring_worker(
         ),
     )
 
-    assert len(authoring_calls) == 1
-    assert authoring_calls[0]["provider"] is None
-    assert authoring_calls[0]["provider_name"] == "none"
-    assert authoring_calls[0]["dry_run"] is True
+    assert authoring_calls == []
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_authoring_repair_tasks_required"
@@ -67760,50 +67740,52 @@ def test_runtime_consumes_authoring_repair_memory_with_authoring_worker(
         manifest["source_theorem_exact_semantic_definition_authoring_repair_n_tasks"]
         == 1
     )
-    assert (
-        manifest[
-            "source_theorem_exact_semantic_definition_authoring_retry_worker_ran"
-        ]
-        is True
-    )
-    assert len(materializer_calls) == 1
-    assert len(lean_repair_calls) == 1
-    assert lean_repair_calls[0]["local_lean"] is True
+    assert manifest[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_ran"
+    ] is False
+    assert manifest[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_auto_requested"
+    ] is True
+    assert manifest[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_skipped_reason"
+    ] == "post_runtime_typed_agent_task_required"
+    assert materializer_calls == []
+    assert lean_repair_calls == []
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_authoring_retry_worker_n_candidate_packets"
         ]
-        == 1
+        == 0
     )
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_authoring_retry_candidate_materializer_ran"
         ]
-        is True
+        is False
     )
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_authoring_retry_candidate_materializer_n_materialized_lean_repair_tasks"
         ]
-        == 1
+        == 0
     )
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_ran"
         ]
-        is True
+        is False
     )
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_n_local_lean_checked"
         ]
-        == 1
+        == 0
     )
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_proof_evidence_status"
         ]
-        == "EXACT_SEMANTIC_DEFINITION_LEAN_REPAIR_EXECUTION_NOT_SOURCE_THEOREM_PROOF"
+        == ""
     )
     task_rows = [
         json.loads(line)
@@ -67820,16 +67802,10 @@ def test_runtime_consumes_authoring_repair_memory_with_authoring_worker(
         "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
     )
     assert task_rows[0]["semantic_alignment_blockers"] == [blocker]
-    assert Path(
-        manifest["artifacts"][
-            "runtime_source_theorem_exact_semantic_definition_authoring_retry_candidate_materializer_manifest"
-        ]
-    ).exists()
-    assert Path(
-        manifest["artifacts"][
-            "runtime_source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_manifest"
-        ]
-    ).exists()
+    assert manifest["runtime_post_runtime_formal_execution_policy"] == (
+        "typed_agent_runtime_only"
+    )
+    assert manifest["runtime_post_runtime_formal_side_effects_allowed"] is False
 
 
 def test_runtime_static_authoring_worker_materializes_repair_candidate(
@@ -68031,65 +68007,40 @@ def test_runtime_static_authoring_worker_materializes_repair_candidate(
         manifest[
             "source_theorem_exact_semantic_definition_authoring_retry_worker_n_candidate_packets"
         ]
-        == 1
+        == 0
     )
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_authoring_retry_candidate_materializer_ran"
         ]
-        is True
+        is False
     )
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_authoring_retry_candidate_materializer_n_materialized_lean_repair_tasks"
         ]
-        == 1
+        == 0
     )
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_ran"
         ]
-        is True
+        is False
     )
-    assert len(lean_repair_calls) == 1
-    worker_manifest = json.loads(
-        Path(
-            manifest["artifacts"][
-                "runtime_source_theorem_exact_semantic_definition_authoring_retry_worker_manifest"
-            ]
-        ).read_text(encoding="utf-8")
-    )
-    assert worker_manifest["provider_name"] == "static"
-    assert worker_manifest["backend_provider_name"] == "static"
-    assert worker_manifest["dry_run"] is False
-    assert worker_manifest["n_llm_attempted"] == 1
-    assert worker_manifest["n_live_llm_attempted"] == 0
-    assert worker_manifest["n_static_or_fixture_llm_attempted"] == 1
-    assert worker_manifest["n_candidate_packets_ok"] == 1
+    assert lean_repair_calls == []
+    assert manifest[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_ran"
+    ] is False
+    assert manifest[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_skipped_reason"
+    ] == "post_runtime_typed_agent_task_required"
     assert (
         manifest[
             "source_theorem_exact_semantic_definition_authoring_retry_worker_n_live_llm_attempted"
         ]
         == 0
     )
-    candidate_rows = [
-        json.loads(line)
-        for line in Path(
-            worker_manifest["authoring_candidate_packets_jsonl"]
-        ).read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
-    assert candidate_rows[0]["provider"] == "static"
-    assert candidate_rows[0]["backend_provider"] == "static"
-    assert candidate_rows[0]["live_llm_generator"] is False
-    assert candidate_rows[0]["runtime_queue_status"] == (
-        "PENDING_EXACT_SEMANTIC_DEFINITION_CANDIDATE_MATERIALIZATION"
-    )
-    assert "q_hat" in candidate_rows[0]["lean_definition_candidate"]
-    assert (
-        candidate_rows[0]["proof_evidence_status"]
-        == "EXACT_SEMANTIC_DEFINITION_AUTHORING_CANDIDATE_NOT_PROOF_EVIDENCE"
-    )
+    assert manifest["runtime_post_runtime_formal_side_effects_allowed"] is False
 
 
 def test_runtime_authoring_retry_materialized_candidate_reenters_verifier_gate(
@@ -68696,147 +68647,27 @@ def test_runtime_authoring_retry_materialized_candidate_reenters_verifier_gate(
         ),
     )
 
-    assert len(lean_repair_calls) == 2
-    assert lean_repair_calls[0]["materializer_manifest"]
-    assert lean_repair_calls[1]["bridge_manifest"]
-    assert len(bridge_calls) == 1
-    assert len(recheck_calls) == 2
-    assert recheck_calls[0]["verifier_approved_recheck"] is False
-    assert recheck_calls[1]["verifier_approved_recheck"] is True
-    assert len(verifier_calls) == 1
-    assert verifier_calls[0]["local_lean"] is True
-    assert verifier_calls[0]["lean_project"] == str(source_root)
-    assert verifier_calls[0]["lean_timeout"] == 17
-    assert len(proof_body_executor_calls) == 1
-    assert proof_body_executor_calls[0]["local_lean"] is True
-    assert proof_body_executor_calls[0]["lean_project"] == str(source_root)
-    assert proof_body_executor_calls[0]["lean_timeout"] == 23
-    assert (
-        manifest[
-            "source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_n_typechecked_candidate_review_packets"
-        ]
-        == 1
+    assert lean_repair_calls == []
+    assert bridge_calls == []
+    assert recheck_calls == []
+    assert verifier_calls == []
+    assert proof_body_executor_calls == []
+    assert manifest[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_ran"
+    ] is False
+    assert manifest[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_auto_requested"
+    ] is True
+    assert manifest[
+        "source_theorem_exact_semantic_definition_authoring_retry_worker_skipped_reason"
+    ] == "post_runtime_typed_agent_task_required"
+    assert manifest[
+        "source_theorem_exact_semantic_definition_authoring_retry_materialized_lean_repair_executor_ran"
+    ] is False
+    assert manifest["runtime_post_runtime_formal_execution_policy"] == (
+        "typed_agent_runtime_only"
     )
-    assert (
-        manifest[
-            "source_theorem_exact_semantic_definition_authoring_retry_materialized_candidate_review_proofengineer_bridge_ran"
-        ]
-        is True
-    )
-    assert (
-        manifest[
-            "source_theorem_exact_semantic_definition_authoring_retry_materialized_candidate_review_lean_repair_executor_ran"
-        ]
-        is True
-    )
-    assert (
-        manifest[
-            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_recheck_queue_ran"
-        ]
-        is True
-    )
-    assert (
-        manifest[
-            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_recheck_queue_n_verifier_gate_work_orders"
-        ]
-        == 1
-    )
-    assert (
-        manifest[
-            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_gate_executor_ran"
-        ]
-        is True
-    )
-    assert (
-        manifest[
-            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_gate_executor_n_verifier_approved"
-        ]
-        == 1
-    )
-    assert (
-        manifest[
-            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_gate_executor_n_verifier_blocked"
-        ]
-        == 0
-    )
-    assert (
-        manifest[
-            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_recheck_queue_ran"
-        ]
-        is True
-    )
-    assert (
-        manifest[
-            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_recheck_queue_n_execution_rows"
-        ]
-        == 1
-    )
-    assert (
-        manifest[
-            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_recheck_queue_n_runtime_learning_rows"
-        ]
-        == 1
-    )
-    assert (
-        manifest[
-            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_ran"
-        ]
-        is True
-    )
-    assert (
-        manifest[
-            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_result_rows"
-        ]
-        == 1
-    )
-    assert (
-        manifest[
-            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_source_theorem_kernel_verified"
-        ]
-        == 1
-    )
-    assert (
-        manifest[
-            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_n_runtime_learning_rows"
-        ]
-        == 1
-    )
-    assert (
-        manifest[
-            "source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_proof_evidence_status"
-        ]
-        == "EXACT_SOURCE_THEOREM_PROOF_BODY_SOURCE_KERNEL_VERIFIED"
-    )
-    assert Path(
-        manifest["artifacts"][
-            "runtime_source_theorem_exact_semantic_definition_proofengineer_bridge_from_authoring_retry_materialized_candidate_reviews_manifest"
-        ]
-    ).exists()
-    assert Path(
-        manifest["artifacts"][
-            "runtime_source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_recheck_queue_manifest"
-        ]
-    ).exists()
-    assert Path(
-        manifest["artifacts"][
-            "runtime_source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_gate_executor_manifest"
-        ]
-    ).exists()
-    assert Path(
-        manifest["artifacts"][
-            "runtime_source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_recheck_queue_manifest"
-        ]
-    ).exists()
-    assert Path(
-        manifest["artifacts"][
-            "runtime_source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_manifest"
-        ]
-    ).exists()
-    assert Path(
-        manifest["artifacts"][
-            "runtime_source_theorem_exact_semantic_definition_authoring_retry_materialized_typechecked_review_verifier_approved_proof_body_recheck_executor_results_jsonl"
-        ]
-    ).exists()
+    assert manifest["runtime_post_runtime_formal_side_effects_allowed"] is False
 
 
 def test_exact_semantic_authoring_live_attempt_requires_backend_provenance(

@@ -505,37 +505,40 @@ def architect_theory_execution_preflight_json_schema(
         "required": required_fields,
         "properties": {
             "prior_finding_reviews": {
-                "type": "array",
-                "minItems": len(active_prior_finding_ids),
-                "maxItems": len(active_prior_finding_ids),
-                "items": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "required": [
-                        "finding_id",
-                        "status",
-                        "rationale",
-                        "evidence_refs",
-                    ],
-                    "properties": {
-                        "finding_id": {
-                            "type": "string",
-                            "enum": active_prior_finding_ids,
+                "type": "object",
+                "additionalProperties": False,
+                "required": active_prior_finding_ids,
+                "description": (
+                    "Review every active prior finding exactly once. Runtime-owned "
+                    "finding_id values are the object keys; do not copy them into "
+                    "the review values."
+                ),
+                "properties": {
+                    finding_id: {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": [
+                            "status",
+                            "rationale",
+                            "evidence_refs",
+                        ],
+                        "properties": {
+                            "status": {
+                                "type": "string",
+                                "enum": [
+                                    METRIC_PROTOCOL_FINDING_UNRESOLVED,
+                                    METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
+                                ],
+                            },
+                            "rationale": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 280,
+                            },
+                            "evidence_refs": evidence_refs,
                         },
-                        "status": {
-                            "type": "string",
-                            "enum": [
-                                METRIC_PROTOCOL_FINDING_UNRESOLVED,
-                                METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
-                            ],
-                        },
-                        "rationale": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 280,
-                        },
-                        "evidence_refs": evidence_refs,
-                    },
+                    }
+                    for finding_id in active_prior_finding_ids
                 },
             },
             "dimension_reviews": {
@@ -895,11 +898,22 @@ def _normalize_packet(
             for row in raw_dimension_reviews or []
             if isinstance(row, Mapping)
         ]
-    body["prior_finding_reviews"] = [
-        dict(row)
-        for row in body.get("prior_finding_reviews", []) or []
-        if isinstance(row, Mapping)
-    ]
+    raw_prior_finding_reviews = body.get("prior_finding_reviews", {})
+    if isinstance(raw_prior_finding_reviews, Mapping):
+        body["prior_finding_reviews"] = [
+            {
+                "finding_id": finding_id,
+                **dict(raw_prior_finding_reviews.get(finding_id, {}) or {}),
+            }
+            for finding_id in material.get("active_prior_finding_ids", []) or []
+            if isinstance(raw_prior_finding_reviews.get(finding_id, {}), Mapping)
+        ]
+    else:
+        body["prior_finding_reviews"] = [
+            dict(row)
+            for row in raw_prior_finding_reviews or []
+            if isinstance(row, Mapping)
+        ]
     body["estimator_execution_checks"] = [
         dict(row)
         for row in body.get("estimator_execution_checks", []) or []
@@ -1389,15 +1403,25 @@ def review_architect_theory_execution_preflight(
             if isinstance(invalid_payload, Mapping)
             else []
         )
-        prior_finding_paths = [
-            {
-                "finding_id": str(row.get("finding_id", "") or ""),
-                "path": ["prior_finding_reviews", index],
-            }
-            for index, row in enumerate(raw_prior_finding_reviews or [])
-            if isinstance(row, Mapping)
-            and str(row.get("finding_id", "") or "").strip()
-        ]
+        if isinstance(raw_prior_finding_reviews, Mapping):
+            prior_finding_paths = [
+                {
+                    "finding_id": str(finding_id),
+                    "path": ["prior_finding_reviews", str(finding_id)],
+                }
+                for finding_id in material.get("active_prior_finding_ids", []) or []
+                if isinstance(raw_prior_finding_reviews.get(finding_id, {}), Mapping)
+            ]
+        else:
+            prior_finding_paths = [
+                {
+                    "finding_id": str(row.get("finding_id", "") or ""),
+                    "path": ["prior_finding_reviews", index],
+                }
+                for index, row in enumerate(raw_prior_finding_reviews or [])
+                if isinstance(row, Mapping)
+                and str(row.get("finding_id", "") or "").strip()
+            ]
         raw_findings = (
             invalid_payload.get("findings", [])
             if isinstance(invalid_payload, Mapping)

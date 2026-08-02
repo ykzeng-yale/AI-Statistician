@@ -11,9 +11,11 @@ from typing import Any, Mapping, Protocol, Sequence
 from .fingerprint import stable_hash
 from .estimator_interface_contract import (
     ESTIMATOR_REQUEST_BINDINGS,
+    ESTIMATOR_SAMPLE_SIZE_RATE_SCALES,
     estimator_interface_contract_errors,
     estimator_interface_contract_id,
     estimator_interface_contract_json_schema,
+    normalize_estimator_interface_contract,
     normalize_theory_estimator_interface_contracts,
     theory_semantic_reference_ids,
 )
@@ -1947,6 +1949,10 @@ THEORY_DEVELOPER_OUTPUT_CONTRACT: dict[str, Any] = {
             "name": "string",
             "formula": "string",
             "algorithm_sketch": "string",
+            "inputs": ["string"],
+            "outputs": ["string"],
+            "normalization": "string",
+            "sample_size_order": "string",
             "tuning": ["string"],
             "required_assumptions": ["string"],
             "estimator_interface_contract": {
@@ -3054,8 +3060,11 @@ one typed request/response contract. Do not revise the estimand, formula,
 algorithm, assumptions, theorem, or derivation. Every response normalization and
 sample-size rate must cite an exact semantic id supplied in the prompt. This
 artifact is an executable handoff specification, not proof evidence. Preserve
-every declared input and output, including status, unavailable, censoring,
-stability, or resource-bound outcomes required by an active revision obligation.
+the frozen outputs exactly: do not invent status, unavailable, diagnostic, or
+resource fields that the core theory did not declare. Runtime owns operational
+execution status. Runtime also derives aggregate rate exponents by summing the
+signed contribution exponents; author the semantic contributions, not a duplicate
+aggregate.
 """
 
 
@@ -3286,16 +3295,31 @@ def _theory_estimator_interface_authoring_json_schema(
     core_packet: Mapping[str, Any],
 ) -> dict[str, Any]:
     estimator_ids = _theory_estimator_ids(core_packet)
-    contract_schema = _bounded_theory_schema_value(
-        estimator_interface_contract_json_schema(require_typed_rate=True),
+    base_contract_schema = _bounded_theory_schema_value(
+        estimator_interface_contract_json_schema(
+            require_typed_rate=True,
+            include_derived_rate_aggregates=False,
+        ),
         max_string_chars=600,
         default_max_items=12,
     )
+    contract_schemas: dict[str, dict[str, Any]] = {}
+    specs_by_id = {
+        str(row.get("id", "") or "").strip(): row
+        for row in core_packet.get("estimator_specs", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("id", "") or "").strip()
+    }
+    for estimator_id in estimator_ids:
+        contract_schema = deepcopy(base_contract_schema)
+        outputs = specs_by_id.get(estimator_id, {}).get("outputs", [])
+        if isinstance(outputs, list) and outputs:
+            response_schema = contract_schema["properties"]["response_fields"]
+            response_schema["minItems"] = len(outputs)
+            response_schema["maxItems"] = len(outputs)
+        contract_schemas[estimator_id] = contract_schema
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$defs": {
-            "estimator_interface_contract": contract_schema,
-        },
         "type": "object",
         "additionalProperties": False,
         "required": ["interfaces"],
@@ -3305,9 +3329,7 @@ def _theory_estimator_interface_authoring_json_schema(
                 "additionalProperties": False,
                 "required": estimator_ids,
                 "properties": {
-                    estimator_id: {
-                        "$ref": "#/$defs/estimator_interface_contract"
-                    }
+                    estimator_id: contract_schemas[estimator_id]
                     for estimator_id in estimator_ids
                 },
             }
@@ -3379,6 +3401,16 @@ def _theory_estimator_interface_authoring_prompt(
         "required_output_schema": (
             _theory_estimator_interface_authoring_json_schema(core_packet)
         ),
+        "frozen_output_contract": {
+            str(row.get("id", "") or "").strip(): deepcopy(
+                row.get("outputs", [])
+            )
+            for row in core_packet.get("estimator_specs", []) or []
+            if isinstance(row, Mapping)
+            and str(row.get("id", "") or "").strip()
+            and isinstance(row.get("outputs", []), list)
+            and row.get("outputs", [])
+        },
         "proof_boundary": KERNEL_PROOF_BOUNDARY,
     }
     return (
@@ -3387,12 +3419,16 @@ def _theory_estimator_interface_authoring_prompt(
         "keys; each property value is that estimator's interface contract, without "
         "repeating estimator_id inside the value. Infer no "
         "new mathematics: request fields expose the frozen algorithm inputs and "
-        "lifecycle; response fields expose every frozen output and every typed "
-        "status or unavailable branch required by active_revision_obligations, plus "
-        "normalization and complete "
-        "sample-size order. Use the typed primary-index polynomial/log projection, "
-        "list signed contributions whose exponents sum exactly to that projection, "
-        "and cite only ids in semantic_reference_catalog for derivation_ref and "
+        "lifecycle; response fields correspond one-for-one, in order, to the exact "
+        "frozen outputs. Do not add operational status or unavailable fields unless "
+        "one is itself a frozen output. Include normalization and complete sample-size "
+        "order. For a genuinely rate-bearing output, use the typed primary-index "
+        "polynomial/log projection and list signed contributions; omit aggregate "
+        "polynomial_exponent and log_exponent because runtime derives their sums. For "
+        "an output with no sample-size indexing, emit exactly "
+        "sample_size_rate={\"scale\":\"not_indexed\"} and do not fabricate "
+        "exponents or contributions. "
+        "Cite only ids in semantic_reference_catalog for derivation_ref and "
         "justification_ref. Keep additional dimensions and non-polynomial factors in "
         "sample_size_order and use scale=other when needed. Do not edit or restate the "
         "core theory, keep prose fields concise, and do not claim proof evidence.\n\n"
@@ -3471,7 +3507,11 @@ def _canonical_theory_estimator_interface_rows(
     return [
         {
             "estimator_id": str(estimator_id),
-            "estimator_interface_contract": deepcopy(raw.get(estimator_id)),
+            "estimator_interface_contract": (
+                normalize_estimator_interface_contract(raw.get(estimator_id))
+                if isinstance(raw.get(estimator_id), Mapping)
+                else deepcopy(raw.get(estimator_id))
+            ),
         }
         for estimator_id in estimator_ids
         if estimator_id in raw
@@ -3502,6 +3542,12 @@ def _validate_theory_estimator_interface_authoring_packet(
         return ["interfaces must be a list"]
     observed_ids: list[str] = []
     allowed_refs = theory_semantic_reference_ids(core_packet)
+    specs_by_id = {
+        str(row.get("id", "") or "").strip(): row
+        for row in core_packet.get("estimator_specs", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("id", "") or "").strip()
+    }
     for index, row in enumerate(rows):
         if not isinstance(row, Mapping):
             errors.append(f"interfaces[{index}] must be an object")
@@ -3526,6 +3572,24 @@ def _validate_theory_estimator_interface_authoring_packet(
                 require_typed_rate=True,
             )
         )
+        expected_outputs = specs_by_id.get(estimator_id, {}).get("outputs", [])
+        contract = row.get("estimator_interface_contract", {})
+        response_fields = (
+            contract.get("response_fields", [])
+            if isinstance(contract, Mapping)
+            else []
+        )
+        if (
+            isinstance(expected_outputs, list)
+            and expected_outputs
+            and isinstance(response_fields, list)
+            and len(response_fields) != len(expected_outputs)
+        ):
+            errors.append(
+                f"{interface_label} response_fields must correspond one-for-one "
+                f"to the {len(expected_outputs)} frozen outputs; received "
+                f"{len(response_fields)}"
+            )
     if len(observed_ids) != len(set(observed_ids)):
         errors.append("interface estimator ids must be unique")
     if set(observed_ids) != set(expected_ids) or len(observed_ids) != len(
@@ -3553,13 +3617,33 @@ def _theory_estimator_interface_repair_context(
     validation_label: str,
     truncation_detected: bool,
 ) -> dict[str, Any]:
-    del (
-        original_user_prompt,
-        bad_response,
-        invalid_payload,
-        invalid_packet,
-        validation_label,
+    del original_user_prompt, bad_response, invalid_packet, validation_label
+    rate_paths: list[list[str | int]] = []
+    raw_interfaces = (
+        invalid_payload.get("interfaces", {})
+        if isinstance(invalid_payload, Mapping)
+        else {}
     )
+    if isinstance(raw_interfaces, Mapping):
+        for estimator_id, raw_contract in raw_interfaces.items():
+            response_fields = (
+                raw_contract.get("response_fields", [])
+                if isinstance(raw_contract, Mapping)
+                else []
+            )
+            for index, response_field in enumerate(response_fields or []):
+                if isinstance(response_field, Mapping) and isinstance(
+                    response_field.get("sample_size_rate"), Mapping
+                ):
+                    rate_paths.append(
+                        [
+                            "interfaces",
+                            str(estimator_id),
+                            "response_fields",
+                            index,
+                            "sample_size_rate",
+                        ]
+                    )
     return {
         "subsystem": "TheoryDeveloper.estimator_interface_authoring",
         "truncation_detected": bool(truncation_detected),
@@ -3571,13 +3655,17 @@ def _theory_estimator_interface_repair_context(
             estimator_id: ["interfaces", estimator_id]
             for estimator_id in _theory_estimator_ids(core_packet)
         },
+        "sample_size_rate_paths": rate_paths,
+        "allowed_rate_scales": list(ESTIMATOR_SAMPLE_SIZE_RATE_SCALES),
         "required_behavior": (
             "Repair only the exact-key interfaces object. Preserve every frozen "
             "estimator property and use interface_object_paths for typed patches. "
             "Validation errors use those raw exact-key object paths. When a typed "
-            "rate is inconsistent, recompute the aggregate and contribution "
-            "exponents from the frozen core semantics and update every inconsistent "
-            "field together; do not guess from an array index. "
+            "rate is inconsistent, repair the smallest leaf or contribution at an "
+            "exact sample_size_rate_paths location; runtime recomputes aggregate "
+            "exponents from the signed contributions. Use scale=not_indexed alone "
+            "only when the frozen output genuinely has no sample-size indexing. "
+            "Do not guess from an array index or invent additional response fields. "
             "Copy derivation_ref and justification_ref only from "
             "allowed_semantic_reference_ids."
         ),

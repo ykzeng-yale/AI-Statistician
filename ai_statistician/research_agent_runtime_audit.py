@@ -30895,7 +30895,7 @@ def _capability_gap_routing_command_args(payload: Mapping[str, Any]) -> str:
     )
 
 
-def _full_live_explicit_capability_args() -> str:
+def _full_live_explicit_capability_args(payload: Mapping[str, Any]) -> str:
     args = [
         "--local-lean",
         "--formalizer-candidate-lean-lsp-mcp",
@@ -30927,15 +30927,38 @@ def _full_live_explicit_capability_args() -> str:
         "--source-theorem-exact-semantic-definition-authoring-worker-external-export-mode",
         "full",
     ]
-    lean_project = Path("legacy_sources/emperical_process_lean")
-    if lean_project.exists():
-        args.extend(["--lean-project", str(lean_project)])
-    source_root = Path("legacy_sources/ai_statistician")
-    if source_root.exists():
+    config = payload.get("config", {})
+    config = config if isinstance(config, Mapping) else {}
+    lean_project = str(
+        config.get("formalizer_candidate_lean_project", "") or ""
+    ).strip()
+    if not lean_project:
+        legacy_project = Path("legacy_sources/emperical_process_lean")
+        lean_project = str(legacy_project) if legacy_project.exists() else ""
+    if lean_project:
+        args.extend(["--lean-project", lean_project])
+
+    configured_source_roots = config.get(
+        "source_theorem_exact_semantic_definition_source_roots", []
+    )
+    source_roots = [
+        str(value).strip()
+        for value in (
+            configured_source_roots
+            if isinstance(configured_source_roots, list | tuple)
+            else []
+        )
+        if str(value).strip()
+    ]
+    if not source_roots:
+        legacy_source_root = Path("legacy_sources/ai_statistician")
+        if legacy_source_root.exists():
+            source_roots = [str(legacy_source_root)]
+    for source_root in source_roots:
         args.extend(
             [
                 "--source-theorem-exact-semantic-definition-source-root",
-                str(source_root),
+                source_root,
             ]
         )
     return " " + " ".join(shlex.quote(arg) for arg in args)
@@ -31101,7 +31124,7 @@ def _capability_resume_command(
         "--capability-eval "
         "--capability-eval-preset full-live "
         "--resume-through-architect "
-        f"{_full_live_explicit_capability_args()} "
+        f"{_full_live_explicit_capability_args(payload)} "
         f"--max-iterations {max_iterations} "
         f"{_capability_gap_routing_command_args(payload)} "
         f"--out {shlex.quote(out_arg)}"
@@ -31135,7 +31158,7 @@ def _capability_full_live_rerun_command(
         "--provider anthropic "
         "--capability-eval "
         "--capability-eval-preset full-live "
-        f"{_full_live_explicit_capability_args()} "
+        f"{_full_live_explicit_capability_args(payload)} "
         f"--max-iterations {effective_max_iterations} "
         "--formalization-gap-planner-live-max-handoffs 1 "
         "--formalization-gap-planner-live-max-route-requests-per-handoff 1 "
