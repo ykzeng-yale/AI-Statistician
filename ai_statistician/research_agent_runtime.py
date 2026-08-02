@@ -43252,8 +43252,12 @@ def run_research_agent_runtime(
         live_route_planner_summary=gap_planner_live_route_planner_summary,
     )
     manifest.update(proof_postprocessing_suppression)
-    if proof_postprocessing_suppression["runtime_proof_postprocessing_suppressed"]:
-        config = _runtime_config_with_proof_postprocessing_suppressed(config)
+    post_runtime_formal_execution_policy = (
+        _runtime_typed_only_post_runtime_formal_execution_policy()
+    )
+    manifest.update(post_runtime_formal_execution_policy)
+    post_runtime_requested_config = config
+    config = _runtime_config_with_proof_postprocessing_suppressed(config)
     gap_planner_live_route_planner_contract_next_action_rows = (
         _append_runtime_formalization_gap_planner_live_route_planner_contract_repair_agenda_rows(
             agenda_rows,
@@ -43450,17 +43454,11 @@ def run_research_agent_runtime(
         if theorem_closure_bridge_manifest is not None
         else "agent_runtime_work_order_pending"
         if theorem_closure_agent_runtime_work_orders
+        else "post_runtime_projection_only"
+        if theorem_reduction_closure_work_order_rows
         else "not_run"
     )
     theorem_closure_legacy_post_runtime_fallback_used = False
-    if (
-        config.theorem_closure_proofengineer_bridge
-        and theorem_reduction_closure_work_order_rows
-        and not theorem_closure_agent_runtime_work_orders
-    ):
-        theorem_closure_bridge_execution_mode = (
-            "legacy_post_runtime_execution_disabled"
-        )
     (
         exact_source_proof_body_agent_runtime_work_orders,
         exact_source_proof_body_agent_runtime_executions,
@@ -43472,6 +43470,8 @@ def run_research_agent_runtime(
         if exact_source_proof_body_agent_runtime_executions
         else "agent_runtime_work_order_pending"
         if exact_source_proof_body_agent_runtime_work_orders
+        else "post_runtime_projection_only"
+        if source_theorem_formal_environment_work_order_rows
         else "not_run"
     )
     exact_source_proof_body_legacy_post_runtime_fallback_used = False
@@ -43502,9 +43502,7 @@ def run_research_agent_runtime(
         else "not_run"
     )
     exact_semantic_definition_legacy_post_runtime_fallback_used = False
-    legacy_post_runtime_formal_fallback_allowed = not bool(
-        config.formal_target_semantic_review_required
-    )
+    legacy_post_runtime_formal_fallback_allowed = False
     (
         source_semantic_agent_runtime_work_orders,
         source_semantic_agent_runtime_executions,
@@ -43519,12 +43517,13 @@ def run_research_agent_runtime(
         if source_semantic_agent_runtime_executions
         else "agent_runtime_work_order_pending"
         if source_semantic_agent_runtime_work_orders
+        else "post_runtime_projection_only"
+        if source_theorem_semantic_primitive_work_order_rows
         else "not_run"
     )
     source_semantic_legacy_post_runtime_fallback_used = False
     if (
-        config.source_semantic_proofengineer_bridge
-        and source_theorem_semantic_primitive_work_order_rows
+        source_theorem_semantic_primitive_work_order_rows
         and not source_semantic_agent_runtime_work_orders
     ):
         if legacy_post_runtime_formal_fallback_allowed:
@@ -43546,7 +43545,7 @@ def run_research_agent_runtime(
             source_semantic_execution_mode = "legacy_post_runtime_derived_execution"
             source_semantic_legacy_post_runtime_fallback_used = True
         else:
-            source_semantic_execution_mode = "legacy_post_runtime_execution_disabled"
+            source_semantic_execution_mode = "post_runtime_projection_only"
     (
         source_theorem_promotion_agent_runtime_work_orders,
         source_theorem_promotion_agent_runtime_executions,
@@ -43556,6 +43555,8 @@ def run_research_agent_runtime(
         if source_theorem_promotion_agent_runtime_executions
         else "agent_runtime_work_order_pending"
         if source_theorem_promotion_agent_runtime_work_orders
+        else "post_runtime_projection_only"
+        if source_theorem_promotion_materialization_seed_rows
         else "not_run"
     )
     source_theorem_promotion_legacy_post_runtime_fallback_used = False
@@ -43590,7 +43591,7 @@ def run_research_agent_runtime(
             source_theorem_promotion_legacy_post_runtime_fallback_used = True
         else:
             source_theorem_promotion_execution_mode = (
-                "legacy_post_runtime_execution_disabled"
+                "post_runtime_projection_only"
             )
     source_theorem_promotion_bridge_learning_rows = (
         _runtime_source_theorem_promotion_bridge_learning_rows(
@@ -46572,7 +46573,7 @@ def run_research_agent_runtime(
         and not legacy_post_runtime_formal_fallback_allowed
     ):
         exact_semantic_definition_execution_mode = (
-            "legacy_post_runtime_execution_disabled"
+            "post_runtime_projection_only"
         )
     if (
         source_theorem_exact_semantic_definition_source_lookup_enabled
@@ -49082,6 +49083,7 @@ def run_research_agent_runtime(
                                     source_theorem_exact_proof_body_repair_from_adapter_premise_feedback_executor_learning_rows
                                 )
                                 _write_jsonl(learning_path, learning_rows)
+    config = post_runtime_requested_config
     if not source_theorem_promotion_adapter_feedback_work_orders_path.exists():
         _write_jsonl(source_theorem_promotion_adapter_feedback_work_orders_path, [])
     if not source_theorem_promotion_premise_derivation_feedback_work_orders_path.exists():
@@ -100452,22 +100454,53 @@ RUNTIME_PROOF_POSTPROCESSING_SUPPRESSED_LIVE_ROUTE_BLOCKED_WITHOUT_FEEDBACK = (
 )
 
 RUNTIME_PROOF_POSTPROCESSING_SUPPRESSED_CONFIG_FIELDS: tuple[str, ...] = (
+    "theorem_closure_proofengineer_bridge",
+    "theorem_closure_proofengineer_local_lean",
     "source_semantic_proofengineer_bridge",
+    "source_semantic_proofengineer_local_lean",
     "source_theorem_proof_body_adapter_proofengineer_bridge",
+    "source_theorem_proof_body_adapter_proofengineer_local_lean",
     "source_to_bridge_premise_derivation_proofengineer_bridge",
+    "source_to_bridge_premise_derivation_proofengineer_local_lean",
     "source_theorem_formal_environment_proofengineer_bridge",
     "source_theorem_formal_environment_proofengineer_signature_probes",
+    "source_theorem_formal_environment_proofengineer_execute_proof_body",
+    "source_theorem_formal_environment_proofengineer_proof_body_local_lean",
+    "source_theorem_formal_environment_proofengineer_proof_body_overwrite_artifacts",
     "source_theorem_promotion_proofengineer_bridge",
+    "source_theorem_promotion_proofengineer_local_lean",
+    "source_theorem_promotion_proofengineer_overwrite_artifacts",
     "source_theorem_exact_semantic_definition_source_lookup",
     "source_theorem_exact_semantic_definition_proofengineer_bridge",
     "source_theorem_exact_semantic_definition_lean_repair_executor",
     "source_theorem_exact_semantic_definition_lean_repair_executor_local_lean",
     "source_theorem_exact_semantic_definition_lean_environment_repair_executor",
     "source_theorem_exact_semantic_definition_authoring_worker",
+    "source_theorem_exact_semantic_definition_authoring_worker_allow_external_export",
     "source_theorem_exact_semantic_definition_closure_review",
     "source_theorem_exact_semantic_definition_candidate_synthesis",
+    "source_theorem_exact_semantic_definition_candidate_synthesis_allow_draft_semantic_repair",
     "source_theorem_exact_semantic_definition_candidate_synthesis_local_lean",
 )
+
+
+def _runtime_typed_only_post_runtime_formal_execution_policy() -> dict[str, Any]:
+    return {
+        "runtime_post_runtime_formal_execution_policy": (
+            "typed_agent_runtime_only"
+        ),
+        "runtime_post_runtime_formal_side_effects_allowed": False,
+        "runtime_post_runtime_formal_disabled_config_fields": list(
+            RUNTIME_PROOF_POSTPROCESSING_SUPPRESSED_CONFIG_FIELDS
+        ),
+        "runtime_post_runtime_formal_execution_boundary": (
+            "After AgentRuntime terminates, aggregation may project immutable "
+            "work orders, traces, agenda rows, and learning rows only. Formal-source "
+            "retrieval, LLM authoring, bridge execution, proof search, local Lean, "
+            "and kernel checks must run as typed AgentTasks while the Architect-visible "
+            "runtime is active; post-runtime code cannot execute or promote them."
+        ),
+    }
 
 
 def _runtime_has_live_route_planner_blocked_trace(
