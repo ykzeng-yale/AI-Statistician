@@ -2,17 +2,25 @@ from __future__ import annotations
 
 import json
 import math
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
+from .metric_protocol_finding_ledger import (
+    METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_ARTIFACT,
+    METRIC_PROTOCOL_FINDING_UNRESOLVED,
+    active_metric_protocol_finding_ledger,
+    metric_protocol_finding_ledger_fingerprint,
+    update_metric_protocol_finding_ledger,
+)
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
 
 
-GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 8
+GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 9
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -104,6 +112,286 @@ GENERATED_CODE_SEMANTIC_REVIEW_THEORY_ASSESSMENTS = (
     "SUFFICIENT_FOR_IMPLEMENTATION_REPAIR",
     "THEORY_REVISION_REQUIRED",
 )
+GENERATED_CODE_SEMANTIC_REVIEW_PRIOR_FINDING_STATUSES = (
+    METRIC_PROTOCOL_FINDING_UNRESOLVED,
+    METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_ARTIFACT,
+)
+GENERATED_CODE_SEMANTIC_REVIEW_FINDING_ID_PREFIX = (
+    "generated_code_semantic_finding:"
+)
+
+
+def generated_code_semantic_review_finding_id(
+    *,
+    question_id: str,
+    source_subsystem: str,
+    finding: Mapping[str, Any],
+    preserve_existing: bool = True,
+) -> str:
+    """Give a semantic finding a stable runtime-owned lineage identity."""
+
+    existing = str(finding.get("finding_id", "") or "").strip()
+    if (
+        preserve_existing
+        and existing.startswith(
+            GENERATED_CODE_SEMANTIC_REVIEW_FINDING_ID_PREFIX
+        )
+    ):
+        return existing
+    identity = {
+        "question_id": str(question_id),
+        "source_subsystem": str(source_subsystem),
+        "category": str(finding.get("category", "") or "").strip(),
+        "summary": str(finding.get("summary", "") or "").strip(),
+        "required_change": str(
+            finding.get("required_change", "") or ""
+        ).strip(),
+        "repair_scope": str(
+            finding.get("repair_scope", "") or ""
+        ).strip(),
+        "evidence_refs": [
+            str(value).strip()
+            for value in finding.get("evidence_refs", []) or []
+            if str(value).strip()
+        ],
+    }
+    return (
+        GENERATED_CODE_SEMANTIC_REVIEW_FINDING_ID_PREFIX
+        + stable_hash(identity)[:20]
+    )
+
+
+def normalize_generated_code_semantic_review_findings(
+    *,
+    question_id: str,
+    source_subsystem: str,
+    findings: Any,
+    preserve_existing_ids: bool = True,
+) -> list[dict[str, Any]]:
+    rows = (
+        [dict(row) for row in findings if isinstance(row, Mapping)]
+        if isinstance(findings, list)
+        else []
+    )
+    for row in rows:
+        prior_finding_id = str(
+            row.get("prior_finding_id", "") or ""
+        ).strip()
+        row["finding_id"] = (
+            prior_finding_id
+            or generated_code_semantic_review_finding_id(
+                question_id=question_id,
+                source_subsystem=source_subsystem,
+                finding=row,
+                preserve_existing=preserve_existing_ids,
+            )
+        )
+    return rows
+
+
+def _generated_code_semantic_review_active_prior_findings(
+    review_material: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    obligations = review_material.get(
+        "inherited_repair_obligations",
+        {},
+    )
+    if not isinstance(obligations, Mapping):
+        return []
+    rows = obligations.get("active_prior_finding_ledger", [])
+    active: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    for row in rows or []:
+        if not isinstance(row, Mapping):
+            continue
+        finding_id = str(row.get("finding_id", "") or "").strip()
+        if (
+            not finding_id
+            or finding_id in seen_ids
+            or str(row.get("status", "") or "").strip().upper()
+            != "UNRESOLVED"
+        ):
+            continue
+        seen_ids.add(finding_id)
+        active.append(deepcopy(dict(row)))
+    return active
+
+
+def generated_code_semantic_review_authority_contract(
+    review_material: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Project only explicit obligation identities that may block an artifact."""
+
+    rows: list[dict[str, Any]] = []
+    seen_refs: set[str] = set()
+
+    def add(
+        authority_ref: str,
+        *,
+        authority_kind: str,
+        locator: str,
+        allowed_repair_scopes: Sequence[str],
+    ) -> None:
+        ref = str(authority_ref or "").strip()
+        if not ref or ref in seen_refs:
+            return
+        seen_refs.add(ref)
+        allowed_scopes = set(allowed_repair_scopes)
+        rows.append(
+            {
+                "authority_ref": ref,
+                "authority_kind": authority_kind,
+                "locator": locator,
+                "allowed_repair_scopes": [
+                    scope
+                    for scope in GENERATED_CODE_SEMANTIC_REVIEW_ACTIONABLE_REPAIR_SCOPES
+                    if scope in allowed_scopes
+                ],
+            }
+        )
+
+    for row in _generated_code_semantic_review_active_prior_findings(
+        review_material
+    ):
+        finding_id = str(row.get("finding_id", "") or "").strip()
+        add(
+            f"prior_finding:{finding_id}",
+            authority_kind="active_prior_finding",
+            locator=(
+                "/inherited_repair_obligations/"
+                "active_prior_finding_ledger"
+            ),
+            allowed_repair_scopes=("source_code",),
+        )
+
+    responsibility = review_material.get("source_responsibility_contract", {})
+    if not isinstance(responsibility, Mapping):
+        responsibility = {}
+    assigned_rows = responsibility.get(
+        "assigned_empirical_metric_requirements",
+        [],
+    )
+    for index, row in enumerate(assigned_rows or []):
+        if not isinstance(row, Mapping):
+            continue
+        requirement_id = str(row.get("requirement_id", "") or "").strip()
+        add(
+            f"requirement:{requirement_id}" if requirement_id else "",
+            authority_kind="assigned_frozen_requirement",
+            locator=(
+                "/source_responsibility_contract/"
+                f"assigned_empirical_metric_requirements/{index}"
+            ),
+            allowed_repair_scopes=(
+                "source_code",
+                "upstream_metric_contract",
+            ),
+        )
+
+    proposal = review_material.get("coding_agent_proposal_packet", {})
+    if not isinstance(proposal, Mapping):
+        proposal = {}
+    target_collections = (
+        ("implementation_targets", "implementation_target"),
+        ("simulation_targets", "simulation_target"),
+    )
+    identity_fields = (
+        "estimator_id",
+        "simulation_id",
+        "target_id",
+        "id",
+    )
+    for collection_name, authority_kind in target_collections:
+        for index, row in enumerate(proposal.get(collection_name, []) or []):
+            if not isinstance(row, Mapping):
+                continue
+            target_id = next(
+                (
+                    str(row.get(field, "") or "").strip()
+                    for field in identity_fields
+                    if str(row.get(field, "") or "").strip()
+                ),
+                "",
+            )
+            add(
+                f"{authority_kind}:{target_id}" if target_id else "",
+                authority_kind=authority_kind,
+                locator=f"/coding_agent_proposal_packet/{collection_name}/{index}",
+                allowed_repair_scopes=("source_code",),
+            )
+            interface_id = str(
+                row.get("estimator_interface_contract_id", "") or ""
+            ).strip()
+            add(
+                (
+                    f"estimator_interface_contract:{interface_id}"
+                    if interface_id
+                    else ""
+                ),
+                authority_kind="estimator_interface_contract",
+                locator=str(
+                    (
+                        row.get("estimator_interface_contract_authority", {})
+                        if isinstance(
+                            row.get("estimator_interface_contract_authority", {}),
+                            Mapping,
+                        )
+                        else {}
+                    ).get("source_estimator_ref", "")
+                    or f"/coding_agent_proposal_packet/{collection_name}/{index}/"
+                    "estimator_interface_contract"
+                ).removeprefix("theory#"),
+                allowed_repair_scopes=("source_code", "upstream_theory"),
+            )
+
+    alignment = proposal.get("theory_trace_alignment_contract", {})
+    if isinstance(alignment, Mapping):
+        for field in (
+            "supported_derivation_steps",
+            "supported_equation_steps",
+            "supported_formalization_targets",
+        ):
+            values = [
+                str(value).strip()
+                for value in alignment.get(field, []) or []
+                if str(value).strip()
+            ]
+            if not values:
+                continue
+            add(
+                "theory_alignment:"
+                + stable_hash({field: values})[:20],
+                authority_kind="proposal_consumed_theory_alignment",
+                locator=(
+                    "/coding_agent_proposal_packet/"
+                    f"theory_trace_alignment_contract/{field}"
+                ),
+                allowed_repair_scopes=(
+                    "source_code",
+                    "upstream_theory",
+                ),
+            )
+
+    contract = {
+        "artifact_kind": "GeneratedCodeSemanticReviewAuthorityContract",
+        "authority_rows": rows,
+        "allowed_blocking_authority_refs": [
+            row["authority_ref"] for row in rows
+        ],
+        "active_prior_finding_ids": [
+            str(row.get("finding_id", "") or "")
+            for row in _generated_code_semantic_review_active_prior_findings(
+                review_material
+            )
+        ],
+        "sibling_requirements_cannot_block_current_artifact": True,
+        "broad_question_text_cannot_create_a_repair_obligation": True,
+        "proof_evidence_status": (
+            "GENERATED_CODE_REVIEW_AUTHORITY_CONTRACT_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    contract["authority_contract_fingerprint"] = stable_hash(contract)
+    return contract
 
 
 def generated_code_semantic_review_repair_scope(
@@ -631,6 +919,24 @@ def generated_code_semantic_review_prompt_projection(
         if isinstance(row, Mapping)
         and str(row.get("requirement_id", "") or "")
     }
+    theory_packet = review_material.get("theory_packet", {})
+    theory_packet = (
+        theory_packet if isinstance(theory_packet, Mapping) else {}
+    )
+    theory_specs = [
+        dict(row)
+        for row in theory_packet.get("estimator_specs", []) or []
+        if isinstance(row, Mapping)
+    ]
+    proposal_packet = review_material.get("coding_agent_proposal_packet", {})
+    proposal_packet = (
+        proposal_packet if isinstance(proposal_packet, Mapping) else {}
+    )
+    proposal_targets = [
+        dict(row)
+        for row in proposal_packet.get("implementation_targets", []) or []
+        if isinstance(row, Mapping)
+    ]
 
     def project_artifact(
         raw_artifact: Mapping[str, Any],
@@ -665,11 +971,54 @@ def generated_code_semantic_review_prompt_projection(
                         "metric_contracts",
                     }
                 )
-            artifact["source_row"] = {
+            projected_source_row = {
                 key: value
                 for key, value in source_row.items()
                 if key not in omitted_source_row_fields
             }
+            source_spec = source_row.get("spec", {})
+            if isinstance(source_spec, Mapping):
+                for index, theory_spec in enumerate(theory_specs):
+                    if stable_hash(source_spec) != stable_hash(theory_spec):
+                        continue
+                    projected_source_row.pop("spec", None)
+                    projected_source_row["spec_prompt_ref"] = {
+                        "locator": f"/theory_packet/estimator_specs/{index}",
+                        "fingerprint": stable_hash(theory_spec),
+                    }
+                    break
+            source_target = source_row.get(
+                "llm_algorithm_engineer_target",
+                {},
+            )
+            if isinstance(source_target, Mapping):
+                for index, proposal_target in enumerate(proposal_targets):
+                    if not proposal_target or not all(
+                        key in source_target and source_target[key] == value
+                        for key, value in proposal_target.items()
+                    ):
+                        continue
+                    projected_source_row.pop(
+                        "llm_algorithm_engineer_target",
+                        None,
+                    )
+                    projected_source_row[
+                        "llm_algorithm_engineer_target_prompt_ref"
+                    ] = {
+                        "locator": (
+                            "/coding_agent_proposal_packet/"
+                            f"implementation_targets/{index}"
+                        ),
+                        "canonical_fingerprint": stable_hash(proposal_target),
+                        "source_row_fingerprint": stable_hash(source_target),
+                        "excluded_non_authoritative_fields": sorted(
+                            str(key)
+                            for key in source_target
+                            if key not in proposal_target
+                        ),
+                    }
+                    break
+            artifact["source_row"] = projected_source_row
             if metric_contracts_are_canonical:
                 artifact["source_row"]["metric_contract_prompt_refs"] = [
                     {
@@ -797,6 +1146,48 @@ def generated_code_semantic_review_prompt_projection(
                     ),
                 }
             )
+        proposal_contract_prompt_refs: list[dict[str, Any]] = []
+        proposal_contracts = {
+            "theory_trace_alignment_contract": proposal_packet.get(
+                "theory_trace_alignment_contract",
+                {},
+            ),
+            "theory_trace_consumption_contract": proposal_packet.get(
+                "theory_trace_consumption_contract",
+                {},
+            ),
+        }
+        for suffix, canonical_proposal_contract in proposal_contracts.items():
+            if not isinstance(canonical_proposal_contract, Mapping) or not (
+                canonical_proposal_contract
+            ):
+                continue
+            for field, value in list(projected_source_summary.items()):
+                if not str(field).endswith(suffix) or not isinstance(
+                    value,
+                    Mapping,
+                ):
+                    continue
+                if stable_hash(value) != stable_hash(
+                    canonical_proposal_contract
+                ):
+                    continue
+                projected_source_summary.pop(field, None)
+                proposal_contract_prompt_refs.append(
+                    {
+                        "source_manifest_field": str(field),
+                        "locator": (
+                            "/coding_agent_proposal_packet/" + suffix
+                        ),
+                        "fingerprint": stable_hash(
+                            canonical_proposal_contract
+                        ),
+                    }
+                )
+        if proposal_contract_prompt_refs:
+            projected_source_summary["proposal_contract_prompt_refs"] = (
+                proposal_contract_prompt_refs
+            )
         projected["source_manifest_summary"] = projected_source_summary
 
     responsibility = review_material.get("source_responsibility_contract", {})
@@ -877,10 +1268,10 @@ def _json_pointer_value(root: Any, locator: str) -> tuple[bool, Any]:
     return True, current
 
 
-def _generated_code_semantic_review_cited_values(
+def _generated_code_semantic_review_row_cited_values(
     *,
     review_material: Mapping[str, Any],
-    review_packet: Mapping[str, Any],
+    row: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
     role_roots = {
         "source_theory_packet": review_material.get("theory_packet", {}),
@@ -911,81 +1302,89 @@ def _generated_code_semantic_review_cited_values(
             "/review_material",
         ),
     }
-    rows: list[dict[str, Any]] = []
-    for finding_index, finding in enumerate(
-        review_packet.get("findings", []) or []
-    ):
-        if not isinstance(finding, Mapping):
+    resolved_rows: list[dict[str, Any]] = []
+    for citation in row.get("evidence_citations", []) or []:
+        if not isinstance(citation, Mapping):
             continue
-        if str(finding.get("repair_scope", "") or "") not in (
-            GENERATED_CODE_SEMANTIC_REVIEW_ACTIONABLE_REPAIR_SCOPES
+        role = str(citation.get("artifact_role", "") or "").strip()
+        locator = _normalize_evidence_locator(citation.get("locator", ""))
+        root = role_roots.get(role)
+        effective_locator = locator
+        for prefix in removable_prefixes.get(role, ()):
+            if effective_locator == prefix:
+                effective_locator = "/"
+                break
+            if effective_locator.startswith(prefix + "/"):
+                effective_locator = effective_locator[len(prefix):]
+                break
+        resolved, value = _json_pointer_value(root, effective_locator)
+        if (
+            not resolved
+            and role == "generated_source_artifact"
+            and effective_locator
+            in {
+                "/actual_runtime_arguments",
+                "/exact_result",
+                "/exact_source_code",
+                "/source_row",
+            }
+        ):
+            resolved_values = []
+            for artifact in review_material.get("exact_executed_artifacts", []) or []:
+                if not isinstance(artifact, Mapping):
+                    continue
+                child_resolved, child_value = _json_pointer_value(
+                    artifact,
+                    effective_locator,
+                )
+                if child_resolved:
+                    resolved_values.append(
+                        {
+                            "artifact_id": str(artifact.get("artifact_id", "") or ""),
+                            "value": child_value,
+                        }
+                    )
+            if resolved_values:
+                resolved = True
+                value = resolved_values
+        resolved_rows.append(
+            {
+                "artifact_role": role,
+                "locator": locator,
+                "resolved": resolved,
+                "value": (
+                    _generated_code_semantic_review_cited_value_projection(value)
+                    if resolved
+                    else None
+                ),
+            }
+        )
+    return resolved_rows
+
+
+def _generated_code_semantic_review_cited_values(
+    *,
+    review_material: Mapping[str, Any],
+    review_packet: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for finding_index, finding in enumerate(review_packet.get("findings", []) or []):
+        if (
+            not isinstance(finding, Mapping)
+            or str(finding.get("repair_scope", "") or "")
+            not in GENERATED_CODE_SEMANTIC_REVIEW_ACTIONABLE_REPAIR_SCOPES
         ):
             continue
-        for citation in finding.get("evidence_citations", []) or []:
-            if not isinstance(citation, Mapping):
-                continue
-            role = str(citation.get("artifact_role", "") or "").strip()
-            locator = _normalize_evidence_locator(
-                citation.get("locator", "")
+        rows.extend(
+            {
+                "finding_index": finding_index,
+                **cited_value,
+            }
+            for cited_value in _generated_code_semantic_review_row_cited_values(
+                review_material=review_material,
+                row=finding,
             )
-            root = role_roots.get(role)
-            effective_locator = locator
-            for prefix in removable_prefixes.get(role, ()):
-                if effective_locator == prefix:
-                    effective_locator = "/"
-                    break
-                if effective_locator.startswith(prefix + "/"):
-                    effective_locator = effective_locator[len(prefix):]
-                    break
-            resolved, value = _json_pointer_value(root, effective_locator)
-            if (
-                not resolved
-                and role == "generated_source_artifact"
-                and effective_locator
-                in {
-                    "/actual_runtime_arguments",
-                    "/exact_result",
-                    "/exact_source_code",
-                    "/source_row",
-                }
-            ):
-                resolved_values = []
-                for artifact in (
-                    review_material.get("exact_executed_artifacts", []) or []
-                ):
-                    if not isinstance(artifact, Mapping):
-                        continue
-                    child_resolved, child_value = _json_pointer_value(
-                        artifact,
-                        effective_locator,
-                    )
-                    if child_resolved:
-                        resolved_values.append(
-                            {
-                                "artifact_id": str(
-                                    artifact.get("artifact_id", "") or ""
-                                ),
-                                "value": child_value,
-                            }
-                        )
-                if resolved_values:
-                    resolved = True
-                    value = resolved_values
-            rows.append(
-                {
-                    "finding_index": finding_index,
-                    "artifact_role": role,
-                    "locator": locator,
-                    "resolved": resolved,
-                    "value": (
-                        _generated_code_semantic_review_cited_value_projection(
-                            value
-                        )
-                        if resolved
-                        else None
-                    ),
-                }
-            )
+        )
     return rows
 
 
@@ -1142,7 +1541,9 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             model=request_model,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
-            schema=GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA,
+            schema=generated_code_semantic_review_json_schema(
+                review_material
+            ),
             metadata={
                 "subsystem": "GeneratedCodeSemanticReviewer",
                 "agent": "LLMGeneratedCodeSemanticReviewerAgent",
@@ -1180,7 +1581,10 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             )
 
         def validate_packet(packet: Mapping[str, Any]) -> list[str]:
-            errors = validate_generated_code_semantic_review_packet(packet)
+            errors = validate_generated_code_semantic_review_packet(
+                packet,
+                review_material=review_material,
+            )
             if (
                 not confirmatory_empirical_evidence_eligible
                 and str(packet.get("repair_scope", "") or "")
@@ -1289,6 +1693,13 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                         "artifact hash changes."
                     ),
                     (
+                        "Preserve the exact prior_finding_reviews coverage and finding "
+                        "authority_refs contract. An unresolved prior finding must keep "
+                        "its runtime identity; a new actionable finding must bind an "
+                        "explicit current authority row rather than broad question text "
+                        "or a sibling-only requirement."
+                    ),
+                    (
                         "Keep all trusted lineage, evidence boundaries, required "
                         "dimension rows, and unrelated valid fields unchanged."
                     ),
@@ -1296,6 +1707,11 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 "decision_closure_state": decision_closure_state,
                 "runtime_metric_gate_projection": (
                     _generated_code_semantic_review_metric_gate_projection(
+                        review_material
+                    )
+                ),
+                "review_authority_contract": (
+                    generated_code_semantic_review_authority_contract(
                         review_material
                     )
                 ),
@@ -1676,6 +2092,9 @@ def build_generated_code_semantic_review_prompt(
     prompt_review_material = generated_code_semantic_review_prompt_projection(
         review_material
     )
+    prompt_review_material["review_authority_contract"] = (
+        generated_code_semantic_review_authority_contract(review_material)
+    )
     payload = {
         "question": {
             "id": question.id,
@@ -1712,6 +2131,19 @@ def build_generated_code_semantic_review_prompt(
                 "all findings use repair_scope=none."
             ),
             "runtime_does_not_select_repair_scope": True,
+        },
+        "finding_lineage_contract": {
+            "required_prior_finding_ids": list(
+                prompt_review_material["review_authority_contract"].get(
+                    "active_prior_finding_ids",
+                    [],
+                )
+            ),
+            "review_each_prior_exactly_once": True,
+            "unresolved_prior_requires_one_linked_current_finding": True,
+            "resolved_prior_cannot_remain_linked": True,
+            "new_actionable_finding_requires_trusted_authority_ref": True,
+            "sibling_requirement_cannot_authorize_current_artifact_repair": True,
         },
         "finding_budget": {
             "max_findings": GENERATED_CODE_SEMANTIC_REVIEW_MAX_FINDINGS,
@@ -1791,6 +2223,19 @@ def build_generated_code_semantic_review_prompt(
         "strictly: prioritize root causes over symptom lists, consolidate findings "
         "that require the same artifact change, and omit non-blocking advice unless "
         "it is essential to understand a dimension rationale. Treat "
+        "inherited_repair_obligations as the current repair frontier. Review every "
+        "active prior finding exactly once in prior_finding_reviews. Mark it "
+        "RESOLVED_BY_CURRENT_ARTIFACT only when the fresh artifact and cited current "
+        "evidence close it; otherwise mark it UNRESOLVED and link exactly one current "
+        "finding through prior_finding_id and the matching prior_finding authority_ref. "
+        "A genuinely new actionable finding is allowed, including a newly exposed "
+        "regression, but it must cite an exact authority_ref from "
+        "review_authority_contract whose allowed_repair_scopes includes the finding's "
+        "repair_scope. Broad question wording, advisory future work, a "
+        "sibling-only requirement, or an unregistered expectation cannot create a "
+        "repair obligation. Use an empty prior_finding_id and empty authority_refs only "
+        "for non-actionable advisory findings. "
+        "Treat "
         "runtime_metric_gate_projection as the authority for already-computed gate "
         "outcomes: never describe a row with passed=true as outside its runtime "
         "tolerance or failed. You may still reject its measurement semantics, but "
@@ -1927,6 +2372,22 @@ You are not a theorem prover and must never claim Lean or kernel proof evidence.
 
 
 GENERATED_CODE_SEMANTIC_REVIEW_OUTPUT_CONTRACT: dict[str, Any] = {
+    "prior_finding_reviews": [
+        {
+            "finding_id": "exact active prior finding identity",
+            "status": "UNRESOLVED|RESOLVED_BY_CURRENT_ARTIFACT",
+            "rationale": "comparison against the fresh current artifact",
+            "evidence_citations": [
+                {
+                    "artifact_role": (
+                        "source_theory_packet|metric_protocol_candidate|"
+                        "upstream_generated_dependency|generated_source_artifact"
+                    ),
+                    "locator": "/precise/path/inside/current/artifact",
+                }
+            ],
+        }
+    ],
     "dimension_reviews": {
         dimension: {
             "status": "PASS|FAIL|UNCERTAIN",
@@ -1954,6 +2415,12 @@ GENERATED_CODE_SEMANTIC_REVIEW_OUTPUT_CONTRACT: dict[str, Any] = {
             "repair_scope": (
                 "none|source_code|upstream_metric_contract|upstream_theory"
             ),
+            "prior_finding_id": (
+                "exact active prior finding identity, or empty for a new finding"
+            ),
+            "authority_refs": [
+                "exact ref from review_authority_contract"
+            ],
             "evidence_citations": [
                 {
                     "artifact_role": (
@@ -1983,16 +2450,48 @@ _MODEL_EVIDENCE_CITATION_SCHEMA: dict[str, Any] = {
 }
 
 
+_MODEL_PRIOR_FINDING_REVIEW_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "finding_id",
+        "status",
+        "rationale",
+        "evidence_citations",
+    ],
+    "properties": {
+        "finding_id": {"type": "string", "minLength": 1},
+        "status": {
+            "type": "string",
+            "enum": list(
+                GENERATED_CODE_SEMANTIC_REVIEW_PRIOR_FINDING_STATUSES
+            ),
+        },
+        "rationale": {"type": "string", "minLength": 1},
+        "evidence_citations": {
+            "type": "array",
+            "minItems": 1,
+            "items": _MODEL_EVIDENCE_CITATION_SCHEMA,
+        },
+    },
+}
+
+
 GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "additionalProperties": False,
     "required": [
+        "prior_finding_reviews",
         "dimension_reviews",
         "findings",
         "repair_instructions",
     ],
     "properties": {
+        "prior_finding_reviews": {
+            "type": "array",
+            "items": _MODEL_PRIOR_FINDING_REVIEW_SCHEMA,
+        },
         "dimension_reviews": {
             "type": "object",
             "additionalProperties": False,
@@ -2039,6 +2538,8 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
                     "summary",
                     "required_change",
                     "repair_scope",
+                    "prior_finding_id",
+                    "authority_refs",
                     "evidence_citations",
                 ],
                 "properties": {
@@ -2063,6 +2564,11 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
                             "evidence; runtime independently verifies final ownership."
                         ),
                     },
+                    "prior_finding_id": {"type": "string"},
+                    "authority_refs": {
+                        "type": "array",
+                        "items": {"type": "string", "minLength": 1},
+                    },
                     "evidence_citations": {
                         "type": "array",
                         "minItems": 1,
@@ -2079,8 +2585,313 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
 }
 
 
+def generated_code_semantic_review_json_schema(
+    review_material: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Bind structured output to current prior findings and authority rows."""
+
+    schema = deepcopy(GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA)
+    authority_contract = generated_code_semantic_review_authority_contract(
+        review_material
+    )
+    prior_ids = list(authority_contract["active_prior_finding_ids"])
+    authority_refs = list(
+        authority_contract["allowed_blocking_authority_refs"]
+    )
+    prior_schema = schema["properties"]["prior_finding_reviews"]
+    prior_schema["minItems"] = len(prior_ids)
+    prior_schema["maxItems"] = len(prior_ids)
+    if prior_ids:
+        prior_schema["items"]["properties"]["finding_id"]["enum"] = (
+            prior_ids
+        )
+    finding_properties = schema["properties"]["findings"]["items"][
+        "properties"
+    ]
+    finding_properties["prior_finding_id"]["enum"] = ["", *prior_ids]
+    if authority_refs:
+        finding_properties["authority_refs"]["items"]["enum"] = (
+            authority_refs
+        )
+    else:
+        finding_properties["authority_refs"]["maxItems"] = 0
+    return schema
+
+
+def _generated_code_semantic_review_lineage_errors(
+    packet: Mapping[str, Any],
+    *,
+    review_material: Mapping[str, Any] | None = None,
+) -> list[str]:
+    try:
+        schema_version = int(packet.get("schema_version", 0) or 0)
+    except (TypeError, ValueError):
+        schema_version = 0
+    if schema_version < 9:
+        return []
+    errors: list[str] = []
+    expected_prior_ids = [
+        str(value).strip()
+        for value in packet.get("expected_prior_finding_ids", []) or []
+        if str(value).strip()
+    ]
+    allowed_authority_refs = {
+        str(value).strip()
+        for value in packet.get("allowed_blocking_authority_refs", []) or []
+        if str(value).strip()
+    }
+    raw_authority_scope_map = packet.get("blocking_authority_scope_map", {})
+    authority_scope_map = (
+        {
+            str(authority_ref): {
+                str(scope).strip()
+                for scope in scopes or []
+                if str(scope).strip()
+            }
+            for authority_ref, scopes in raw_authority_scope_map.items()
+            if str(authority_ref).strip() and isinstance(scopes, list)
+        }
+        if isinstance(raw_authority_scope_map, Mapping)
+        else {}
+    )
+    if set(authority_scope_map) != allowed_authority_refs:
+        errors.append(
+            "blocking authority scope map must cover every allowed authority ref"
+        )
+    if str(
+        packet.get("blocking_authority_scope_map_fingerprint", "") or ""
+    ) != stable_hash(raw_authority_scope_map):
+        errors.append("blocking authority scope map fingerprint mismatch")
+    prior_reviews = packet.get("prior_finding_reviews", [])
+    if not isinstance(prior_reviews, list):
+        return ["prior_finding_reviews must be an array"]
+    reviewed_ids: list[str] = []
+    prior_status_by_id: dict[str, str] = {}
+    for raw_row in prior_reviews:
+        if not isinstance(raw_row, Mapping):
+            errors.append("prior_finding_reviews entries must be objects")
+            continue
+        finding_id = str(raw_row.get("finding_id", "") or "").strip()
+        status = str(raw_row.get("status", "") or "").strip().upper()
+        reviewed_ids.append(finding_id)
+        prior_status_by_id[finding_id] = status
+        if status not in GENERATED_CODE_SEMANTIC_REVIEW_PRIOR_FINDING_STATUSES:
+            errors.append(f"invalid prior finding status for {finding_id}")
+        if not str(raw_row.get("rationale", "") or "").strip():
+            errors.append(f"prior finding review {finding_id} missing rationale")
+        errors.extend(
+            _typed_evidence_citation_errors(
+                row=raw_row,
+                row_label=f"prior finding review {finding_id}",
+            )
+        )
+        if review_material is not None:
+            cited_values = _generated_code_semantic_review_row_cited_values(
+                review_material=review_material,
+                row=raw_row,
+            )
+            if any(not row["resolved"] for row in cited_values):
+                errors.append(
+                    f"prior finding review {finding_id} cites a missing current "
+                    "artifact value"
+                )
+            if not any(
+                row["resolved"]
+                and row["artifact_role"] == "generated_source_artifact"
+                for row in cited_values
+            ):
+                errors.append(
+                    f"prior finding review {finding_id} must cite the fresh current "
+                    "generated source artifact"
+                )
+    if sorted(reviewed_ids) != sorted(expected_prior_ids):
+        errors.append(
+            "prior_finding_reviews must cover every active prior finding_id "
+            "exactly once"
+        )
+
+    linked_findings: dict[str, int] = {}
+    linked_actionable_findings: dict[str, int] = {}
+    finding_ids: list[str] = []
+    for raw_row in packet.get("findings", []) or []:
+        if not isinstance(raw_row, Mapping):
+            continue
+        finding_id = str(raw_row.get("finding_id", "") or "").strip()
+        prior_finding_id = str(
+            raw_row.get("prior_finding_id", "") or ""
+        ).strip()
+        finding_ids.append(finding_id)
+        if not finding_id.startswith(
+            GENERATED_CODE_SEMANTIC_REVIEW_FINDING_ID_PREFIX
+        ):
+            errors.append("semantic review finding has invalid runtime identity")
+        if prior_finding_id:
+            linked_findings[prior_finding_id] = (
+                linked_findings.get(prior_finding_id, 0) + 1
+            )
+            if prior_finding_id not in expected_prior_ids:
+                errors.append(
+                    "semantic review finding links an inactive prior_finding_id"
+                )
+            if finding_id != prior_finding_id:
+                errors.append(
+                    "an unresolved prior finding must preserve its finding_id"
+                )
+        authority_refs = raw_row.get("authority_refs", [])
+        if not isinstance(authority_refs, list):
+            errors.append("semantic review finding authority_refs must be an array")
+            authority_refs = []
+        normalized_refs = {
+            str(value).strip() for value in authority_refs if str(value).strip()
+        }
+        unknown_refs = normalized_refs - allowed_authority_refs
+        if unknown_refs:
+            errors.append(
+                "semantic review finding uses authority_refs outside the trusted "
+                "review authority contract"
+            )
+        actionable = str(raw_row.get("repair_scope", "") or "") != "none"
+        if actionable and review_material is not None:
+            cited_values = _generated_code_semantic_review_row_cited_values(
+                review_material=review_material,
+                row=raw_row,
+            )
+            if any(not row["resolved"] for row in cited_values):
+                errors.append(
+                    "actionable semantic review finding cites a missing current "
+                    "artifact value"
+                )
+        if prior_finding_id and actionable:
+            linked_actionable_findings[prior_finding_id] = (
+                linked_actionable_findings.get(prior_finding_id, 0) + 1
+            )
+        if actionable and not normalized_refs:
+            errors.append(
+                "actionable semantic review finding requires an explicit trusted "
+                "authority_ref"
+            )
+        finding_scope = str(raw_row.get("repair_scope", "") or "").strip()
+        if actionable and normalized_refs and not any(
+            finding_scope in authority_scope_map.get(authority_ref, set())
+            for authority_ref in normalized_refs
+        ):
+            errors.append(
+                "actionable semantic review finding requires an authority_ref "
+                "that permits its repair_scope"
+            )
+        cited_prior_refs = {
+            authority_ref
+            for authority_ref in normalized_refs
+            if authority_ref.startswith("prior_finding:")
+        }
+        if prior_finding_id and (
+            f"prior_finding:{prior_finding_id}" not in normalized_refs
+        ):
+            errors.append(
+                "an unresolved prior finding must cite its prior_finding authority_ref"
+            )
+        if not prior_finding_id and cited_prior_refs:
+            errors.append(
+                "a prior_finding authority_ref requires the matching prior_finding_id"
+            )
+        if prior_finding_id and cited_prior_refs != {
+            f"prior_finding:{prior_finding_id}"
+        }:
+            errors.append(
+                "semantic review finding may cite only its linked prior_finding "
+                "authority_ref"
+            )
+    if len(finding_ids) != len(set(finding_ids)):
+        errors.append("semantic review finding IDs must be unique")
+    for finding_id in expected_prior_ids:
+        status = prior_status_by_id.get(finding_id, "")
+        linked_count = linked_findings.get(finding_id, 0)
+        if status == "UNRESOLVED" and linked_count != 1:
+            errors.append(
+                f"UNRESOLVED prior finding {finding_id} must link exactly one "
+                "current finding"
+            )
+        if status == "UNRESOLVED" and (
+            linked_actionable_findings.get(finding_id, 0) != 1
+        ):
+            errors.append(
+                f"UNRESOLVED prior finding {finding_id} must remain an "
+                "actionable current-source finding"
+            )
+        if status == "RESOLVED_BY_CURRENT_ARTIFACT" and linked_count:
+            errors.append(
+                f"resolved prior finding {finding_id} cannot remain linked"
+            )
+
+    ledger = packet.get("cumulative_finding_ledger", [])
+    if not isinstance(ledger, list):
+        errors.append("cumulative_finding_ledger must be an array")
+        ledger = []
+    if str(packet.get("cumulative_finding_ledger_fingerprint", "") or "") != (
+        metric_protocol_finding_ledger_fingerprint(ledger)
+    ):
+        errors.append("cumulative finding ledger fingerprint mismatch")
+    active_ids = sorted(
+        str(row.get("finding_id", "") or "")
+        for row in active_metric_protocol_finding_ledger(ledger)
+        if str(row.get("finding_id", "") or "").strip()
+    )
+    if sorted(packet.get("active_unresolved_finding_ids", []) or []) != active_ids:
+        errors.append("active unresolved finding IDs disagree with the ledger")
+
+    if review_material is not None:
+        authority_contract = generated_code_semantic_review_authority_contract(
+            review_material
+        )
+        if expected_prior_ids != authority_contract["active_prior_finding_ids"]:
+            errors.append("expected prior finding identities mismatch review material")
+        if sorted(allowed_authority_refs) != sorted(
+            authority_contract["allowed_blocking_authority_refs"]
+        ):
+            errors.append("allowed authority refs mismatch review material")
+        if str(
+            packet.get("review_authority_contract_fingerprint", "") or ""
+        ) != str(authority_contract["authority_contract_fingerprint"]):
+            errors.append("review authority contract fingerprint mismatch")
+        expected_scope_map = {
+            str(row.get("authority_ref", "") or ""): list(
+                row.get("allowed_repair_scopes", []) or []
+            )
+            for row in authority_contract["authority_rows"]
+            if str(row.get("authority_ref", "") or "").strip()
+        }
+        if raw_authority_scope_map != expected_scope_map:
+            errors.append("blocking authority scopes mismatch review material")
+        expected_ledger = update_metric_protocol_finding_ledger(
+            question_id=str(packet.get("question_id", "") or ""),
+            prior_ledger=(
+                _generated_code_semantic_review_active_prior_findings(
+                    review_material
+                )
+            ),
+            prior_finding_reviews=prior_reviews,
+            current_findings=[
+                dict(row)
+                for row in packet.get("findings", []) or []
+                if isinstance(row, Mapping)
+                and str(row.get("repair_scope", "") or "").strip()
+                != "none"
+            ],
+            current_verdict=str(packet.get("overall_verdict", "") or ""),
+            review_packet_id=str(
+                packet.get("finding_ledger_review_event_id", "") or ""
+            ),
+            revision_index=0,
+        )
+        if stable_hash(ledger) != stable_hash(expected_ledger):
+            errors.append("cumulative finding ledger mismatch review material")
+    return errors
+
+
 def validate_generated_code_semantic_review_packet(
     packet: Mapping[str, Any],
+    *,
+    review_material: Mapping[str, Any] | None = None,
 ) -> list[str]:
     errors: list[str] = []
     try:
@@ -2377,6 +3188,12 @@ def validate_generated_code_semantic_review_packet(
     ):
         if not str(packet.get(field, "") or "").strip():
             errors.append(f"semantic review missing trusted lineage field: {field}")
+    errors.extend(
+        _generated_code_semantic_review_lineage_errors(
+            packet,
+            review_material=review_material,
+        )
+    )
     return sorted(set(errors))
 
 
@@ -2392,6 +3209,42 @@ def _normalize_generated_code_semantic_review_packet(
     raw_response: str,
 ) -> dict[str, Any]:
     body = dict(payload)
+    authority_contract = generated_code_semantic_review_authority_contract(
+        review_material
+    )
+    body["expected_prior_finding_ids"] = list(
+        authority_contract["active_prior_finding_ids"]
+    )
+    body["allowed_blocking_authority_refs"] = list(
+        authority_contract["allowed_blocking_authority_refs"]
+    )
+    body["review_authority_contract_fingerprint"] = str(
+        authority_contract["authority_contract_fingerprint"]
+    )
+    body["blocking_authority_scope_map"] = {
+        str(row.get("authority_ref", "") or ""): list(
+            row.get("allowed_repair_scopes", []) or []
+        )
+        for row in authority_contract["authority_rows"]
+        if str(row.get("authority_ref", "") or "").strip()
+    }
+    body["blocking_authority_scope_map_fingerprint"] = stable_hash(
+        body["blocking_authority_scope_map"]
+    )
+    normalized_prior_finding_reviews: list[Any] = []
+    for row in body.get("prior_finding_reviews", []) or []:
+        if not isinstance(row, Mapping):
+            normalized_prior_finding_reviews.append(row)
+            continue
+        normalized_row = _normalize_review_row_evidence(row)
+        normalized_row["finding_id"] = str(
+            row.get("finding_id", "") or ""
+        ).strip()
+        normalized_row["status"] = str(
+            row.get("status", "") or ""
+        ).strip().upper()
+        normalized_prior_finding_reviews.append(normalized_row)
+    body["prior_finding_reviews"] = normalized_prior_finding_reviews
     normalized_dimension_rows: list[Any] = []
     model_dimension_reviews = body.get("dimension_reviews", {}) or {}
     if isinstance(model_dimension_reviews, Mapping):
@@ -2445,10 +3298,6 @@ def _normalize_generated_code_semantic_review_packet(
     body["confirmatory_empirical_evidence_eligible"] = (
         confirmatory_empirical_evidence_eligible
     )
-    overall_verdict = _generated_code_semantic_review_derived_verdict(
-        dimension_reviews=body.get("dimension_reviews", []),
-        findings=body.get("findings", []),
-    )
     normalized_findings: list[Any] = []
     for row in body.get("findings", []) or []:
         if not isinstance(row, Mapping):
@@ -2457,8 +3306,27 @@ def _normalize_generated_code_semantic_review_packet(
         finding = _normalize_review_row_evidence(row)
         requested_scope = str(finding.get("repair_scope", "") or "").strip()
         finding["model_requested_repair_scope"] = requested_scope
+        finding["prior_finding_id"] = str(
+            finding.get("prior_finding_id", "") or ""
+        ).strip()
+        finding["authority_refs"] = list(
+            dict.fromkeys(
+                str(value).strip()
+                for value in finding.get("authority_refs", []) or []
+                if str(value).strip()
+            )
+        )
         normalized_findings.append(finding)
-    body["findings"] = normalized_findings
+    body["findings"] = normalize_generated_code_semantic_review_findings(
+        question_id=question.id,
+        source_subsystem=source_subsystem,
+        findings=normalized_findings,
+        preserve_existing_ids=False,
+    )
+    overall_verdict = _generated_code_semantic_review_derived_verdict(
+        dimension_reviews=body.get("dimension_reviews", []),
+        findings=body.get("findings", []),
+    )
     finding_scopes = _generated_code_semantic_review_finding_scopes(
         body.get("findings", [])
     )
@@ -2526,6 +3394,50 @@ def _normalize_generated_code_semantic_review_packet(
         trusted_lineage.get("reviewed_artifacts", []) or []
     )
     body["review_input_fingerprint"] = stable_hash(review_material)
+    review_event_id = "generated_code_semantic_review_event:" + stable_hash(
+        {
+            "question_id": question.id,
+            "source_manifest_id": body.get("source_manifest_id", ""),
+            "review_input_fingerprint": body["review_input_fingerprint"],
+            "prior_finding_reviews": body["prior_finding_reviews"],
+            "findings": body["findings"],
+        }
+    )[:20]
+    body["finding_ledger_review_event_id"] = review_event_id
+    body["cumulative_finding_ledger"] = update_metric_protocol_finding_ledger(
+        question_id=question.id,
+        prior_ledger=(
+            _generated_code_semantic_review_active_prior_findings(
+                review_material
+            )
+        ),
+        prior_finding_reviews=[
+            row
+            for row in body["prior_finding_reviews"]
+            if isinstance(row, Mapping)
+        ],
+        current_findings=[
+            row
+            for row in body["findings"]
+            if isinstance(row, Mapping)
+            and str(row.get("repair_scope", "") or "").strip() != "none"
+        ],
+        current_verdict=body["overall_verdict"],
+        review_packet_id=review_event_id,
+        revision_index=0,
+    )
+    body["cumulative_finding_ledger_fingerprint"] = (
+        metric_protocol_finding_ledger_fingerprint(
+            body["cumulative_finding_ledger"]
+        )
+    )
+    body["active_unresolved_finding_ids"] = [
+        str(row.get("finding_id", "") or "")
+        for row in active_metric_protocol_finding_ledger(
+            body["cumulative_finding_ledger"]
+        )
+        if str(row.get("finding_id", "") or "").strip()
+    ]
     packet_id = "generated_code_semantic_review:" + stable_hash(
         {
             "question_id": question.id,

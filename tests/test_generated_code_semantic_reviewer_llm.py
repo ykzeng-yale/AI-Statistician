@@ -21,6 +21,8 @@ from ai_statistician.generated_code_semantic_reviewer_llm import (
     LLMGeneratedCodeSemanticReviewerAgent,
     build_generated_code_semantic_review_prompt,
     generated_code_semantic_review_active_pending_repair_plan,
+    generated_code_semantic_review_authority_contract,
+    generated_code_semantic_review_json_schema,
     generated_code_semantic_review_pending_plan_errors,
     generated_code_semantic_review_prompt_projection,
     generated_code_semantic_review_repair_scope,
@@ -40,8 +42,10 @@ from ai_statistician.generated_code_semantic_review_replan import (
 )
 from ai_statistician.generated_code_semantic_review_scope import (
     generated_code_semantic_review_proposal_projection,
+    generated_code_semantic_review_theory_projection,
     generated_code_semantic_review_upstream_dependency_projection,
 )
+from ai_statistician.llm_json_repair import PacketValidationError
 from ai_statistician.model_backend import (
     GeneratorRequest,
     GeneratorResponse,
@@ -56,6 +60,7 @@ from ai_statistician.research_agent_runtime import (
     _runtime_algorithm_handoff_receipt,
     _runtime_generated_code_authoritative_repair_routing,
     _runtime_generated_code_semantic_review_dispatch,
+    _runtime_generated_code_semantic_review_inherited_obligations,
     _runtime_validated_algorithm_handoff,
 )
 from ai_statistician.research_agent_runtime_audit import (
@@ -251,6 +256,119 @@ def test_semantic_review_prompt_projection_deduplicates_metric_authority() -> No
     ][0]["source_row"]
 
 
+def test_semantic_review_prompt_projection_deduplicates_source_metadata() -> None:
+    theory_spec = {
+        "id": "estimator:one",
+        "algorithm_semantics": "canonical-estimator-semantics-marker",
+    }
+    proposal_target = {
+        "estimator_id": "estimator:one",
+        "adapter_strategy": "canonical-adapter-strategy-marker",
+    }
+    alignment_contract = {
+        "artifact_kind": "TheoryTraceAlignmentContract",
+        "structured_alignment_observed": False,
+    }
+    review_material = {
+        "theory_packet": {"estimator_specs": [theory_spec]},
+        "coding_agent_proposal_packet": {
+            "implementation_targets": [proposal_target],
+            "theory_trace_alignment_contract": alignment_contract,
+        },
+        "source_manifest_summary": {
+            "llm_algorithm_engineer_theory_trace_alignment_contract": (
+                alignment_contract
+            )
+        },
+        "exact_executed_artifacts": [
+            {
+                "artifact_id": "estimator:one",
+                "exact_source_code": "def run_sandbox(seed, replicates): return {}",
+                "exact_source_hash": "source-hash",
+                "exact_result": {},
+                "exact_result_hash": "result-hash",
+                "source_row": {
+                    "spec": theory_spec,
+                    "llm_algorithm_engineer_target": {
+                        **proposal_target,
+                        "validation_metrics": ["advisory-only-marker"],
+                    },
+                },
+            }
+        ],
+    }
+
+    projection = generated_code_semantic_review_prompt_projection(
+        review_material
+    )
+    source_row = projection["exact_executed_artifacts"][0]["source_row"]
+    source_summary = projection["source_manifest_summary"]
+    serialized = json.dumps(projection)
+
+    assert "spec" not in source_row
+    assert source_row["spec_prompt_ref"]["locator"] == (
+        "/theory_packet/estimator_specs/0"
+    )
+    assert "llm_algorithm_engineer_target" not in source_row
+    target_ref = source_row["llm_algorithm_engineer_target_prompt_ref"]
+    assert target_ref["locator"] == (
+        "/coding_agent_proposal_packet/implementation_targets/0"
+    )
+    assert target_ref["excluded_non_authoritative_fields"] == [
+        "validation_metrics"
+    ]
+    assert (
+        "llm_algorithm_engineer_theory_trace_alignment_contract"
+        not in source_summary
+    )
+    assert serialized.count("canonical-estimator-semantics-marker") == 1
+    assert serialized.count("canonical-adapter-strategy-marker") == 1
+    assert "advisory-only-marker" not in serialized
+
+
+def test_unaligned_theory_review_uses_canonical_semantic_core() -> None:
+    theory_packet = {
+        "packet_id": "theory:one",
+        "problem_card": {"estimand": "canonical-estimand-marker"},
+        "theory_derivation_packet": {
+            "derivation_steps": [{"id": "step:one", "claim": "A claim."}]
+        },
+        "estimator_specs": [{"id": "estimator:one"}],
+        "runtime_architect_control": {"large": "runtime-control-marker"},
+        "llm_json_repair_history": [{"large": "repair-history-marker"}],
+        "next_actions": [{"action": "advisory-action-marker"}],
+        "critic_findings": [{"finding": "system-review-marker"}],
+    }
+    alignment_contract = {
+        "structured_alignment_observed": False,
+        "supported_derivation_steps": ["step:one"],
+    }
+
+    projection = generated_code_semantic_review_theory_projection(
+        theory_packet=theory_packet,
+        proposal_packet={
+            "theory_trace_alignment_contract": alignment_contract,
+        },
+    )
+    serialized = json.dumps(projection)
+
+    assert "canonical-estimand-marker" in serialized
+    assert projection["theory_derivation_packet"] == theory_packet[
+        "theory_derivation_packet"
+    ]
+    assert "runtime-control-marker" not in serialized
+    assert "repair-history-marker" not in serialized
+    assert "advisory-action-marker" not in serialized
+    assert "system-review-marker" not in serialized
+    review_projection = projection["theory_review_projection"]
+    assert review_projection["projection_mode"] == (
+        "canonical_semantic_core_fallback"
+    )
+    assert review_projection["canonical_theory_packet_fingerprint"] == (
+        stable_hash(theory_packet)
+    )
+
+
 def test_large_integer_projection_does_not_overflow_numeric_summary() -> None:
     exact_result = {"values": [10**1000] * 80}
     projection = generated_code_semantic_review_prompt_projection(
@@ -335,7 +453,7 @@ def _review_response(
                 "metric_protocol_candidate#/empirical_metric_requirements"
             ],
             "upstream_theory": [
-                "source_theory_packet#/theory_derivation_packet"
+                "source_theory_packet#/derivation_steps"
             ],
         }[repair_scope]
         resolved_finding_artifact_citations = finding_artifact_citations or [
@@ -352,6 +470,27 @@ def _review_response(
                 "summary": "The metric label and implemented quantity differ.",
                 "required_change": "Compute the frozen protocol quantity directly.",
                 "repair_scope": repair_scope,
+                "prior_finding_id": "",
+                "authority_refs": [
+                    {
+                        "source_code": (
+                            "implementation_target:generated-estimator"
+                        ),
+                        "upstream_metric_contract": (
+                            "requirement:frozen:algorithm-error"
+                        ),
+                        "upstream_theory": (
+                            "theory_alignment:"
+                            + stable_hash(
+                                {
+                                    "supported_derivation_steps": [
+                                        "theory:test:step:1"
+                                    ]
+                                }
+                            )[:20]
+                        ),
+                    }[repair_scope]
+                ],
                 "evidence_citations": _model_evidence_citations(
                     evidence_refs=resolved_finding_evidence_refs,
                     artifact_citations=resolved_finding_artifact_citations,
@@ -394,6 +533,7 @@ def _review_response(
         for index, scope in enumerate(repair_scopes, start=1)
     ]
     return {
+        "prior_finding_reviews": [],
         "reviewed_source_assessment": source_assessment,
         "frozen_metric_contract_assessment": metric_contract_assessment,
         "source_theory_assessment": theory_assessment,
@@ -1014,6 +1154,17 @@ def _runtime_fixture(
         "source_agent": "LLMAlgorithmEngineerAgent",
         "model": source_model,
         "model_tier": source_model_tier,
+        "implementation_targets": [
+            {
+                "estimator_id": "generated-estimator",
+                "adapter_strategy": "Implement the declared estimator interface.",
+            }
+        ],
+        "theory_trace_alignment_contract": {
+            "supported_derivation_steps": ["theory:test:step:1"],
+            "supported_equation_steps": [],
+            "supported_formalization_targets": [],
+        },
     }
     row = {
         "estimator_id": "generated-estimator",
@@ -1055,19 +1206,32 @@ def _runtime_fixture(
         "n_generated_code_executed": 1,
         "n_passed": 0 if metric_failed else 1,
     }
+    empirical_metric_requirements = [
+        {
+            "requirement_id": "frozen:simulation-calibration",
+            "target_subsystems": ["SimulationEngineer"],
+            "metric_name": "calibration",
+        },
+    ]
+    if repair_scope == "upstream_metric_contract":
+        empirical_metric_requirements.append(
+            {
+                "requirement_id": "frozen:algorithm-error",
+                "target_subsystems": ["AlgorithmEngineer"],
+                "metric_name": "estimated_error",
+                "metric_semantics": "Error returned by the generated estimator.",
+                "measurement_protocol": (
+                    "Read estimated_error from the exact estimator result."
+                ),
+            }
+        )
     architect_context = {
         "architect_runtime_plan": {
             "evidence_contract": {
                 "evaluation_mode": (
                     "capability_eval" if capability_eval else "debug"
                 ),
-                "empirical_metric_requirements": [
-                    {
-                        "requirement_id": "frozen:simulation-calibration",
-                        "target_subsystems": ["SimulationEngineer"],
-                        "metric_name": "calibration",
-                    },
-                ],
+                "empirical_metric_requirements": empirical_metric_requirements,
             }
         }
     }
@@ -1882,7 +2046,7 @@ def test_reviewer_derives_aggregate_decisions_from_findings(
 
     result = subsystem.run(task, blackboard)
 
-    assert result.status == "REVISE"
+    assert result.status == "REVISE", result.observations
     review_packet = next(
         artifact
         for artifact in result.produced_artifacts.values()
@@ -2003,9 +2167,11 @@ def test_all_pass_actionable_finding_requires_model_repair_not_normalization(
     assert review_packet["findings"][0][
         "model_requested_repair_scope"
     ] == "none"
+    assert review_packet["active_unresolved_finding_ids"] == []
+    assert review_packet["cumulative_finding_ledger"] == []
 
 
-def test_schema_v8_derives_runtime_owned_dimensions_and_typed_citations(
+def test_schema_v9_derives_runtime_owned_dimensions_and_typed_citations(
     tmp_path: Path,
 ) -> None:
     subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accept=True)
@@ -2017,7 +2183,7 @@ def test_schema_v8_derives_runtime_owned_dimensions_and_typed_citations(
         for artifact in result.produced_artifacts.values()
         if artifact.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
     )
-    assert review_packet["schema_version"] == 8
+    assert review_packet["schema_version"] == 9
     assert validate_generated_code_semantic_review_packet(review_packet) == []
     first_dimension = review_packet["dimension_reviews"][0]
     assert first_dimension["dimension"] == (
@@ -2059,6 +2225,349 @@ def test_schema_v8_derives_runtime_owned_dimensions_and_typed_citations(
     for row in replay_v5["dimension_reviews"]:
         row.pop("evidence_citations")
     assert validate_generated_code_semantic_review_packet(replay_v5) == []
+
+
+def test_review_authority_is_task_bound_and_repair_scope_specific() -> None:
+    prior_finding_id = "generated_code_semantic_finding:parent"
+    interface_id = "estimator_interface_contract:test"
+    material = {
+        "inherited_repair_obligations": {
+            "active_prior_finding_ledger": [
+                {
+                    "finding_id": prior_finding_id,
+                    "status": "UNRESOLVED",
+                    "finding": {"summary": "Repair the parent implementation."},
+                },
+                {
+                    "finding_id": prior_finding_id,
+                    "status": "UNRESOLVED",
+                    "finding": {"summary": "Duplicate legacy ledger row."},
+                },
+            ]
+        },
+        "source_responsibility_contract": {
+            "assigned_empirical_metric_requirements": [
+                {
+                    "requirement_id": "metric:algorithm-owned",
+                    "metric_semantics": "An Algorithm-owned metric.",
+                }
+            ],
+            "sibling_only_requirement_refs": [
+                {
+                    "requirement_id": "metric:simulation-only",
+                    "target_subsystems": ["SimulationEngineer"],
+                }
+            ],
+        },
+        "coding_agent_proposal_packet": {
+            "implementation_gaps": [
+                {
+                    "estimator_id": "generated-estimator",
+                    "status": "REQUIRES_GENERATED_ADAPTER",
+                    "reason": "Planning state that is stale after execution.",
+                }
+            ],
+            "implementation_targets": [
+                {
+                    "estimator_id": "generated-estimator",
+                    "adapter_strategy": "Implement the declared interface.",
+                    "estimator_interface_contract_id": interface_id,
+                    "estimator_interface_contract_authority": {
+                        "source_estimator_ref": (
+                            "theory#/estimator_specs/0/"
+                            "estimator_interface_contract"
+                        )
+                    },
+                    "estimator_interface_contract": {
+                        "request_fields": [
+                            {
+                                "name": "observations",
+                                "meaning": "Observed sample supplied per replicate.",
+                            }
+                        ],
+                        "response_fields": [
+                            {
+                                "name": "estimate",
+                                "meaning": "The estimator output.",
+                            }
+                        ],
+                    },
+                }
+            ],
+            "theory_trace_alignment_contract": {
+                "supported_derivation_steps": ["derivation:one"],
+            },
+        },
+    }
+
+    contract = generated_code_semantic_review_authority_contract(material)
+    rows = {row["authority_ref"]: row for row in contract["authority_rows"]}
+
+    assert contract["active_prior_finding_ids"] == [prior_finding_id]
+    assert "requirement:metric:simulation-only" not in rows
+    assert "implementation_gap:generated-estimator" not in rows
+    assert rows["implementation_target:generated-estimator"][
+        "allowed_repair_scopes"
+    ] == ["source_code"]
+    assert rows["requirement:metric:algorithm-owned"][
+        "allowed_repair_scopes"
+    ] == ["source_code", "upstream_metric_contract"]
+    interface_ref = f"estimator_interface_contract:{interface_id}"
+    assert rows[interface_ref]["locator"] == (
+        "/estimator_specs/0/estimator_interface_contract"
+    )
+    assert rows[interface_ref]["allowed_repair_scopes"] == [
+        "source_code",
+        "upstream_theory",
+    ]
+    assert rows[f"prior_finding:{prior_finding_id}"][
+        "allowed_repair_scopes"
+    ] == ["source_code"]
+
+    schema = generated_code_semantic_review_json_schema(material)
+    prior_schema = schema["properties"]["prior_finding_reviews"]
+    assert prior_schema["minItems"] == prior_schema["maxItems"] == 1
+    assert prior_schema["items"]["properties"]["finding_id"]["enum"] == [
+        prior_finding_id
+    ]
+    assert "requirement:metric:simulation-only" not in schema["properties"][
+        "findings"
+    ]["items"]["properties"]["authority_refs"]["items"]["enum"]
+
+
+def test_schema_v9_rejects_authority_for_the_wrong_repair_scope(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accept=False)
+    result = subsystem.run(task, blackboard)
+    packet = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
+    )
+    tampered = json.loads(json.dumps(packet))
+    tampered["findings"][0]["repair_scope"] = "upstream_theory"
+    tampered["reviewed_source_assessment"] = "ALIGNED"
+    tampered["source_theory_assessment"] = "THEORY_REVISION_REQUIRED"
+    tampered["repair_scope"] = "upstream_theory"
+    tampered["repair_scopes"] = ["upstream_theory"]
+    tampered["repair_plan"] = [
+        {
+            "sequence": 1,
+            "repair_scope": "upstream_theory",
+            "repair_owner": "ArchitectCoordinator",
+        }
+    ]
+    tampered["repair_owner"] = "ArchitectCoordinator"
+
+    errors = validate_generated_code_semantic_review_packet(tampered)
+
+    assert any(
+        "authority_ref that permits its repair_scope" in error
+        for error in errors
+    )
+
+
+def _prior_finding_review_inputs() -> tuple[
+    dict[str, object],
+    dict[str, object],
+    str,
+]:
+    prior_finding_id = "generated_code_semantic_finding:parent"
+    replan = {
+        "artifact_kind": "RuntimeGeneratedCodeSemanticReviewReplanContext",
+        "question_id": _question().id,
+        "source_subsystem": "SimulationEvaluator",
+        "repair_target_subsystem": "AlgorithmEngineer",
+        "review_packet_id": "review:parent",
+        "review_packet_hash": "review-hash:parent",
+        "review_execution_id": "review-execution:parent",
+        "findings": [
+            {
+                "finding_id": prior_finding_id,
+                "severity": "high",
+                "category": "dependency_interface",
+                "summary": "The dependency response violates its interface.",
+                "required_change": "Repair the dependency response.",
+                "repair_scope": "upstream_generated_dependency",
+                "evidence_refs": [
+                    "upstream_generated_dependency#/exact_source_code"
+                ],
+            }
+        ],
+    }
+    work_order = {
+        "question_id": _question().id,
+        "repair_task": {
+            "inputs": {
+                "architect_context": {
+                    "runtime_generated_code_semantic_review_replan": replan,
+                }
+            }
+        },
+    }
+    inherited = _runtime_generated_code_semantic_review_inherited_obligations(
+        work_order=work_order,
+        source_subsystem="AlgorithmEngineer",
+    )
+    material = {
+        "confirmatory_empirical_evidence_eligible": True,
+        "inherited_repair_obligations": inherited,
+        "source_responsibility_contract": {
+            "assigned_empirical_metric_requirements": [],
+            "sibling_only_requirement_refs": [
+                {
+                    "requirement_id": "metric:simulation-only",
+                    "target_subsystems": ["SimulationEngineer"],
+                }
+            ],
+        },
+        "coding_agent_proposal_packet": {
+            "implementation_targets": [
+                {
+                    "estimator_id": "generated-estimator",
+                    "adapter_strategy": "Repair the declared interface.",
+                }
+            ]
+        },
+        "exact_executed_artifacts": [
+            {
+                "artifact_id": "generated-artifact:fresh",
+                "exact_source_code": "def run_sandbox():\n    return {'ok': True}\n",
+                "exact_result": {"ok": True},
+            }
+        ],
+    }
+    lineage = {
+        "source_subsystem": "AlgorithmEngineer",
+        "source_agent": "LLMAlgorithmEngineerAgent",
+        "work_order_id": "work-order:fresh",
+        "work_order_hash": "work-order-hash:fresh",
+        "source_manifest_id": "algorithm-manifest:fresh",
+        "source_manifest_hash": "algorithm-manifest-hash:fresh",
+        "reviewed_artifacts": [],
+    }
+    return material, lineage, prior_finding_id
+
+
+def test_schema_v9_requires_review_of_every_inherited_finding() -> None:
+    material, lineage, prior_finding_id = _prior_finding_review_inputs()
+    assert material["inherited_repair_obligations"][
+        "required_prior_finding_ids"
+    ] == [prior_finding_id]
+    reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=StaticJSONGeneratorBackend(_review_response(accept=True)),
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="static",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            max_repair_attempts=0,
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc_info:
+        reviewer.review(
+            question=_question(),
+            review_material=material,
+            trusted_lineage=lineage,
+        )
+
+    assert any(
+        "prior_finding_reviews must cover every active prior finding_id"
+        in error
+        for error in exc_info.value.errors
+    )
+
+
+def test_schema_v9_closes_or_preserves_inherited_finding_identity() -> None:
+    material, lineage, prior_finding_id = _prior_finding_review_inputs()
+    prior_review = {
+        "finding_id": prior_finding_id,
+        "status": "UNRESOLVED",
+        "rationale": "The fresh source still violates the parent interface.",
+        "evidence_citations": [
+            {
+                "artifact_role": "generated_source_artifact",
+                "locator": "/exact_executed_artifacts/0/exact_source_code",
+            }
+        ],
+    }
+    unresolved_response = _review_response(
+        accept=False,
+        repair_scope="source_code",
+    )
+    unresolved_response["prior_finding_reviews"] = [prior_review]
+    unresolved_response["findings"][0]["prior_finding_id"] = prior_finding_id
+    unresolved_response["findings"][0]["authority_refs"] = [
+        f"prior_finding:{prior_finding_id}"
+    ]
+    unresolved = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=StaticJSONGeneratorBackend(unresolved_response),
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="static",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            max_repair_attempts=0,
+        ),
+    ).review(
+        question=_question(),
+        review_material=material,
+        trusted_lineage=lineage,
+    )
+
+    assert unresolved["findings"][0]["finding_id"] == prior_finding_id
+    assert unresolved["active_unresolved_finding_ids"] == [prior_finding_id]
+
+    resolved_response = _review_response(accept=True)
+    resolved_response["prior_finding_reviews"] = [
+        {
+            **prior_review,
+            "status": "RESOLVED_BY_CURRENT_ARTIFACT",
+            "rationale": "The fresh source now satisfies the parent interface.",
+        }
+    ]
+    resolved = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=StaticJSONGeneratorBackend(resolved_response),
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="static",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            max_repair_attempts=0,
+        ),
+    ).review(
+        question=_question(),
+        review_material=material,
+        trusted_lineage=lineage,
+    )
+
+    assert resolved["active_unresolved_finding_ids"] == []
+    assert resolved["cumulative_finding_ledger"][0]["status"] == (
+        "RESOLVED_BY_CURRENT_ARTIFACT"
+    )
+
+    missing_evidence_response = json.loads(json.dumps(resolved_response))
+    missing_evidence_response["prior_finding_reviews"][0][
+        "evidence_citations"
+    ][0]["locator"] = "/exact_executed_artifacts/0/missing_field"
+    missing_evidence_reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=StaticJSONGeneratorBackend(missing_evidence_response),
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="static",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            max_repair_attempts=0,
+        ),
+    )
+    with pytest.raises(PacketValidationError) as exc_info:
+        missing_evidence_reviewer.review(
+            question=_question(),
+            review_material=material,
+            trusted_lineage=lineage,
+        )
+    assert any(
+        "cites a missing current artifact value" in error
+        for error in exc_info.value.errors
+    )
 
 
 def test_schema_v7_normalizes_model_locator_format(
@@ -2386,6 +2895,7 @@ def test_semantic_repair_exposes_unclosed_decision_without_selecting_owner(
     )
     response = _review_response(accept=True)
     response = {
+        "prior_finding_reviews": [],
         "dimension_reviews": {
             dimension: dict(row)
             for dimension, row in zip(
@@ -2403,6 +2913,8 @@ def test_semantic_repair_exposes_unclosed_decision_without_selecting_owner(
                     "Repair the artifact supported by the cited evidence."
                 ),
                 "repair_scope": "none",
+                "prior_finding_id": "",
+                "authority_refs": [],
                 "evidence_citations": [
                     {
                         "artifact_role": "generated_source_artifact",
@@ -2444,11 +2956,17 @@ def test_semantic_repair_exposes_unclosed_decision_without_selecting_owner(
                         "base_payload_fingerprint"
                     ],
                     "updates": [
-                        {
-                            "path": ["findings", 0, "repair_scope"],
-                            "replacement": "source_code",
-                        }
-                    ],
+                            {
+                                "path": ["findings", 0, "repair_scope"],
+                                "replacement": "source_code",
+                            },
+                            {
+                                "path": ["findings", 0, "authority_refs"],
+                                "replacement_json": json.dumps(
+                                    ["implementation_target:generated-estimator"]
+                                ),
+                            },
+                        ],
                 }
             return GeneratorResponse(
                 text=json.dumps(payload),
@@ -2469,7 +2987,7 @@ def test_semantic_repair_exposes_unclosed_decision_without_selecting_owner(
 
     result = subsystem.run(task, blackboard)
 
-    assert result.status == "REVISE"
+    assert result.status == "REVISE", result.observations
     assert len(backend.requests) == 2
     assert backend.requests[1].metadata["json_repair_mode"] == (
         "typed_semantic_patch"
@@ -2604,12 +3122,21 @@ def test_mixed_semantic_assessments_route_upstream_owner_before_source(
             "summary": "The current theory omits a premise needed downstream.",
             "required_change": "Revise the theory packet before final acceptance.",
             "repair_scope": "upstream_theory",
+            "prior_finding_id": "",
+            "authority_refs": [
+                "theory_alignment:"
+                + stable_hash(
+                    {
+                        "supported_derivation_steps": [
+                            "theory:test:step:1"
+                        ]
+                    }
+                )[:20]
+            ],
             "evidence_citations": [
                 {
-                    "artifact_role": "source_theory_packet",
-                    "locator": (
-                        "/theory_derivation_packet/derivation_steps"
-                    ),
+                        "artifact_role": "source_theory_packet",
+                        "locator": "/derivation_steps",
                 }
             ],
         },
@@ -2681,7 +3208,7 @@ def test_mixed_semantic_assessments_route_upstream_owner_before_source(
     assert backend.requests[1].metadata["json_repair_mode"] == (
         "typed_semantic_patch"
     )
-    assert backend.requests[1].max_tokens == 5000
+    assert backend.requests[1].max_tokens == backend.requests[0].max_tokens
     repair_payload = json.loads(
         backend.requests[1].user_prompt.split("\n\n", 1)[1]
     )
@@ -2804,6 +3331,7 @@ def test_semantic_reviewer_schema_supports_anthropic_structured_output() -> None
         "findings"
     ]["items"]["properties"]
     assert set(transformed["required"]) == {
+        "prior_finding_reviews",
         "dimension_reviews",
         "findings",
         "repair_instructions",
@@ -3456,7 +3984,7 @@ def test_runtime_repairs_coupled_source_and_theory_finding_at_source_first(
         accept=False,
         repair_scope="upstream_theory",
         finding_evidence_refs=[
-            "source_theory_packet#/theory_derivation_packet",
+            "source_theory_packet#/derivation_steps",
             "generated_source_artifact#/exact_source_code",
         ],
         finding_artifact_citations=[
@@ -3582,6 +4110,17 @@ def test_runtime_defers_separate_theory_finding_behind_required_source_repair(
             "summary": "A distinct mathematical premise needs reassessment.",
             "required_change": "Reassess the exact source-theory premise.",
             "repair_scope": "upstream_theory",
+            "prior_finding_id": "",
+            "authority_refs": [
+                "theory_alignment:"
+                + stable_hash(
+                    {
+                        "supported_derivation_steps": [
+                            "theory:test:step:1"
+                        ]
+                    }
+                )[:20]
+            ],
             "evidence_citations": [
                 {
                     "artifact_role": "source_theory_packet",
@@ -3764,6 +4303,17 @@ def test_postexecution_mixed_ownership_routes_one_bounded_source_repair(
                 "Reassess the theory premise after the concrete source repair."
             ),
             "repair_scope": "upstream_theory",
+            "prior_finding_id": "",
+            "authority_refs": [
+                "theory_alignment:"
+                + stable_hash(
+                    {
+                        "supported_derivation_steps": [
+                            "theory:test:step:1"
+                        ]
+                    }
+                )[:20]
+            ],
             "evidence_citations": [
                 {
                     "artifact_role": "source_theory_packet",

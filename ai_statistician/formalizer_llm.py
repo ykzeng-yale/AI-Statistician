@@ -1502,7 +1502,7 @@ def build_formalizer_prompt(
         "await AgentRuntime checking of the exact artifact. "
         + pseudo_formalization_instruction
         +
-        "Do not use C-style comments, placeholder binder types, `sorry`, `admit`, "
+        "Do not use placeholder binder types, `sorry`, `admit`, "
         "`axiom`, `unsafe`, or `by?` in Lean sketches. Set candidate status to "
         "NEEDS_KERNEL_CHECK; use FORMAL_GAP only for an unrepaired source target with "
         "no Lean source. Leave optional retrieval, gap, critic, and action lists empty "
@@ -1681,6 +1681,10 @@ def _formalizer_output_contract_for_prompt(
                 "premise_candidate_declaration_name": (
                     "copy exact premise_candidate_declaration_name when supplied"
                 ),
+                "premise_candidate_declaration_names": [
+                    "for a grouped request, copy one exact declaration identity "
+                    "per premise_name in the same order"
+                ],
                 "premise_derivation_candidate_lean_source": (
                     "canonical Lean source field; emit the exact structured "
                     "premise_candidate_declaration_name using source-local declaration "
@@ -2210,7 +2214,7 @@ def validate_formalizer_packet(packet: Mapping[str, Any]) -> list[str]:
 def _source_to_bridge_candidate_declaration_contract_errors(
     row: Mapping[str, Any],
 ) -> list[str]:
-    row_names = tuple(
+    scalar_names = tuple(
         dict.fromkeys(
             str(row.get(key, "") or "").strip()
             for key in (
@@ -2220,13 +2224,60 @@ def _source_to_bridge_candidate_declaration_contract_errors(
             if str(row.get(key, "") or "").strip()
         )
     )
+    raw_grouped_names = row.get("premise_candidate_declaration_names", [])
+    if not isinstance(raw_grouped_names, list | tuple):
+        return [
+            "source_to_bridge_premise_derivation_candidates "
+            "premise_candidate_declaration_names must be an array"
+        ]
+    grouped_names = tuple(
+        str(value).strip()
+        for value in raw_grouped_names
+        if str(value).strip()
+    )
+    raw_premise_names = row.get("premise_names", [])
+    if not isinstance(raw_premise_names, list | tuple):
+        return [
+            "source_to_bridge_premise_derivation_candidates premise_names "
+            "must be an array"
+        ]
+    premise_names = tuple(
+        str(value).strip()
+        for value in raw_premise_names
+        if str(value).strip()
+    )
+    if len(grouped_names) != len(set(grouped_names)):
+        return [
+            "source_to_bridge_premise_derivation_candidates grouped declaration "
+            "identities must be unique"
+        ]
+    if len(premise_names) != len(set(premise_names)):
+        return [
+            "source_to_bridge_premise_derivation_candidates premise_names must "
+            "be unique"
+        ]
+    if len(premise_names) > 1:
+        if len(grouped_names) != len(premise_names):
+            return [
+                "grouped source_to_bridge_premise_derivation_candidates entry "
+                "must provide one structured premise_candidate_declaration_names "
+                "identity per premise_name"
+            ]
+        if scalar_names and any(name not in grouped_names for name in scalar_names):
+            return [
+                "grouped source_to_bridge_premise_derivation_candidates entry has "
+                "a scalar declaration identity outside premise_candidate_declaration_names"
+            ]
+        row_names = grouped_names
+    else:
+        row_names = scalar_names or grouped_names
     if not row_names:
         return [
             "source_to_bridge_premise_derivation_candidates entry missing "
-            "structured premise_candidate_declaration_name; AgentRuntime does not "
+            "structured premise candidate declaration identity; AgentRuntime does not "
             "infer declaration identity by parsing generated Lean source"
         ]
-    if len(row_names) != 1:
+    if len(premise_names) <= 1 and len(row_names) != 1:
         return [
             "source_to_bridge_premise_derivation_candidates entry has conflicting "
             "structured premise candidate declaration identities: "
@@ -2234,11 +2285,22 @@ def _source_to_bridge_candidate_declaration_contract_errors(
         ]
 
     request_names = _source_to_bridge_candidate_request_declaration_names(row)
-    if request_names and row_names[0] not in request_names:
+    if (
+        len(premise_names) > 1
+        and request_names
+        and row_names != request_names
+    ):
         return [
-            "source_to_bridge_premise_derivation_candidates structured "
-            "premise_candidate_declaration_name does not match the runtime request: "
-            f"{row_names[0]} not in "
+            "grouped source_to_bridge_premise_derivation_candidates declaration "
+            "identities must preserve runtime request order"
+        ]
+    unknown_names = set(row_names) - set(request_names) if request_names else set()
+    if unknown_names:
+        return [
+            "source_to_bridge_premise_derivation_candidates structured premise "
+            "candidate declaration identity does not match the runtime request: "
+            + ", ".join(sorted(unknown_names))
+            + " not in "
             + ", ".join(request_names)
         ]
     return []
@@ -2277,7 +2339,7 @@ def _source_to_bridge_candidate_request_declaration_names(
             "per_premise_candidate_requests",
         ):
             raw_rows = grouped_request.get(key, [])
-            if not isinstance(raw_rows, list | tuple | set):
+            if not isinstance(raw_rows, list | tuple):
                 continue
             for item in raw_rows:
                 if isinstance(item, Mapping):
@@ -2315,6 +2377,13 @@ def _phantom_source_to_bridge_next_action_errors(
             candidate_names.update(
                 str(value).strip().lower()
                 for value in premise_names
+                if str(value).strip()
+            )
+        declaration_names = row.get("premise_candidate_declaration_names", [])
+        if isinstance(declaration_names, list | tuple | set):
+            candidate_names.update(
+                str(value).strip().lower()
+                for value in declaration_names
                 if str(value).strip()
             )
 
@@ -5572,6 +5641,13 @@ def _source_to_bridge_candidate_names(packet: Mapping[str, Any]) -> set[str]:
                 for value in premise_names
                 if str(value).strip()
             )
+        declaration_names = row.get("premise_candidate_declaration_names", [])
+        if isinstance(declaration_names, list | tuple | set):
+            candidate_names.update(
+                str(value).strip().lower()
+                for value in declaration_names
+                if str(value).strip()
+            )
     return candidate_names
 
 
@@ -6965,6 +7041,7 @@ def _copy_missing_candidate_metadata(
         "adapter_object_names_requiring_source_instantiation",
         "proof_body_goal_binder_names",
         "source_to_bridge_premise_goal_binder_names",
+        "premise_candidate_declaration_names",
     }
     for key in (
         "exact_source_theorem_binders",
@@ -6988,6 +7065,7 @@ def _copy_missing_candidate_metadata(
         "source_to_bridge_premise_goal_context",
         "source_to_bridge_premise_goal_binder_names",
         "source_to_bridge_premise_goal_conclusion",
+        "premise_candidate_declaration_names",
         "target_theorem_name",
         "target_lean_declaration",
         "candidate_contract",
@@ -7158,6 +7236,16 @@ def _formalizer_mode_specific_instructions(
     source_to_bridge_request_shortcuts = (
         _source_to_bridge_candidate_request_shortcuts(proof_memory_summary)
     )
+    if str(
+        runtime_environment_feedback.get("feedback_type", "") or ""
+    ).strip() == "formal_target_semantic_review_feedback":
+        instructions.append(
+            "An independent formal-target semantic review is active. Treat its "
+            "dimension reviews, findings, and repair instructions as binding repair "
+            "feedback for the exact candidate. Preserve the source theorem target, "
+            "address the cited defect, and leave closure open until the revised exact "
+            "artifact is independently reviewed and kernel checked."
+        )
     if formalization_gap_planner_action_work_order:
         instructions.append(
             "A contract-valid FormalizationGapPlanner action work order is active. "
@@ -9520,7 +9608,11 @@ def _formalizer_mode_specific_instructions(
             "adapter_instantiation_group_id is supplied. If "
             "source_to_bridge_candidate_request_shortcuts is nonempty, copy one of its "
             "copy_this_*_request_id and copy_this_*_request objects into every emitted "
-            "candidate. Use only those exact source binders and semantic anchors from "
+            "candidate. Copy the exact premise_candidate_declaration_name for a single "
+            "request or premise_candidate_declaration_names in premise order for a "
+            "grouped request; declaration identity is structured data and is never "
+            "inferred by parsing generated Lean. Use only those exact source binders "
+            "and semantic anchors from "
             "runtime memory; do not introduce new assumptions or adapter objects as "
             "free theorem parameters. If a prior diagnostic says "
             "premise_candidate_references_semantic_anchor=false or lists "

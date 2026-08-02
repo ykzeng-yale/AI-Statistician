@@ -6,6 +6,74 @@ from typing import Any, Mapping, Sequence
 from .fingerprint import stable_hash
 
 
+def _generated_code_semantic_review_theory_core_projection(
+    *,
+    theory_packet: Mapping[str, Any],
+    alignment_contract: Mapping[str, Any],
+    fallback_reason: str,
+) -> dict[str, Any]:
+    """Keep canonical mathematical content when trace selection is unavailable."""
+
+    semantic_fields = (
+        "schema_version",
+        "artifact_kind",
+        "packet_id",
+        "question",
+        "problem_card",
+        "theory_derivation_contract",
+        "theory_derivation_packet",
+        "derivation_steps",
+        "equation_chain",
+        "assumption_ledger",
+        "formalization_handoff",
+        "theorem_cards",
+        "lemma_cards",
+        "estimator_specs",
+        "estimator_interface_authoring",
+        "simulation_ademp_spec",
+        "formalization_requests",
+        "theory_prompt_mode",
+        "serious_theory_mode",
+        "proof_evidence_status",
+        "proof_evidence_boundary",
+        "kernel_verified",
+    )
+    projected = {
+        field: deepcopy(theory_packet[field])
+        for field in semantic_fields
+        if field in theory_packet
+    }
+    projected["theory_review_projection"] = {
+        "canonical_theory_packet_id": str(
+            theory_packet.get("packet_id", "") or ""
+        ),
+        "canonical_theory_packet_fingerprint": stable_hash(theory_packet),
+        "theory_trace_alignment_contract_fingerprint": stable_hash(
+            alignment_contract
+        ),
+        "projection_mode": "canonical_semantic_core_fallback",
+        "fallback_reason": fallback_reason,
+        "excluded_non_authoritative_top_level_fields": sorted(
+            str(field)
+            for field in theory_packet
+            if field not in projected
+        ),
+        "runtime_control_supplied_separately": True,
+        "content_outside_projection_cannot_gate_current_artifact": True,
+        "system_theory_coverage_owner": "CriticEvaluator",
+        "boundary": (
+            "Structured per-anchor selection is unavailable, so this review gets "
+            "the canonical mathematical core rather than runtime transport, model "
+            "history, next actions, or system-level critic bookkeeping. Excluded "
+            "fields cannot create a generated-artifact repair obligation."
+        ),
+        "proof_evidence_status": (
+            "GENERATED_CODE_THEORY_REVIEW_PROJECTION_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    return projected
+
+
 def generated_code_semantic_review_scope_projection(
     *,
     value: Any,
@@ -50,10 +118,22 @@ def generated_code_semantic_review_theory_projection(
     if not isinstance(alignment_contract, Mapping) or not bool(
         alignment_contract.get("structured_alignment_observed", False)
     ):
-        return dict(theory_packet)
+        return _generated_code_semantic_review_theory_core_projection(
+            theory_packet=theory_packet,
+            alignment_contract=(
+                alignment_contract
+                if isinstance(alignment_contract, Mapping)
+                else {}
+            ),
+            fallback_reason="structured_theory_trace_alignment_unavailable",
+        )
     raw_trace = theory_packet.get("theory_derivation_packet", {})
     if not isinstance(raw_trace, Mapping):
-        return dict(theory_packet)
+        return _generated_code_semantic_review_theory_core_projection(
+            theory_packet=theory_packet,
+            alignment_contract=alignment_contract,
+            fallback_reason="canonical_theory_derivation_trace_unavailable",
+        )
 
     supported_derivation_steps = _string_set(
         alignment_contract.get("supported_derivation_steps", [])
@@ -207,8 +287,6 @@ def generated_code_semantic_review_proposal_projection(
         "source_agent",
         "model",
         "model_tier",
-        "implementation_gaps",
-        "theory_trace_alignment",
         "theory_trace_alignment_contract",
         "theory_trace_consumption_contract",
         "empirical_evaluation_phase",

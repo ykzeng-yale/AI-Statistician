@@ -864,6 +864,7 @@ def advance_generated_code_semantic_review_lineage_budget(
         ),
         "findings": sorted(
             (
+                _normalized_text(row.get("finding_id")),
                 _normalized_text(row.get("severity")),
                 _normalized_text(row.get("category")),
             )
@@ -1121,6 +1122,9 @@ def build_generated_code_semantic_review_architect_replan_task(
         ),
         "work_order_id": str(work_order.get("work_order_id", "") or ""),
         "review_packet_id": review_packet_id,
+        "review_packet_hash": str(
+            escalation_feedback.get("semantic_review_packet_hash", "") or ""
+        ),
         "review_execution_id": review_execution_id,
         "repair_scope": str(
             escalation_feedback.get("repair_scope", "") or ""
@@ -1179,6 +1183,40 @@ def build_generated_code_semantic_review_architect_replan_task(
             dict(row)
             for row in escalation_feedback.get("findings", []) or []
             if isinstance(row, Mapping)
+        ],
+        "prior_finding_reviews": [
+            dict(row)
+            for row in escalation_feedback.get(
+                "prior_finding_reviews",
+                [],
+            )
+            or []
+            if isinstance(row, Mapping)
+        ],
+        "cumulative_finding_ledger": [
+            dict(row)
+            for row in escalation_feedback.get(
+                "cumulative_finding_ledger",
+                [],
+            )
+            or []
+            if isinstance(row, Mapping)
+        ],
+        "cumulative_finding_ledger_fingerprint": str(
+            escalation_feedback.get(
+                "cumulative_finding_ledger_fingerprint",
+                "",
+            )
+            or ""
+        ),
+        "active_unresolved_finding_ids": [
+            str(value)
+            for value in escalation_feedback.get(
+                "active_unresolved_finding_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
         ],
         "repair_instructions": list(
             escalation_feedback.get("repair_instructions", []) or []

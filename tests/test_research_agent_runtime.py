@@ -23769,6 +23769,73 @@ def test_live_architect_does_not_let_metric_authoring_intercept_source_repair() 
     ]
 
 
+def test_inherited_generated_review_obligations_are_compact_and_hash_bound() -> None:
+    finding_id = "generated_code_semantic_finding:parent"
+    source_finding = {
+        "finding_id": finding_id,
+        "severity": "critical",
+        "category": "metric_semantics",
+        "summary": "The executed statistic is inverted.",
+        "required_change": "Router-authored generic repair instruction.",
+        "semantic_reviewer_required_change": (
+            "Generate a fresh implementation of the reviewed statistic."
+        ),
+        "repair_scope": "upstream_generated_dependency",
+        "evidence_refs": [
+            "generated_source_artifact#/exact_source_code",
+        ],
+        "repair_ownership_rationale": "Verbose routing prose is not inherited.",
+        "repair_target_artifacts": [
+            {"artifact_role": "generated_source_artifact"}
+        ],
+    }
+    obligations = runtime_module._runtime_generated_code_semantic_review_inherited_obligations(
+        work_order={
+            "question_id": "question:test",
+            "repair_task": {
+                "inputs": {
+                    "architect_context": {
+                        "runtime_generated_code_semantic_review_replan": {
+                            "question_id": "question:test",
+                            "repair_target_subsystem": "AlgorithmEngineer",
+                            "source_subsystem": "AlgorithmEngineer",
+                            "review_packet_id": "review:parent",
+                            "review_packet_hash": "review-hash:parent",
+                            "review_execution_id": "execution:parent",
+                            "findings": [source_finding],
+                        }
+                    }
+                }
+            },
+        },
+        source_subsystem="AlgorithmEngineer",
+    )
+
+    assert obligations["source_review_packet_id"] == "review:parent"
+    assert obligations["source_review_execution_id"] == "execution:parent"
+    assert obligations["required_prior_finding_ids"] == [finding_id]
+    ledger_row = obligations["active_prior_finding_ledger"][0]
+    assert ledger_row["source_finding_hash"] == runtime_module.stable_hash(
+        source_finding
+    )
+    assert ledger_row["source_review_packet_ids"] == ["review:parent"]
+    assert ledger_row["finding"] == {
+        "finding_id": finding_id,
+        "severity": "critical",
+        "category": "metric_semantics",
+        "summary": "The executed statistic is inverted.",
+        "required_change": (
+            "Generate a fresh implementation of the reviewed statistic."
+        ),
+        "repair_scope": "source_code",
+        "evidence_refs": [
+            "generated_source_artifact#/exact_source_code",
+        ],
+    }
+    assert "repair_ownership_rationale" not in json.dumps(obligations)
+    assert "repair_target_artifacts" not in json.dumps(obligations)
+
+
 def test_live_architect_dispatches_upstream_theory_without_replanning() -> None:
     question = next(
         question
@@ -25400,8 +25467,12 @@ def test_pending_source_repair_consumes_current_theory_metric_authority() -> Non
     )
 
 
-def _source_code_revise_semantic_review_payload() -> dict[str, object]:
+def _source_code_revise_semantic_review_payload(
+    *,
+    authority_ref: str,
+) -> dict[str, object]:
     return {
+        "prior_finding_reviews": [],
         "dimension_reviews": [
             {
                 "status": "FAIL" if index == 0 else "PASS",
@@ -25433,6 +25504,8 @@ def _source_code_revise_semantic_review_payload() -> dict[str, object]:
                     "Generate source that implements the predicate."
                 ),
                 "repair_scope": "source_code",
+                "prior_finding_id": "",
+                "authority_refs": [authority_ref],
                 "evidence_citations": [
                     {
                         "artifact_role": "generated_source_artifact",
@@ -25534,6 +25607,12 @@ def test_semantic_review_honors_exhausted_source_repair_budget(
                 "code": source,
             }
         ],
+        "simulation_targets": [
+            {
+                "simulation_id": "source-budget-probe",
+                "objective": "Implement the declared simulation contract.",
+            }
+        ],
     }
     deferred_task = AgentTask(
         task_id="formalize-simulation-yield:source-budget",
@@ -25587,7 +25666,9 @@ def test_semantic_review_honors_exhausted_source_repair_budget(
 
     reviewer = LLMGeneratedCodeSemanticReviewerAgent(
         provider=StaticArchitectLLMProvider(
-            _source_code_revise_semantic_review_payload()
+            _source_code_revise_semantic_review_payload(
+                authority_ref="simulation_target:source-budget-probe"
+            )
         ),
         config=GeneratedCodeSemanticReviewerConfig(
             provider_name="anthropic",
@@ -25713,6 +25794,12 @@ def test_semantic_review_does_not_send_rejected_algorithm_to_simulation(
                 "code": source,
             }
         ],
+        "implementation_targets": [
+            {
+                "estimator_id": "source-budget-estimator",
+                "adapter_strategy": "Implement the declared estimator contract.",
+            }
+        ],
     }
     deferred_task = AgentTask(
         task_id="simulation-rejected-algorithm:source-budget",
@@ -25747,7 +25834,9 @@ def test_semantic_review_does_not_send_rejected_algorithm_to_simulation(
     )
     reviewer = LLMGeneratedCodeSemanticReviewerAgent(
         provider=StaticArchitectLLMProvider(
-            _source_code_revise_semantic_review_payload()
+            _source_code_revise_semantic_review_payload(
+                authority_ref="implementation_target:source-budget-estimator"
+            )
         ),
         config=GeneratedCodeSemanticReviewerConfig(
             provider_name="anthropic",
@@ -42472,6 +42561,9 @@ def test_diagnostic_helper_bridge_mode_normalizer_records_metadata_blocker() -> 
     bound_payload["source_to_bridge_premise_derivation_candidates"] = [
         {
             "premise_name": "hGoodCovered",
+            "premise_candidate_declaration_name": (
+                "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
+            ),
             "target_theorem_name": "split_conformal_coverage",
             "target_lean_declaration": "split_conformal_coverage",
             "premise_derivation_candidate_lean_source": (
@@ -79730,8 +79822,8 @@ def test_runtime_learning_memory_routes_closure_instantiation_failure_to_adapter
     assert "memory_kernel_verified_theorem_reduction_closure_signature_excerpts" in prompt
     assert "splitConformalFiniteSampleCoverage_reductionClosure {Ω ρ : Type*}" in prompt
     assert "do not guess closure theorem fields" in prompt
-    assert "Do not use C-style comments" in prompt
-    assert "`/* ... */`" in prompt
+    assert "C-style comments" not in prompt
+    assert "`/* ... */`" not in prompt
     assert "target_lean_declaration` as the exact source theorem declaration identifier only" in prompt
     assert "do not put a full Lean theorem statement" in prompt
 
@@ -88042,6 +88134,17 @@ def test_formalizer_grouped_premise_derivation_candidate_splits_runtime_work_ord
     proposal["source_to_bridge_premise_derivation_candidates"] = [
         {
             "premise_names": ["hGoodCovered", "hRank"],
+            "premise_candidate_declaration_names": [
+                "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation",
+                "split_conformal_coverage_hRank_source_to_bridge_derivation",
+            ],
+            "source_to_bridge_grouped_premise_derivation_candidate_request": {
+                "grouped_candidate_request_id": "grouped-request:test",
+                "premise_candidate_declaration_names": [
+                    "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation",
+                    "split_conformal_coverage_hRank_source_to_bridge_derivation",
+                ],
+            },
             "adapter_instantiation_group_id": group_id,
             "required_bridge_premise_names_for_shared_instantiation": [
                 "hGoodCovered",
@@ -88064,6 +88167,24 @@ def test_formalizer_grouped_premise_derivation_candidate_splits_runtime_work_ord
         }
     ]
     assert not validate_formalizer_packet(proposal)
+    wrong_order = json.loads(json.dumps(proposal))
+    wrong_order["source_to_bridge_premise_derivation_candidates"][0][
+        "premise_candidate_declaration_names"
+    ].reverse()
+    assert any(
+        "must preserve runtime request order" in error
+        for error in validate_formalizer_packet(wrong_order)
+    )
+    duplicate_identity = json.loads(json.dumps(proposal))
+    duplicate_identity["source_to_bridge_premise_derivation_candidates"][0][
+        "premise_candidate_declaration_names"
+    ][1] = duplicate_identity[
+        "source_to_bridge_premise_derivation_candidates"
+    ][0]["premise_candidate_declaration_names"][0]
+    assert any(
+        "grouped declaration identities must be unique" in error
+        for error in validate_formalizer_packet(duplicate_identity)
+    )
     memory_summary = {
         "artifact_kind": "RuntimeProofBankMemorySummary",
         "recommended_formalizer_target_mode": (
@@ -88175,6 +88296,15 @@ def test_formalizer_grouped_premise_derivation_candidate_splits_runtime_work_ord
     )
 
     assert [row["premise_name"] for row in rows] == ["hGoodCovered", "hRank"]
+    assert {
+        row["premise_name"]: row["premise_candidate_declaration_name"]
+        for row in rows
+    } == {
+        "hGoodCovered": (
+            "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
+        ),
+        "hRank": "split_conformal_coverage_hRank_source_to_bridge_derivation",
+    }
     assert {tuple(row["target_ids"]) for row in rows} == {
         ("split_conformal_finite_sample_coverage",)
     }
@@ -113130,8 +113260,8 @@ def test_runtime_pf_failure_copy_contract_rejects_malformed_seed() -> None:
     prompt_payload = json.loads(prompt[prompt.index('{"question":') :])
 
     assert (
-        prompt_payload["pseudo_formalization_component_gate_failure_repair_seed"]
-        == {}
+        "pseudo_formalization_component_gate_failure_repair_seed"
+        not in prompt_payload
     )
     assert prompt_payload["pseudo_formalization_required_packet_seed"][
         "packet_id"

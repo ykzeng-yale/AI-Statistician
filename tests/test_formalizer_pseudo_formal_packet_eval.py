@@ -47,8 +47,9 @@ def test_formalizer_output_contract_bridge_examples_are_domain_neutral() -> None
     ):
         assert forbidden not in module_source
         assert forbidden not in contract_source
-    assert "policy_bridge_premise_name" in contract_source
-    assert "policy_adapter_object_name" in contract_source
+    assert "source_to_bridge_premise_derivation_candidates" not in (
+        FORMALIZER_OUTPUT_CONTRACT
+    )
 
 
 def test_formalizer_generic_repair_keeps_failed_targets_and_role_contract() -> None:
@@ -782,13 +783,19 @@ def test_formalizer_prompt_string_false_does_not_require_pf_bv() -> None:
     )
     payload = _prompt_payload(prompt)
 
-    assert payload["pseudo_formalization_required_packet_seed"] == {}
-    assert payload["pseudo_formalization_component_gate_failure_repair_seed"] == {}
-    assert payload["pseudo_formalization_required_copy_fragment"] == {}
-    assert not isinstance(
+    for inactive_key in (
+        "pseudo_formalization_required_packet_seed",
+        "pseudo_formalization_component_gate_failure_repair_seed",
+        "pseudo_formalization_required_copy_fragment",
+    ):
+        assert inactive_key not in payload
+    assert isinstance(
         payload["required_output_contract"]["pseudo_formal_proof_packets"],
-        dict,
+        str,
     )
+    assert "optional PF/BV routing packets" in payload["required_output_contract"][
+        "pseudo_formal_proof_packets"
+    ]
     assert "you must emit at least one pseudo_formal_proof_packets" not in prompt
 
 

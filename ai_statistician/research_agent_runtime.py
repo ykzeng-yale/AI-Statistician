@@ -100,6 +100,7 @@ from .generated_code_semantic_reviewer_llm import (
     LLMGeneratedCodeSemanticReviewerAgent,
     generated_code_semantic_review_active_pending_repair_plan,
     generated_code_semantic_review_pending_plan_errors,
+    normalize_generated_code_semantic_review_findings,
     validate_generated_code_semantic_review_packet,
 )
 from .generated_code_semantic_review_replan import (
@@ -14423,6 +14424,211 @@ def _runtime_generated_code_semantic_review_dispatch(
     }
 
 
+def _runtime_generated_code_semantic_review_inherited_obligations(
+    *,
+    work_order: Mapping[str, Any],
+    source_subsystem: str,
+) -> dict[str, Any]:
+    """Recover the exact review findings that caused this descendant repair."""
+
+    repair_task = work_order.get("repair_task", {})
+    repair_inputs = (
+        repair_task.get("inputs", {})
+        if isinstance(repair_task, Mapping)
+        else {}
+    )
+    if not isinstance(repair_inputs, Mapping):
+        return {}
+    architect_context = repair_inputs.get("architect_context", {})
+    architect_context = (
+        architect_context
+        if isinstance(architect_context, Mapping)
+        else {}
+    )
+    environment_feedback = repair_inputs.get("environment_feedback", {})
+    environment_feedback = (
+        environment_feedback
+        if isinstance(environment_feedback, Mapping)
+        else {}
+    )
+    nested_feedback = environment_feedback.get(
+        "generated_code_semantic_review_feedback",
+        {},
+    )
+    candidates = [
+        architect_context.get(
+            "runtime_generated_code_semantic_review_replan",
+            {},
+        ),
+        nested_feedback,
+        environment_feedback,
+    ]
+    question_id = str(work_order.get("question_id", "") or "").strip()
+    selected: Mapping[str, Any] = {}
+    for candidate in candidates:
+        if not isinstance(candidate, Mapping) or not candidate:
+            continue
+        candidate_question_id = str(
+            candidate.get("question_id", "") or ""
+        ).strip()
+        if candidate_question_id and candidate_question_id != question_id:
+            continue
+        target_subsystem = str(
+            candidate.get("repair_target_subsystem", "")
+            or candidate.get("target_subsystem", "")
+            or ""
+        ).strip()
+        candidate_source = str(
+            candidate.get("source_subsystem", "") or ""
+        ).strip()
+        if target_subsystem:
+            if target_subsystem != source_subsystem:
+                continue
+        elif candidate_source != source_subsystem:
+            continue
+        if not candidate.get("findings") and not candidate.get(
+            "cumulative_finding_ledger"
+        ):
+            continue
+        selected = candidate
+        break
+    if not selected:
+        return {}
+
+    active_ledger = [
+        dict(row)
+        for row in selected.get("cumulative_finding_ledger", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("status", "") or "").strip().upper()
+        == "UNRESOLVED"
+        and str(row.get("finding_id", "") or "").strip()
+    ]
+    if not active_ledger and selected.get("findings"):
+        findings = normalize_generated_code_semantic_review_findings(
+            question_id=question_id,
+            source_subsystem=source_subsystem,
+            findings=selected.get("findings", []),
+        )
+        active_ledger = [
+            {
+                "finding_id": str(row.get("finding_id", "") or ""),
+                "status": "UNRESOLVED",
+                "source_review_packet_ids": [
+                    str(selected.get("review_packet_id", "") or "")
+                ],
+                "finding": row,
+            }
+            for row in findings
+            if str(row.get("repair_scope", "") or "").strip()
+            not in {"", "none"}
+        ]
+    if not active_ledger:
+        return {}
+    compact_active_ledger: list[dict[str, Any]] = []
+    for raw_row in active_ledger:
+        if not isinstance(raw_row, Mapping):
+            continue
+        finding_id = str(raw_row.get("finding_id", "") or "").strip()
+        source_finding = raw_row.get("finding", {})
+        if not isinstance(source_finding, Mapping):
+            source_finding = {}
+        source_finding = dict(source_finding)
+        finding_id = str(
+            finding_id or source_finding.get("finding_id", "") or ""
+        ).strip()
+        if not finding_id:
+            continue
+        precise_required_change = str(
+            source_finding.get(
+                "semantic_reviewer_required_change",
+                source_finding.get("required_change", ""),
+            )
+            or ""
+        ).strip()
+        compact_finding = {
+            "finding_id": finding_id,
+            "severity": str(source_finding.get("severity", "") or ""),
+            "category": str(source_finding.get("category", "") or ""),
+            "summary": str(source_finding.get("summary", "") or ""),
+            "required_change": precise_required_change,
+            "repair_scope": "source_code",
+            "evidence_refs": [
+                str(value).strip()
+                for value in source_finding.get("evidence_refs", []) or []
+                if str(value).strip()
+            ],
+        }
+        compact_active_ledger.append(
+            {
+                "finding_id": finding_id,
+                "status": "UNRESOLVED",
+                "source_review_packet_ids": list(
+                    dict.fromkeys(
+                        str(value).strip()
+                        for value in raw_row.get(
+                            "source_review_packet_ids",
+                            [],
+                        )
+                        or []
+                        if str(value).strip()
+                    )
+                ),
+                "source_finding_hash": str(
+                    raw_row.get("source_finding_hash", "")
+                    or stable_hash(source_finding)
+                ),
+                "finding": compact_finding,
+            }
+        )
+    active_ledger = compact_active_ledger
+    if not active_ledger:
+        return {}
+    required_ids = list(
+        dict.fromkeys(
+            str(row.get("finding_id", "") or "")
+            for row in active_ledger
+            if str(row.get("finding_id", "") or "").strip()
+        )
+    )
+    obligations = {
+        "artifact_kind": (
+            "RuntimeGeneratedCodeSemanticReviewInheritedRepairObligations"
+        ),
+        "question_id": question_id,
+        "repair_target_subsystem": source_subsystem,
+        "source_review_packet_id": str(
+            selected.get("review_packet_id", "")
+            or selected.get("semantic_review_packet_id", "")
+            or ""
+        ),
+        "source_review_packet_hash": str(
+            selected.get("review_packet_hash", "")
+            or selected.get("semantic_review_packet_hash", "")
+            or ""
+        ),
+        "source_review_execution_id": str(
+            selected.get("review_execution_id", "")
+            or selected.get("semantic_review_execution_id", "")
+            or ""
+        ),
+        "parent_source_subsystem": str(
+            selected.get("source_subsystem", "") or ""
+        ),
+        "required_prior_finding_ids": required_ids,
+        "active_prior_finding_ledger": active_ledger,
+        "review_rule": (
+            "Review every active parent finding against the fresh current artifact. "
+            "Resolve it explicitly or preserve the same finding identity as "
+            "unresolved; unrelated new blockers require current explicit authority."
+        ),
+        "proof_evidence_status": (
+            "INHERITED_GENERATED_CODE_REPAIR_OBLIGATIONS_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    obligations["obligation_set_fingerprint"] = stable_hash(obligations)
+    return obligations
+
+
 def _runtime_generated_code_semantic_review_material(
     *,
     work_order: Mapping[str, Any],
@@ -14670,6 +14876,12 @@ def _runtime_generated_code_semantic_review_material(
         "review_scope_projection": review_scope_projection,
         "pending_repair_plan": dict(
             work_order.get("pending_repair_plan", {}) or {}
+        ),
+        "inherited_repair_obligations": (
+            _runtime_generated_code_semantic_review_inherited_obligations(
+                work_order=work_order,
+                source_subsystem=source_subsystem,
+            )
         ),
         "upstream_generated_dependency": upstream_generated_dependency,
         "exact_executed_artifacts": exact_artifacts,
@@ -15098,7 +15310,10 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             packet: Mapping[str, Any],
             material: Mapping[str, Any],
         ) -> list[str]:
-            errors = validate_generated_code_semantic_review_packet(packet)
+            errors = validate_generated_code_semantic_review_packet(
+                packet,
+                review_material=material,
+            )
             if str(
                 packet.get("review_input_fingerprint", "") or ""
             ) != stable_hash(material):
@@ -15945,6 +16160,22 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             ),
             "dimension_reviews": list(
                 review_packet.get("dimension_reviews", []) or []
+            ),
+            "prior_finding_reviews": list(
+                review_packet.get("prior_finding_reviews", []) or []
+            ),
+            "cumulative_finding_ledger": list(
+                review_packet.get("cumulative_finding_ledger", []) or []
+            ),
+            "cumulative_finding_ledger_fingerprint": str(
+                review_packet.get(
+                    "cumulative_finding_ledger_fingerprint",
+                    "",
+                )
+                or ""
+            ),
+            "active_unresolved_finding_ids": list(
+                review_packet.get("active_unresolved_finding_ids", []) or []
             ),
             "findings": immediate_routed_findings,
             "semantic_reviewer_repair_instructions": list(
@@ -81651,7 +81882,7 @@ def _formalizer_source_to_bridge_premise_derivation_work_orders(
             candidate,
             pending_premise_names=pending_premise_names,
         )
-        for premise_name in candidate_premises:
+        for premise_index, premise_name in enumerate(candidate_premises):
             diagnostic = diagnostic_by_premise.get(premise_name, {})
             grouped_candidate_request_raw = (
                 candidate.get(
@@ -81880,9 +82111,29 @@ def _formalizer_source_to_bridge_premise_derivation_work_orders(
             ).strip()
             if not target_theorem_name:
                 target_theorem_name = target_lean_declaration
+            grouped_candidate_declaration_names = [
+                str(value).strip()
+                for value in candidate.get(
+                    "premise_candidate_declaration_names",
+                    [],
+                )
+                or []
+                if str(value).strip()
+            ]
+            grouped_candidate_declaration_name = ""
+            if len(grouped_candidate_declaration_names) == len(
+                candidate_premises
+            ):
+                grouped_candidate_declaration_name = (
+                    grouped_candidate_declaration_names[premise_index]
+                )
             premise_candidate_declaration_name = str(
-                candidate.get("premise_candidate_declaration_name", "")
-                or candidate.get("source_to_bridge_premise_candidate_declaration_name", "")
+                grouped_candidate_declaration_name
+                or candidate.get("premise_candidate_declaration_name", "")
+                or candidate.get(
+                    "source_to_bridge_premise_candidate_declaration_name",
+                    "",
+                )
                 or candidate_request.get("premise_candidate_declaration_name", "")
                 or candidate_request.get(
                     "source_to_bridge_premise_candidate_declaration_name",

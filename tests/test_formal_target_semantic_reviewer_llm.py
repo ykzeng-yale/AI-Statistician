@@ -799,8 +799,8 @@ def test_formalizer_prompt_preserves_independent_target_review_reasoning() -> No
     assert "formal_target_semantic_review" in prompt
     assert rationale in prompt
     assert required_change in prompt
-    assert "treat its independent dimension reviews" in prompt
-    assert "binding retry feedback" in prompt
+    assert "independent formal-target semantic review is active" in prompt
+    assert "binding repair feedback for the exact candidate" in prompt
     assert "task_bound_formal_target_contract" in prompt
 
 
