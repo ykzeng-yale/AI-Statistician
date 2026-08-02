@@ -74,7 +74,7 @@ LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID = (
 LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_KIND = (
     "formalization_gap_planner_llm_route_planner_staged_followup"
 )
-LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_SCHEMA_VERSION = 1
+LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_SCHEMA_VERSION = 2
 LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REASON_MAX_TOKENS = (
     "provider_max_tokens_json_truncation"
 )
@@ -86,7 +86,7 @@ LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REASON_CONTRACT_REPAIR_EXHAUSTED = (
 )
 LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_RESPONSE_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
-    "formalization-gap-planner-llm-route-planner-staged-followup-stage-response:1"
+    "formalization-gap-planner-llm-route-planner-staged-followup-stage-response:2"
 )
 LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_RESPONSE_KIND = (
     "formalization_gap_planner_llm_route_planner_staged_followup_stage_response"
@@ -120,11 +120,17 @@ LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_REPLAY_REJECTED_STATUS = (
 )
 LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_FEEDBACK_ERROR_LIMIT = 64
 LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_COMPLETED_STATUS = "completed_fragment"
+LLM_ROUTE_PLANNER_ROUTE_CORE_DECISION_TRANSPORT_KIND = (
+    "formalization_gap_planner_route_core_decision_transport"
+)
 LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_IDS = (
     "route_core_compaction",
     "formal_realization_and_alignment",
     "residual_batch_interpretation",
     "formal_attempt_queue_and_standalone_route",
+)
+LLM_ROUTE_PLANNER_RESIDUAL_BATCH_IDS = tuple(
+    f"batch_{index}" for index in range(1, 6)
 )
 LLM_ROUTE_PLANNER_DEFAULT_MAX_STAGED_FOLLOWUP_STAGE_CALLS = 0
 LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID = (
@@ -2888,6 +2894,28 @@ def export_formalization_gap_planner_llm_route_planner(
         "n_staged_followup_stage_attempt_rows": len(
             staged_followup_stage_attempt_rows
         ),
+        "total_staged_followup_stage_estimated_prompt_input_tokens": sum(
+            _nonnegative_int(row.get("estimated_prompt_input_tokens", 0))
+            for row in staged_followup_stage_attempt_rows
+            if row.get("prior_stage_attempt_reused") is not True
+        ),
+        "max_staged_followup_stage_estimated_prompt_input_tokens": max(
+            (
+                _nonnegative_int(row.get("estimated_prompt_input_tokens", 0))
+                for row in staged_followup_stage_attempt_rows
+                if row.get("prior_stage_attempt_reused") is not True
+            ),
+            default=0,
+        ),
+        "staged_followup_stage_estimated_prompt_input_tokens_by_stage": {
+            stage_id: sum(
+                _nonnegative_int(row.get("estimated_prompt_input_tokens", 0))
+                for row in staged_followup_stage_attempt_rows
+                if str(row.get("stage_id", "") or "") == stage_id
+                and row.get("prior_stage_attempt_reused") is not True
+            )
+            for stage_id in LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_IDS
+        },
         "n_staged_followups_with_stage_attempts": len(
             {
                 str(row.get("staged_followup_id", ""))
@@ -14995,20 +15023,21 @@ def _staged_followup_stage_sequence(
             "owner": "formalization_gap_planner.llm_route_planner",
             "target_prover_family": target_prover_family,
             "purpose": (
-                "Choose the route and return only the internally consistent "
-                "minimal_delta_plan cost graph. Formal realization, residual "
-                "rows, standalone route, and formal_attempt_queue belong to "
-                "later stages."
+                "Choose the route and author one exact-key primitive decision "
+                "for every selected primitive. Runtime binds immutable IDs and "
+                "derives only arithmetic and the mechanical AND/OR accounting "
+                "projection. Formal realization, residual rows, standalone "
+                "route, and formal_attempt_queue belong to later stages."
             ),
             "required_output_fields": [
                 "minimal_delta_plan",
             ],
             "size_policy": [
-                "Emit exactly one primitive cost row for every selected primitive",
-                "Action witness fields are compact 'primitive: action' strings",
-                "minimal_delta_plan.and_or_cost_graph.route_options has at most 2 items",
-                "An unselected request baseline copies its supplied ID, complete selected_primitives list, and exact cost floor without duplicating baseline-only cost rows",
-                "Selected and non-request-baseline route options remain fully witnessed by primitive costs and action work items",
+                "Return fragment.route_decision, not minimal_delta_plan or an AND/OR graph",
+                "selection_by_primitive contains every supplied primitive-universe key exactly once with a boolean value",
+                "selected_primitive_decisions contains exactly one semantic decision row for every true selection key",
+                "Author coverage, semantic cost dimensions, rationale, and one compact action per selected primitive",
+                "Do not copy base_cost, total_cost, route_cost, cost_model_version, baseline options, OR nodes, or AND edges; runtime derives those fields",
             ],
             "baseline_route_option_ids": baseline_route_option_ids,
             "baseline_route_option_cost_floors": (
@@ -15047,9 +15076,9 @@ def _staged_followup_stage_sequence(
             "owner": "formalization_gap_planner.llm_route_planner",
             "target_prover_family": target_prover_family,
             "purpose": (
-                "Cover prover/resource residuals using compact batches. Use "
-                "covered_residual_goal_indices instead of copying long Lean "
-                "diagnostics."
+                "Assign every frozen prover/resource residual index to one of at "
+                "most five compact semantic batches. Runtime copies exact residual "
+                "text and covered-index mirrors after validating complete coverage."
             ),
             "required_output_fields": [
                 "residual_interpretations",
@@ -15058,11 +15087,11 @@ def _staged_followup_stage_sequence(
             ],
             "residual_goal_count": residual_goal_count,
             "size_policy": [
-                "Hard cap: at most 5 residual_interpretations total",
-                "Prefer one row per residual class, not one row per diagnostic",
-                "Each row has interpretation, route_repair, target_primitives",
+                "residual_batch_by_goal_index contains every supplied zero-based index exactly once",
+                "Use batch_1 through batch_5 and at most five residual_batches rows",
+                "Each used batch ID has exactly one interpretation, route_repair, and target_primitives row",
                 "Use formal_gap_boundary for environment/tool blockers",
-                "Every residual_goal value must exactly copy a supplied request residual goal; route-adoption blockers are not residual goals",
+                "Do not copy residual_goal text or covered index arrays; runtime derives both from the exact assignment",
                 "At most 4 search_requests and 4 planner_next_actions",
                 "A literature search_request may batch several SEARCH_REQUESTED source obligations when target_informal_node_ids lists every covered informal node; include aligned target_primitives when available",
                 "Use request_kind=literature for source grounding and request_kind=formal_library for Lean/declaration retrieval; formal_library does not discharge a literature/source obligation",
@@ -15630,6 +15659,9 @@ def _generate_staged_followup_stage_attempt(
         max_output_tokens=stage_max_tokens,
     )
     prompt_fingerprint = stable_hash([system_prompt, user_prompt])
+    estimated_prompt_input_tokens = _estimated_text_tokens(
+        system_prompt
+    ) + _estimated_text_tokens(user_prompt)
     base_row = {
         "schema_version": LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_SCHEMA_VERSION,
         "attempt_kind": LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_ATTEMPT_KIND,
@@ -15654,6 +15686,13 @@ def _generate_staged_followup_stage_attempt(
         "max_tokens": stage_max_tokens,
         "temperature": float(temperature),
         "prompt_fingerprint": prompt_fingerprint,
+        "system_prompt_chars": len(system_prompt),
+        "user_prompt_chars": len(user_prompt),
+        "estimated_prompt_input_tokens": estimated_prompt_input_tokens,
+        "estimated_prompt_total_token_budget": (
+            estimated_prompt_input_tokens + stage_max_tokens
+        ),
+        "prompt_token_estimation_method": "ceil(prompt_utf8_bytes/3)",
         "n_prior_stage_fragments": len(prior_stage_fragments),
         "prior_stage_fragment_fingerprint": stable_hash(
             list(prior_stage_fragments)
@@ -15706,7 +15745,8 @@ def _generate_staged_followup_stage_attempt(
                     max_tokens=stage_max_tokens,
                     temperature=temperature,
                     schema=llm_route_planner_staged_followup_stage_response_schema(
-                        stage_id=stage_id
+                        stage_id=stage_id,
+                        request=request,
                     ),
                     metadata={
                         "component": LLM_ROUTE_PLANNER_COMPONENT,
@@ -15729,9 +15769,7 @@ def _generate_staged_followup_stage_attempt(
                             "only; they are not adopted route plans or theorem "
                             "proof evidence."
                         ),
-                        "provider_structured_output": (
-                            stage_id != "route_core_compaction"
-                        ),
+                        "provider_structured_output": True,
                     },
                 )
             )
@@ -15780,24 +15818,28 @@ def _generate_staged_followup_stage_attempt(
             stage_status_inferred,
             proof_evidence_metadata_inferred,
             runtime_owned_derived_accounting_fields,
+            route_core_transport_errors,
         ) = _normalized_staged_followup_stage_response_payload(
             payload,
             stage_id=stage_id,
+            followup=followup,
+            request=request,
         )
-        validation_errors = list(
-            dict.fromkeys(
-                [
-                    *generation_errors,
-                    *_staged_followup_stage_response_errors(
-                        payload,
-                        followup,
-                        request,
-                        stage,
-                        prior_stage_fragments=prior_stage_fragments,
-                    ),
-                ]
+        validation_errors = [
+            *generation_errors,
+            *route_core_transport_errors,
+        ]
+        if not route_core_transport_errors:
+            validation_errors.extend(
+                _staged_followup_stage_response_errors(
+                    payload,
+                    followup,
+                    request,
+                    stage,
+                    prior_stage_fragments=prior_stage_fragments,
+                )
             )
-        )
+        validation_errors = list(dict.fromkeys(validation_errors))
         metadata = _generator_metadata_with_model_tier(
             {
                 **dict(generated.metadata),
@@ -15810,9 +15852,35 @@ def _generate_staged_followup_stage_attempt(
                     runtime_owned_derived_accounting_fields
                 ),
                 "runtime_owned_derived_accounting_boundary": (
-                    "The runtime only recomputed arithmetic fields derived from "
-                    "model-selected primitives and model-authored cost dimensions; "
-                    "it did not choose routes or alter mathematical content."
+                    (
+                        "The runtime bound immutable stage identity and only "
+                        "compiled arithmetic, cost-policy base values, action-field "
+                        "placement, and the mechanical AND/OR projection from the "
+                        "model-selected route and model-authored primitive decisions. "
+                        "It did not choose routes or author mathematical actions."
+                    )
+                    if stage_id == "route_core_compaction"
+                    else (
+                        "The runtime bound immutable stage identity, copied each "
+                        "frozen residual goal by its exact assigned index, and "
+                        "derived covered index lists from the model-authored batch "
+                        "assignment. It did not classify residuals or author route "
+                        "repairs."
+                    )
+                    if stage_id == "residual_batch_interpretation"
+                    else (
+                        "The runtime bound immutable stage identity and derived only "
+                        "mirror fields: informal depends_on from model-authored DAG "
+                        "edges and formalization_action from the model-authored "
+                        "coverage bucket. It did not add dependencies, choose "
+                        "coverage, or author mathematical actions."
+                    )
+                ),
+                "route_core_decision_transport_used": bool(
+                    stage_id == "route_core_compaction"
+                    and runtime_owned_derived_accounting_fields
+                    and "fragment.route_decision->fragment.minimal_delta_plan"
+                    in runtime_owned_derived_accounting_fields
                 ),
             },
             requested_model_tier=model_tier,
@@ -15890,7 +15958,7 @@ def _staged_followup_stage_repair_user_prompt(
         "original_stage_request": _extract_json_object_or_text(original_user_prompt),
         "hard_requirements": [
             "Return only one complete JSON object for the requested stage.",
-            "Fix every local_validation_errors item without changing immutable IDs or target identity.",
+            "Fix every local_validation_errors item without changing target identity; runtime binds immutable request and stage IDs.",
             "Keep all required witness rows, but make optional prose and rationales concise.",
             "Use compact JSON formatting so the complete object fits the provider output ceiling.",
             "Do not invent source material, tool results, kernel verification, or theorem proof evidence.",
@@ -15909,6 +15977,194 @@ kernel verification or theorem proof evidence. Produce a compact planning
 fragment that can later be assembled into the full route-planner response and
 validated by the existing route-planner contract.
 """
+
+
+def _staged_followup_prior_stage_prompt_projection(
+    prior_stage_fragments: tuple[dict[str, object], ...],
+) -> list[dict[str, object]]:
+    projected: list[dict[str, object]] = []
+    for row in prior_stage_fragments:
+        stage_id = str(row.get("stage_id", "") or "")
+        fragment = _dict_value(row, "fragment")
+        projected_fragment: dict[str, object]
+        if stage_id == "route_core_compaction":
+            plan = _dict_value(fragment, "minimal_delta_plan")
+            graph = _dict_value(plan, "and_or_cost_graph")
+            projected_fragment = {
+                "minimal_delta_plan": {
+                    "selected_primitives": list(
+                        _str_tuple(plan.get("selected_primitives", []))
+                    ),
+                    "selected_route_option_id": str(
+                        graph.get("selected_route_option_id", "") or ""
+                    ),
+                    "primitive_cost_buckets": [
+                        {
+                            "primitive": str(cost.get("primitive", "") or ""),
+                            "coverage_bucket": str(
+                                cost.get("coverage_bucket", "") or ""
+                            ),
+                        }
+                        for cost in _dict_tuple(plan.get("primitive_costs", []))
+                    ],
+                }
+            }
+        elif stage_id == "formal_realization_and_alignment":
+            projected_fragment = {
+                "informal_knowledge_dag_nodes": [
+                    {
+                        key: deepcopy(node[key])
+                        for key in (
+                            "node_id",
+                            "source_refs",
+                            "source_search_status",
+                            "formal_gap_boundary",
+                        )
+                        if key in node
+                    }
+                    for node in _dict_tuple(
+                        fragment.get("informal_knowledge_dag_nodes", [])
+                    )
+                ],
+                "formal_realization_dag_nodes": [
+                    {
+                        key: deepcopy(node[key])
+                        for key in (
+                            "node_id",
+                            "primitive",
+                            "coverage_bucket",
+                            "target_prover_family",
+                        )
+                        if key in node
+                    }
+                    for node in _dict_tuple(
+                        fragment.get("formal_realization_dag_nodes", [])
+                    )
+                ],
+                "formal_realization_dag_edges": [
+                    {
+                        key: deepcopy(edge[key])
+                        for key in ("source_node_id", "target_node_id")
+                        if key in edge
+                    }
+                    for edge in _dict_tuple(
+                        fragment.get("formal_realization_dag_edges", [])
+                    )
+                ],
+                "route_alignment_edges": [
+                    {
+                        key: deepcopy(edge[key])
+                        for key in ("informal_node_id", "formal_node_id")
+                        if key in edge
+                    }
+                    for edge in _dict_tuple(
+                        fragment.get("route_alignment_edges", [])
+                    )
+                ],
+            }
+        elif stage_id == "residual_batch_interpretation":
+            projected_fragment = {
+                "residual_interpretations": [
+                    {
+                        key: deepcopy(item[key])
+                        for key in (
+                            "covered_residual_goal_indices",
+                            "target_primitives",
+                            "source_search_status",
+                            "formal_gap_boundary",
+                        )
+                        if key in item
+                    }
+                    for item in _dict_tuple(
+                        fragment.get("residual_interpretations", [])
+                    )
+                ],
+                "search_requests": [
+                    {
+                        key: deepcopy(item[key])
+                        for key in (
+                            "request_kind",
+                            "target_primitives",
+                            "target_informal_node_ids",
+                            "resource_id",
+                            "resource_contract_ids",
+                        )
+                        if key in item
+                    }
+                    for item in _dict_tuple(fragment.get("search_requests", []))
+                ],
+                "planner_next_actions": [
+                    {
+                        key: deepcopy(item[key])
+                        for key in (
+                            "owner",
+                            "target_primitives",
+                            "resource_id",
+                            "resource_contract_ids",
+                        )
+                        if key in item
+                    }
+                    for item in _dict_tuple(
+                        fragment.get("planner_next_actions", [])
+                    )
+                ],
+            }
+        else:
+            projected_fragment = deepcopy(fragment)
+        projected.append(
+            {
+                "stage_id": stage_id,
+                "fragment": projected_fragment,
+                "fragment_fingerprint": str(
+                    row.get("fragment_fingerprint", "") or ""
+                ),
+                "projection_boundary": (
+                    "Compact provider context only. The full accepted fragment "
+                    "remains authoritative for lineage, validation, and assembly."
+                ),
+            }
+        )
+    return projected
+
+
+def _staged_followup_stage_consistency_requirements(
+    stage_id: str,
+) -> list[str]:
+    if stage_id == "route_core_compaction":
+        return [
+            "selection_by_primitive must contain every route_decision_primitive_universe key exactly once with a boolean value and select at least one key.",
+            "selected_primitive_decisions must contain exactly one row for every true selection_by_primitive key and no row for a false key.",
+            "Each primitive decision authors coverage_bucket, all five semantic cost dimensions except base cost, one cost rationale, and one concrete action.",
+            "A selected coverage bucket must respect the supplied per-primitive minimum coverage and base-cost evidence.",
+            "Runtime derives selected_primitives, policy base_cost, primitive total_cost, selected route_cost, request baselines, action-field placement, and the mechanical AND/OR graph; do not return those fields.",
+            "The selected route option ID and mathematical action text remain model-owned; runtime does not choose or rewrite them.",
+        ]
+    if stage_id == "formal_realization_and_alignment":
+        return [
+            "Every referenced node and primitive must resolve in this fragment or the accepted route-core fragment.",
+            "Emit one formal node and one alignment edge for every selected primitive, and no node for an unselected primitive.",
+            "Use a candidate declaration only when formal_declaration_support_by_primitive explicitly supports that primitive.",
+            "For every informal edge u -> v and every (a, b) in align(u) x align(v), the formal DAG must contain a directed path a ->* b.",
+            "Use SEARCH_REQUESTED only for missing literature grounding and FORMAL_GAP_BOUNDARY for a missing formal declaration, proof body, import, or environment.",
+        ]
+    if stage_id == "residual_batch_interpretation":
+        return [
+            "residual_batch_by_goal_index must assign every request_context.residual_goals zero-based index exactly once to batch_1..batch_5.",
+            "residual_batches must contain exactly one row for every used batch ID and no unused row.",
+            "Runtime copies exact residual_goal strings and derives covered_residual_goal_indices; do not return either field.",
+            "Every SEARCH_REQUESTED batch must be paired with a matching literature search_request for its upstream informal obligations.",
+            "Planner action owner/resource IDs and resource_contract_ids must copy exact supplied registry mappings.",
+        ]
+    if stage_id == "formal_attempt_queue_and_standalone_route":
+        return [
+            "Every referenced formal node and primitive must resolve in an accepted upstream fragment.",
+            "Formal attempt rows must be unique and follow the formal DAG in bottom-up topological order with exact immediate predecessors.",
+            "Choose attempt_kind and expected_feedback from cross_stage_reference_contract.formal_node_attempt_contracts for each formal node.",
+            "standalone_route must preserve the exact target identity and mirror the selected primitives and their accepted coverage buckets.",
+            "Planner action owner/resource IDs and resource_contract_ids must copy exact supplied registry mappings.",
+            "Source refs must come from the compact target route or accepted upstream fragments; do not invent source material.",
+        ]
+    return []
 
 
 def _staged_followup_stage_user_prompt(
@@ -15939,19 +16195,25 @@ def _staged_followup_stage_user_prompt(
         ),
         "required_output_contract": {
             "schema_id": LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_RESPONSE_SCHEMA_ID,
-            "stage_response_kind": (
-                LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_RESPONSE_KIND
-            ),
-            "staged_followup_id": str(
-                followup.get("staged_followup_id", "") or ""
-            ),
-            "request_id": str(request.get("request_id", "") or ""),
-            "route_id": str(request.get("route_id", "") or ""),
-            "stage_id": stage_id,
+            "runtime_bound_metadata": {
+                "stage_response_kind": (
+                    LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_RESPONSE_KIND
+                ),
+                "staged_followup_id": str(
+                    followup.get("staged_followup_id", "") or ""
+                ),
+                "request_id": str(request.get("request_id", "") or ""),
+                "route_id": str(request.get("route_id", "") or ""),
+                "stage_id": stage_id,
+                "stage_status": (
+                    LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_COMPLETED_STATUS
+                ),
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            },
             "required_fragment_fields": list(
-                _staged_followup_stage_required_fragment_fields(stage_id)
+                _staged_followup_stage_transport_fragment_fields(stage_id)
             ),
-            "stage_status": LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_COMPLETED_STATUS,
             "stage_fragment_contract": _staged_followup_stage_fragment_contract(
                 stage_id
             ),
@@ -15961,32 +16223,20 @@ def _staged_followup_stage_user_prompt(
             "search_tool_contract": _staged_followup_search_tool_contract(
                 stage_id
             ),
-            "cross_stage_consistency_requirements": [
-                "Every referenced node, primitive, and route-option ID must resolve in the current fragment or accepted upstream fragments.",
-                "Formal attempt rows must be unique and follow the formal DAG in bottom-up topological order with exact immediate predecessors.",
-                "Selected and route-option primitives must be represented consistently in the formal DAG, alignment edges, cost witness, and standalone route.",
-                "Any formal-boundary source_search_status requires a substantive formal_gap_boundary on the same row.",
-                "Each primitive total_cost must equal its cost dimensions minus reuse_credit; route costs must satisfy the supplied lower bounds and selected-primitive sums.",
-                "A route option whose ID appears in stage.baseline_route_option_cost_floors must not use a lower route_cost.",
-                "An unselected request baseline must copy the exact ID, complete selected_primitives list, and exact conservative floor supplied in stage.baseline_route_option_cost_floors.",
-                "Every route option must be reachable from an OR choice, and OR choices may reference only known route options or primitives.",
-                "Every route option must have exactly one and_edges row whose route_option_id matches and whose requires list exactly equals that option's selected_primitives.",
-                "Use a candidate declaration only when the declaration-scope inventory explicitly supports the formal node primitive; otherwise leave candidate_declaration_rows empty and choose the evidence-backed non-reuse action.",
-                "Every primitive cost base_cost must exactly copy the supplied coverage-bucket policy or primitive cost hint, and each action-bearing cost bucket must have the matching actionable work-item field.",
-                "For every informal DAG edge u -> v and every formal-node pair (a, b) in align(u) x align(v), formal_realization_dag_edges must contain a directed path a ->* b.",
-                "Planner action owner/resource IDs and resource_contract_ids must copy the exact IDs and mapping from the supplied component resource registry inventory.",
-                "Every residual_interpretations[].residual_goal, when present, must exactly copy one request_context.residual_goals item; encode route-adoption or workflow blockers as planner_next_actions or assembler_notes instead.",
-                "Every source_snippets item must exactly copy a snippet supplied by the request context; when no exact snippet is available, omit it and emit a bounded search_request instead.",
-                "Every SEARCH_REQUESTED source status must be paired with a matching literature/source search_request; use exact target_informal_node_ids for informal DAG obligations. A formal_library search_request is a separate Lean/library action and is not source evidence.",
-            ],
-            "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            "cross_stage_consistency_requirements": (
+                _staged_followup_stage_consistency_requirements(stage_id)
+            ),
         },
         "output_budget": {
             "max_output_tokens": max(0, int(max_output_tokens)),
             "budget_is_provider_hard_ceiling": bool(max_output_tokens),
         },
         "stage": dict(stage),
-        "accepted_prior_stage_fragments": list(prior_stage_fragments),
+        "accepted_prior_stage_fragments": (
+            _staged_followup_prior_stage_prompt_projection(
+                prior_stage_fragments
+            )
+        ),
         "cross_stage_reference_contract": cross_stage_reference_contract,
         "route_contract_feedback": {
             "present": bool(all_feedback_errors),
@@ -16025,7 +16275,11 @@ def _staged_followup_stage_user_prompt(
             "target_prover_family": str(
                 request.get("target_prover_family", "") or ""
             ),
-            "prompt_target_route": _dict_value(request, "prompt_target_route"),
+            "prompt_target_route": (
+                _staged_followup_route_core_prompt_target_route(
+                    _dict_value(request, "prompt_target_route")
+                )
+            ),
             "prompt_context_packet": stage_prompt_context_packet,
             "residual_goals": (
                 list(_str_tuple(request.get("residual_goals", [])))
@@ -16033,45 +16287,53 @@ def _staged_followup_stage_user_prompt(
                 else []
             ),
         },
-        "hard_requirements": [
-            "Return exactly one JSON object.",
-            "Use the requested stage_id and staged_followup_id verbatim.",
-            (
-                "Set top-level stage_status to "
-                + LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_COMPLETED_STATUS
-                + "."
-            ),
-            "Use exactly the field names in required_output_contract.stage_fragment_contract.",
-            "Put stage-specific content under fragment, not as top-level prose.",
-            (
-                "Keep the complete JSON response within output_budget.max_output_tokens; "
-                "compact optional prose but never omit required witness rows."
-            ),
-            "Keep lists and rationale strings compact; do not copy long prover diagnostics.",
-            (
-                "Treat accepted_prior_stage_fragments as authoritative typed "
-                "upstream output. Reuse their node IDs, primitive IDs, selected "
-                "route option IDs, and target identities verbatim wherever this "
-                "stage references them."
-            ),
-            (
-                "Use cross_stage_reference_contract as the compact ID and DAG "
-                "dependency ledger; do not invent replacement IDs."
-            ),
-            (
-                "When route_contract_feedback.present is true, correct every "
-                "validator error assigned to this stage before returning."
-            ),
-            *_staged_followup_stage_search_hard_requirements(stage_id),
-            (
-                "Use only owner/resource IDs and their exact mapped contract IDs "
-                "from prompt_context_packet.component_resource_registry_inventory."
-            ),
-            "Do not replace contract-required witness rows with empty arrays merely to shorten the response.",
-            "Do not invent source refs, formal declarations, or tool calls.",
-            "If evidence is missing, use empty arrays plus assembler_notes or planner_next_actions.",
-            "Do not claim kernel verification or theorem proof evidence.",
-        ],
+        "hard_requirements": (
+            [
+                "Return exactly one JSON object with only fragment and assembler_notes; runtime binds request, route, stage, status, and evidence metadata.",
+                "Return fragment.route_decision only. Do not return minimal_delta_plan or any derived cost-graph field.",
+                "selection_by_primitive must use every route_decision_primitive_universe key exactly once with true or false.",
+                "selected_primitive_decisions must contain exactly one row for each true key and no rows for false keys.",
+                "Author one concrete action for every selected primitive, even when several primitives reuse the same declaration or bridge family.",
+                "Choose coverage_bucket from coverage_bucket_base_cost and do not underprice supplied minimum coverage evidence.",
+                "Keep each action and rationale concise and specific to its exact primitive key.",
+                "When route_contract_feedback.present is true, correct every validator error assigned to route_core_compaction.",
+                "Do not invent source refs, formal declarations, tool calls, kernel verification, or theorem proof evidence.",
+            ]
+            if stage_id == "route_core_compaction"
+            else [
+                "Return exactly one JSON object with only fragment and assembler_notes; runtime binds immutable request and stage metadata.",
+                "Use exactly the field names in required_output_contract.stage_fragment_contract.",
+                "Put stage-specific content under fragment, not as top-level prose.",
+                (
+                    "Keep the complete JSON response within output_budget.max_output_tokens; "
+                    "compact optional prose but never omit required witness rows."
+                ),
+                "Keep lists and rationale strings compact; do not copy long prover diagnostics.",
+                (
+                    "Treat accepted_prior_stage_fragments as authoritative typed "
+                    "upstream output. Reuse their node IDs, primitive IDs, selected "
+                    "route option IDs, and target identities verbatim wherever this "
+                    "stage references them."
+                ),
+                (
+                    "Use cross_stage_reference_contract as the compact ID and DAG "
+                    "dependency ledger; do not invent replacement IDs."
+                ),
+                (
+                    "When route_contract_feedback.present is true, correct every "
+                    "validator error assigned to this stage before returning."
+                ),
+                *_staged_followup_stage_search_hard_requirements(stage_id),
+                (
+                    "Use only owner/resource IDs and their exact mapped contract IDs "
+                    "from prompt_context_packet.component_resource_registry_inventory."
+                ),
+                "Do not replace contract-required witness rows with empty arrays merely to shorten the response.",
+                "Do not invent source refs, formal declarations, or tool calls.",
+                "If evidence is missing, use empty arrays plus assembler_notes or planner_next_actions.",
+                "Do not claim kernel verification or theorem proof evidence.",
+            ]
+        ),
     }
     return json.dumps(payload, indent=2, default=str)
 
@@ -16122,9 +16384,13 @@ def _staged_followup_stage_search_hard_requirements(
     if stage_id == "formal_realization_and_alignment":
         return [
             "Follow required_output_contract.search_tool_contract when assigning source_search_status; do not label a purely formal Lean gap SEARCH_REQUESTED.",
+            "Author informal DAG dependencies only in informal_knowledge_dag_edges; runtime derives node depends_on mirrors.",
+            "Author each formal node coverage_bucket only; runtime derives its categorical formalization_action mirror.",
         ]
     if stage_id == "residual_batch_interpretation":
         return [
+            "Assign every request residual index in residual_batch_by_goal_index; use one shared batch ID for semantically related residuals.",
+            "Return exactly one residual_batches row for each used batch ID; do not copy residual text or covered index arrays.",
             "For every accepted upstream source_search_obligations row, emit a matching request_kind=literature search_request whose target_informal_node_ids contains that exact informal_node_id; include relevant aligned target_primitives when available.",
             "Use request_kind=formal_library only for Lean/declaration retrieval; it cannot replace the required literature request.",
         ]
@@ -16163,6 +16429,24 @@ def _staged_followup_cross_stage_reference_contract(
         for row in formal_nodes
         if str(row.get("node_id", "") or "").strip()
     }
+    formal_node_attempt_contracts: dict[str, dict[str, object]] = {}
+    for node in formal_nodes:
+        node_id = str(node.get("node_id", "") or "").strip()
+        if not node_id:
+            continue
+        bucket, allowed_attempt_kinds = (
+            _formal_attempt_queue_allowed_attempt_kind_bucket(node)
+        )
+        formal_node_attempt_contracts[node_id] = {
+            "coverage_bucket": bucket,
+            "allowed_attempt_kinds": sorted(allowed_attempt_kinds),
+            "required_feedback_by_attempt_kind": {
+                attempt_kind: sorted(
+                    _formal_attempt_queue_required_feedback_signals(attempt_kind)
+                )
+                for attempt_kind in sorted(allowed_attempt_kinds)
+            },
+        }
     aligned_primitives_by_informal_node = (
         _aligned_formal_primitive_keys_by_informal_node(formal_realization)
     )
@@ -16195,6 +16479,7 @@ def _staged_followup_cross_stage_reference_contract(
         "accepted_stage_ids": list(fragments_by_stage),
         "formal_node_ids": formal_node_ids,
         "formal_node_primitives": formal_node_primitives,
+        "formal_node_attempt_contracts": formal_node_attempt_contracts,
         "source_search_obligations": source_search_obligations,
         "formal_node_immediate_predecessors": {
             node_id: list(dict.fromkeys(predecessors))
@@ -16222,18 +16507,70 @@ def _normalized_staged_followup_stage_response_payload(
     payload: Mapping[str, Any],
     *,
     stage_id: str,
-) -> tuple[Mapping[str, Any], bool, bool, tuple[str, ...]]:
+    followup: Mapping[str, object] | None = None,
+    request: Mapping[str, Any] | None = None,
+) -> tuple[
+    Mapping[str, Any],
+    bool,
+    bool,
+    tuple[str, ...],
+    tuple[str, ...],
+]:
     if not isinstance(payload, Mapping) or not payload:
-        return payload, False, False, ()
+        return payload, False, False, (), ()
     normalized: dict[str, Any] = dict(payload)
     fragment = normalized.get("fragment", {})
     runtime_owned_derived_accounting_fields: tuple[str, ...] = ()
+    transport_errors: tuple[str, ...] = ()
     if stage_id == "route_core_compaction" and isinstance(fragment, Mapping):
+        if "route_decision" in fragment:
+            (
+                fragment,
+                runtime_owned_derived_accounting_fields,
+                transport_errors,
+            ) = _compiled_route_core_decision_fragment(
+                fragment,
+                request=request or {},
+            )
+        else:
+            (
+                fragment,
+                runtime_owned_derived_accounting_fields,
+            ) = _normalized_route_core_derived_accounting(fragment)
+        normalized["fragment"] = fragment
+    elif (
+        stage_id == "formal_realization_and_alignment"
+        and isinstance(fragment, Mapping)
+    ):
         (
             fragment,
             runtime_owned_derived_accounting_fields,
-        ) = _normalized_route_core_derived_accounting(fragment)
+        ) = _normalized_formal_realization_mirror_fields(fragment)
         normalized["fragment"] = fragment
+    elif (
+        stage_id == "residual_batch_interpretation"
+        and isinstance(fragment, Mapping)
+        and "residual_batch_by_goal_index" in fragment
+    ):
+        (
+            fragment,
+            runtime_owned_derived_accounting_fields,
+            transport_errors,
+        ) = _compiled_residual_batch_fragment(
+            fragment,
+            request=request or {},
+        )
+        normalized["fragment"] = fragment
+    if followup is not None and request is not None:
+        normalized["stage_response_kind"] = (
+            LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_RESPONSE_KIND
+        )
+        normalized["staged_followup_id"] = str(
+            followup.get("staged_followup_id", "") or ""
+        )
+        normalized["request_id"] = str(request.get("request_id", "") or "")
+        normalized["route_id"] = str(request.get("route_id", "") or "")
+        normalized["stage_id"] = stage_id
     fragment_has_required_fields = (
         isinstance(fragment, Mapping)
         and all(
@@ -16270,7 +16607,478 @@ def _normalized_staged_followup_stage_response_payload(
         stage_status_inferred,
         proof_evidence_metadata_inferred,
         runtime_owned_derived_accounting_fields,
+        transport_errors,
     )
+
+
+def _normalized_formal_realization_mirror_fields(
+    fragment: Mapping[str, Any],
+) -> tuple[dict[str, Any], tuple[str, ...]]:
+    normalized = deepcopy(dict(fragment))
+    changed_fields: list[str] = []
+    informal_nodes = normalized.get("informal_knowledge_dag_nodes", [])
+    informal_edges = _dict_tuple(
+        normalized.get("informal_knowledge_dag_edges", [])
+    )
+    dependencies_by_target: dict[str, list[str]] = {}
+    for edge in informal_edges:
+        source_node_id = str(edge.get("source_node_id", "") or "").strip()
+        target_node_id = str(edge.get("target_node_id", "") or "").strip()
+        if source_node_id and target_node_id:
+            dependencies_by_target.setdefault(target_node_id, []).append(
+                source_node_id
+            )
+    if isinstance(informal_nodes, list):
+        for index, raw_node in enumerate(informal_nodes):
+            if not isinstance(raw_node, Mapping):
+                continue
+            node = deepcopy(dict(raw_node))
+            informal_nodes[index] = node
+            node_id = str(node.get("node_id", "") or "").strip()
+            derived_dependencies = list(
+                dict.fromkeys(dependencies_by_target.get(node_id, []))
+            )
+            if node.get("depends_on") != derived_dependencies:
+                node["depends_on"] = derived_dependencies
+                changed_fields.append(
+                    f"fragment.informal_knowledge_dag_nodes[{index}].depends_on"
+                )
+    formal_nodes = normalized.get("formal_realization_dag_nodes", [])
+    if isinstance(formal_nodes, list):
+        for index, raw_node in enumerate(formal_nodes):
+            if not isinstance(raw_node, Mapping):
+                continue
+            node = deepcopy(dict(raw_node))
+            formal_nodes[index] = node
+            coverage_bucket = _primitive_key(node.get("coverage_bucket", ""))
+            if coverage_bucket and node.get("formalization_action") != coverage_bucket:
+                node["formalization_action"] = coverage_bucket
+                changed_fields.append(
+                    "fragment.formal_realization_dag_nodes"
+                    f"[{index}].formalization_action"
+                )
+    return normalized, tuple(changed_fields)
+
+
+def _compiled_residual_batch_fragment(
+    fragment: Mapping[str, Any],
+    *,
+    request: Mapping[str, Any],
+) -> tuple[dict[str, Any], tuple[str, ...], tuple[str, ...]]:
+    errors = _residual_batch_transport_errors(fragment, request=request)
+    if errors:
+        return deepcopy(dict(fragment)), (), tuple(errors)
+    residual_goals = list(_str_tuple(request.get("residual_goals", [])))
+    assignment = _dict_value(fragment, "residual_batch_by_goal_index")
+    batches_by_id = {
+        str(row.get("batch_id", "") or ""): deepcopy(dict(row))
+        for row in _dict_tuple(fragment.get("residual_batches", []))
+    }
+    residual_interpretations: list[dict[str, Any]] = []
+    for batch_id in LLM_ROUTE_PLANNER_RESIDUAL_BATCH_IDS:
+        covered_indices = [
+            index
+            for index in range(len(residual_goals))
+            if str(assignment.get(str(index), "") or "") == batch_id
+        ]
+        if not covered_indices:
+            continue
+        row = batches_by_id[batch_id]
+        row.pop("batch_id", None)
+        row["residual_goal"] = residual_goals[covered_indices[0]]
+        row["covered_residual_goal_indices"] = covered_indices
+        residual_interpretations.append(row)
+    return (
+        {
+            "residual_interpretations": residual_interpretations,
+            "search_requests": deepcopy(fragment.get("search_requests", [])),
+            "planner_next_actions": deepcopy(
+                fragment.get("planner_next_actions", [])
+            ),
+        },
+        (
+            "fragment.residual_batch_by_goal_index+fragment.residual_batches"
+            "->fragment.residual_interpretations",
+            "fragment.residual_interpretations[].residual_goal",
+            "fragment.residual_interpretations[].covered_residual_goal_indices",
+        ),
+        (),
+    )
+
+
+def _residual_batch_transport_errors(
+    fragment: Mapping[str, Any],
+    *,
+    request: Mapping[str, Any],
+) -> list[str]:
+    prefix = "fragment"
+    residual_goals = list(_str_tuple(request.get("residual_goals", [])))
+    expected_indices = {str(index) for index in range(len(residual_goals))}
+    assignment = fragment.get("residual_batch_by_goal_index", {})
+    if not isinstance(assignment, Mapping):
+        return [f"{prefix}.residual_batch_by_goal_index must be an exact-key object"]
+    errors: list[str] = []
+    observed_indices = {str(key) for key in assignment}
+    missing_indices = sorted(expected_indices - observed_indices, key=int)
+    extra_indices = sorted(
+        observed_indices - expected_indices,
+        key=lambda value: int(value) if value.isdigit() else len(residual_goals),
+    )
+    if missing_indices or extra_indices:
+        errors.append(
+            f"{prefix}.residual_batch_by_goal_index keys must exactly equal "
+            f"request residual indices; missing={missing_indices[:12]} "
+            f"extra={extra_indices[:12]}"
+        )
+    invalid_assignment_indices = sorted(
+        str(index)
+        for index, batch_id in assignment.items()
+        if str(batch_id or "") not in LLM_ROUTE_PLANNER_RESIDUAL_BATCH_IDS
+    )
+    if invalid_assignment_indices:
+        errors.append(
+            f"{prefix}.residual_batch_by_goal_index values must use batch_1.."
+            f"batch_{len(LLM_ROUTE_PLANNER_RESIDUAL_BATCH_IDS)}; invalid indices: "
+            + ", ".join(invalid_assignment_indices[:12])
+        )
+    raw_batches = fragment.get("residual_batches", [])
+    if not isinstance(raw_batches, list):
+        errors.append(f"{prefix}.residual_batches must be an array")
+        return sorted(set(errors))
+    if len(raw_batches) > len(LLM_ROUTE_PLANNER_RESIDUAL_BATCH_IDS):
+        errors.append(
+            f"{prefix}.residual_batches must contain at most "
+            f"{len(LLM_ROUTE_PLANNER_RESIDUAL_BATCH_IDS)} rows"
+        )
+    observed_batch_ids = [
+        str(row.get("batch_id", "") or "").strip()
+        for row in raw_batches
+        if isinstance(row, Mapping)
+    ]
+    duplicate_batch_ids = sorted(
+        batch_id
+        for batch_id, count in Counter(observed_batch_ids).items()
+        if batch_id and count > 1
+    )
+    if duplicate_batch_ids:
+        errors.append(
+            f"{prefix}.residual_batches batch_id values must be unique; "
+            "duplicates: "
+            + ", ".join(duplicate_batch_ids)
+        )
+    invalid_batch_ids = sorted(
+        batch_id
+        for batch_id in observed_batch_ids
+        if batch_id not in LLM_ROUTE_PLANNER_RESIDUAL_BATCH_IDS
+    )
+    if invalid_batch_ids:
+        errors.append(
+            f"{prefix}.residual_batches use invalid batch IDs: "
+            + ", ".join(invalid_batch_ids)
+        )
+    used_batch_ids = {
+        str(batch_id or "")
+        for batch_id in assignment.values()
+        if str(batch_id or "") in LLM_ROUTE_PLANNER_RESIDUAL_BATCH_IDS
+    }
+    missing_batches = sorted(used_batch_ids - set(observed_batch_ids))
+    unused_batches = sorted(set(observed_batch_ids) - used_batch_ids)
+    if missing_batches or unused_batches or len(raw_batches) != len(used_batch_ids):
+        errors.append(
+            f"{prefix}.residual_batches must contain exactly one row for every "
+            "batch ID used by residual_batch_by_goal_index; "
+            f"missing={missing_batches} unused={unused_batches}"
+        )
+    return sorted(set(errors))
+
+
+def _compiled_route_core_decision_fragment(
+    fragment: Mapping[str, Any],
+    *,
+    request: Mapping[str, Any],
+) -> tuple[dict[str, Any], tuple[str, ...], tuple[str, ...]]:
+    """Compile provider-owned route semantics into canonical cost accounting."""
+
+    decision = fragment.get("route_decision", {})
+    errors = _route_core_decision_transport_errors(decision, request=request)
+    if errors:
+        return deepcopy(dict(fragment)), (), tuple(errors)
+    assert isinstance(decision, Mapping)
+    selection_by_primitive = _dict_value(decision, "selection_by_primitive")
+    selected_primitives = sorted(
+        str(primitive)
+        for primitive, selected in selection_by_primitive.items()
+        if selected is True
+    )
+    primitive_decisions = {
+        str(row.get("primitive", "") or ""): row
+        for row in _dict_tuple(decision.get("selected_primitive_decisions", []))
+    }
+    primitive_costs: list[dict[str, object]] = []
+    action_items_by_field: dict[str, list[str]] = {}
+    for primitive in selected_primitives:
+        row = _dict_value(primitive_decisions, primitive)
+        bucket = _primitive_key(row.get("coverage_bucket", ""))
+        base_cost = _coverage_bucket_base_cost(bucket)
+        assert base_cost is not None
+        cost_row: dict[str, object] = {
+            "primitive": primitive,
+            "coverage_bucket": bucket,
+            "base_cost": base_cost,
+            "proof_difficulty_cost": row["proof_difficulty_cost"],
+            "import_cone_cost": row["import_cone_cost"],
+            "definition_or_typeclass_cost": row[
+                "definition_or_typeclass_cost"
+            ],
+            "semantic_risk_cost": row["semantic_risk_cost"],
+            "reuse_credit": row["reuse_credit"],
+            "cost_rationale": str(row.get("cost_rationale", "") or "").strip(),
+        }
+        total_cost = _derived_primitive_total_cost(cost_row)
+        assert total_cost is not None
+        cost_row["total_cost"] = total_cost
+        primitive_costs.append(cost_row)
+        action = str(row.get("action", "") or "").strip()
+        if action and _primitive_key(primitive) not in _primitive_key(action):
+            action = f"{primitive}: {action}"
+        for action_field in _minimal_delta_action_fields_for_marker(bucket):
+            action_items_by_field.setdefault(action_field, []).append(action)
+
+    rows_by_primitive = _cost_rows_by_primitive(primitive_costs)
+    route_cost = _derived_selected_primitive_route_cost(
+        selected_primitives,
+        rows_by_primitive,
+    )
+    assert route_cost is not None
+    selected_route_option_id = str(
+        decision.get("selected_route_option_id", "") or ""
+    ).strip()
+    minimality_rationale = str(
+        decision.get("minimality_rationale", "") or ""
+    ).strip()
+    route_options: list[dict[str, object]] = [
+        {
+            "route_option_id": selected_route_option_id,
+            "selected": True,
+            "selected_primitives": list(selected_primitives),
+            "route_cost": route_cost,
+            "cost_rationale": minimality_rationale,
+        }
+    ]
+    known_option_ids = {selected_route_option_id}
+    cost_hints = _dict_value(
+        _dict_value(request, "prompt_context_packet"),
+        "minimal_delta_cost_hints",
+    )
+    for hint in _dict_tuple(cost_hints.get("route_option_hints", [])):
+        option_id = str(hint.get("route_option_id", "") or "").strip()
+        if not option_id or option_id in known_option_ids:
+            continue
+        floor = hint.get("minimum_route_base_cost")
+        if not _is_nonnegative_number(floor):
+            continue
+        route_options.append(
+            {
+                "route_option_id": option_id,
+                "selected": False,
+                "selected_primitives": list(
+                    _str_tuple(hint.get("selected_primitives", []))
+                ),
+                "route_cost": floor,
+                "cost_rationale": str(
+                    hint.get("cost_rationale", "")
+                    or "Runtime-bound conservative request baseline."
+                ).strip(),
+            }
+        )
+        known_option_ids.add(option_id)
+
+    option_ids = [str(row["route_option_id"]) for row in route_options]
+    plan: dict[str, Any] = {
+        "selected_primitives": list(selected_primitives),
+        "cost_model_version": MINIMAL_DELTA_COST_POLICY_ID,
+        "route_cost": route_cost,
+        "primitive_costs": primitive_costs,
+        "and_or_cost_graph": {
+            "graph_kind": "AND_OR_ROUTE_COST_GRAPH",
+            "selected_route_option_id": selected_route_option_id,
+            "route_options": route_options,
+            "or_nodes": [
+                {
+                    "node_id": (
+                        "route_choice:"
+                        + stable_hash(
+                            {
+                                "route_id": str(request.get("route_id", "") or ""),
+                                "route_option_ids": option_ids,
+                            }
+                        )[:20]
+                    ),
+                    "choices": option_ids,
+                    "selection_rationale": minimality_rationale,
+                }
+            ],
+            "and_edges": [
+                {
+                    "route_option_id": str(option["route_option_id"]),
+                    "requires": list(
+                        _str_tuple(option.get("selected_primitives", []))
+                    ),
+                }
+                for option in route_options
+            ],
+        },
+        "minimality_rationale": minimality_rationale,
+        **action_items_by_field,
+    }
+    changed_fields = (
+        "fragment.route_decision->fragment.minimal_delta_plan",
+        "fragment.minimal_delta_plan.cost_model_version",
+        "fragment.minimal_delta_plan.primitive_costs[].base_cost",
+        "fragment.minimal_delta_plan.primitive_costs[].total_cost",
+        "fragment.minimal_delta_plan.route_cost",
+        "fragment.minimal_delta_plan.and_or_cost_graph",
+        *(
+            f"fragment.minimal_delta_plan.{field_name}"
+            for field_name in sorted(action_items_by_field)
+        ),
+    )
+    return {"minimal_delta_plan": plan}, changed_fields, ()
+
+
+def _route_core_decision_transport_errors(
+    decision: object,
+    *,
+    request: Mapping[str, Any],
+) -> list[str]:
+    prefix = "fragment.route_decision"
+    if not isinstance(decision, Mapping):
+        return [f"{prefix} must be an object"]
+    errors: list[str] = []
+    selected_route_option_id = str(
+        decision.get("selected_route_option_id", "") or ""
+    ).strip()
+    if not selected_route_option_id:
+        errors.append(f"{prefix}.selected_route_option_id required")
+    primitive_universe = _staged_followup_route_core_primitive_universe(
+        _dict_value(request, "prompt_context_packet")
+    )
+    selection_by_primitive = decision.get("selection_by_primitive", {})
+    if not isinstance(selection_by_primitive, Mapping):
+        errors.append(f"{prefix}.selection_by_primitive must be an exact-key object")
+        return sorted(set(errors))
+    selection_keys = [str(key) for key in selection_by_primitive]
+    expected_decision_keys = (
+        set(primitive_universe) if primitive_universe else set(selection_keys)
+    )
+    missing = sorted(expected_decision_keys - set(selection_keys))
+    extra = sorted(set(selection_keys) - expected_decision_keys)
+    if missing or extra or len(selection_keys) != len(expected_decision_keys):
+        errors.append(
+            f"{prefix}.selection_by_primitive keys must exactly equal the supplied "
+            f"primitive universe; missing={missing[:8]} extra={extra[:8]}"
+        )
+    non_boolean_selection_keys = sorted(
+        str(key)
+        for key, value in selection_by_primitive.items()
+        if not isinstance(value, bool)
+    )
+    if non_boolean_selection_keys:
+        errors.append(
+            f"{prefix}.selection_by_primitive values must be booleans; invalid "
+            "keys: "
+            + ", ".join(non_boolean_selection_keys[:8])
+        )
+    selected_primitives = sorted(
+        str(key)
+        for key, value in selection_by_primitive.items()
+        if value is True
+    )
+    if not selected_primitives:
+        errors.append(f"{prefix}.selection_by_primitive must select at least one key")
+    raw_decisions = decision.get("selected_primitive_decisions", [])
+    if not isinstance(raw_decisions, list):
+        errors.append(f"{prefix}.selected_primitive_decisions must be an array")
+        return sorted(set(errors))
+    observed_decision_primitives = [
+        str(row.get("primitive", "") or "").strip()
+        for row in raw_decisions
+        if isinstance(row, Mapping)
+    ]
+    duplicate_decision_primitives = sorted(
+        primitive
+        for primitive, count in Counter(observed_decision_primitives).items()
+        if primitive and count > 1
+    )
+    if duplicate_decision_primitives:
+        errors.append(
+            f"{prefix}.selected_primitive_decisions primitive values must be "
+            "unique; duplicates: "
+            + ", ".join(duplicate_decision_primitives[:8])
+        )
+    missing_selected_decisions = sorted(
+        set(selected_primitives) - set(observed_decision_primitives)
+    )
+    unselected_decisions = sorted(
+        set(observed_decision_primitives) - set(selected_primitives)
+    )
+    if (
+        missing_selected_decisions
+        or unselected_decisions
+        or len(raw_decisions) != len(selected_primitives)
+    ):
+        errors.append(
+            f"{prefix}.selected_primitive_decisions must contain exactly one row "
+            "for every true selection_by_primitive key; "
+            f"missing={missing_selected_decisions[:8]} "
+            f"unselected={unselected_decisions[:8]}"
+        )
+    required_cost_fields = (
+        "proof_difficulty_cost",
+        "import_cone_cost",
+        "definition_or_typeclass_cost",
+        "semantic_risk_cost",
+        "reuse_credit",
+    )
+    for index, row in enumerate(raw_decisions):
+        row_prefix = f"{prefix}.selected_primitive_decisions[{index}]"
+        if not isinstance(row, Mapping):
+            errors.append(f"{row_prefix} must be an object")
+            continue
+        primitive = str(row.get("primitive", "") or "").strip()
+        if not primitive:
+            errors.append(f"{row_prefix}.primitive required")
+        elif primitive_universe and primitive not in primitive_universe:
+            errors.append(
+                f"{row_prefix}.primitive must use an exact supplied primitive key"
+            )
+        bucket = _primitive_key(row.get("coverage_bucket", ""))
+        if _coverage_bucket_base_cost(bucket) is None:
+            errors.append(
+                f"{row_prefix}.coverage_bucket must name a cost-policy bucket"
+            )
+        for field_name in required_cost_fields:
+            if not _is_nonnegative_number(row.get(field_name)):
+                errors.append(f"{row_prefix}.{field_name} must be nonnegative")
+        if all(_is_nonnegative_number(row.get(name)) for name in required_cost_fields):
+            base_cost = _coverage_bucket_base_cost(bucket)
+            if base_cost is not None:
+                accounted = (
+                    float(base_cost)
+                    + sum(float(row[name]) for name in required_cost_fields[:-1])
+                    - float(row["reuse_credit"])
+                )
+                if accounted < 0:
+                    errors.append(
+                        f"{row_prefix}.reuse_credit cannot make total_cost negative"
+                    )
+        if not str(row.get("cost_rationale", "") or "").strip():
+            errors.append(f"{row_prefix}.cost_rationale required")
+        if not str(row.get("action", "") or "").strip():
+            errors.append(f"{row_prefix}.action required")
+    if not str(decision.get("minimality_rationale", "") or "").strip():
+        errors.append(f"{prefix}.minimality_rationale required")
+    return sorted(set(errors))
 
 
 _ROUTE_COST_DIMENSION_FIELDS = (
@@ -16442,39 +17250,30 @@ def _staged_followup_stage_fragment_contract(stage_id: str) -> dict[str, object]
     normalized = str(stage_id or "").strip()
     if normalized == "route_core_compaction":
         return {
-            "minimal_delta_plan": [
-                "selected_primitives",
-                "cost_model_version",
-                "route_cost",
-                "primitive_costs[].primitive",
-                "primitive_costs[].coverage_bucket",
-                "primitive_costs[].base_cost",
-                "primitive_costs[].proof_difficulty_cost",
-                "primitive_costs[].import_cone_cost",
-                "primitive_costs[].definition_or_typeclass_cost",
-                "primitive_costs[].semantic_risk_cost",
-                "primitive_costs[].reuse_credit",
-                "primitive_costs[].total_cost",
-                "primitive_costs[].cost_rationale",
-                "and_or_cost_graph.graph_kind",
-                "and_or_cost_graph.selected_route_option_id",
-                "and_or_cost_graph.route_options[].route_option_id",
-                "and_or_cost_graph.route_options[].selected",
-                "and_or_cost_graph.route_options[].selected_primitives",
-                "and_or_cost_graph.route_options[].route_cost",
-                "and_or_cost_graph.route_options[].cost_rationale",
-                "and_or_cost_graph.or_nodes[].node_id",
-                "and_or_cost_graph.or_nodes[].choices",
-                "and_or_cost_graph.or_nodes[].selection_rationale",
-                "and_or_cost_graph.and_edges[].route_option_id",
-                "and_or_cost_graph.and_edges[].requires",
+            "route_decision": [
+                "selected_route_option_id",
+                "selection_by_primitive.<every supplied primitive key> boolean",
+                "selected_primitive_decisions[].primitive",
+                "selected_primitive_decisions[].coverage_bucket",
+                "selected_primitive_decisions[].proof_difficulty_cost",
+                "selected_primitive_decisions[].import_cone_cost",
+                "selected_primitive_decisions[].definition_or_typeclass_cost",
+                "selected_primitive_decisions[].semantic_risk_cost",
+                "selected_primitive_decisions[].reuse_credit",
+                "selected_primitive_decisions[].cost_rationale",
+                "selected_primitive_decisions[].action",
                 "minimality_rationale",
             ],
-            "do_not_use_aliases": [
-                "source",
-                "target",
-                "label",
-                "coverage_status",
+            "runtime_derived_fields_do_not_return": [
+                "minimal_delta_plan",
+                "selected_primitives",
+                "base_cost",
+                "total_cost",
+                "route_cost",
+                "cost_model_version",
+                "route_options",
+                "or_nodes",
+                "and_edges",
             ],
         }
     if normalized == "formal_realization_and_alignment":
@@ -16482,7 +17281,6 @@ def _staged_followup_stage_fragment_contract(stage_id: str) -> dict[str, object]
             "informal_knowledge_dag_nodes[]": [
                 "node_id",
                 "claim",
-                "depends_on",
                 "source_refs",
                 "source_search_status",
                 "formal_gap_boundary",
@@ -16498,7 +17296,6 @@ def _staged_followup_stage_fragment_contract(stage_id: str) -> dict[str, object]
                 "node_id",
                 "primitive",
                 "coverage_bucket",
-                "formalization_action",
                 "target_prover_family",
                 "candidate_declaration_rows[].source_field when present",
             ],
@@ -16514,6 +17311,10 @@ def _staged_followup_stage_fragment_contract(stage_id: str) -> dict[str, object]
                 "alignment_status",
                 "alignment_rationale",
             ],
+            "runtime_derived_mirror_fields_do_not_return": [
+                "informal_knowledge_dag_nodes[].depends_on from informal_knowledge_dag_edges",
+                "formal_realization_dag_nodes[].formalization_action from coverage_bucket",
+            ],
             "do_not_use_aliases": [
                 "source",
                 "target",
@@ -16523,13 +17324,20 @@ def _staged_followup_stage_fragment_contract(stage_id: str) -> dict[str, object]
         }
     if normalized == "residual_batch_interpretation":
         return {
-            "residual_interpretations[]": [
-                "residual_goal",
-                "covered_residual_goal_indices",
+            "residual_batch_by_goal_index": (
+                "exact object with every supplied zero-based residual index as "
+                "a key and batch_1..batch_5 as values"
+            ),
+            "residual_batches[]": [
+                "batch_id",
                 "interpretation",
                 "route_repair",
                 "target_primitives",
                 "source_search_status or formal_gap_boundary",
+            ],
+            "runtime_derived_fields_do_not_return": [
+                "residual_interpretations[].residual_goal",
+                "residual_interpretations[].covered_residual_goal_indices",
             ],
             "search_requests[]": [
                 "request_kind",
@@ -16575,6 +17383,32 @@ def _staged_followup_stage_fragment_contract(stage_id: str) -> dict[str, object]
 def _staged_followup_stage_canonical_field_contracts(
     stage_id: str,
 ) -> dict[str, object]:
+    if str(stage_id or "").strip() == "route_core_compaction":
+        return {
+            "provider_owned_transport": "fragment.route_decision",
+            "runtime_compiled_canonical_field": "minimal_delta_plan",
+            "runtime_derivation_boundary": (
+                "Runtime copies the selected route and model-authored primitive "
+                "decisions, derives cost-policy base values and arithmetic, "
+                "prefixes exact primitive identity onto action text, and emits "
+                "the mechanical AND/OR accounting graph."
+            ),
+        }
+    if str(stage_id or "").strip() == "residual_batch_interpretation":
+        return {
+            "provider_owned_transport": [
+                "fragment.residual_batch_by_goal_index",
+                "fragment.residual_batches",
+                "fragment.search_requests",
+                "fragment.planner_next_actions",
+            ],
+            "runtime_compiled_canonical_field": "residual_interpretations",
+            "runtime_derivation_boundary": (
+                "Runtime copies frozen residual text by exact assigned index and "
+                "derives covered index arrays; batch interpretation and repair "
+                "semantics remain provider-owned."
+            ),
+        }
     return {
         field_name: deepcopy(LLM_ROUTE_PLANNER_OUTPUT_CONTRACT[field_name])
         for field_name in _staged_followup_stage_required_fragment_fields(stage_id)
@@ -16626,12 +17460,8 @@ def _staged_followup_route_core_cost_hint_inventory(
                     "primitive",
                     "minimum_base_cost",
                     "minimum_coverage_bucket",
-                    "minimum_cost_marker",
-                    "minimum_cost_source",
                     "has_target_compatible_declaration",
                     "candidate_declaration_row_count",
-                    "evidence_sources",
-                    "coverage_markers",
                 )
                 if key in row
             }
@@ -16669,47 +17499,57 @@ def _staged_followup_route_core_brief_inventory(
         return {}
     matrix_rows = []
     for row in _dict_tuple(brief.get("primitive_evidence_matrix", [])):
-        matrix_rows.append(
-            {
-                key: deepcopy(row[key])
-                for key in (
-                    "primitive",
-                    "source_support_status",
-                    "formal_support_status",
-                    "library_delta_class",
-                    "minimum_base_cost",
-                    "minimum_coverage_bucket",
-                    "minimum_cost_marker",
-                    "candidate_declaration_row_count",
-                    "source_ref_count",
-                    "source_snippet_count",
-                    "residual_goal_count",
-                    "recommended_planner_actions",
-                )
-                if key in row
-            }
-        )
-    compact_header = _prompt_compact_value(
+        projected = {
+            key: deepcopy(row[key])
+            for key in (
+                "primitive",
+                "source_support_status",
+                "formal_support_status",
+                "library_delta_class",
+                "minimum_base_cost",
+                "minimum_coverage_bucket",
+                "candidate_declaration_row_count",
+                "source_ref_count",
+                "source_snippet_count",
+                "residual_goal_count",
+            )
+            if key in row
+        }
+        actions = _str_tuple(row.get("recommended_planner_actions", []))
+        if actions:
+            projected["recommended_planner_actions"] = list(actions[:3])
+        matrix_rows.append(projected)
+    evidence_gaps = [
         {
-            key: brief[key]
+            key: deepcopy(row[key])
+            for key in ("gap_id", "gap_kind", "reason", "evidence_fields")
+            if key in row
+        }
+        for row in _dict_tuple(brief.get("evidence_gaps", []))[:8]
+    ]
+    evidence_summary = {
+        key: deepcopy(value)
+        for key, value in _dict_value(brief, "evidence_summary").items()
+        if isinstance(value, (str, int, float, bool)) or value is None
+    }
+    return {
+        **{
+            key: deepcopy(brief[key])
             for key in (
                 "brief_kind",
                 "display_name",
-                "evidence_gaps",
-                "evidence_summary",
                 "library_snapshot_ref",
-                "planner_focus",
                 "route_id",
-                "target_context",
                 "target_prover_family",
             )
             if key in brief
         },
-        text_limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
-        list_limit=16,
-    )
-    return {
-        **(dict(compact_header) if isinstance(compact_header, Mapping) else {}),
+        "evidence_gaps": _prompt_compact_value(
+            evidence_gaps,
+            text_limit=PROMPT_CONTEXT_SHORT_TEXT_LIMIT,
+            list_limit=8,
+        ),
+        "evidence_summary": evidence_summary,
         "primitive_evidence_matrix": matrix_rows,
         "primitive_evidence_matrix_count": len(matrix_rows),
         "primitive_evidence_matrix_complete": True,
@@ -16765,34 +17605,152 @@ def _staged_followup_route_core_declaration_scope_inventory(
     return rows
 
 
+def _staged_followup_route_core_target_context_inventory(
+    prompt_context_packet: Mapping[str, Any],
+) -> dict[str, object]:
+    target = _dict_value(prompt_context_packet, "target_theorem_context_packet")
+    if not target:
+        return {}
+    return {
+        key: deepcopy(target[key])
+        for key in (
+            "display_name",
+            "theorem_statement",
+            "normalized_objects",
+            "normalized_assumptions",
+            "normalized_procedures",
+            "desired_conclusions",
+            "primitive_candidates",
+            "proof_source_refs",
+        )
+        if key in target
+    }
+
+
+def _staged_followup_route_core_current_route_inventory(
+    prompt_context_packet: Mapping[str, Any],
+) -> dict[str, object]:
+    route = _dict_value(prompt_context_packet, "current_route")
+    if not route:
+        return {}
+    primitive_rows = []
+    for row in _dict_tuple(route.get("primitives", [])):
+        primitive = str(row.get("primitive", "") or "").strip()
+        if not primitive:
+            continue
+        primitive_rows.append(
+            {
+                "primitive": _primitive_key(primitive),
+                **{
+                    key: deepcopy(row[key])
+                    for key in (
+                        "coverage_status",
+                        "alignment_status",
+                        "formalization_action",
+                    )
+                    if key in row
+                },
+                "candidate_declaration_count": len(
+                    _str_tuple(row.get("candidate_declarations", []))
+                ),
+            }
+        )
+    return {
+        "route_id": str(route.get("route_id", "") or ""),
+        "display_name": str(route.get("display_name", "") or ""),
+        "primitives": primitive_rows,
+    }
+
+
+def _staged_followup_route_core_prompt_target_route(
+    prompt_target_route: Mapping[str, Any],
+) -> dict[str, object]:
+    return {
+        key: deepcopy(prompt_target_route[key])
+        for key in (
+            "route_id",
+            "display_name",
+            "target_prover_family",
+            "theorem_statement",
+            "source_refs",
+        )
+        if key in prompt_target_route
+    }
+
+
 def _staged_followup_stage_prompt_context_packet(
     prompt_context_packet: Mapping[str, Any],
     *,
     stage_id: str,
 ) -> dict[str, object]:
-    common_keys = (
+    if stage_id == "route_core_compaction":
+        primitive_universe = _staged_followup_route_core_primitive_universe(
+            prompt_context_packet
+        )
+        return {
+            "context_packet_kind": str(
+                prompt_context_packet.get("context_packet_kind", "") or ""
+            ),
+            "route_id": str(prompt_context_packet.get("route_id", "") or ""),
+            "display_name": str(
+                prompt_context_packet.get("display_name", "") or ""
+            ),
+            "target_prover_family": str(
+                prompt_context_packet.get("target_prover_family", "") or ""
+            ),
+            "library_snapshot_ref": str(
+                prompt_context_packet.get("library_snapshot_ref", "") or ""
+            ),
+            "target_theorem_context": (
+                _staged_followup_route_core_target_context_inventory(
+                    prompt_context_packet
+                )
+            ),
+            "current_route": _staged_followup_route_core_current_route_inventory(
+                prompt_context_packet
+            ),
+            "route_planning_brief": (
+                _staged_followup_route_core_brief_inventory(prompt_context_packet)
+            ),
+            "minimal_delta_cost_hints": (
+                _staged_followup_route_core_cost_hint_inventory(
+                    prompt_context_packet
+                )
+            ),
+            "route_decision_primitive_universe": [
+                key for key in sorted(primitive_universe)
+            ],
+            "coverage_bucket_base_cost": deepcopy(
+                _dict_value(
+                    MINIMAL_DELTA_COST_POLICY,
+                    "coverage_bucket_base_cost",
+                )
+            ),
+            "route_decision_critical_inventories_complete": True,
+            "runtime_derived_fields": [
+                "cost_model_version",
+                "base_cost",
+                "total_cost",
+                "route_cost",
+                "route_options",
+                "or_nodes",
+                "and_edges",
+                "canonical action witness field placement",
+            ],
+            "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        }
+    identity_keys = (
         "context_packet_kind",
-        "projection_policy",
-        "standalone_input_component",
         "route_id",
         "display_name",
         "target_prover_family",
         "library_snapshot_ref",
-        "route_match_ids",
-        "current_route",
-        "target_theorem_context_packet",
-        "route_planning_brief",
-        "minimal_delta_cost_hints",
-        "library_alignment_summary",
         "available_source_refs",
-        "context_packet_inventory",
     )
     stage_keys_by_id = {
-        "route_core_compaction": (
-            "source_grounding_obligations",
-            "source_grounding_rows",
-        ),
         "formal_realization_and_alignment": (
+            "projection_policy",
+            "route_planning_brief",
             "available_source_snippets",
             "available_formal_declaration_rows",
             "available_formal_declarations",
@@ -16800,7 +17758,6 @@ def _staged_followup_stage_prompt_context_packet(
             "source_grounding_rows",
         ),
         "residual_batch_interpretation": (
-            "residual_goals",
             "residual_goal_contexts",
             "feedback_loop_summary",
             "resource_feedback_readiness_summary",
@@ -16814,12 +17771,10 @@ def _staged_followup_stage_prompt_context_packet(
             "source_theorem_formal_environment_rows",
             "proof_body_semantic_primitive_work_order_rows",
             "source_theorem_proof_body_execution_result_rows",
-            "route_replan_handoff_rows",
-            "route_revision_overlay_rows",
         ),
     }
     selected_keys = (
-        *common_keys,
+        *identity_keys,
         *stage_keys_by_id.get(stage_id, ()),
     )
     stage_context = {
@@ -16833,14 +17788,11 @@ def _staged_followup_stage_prompt_context_packet(
         list_limit=4,
     )
     compacted = dict(compacted_value) if isinstance(compacted_value, Mapping) else {}
-    if stage_id == "route_core_compaction":
-        compacted["minimal_delta_cost_hints"] = (
-            _staged_followup_route_core_cost_hint_inventory(prompt_context_packet)
-        )
-        compacted["route_planning_brief"] = (
-            _staged_followup_route_core_brief_inventory(prompt_context_packet)
-        )
-        compacted["route_decision_critical_inventories_complete"] = True
+    target_context = _staged_followup_route_core_target_context_inventory(
+        prompt_context_packet
+    )
+    if target_context:
+        compacted["target_theorem_context"] = target_context
     if stage_id == "formal_realization_and_alignment":
         compacted["route_planning_brief"] = (
             _staged_followup_route_core_brief_inventory(prompt_context_packet)
@@ -16888,7 +17840,10 @@ def _staged_followup_stage_prompt_context_packet(
     registry_inventory = _staged_followup_component_resource_registry_inventory(
         prompt_context_packet
     )
-    if registry_inventory:
+    if registry_inventory and stage_id in {
+        "residual_batch_interpretation",
+        "formal_attempt_queue_and_standalone_route",
+    }:
         compacted["component_resource_registry_inventory"] = registry_inventory
     return compacted
 
@@ -16949,17 +17904,186 @@ def _staged_followup_component_resource_registry_inventory(
     }
 
 
+def _staged_followup_stage_transport_fragment_fields(
+    stage_id: str,
+) -> tuple[str, ...]:
+    if str(stage_id or "").strip() == "route_core_compaction":
+        return ("route_decision",)
+    if str(stage_id or "").strip() == "residual_batch_interpretation":
+        return (
+            "residual_batch_by_goal_index",
+            "residual_batches",
+            "search_requests",
+            "planner_next_actions",
+        )
+    return _staged_followup_stage_required_fragment_fields(stage_id)
+
+
+def _staged_followup_route_core_primitive_decision_schema(
+    *,
+    primitive_ids: Iterable[str] = (),
+) -> dict[str, object]:
+    exact_primitive_ids = list(
+        dict.fromkeys(
+            str(value).strip() for value in primitive_ids if str(value).strip()
+        )
+    )
+    nonnegative_number = {"type": "number", "minimum": 0}
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "primitive",
+            "coverage_bucket",
+            "proof_difficulty_cost",
+            "import_cone_cost",
+            "definition_or_typeclass_cost",
+            "semantic_risk_cost",
+            "reuse_credit",
+            "cost_rationale",
+            "action",
+        ],
+        "properties": {
+            "primitive": {
+                "type": "string",
+                **({"enum": exact_primitive_ids} if exact_primitive_ids else {}),
+            },
+            "coverage_bucket": {
+                "type": "string",
+                "enum": sorted(
+                    str(key)
+                    for key in _dict_value(
+                        MINIMAL_DELTA_COST_POLICY,
+                        "coverage_bucket_base_cost",
+                    )
+                ),
+            },
+            "proof_difficulty_cost": deepcopy(nonnegative_number),
+            "import_cone_cost": deepcopy(nonnegative_number),
+            "definition_or_typeclass_cost": deepcopy(nonnegative_number),
+            "semantic_risk_cost": deepcopy(nonnegative_number),
+            "reuse_credit": deepcopy(nonnegative_number),
+            "cost_rationale": {"type": "string", "minLength": 1},
+            "action": {"type": "string", "minLength": 1},
+        },
+    }
+
+
+def _staged_followup_route_core_decision_schema(
+    *,
+    primitive_ids: Iterable[str] = (),
+) -> dict[str, object]:
+    exact_primitive_ids = list(
+        dict.fromkeys(
+            str(value).strip() for value in primitive_ids if str(value).strip()
+        )
+    )
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "selected_route_option_id",
+            "selection_by_primitive",
+            "selected_primitive_decisions",
+            "minimality_rationale",
+        ],
+        "properties": {
+            "selected_route_option_id": {"type": "string", "minLength": 1},
+            "selection_by_primitive": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": exact_primitive_ids,
+                "properties": {
+                    primitive: {"type": "boolean"}
+                    for primitive in exact_primitive_ids
+                },
+            },
+            "selected_primitive_decisions": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": max(1, len(exact_primitive_ids)),
+                "items": {"$ref": "#/$defs/route_core_primitive_decision"},
+            },
+            "minimality_rationale": {"type": "string", "minLength": 1},
+        },
+    }
+
+
 def llm_route_planner_staged_followup_stage_response_schema(
     *,
     stage_id: str = "",
+    request: Mapping[str, Any] | None = None,
 ) -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
-    fragment_required = list(_staged_followup_stage_required_fragment_fields(stage_id))
+    fragment_required = list(
+        _staged_followup_stage_transport_fragment_fields(stage_id)
+    )
     full_payload_schema = llm_route_planner_response_payload_schema()
     full_payload_properties = _dict_value(full_payload_schema, "properties")
-    if stage_id == "residual_batch_interpretation":
-        fragment_properties = _staged_followup_residual_fragment_schema()
-        schema_defs: dict[str, object] = {}
+    if stage_id == "route_core_compaction":
+        primitive_ids = sorted(
+            _staged_followup_route_core_primitive_universe(
+                _dict_value(request or {}, "prompt_context_packet")
+            )
+        )
+        fragment_properties = {
+            "route_decision": _staged_followup_route_core_decision_schema(
+                primitive_ids=primitive_ids
+            ),
+        }
+        schema_defs: dict[str, object] = {
+            "route_core_primitive_decision": (
+                _staged_followup_route_core_primitive_decision_schema(
+                    primitive_ids=primitive_ids
+                )
+            )
+        }
+    elif stage_id == "formal_realization_and_alignment":
+        fragment_properties = {
+            field_name: deepcopy(full_payload_properties[field_name])
+            for field_name in fragment_required
+            if field_name in full_payload_properties
+        }
+        schema_defs = deepcopy(_dict_value(full_payload_schema, "$defs"))
+        informal_nodes_schema = fragment_properties.get(
+            "informal_knowledge_dag_nodes",
+            {},
+        )
+        informal_node_schema = (
+            informal_nodes_schema.get("items", {})
+            if isinstance(informal_nodes_schema, dict)
+            else {}
+        )
+        if isinstance(informal_node_schema, dict):
+            informal_required = informal_node_schema.get("required", [])
+            if isinstance(informal_required, list):
+                informal_node_schema["required"] = [
+                    field_name
+                    for field_name in informal_required
+                    if field_name != "depends_on"
+                ]
+            informal_properties = informal_node_schema.get("properties", {})
+            if isinstance(informal_properties, dict):
+                informal_properties.pop("depends_on", None)
+        formal_node_schema = schema_defs.get("formal_realization_node", {})
+        if isinstance(formal_node_schema, dict):
+            formal_required = formal_node_schema.get("required", [])
+            if isinstance(formal_required, list):
+                formal_node_schema["required"] = [
+                    field_name
+                    for field_name in formal_required
+                    if field_name != "formalization_action"
+                ]
+            formal_properties = formal_node_schema.get("properties", {})
+            if isinstance(formal_properties, dict):
+                formal_properties.pop("formalization_action", None)
+    elif stage_id == "residual_batch_interpretation":
+        fragment_properties = _staged_followup_residual_transport_fragment_schema(
+            residual_goal_count=len(
+                _str_tuple((request or {}).get("residual_goals", []))
+            )
+        )
+        schema_defs = {}
     else:
         fragment_properties = {
             field_name: deepcopy(full_payload_properties[field_name])
@@ -16973,30 +18097,8 @@ def llm_route_planner_staged_followup_stage_response_schema(
         "title": "Formalization Gap Planner LLM Route Planner Staged Followup Stage Response",
         "type": "object",
         "additionalProperties": False,
-        "required": [
-            "stage_response_kind",
-            "staged_followup_id",
-            "request_id",
-            "route_id",
-            "stage_id",
-            "stage_status",
-            "fragment",
-            "assembler_notes",
-            "proof_evidence_status",
-            "proof_evidence_boundary",
-        ],
+        "required": ["fragment", "assembler_notes"],
         "properties": {
-            "stage_response_kind": {
-                "type": "string",
-                "const": LLM_ROUTE_PLANNER_STAGED_FOLLOWUP_STAGE_RESPONSE_KIND,
-            },
-            "staged_followup_id": {"type": "string", "minLength": 1},
-            "request_id": {"type": "string", "minLength": 1},
-            "route_id": {"type": "string", "minLength": 1},
-            "stage_id": {"type": "string", "const": stage_id}
-            if stage_id
-            else {"type": "string", "minLength": 1},
-            "stage_status": {"type": "string", "minLength": 1},
             "fragment": {
                 "type": "object",
                 "additionalProperties": False,
@@ -17004,29 +18106,40 @@ def llm_route_planner_staged_followup_stage_response_schema(
                 "properties": fragment_properties,
             },
             "assembler_notes": string_array,
-            "proof_evidence_status": {"type": "string"},
-            "proof_evidence_boundary": {
-                "type": "string",
-                "pattern": "not theorem proof evidence",
-            },
         },
         "$defs": schema_defs,
     }
 
 
-def _staged_followup_residual_fragment_schema() -> dict[str, object]:
-    """Return the compact canonical API exposed to the residual planner."""
+def _staged_followup_residual_transport_fragment_schema(
+    *,
+    residual_goal_count: int = 0,
+) -> dict[str, object]:
+    """Return the compact exact-coverage API exposed to the residual planner."""
 
     string_array = {"type": "array", "items": {"type": "string"}}
     return {
-        "residual_interpretations": {
+        "residual_batch_by_goal_index": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [str(index) for index in range(residual_goal_count)],
+            "properties": {
+                str(index): {
+                    "type": "string",
+                    "enum": list(LLM_ROUTE_PLANNER_RESIDUAL_BATCH_IDS),
+                }
+                for index in range(residual_goal_count)
+            },
+        },
+        "residual_batches": {
             "type": "array",
+            "minItems": 1 if residual_goal_count else 0,
+            "maxItems": len(LLM_ROUTE_PLANNER_RESIDUAL_BATCH_IDS),
             "items": {
                 "type": "object",
                 "additionalProperties": False,
                 "required": [
-                    "residual_goal",
-                    "covered_residual_goal_indices",
+                    "batch_id",
                     "interpretation",
                     "route_repair",
                     "target_primitives",
@@ -17035,10 +18148,9 @@ def _staged_followup_residual_fragment_schema() -> dict[str, object]:
                     "formal_gap_boundary",
                 ],
                 "properties": {
-                    "residual_goal": {"type": "string"},
-                    "covered_residual_goal_indices": {
-                        "type": "array",
-                        "items": {"type": "integer"},
+                    "batch_id": {
+                        "type": "string",
+                        "enum": list(LLM_ROUTE_PLANNER_RESIDUAL_BATCH_IDS),
                     },
                     "interpretation": {"type": "string"},
                     "route_repair": {"type": "string"},
@@ -17058,6 +18170,7 @@ def _staged_followup_residual_fragment_schema() -> dict[str, object]:
         },
         "search_requests": {
             "type": "array",
+            "maxItems": 4,
             "items": {
                 "type": "object",
                 "additionalProperties": False,
@@ -17086,6 +18199,7 @@ def _staged_followup_residual_fragment_schema() -> dict[str, object]:
         },
         "planner_next_actions": {
             "type": "array",
+            "maxItems": 4,
             "items": {
                 "type": "object",
                 "additionalProperties": False,
@@ -34617,6 +35731,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Rejected: {payload.get('n_rejected')}",
         f"- Staged followups required: {payload.get('n_staged_followups_required')} max-token={payload.get('n_staged_followups_due_to_max_tokens')}",
         f"- Staged followup stage attempts: {payload.get('n_staged_followup_stage_attempt_rows')} ok={payload.get('n_staged_followup_stage_response_contract_ok')} budget-blocked={payload.get('n_staged_followup_stage_calls_blocked_by_budget')} reused={payload.get('n_staged_followup_stage_attempts_reused', 0)} feedback-invalidated={payload.get('n_staged_followup_stage_reuse_blocked_by_contract_feedback', 0)} current-contract-invalidated={payload.get('n_staged_followup_stage_reuse_blocked_by_current_contract', 0)} provider-calls={payload.get('n_staged_followup_stage_provider_calls', 0)}",
+        f"- Staged followup estimated prompt input tokens: total={payload.get('total_staged_followup_stage_estimated_prompt_input_tokens', 0)} max-stage={payload.get('max_staged_followup_stage_estimated_prompt_input_tokens', 0)} by-stage={json.dumps(payload.get('staged_followup_stage_estimated_prompt_input_tokens_by_stage', {}), sort_keys=True)}",
         f"- Staged followup assemblies: {payload.get('n_staged_followup_assembly_rows')} full-contract-ok={payload.get('n_staged_followup_assembled_response_contract_ok')} route-ready={payload.get('n_staged_followup_assembled_route_adoption_ready')}",
         f"- Staged followup target-prover replay rows: {payload.get('n_staged_followup_target_prover_replay_rows')} candidates={payload.get('n_staged_followup_target_prover_replay_candidates')} route-blocked={payload.get('n_staged_followup_target_prover_replay_route_blocked')}",
         f"- Request residual-goal contexts: {payload.get('n_request_residual_goal_contexts')} rows={payload.get('n_row_residual_goal_contexts')}",

@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-08-02T22:25:53Z",
+  "updated_at": "2026-08-02T23:37:27Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "active_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
@@ -25,6 +25,7 @@
     "enforcement": "Opus is rejected before Anthropic client construction. Research and capability evaluation override every enabled LLM subsystem to the exact Haiku model."
   },
   "current_change": {
+    "formalization_gap_route_transport": "The over-budget monolithic FormalizationGapPlanner response now falls back to four typed stages with compact, stage-owned provider contracts. Route selection crosses as an exact-key boolean map plus semantic decisions; runtime derives only frozen IDs, policy base costs, arithmetic, action placement, and the mechanical AND/OR projection. Formal DAG mirrors are derived only from model-authored edges and coverage. Every frozen residual index is assigned to one of at most five model-authored semantic batches, while runtime copies exact residual text and covered-index mirrors. Prior accepted fragments are projected compactly for later prompts but remain authoritative for validation and lineage. Later stages receive only their required context, and each formal node exposes the existing allowed attempt-kind/feedback interface contract so the model does not rediscover it through failed calls. Fresh V207 completed all four stages and full assembly with four first-attempt exact-Haiku structured calls and zero repair. No task formula, theorem-family rule, Lean grammar, tactic template, mathematical action, or validator relaxation was added.",
     "preflight_finding_lineage_transport": "When a pre-execution review has active prior findings, provider transport now uses one exact-key object whose required keys are the runtime-owned finding IDs. The LLM judges each keyed finding but no longer recopies IDs into an array, so duplicate or omitted identities are structurally impossible. Current findings still carry prior_finding_id, runtime still derives the canonical ledger, and validators still require exactly one continuation for every UNRESOLVED prior finding and none for a resolved one. V199 crossed the survival second preflight that V198 blocked on duplicate/missing IDs. No statistical formula, task-family rule, or validator relaxation was added.",
     "audit_rerun_foundation_binding": "Capability-audit rerun and resume commands now copy the active manifest's formalizer_candidate_lean_project and exact-semantic source roots. They no longer advertise a legacy Lean checkout after a run that actually used canonical EmpericalProcessLEAN plus pinned Statlib.",
     "canonical_full_live_foundation": "Capability/full-live and ordinary live Formalizer defaults now select the current EmpericalProcessLEAN Lake project before vendored snapshots. Exact-semantic lookup uses the current StatInference source plus the pinned Statlib source; explicit CLI roots remain authoritative and historical snapshots remain fallback/inventory only. Retrieval, compilation, and kernel evidence therefore share one live foundation.",
@@ -277,32 +278,45 @@
     "result": "The fresh exact-Haiku sequential run completed the research-only loop without an upstream-theory revision and reached the typed research_eval endpoint. Bounded structured-packet repairs still occurred inside TheoryDeveloper and metric authoring. Together with V191 survival, both development families now have fresh research-loop closure; neither has exact theorem closure."
   },
   "latest_component_replay": {
-    "run": "runs/main_worker_simulation_profile_schema_replay_20260801_v181_haiku",
-    "source_runtime_result": "runs/main_worker_research_eval_20260801_v180_raw_transport_repair_haiku_survival/right_censored_survival_km_runtime_result.json",
+    "run": "runs/main_worker_route_core_exact_key_live_replay_20260802_v207",
+    "source_runtime_result": "runs/main_worker_cross_family_development_20260802_v199_exact_key_prior_lineage_exact_haiku/runtime_formalization_gap_planner_seeds/right_censored_survival_km_runtime_formalization_gap_planner_standalone_seed_2b75ba94ff1f36806da4.json",
     "evaluation_model": "claude-haiku-4-5-20251001",
     "status": "PASS",
-    "provider_calls": 1,
+    "provider_calls": 4,
     "provider_phases": [
-      "simulation_packet_generation"
+      "route_core_compaction",
+      "formal_realization_and_alignment",
+      "residual_batch_interpretation",
+      "formal_attempt_queue_and_standalone_route"
     ],
     "structured_output_applied": true,
-    "schema_branches": 3,
-    "max_tokens": 8000,
+    "reused_contract_valid_stages": 0,
+    "contract_valid_stages": "4/4",
+    "assembled_response_contract_ok": true,
+    "provider_input_tokens": 49425,
+    "provider_output_tokens": 7669,
+    "max_tokens": 9000,
     "repair_attempts": 0,
     "validation_errors": 0,
-    "canonical_profile": "python stdlib with dependencies normalized to []",
+    "route_adoption_ready": false,
+    "route_adoption_blockers": [
+      "source grounding remains pending",
+      "formal-gap boundaries require resolution",
+      "search requests and planner actions require real execution and replay",
+      "uncertainty and semantic alignment risks require review"
+    ],
     "kernel_verified": false,
-    "evidence_scope": "component replay only; not integrated research-loop or theorem evidence"
+    "evidence_scope": "component transport and assembly replay only; route planning, retrieval requests, and formal schedules are not integrated theorem evidence"
   },
   "current_readiness": {
     "fully_end_to_end_ready": false,
     "development_research_loop_current_mechanism": "2/2 completed in fresh exact-Haiku runs: V191 survival and V196 sequential accepted at the typed research_eval endpoint",
     "exact_source_theorem_kernel_closure": "0/2",
     "held_out_generalization": "not run",
-    "primary_blocker": "V199 survival reached canonical Statlib/StatInference RAG, three active-project Lean checks, live Lean/LSP feedback, and structural replan, but the oversized FormalizationGapPlanner route-core contract truncated and then failed its first staged dependency after bounded repair. Exact source-theorem closure remains zero.",
+    "primary_blocker": "The fresh V207 component replay removed V199's FormalizationGapPlanner transport blocker, but the resulting contract-valid plan correctly remains non-adoptable until its source searches, resource-bound actions, formal-gap repairs, and target-prover replay execute inside a fresh integrated AgentRuntime run. Exact source-theorem closure remains zero.",
     "secondary_blockers": [
       "V199 sequential reached accepted revised theory but metric authoring exhausted repair with one field-level numeric-authority mismatch; code execution correctly remained unauthorized",
-      "the live gap route planner consumes about 45k input tokens and up to 9k output tokens before falling back to four dependent staged fragments; the first fragment currently carries too much cost/DAG/action-witness structure for reliable Haiku transport",
+      "V207 proves fresh four-stage route transport and assembly only at the planner component boundary; a fresh full runtime must consume the assembled plan and execute feedback actions without post-runtime side effects",
       "research completion correctly ignores artifacts tied to a superseded theory, but a separate historical progress projection is still needed to expose earlier sandbox and reviewer passes",
       "accepted metric-protocol preflight still performs metric author, independent reviewer, and final Architect plan calls serially",
       "legacy post-runtime formal side effects are disabled, but their dead control-flow branches still need mechanical extraction from the central runtime",
@@ -311,9 +325,8 @@
     ]
   },
   "next_main_worker_actions": [
-    "Replace the 45k-input monolithic gap-route response with a genuinely compact route-core decision followed by independently bounded realization/cost/prover stages; keep every stage typed and require target-prover replay before adoption, but stop duplicating the full DAG, cost model, registry, and action witnesses in the first provider turn.",
     "Make metric-authority repair continue only while the exact residual error set strictly shrinks, and represent unmatched field-owner decisions with exact-key choices so Haiku cannot move a candidate-owned number between invalid source-owner labels. Do not infer or rewrite the numeric gate deterministically.",
-    "Rerun the frozen fresh development full-live panel after those two shared transport changes; require both tasks to pass the same gates without changing task formulas, expected outputs, or held-out data.",
+    "Rerun the frozen fresh development full-live panel with the compact four-stage gap-route transport; require AgentRuntime to consume source searches, resource actions, formal repair, and target-prover feedback before route adoption, without changing task formulas, expected outputs, or held-out data.",
     "Reduce accepted preflight cost by reusing the already validated plan skeleton when attaching an immutable metric protocol; preserve the independent reviewer and authority boundary.",
     "Record historical partial-stage progress separately from final active-candidate completion so superseded evidence remains visible but cannot satisfy the gate.",
     "Require exact source-theorem active-project kernel closure for both development tasks before opening PCA or extremes; keep both held-out tasks sealed.",
@@ -322,6 +335,8 @@
     "Keep PCA and extremes sealed until both development families satisfy the frozen protocol."
   ],
   "verification": {
+    "v207_formalization_gap_route_transport": "The fresh exact-Haiku component replay passed route-core selection, formal realization, exact residual batching, and the final formal-attempt/standalone stage on their first structured-output calls. All 4/4 stage contracts and the assembled response contract passed with zero repairs. Stage provider input totaled 49,425 tokens; actual per-stage inputs were 11,119, 14,111, 12,008, and 12,187. Route adoption remained blocked by pending source, formal-gap, action, replay, uncertainty, and semantic-review evidence, as required. This is component planning evidence, not integrated runtime execution or theorem proof.",
+    "formalization_gap_route_transport_regression": "All 259 FormalizationGapPlanner LLM route-planner tests and 17 selected AgentRuntime scheduling, retry, revision, timeout, and subprocess tests passed. py_compile and git diff --check passed; no provider call occurred in these regressions.",
     "v199_full_live_development_panel": "Both frozen development tasks ran fresh with all 10 enabled Anthropic agents at exact claude-haiku-4-5-20251001 and zero topology violations. Survival crossed theory, metric, generated code/simulation, independent reviews, formal-target review, local Lean/LSP feedback, and structural replan before a typed gap-route contract blocker. Sequential crossed revised theory preflight before a metric-authority blocker. Status is BLOCKED 2/2, capability audit is 95/121 ready=false, and exact theorem closure is 0/2.",
     "v199_live_formal_foundation": "The runtime topology loaded a healthy three-provider schema-v5 dependency graph: current StatInference 51,982 declarations at 2a22e005, pinned Statlib 32 declarations at 6575d611, and AI4SLT 2,000 declarations at d0f506f. OpenProver used llm_zero_shot_with_lean_compile_feedback in /Users/yukangzengcmac/.codex/external/EmpericalProcessLEAN-main; three local Lean checks, twelve proof-state tool calls, and one live Lean/LSP session produced zero compiles and zero proof claims.",
     "current_contract_regression": "152 preflight, metric-review, generated-code-review, and TheoryDeveloper contract tests passed with 2 skipped; 6 high-risk typed-only post-runtime tests passed with 1,182 deselected in 187.35 seconds; 11 exact-key preflight and manifest-bound rerun-command tests passed. Compileall and git diff --check passed.",
