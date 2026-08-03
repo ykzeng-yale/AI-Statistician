@@ -297,6 +297,7 @@ from .formal_source_prompt_context import (
     prompt_safe_formal_source_provenance,
     unique_formal_source_hit_payloads,
 )
+from .formal_source_topology import active_project_formal_source_scope_ids
 from .lean_proof_state_trace_rag import (
     ai4slt_proof_state_trace_rag_descriptor,
     attach_ai4slt_proof_state_trace_rag,
@@ -30554,7 +30555,15 @@ def _materialize_formalizer_lean_candidate_artifacts(
     )
     rows: list[dict[str, Any]] = []
     for index, candidate in enumerate(candidate_sources, start=1):
-        source = str(candidate.get("lean_source", "") or "")
+        declared_lean_imports = [
+            str(value).strip()
+            for value in candidate.get("lean_imports", []) or []
+            if str(value).strip()
+        ]
+        source = _formalizer_candidate_source_with_declared_imports(
+            str(candidate.get("lean_source", "") or ""),
+            declared_lean_imports,
+        )
         candidate_id = str(candidate.get("candidate_id", "") or f"candidate_{index}")
         candidate_metadata = dict(candidate.get("candidate_metadata", {}) or {})
         candidate_lean_declaration = str(
@@ -30775,6 +30784,12 @@ def _materialize_formalizer_lean_candidate_artifacts(
                 "source_packet_id": str(proposal_packet.get("packet_id", "") or ""),
                 "source_field": str(candidate.get("source_field", "") or ""),
                 "source_hash": source_hash,
+                "lean_imports": declared_lean_imports,
+                "lean_environment_source": (
+                    f"{str(candidate.get('source_field', '') or '')}.lean_imports"
+                    if declared_lean_imports
+                    else ""
+                ),
                 "lean_source_excerpt": source[:1200],
                 "artifact_path": artifact_path,
                 "kernel_check_artifact_path": artifact_path,
@@ -34721,6 +34736,28 @@ def _proofengineer_repair_context_with_formal_source_grounding(
         if str(value).strip()
     ]
     source_scope_ids = _proofengineer_formal_source_scope_ids(payload)
+    if (
+        not source_scope_ids
+        and str(payload.get("context_kind", "") or "")
+        == "task_bound_formal_source_grounding"
+    ):
+        source_scope_ids = (
+            active_project_formal_source_scope_ids(
+                getattr(
+                    formal_source_retriever,
+                    "lean_rag_source_topology",
+                    (),
+                )
+            )
+        )
+        if source_scope_ids:
+            payload["formal_source_scope_ids"] = list(source_scope_ids)
+            payload["formal_source_scope_origin"] = (
+                "retriever_active_project_topology_default"
+            )
+            payload["formal_source_scope_policy"] = (
+                "active_project_plus_declared_dependencies_first"
+            )
     semantic_query_role = (
         "initial_formalization_context"
         if str(payload.get("context_kind", "") or "")
@@ -35942,6 +35979,48 @@ def _formalizer_unknown_identifiers_from_diagnostics(
     return names[:8]
 
 
+def _formalizer_declared_lean_imports(row: Mapping[str, Any]) -> list[str]:
+    raw_imports = row.get("lean_imports", row.get("target_imports", []))
+    if not isinstance(raw_imports, list | tuple):
+        return []
+    return list(
+        dict.fromkeys(
+            str(value).strip()
+            for value in raw_imports
+            if str(value).strip()
+        )
+    )
+
+
+def _formalizer_candidate_source_with_declared_imports(
+    source: str,
+    declared_imports: Sequence[str],
+) -> str:
+    statement = str(source or "").strip()
+    if not statement:
+        return ""
+    existing_imports = {
+        line.strip()
+        for line in statement.splitlines()
+        if line.strip().startswith("import ")
+    }
+    import_lines: list[str] = []
+    for raw_import in declared_imports:
+        import_name = str(raw_import or "").strip()
+        if not import_name:
+            continue
+        import_line = (
+            import_name
+            if import_name.startswith("import ")
+            else f"import {import_name}"
+        )
+        if import_line not in existing_imports and import_line not in import_lines:
+            import_lines.append(import_line)
+    if not import_lines:
+        return statement
+    return "\n".join([*import_lines, "", statement])
+
+
 def _formalizer_lean_candidate_sources(
     proposal_packet: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
@@ -35980,12 +36059,14 @@ def _formalizer_lean_candidate_sources(
         candidate_lean_declaration = str(
             row.get("premise_candidate_declaration_name", "") or ""
         ).strip()
+        lean_imports = _formalizer_declared_lean_imports(row)
         rows.append(
             {
                 "candidate_id": candidate_id,
                 "candidate_kind": "source_to_bridge_premise_derivation_candidate",
                 "source_field": "source_to_bridge_premise_derivation_candidates",
                 "lean_source": source,
+                "lean_imports": lean_imports,
                 "candidate_lean_declaration": candidate_lean_declaration,
                 "candidate_lean_declaration_source": (
                     "source_to_bridge_premise_derivation_candidates."
@@ -35995,6 +36076,7 @@ def _formalizer_lean_candidate_sources(
                     "premise_name": premise_name,
                     "premise_names": premise_names,
                     "candidate_lean_declaration": candidate_lean_declaration,
+                    "lean_imports": lean_imports,
                     "target_theorem_name": str(
                         row.get("target_theorem_name", "") or ""
                     ),
@@ -36043,6 +36125,7 @@ def _formalizer_lean_candidate_sources(
         formal_target_role = str(
             row.get("formal_target_role", "") or ""
         ).strip().upper()
+        lean_imports = _formalizer_declared_lean_imports(row)
         if (
             not candidate_lean_declaration
             and _source_theorem_target_known_value(provenance) is True
@@ -36062,6 +36145,7 @@ def _formalizer_lean_candidate_sources(
                 "source_field": "formal_targets",
                 "formal_target_role": formal_target_role,
                 "lean_source": source,
+                "lean_imports": lean_imports,
                 "candidate_lean_declaration": candidate_lean_declaration,
                 "candidate_lean_declaration_source": (
                     candidate_lean_declaration_source
@@ -36070,6 +36154,7 @@ def _formalizer_lean_candidate_sources(
                     "expected_status": expected_status,
                     "formal_target_role": formal_target_role,
                     "candidate_lean_declaration": candidate_lean_declaration,
+                    "lean_imports": lean_imports,
                     "informal_source": str(row.get("informal_source", "") or ""),
                     "semantic_alignment_constraints": list(
                         row.get("semantic_alignment_constraints", []) or []

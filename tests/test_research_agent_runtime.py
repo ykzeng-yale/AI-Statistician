@@ -36458,6 +36458,77 @@ def test_formalizer_candidate_materialization_runs_local_lean_when_enabled(
     )
 
 
+def test_formalizer_candidate_materialization_uses_declared_import_environment(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    module_dir = tmp_path / "Env"
+    module_dir.mkdir()
+    (module_dir / "Base.lean").write_text("", encoding="utf-8")
+    (module_dir / "Prelude.lean").write_text("", encoding="utf-8")
+    task = AgentTask(
+        task_id="task:formalizer_candidate_declared_imports",
+        owner_subsystem="FormalizationEvaluator",
+        objective="materialize the model-authored Lean environment",
+    )
+    statement = (
+        "theorem ai_statistician_declared_import_candidate "
+        "(p : Prop) (hp : p) : p := by\n"
+        "  exact hp\n"
+    )
+    manifest = _materialize_formalizer_lean_candidate_artifacts(
+        root=tmp_path / "formalizer_lean_candidates",
+        question=question,
+        task=task,
+        proposal_packet={
+            "packet_id": "formalizer_proposal:declared_import_candidate",
+            "formal_targets": [
+                {
+                    "id": "declared_import_candidate",
+                    "formal_target_role": (
+                        FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE
+                    ),
+                    "candidate_lean_declaration": (
+                        "ai_statistician_declared_import_candidate"
+                    ),
+                    "lean_statement_sketch": statement,
+                    "lean_imports": [
+                        "Env.Base",
+                        "import Env.Prelude",
+                        "Env.Base",
+                    ],
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": True,
+                        "target_lean_declaration": (
+                            "ai_statistician_declared_import_candidate"
+                        ),
+                    },
+                }
+            ],
+        },
+        local_lean=False,
+        lean_project=tmp_path,
+        lean_timeout=10,
+    )
+
+    row = manifest["candidate_rows"][0]
+    rendered_source = Path(row["artifact_path"]).read_text(encoding="utf-8")
+    assert rendered_source == (
+        "import Env.Base\n"
+        "import Env.Prelude\n\n"
+        + statement.strip()
+    )
+    assert row["lean_imports"] == [
+        "Env.Base",
+        "import Env.Prelude",
+    ]
+    assert row["candidate_metadata"]["lean_imports"] == row["lean_imports"]
+    assert row["lean_environment_source"] == "formal_targets.lean_imports"
+    assert row["target_lean_line"] == 4
+    assert row["source_hash"] == runtime_module.stable_hash(rendered_source)
+
+
 def test_formalizer_repair_compiled_helper_cannot_close_parent_source_theorem(
     tmp_path: Path,
 ) -> None:
@@ -41674,6 +41745,88 @@ def test_first_formalizer_proposal_receives_task_bound_formal_source_grounding()
         "formal_source_grounding_hits",
     }
     assert len(prompt) < 16000
+
+
+def test_first_formalizer_grounding_defaults_to_active_project_topology() -> None:
+    class DummyFormalSourceRetriever:
+        lean_rag_source_topology = (
+            {
+                "source_id": "statlib",
+                "relation_to_active_project": "direct_lake_dependency",
+            },
+            {
+                "source_id": "empirical_process_lean",
+                "relation_to_active_project": "active_project",
+                "dependency_source_ids": ["statlib"],
+            },
+            {
+                "source_id": "lean_stat_learning_theory",
+                "relation_to_active_project": "external_companion",
+            },
+        )
+
+        def __init__(self) -> None:
+            self.scoped_queries: list[tuple[str, tuple[str, ...], int]] = []
+
+        def search(self, query: str, *, k: int = 10) -> list[FormalSourceHit]:
+            raise AssertionError("initial retrieval must use the active scope")
+
+        def search_with_source_scope(
+            self,
+            query: str,
+            *,
+            source_scope_ids: tuple[str, ...],
+            k: int,
+        ) -> list[FormalSourceHit]:
+            self.scoped_queries.append((query, source_scope_ids, k))
+            return [
+                FormalSourceHit(
+                    declaration=FormalDeclaration(
+                        source_id="empirical_process_lean",
+                        source_type="lean_library",
+                        path="StatInference/Inference/Fixture.lean",
+                        line=12,
+                        kind="theorem",
+                        name="StatInference.fixture",
+                        namespace="StatInference",
+                        signature="theorem fixture : True",
+                        imports=("StatInference.Foundation",),
+                    ),
+                    score=1.0,
+                    matched_terms=("fixture",),
+                )
+            ]
+
+    retriever = DummyFormalSourceRetriever()
+    grounded = (
+        runtime_module._proofengineer_repair_context_with_formal_source_grounding(
+            {
+                "context_kind": "task_bound_formal_source_grounding",
+                "retrieval_query_seeds": ["generic inference theorem"],
+            },
+            formal_source_retriever=retriever,
+        )
+    )
+
+    assert retriever.scoped_queries == [
+        (
+            "generic inference theorem",
+            ("empirical_process_lean",),
+            2,
+        )
+    ]
+    assert grounded["formal_source_scope_ids"] == [
+        "empirical_process_lean"
+    ]
+    assert grounded["formal_source_scope_origin"] == (
+        "retriever_active_project_topology_default"
+    )
+    assert grounded["formal_source_scope_policy"] == (
+        "active_project_plus_declared_dependencies_first"
+    )
+    group = grounded["formal_source_grounding_hits"][0]
+    assert group["source_scope_ids"] == ["empirical_process_lean"]
+    assert group["hits"][0]["name"] == "StatInference.fixture"
 
 
 def test_source_scoped_runtime_carries_context_for_both_ranked_candidates() -> None:

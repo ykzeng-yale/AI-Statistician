@@ -16,6 +16,7 @@ from ai_statistician.formal_source_index import (
     _cache_covers_configured_roots,
     _deduplicate_formal_source_roots,
     _formal_source_root_snapshot,
+    _query_search_tokens,
     _search_tokens,
     build_formal_source_index,
     build_formal_source_search_backend,
@@ -234,6 +235,47 @@ def test_task_bound_formal_source_queries_keep_semantics_after_exact_name() -> N
     ]
 
 
+def test_task_bound_formal_source_queries_read_theorem_goal_dataclass_field() -> None:
+    queries = task_bound_formal_source_query_seeds(
+        question=OpenResearchQuestion(
+            id="typed_theorem_goal_query",
+            title="Typed theorem goal",
+            description="Keep the target statement attached to its goal.",
+        ),
+        theory_packet={
+            "formalization_requests": [
+                {
+                    "target": "A lower-priority support lemma",
+                    "claim": "support-only semantics",
+                }
+            ]
+        },
+        theorem_goals=[
+            {
+                "id": "model_generated_target_id",
+                "title": "Anytime-valid target",
+                "informal_statement": (
+                    "A nonnegative martingale stopped at an adapted stopping "
+                    "time retains the required expectation bound."
+                ),
+                "proof_strategy": (
+                    "Use the martingale stopped-value expectation theorem."
+                ),
+            }
+        ],
+        max_queries=3,
+    )
+
+    assert queries == [
+        (
+            "Anytime-valid target A nonnegative martingale stopped at an "
+            "adapted stopping time retains the required expectation bound."
+        ),
+        "Use the martingale stopped-value expectation theorem.",
+        "A lower-priority support lemma support-only semantics",
+    ]
+
+
 def test_task_bound_formal_source_queries_and_scope_use_explicit_provenance() -> None:
     theory_packet = {
         "theory_derivation_packet": {
@@ -304,6 +346,21 @@ def test_camel_tokenization_keeps_semantics_without_short_fragments() -> None:
     )
     assert "sub" not in tokens
     assert "to" not in tokens
+
+
+def test_semantic_query_tokens_drop_formula_noise_but_keep_exact_names() -> None:
+    tokens = _query_search_tokens(
+        "theorem e n p 0 1 optional stopping martingale"
+    )
+
+    assert tokens == {"optional", "stopping", "martingale"}
+    assert _query_search_tokens("thm_optional_stopping_evalue") == {
+        "thm_optional_stopping_evalue",
+        "thm",
+        "optional",
+        "stopping",
+        "evalue",
+    }
 
 
 def test_lean_index_keeps_public_imports_and_excludes_private_api(

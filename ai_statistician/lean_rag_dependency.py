@@ -15,7 +15,7 @@ from .formal_source_index import (
     LEAN_IDENTIFIER_PATTERN,
     _is_exact_formal_declaration_query,
     _lean_source_without_comments_preserve_lines,
-    _search_tokens,
+    _ordered_search_tokens,
     diversify_formal_source_hits,
 )
 from .formal_source_topology import (
@@ -1378,22 +1378,31 @@ def _command_output(args: tuple[str, ...], *, cwd: Path) -> str | None:
 
 
 def _tokens(text: str) -> set[str]:
-    return {
+    return set(_ordered_tokens(text))
+
+
+def _ordered_tokens(text: str) -> tuple[str, ...]:
+    normalized_text = str(text or "")
+    single_token_query = bool(
+        re.fullmatch(r"\s*[\w']\s*", normalized_text, re.UNICODE)
+    )
+    return tuple(
         token
-        for token in _search_tokens(text)
+        for token in _ordered_search_tokens(normalized_text)
         if (
             token
             and not token.isdigit()
             and token not in STOP_TOKENS
             and any(ch.isalnum() for ch in token)
+            and (len(token) > 1 or single_token_query)
         )
-    }
+    )
 
 
 def _fts_query(text: str) -> str:
-    tokens = sorted(
+    tokens = tuple(
         token
-        for token in _tokens(text)
+        for token in _ordered_tokens(text)
         if re.fullmatch(r"[\w']+", token, re.UNICODE)
     )
     if not tokens:

@@ -15,6 +15,7 @@ from ai_statistician.formal_source_retrieval_benchmark import (
     run_formal_source_retrieval_benchmark,
 )
 from ai_statistician.formal_source_topology import (
+    active_project_formal_source_scope_ids,
     FORMAL_SOURCE_SCOPE_EXPANSION_POLICY,
     FORMAL_SOURCE_TOPOLOGY_EVIDENCE_STATUS,
     canonicalize_formal_source_scope_ids,
@@ -369,3 +370,23 @@ def test_retrieval_benchmark_records_nonproof_source_topology() -> None:
         },
     )
     assert payload["all_ok"] is True
+
+
+def test_active_project_scope_ids_come_from_bound_topology_metadata() -> None:
+    assert active_project_formal_source_scope_ids(
+        (
+            {
+                "source_id": "statlib",
+                "relation_to_active_project": "direct_lake_dependency",
+            },
+            {
+                "source_id": "empirical_process_lean",
+                "relation_to_active_project": "active_project",
+            },
+            {
+                "source_id": "lean_stat_learning_theory",
+                "relation_to_active_project": "external_companion",
+            },
+        )
+    ) == ("empirical_process_lean",)
+    assert active_project_formal_source_scope_ids(()) == ()

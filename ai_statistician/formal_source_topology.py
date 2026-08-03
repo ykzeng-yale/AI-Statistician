@@ -258,6 +258,30 @@ def expand_formal_source_scope_ids(
     return tuple(effective)
 
 
+def active_project_formal_source_scope_ids(
+    topology_rows: object,
+) -> tuple[str, ...]:
+    """Extract active source identities from retriever prompt metadata."""
+
+    if isinstance(topology_rows, Mapping):
+        topology_rows = (topology_rows,)
+    if not isinstance(topology_rows, (list, tuple)):
+        return ()
+    return tuple(
+        dict.fromkeys(
+            str(row.get("source_id", "") or "").strip()
+            for row in topology_rows
+            if isinstance(row, Mapping)
+            and (
+                str(row.get("relation_to_active_project", "") or "").strip()
+                == "active_project"
+                or row.get("is_active_project") is True
+            )
+            and str(row.get("source_id", "") or "").strip()
+        )
+    )
+
+
 @lru_cache(maxsize=1)
 def load_formal_source_topology_policy() -> _TopologyPolicy:
     raw = json.loads(FORMAL_SOURCE_TOPOLOGY_POLICY_PATH.read_text(encoding="utf-8"))

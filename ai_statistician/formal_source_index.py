@@ -82,6 +82,17 @@ STOP_TOKENS = {
     "to",
     "by",
     "with",
+    "show",
+    "prove",
+    "use",
+    "using",
+    "apply",
+    "conclude",
+    "when",
+    "under",
+    "theorem",
+    "lemma",
+    "def",
     ".",
     ",",
     "-",
@@ -274,7 +285,7 @@ class FormalSourceRetriever:
         k: int,
         source_scope_ids: tuple[str, ...],
     ) -> list[FormalSourceHit]:
-        q_tokens = _search_tokens(query)
+        q_tokens = _query_search_tokens(query)
         query_lookup_key = _declaration_lookup_key(query)
         allowed_source_ids = set(source_scope_ids)
         hits: list[FormalSourceHit] = []
@@ -658,7 +669,7 @@ class FormalSourceSqliteIndex:
                 """,
                 params,
             ).fetchall()
-        q_tokens = _search_tokens(query)
+        q_tokens = _query_search_tokens(query)
         query_lookup_key = _declaration_lookup_key(query)
         hits: list[FormalSourceHit] = []
         for row in rows:
@@ -1119,6 +1130,12 @@ def _auto_lean_rag_db_candidates() -> tuple[Path, ...]:
         *(
             root / DEFAULT_EMPIRICAL_PROCESS_MAIN_LEAN_RAG_DB_RELATIVE_PATH
             for root in search_roots
+        ),
+        (
+            EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT
+            / "build"
+            / "lean_graph"
+            / "stat_inference.sqlite"
         ),
         (
             EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT
@@ -1665,6 +1682,19 @@ def _search_tokens(text: str) -> set[str]:
     """Tokenize formal names plus natural-language queries for declaration search."""
 
     return set(_ordered_search_tokens(text))
+
+
+def _query_search_tokens(text: str) -> set[str]:
+    """Drop formula noise from semantic queries while preserving exact names."""
+
+    tokens = _search_tokens(text)
+    if not re.search(r"\s", str(text or "").strip()):
+        return tokens
+    return {
+        token
+        for token in tokens
+        if len(token) > 1 and not token.isdigit()
+    }
 
 
 def _score_declaration(

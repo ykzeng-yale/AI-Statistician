@@ -186,6 +186,24 @@ def _write_dependency_db(path: Path, *, corpus: str) -> Path:
     return path
 
 
+def test_fts_query_preserves_semantic_order_and_drops_formula_noise() -> None:
+    query = (
+        "Show e_n is a martingale under H0 using E L_i p_i n. "
+        "Apply optional stopping and Markov inequality."
+    )
+
+    fts_query = lean_rag_dependency._fts_query(query)
+
+    assert '"optional"*' in fts_query
+    assert '"stopping"*' in fts_query
+    assert '"markov"*' in fts_query
+    assert '"e"*' not in fts_query
+    assert '"show"*' not in fts_query
+    assert '"apply"*' not in fts_query
+    assert fts_query.index('"martingale"*') < fts_query.index('"optional"*')
+    assert lean_rag_dependency._fts_query("X") == '"x"*'
+
+
 def _insert_dependency_declaration(
     db_path: Path,
     *,
@@ -1380,6 +1398,44 @@ def test_auto_discovery_activates_multiple_healthy_corpus_graphs(
     assert "statistical_foundation" in retriever.source_ids
 
 
+def test_auto_discovery_includes_canonical_active_project_graph(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    external_root = tmp_path / "EmpericalProcessLEAN-main"
+    canonical_graph = (
+        external_root / "build" / "lean_graph" / "stat_inference.sqlite"
+    )
+    canonical_graph.parent.mkdir(parents=True)
+    canonical_graph.touch()
+    missing_relative_path = Path("missing") / "graph.sqlite"
+    monkeypatch.setattr(
+        formal_source_index,
+        "EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT",
+        external_root,
+    )
+    monkeypatch.setattr(
+        formal_source_index,
+        "DEFAULT_LEAN_RAG_DB_CANDIDATES",
+        (),
+    )
+    for name in (
+        "DEFAULT_LEAN_RAG_DB_RELATIVE_PATH",
+        "DEFAULT_AI4SLT_LEAN_RAG_DB_RELATIVE_PATH",
+        "DEFAULT_STATLIB_LEAN_RAG_DB_RELATIVE_PATH",
+        "DEFAULT_EMPIRICAL_PROCESS_MAIN_LEAN_RAG_DB_RELATIVE_PATH",
+    ):
+        monkeypatch.setattr(
+            formal_source_index,
+            name,
+            missing_relative_path,
+        )
+
+    candidates = formal_source_index._auto_lean_rag_db_candidates()
+
+    assert candidates == (canonical_graph,)
+
+
 def test_auto_discovery_uses_one_snapshot_per_canonical_source(
     tmp_path: Path,
     monkeypatch,
@@ -1404,6 +1460,38 @@ def test_auto_discovery_uses_one_snapshot_per_canonical_source(
 
     assert isinstance(retriever, LeanRagDependencyRetriever)
     assert retriever.db_path == current
+    assert retriever.source_id == "empirical_process_lean"
+
+
+def test_auto_discovery_skips_stale_active_graph_before_canonical_graph(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    stale = _write_dependency_db(
+        tmp_path / "stale" / "stat_inference.sqlite",
+        corpus="Stale",
+    )
+    canonical = _write_dependency_db(
+        tmp_path / "build" / "lean_graph" / "stat_inference.sqlite",
+        corpus="Canonical",
+    )
+    with sqlite3.connect(stale) as conn:
+        conn.execute(
+            "UPDATE meta SET value = ? WHERE key = 'schema_version'",
+            ("unsupported",),
+        )
+    monkeypatch.setattr(
+        formal_source_index,
+        "_auto_lean_rag_db_candidates",
+        lambda: (stale, canonical),
+    )
+
+    retriever = formal_source_index._optional_lean_rag_dependency_retriever(
+        None
+    )
+
+    assert isinstance(retriever, LeanRagDependencyRetriever)
+    assert retriever.db_path == canonical
     assert retriever.source_id == "empirical_process_lean"
 
 

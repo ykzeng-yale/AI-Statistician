@@ -441,7 +441,22 @@ def task_bound_formal_source_query_seeds(
             add_row(
                 semantic_candidates,
                 row,
-                ("title", "claim", "statement", "conclusion"),
+                (
+                    "title",
+                    "informal_statement",
+                    "claim",
+                    "statement",
+                    "conclusion",
+                ),
+            )
+            add_row(
+                support_candidates,
+                row,
+                ("proof_strategy",),
+            )
+            add_values(
+                support_candidates,
+                row.get("required_primitives", []),
             )
 
     for row in theory_packet.get("formalization_requests", []) or []:
