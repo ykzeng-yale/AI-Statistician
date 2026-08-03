@@ -1110,6 +1110,17 @@ def test_metric_review_audits_every_estimator_response_semantic_independently() 
     assert response_repair_context["rejected_review_packet"][
         "response_identity_checks"
     ] == packet["response_identity_checks"]
+    consistency_paths = response_repair_context[
+        "rejected_review_consistency_state"
+    ]["typed_patch_paths"]
+    assert consistency_paths["mathematical_consistency_status"] == [
+        "dimension_reviews",
+        2,
+        "status",
+    ]
+    assert consistency_paths["findings_array"] == ["findings"]
+    assert consistency_paths["findings_current_length"] == 0
+    assert "replacement_json" in consistency_paths["array_edit"]
 
     not_indexed_material = deepcopy(material)
     not_indexed_rate = not_indexed_material[

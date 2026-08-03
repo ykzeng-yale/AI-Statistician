@@ -665,6 +665,13 @@ def _typed_semantic_patch_prompt(
                     "path": ["top_level_field", 1, "nested_object"],
                     "replacement_json": "JSON-encoded complex object or array",
                 },
+                {
+                    "path": ["top_level_array"],
+                    "replacement_json": (
+                        "JSON-encoded complete replacement array when adding, "
+                        "removing, or reordering rows"
+                    ),
+                },
             ],
             "maximum_updates": max_updates,
         },
@@ -683,6 +690,12 @@ def _typed_semantic_patch_prompt(
                 "Use integer path components only for array indices. Every array "
                 "index is zero-based; copy exact path arrays from "
                 "subsystem_repair_context when they are supplied."
+            ),
+            (
+                "Array-index paths may replace existing elements only. Never use "
+                "an index equal to the current array length. To add, remove, or "
+                "reorder rows, target the containing array field and provide the "
+                "complete replacement array with replacement_json."
             ),
             (
                 "Use replacement directly only for a string, number, boolean, or "

@@ -1393,10 +1393,33 @@ def _architect_metric_rejected_review_consistency_state(
         and str(row.get("severity", "") or "").strip().lower()
         in {"high", "critical"}
     ]
+    mathematical_consistency_status_path = next(
+        (
+            ["dimension_reviews", index, "status"]
+            for index, row in enumerate(packet.get("dimension_reviews", []) or [])
+            if isinstance(row, Mapping)
+            and str(row.get("dimension", "") or "").strip()
+            == "mathematical_and_numeric_internal_consistency"
+        ),
+        [],
+    )
+    findings = packet.get("findings", [])
+    findings = findings if isinstance(findings, list) else []
     return {
         "failed_claim_checks": failed_claim_checks,
         "dimension_statuses": dimension_statuses,
         "high_or_critical_finding_indices": high_finding_indices,
+        "typed_patch_paths": {
+            "mathematical_consistency_status": (
+                mathematical_consistency_status_path
+            ),
+            "findings_array": ["findings"],
+            "findings_current_length": len(findings),
+            "array_edit": (
+                "Replace the complete findings array with replacement_json when "
+                "adding or removing a row; never address a missing index."
+            ),
+        },
         "consistency_contract": [
             (
                 "Every retained FAIL claim check requires at least one relevant "
@@ -1649,7 +1672,8 @@ def _architect_metric_semantic_review_repair_context(
             (
                 "Use current_candidate as immutable authority, preserve every valid "
                 "judgment from rejected_review_packet, and modify only fields named "
-                "by local_validation_errors. Return one complete schema-valid packet."
+                "by local_validation_errors while preserving the active repair "
+                "transport contract."
             ),
         ],
     }

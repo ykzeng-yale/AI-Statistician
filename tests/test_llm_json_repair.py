@@ -489,6 +489,93 @@ def test_semantic_patch_repair_preserves_unaffected_large_payload() -> None:
     assert patch_history["patched_payload_fingerprint"]
 
 
+def test_semantic_patch_replaces_empty_array_when_adding_first_row() -> None:
+    class ArrayPatchBackend:
+        provider_name = "test"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                response = {
+                    "dimension_reviews": [
+                        {"dimension": "mathematical_consistency", "status": "PASS"}
+                    ],
+                    "findings": [],
+                }
+            else:
+                repair_payload = json.loads(
+                    request.user_prompt.split("\n\n", 1)[1]
+                )
+                assert any(
+                    "target the containing array field" in instruction
+                    for instruction in repair_payload["repair_instructions"]
+                )
+                response = {
+                    "base_payload_fingerprint": repair_payload[
+                        "base_payload_fingerprint"
+                    ],
+                    "updates": [
+                        {
+                            "path": ["dimension_reviews", 0, "status"],
+                            "replacement": "FAIL",
+                        },
+                        {
+                            "path": ["findings"],
+                            "replacement_json": json.dumps(
+                                [{"severity": "high", "summary": "Conflict"}]
+                            ),
+                        },
+                    ],
+                }
+            return GeneratorResponse(
+                text=json.dumps(response),
+                provider=self.provider_name,
+                model=request.model,
+            )
+
+    def validate(candidate: dict[str, object]) -> list[str]:
+        dimensions = candidate.get("dimension_reviews", [])
+        findings = candidate.get("findings", [])
+        errors = []
+        if not isinstance(dimensions, list) or dimensions[0]["status"] != "FAIL":
+            errors.append("failed identity requires mathematical consistency FAIL")
+        if not isinstance(findings, list) or not findings:
+            errors.append("failed identity requires a high typed finding")
+        return errors
+
+    backend = ArrayPatchBackend()
+    packet = generate_validated_json_packet(
+        provider=backend,
+        request=GeneratorRequest(
+            system_prompt="Return JSON.",
+            user_prompt="Review one identity.",
+            model="test-haiku",
+            max_tokens=2000,
+            schema={"type": "object"},
+        ),
+        extract_payload=lambda text: extract_json_object(
+            text,
+            label="identity review",
+        ),
+        build_packet=lambda payload, response, raw_text: dict(payload),
+        validate_packet=validate,
+        validation_label="identity review",
+        max_repair_attempts=1,
+        semantic_patch_repair=True,
+    )
+
+    assert len(backend.requests) == 2
+    assert packet["dimension_reviews"][0]["status"] == "FAIL"
+    assert packet["findings"] == [{"severity": "high", "summary": "Conflict"}]
+    assert packet["llm_json_repair_history"][1]["patched_paths"] == [
+        ["dimension_reviews", 0, "status"],
+        ["findings"],
+    ]
+
+
 def test_progress_extension_allows_one_strictly_smaller_patch_residual() -> None:
     class ProgressivePatchBackend:
         provider_name = "test"
