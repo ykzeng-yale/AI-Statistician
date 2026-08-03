@@ -69,6 +69,7 @@ FORMALIZER_BOUNDARY = (
 FORMALIZER_MAX_THEORY_ROWS = 3
 FORMALIZER_MAX_THEOREM_GOALS = 4
 FORMALIZER_MAX_PROOF_BANK_ROWS = 12
+FORMALIZER_MAX_INDEXED_ENVIRONMENT_CANDIDATES = 6
 FORMALIZER_MAX_TEXT_CHARS = 200
 FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE = "SOURCE_THEOREM_CANDIDATE"
 FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP = "SOURCE_THEOREM_FORMAL_GAP"
@@ -256,6 +257,12 @@ class LLMFormalizerProofEngineerAgent:
 
         def validate_packet(packet: Mapping[str, Any]) -> list[str]:
             errors = validate_formalizer_packet(packet)
+            errors.extend(
+                _validate_indexed_lean_environment_candidate_bindings(
+                    packet,
+                    environment_feedback=environment_feedback or {},
+                )
+            )
             errors.extend(
                 _validate_source_theorem_candidate_materialization_packet(
                     packet,
@@ -1077,6 +1084,149 @@ def _task_contract_text(value: Any, *, limit: int) -> str:
     return text[: limit - 1].rstrip() + "..."
 
 
+def _formalizer_indexed_lean_environment_candidates(
+    environment_feedback: Mapping[str, Any],
+) -> list[dict[str, str]]:
+    """Expose executable module identities without turning retrieval into proof."""
+
+    if not isinstance(environment_feedback, Mapping):
+        return []
+    contexts: list[Mapping[str, Any]] = []
+    repair_context = environment_feedback.get("proofengineer_repair_context", {})
+    if isinstance(repair_context, Mapping):
+        contexts.append(repair_context)
+    if environment_feedback.get("formal_source_grounding_hits"):
+        contexts.append(environment_feedback)
+
+    candidates: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for context in contexts:
+        compact_groups = compact_formal_source_grounding_hits_for_prompt(
+            context.get("formal_source_grounding_hits", [])
+        )
+        for group in compact_groups:
+            query_role = str(group.get("query_role", "") or "").strip()
+            for hit_index, hit in enumerate(group.get("hits", []) or []):
+                if not isinstance(hit, Mapping):
+                    continue
+                declaration_context = hit.get("declaration_source_context", {})
+                if not isinstance(declaration_context, Mapping):
+                    declaration_context = {}
+                module = str(declaration_context.get("module", "") or "").strip()
+                declaration = str(hit.get("name", "") or "").strip()
+                if not module or not declaration:
+                    continue
+                identity = (module, declaration)
+                if identity in seen:
+                    continue
+                seen.add(identity)
+                activation = hit.get("source_activation", {})
+                if not isinstance(activation, Mapping):
+                    activation = {}
+                relation = str(
+                    activation.get("relation_to_active_project", "") or ""
+                ).strip()
+                if relation == "active_project":
+                    import_readiness = "active_project_indexed_module"
+                elif relation == "direct_lake_dependency":
+                    import_readiness = "direct_dependency_indexed_module"
+                elif relation:
+                    import_readiness = (
+                        "port_or_discovery_candidate_requires_target_project_check"
+                    )
+                else:
+                    import_readiness = "indexed_candidate_requires_target_project_check"
+                candidate = {
+                    "source_id": str(hit.get("source_id", "") or "")[:120],
+                    "module": module[:240],
+                    "qualified_declaration": declaration[:240],
+                    "query_role": query_role[:120],
+                    "relation_to_active_project": relation[:120],
+                    "candidate_classification": str(
+                        activation.get("classification", "") or ""
+                    )[:160],
+                    "import_readiness": import_readiness,
+                }
+                if hit_index == 0:
+                    signature = str(hit.get("signature", "") or "")
+                    signature_status = str(
+                        hit.get("signature_status", "") or ""
+                    ).strip()
+                    if signature:
+                        candidate["signature"] = signature
+                    elif signature_status:
+                        candidate["signature_status"] = signature_status[:160]
+                candidates.append(candidate)
+                if (
+                    len(candidates)
+                    >= FORMALIZER_MAX_INDEXED_ENVIRONMENT_CANDIDATES
+                ):
+                    return candidates
+    return candidates
+
+
+def _validate_indexed_lean_environment_candidate_bindings(
+    packet: Mapping[str, Any],
+    *,
+    environment_feedback: Mapping[str, Any],
+) -> list[str]:
+    """Keep model-selected indexed theorem provenance bound to generated source."""
+
+    import_ready_candidates = {
+        row["qualified_declaration"]: row
+        for row in _formalizer_indexed_lean_environment_candidates(
+            environment_feedback
+        )
+        if row.get("import_readiness")
+        in {
+            "active_project_indexed_module",
+            "direct_dependency_indexed_module",
+        }
+    }
+    if not import_ready_candidates:
+        return []
+
+    errors: list[str] = []
+    for row in packet.get("formal_targets", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        if _formal_target_role(row) != FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE:
+            continue
+        provenance = row.get("source_theorem_target_provenance", {})
+        if not isinstance(provenance, Mapping) or not _formalizer_bool_like(
+            provenance.get("source_theorem_target_known", False)
+        ):
+            continue
+        target_declaration = str(
+            provenance.get("target_lean_declaration", "") or ""
+        ).strip()
+        indexed = import_ready_candidates.get(target_declaration)
+        if indexed is None:
+            continue
+        target_id = str(row.get("id", "") or "<unnamed>")
+        lean_imports = {
+            str(value).strip()
+            for value in row.get("lean_imports", []) or []
+            if str(value).strip()
+        }
+        expected_module = indexed["module"]
+        if expected_module not in lean_imports:
+            errors.append(
+                f"formal target {target_id} binds indexed source theorem "
+                f"{target_declaration} but lean_imports omits its exact indexed "
+                f"module {expected_module}"
+            )
+        lean_source = str(row.get("lean_statement_sketch", "") or "")
+        if target_declaration not in lean_source:
+            errors.append(
+                f"formal target {target_id} binds indexed source theorem "
+                f"{target_declaration} in provenance but the generated Lean source "
+                "does not reference that exact qualified declaration; importing its "
+                "module or copying its name only into provenance is not adoption"
+            )
+    return errors
+
+
 def build_formalizer_prompt(
     *,
     question: OpenResearchQuestion,
@@ -1127,7 +1277,17 @@ def build_formalizer_prompt(
     )
     theorem_goal_rows = _compact_rows(
         theorem_goals,
-        keys=("id", "title", "claim", "claim_type", "statement", "proof_obligations"),
+        keys=(
+            "id",
+            "title",
+            "informal_statement",
+            "claim",
+            "claim_type",
+            "statement",
+            "proof_strategy",
+            "required_primitives",
+            "proof_obligations",
+        ),
         limit=FORMALIZER_MAX_THEOREM_GOALS,
     )
     raw_theory_derivation_packet = (
@@ -1143,6 +1303,9 @@ def build_formalizer_prompt(
     theory_derivation_trace = compact_theory_derivation_trace(theory_packet)
     runtime_environment_feedback = _compact_formalizer_environment_feedback(
         environment_feedback or {}
+    )
+    indexed_lean_environment_candidates = (
+        _formalizer_indexed_lean_environment_candidates(environment_feedback or {})
     )
     requires_lean_candidate = _feedback_requires_formalizer_lean_candidate(
         environment_feedback or {}
@@ -1237,6 +1400,7 @@ def build_formalizer_prompt(
             "expand_target_bound_derivation": True,
             "do_not_expand_unrelated_derivations": True,
         },
+        "indexed_lean_environment_candidates": indexed_lean_environment_candidates,
         "theory_packet_summary": {
             "packet_id": theory_packet.get("packet_id", ""),
             "theorem_cards": theorem_cards,
@@ -1502,6 +1666,22 @@ def build_formalizer_prompt(
         )
     else:
         pseudo_formalization_instruction = ""
+    indexed_environment_instruction = (
+        "When indexed_lean_environment_candidates is present, use it as the first "
+        "executable environment catalog. For a semantically matching active-project "
+        "or direct-dependency row, put its exact module in lean_imports. If you select "
+        "that row as target or support, the generated Lean source must reference its "
+        "exact qualified_declaration and use its supplied signature; merely importing "
+        "the module is not adoption. Do not replace an indexed declaration with "
+        "invented binder types, an invented namespace, or a guessed neighboring API. "
+        "Do not derive or guess a module path from a namespace or declaration name. "
+        "candidate_lean_declaration must name the declaration actually introduced by "
+        "lean_statement_sketch. A port/discovery row remains guidance until "
+        "target-project feedback confirms it. If no indexed row supports the target, "
+        "emit a precise FORMAL_GAP or retrieval request instead of invented Lean. "
+        if indexed_lean_environment_candidates
+        else ""
+    )
     return (
         "Return ONLY compact JSON matching required_output_contract, with at most 3 "
         "current-active-frontier items/list. Keep unrelated obligations separate "
@@ -1510,9 +1690,9 @@ def build_formalizer_prompt(
         "activated mode_specific_instructions. Retrieved declarations are support APIs "
         "unless exact lineage identifies the source theorem; preserve that target and "
         "await AgentRuntime checking of the exact artifact. "
+        + indexed_environment_instruction
         + pseudo_formalization_instruction
-        +
-        "Do not use placeholder binder types, `sorry`, `admit`, "
+        + "Do not use placeholder binder types, `sorry`, `admit`, "
         "`axiom`, `unsafe`, or `by?` in Lean sketches. Set candidate status to "
         "NEEDS_KERNEL_CHECK; use FORMAL_GAP only for an unrepaired source target with "
         "no Lean source. Leave optional retrieval, gap, critic, and action lists empty "

@@ -41725,7 +41725,15 @@ def test_first_formalizer_proposal_receives_task_bound_formal_source_grounding()
             {
                 "id": "localized_error_bound",
                 "title": "Localized error bound",
+                "informal_statement": (
+                    "The localized estimator is controlled by the fixed-point "
+                    "complexity radius."
+                ),
                 "claim": "Control the estimator by localized complexity.",
+                "proof_strategy": (
+                    "Apply the retrieved master bound after identifying its radius."
+                ),
+                "required_primitives": ["localized fixed point"],
             }
         ],
         environment_feedback=grounded,
@@ -41735,8 +41743,43 @@ def test_first_formalizer_proposal_receives_task_bound_formal_source_grounding()
     assert "High-Dimensional Statistics" not in prompt
     assert "Theorem 13.5" not in prompt
     assert "Formal-source grounding is a bounded local signature bundle" in prompt
+    assert "indexed_lean_environment_candidates" in prompt
+    assert "Do not derive or guess a module path" in prompt
     assert "ProofEngineer repair loop is active" not in prompt
     prompt_payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+    assert prompt_payload["registered_theorem_goals"] == [
+        {
+            "id": "localized_error_bound",
+            "title": "Localized error bound",
+            "informal_statement": (
+                "The localized estimator is controlled by the fixed-point "
+                "complexity radius."
+            ),
+            "claim": "Control the estimator by localized complexity.",
+            "proof_strategy": (
+                "Apply the retrieved master bound after identifying its radius."
+            ),
+            "required_primitives": ["localized fixed point"],
+        }
+    ]
+    assert prompt_payload["indexed_lean_environment_candidates"] == [
+        {
+            "source_id": "fixture_slt",
+            "module": "SLT.LeastSquares.MasterErrorBound",
+            "qualified_declaration": "LeastSquares.master_error_bound",
+            "signature": (
+                "theorem master_error_bound : "
+                "semantic_definition_library_support"
+            ),
+            "query_role": "initial_formalization_context",
+            "relation_to_active_project": "",
+            "candidate_classification": "",
+            "import_readiness": (
+                "indexed_candidate_requires_target_project_check"
+            ),
+        }
+    ]
+    assert "merely importing the module is not adoption" in prompt
     prompt_context = prompt_payload["runtime_environment_feedback"][
         "proofengineer_repair_context"
     ]
@@ -41745,6 +41788,133 @@ def test_first_formalizer_proposal_receives_task_bound_formal_source_grounding()
         "formal_source_grounding_hits",
     }
     assert len(prompt) < 16000
+
+
+def test_formalizer_indexed_environment_catalog_preserves_source_topology() -> None:
+    def hit(
+        *,
+        source_id: str,
+        module: str,
+        declaration: str,
+        relation: str,
+        classification: str,
+    ) -> dict[str, object]:
+        return {
+            "source_id": source_id,
+            "name": declaration,
+            "signature": f"theorem {declaration.rsplit('.', 1)[-1]} : True",
+            "declaration_source_context": {
+                "module": module,
+                "dependency_context": {
+                    "source_topology": {
+                        "relation_to_active_project": relation,
+                    },
+                    "candidate_use_policy": {
+                        "classification": classification,
+                    },
+                },
+            },
+        }
+
+    feedback = {
+        "proofengineer_repair_context": {
+            "formal_source_grounding_hits": [
+                {
+                    "query_role": "initial_formalization_context",
+                    "hits": [
+                        hit(
+                            source_id="active_project",
+                            module="Project.Inference.Target",
+                            declaration="Project.Inference.target_theorem",
+                            relation="active_project",
+                            classification="active_project_import_closure_candidate",
+                        )
+                    ],
+                },
+                {
+                    "query_role": "repair_context_seed",
+                    "hits": [
+                        hit(
+                            source_id="direct_dependency",
+                            module="Statlib.Data.Subsample",
+                            declaration="Statlib.subsample_measurable",
+                            relation="direct_lake_dependency",
+                            classification="direct_dependency_candidate",
+                        )
+                    ],
+                },
+                {
+                    "query_role": "unknown_identifier_api_repair",
+                    "hits": [
+                        hit(
+                            source_id="external_companion",
+                            module="Companion.External.Result",
+                            declaration="Companion.external_result",
+                            relation="external_companion",
+                            classification="port_candidate",
+                        )
+                    ],
+                },
+            ]
+        }
+    }
+
+    catalog = formalizer_module._formalizer_indexed_lean_environment_candidates(
+        feedback
+    )
+
+    assert [row["query_role"] for row in catalog] == [
+        "initial_formalization_context",
+        "repair_context_seed",
+        "unknown_identifier_api_repair",
+    ]
+    assert [row["import_readiness"] for row in catalog] == [
+        "active_project_indexed_module",
+        "direct_dependency_indexed_module",
+        "port_or_discovery_candidate_requires_target_project_check",
+    ]
+    assert catalog[0]["module"] == "Project.Inference.Target"
+    assert catalog[0]["signature"] == "theorem target_theorem : True"
+    assert catalog[1]["signature"] == (
+        "theorem subsample_measurable : True"
+    )
+    assert catalog[1]["qualified_declaration"] == (
+        "Statlib.subsample_measurable"
+    )
+    assert catalog[2]["candidate_classification"] == "port_candidate"
+
+    source_candidate = {
+        "formal_targets": [
+            {
+                "id": "target_wrapper",
+                "formal_target_role": "SOURCE_THEOREM_CANDIDATE",
+                "lean_imports": ["Project.Inference.Target"],
+                "lean_statement_sketch": (
+                    "theorem target_wrapper : True := by trivial"
+                ),
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": "Project.Inference.target_theorem",
+                },
+            }
+        ]
+    }
+    errors = (
+        formalizer_module._validate_indexed_lean_environment_candidate_bindings(
+            source_candidate,
+            environment_feedback=feedback,
+        )
+    )
+    assert len(errors) == 1
+    assert "copying its name only into provenance is not adoption" in errors[0]
+
+    source_candidate["formal_targets"][0]["lean_statement_sketch"] = (
+        "theorem target_wrapper := Project.Inference.target_theorem"
+    )
+    assert not formalizer_module._validate_indexed_lean_environment_candidate_bindings(
+        source_candidate,
+        environment_feedback=feedback,
+    )
 
 
 def test_first_formalizer_grounding_defaults_to_active_project_topology() -> None:
