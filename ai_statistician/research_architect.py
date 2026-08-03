@@ -2767,7 +2767,6 @@ def _theory_revision_feedback_decision_rows(
 def _theory_revision_feedback_decisions_json_schema(
     *,
     decision_rows: Sequence[Mapping[str, Any]],
-    valid_top_level_path_keys: Sequence[str],
 ) -> dict[str, Any]:
     decision_schema = {
         "type": "object",
@@ -2776,7 +2775,6 @@ def _theory_revision_feedback_decisions_json_schema(
             "selected_resolution",
             "rationale",
             "rejected_alternatives",
-            "affected_top_level_sections",
         ],
         "properties": {
             "selected_resolution": {"type": "string", "minLength": 1},
@@ -2785,16 +2783,6 @@ def _theory_revision_feedback_decisions_json_schema(
                 "type": "array",
                 "maxItems": 5,
                 "items": {"type": "string", "minLength": 1},
-            },
-            "affected_top_level_sections": {
-                "type": "array",
-                "minItems": 1,
-                "maxItems": max(1, len(valid_top_level_path_keys)),
-                "uniqueItems": True,
-                "items": {
-                    "type": "string",
-                    "enum": list(valid_top_level_path_keys),
-                },
             },
         },
     }
@@ -2860,7 +2848,6 @@ def _theory_revision_feedback_decision_contract(
         "feedback_decisions_schema": (
             _theory_revision_feedback_decisions_json_schema(
                 decision_rows=decision_rows,
-                valid_top_level_path_keys=valid_top_level_sections,
             )
         ),
     }
@@ -2886,7 +2873,6 @@ def _validate_theory_revision_feedback_decisions(
     decisions: Any,
     *,
     decision_contract: Mapping[str, Any],
-    applied_paths: Sequence[Sequence[str | int]],
 ) -> list[str]:
     if not isinstance(decisions, Mapping):
         return ["theory revision feedback_decisions must be an exact-key object"]
@@ -2903,14 +2889,6 @@ def _validate_theory_revision_feedback_decisions(
         errors.append(
             "theory revision feedback_decisions must cover every routed finding exactly"
         )
-    valid_sections = {
-        str(value)
-        for value in decision_contract.get(
-            "valid_top_level_sections", []
-        )
-        or []
-    }
-    declared_sections: set[str] = set()
     for decision_key in sorted(expected_keys):
         decision = decisions.get(decision_key, {})
         if not isinstance(decision, Mapping):
@@ -2944,36 +2922,6 @@ def _validate_theory_revision_feedback_decisions(
             errors.append(
                 f"theory revision decision {decision_key} rejects its selected resolution"
             )
-        affected = decision.get("affected_top_level_sections", [])
-        if (
-            not isinstance(affected, list)
-            or not affected
-            or len(set(str(value) for value in affected)) != len(affected)
-        ):
-            errors.append(
-                f"theory revision decision {decision_key} has invalid affected sections"
-            )
-            continue
-        unknown_sections = {
-            str(value) for value in affected
-        } - valid_sections
-        if unknown_sections:
-            errors.append(
-                f"theory revision decision {decision_key} names an unknown section"
-            )
-            continue
-        declared_sections.update(str(value) for value in affected)
-
-    applied_sections = {
-        str(path[0])
-        for path in applied_paths
-        if path and isinstance(path[0], str)
-    }
-    if expected_keys and declared_sections != applied_sections:
-        errors.append(
-            "theory revision feedback decisions and applied patch paths must "
-            "name the same top-level sections"
-        )
     return errors
 
 
@@ -3107,7 +3055,7 @@ def _build_targeted_theory_revision_prompt(
             "Derive replacements from the primitive DGP, estimand, and theorem hypotheses; reviewer prose is diagnostic evidence, not an answer key.",
             "For every exact routed_findings_by_decision_key key, emit one feedback_decisions entry choosing one current executable semantic resolution and listing genuinely rejected alternatives.",
             "Implement each selected resolution in this same envelope and keep its rejected alternatives out of every executable branch and return contract; reviewer alternatives are candidates, not an answer key or runtime branch.",
-            "The union of affected_top_level_sections across feedback_decisions must exactly equal the top-level sections touched by updates.",
+            "Do not repeat patch paths or affected-section metadata inside feedback_decisions; runtime derives the exact touched sections from validated updates.",
             "Propagate each selected behavior consistently across the smallest complete set of existing formula, algorithm, input, output, normalization, assumption, diagnostic, simulation, theorem-risk, and interface-facing fields that depend on it. A finite executable procedure must expose one unambiguous typed outcome for every admitted input.",
             "Recompute guarantee-carrying identities and check data-dependent operations, finite typed returns, and guarantee transport where the feedback makes them relevant.",
             "For a structural correction, replace the smallest complete semantic section using replacement_json; do not scatter cosmetic leaf edits.",
@@ -3304,11 +3252,6 @@ def _generate_targeted_theory_revision(
                 obligation["rejected_alternatives"] = deepcopy(
                     list(decision.get("rejected_alternatives", []) or [])
                 )
-                obligation["affected_top_level_sections"] = deepcopy(
-                    list(
-                        decision.get("affected_top_level_sections", []) or []
-                    )
-                )
             revision_obligations.append(obligation)
         packet["theory_revision_transport"] = {
             "artifact_kind": "TheoryDeveloperTargetedRevisionTransport",
@@ -3368,6 +3311,13 @@ def _generate_targeted_theory_revision(
                 typed_semantic_patch_payload_fingerprint(patched_payload)
             ),
             "applied_paths": applied_paths,
+            "applied_top_level_sections": sorted(
+                {
+                    str(path[0])
+                    for path in applied_paths
+                    if path and isinstance(path[0], str)
+                }
+            ),
             "path_normalizations": path_normalizations,
             "provider": provider_name or response.provider,
             "model": response.model or request_model,
@@ -3387,11 +3337,6 @@ def _generate_targeted_theory_revision(
             *_validate_theory_revision_feedback_decisions(
                 transport.get("feedback_decisions", {}),
                 decision_contract=feedback_decision_contract,
-                applied_paths=(
-                    transport.get("applied_paths", [])
-                    if isinstance(transport.get("applied_paths", []), list)
-                    else []
-                ),
             ),
         ]
 

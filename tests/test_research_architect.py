@@ -423,10 +423,7 @@ def _metric_theory_revision_context(
     }
 
 
-def _bounded_outcome_feedback_decisions(
-    *,
-    affected_section: str = "problem_card",
-) -> dict[str, object]:
+def _bounded_outcome_feedback_decisions() -> dict[str, object]:
     return {
         "metric_protocol_finding:bounded-outcome": {
             "selected_resolution": (
@@ -440,7 +437,6 @@ def _bounded_outcome_feedback_decisions(
             "rejected_alternatives": [
                 "Leave bounded outcomes implicit in downstream code."
             ],
-            "affected_top_level_sections": [affected_section],
         }
     }
 
@@ -1022,9 +1018,9 @@ def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -
         "feedback_decisions": _bounded_outcome_feedback_decisions(),
         "updates": [
             {
-                "path": ["theory_derivation_packet", "self_critique"],
+                "path": ["theory_derivation_packet", "missing_section"],
                 "replacement_json": json.dumps(
-                    ["A detached change that the decision did not authorize."]
+                    ["A path outside the immutable parent contract."]
                 ),
             }
         ],
@@ -1088,6 +1084,10 @@ def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -
         "feedback_decisions",
         "updates",
     }
+    decision_schema = first_request.schema["properties"][
+        "feedback_decisions"
+    ]["properties"]["metric_protocol_finding:bounded-outcome"]
+    assert "affected_top_level_sections" not in decision_schema["properties"]
     assert "never regenerate the full theory packet" in first_request.user_prompt
     assert "preserved byte-for-structure" in first_request.user_prompt
     assert '"existing_paths_only":true' in first_request.user_prompt
@@ -1109,7 +1109,7 @@ def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -
     ] is True
     assert first_request.metadata["n_feedback_decisions_required"] == 1
     assert "original immutable base" in retry_request.user_prompt
-    assert "same top-level sections" in retry_request.user_prompt
+    assert "may replace only an existing object key" in retry_request.user_prompt
     assert retry_request.metadata["json_repair_attempt"] == 1
     assert interface_request.metadata["theory_developer_phase"] == (
         "estimator_interface_authoring"
@@ -1144,9 +1144,7 @@ def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -
     assert transport["feedback_decisions"] == (
         _bounded_outcome_feedback_decisions()
     )
-    assert transport["revision_obligations"][0][
-        "affected_top_level_sections"
-    ] == ["problem_card"]
+    assert transport["applied_top_level_sections"] == ["problem_card"]
     assert transport["kernel_verified"] is False
 
 

@@ -1988,8 +1988,8 @@ def generated_metric_numeric_authority_repair_matrix(
 
         numeric_gate_matches: list[dict[str, Any]] = []
         missing_numeric_fields: list[str] = []
-        for field, value in _generated_metric_required_gate_numeric_fields(
-            requirement
+        for expected_field_index, (field, value) in enumerate(
+            _generated_metric_required_gate_numeric_fields(requirement)
         ):
             field_entry_index, field_authority = (
                 field_authority_by_field.get(field, (-1, {}))
@@ -2073,6 +2073,9 @@ def generated_metric_numeric_authority_repair_matrix(
                     "value": value,
                     "gate_field_authority_entry_index": (
                         field_entry_index
+                    ),
+                    "gate_field_authority_expected_index": (
+                        expected_field_index
                     ),
                     "current_field_authority_kind": (
                         field_authority_kind

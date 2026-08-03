@@ -245,6 +245,80 @@ def test_transport_applies_model_choices_without_selecting_semantics() -> None:
     }
 
 
+def test_exact_key_transport_atomically_inserts_missing_field_binding() -> None:
+    requirement = _requirement(
+        requirement_id="multi_field_candidate_gate",
+        threshold=0.99,
+        authority_kind="evaluation_mandated",
+    )
+    requirement["tolerance"] = 0.01
+    requirement["gate_field_authorities"] = [
+        dict(requirement["gate_field_authorities"][0])
+    ]
+    errors = _validation_errors([requirement])
+    assert any("threshold=0.99" in error for error in errors)
+    assert any("exactly once in order" in error for error in errors)
+
+    context = _metric_authoring_repair_context(
+        invalid_packet={"empirical_metric_requirements": [requirement]},
+        errors=errors,
+        runtime_replicates=17,
+        acceptance_authority_catalog_id="catalog:test",
+        acceptance_authority_catalog=CATALOG,
+        required_target_rows=[],
+        independent_semantic_review_repair={},
+    )
+    decisions = context["gate_field_resolution_decisions_by_id"]
+    assert {decision["field"] for decision in decisions.values()} == {
+        "threshold",
+        "tolerance",
+    }
+    missing_decision = next(
+        decision
+        for decision in decisions.values()
+        if decision["field"] == "tolerance"
+    )
+    assert missing_decision["gate_field_authority_row_exists"] is False
+    assert missing_decision["gate_field_authority_expected_index"] == 1
+
+    fingerprint = "base:fingerprint"
+    transport = build_metric_authority_semantic_patch_transport(
+        base_payload={"empirical_metric_requirements": [requirement]},
+        base_payload_fingerprint=fingerprint,
+        repair_context=context,
+        max_updates=8,
+    )
+    assert transport is not None
+    patched, _paths, applications = transport.apply_envelope(
+        {
+            "base_payload_fingerprint": fingerprint,
+            "decisions": {
+                decision_id: {
+                    "resolution": "architect_preregistered_design",
+                    "source_binding_id": "",
+                    "rationale": "Preregister this finite gate before execution.",
+                }
+                for decision_id in decisions
+            },
+        }
+    )
+    patched_requirement = materialize_generated_metric_gate_field_authorities(
+        patched["empirical_metric_requirements"][0]
+    )
+
+    assert _validation_errors([patched_requirement]) == []
+    assert patched_requirement["threshold"] == 0.99
+    assert patched_requirement["tolerance"] == 0.01
+    assert [
+        row["field"] for row in patched_requirement["gate_field_authorities"]
+    ] == ["threshold", "tolerance"]
+    assert sum(
+        row["runtime_created_missing_authority_row"] is True
+        for row in applications
+    ) == 1
+    assert all(row["runtime_selected_semantics"] is False for row in applications)
+
+
 def test_exact_key_transport_rejects_unlisted_or_partial_choices() -> None:
     requirement = _requirement(
         requirement_id="candidate_owned",
@@ -306,6 +380,10 @@ def test_recorded_failure_shape_closes_in_one_exact_key_repair() -> None:
             threshold=0.8,
             authority_kind="theory_parameter_instantiation",
         ),
+    ]
+    initial_requirements[1]["tolerance"] = 0.01
+    initial_requirements[1]["gate_field_authorities"] = [
+        dict(initial_requirements[1]["gate_field_authorities"][0])
     ]
 
     class ExactDecisionBackend:
@@ -409,12 +487,20 @@ def test_recorded_failure_shape_closes_in_one_exact_key_repair() -> None:
         row["threshold"]
         for row in packet["empirical_metric_requirements"]
     ] == [0.05, 0.8]
+    assert [
+        row["tolerance"]
+        for row in packet["empirical_metric_requirements"]
+    ] == [0.0, 0.01]
     repair_history = packet["llm_json_repair_history"][1]
     assert repair_history["semantic_patch_transport_kind"] == (
         ARCHITECT_METRIC_AUTHORITY_PATCH_TRANSPORT_KIND
     )
     assert repair_history["patch_path_normalizations"] == []
-    assert len(repair_history["semantic_patch_application_rows"]) == 2
+    assert len(repair_history["semantic_patch_application_rows"]) == 3
+    assert sum(
+        row["runtime_created_missing_authority_row"] is True
+        for row in repair_history["semantic_patch_application_rows"]
+    ) == 1
     assert all(
         row["runtime_selected_semantics"] is False
         for row in repair_history["semantic_patch_application_rows"]

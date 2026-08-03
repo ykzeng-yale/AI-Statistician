@@ -73,8 +73,10 @@ def metric_gate_authority_resolution_decisions(
             ):
                 continue
             authority_index = int(raw_authority_index)
-            if authority_index < 0 or (
-                targeted_authority_indices
+            authority_row_exists = authority_index >= 0
+            if (
+                authority_row_exists
+                and targeted_authority_indices
                 and authority_index not in targeted_authority_indices
             ):
                 continue
@@ -102,6 +104,13 @@ def metric_gate_authority_resolution_decisions(
                 "requirement_id": requirement_id,
                 "field": field,
                 "gate_field_authority_entry_index": authority_index,
+                "gate_field_authority_expected_index": int(
+                    gate_match.get(
+                        "gate_field_authority_expected_index",
+                        authority_index,
+                    )
+                ),
+                "gate_field_authority_row_exists": authority_row_exists,
                 "value": gate_match.get("value"),
                 "current_owner": str(
                     gate_match.get("current_field_authority_kind", "")
@@ -511,9 +520,55 @@ def _apply_metric_authority_decision_envelope(
             if isinstance(row, Mapping)
             and str(row.get("field", "") or "") == field
         ]
+        authority_row_created = False
+        if not matching_indices and (
+            decision.get("gate_field_authority_row_exists") is False
+        ):
+            raw_expected_index = decision.get(
+                "gate_field_authority_expected_index",
+                len(raw_authorities),
+            )
+            if (
+                not isinstance(raw_expected_index, int)
+                or isinstance(raw_expected_index, bool)
+                or raw_expected_index < 0
+                or raw_expected_index > len(raw_authorities)
+            ):
+                raise ValueError(
+                    f"decision {decision_id} has invalid authority insertion index"
+                )
+            authority_index = int(raw_expected_index)
+            raw_authorities.insert(
+                authority_index,
+                {
+                    "field": field,
+                    "authority_kind": str(
+                        decision.get("current_owner", "") or ""
+                    ),
+                    "source_anchors": list(
+                        dict.fromkeys(
+                            str(value).strip()
+                            for value in decision.get(
+                                "current_source_anchor_ids", []
+                            )
+                            if str(value).strip()
+                        )
+                    ),
+                    "rationale": "",
+                },
+            )
+            matching_indices = [authority_index]
+            authority_row_created = True
+            patched_paths.append(
+                [
+                    "empirical_metric_requirements",
+                    requirement_index,
+                    "gate_field_authorities",
+                ]
+            )
         if len(matching_indices) != 1:
             raise ValueError(
-                f"decision {decision_id} requires exactly one existing field row"
+                f"decision {decision_id} requires one unambiguous field row"
             )
         authority_index = matching_indices[0]
         authority = dict(raw_authorities[authority_index])
@@ -606,6 +661,9 @@ def _apply_metric_authority_decision_envelope(
                     )
                 ),
                 "runtime_selected_semantics": False,
+                "runtime_created_missing_authority_row": (
+                    authority_row_created
+                ),
             }
         )
 
