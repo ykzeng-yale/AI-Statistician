@@ -474,7 +474,6 @@ from .research_agent_runtime import (
     _runtime_coding_agent_capability_table,
     _runtime_component_gate_summary,
     _runtime_formalizer_component_gate_learning_rows,
-    _runtime_formalizer_pf_copy_ready_retry_next_action_agenda_rows,
     _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows,
     _runtime_generated_next_action_learning_rows,
     _runtime_pseudo_formal_block_verifier_component_gate_learning_rows,
@@ -9572,7 +9571,7 @@ def _pseudo_formal_block_verifier_llm_responses(args: argparse.Namespace) -> int
         provider=provider,
         provider_name=provider_name,
         model=str(args.model or ""),
-        model_tier=str(args.model_tier or "sonnet"),
+        model_tier=str(args.model_tier or LIVE_EVALUATION_CLAUDE_MODEL_TIER),
         max_packets=args.max_packets,
         max_tokens=args.max_tokens,
         temperature=args.temperature,
@@ -9660,7 +9659,7 @@ def _pseudo_formal_block_verifier_component_gate(args: argparse.Namespace) -> in
         provider=provider,
         provider_name=provider_name,
         model=str(args.model or ""),
-        model_tier=str(args.model_tier or "sonnet"),
+        model_tier=str(args.model_tier or LIVE_EVALUATION_CLAUDE_MODEL_TIER),
         max_packets=args.max_packets,
         max_tokens=args.max_tokens,
         temperature=args.temperature,
@@ -13554,51 +13553,14 @@ def _attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
             for value in eval_manifest.get("errors", [])
             if str(value).strip()
         ],
-        "pseudo_formal_failure_validation_issue_summary": (
-            eval_manifest.get("pseudo_formal_failure_validation_issue_summary", {})
+        "formalizer_validation_feedback": dict(
+            eval_manifest.get("formalizer_validation_feedback", {}) or {}
         ),
-        "pseudo_formal_failure_issue_specific_repair_actions": (
-            eval_manifest.get(
-                "pseudo_formal_failure_issue_specific_repair_actions",
-                [],
-            )
+        "model_owned_repair_required": bool(
+            eval_manifest.get("model_owned_repair_required", False)
         ),
-        "pseudo_formal_failure_concrete_lane_routable_repair_seed": (
-            eval_manifest.get(
-                "pseudo_formal_failure_concrete_lane_routable_repair_seed",
-                {},
-            )
-        ),
-        "pseudo_formal_failure_validator_ready_copy_contract": (
-            eval_manifest.get(
-                "pseudo_formal_failure_validator_ready_copy_contract",
-                {},
-            )
-        ),
-        "pseudo_formal_failure_copy_contract_summary": (
-            eval_manifest.get(
-                "pseudo_formal_failure_copy_contract_summary",
-                {},
-            )
-        ),
-        "pseudo_formal_failure_copy_ready": _runtime_learning_memory_bool_like(
-            eval_manifest.get("pseudo_formal_failure_copy_ready", False)
-        ),
-        "pseudo_formal_failure_copy_exact_semantic_definition_ready": (
-            _runtime_learning_memory_bool_like(
-                eval_manifest.get(
-                    "pseudo_formal_failure_copy_exact_semantic_definition_ready",
-                    False,
-                )
-            )
-        ),
-        "pseudo_formal_failure_repair_seed_available": (
-            _runtime_learning_memory_bool_like(
-                eval_manifest.get(
-                    "pseudo_formal_failure_repair_seed_available",
-                    False,
-                )
-            )
+        "runtime_selected_mathematical_content": bool(
+            eval_manifest.get("runtime_selected_mathematical_content", False)
         ),
         "pseudo_formal_failure_required_target_lanes": [
             str(value)
@@ -13725,26 +13687,14 @@ def _attach_formalizer_pseudo_formal_packet_eval_to_runtime_manifest(
         "internal_formalizer_pseudo_formal_packet_eval_failure_required_target_lanes"
     ] = list(attached["pseudo_formal_failure_required_target_lanes"])
     manifest[
-        "internal_formalizer_pseudo_formal_packet_eval_failure_validation_issue_summary"
-    ] = attached["pseudo_formal_failure_validation_issue_summary"]
+        "internal_formalizer_pseudo_formal_packet_eval_validation_feedback"
+    ] = attached["formalizer_validation_feedback"]
     manifest[
-        "internal_formalizer_pseudo_formal_packet_eval_failure_concrete_lane_routable_repair_seed"
-    ] = attached["pseudo_formal_failure_concrete_lane_routable_repair_seed"]
+        "internal_formalizer_pseudo_formal_packet_eval_model_owned_repair_required"
+    ] = bool(attached["model_owned_repair_required"])
     manifest[
-        "internal_formalizer_pseudo_formal_packet_eval_failure_validator_ready_copy_contract"
-    ] = attached["pseudo_formal_failure_validator_ready_copy_contract"]
-    manifest[
-        "internal_formalizer_pseudo_formal_packet_eval_failure_copy_contract_summary"
-    ] = attached["pseudo_formal_failure_copy_contract_summary"]
-    manifest[
-        "internal_formalizer_pseudo_formal_packet_eval_failure_copy_ready"
-    ] = bool(attached["pseudo_formal_failure_copy_ready"])
-    manifest[
-        "internal_formalizer_pseudo_formal_packet_eval_failure_copy_exact_semantic_definition_ready"
-    ] = bool(attached["pseudo_formal_failure_copy_exact_semantic_definition_ready"])
-    manifest[
-        "internal_formalizer_pseudo_formal_packet_eval_failure_repair_seed_available"
-    ] = bool(attached["pseudo_formal_failure_repair_seed_available"])
+        "internal_formalizer_pseudo_formal_packet_eval_runtime_selected_mathematical_content"
+    ] = bool(attached["runtime_selected_mathematical_content"])
     manifest["internal_formalizer_pseudo_formal_packet_eval_live_generator"] = bool(
         attached["live_generator"]
     )
@@ -14188,16 +14138,6 @@ def _refresh_runtime_coding_agent_capability_manifest(
             manifest
         )
     )
-    formalizer_pf_copy_ready_retry_next_action_rows = (
-        _runtime_formalizer_pf_copy_ready_retry_next_action_agenda_rows(
-            formalizer_pseudo_formal_packet_learning_rows
-        )
-    )
-    formalizer_pf_copy_ready_retry_next_action_learning_rows = (
-        _runtime_generated_next_action_learning_rows(
-            formalizer_pf_copy_ready_retry_next_action_rows
-        )
-    )
     pseudo_formal_component_gate_learning_rows = (
         _runtime_pseudo_formal_block_verifier_component_gate_learning_rows(manifest)
     )
@@ -14253,7 +14193,6 @@ def _refresh_runtime_coding_agent_capability_manifest(
         *coding_component_gate_learning_rows,
         *component_gate_learning_rows,
         *formalizer_pseudo_formal_packet_learning_rows,
-        *formalizer_pf_copy_ready_retry_next_action_learning_rows,
         *pseudo_formal_component_gate_learning_rows,
     ]
     learning_path.parent.mkdir(parents=True, exist_ok=True)
@@ -14285,7 +14224,6 @@ def _refresh_runtime_coding_agent_capability_manifest(
     refreshed_agenda_rows = _dedupe_runtime_next_action_agenda_rows(
         [
             *retained_agenda_rows,
-            *formalizer_pf_copy_ready_retry_next_action_rows,
         ]
     )
     _write_runtime_next_action_agenda_jsonl(agenda_path, refreshed_agenda_rows)
@@ -14303,7 +14241,7 @@ def _refresh_runtime_coding_agent_capability_manifest(
     )
     manifest[
         "n_runtime_formalizer_pseudo_formal_packet_copy_ready_retry_next_action_items"
-    ] = len(formalizer_pf_copy_ready_retry_next_action_rows)
+    ] = 0
     manifest["proof_bank_runtime_memory_summary"] = (
         _runtime_proof_bank_memory_summary_from_learning_rows(
             refreshed_rows,
@@ -20065,8 +20003,8 @@ def build_parser() -> argparse.ArgumentParser:
     pseudo_formal_block_verifier_llm_responses.add_argument(
         "--model-tier",
         choices=list(LIVE_CLAUDE_MODEL_TIERS),
-        default="sonnet",
-        help="Claude cost tier used when provider/model resolution needs a default",
+        default=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        help="Claude evaluation tier; defaults to the pinned Haiku test tier",
     )
     pseudo_formal_block_verifier_llm_responses.add_argument(
         "--static-response-file",
@@ -20168,8 +20106,8 @@ def build_parser() -> argparse.ArgumentParser:
     pseudo_formal_block_verifier_component_gate.add_argument(
         "--model-tier",
         choices=list(LIVE_CLAUDE_MODEL_TIERS),
-        default="sonnet",
-        help="Claude cost tier used when provider/model resolution needs a default",
+        default=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        help="Claude evaluation tier; defaults to the pinned Haiku test tier",
     )
     pseudo_formal_block_verifier_component_gate.add_argument(
         "--static-response-file",
@@ -23936,7 +23874,10 @@ def build_parser() -> argparse.ArgumentParser:
     formalizer_lean_candidate_repair_eval.add_argument(
         "--llm-model",
         default="",
-        help="model name for Formalizer/ProofEngineer; Anthropic defaults to Claude Sonnet 4.6",
+        help=(
+            "model name for Formalizer/ProofEngineer; provider-backed evals "
+            "default to claude-haiku-4-5-20251001"
+        ),
     )
     formalizer_lean_candidate_repair_eval.add_argument(
         "--llm-timeout-seconds",
@@ -24020,7 +23961,10 @@ def build_parser() -> argparse.ArgumentParser:
     formalizer_pseudo_formal_packet_eval.add_argument(
         "--llm-model",
         default="",
-        help="model name for Formalizer/ProofEngineer; Anthropic defaults to Claude Sonnet 4.6",
+        help=(
+            "model name for Formalizer/ProofEngineer; provider-backed evals "
+            "default to claude-haiku-4-5-20251001"
+        ),
     )
     formalizer_pseudo_formal_packet_eval.add_argument(
         "--llm-timeout-seconds",

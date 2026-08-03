@@ -1,0 +1,80 @@
+from __future__ import annotations
+
+import inspect
+import json
+
+import ai_statistician.formalizer_repair_policy as repair_feedback_module
+from ai_statistician.formalizer_llm import build_formalizer_prompt
+from ai_statistician.formalizer_repair_policy import (
+    formalizer_validation_feedback_envelope,
+)
+from ai_statistician.research_schema import OpenResearchQuestion
+
+
+def test_formalizer_repair_feedback_is_observation_not_rule_table() -> None:
+    source = inspect.getsource(repair_feedback_module)
+    assert "trigger_markers" not in source
+    assert "violation_family" not in source
+    assert "prompt_directive" not in source
+    assert "error_text" not in source
+
+    error = "arbitrary future validator failure: field zeta is inconsistent"
+    rejected = {
+        "formal_targets": [{"id": "target:zeta", "unexpected": "value"}],
+        "next_actions": [{"id": "action:zeta"}],
+    }
+    feedback = formalizer_validation_feedback_envelope(
+        [error],
+        invalid_packet=rejected,
+        attempt_history=[{"attempt_index": 1, "ok": False}],
+        retry_depth=1,
+    )
+
+    assert feedback["validation_error_messages"] == [error]
+    assert feedback["rejected_packet_projection"] == rejected
+    assert feedback["repair_authority"]["runtime_selected_semantics"] is False
+    assert feedback["repair_authority"]["model_owns"]
+    assert "rules" not in feedback
+    assert "directives" not in feedback
+
+
+def test_formalizer_prompt_carries_exact_feedback_without_runtime_repair_recipe() -> None:
+    error = "future validator says the emitted artifact does not satisfy omega"
+    feedback = formalizer_validation_feedback_envelope(
+        [error],
+        invalid_packet={"formal_targets": [{"id": "omega"}]},
+    )
+    prompt = build_formalizer_prompt(
+        question=OpenResearchQuestion(
+            id="generic_formalizer_repair",
+            title="Generic Formalizer repair",
+            description="Repair a model-authored packet from environment feedback.",
+            tags=("formalizer",),
+        ),
+        theory_packet={"packet_id": "theory:generic-repair"},
+        simulation_manifest={"manifest_id": "simulation:generic-repair"},
+        algorithm_manifest={"manifest_id": "algorithm:generic-repair"},
+        registered_problem={"question_id": "generic_formalizer_repair"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback={
+            "failure_classification": "formalizer_packet_validation_failed",
+            "formalizer_validation_feedback": feedback,
+        },
+    )
+    payload = json.loads(prompt[prompt.index('{"question":') :])
+    carried = payload["runtime_environment_feedback"][
+        "formalizer_validation_feedback"
+    ]
+
+    assert carried["feedback_id"] == feedback["feedback_id"]
+    assert carried["validation_error_messages"] == [error]
+    assert "validation_repair_policy" not in prompt
+    assert "validation_repair_directives" not in prompt
+    assert "pseudo_formalization_required_packet_seed" not in prompt
+    assert "pseudo_formalization_required_copy_fragment" not in prompt
+    assert any(
+        "AgentRuntime does not prescribe field-specific" in instruction
+        for instruction in payload["mode_specific_instructions"]
+    )

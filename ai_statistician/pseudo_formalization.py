@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import Counter
 from copy import deepcopy
 import re
 from typing import Any, Mapping, Sequence
@@ -43,6 +42,9 @@ PSEUDO_FORMAL_DEFAULT_CALIBRATION_STRICTNESS = "lean_bridge_conservative"
 PSEUDO_FORMAL_DEFAULT_AGGREGATION_RULE = "parallel_pessimistic_aggregation"
 PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND = (
     "pseudo_formal_independent_block_verification_request"
+)
+PSEUDO_FORMAL_FAITHFULNESS_REVIEW_ROW_KIND = (
+    "pseudo_formal_faithfulness_review"
 )
 PSEUDO_FORMAL_STRUCTURAL_DECOMPOSITION_REQUEST_ROW_KIND = (
     "pseudo_formal_structural_decomposition_request"
@@ -257,64 +259,6 @@ PSEUDO_FORMAL_NON_ROUTABLE_WORK_ORDER_ROW_KINDS = (
     "pseudo_formal_nonlean_residual_gap_blocked_by_faithfulness",
     "pseudo_formal_semantic_primitive_request_blocked_by_faithfulness",
 )
-
-PSEUDO_FORMAL_VALIDATION_ISSUE_MARKERS: tuple[
-    tuple[str, tuple[str, ...]],
-    ...,
-] = (
-    (
-        "missing_required_packet",
-        (
-            "requires at least one pseudo_formal_proof_packets",
-            "no locally valid pseudo_formal_proof_packets",
-        ),
-    ),
-    ("missing_blocks", ("blocks must contain at least one pseudo-formal block",)),
-    ("missing_conclusion", ("missing conclusion",)),
-    ("missing_source_anchors", ("missing source_anchors",)),
-    ("unsupported_block_type", ("unsupported block_type",)),
-    ("unsupported_faithfulness_status", ("unsupported faithfulness_status",)),
-    ("unsupported_lean_feasibility", ("unsupported lean_feasibility",)),
-    ("unsupported_block_verdict", ("unsupported block verdict",)),
-    (
-        "accepted_without_rollout_count",
-        (
-            "accepted block_verification must record rollout_count",
-            "accepted_without_rollout_count",
-        ),
-    ),
-    (
-        "forbidden_kernel_claim",
-        (
-            "kernel_verified must be false",
-            "source_theorem_kernel_verified must be false",
-            "proof_evidence_status must be pseudo-formal non-proof",
-        ),
-    ),
-    (
-        "dependency_or_scope_order",
-        (
-            "dependency_id must reference",
-            "dependency_ids cannot include self",
-            "scope_parent_id must reference",
-            "scope_parent_id cannot be self",
-            "dependency cycle",
-        ),
-    ),
-    (
-        "no_lane_routable_work_order_rows",
-        (
-            "valid pf/bv packet did not produce",
-            "no lane-routable",
-            "no effective lane-routable",
-        ),
-    ),
-    (
-        "missing_required_target_lane",
-        ("only generic review rows", "did not route any effective row"),
-    ),
-)
-
 
 def pseudo_formal_verification_method_contract() -> dict[str, Any]:
     return {
@@ -601,7 +545,13 @@ def pseudo_formalizer_prompt_contract() -> dict[str, Any]:
         "block_structure_rules": list(PSEUDO_FORMAL_BLOCK_STRUCTURE_RULES),
         "max_proof_tree_depth": PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH,
         "source_anchor_rule": "every nontrivial block needs a source anchor",
+        "block_type_values": list(VALID_BLOCK_TYPES),
+        "dependency_scope_values": list(VALID_DEPENDENCY_SCOPES),
         "lean_feasibility_values": list(VALID_LEAN_FEASIBILITY),
+        "faithfulness_status_values": list(VALID_FAITHFULNESS_STATUSES),
+        "faithfulness_repair_status_values": list(
+            VALID_FAITHFULNESS_REPAIR_STATUSES
+        ),
         "block_verdict_values": list(VALID_BLOCK_VERDICTS),
         "calibration_strictness_values": list(VALID_CALIBRATION_STRICTNESS),
         "default_bv_calibration": _default_bv_calibration(),
@@ -611,6 +561,14 @@ def pseudo_formalizer_prompt_contract() -> dict[str, Any]:
         "promotion_gate": PSEUDO_FORMALIZATION_PROMOTION_GATE,
         "boundary": "not theorem proof evidence; route residual blocks to existing work-order lanes",
         "work_order_target_lanes": list(PSEUDO_FORMAL_BLOCK_ROUTING_TARGET_LANES),
+        "work_order_target_lane_authority": (
+            "runtime-derived outcome from typed block semantics; target-lane names are "
+            "not writable block field values"
+        ),
+        "routing_feedback": (
+            "on rejection, inspect the runtime routing observation for each named "
+            "block and use this schema to choose the smallest semantic patch"
+        ),
         "work_order_trigger": PSEUDO_FORMAL_BLOCK_ROUTING_TRIGGER,
         "work_order_learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
     }
@@ -715,7 +673,10 @@ def validate_pseudo_formal_packet(packet: Mapping[str, Any]) -> list[str]:
             errors.append(f"duplicate block_id: {block_id}")
         block_type = str(block.get("block_type", "") or "").strip()
         if block_type not in VALID_BLOCK_TYPES:
-            errors.append(f"blocks[{index}] unsupported block_type: {block_type}")
+            errors.append(
+                f"blocks[{index}] unsupported block_type: {block_type}; expected one "
+                "of: " + ", ".join(VALID_BLOCK_TYPES)
+            )
         if not str(block.get("conclusion", "") or "").strip():
             errors.append(f"blocks[{index}] missing conclusion")
         if "proof_text" not in block:
@@ -737,7 +698,8 @@ def validate_pseudo_formal_packet(packet: Mapping[str, Any]) -> list[str]:
         )
         if dependency_scope not in VALID_DEPENDENCY_SCOPES:
             errors.append(
-                f"blocks[{index}] unsupported dependency_scope: {dependency_scope}"
+                f"blocks[{index}] unsupported dependency_scope: {dependency_scope}; "
+                "expected one of: " + ", ".join(VALID_DEPENDENCY_SCOPES)
             )
         scope_parent_id = str(block.get("scope_parent_id", "") or "").strip()
         if scope_parent_id:
@@ -766,7 +728,8 @@ def validate_pseudo_formal_packet(packet: Mapping[str, Any]) -> list[str]:
         faithfulness = str(block.get("faithfulness_status", "unchecked") or "unchecked")
         if faithfulness not in VALID_FAITHFULNESS_STATUSES:
             errors.append(
-                f"blocks[{index}] unsupported faithfulness_status: {faithfulness}"
+                f"blocks[{index}] unsupported faithfulness_status: {faithfulness}; "
+                "expected one of: " + ", ".join(VALID_FAITHFULNESS_STATUSES)
             )
         faithfulness_repair = block.get("faithfulness_repair", {})
         if not isinstance(faithfulness_repair, Mapping):
@@ -779,7 +742,8 @@ def validate_pseudo_formal_packet(packet: Mapping[str, Any]) -> list[str]:
             if repair_status not in VALID_FAITHFULNESS_REPAIR_STATUSES:
                 errors.append(
                     f"blocks[{index}] unsupported faithfulness_repair.status: "
-                    f"{repair_status}"
+                    f"{repair_status}; expected one of: "
+                    + ", ".join(VALID_FAITHFULNESS_REPAIR_STATUSES)
                 )
             if (
                 faithfulness in {"unfaithful", "needs_review"}
@@ -792,10 +756,16 @@ def validate_pseudo_formal_packet(packet: Mapping[str, Any]) -> list[str]:
                 )
         feasibility = str(block.get("lean_feasibility", "unknown") or "unknown")
         if feasibility not in VALID_LEAN_FEASIBILITY:
-            errors.append(f"blocks[{index}] unsupported lean_feasibility: {feasibility}")
+            errors.append(
+                f"blocks[{index}] unsupported lean_feasibility: {feasibility}; "
+                "expected one of: " + ", ".join(VALID_LEAN_FEASIBILITY)
+            )
         verdict = _block_verdict(block)
         if verdict not in VALID_BLOCK_VERDICTS:
-            errors.append(f"blocks[{index}] unsupported block verdict: {verdict}")
+            errors.append(
+                f"blocks[{index}] unsupported block verdict: {verdict}; expected one "
+                "of: " + ", ".join(VALID_BLOCK_VERDICTS)
+            )
         block_verification = (
             block.get("block_verification", {})
             if isinstance(block.get("block_verification", {}), Mapping)
@@ -840,164 +810,6 @@ def validate_pseudo_formal_packet(packet: Mapping[str, Any]) -> list[str]:
             + ", ".join(cycle_nodes)
         )
     return sorted(set(errors))
-
-
-def pseudo_formal_validation_issue_summary(
-    validation_errors: Sequence[Any],
-) -> dict[str, Any]:
-    """Classify PF/BV validation failures into compact repair issue kinds."""
-
-    errors = [str(error) for error in validation_errors if str(error).strip()]
-    counts: Counter[str] = Counter()
-    seen_issue_occurrences: set[tuple[str, str]] = set()
-    for error in errors:
-        lowered = error.lower()
-        matched = False
-        for issue_kind, markers in PSEUDO_FORMAL_VALIDATION_ISSUE_MARKERS:
-            if any(marker in lowered for marker in markers):
-                occurrence_key = _pseudo_formal_validation_issue_occurrence_key(
-                    lowered,
-                    issue_kind,
-                )
-                if occurrence_key not in seen_issue_occurrences:
-                    seen_issue_occurrences.add(occurrence_key)
-                    counts[issue_kind] += 1
-                matched = True
-        if not matched:
-            counts["other"] += 1
-    issue_counts = dict(sorted(counts.items()))
-    result: dict[str, Any] = {
-        "artifact_kind": "PseudoFormalValidationIssueSummary",
-        "n_validation_errors": len(errors),
-        "issue_kinds": sorted(issue_counts),
-        "issue_counts": issue_counts,
-        "blocking_issue_kinds": sorted(
-            issue for issue in issue_counts if issue != "other"
-        ),
-        "validation_errors_excerpt": errors[:6],
-        "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
-        "proof_evidence_boundary": PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
-    }
-    for issue_kind, count in issue_counts.items():
-        result[f"n_{issue_kind}"] = count
-    return result
-
-
-def pseudo_formal_validation_issue_repair_actions(
-    validation_issue_summary: Mapping[str, Any],
-) -> list[dict[str, str]]:
-    issue_kinds = [
-        str(value)
-        for value in validation_issue_summary.get("blocking_issue_kinds", []) or []
-        if str(value).strip()
-    ]
-    actions: list[dict[str, str]] = []
-    action_by_issue_kind = {
-        "missing_required_packet": (
-            "emit pseudo_formal_proof_packets with at least one concrete PF block "
-            "instead of returning only formal_targets/gap_taxonomy"
-        ),
-        "missing_blocks": (
-            "populate blocks with a bounded local PF module containing premises, "
-            "conclusion, proof_text, source_anchors, dependency metadata, and BV status"
-        ),
-        "missing_conclusion": (
-            "add a non-empty top-level conclusion field to every PF block; do not "
-            "hide the local claim inside proof_text or next_actions"
-        ),
-        "missing_source_anchors": (
-            "add source_anchors entries with non-empty id or excerpt for every "
-            "nontrivial PF block, copied from theory trace, proof body, theorem card, or paper source"
-        ),
-        "unsupported_block_type": (
-            "replace unsupported block_type labels with theorem, proposition, lemma, "
-            "claim, fact, definition, calculation, or case"
-        ),
-        "unsupported_faithfulness_status": (
-            "use lowercase faithfulness_status values only: faithful, needs_review, "
-            "unfaithful, or unchecked"
-        ),
-        "unsupported_lean_feasibility": (
-            "use lean_feasibility values from the PF/BV contract such as "
-            "needs_semantic_definition, needs_rag, lean_now, needs_library, pseudo_only, or unknown"
-        ),
-        "unsupported_block_verdict": (
-            "use block_verification.verdict values not_run, unknown, failed, or "
-            "accepted; keep needs_review as faithfulness_status only"
-        ),
-        "accepted_without_rollout_count": (
-            "if verdict=accepted, set block_verification.rollout_count to an "
-            "integer >= 1; otherwise use not_run, unknown, or failed"
-        ),
-        "forbidden_kernel_claim": (
-            "set kernel_verified=false, source_theorem_kernel_verified=false, and "
-            "preserve PF/BV as non-proof routing evidence"
-        ),
-        "dependency_or_scope_order": (
-            "order PF blocks so dependency_ids and scope_parent_id reference only "
-            "earlier blocks unless direct-child dependency scope explicitly applies"
-        ),
-        "no_lane_routable_work_order_rows": (
-            "make at least one faithful block lane-routable by setting "
-            "lean_feasibility=needs_semantic_definition with semantic_primitive_requirements, "
-            "lean_feasibility=needs_rag, or non-empty semantic_primitive_requirements for source_to_bridge"
-        ),
-        "missing_required_target_lane": (
-            "route at least one PF block to the required target lane using "
-            "field-inferred lane values, not only prose or generic needs_review rows"
-        ),
-    }
-    for issue_kind in issue_kinds:
-        action = action_by_issue_kind.get(issue_kind)
-        if not action:
-            continue
-        actions.append(
-            {
-                "issue_kind": issue_kind,
-                "required_repair_action": action,
-            }
-        )
-    if issue_kinds and not actions:
-        actions.append(
-            {
-                "issue_kind": "other",
-                "required_repair_action": (
-                    "repair the PF/BV packet against pseudo_formalization_contract "
-                    "and rerun local packet validation before emitting downstream work"
-                ),
-            }
-        )
-    return actions
-
-
-def _pseudo_formal_validation_issue_occurrence_key(
-    lowered_error: str,
-    issue_kind: str,
-) -> tuple[str, str]:
-    packet_block_match = re.search(
-        r"(?:pseudo_formal_proof_packets\[(?P<packet>\d+)\].*?)?"
-        r"blocks\[(?P<block>\d+)\]",
-        lowered_error,
-    )
-    if packet_block_match:
-        packet_index = packet_block_match.group("packet") or "*"
-        return (
-            issue_kind,
-            "pseudo_formal_proof_packets[{}].blocks[{}]".format(
-                packet_index,
-                packet_block_match.group("block"),
-            ),
-        )
-    packet_match = re.search(
-        r"pseudo_formal_proof_packets\[(?P<packet>\d+)\]",
-        lowered_error,
-    )
-    if packet_match:
-        return (
-            issue_kind,
-            "pseudo_formal_proof_packets[{}]".format(packet_match.group("packet")),
-        )
-    return (issue_kind, lowered_error)
 
 
 def _pseudo_formal_dependency_cycle_nodes(
@@ -1058,6 +870,18 @@ def pseudo_formal_work_order_row_has_source_anchor(row: Mapping[str, Any]) -> bo
         ).strip():
             return True
     return False
+
+
+def pseudo_formal_work_order_row_has_reviewable_source_anchor(
+    row: Mapping[str, Any],
+) -> bool:
+    """Whether an independent reviewer received source text to compare."""
+
+    return any(
+        isinstance(anchor, Mapping)
+        and bool(str(anchor.get("excerpt", "") or "").strip())
+        for anchor in row.get("source_anchors", []) or []
+    )
 
 
 def pseudo_formal_work_order_row_has_semantic_requirements(
@@ -1442,7 +1266,10 @@ def pseudo_formal_provider_envelope_json_schema() -> dict[str, Any]:
                     ],
                     "properties": {
                         "block_id": {"type": "string", "minLength": 1},
-                        "block_type": {"type": "string", "minLength": 1},
+                        "block_type": {
+                            "type": "string",
+                            "enum": list(VALID_BLOCK_TYPES),
+                        },
                         "premises": {
                             "type": "array",
                             "items": {"type": "string"},
@@ -1452,8 +1279,14 @@ def pseudo_formal_provider_envelope_json_schema() -> dict[str, Any]:
                         "dependency_ids": {
                             "type": "array",
                             "items": {"type": "string"},
+                            "description": "Earlier block_id values only.",
                         },
-                        "scope_parent_id": {"type": "string"},
+                        "scope_parent_id": {
+                            "type": "string",
+                            "description": (
+                                "Empty for a root block; otherwise one earlier block_id."
+                            ),
+                        },
                         "source_anchors": {
                             "type": "array",
                             "minItems": 1,
@@ -1478,11 +1311,11 @@ def pseudo_formal_provider_envelope_json_schema() -> dict[str, Any]:
                         },
                         "lean_feasibility": {
                             "type": "string",
-                            "minLength": 1,
+                            "enum": list(VALID_LEAN_FEASIBILITY),
                         },
                         "faithfulness_status": {
                             "type": "string",
-                            "minLength": 1,
+                            "enum": list(VALID_FAITHFULNESS_STATUSES),
                         },
                     },
                 },
@@ -1877,7 +1710,7 @@ def _work_order_rows_for_block(
             _work_order_row(
                 packet,
                 block,
-                row_kind="pseudo_formal_faithfulness_review",
+                row_kind=PSEUDO_FORMAL_FAITHFULNESS_REVIEW_ROW_KIND,
                 target_lane=PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
                 reason=f"faithfulness_status={faithfulness}",
             )

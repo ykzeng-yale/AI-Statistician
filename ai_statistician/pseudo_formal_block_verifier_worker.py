@@ -22,6 +22,7 @@ from .model_backend import (
     resolve_generator_model,
 )
 from .pseudo_formalization import (
+    PSEUDO_FORMAL_FAITHFULNESS_REVIEW_ROW_KIND,
     PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
     PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
     PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
@@ -37,6 +38,7 @@ from .pseudo_formalization import (
     PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
     PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
     pseudo_formal_block_structural_quality,
+    pseudo_formal_work_order_row_has_reviewable_source_anchor,
 )
 
 
@@ -54,19 +56,45 @@ PSEUDO_FORMAL_BLOCK_VERIFIER_FEEDBACK_NOT_PROOF_EVIDENCE = (
 PSEUDO_FORMAL_BLOCK_VERIFIER_COMPONENT_GATE_NOT_PROOF_EVIDENCE = (
     "PSEUDO_FORMAL_BLOCK_VERIFIER_COMPONENT_GATE_NOT_PROOF_EVIDENCE"
 )
+PSEUDO_FORMAL_FAITHFULNESS_REVIEW_STATUSES = (
+    "faithful",
+    "unfaithful",
+    "needs_review",
+)
 
 
 PSEUDO_FORMAL_BLOCK_VERIFIER_RESPONSE_JSON_SCHEMA: dict[str, Any] = {
     "type": "object",
-    "required": ["prompt_packet_id", "block_verification"],
+    "required": [
+        "prompt_packet_id",
+        "faithfulness_review",
+        "block_verification",
+    ],
     "additionalProperties": True,
     "properties": {
         "prompt_packet_id": {"type": "string"},
         "source_pseudo_formal_work_order_id": {"type": "string"},
         "source_block_id": {"type": "string"},
+        "faithfulness_review": {
+            "type": "object",
+            "required": ["status", "reason"],
+            "additionalProperties": False,
+            "properties": {
+                "status": {
+                    "enum": list(PSEUDO_FORMAL_FAITHFULNESS_REVIEW_STATUSES)
+                },
+                "reason": {"type": "string", "minLength": 1},
+            },
+        },
         "block_verification": {
             "type": "object",
-            "required": ["verdict", "reason"],
+            "required": [
+                "verdict",
+                "reason",
+                "verifier_provenance",
+                "independent_verifier",
+                "rollout_count",
+            ],
             "additionalProperties": True,
             "properties": {
                 "verdict": {"enum": ["accepted", "failed"]},
@@ -100,9 +128,10 @@ def export_pseudo_formal_block_verifier_prompt_packets(
 
     errors: list[str] = []
     source_rows = _read_runtime_learning_rows(runtime_learning_jsonl_paths, errors)
-    request_rows = [
-        row for row in source_rows if _is_independent_bv_request_row(row)
-    ][: max(0, max_packets)]
+    request_rows = pseudo_formal_block_verifier_request_rows(
+        source_rows,
+        max_packets=max_packets,
+    )
     packets = [_prompt_packet_from_request(row) for row in request_rows]
     by_status = Counter(str(packet.get("packet_status", "")) for packet in packets)
     payload: dict[str, Any] = {
@@ -320,11 +349,79 @@ def pseudo_formal_block_verifier_request_rows(
 ) -> list[dict[str, Any]]:
     """Select pending, structurally bound PF/BV requests for a verifier turn."""
 
-    return [
-        dict(row)
-        for row in rows
-        if isinstance(row, Mapping) and _is_independent_bv_request_row(row)
-    ][: max(0, int(max_packets))]
+    packet_limit = max(0, int(max_packets))
+    if packet_limit == 0:
+        return []
+    request_rows: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        candidate = _with_verifier_dispatch_identity(row)
+        if _is_independent_bv_request_row(candidate):
+            request_rows.append(candidate)
+        if len(request_rows) >= packet_limit:
+            break
+    return request_rows
+
+
+def _pseudo_formal_review_outcome_counts(
+    validation_rows: Sequence[Mapping[str, Any]],
+) -> dict[str, int]:
+    verdict_counts = Counter(
+        str(
+            (
+                row.get("block_verification", {})
+                if isinstance(row.get("block_verification", {}), Mapping)
+                else {}
+            ).get("verdict", "")
+            or ""
+        )
+        for row in validation_rows
+    )
+    faithfulness_counts = Counter(
+        str(
+            (
+                row.get("faithfulness_review", {})
+                if isinstance(row.get("faithfulness_review", {}), Mapping)
+                else {}
+            ).get("status", "")
+            or ""
+        )
+        for row in validation_rows
+    )
+    return {
+        "n_accepted_blocks": int(verdict_counts.get("accepted", 0) or 0),
+        "n_failed_blocks": int(verdict_counts.get("failed", 0) or 0),
+        "n_faithful_blocks": int(faithfulness_counts.get("faithful", 0) or 0),
+        "n_unfaithful_blocks": int(
+            faithfulness_counts.get("unfaithful", 0) or 0
+        ),
+        "n_blocks_needing_faithfulness_review": int(
+            faithfulness_counts.get("needs_review", 0) or 0
+        ),
+        "n_accepted_and_faithful_blocks": sum(
+            1
+            for row in validation_rows
+            if str(
+                (
+                    row.get("block_verification", {})
+                    if isinstance(row.get("block_verification", {}), Mapping)
+                    else {}
+                ).get("verdict", "")
+                or ""
+            )
+            == "accepted"
+            and str(
+                (
+                    row.get("faithfulness_review", {})
+                    if isinstance(row.get("faithfulness_review", {}), Mapping)
+                    else {}
+                ).get("status", "")
+                or ""
+            )
+            == "faithful"
+        ),
+    }
 
 
 def run_pseudo_formal_block_verifier_rows(
@@ -419,17 +516,7 @@ def run_pseudo_formal_block_verifier_rows(
         for row in validation_rows
         for error in row.get("errors", []) or []
     ]
-    verdict_counts = Counter(
-        str(
-            (
-                row.get("block_verification", {})
-                if isinstance(row.get("block_verification", {}), Mapping)
-                else {}
-            ).get("verdict", "")
-            or ""
-        )
-        for row in validation_rows
-    )
+    review_outcome_counts = _pseudo_formal_review_outcome_counts(validation_rows)
     all_ok = bool(request_rows) and (
         len(ok_packets)
         == len(response_rows)
@@ -456,8 +543,7 @@ def run_pseudo_formal_block_verifier_rows(
             1 for row in validation_rows if row.get("ok") is True
         ),
         "n_runtime_learning_rows": len(runtime_learning_rows),
-        "n_accepted_blocks": int(verdict_counts.get("accepted", 0) or 0),
-        "n_failed_blocks": int(verdict_counts.get("failed", 0) or 0),
+        **review_outcome_counts,
         "all_ok": all_ok,
         "errors": [*prompt_errors, *response_errors, *validation_errors],
         "request_row_hashes": [stable_hash(row) for row in request_rows],
@@ -588,17 +674,7 @@ def run_pseudo_formal_block_verifier_component_gate(
     validation_rows = [
         row for row in validation_payload.get("rows", []) if isinstance(row, Mapping)
     ]
-    verdict_counts = Counter(
-        str(
-            (
-                row.get("block_verification", {})
-                if isinstance(row.get("block_verification", {}), Mapping)
-                else {}
-            ).get("verdict", "")
-            or ""
-        )
-        for row in validation_rows
-    )
+    review_outcome_counts = _pseudo_formal_review_outcome_counts(validation_rows)
     runtime_learning_rows = [
         row
         for row in validation_payload.get("runtime_learning_rows", [])
@@ -638,8 +714,7 @@ def run_pseudo_formal_block_verifier_component_gate(
         "n_runtime_learning_rows": int(
             validation_payload.get("n_runtime_learning_rows", 0) or 0
         ),
-        "n_accepted_blocks": int(verdict_counts.get("accepted", 0) or 0),
-        "n_failed_blocks": int(verdict_counts.get("failed", 0) or 0),
+        **review_outcome_counts,
         "prompt_packets_all_ok": bool(prompt_payload.get("all_ok", False)),
         "llm_responses_all_ok": bool(llm_payload.get("all_ok", False)),
         "response_validation_all_ok": bool(validation_payload.get("all_ok", False)),
@@ -812,6 +887,11 @@ def _llm_response_for_prompt_packet(
 
 def _prompt_packet_from_request(row: Mapping[str, Any]) -> dict[str, Any]:
     input_summary = _input_summary(row)
+    question_id = str(
+        row.get("question_id", "")
+        or input_summary.get("question_id", "")
+        or ""
+    ).strip()
     work_order_id = str(
         row.get("source_pseudo_formal_work_order_id", "")
         or input_summary.get("work_order_id", "")
@@ -834,12 +914,23 @@ def _prompt_packet_from_request(row: Mapping[str, Any]) -> dict[str, Any]:
         "dependency_statement_context",
     )
     premises = _string_list_value(row, input_summary, "source_block_premises")
+    source_anchors = _mapping_list_value(
+        row,
+        input_summary,
+        "source_anchors",
+    )
     proof_text = str(
         row.get("source_block_proof_text", "")
         or input_summary.get("source_block_proof_text", "")
         or ""
     ).strip()
+    source_request_row_kind = str(
+        row.get("row_kind", "")
+        or input_summary.get("row_kind", "")
+        or ""
+    )
     packet_errors = _request_packet_errors(
+        source_request_row_kind=source_request_row_kind,
         work_order_id=work_order_id,
         source_block_id=source_block_id,
         source_block_conclusion=str(
@@ -850,6 +941,7 @@ def _prompt_packet_from_request(row: Mapping[str, Any]) -> dict[str, Any]:
         dependency_context=dependency_context,
         premises=premises,
         proof_text=proof_text,
+        source_anchors=source_anchors,
     )
     prompt_packet_id = "pseudo_formal_block_verifier_prompt:" + stable_hash(
         [work_order_id, source_block_id, target_theorem_name, dependency_context, premises, proof_text]
@@ -861,6 +953,7 @@ def _prompt_packet_from_request(row: Mapping[str, Any]) -> dict[str, Any]:
         "packet_status": "ready" if not packet_errors else "invalid_request_context",
         "ok": not packet_errors,
         "errors": packet_errors,
+        "question_id": question_id,
         "source_pseudo_formal_work_order_id": work_order_id,
         "source_agenda_id": str(
             row.get("source_agenda_id", "") or input_summary.get("agenda_id", "") or ""
@@ -899,7 +992,8 @@ def _prompt_packet_from_request(row: Mapping[str, Any]) -> dict[str, Any]:
         "inherited_scope": _string_list_value(row, input_summary, "inherited_scope"),
         "source_block_premises": premises,
         "source_block_proof_text": proof_text,
-        "source_anchors": _mapping_list_value(row, input_summary, "source_anchors"),
+        "source_anchors": source_anchors,
+        "source_request_row_kind": source_request_row_kind,
         "strictness_threshold": _strictness_threshold(row, input_summary),
         "aggregation_rule": PSEUDO_FORMAL_DEFAULT_AGGREGATION_RULE,
         "system_prompt": PSEUDO_FORMAL_BLOCK_VERIFIER_SYSTEM_PROMPT,
@@ -912,6 +1006,7 @@ def _prompt_packet_from_request(row: Mapping[str, Any]) -> dict[str, Any]:
             dependency_context=dependency_context,
             premises=premises,
             proof_text=proof_text,
+            source_anchors=source_anchors,
         ),
         "expected_response_schema": PSEUDO_FORMAL_BLOCK_VERIFIER_RESPONSE_JSON_SCHEMA,
         "proof_evidence_status": PSEUDO_FORMAL_BLOCK_VERIFIER_FEEDBACK_NOT_PROOF_EVIDENCE,
@@ -922,11 +1017,13 @@ def _prompt_packet_from_request(row: Mapping[str, Any]) -> dict[str, Any]:
 
 
 PSEUDO_FORMAL_BLOCK_VERIFIER_SYSTEM_PROMPT = (
-    "You are the independent BlockVerifier for pseudo-formal proof blocks. "
-    "Verify only the single block using the explicit premises, inherited scope, "
-    "declared dependency statements, conclusion, and local proof text supplied "
-    "in the prompt. Do not use hidden dependency proof bodies, outside theorem "
-    "proof assumptions, or target-prover claims. Return strict JSON only."
+    "You are the independent reviewer for one pseudo-formal proof block. Assess "
+    "source faithfulness and local logical validity as separate questions. For "
+    "faithfulness, use only the supplied source anchors and excerpts; return "
+    "needs_review when they are insufficient. For local validity, use only the "
+    "explicit premises, inherited scope, declared dependency statements, "
+    "conclusion, and local proof text. Do not use hidden dependency proof bodies, outside "
+    "assumptions, or target-prover claims. Return strict JSON only."
 )
 
 
@@ -940,9 +1037,10 @@ def _block_verifier_user_prompt(
     dependency_context: Sequence[Mapping[str, Any]],
     premises: Sequence[str],
     proof_text: str,
+    source_anchors: Sequence[Mapping[str, Any]],
 ) -> str:
     payload = {
-        "task": "independent_pseudo_formal_block_verification",
+        "task": "independent_pseudo_formal_block_review",
         "prompt_packet_id": prompt_packet_id,
         "source_pseudo_formal_work_order_id": work_order_id,
         "target_theorem_name": target_theorem_name,
@@ -952,12 +1050,32 @@ def _block_verifier_user_prompt(
         "inherited_scope": _string_list(row.get("inherited_scope", [])),
         "dependency_statement_context": [dict(item) for item in dependency_context],
         "local_proof_text": proof_text,
+        "source_anchors": [dict(item) for item in source_anchors],
+        "current_author_faithfulness_status": str(
+            row.get("faithfulness_status", "") or ""
+        ),
+        "review_dimensions": {
+            "source_faithfulness": (
+                "Does the block preserve the supplied source claims without "
+                "strengthening, weakening, omission, or scope drift?"
+            ),
+            "local_validity": (
+                "Does the conclusion follow from only the supplied bounded context?"
+            ),
+        },
+        "allowed_faithfulness_statuses": list(
+            PSEUDO_FORMAL_FAITHFULNESS_REVIEW_STATUSES
+        ),
         "allowed_verdicts": ["accepted", "failed"],
         "nonproof_boundary": PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
         "required_output": {
             "prompt_packet_id": prompt_packet_id,
             "source_pseudo_formal_work_order_id": work_order_id,
             "source_block_id": source_block_id,
+            "faithfulness_review": {
+                "status": "faithful|unfaithful|needs_review",
+                "reason": "specific source-comparison rationale",
+            },
             "block_verification": {
                 "verdict": "accepted|failed",
                 "reason": "specific local rationale",
@@ -986,6 +1104,16 @@ def _validate_response_row(
         errors.append("prompt_packet_id missing")
     if not packet:
         errors.append("prompt_packet_id does not match a prompt packet")
+    faithfulness_review = _normalized_faithfulness_review(response)
+    faithfulness_status = str(faithfulness_review.get("status", "") or "")
+    faithfulness_reason = str(faithfulness_review.get("reason", "") or "")
+    if faithfulness_status not in PSEUDO_FORMAL_FAITHFULNESS_REVIEW_STATUSES:
+        errors.append(
+            "faithfulness_review.status must be one of: "
+            + ", ".join(PSEUDO_FORMAL_FAITHFULNESS_REVIEW_STATUSES)
+        )
+    if not faithfulness_reason:
+        errors.append("faithfulness_review.reason is required")
     block_verification = _normalized_block_verification(response)
     verdict = str(block_verification.get("verdict", "") or "").strip()
     reason = str(block_verification.get("reason", "") or "").strip()
@@ -1014,6 +1142,7 @@ def _validate_response_row(
         learning_row = _runtime_learning_row_from_response(
             packet,
             response,
+            faithfulness_review=faithfulness_review,
             block_verification=block_verification,
         )
     validation_status = "valid" if not errors else "invalid_response"
@@ -1032,6 +1161,7 @@ def _validate_response_row(
         "validation_status": validation_status,
         "ok": not errors,
         "errors": errors,
+        "faithfulness_review": faithfulness_review,
         "block_verification": block_verification,
         "runtime_learning_row": learning_row,
         "proof_evidence_status": PSEUDO_FORMAL_BLOCK_VERIFIER_FEEDBACK_NOT_PROOF_EVIDENCE,
@@ -1043,6 +1173,7 @@ def _runtime_learning_row_from_response(
     packet: Mapping[str, Any],
     response: Mapping[str, Any],
     *,
+    faithfulness_review: Mapping[str, Any],
     block_verification: Mapping[str, Any],
 ) -> dict[str, Any]:
     work_order_id = str(packet.get("source_pseudo_formal_work_order_id", "") or "")
@@ -1050,12 +1181,21 @@ def _runtime_learning_row_from_response(
     structural_quality = _packet_structural_quality(packet)
     worker_commands = _pseudo_formal_block_verifier_worker_commands()
     verifier_feedback_id = "pseudo_formal_block_verifier_feedback:" + stable_hash(
-        [packet.get("prompt_packet_id", ""), block_verification]
+        [
+            packet.get("prompt_packet_id", ""),
+            faithfulness_review,
+            block_verification,
+        ]
     )[:16]
+    faithfulness_status = str(faithfulness_review.get("status", "") or "")
+    source_request_row_kind = str(
+        packet.get("source_request_row_kind", "")
+        or PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND
+    )
     row = {
         "schema_version": PSEUDO_FORMAL_BLOCK_VERIFIER_WORKER_SCHEMA_VERSION,
         "artifact_kind": "RuntimeLearningRow",
-        "question_id": str(response.get("question_id", "") or ""),
+        "question_id": str(packet.get("question_id", "") or ""),
         "learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
         "pseudo_formal_method_contract_id": PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
         "pseudo_formal_pipeline_stage": PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
@@ -1091,8 +1231,15 @@ def _runtime_learning_row_from_response(
         "structural_quality": dict(structural_quality),
         "structural_quality_ok": bool(structural_quality.get("all_ok", False)),
         "structural_quality_issues": list(structural_quality.get("issues", []) or []),
-        "faithfulness_status": "faithful",
-        "faithfulness_repair_status": "not_required",
+        "faithfulness_status": faithfulness_status,
+        "faithfulness_review": dict(faithfulness_review),
+        "faithfulness_repair_status": (
+            "not_required"
+            if faithfulness_status == "faithful"
+            else "needs_repair"
+            if faithfulness_status == "unfaithful"
+            else "unavailable"
+        ),
         "block_verification": dict(block_verification),
         "block_verification_verifier_provenance": str(
             block_verification.get("verifier_provenance", "") or ""
@@ -1117,6 +1264,7 @@ def _runtime_learning_row_from_response(
             ),
             "pessimistic_acceptance": (
                 str(block_verification.get("verdict", "") or "") == "accepted"
+                and faithfulness_status == "faithful"
             ),
             "rollout_count": _int_like(block_verification.get("rollout_count"), default=1),
         },
@@ -1131,14 +1279,14 @@ def _runtime_learning_row_from_response(
         "runtime_queue_status": PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_STATUS_BY_TARGET_LANE[
             PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP
         ],
-        "row_kind": PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
+        "row_kind": source_request_row_kind,
         "target_lane": PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
         "reason": str(block_verification.get("reason", "") or ""),
         "input_summary": {
             "trigger": PSEUDO_FORMAL_BLOCK_VERIFIER_FEEDBACK_TRIGGER,
             "prompt_packet_id": str(packet.get("prompt_packet_id", "") or ""),
             "work_order_id": work_order_id,
-            "row_kind": PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
+            "row_kind": source_request_row_kind,
             "target_lane": PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,
             "source_theorem_id": str(packet.get("source_theorem_id", "") or ""),
             "source_block_id": str(packet.get("source_block_id", "") or ""),
@@ -1155,6 +1303,8 @@ def _runtime_learning_row_from_response(
             "structural_quality_issues": list(
                 structural_quality.get("issues", []) or []
             ),
+            "faithfulness_review": dict(faithfulness_review),
+            "faithfulness_status": faithfulness_status,
             "block_verification": dict(block_verification),
             "block_verification_verifier_provenance": str(
                 block_verification.get("verifier_provenance", "") or ""
@@ -1250,6 +1400,30 @@ def _pseudo_formal_block_verifier_worker_commands() -> dict[str, Any]:
     }
 
 
+def _with_verifier_dispatch_identity(row: Mapping[str, Any]) -> dict[str, Any]:
+    """Bind generic work-order identity without inventing mathematical content."""
+
+    candidate = dict(row)
+    input_summary = _input_summary(candidate)
+    method_contract_id = str(
+        candidate.get("pseudo_formal_method_contract_id", "")
+        or input_summary.get("pseudo_formal_method_contract_id", "")
+        or ""
+    )
+    row_id = str(candidate.get("row_id", "") or "").strip()
+    if (
+        method_contract_id == PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+        and row_id
+    ):
+        candidate.setdefault(
+            "learning_task",
+            PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+        )
+        candidate.setdefault("source_pseudo_formal_work_order_id", row_id)
+        candidate.setdefault("work_order_id", row_id)
+    return candidate
+
+
 def _is_independent_bv_request_row(row: Mapping[str, Any]) -> bool:
     input_summary = _input_summary(row)
     if str(row.get("learning_task", "") or input_summary.get("learning_task", "") or "") != (
@@ -1263,7 +1437,10 @@ def _is_independent_bv_request_row(row: Mapping[str, Any]) -> bool:
         or input_summary.get("pseudo_formal_row_kind", "")
         or ""
     )
-    if row_kind != PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND:
+    if row_kind not in {
+        PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
+        PSEUDO_FORMAL_FAITHFULNESS_REVIEW_ROW_KIND,
+    }:
         return False
     block_verification = _mapping_value(row, input_summary, "block_verification")
     verdict = str(block_verification.get("verdict", "") or "")
@@ -1277,12 +1454,14 @@ def _is_independent_bv_request_row(row: Mapping[str, Any]) -> bool:
 
 def _request_packet_errors(
     *,
+    source_request_row_kind: str,
     work_order_id: str,
     source_block_id: str,
     source_block_conclusion: str,
     dependency_context: Sequence[Mapping[str, Any]],
     premises: Sequence[str],
     proof_text: str,
+    source_anchors: Sequence[Mapping[str, Any]],
 ) -> list[str]:
     errors: list[str] = []
     if not work_order_id:
@@ -1291,13 +1470,31 @@ def _request_packet_errors(
         errors.append("source_block_id missing")
     if not source_block_conclusion:
         errors.append("source_block_conclusion missing")
-    if not premises:
-        errors.append("source_block_premises missing")
     if not proof_text:
         errors.append("source_block_proof_text missing")
-    if not dependency_context:
-        errors.append("dependency_statement_context missing")
+    if (
+        source_request_row_kind == PSEUDO_FORMAL_FAITHFULNESS_REVIEW_ROW_KIND
+        and not pseudo_formal_work_order_row_has_reviewable_source_anchor(
+            {"source_anchors": source_anchors}
+        )
+    ):
+        errors.append(
+            "source_anchors require a non-empty excerpt for independent "
+            "faithfulness review"
+        )
     return errors
+
+
+def _normalized_faithfulness_review(
+    response: Mapping[str, Any],
+) -> dict[str, str]:
+    review = response.get("faithfulness_review", {})
+    if not isinstance(review, Mapping):
+        review = {}
+    return {
+        "status": str(review.get("status", "") or "").strip(),
+        "reason": str(review.get("reason", "") or "").strip(),
+    }
 
 
 def _normalized_block_verification(response: Mapping[str, Any]) -> dict[str, Any]:
@@ -1319,8 +1516,7 @@ def _normalized_block_verification(response: Mapping[str, Any]) -> dict[str, Any
         or PSEUDO_FORMAL_DEFAULT_AGGREGATION_RULE
     )
     provenance = str(
-        block_verification.get("verifier_provenance", "independent_block_verifier")
-        or "independent_block_verifier"
+        block_verification.get("verifier_provenance", "") or ""
     )
     return {
         "verdict": verdict,
@@ -1330,11 +1526,10 @@ def _normalized_block_verification(response: Mapping[str, Any]) -> dict[str, Any
         "verifier_provenance": provenance,
         "independent_verifier": bool(
             block_verification.get("independent_verifier", False)
-            or provenance in PSEUDO_FORMAL_INDEPENDENT_BLOCK_VERIFIER_PROVENANCES
         ),
         "strictness_threshold": strictness,
         "aggregation_rule": aggregation_rule,
-        "rollout_count": _int_like(block_verification.get("rollout_count"), default=1),
+        "rollout_count": _int_like(block_verification.get("rollout_count"), default=0),
     }
 
 

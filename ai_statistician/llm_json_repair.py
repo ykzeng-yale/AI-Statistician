@@ -7,7 +7,13 @@ import re
 from dataclasses import dataclass, replace
 from typing import Any, Callable, Mapping
 
-from .model_backend import GeneratorBackend, GeneratorRequest, GeneratorResponse
+from .model_backend import (
+    PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY,
+    PROVIDER_STRUCTURED_OUTPUT_ON_REPAIR_METADATA_KEY,
+    GeneratorBackend,
+    GeneratorRequest,
+    GeneratorResponse,
+)
 
 
 PacketBuilder = Callable[[Mapping[str, Any], GeneratorResponse, str], dict[str, Any]]
@@ -42,7 +48,7 @@ SemanticPatchTransportBuilder = Callable[..., SemanticPatchTransport | None]
 
 
 SEMANTIC_PATCH_PROGRESS_POLICY_BOUNDED = (
-    "bounded_error_count_or_single_residual_change_v1"
+    "bounded_non_growing_residual_frontier_v2"
 )
 SEMANTIC_PATCH_PROGRESS_POLICY_STRICT_RESIDUAL_SET = (
     "strict_residual_error_set_reduction_v1"
@@ -125,8 +131,12 @@ _TYPED_SEMANTIC_PATCH_SCHEMA: dict[str, Any] = {
         },
     },
 }
-_VALIDATION_ERROR_TOP_LEVEL_ARRAY_PATH = re.compile(
-    r"\b([A-Za-z_][A-Za-z0-9_]*)\[(\d+)\]"
+_VALIDATION_ERROR_ARRAY_PATH_CHAIN = re.compile(
+    r"\b[A-Za-z_][A-Za-z0-9_]*\[\d+\]"
+    r"(?:(?:\s+|\.)[A-Za-z_][A-Za-z0-9_]*\[\d+\])*"
+)
+_VALIDATION_ERROR_ARRAY_PATH_SEGMENT = re.compile(
+    r"([A-Za-z_][A-Za-z0-9_]*)\[(\d+)\]"
 )
 _TYPED_SEMANTIC_PATCH_NONLOCAL_SHAPE_ERROR_PATTERNS = (
     re.compile(r"\bcannot PASS\b", re.IGNORECASE),
@@ -262,6 +272,47 @@ def generate_validated_json_packet(
             request.max_tokens,
             truncation_repair_mode=truncation_repair_mode,
         )
+        attempt_metadata = {
+            **dict(request.metadata),
+            "json_repair_attempt": attempt_index,
+            "json_repair_max_attempts": max_repair_attempts,
+            "json_repair_progress_extension_attempt": (
+                progress_extension_attempt
+            ),
+            "json_repair_progress_extension_allowed": bool(
+                allow_progress_repair_extension
+            ),
+            "json_repair_progress_extension_policy": (
+                progress_repair_policy
+            ),
+            "json_repair_previous_attempt_truncated": truncation_repair_mode,
+            "json_repair_truncation_repair_mode": truncation_repair_mode,
+            "json_repair_request_max_tokens": request_max_tokens,
+            "json_repair_max_updates": typed_semantic_patch_max_updates,
+            "json_repair_semantic_patch_transport_kind": (
+                semantic_patch_transport.kind
+                if typed_semantic_patch_mode
+                and semantic_patch_transport is not None
+                else "generic_path_patch"
+                if typed_semantic_patch_mode
+                else ""
+            ),
+            "json_repair_mode": (
+                "typed_semantic_patch"
+                if typed_semantic_patch_mode
+                else "full_packet_generation"
+                if attempt_index == 0
+                else "full_packet_regeneration"
+            ),
+        }
+        if (
+            typed_semantic_patch_mode
+            and request.metadata.get(
+                PROVIDER_STRUCTURED_OUTPUT_ON_REPAIR_METADATA_KEY
+            )
+            is True
+        ):
+            attempt_metadata[PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY] = True
         response = provider.generate(
             replace(
                 request,
@@ -277,39 +328,7 @@ def generate_validated_json_packet(
                     if typed_semantic_patch_mode
                     else request.schema
                 ),
-                metadata={
-                    **dict(request.metadata),
-                    "json_repair_attempt": attempt_index,
-                    "json_repair_max_attempts": max_repair_attempts,
-                    "json_repair_progress_extension_attempt": (
-                        progress_extension_attempt
-                    ),
-                    "json_repair_progress_extension_allowed": bool(
-                        allow_progress_repair_extension
-                    ),
-                    "json_repair_progress_extension_policy": (
-                        progress_repair_policy
-                    ),
-                    "json_repair_previous_attempt_truncated": truncation_repair_mode,
-                    "json_repair_truncation_repair_mode": truncation_repair_mode,
-                    "json_repair_request_max_tokens": request_max_tokens,
-                    "json_repair_max_updates": typed_semantic_patch_max_updates,
-                    "json_repair_semantic_patch_transport_kind": (
-                        semantic_patch_transport.kind
-                        if typed_semantic_patch_mode
-                        and semantic_patch_transport is not None
-                        else "generic_path_patch"
-                        if typed_semantic_patch_mode
-                        else ""
-                    ),
-                    "json_repair_mode": (
-                        "typed_semantic_patch"
-                        if typed_semantic_patch_mode
-                        else "full_packet_generation"
-                        if attempt_index == 0
-                        else "full_packet_regeneration"
-                    ),
-                },
+                metadata=attempt_metadata,
             )
         )
         raw_text = response.text
@@ -593,6 +612,22 @@ def _typed_semantic_patch_history_made_policy_progress(
         and len(current_errors) == 1
         and previous_errors != current_errors
     )
+    non_growing_frontier_change = bool(
+        isinstance(previous_errors, list)
+        and isinstance(current_errors, list)
+        and len(current_errors) <= len(previous_errors)
+        and previous_error_set - current_error_set
+        and current_error_set != previous_error_set
+        and not any(
+            current_error_set
+            == {
+                str(error)
+                for error in prior.get("errors", [])
+            }
+            for prior in history[:-1]
+            if isinstance(prior.get("errors", []), list)
+        )
+    )
     residual_errors_made_progress = (
         bool(current_error_set < previous_error_set)
         if progress_repair_policy
@@ -600,6 +635,7 @@ def _typed_semantic_patch_history_made_policy_progress(
         else bool(
             len(current_errors) < len(previous_errors)
             or changed_single_residual
+            or non_growing_frontier_change
         )
     )
     patch_made_progress = bool(
@@ -778,6 +814,12 @@ def _typed_semantic_patch_prompt(
                 "validation_error_focus_values shows exact current values at the "
                 "original array indices named by local validation errors. Use those "
                 "original paths even when base_payload_excerpt omits other rows."
+            ),
+            (
+                "When validation_error_focus_values names an exact nested row, patch "
+                "only the implicated leaf fields in that row. Do not replace its "
+                "containing array unless the validator requires adding, removing, or "
+                "reordering rows."
             ),
             (
                 "validation_error_focus_schemas, when present, is the authoritative "
@@ -1152,39 +1194,37 @@ def _validation_error_focus_values(
     """Expose exact rows named by validators without expanding the whole packet."""
 
     focused: list[dict[str, Any]] = []
-    seen: set[tuple[str, int]] = set()
-    for error in errors:
-        for field, raw_index in _VALIDATION_ERROR_TOP_LEVEL_ARRAY_PATH.findall(
-            str(error)
-        ):
-            index = int(raw_index)
-            identity = (field, index)
-            value = payload.get(field)
-            if identity in seen or not isinstance(value, list) or index >= len(value):
-                continue
-            seen.add(identity)
-            row = deepcopy(value[index])
-            encoded = json.dumps(
-                row,
-                sort_keys=True,
-                separators=(",", ":"),
-                default=str,
-                ensure_ascii=False,
-            )
-            value_truncated = len(encoded) > _TYPED_SEMANTIC_PATCH_MAX_FOCUS_VALUE_CHARS
-            focused.append(
-                {
-                    "path": [field, index],
-                    "value": (
-                        _compact_patch_excerpt_leaf(row)
-                        if value_truncated
-                        else row
-                    ),
-                    "value_truncated": value_truncated,
-                }
-            )
-            if len(focused) >= _TYPED_SEMANTIC_PATCH_MAX_VALIDATION_ERRORS:
-                return focused
+    seen: set[tuple[str | int, ...]] = set()
+    for path in _validation_error_array_paths(errors):
+        identity = tuple(path)
+        if identity in seen:
+            continue
+        row = _value_at_array_path(payload, path)
+        if row is _MISSING_ARRAY_PATH_VALUE:
+            continue
+        seen.add(identity)
+        row = deepcopy(row)
+        encoded = json.dumps(
+            row,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+            ensure_ascii=False,
+        )
+        value_truncated = len(encoded) > _TYPED_SEMANTIC_PATCH_MAX_FOCUS_VALUE_CHARS
+        focused.append(
+            {
+                "path": list(path),
+                "value": (
+                    _compact_patch_excerpt_leaf(row)
+                    if value_truncated
+                    else row
+                ),
+                "value_truncated": value_truncated,
+            }
+        )
+        if len(focused) >= _TYPED_SEMANTIC_PATCH_MAX_VALIDATION_ERRORS:
+            return focused
     return focused
 
 
@@ -1193,46 +1233,100 @@ def _validation_error_focus_schemas(
     *,
     errors: list[str],
 ) -> list[dict[str, Any]]:
-    """Expose bounded source schemas for validator-named top-level array rows."""
+    """Expose bounded source schemas for validator-named nested array rows."""
 
-    properties = schema.get("properties", {})
-    if not isinstance(properties, Mapping):
-        return []
     focused: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for error in errors:
-        for field, _raw_index in _VALIDATION_ERROR_TOP_LEVEL_ARRAY_PATH.findall(
-            str(error)
-        ):
-            if field in seen:
-                continue
-            field_schema = properties.get(field, {})
-            item_schema = (
-                field_schema.get("items", {})
-                if isinstance(field_schema, Mapping)
-                else {}
-            )
-            if not isinstance(item_schema, Mapping) or not item_schema:
-                continue
-            encoded = json.dumps(
-                item_schema,
-                sort_keys=True,
-                separators=(",", ":"),
-                default=str,
-                ensure_ascii=False,
-            )
-            if len(encoded) > _TYPED_SEMANTIC_PATCH_MAX_FOCUS_VALUE_CHARS:
-                continue
-            seen.add(field)
-            focused.append(
-                {
-                    "path_pattern": [field, "<array_index>"],
-                    "expected_item_schema": deepcopy(dict(item_schema)),
-                }
-            )
-            if len(focused) >= _TYPED_SEMANTIC_PATCH_MAX_VALIDATION_ERRORS:
-                return focused
+    seen: set[tuple[str | int, ...]] = set()
+    for path in _validation_error_array_paths(errors):
+        identity = tuple(path)
+        if identity in seen:
+            continue
+        item_schema = _schema_at_array_path(schema, path)
+        if not item_schema:
+            continue
+        encoded = json.dumps(
+            item_schema,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+            ensure_ascii=False,
+        )
+        if len(encoded) > _TYPED_SEMANTIC_PATCH_MAX_FOCUS_VALUE_CHARS:
+            continue
+        seen.add(identity)
+        focused.append(
+            {
+                "path_pattern": [
+                    "<array_index>" if isinstance(component, int) else component
+                    for component in path
+                ],
+                "expected_item_schema": deepcopy(dict(item_schema)),
+            }
+        )
+        if len(focused) >= _TYPED_SEMANTIC_PATCH_MAX_VALIDATION_ERRORS:
+            return focused
     return focused
+
+
+_MISSING_ARRAY_PATH_VALUE = object()
+
+
+def _validation_error_array_paths(
+    errors: list[str],
+) -> list[list[str | int]]:
+    paths: list[list[str | int]] = []
+    seen: set[tuple[str | int, ...]] = set()
+    for error in errors:
+        for chain in _VALIDATION_ERROR_ARRAY_PATH_CHAIN.findall(str(error)):
+            path: list[str | int] = []
+            for field, raw_index in _VALIDATION_ERROR_ARRAY_PATH_SEGMENT.findall(chain):
+                path.extend((field, int(raw_index)))
+            identity = tuple(path)
+            if path and identity not in seen:
+                seen.add(identity)
+                paths.append(path)
+    return paths
+
+
+def _value_at_array_path(
+    payload: Mapping[str, Any],
+    path: list[str | int],
+) -> Any:
+    current: Any = payload
+    for component in path:
+        if isinstance(component, str):
+            if not isinstance(current, Mapping) or component not in current:
+                return _MISSING_ARRAY_PATH_VALUE
+            current = current[component]
+        else:
+            if (
+                not isinstance(current, (list, tuple))
+                or component < 0
+                or component >= len(current)
+            ):
+                return _MISSING_ARRAY_PATH_VALUE
+            current = current[component]
+    return current
+
+
+def _schema_at_array_path(
+    schema: Mapping[str, Any],
+    path: list[str | int],
+) -> Mapping[str, Any]:
+    current: Any = schema
+    for component in path:
+        if isinstance(component, str):
+            properties = current.get("properties", {}) if isinstance(current, Mapping) else {}
+            if not isinstance(properties, Mapping):
+                return {}
+            current = properties.get(component, {})
+        else:
+            if not isinstance(current, Mapping):
+                return {}
+            current = current.get("items", {})
+        if not isinstance(current, Mapping) or not current:
+            return {}
+    return current
 
 
 def _compact_patch_excerpt_leaf(value: Any, *, depth: int = 0) -> Any:

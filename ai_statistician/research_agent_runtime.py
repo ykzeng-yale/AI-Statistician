@@ -259,9 +259,8 @@ from .formalizer_llm import (
     _required_pseudo_formal_target_lanes,
 )
 from .formalizer_repair_policy import (
-    FORMALIZER_VALIDATION_REPAIR_POLICY_BOUNDARY,
-    formalizer_validation_repair_directives,
-    formalizer_validation_repair_policy,
+    formalizer_tool_observation_envelope,
+    formalizer_validation_feedback_envelope,
 )
 from .formalizer_candidate_identity import (
     build_repair_target_identity_contract,
@@ -351,10 +350,7 @@ from .pseudo_formalization import (
     normalize_pseudo_formal_packet,
     pseudo_formal_block_structural_quality,
     pseudo_formal_block_work_order_rows,
-    pseudo_formal_failure_copy_contract_summary,
     pseudo_formal_routable_work_order_rows,
-    pseudo_formal_validation_issue_repair_actions,
-    pseudo_formal_validation_issue_summary,
     validate_pseudo_formal_packet,
 )
 from .research_architect import (
@@ -4745,11 +4741,6 @@ def _runtime_formalizer_component_gate_learning_rows(
     ]
     if failure_message and not failure_errors:
         failure_errors = [failure_message]
-    failure_required_target_lanes: list[str] = []
-    failure_issue_summary = failure_message
-    failure_issue_actions: list[str] = []
-    failure_repair_seed: dict[str, Any] = {}
-    failure_repair_seed_available = False
     return [
         {
             "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -4769,21 +4760,6 @@ def _runtime_formalizer_component_gate_learning_rows(
             "failure_exception_type": failure_exception_type,
             "failure_message": failure_message,
             "errors": failure_errors,
-            "pseudo_formal_failure_required_target_lanes": (
-                failure_required_target_lanes
-            ),
-            "pseudo_formal_failure_validation_issue_summary": (
-                failure_issue_summary
-            ),
-            "pseudo_formal_failure_issue_specific_repair_actions": (
-                failure_issue_actions
-            ),
-            "pseudo_formal_failure_concrete_lane_routable_repair_seed": (
-                failure_repair_seed
-            ),
-            "pseudo_formal_failure_repair_seed_available": (
-                failure_repair_seed_available
-            ),
             "live_generator": live_generator,
             "static_or_fixture_only": static_or_fixture_only,
             "capability_evidence_ok": capability_ok,
@@ -4873,19 +4849,6 @@ def _runtime_formalizer_component_gate_learning_rows(
             ),
         }
     ]
-
-
-def _runtime_pseudo_formal_failure_copy_contract_summary(
-    *,
-    repair_seed: Mapping[str, Any],
-    validator_ready_copy_contract: Mapping[str, Any],
-) -> dict[str, Any]:
-    """Recompute whether a PF/BV failure repair seed is really copy-ready."""
-
-    return pseudo_formal_failure_copy_contract_summary(
-        repair_seed=repair_seed,
-        validator_ready_copy_contract=validator_ready_copy_contract,
-    )
 
 
 def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
@@ -4999,6 +4962,26 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
         for value in attached.get("errors", []) or []
         if str(value).strip()
     ][:8]
+    raw_validation_feedback = attached.get("formalizer_validation_feedback", {})
+    validation_feedback = (
+        dict(raw_validation_feedback)
+        if isinstance(raw_validation_feedback, Mapping)
+        else {}
+    )
+    if not validation_feedback and failure_errors:
+        validation_feedback = formalizer_validation_feedback_envelope(
+            failure_errors,
+            validation_label="Formalizer PF/BV component gate",
+        )
+    model_owned_repair_required = _bool_like(
+        attached.get(
+            "model_owned_repair_required",
+            result_status.strip().upper() == "FAILED",
+        )
+    )
+    runtime_selected_mathematical_content = _bool_like(
+        attached.get("runtime_selected_mathematical_content", False)
+    )
     failure_required_target_lanes = [
         str(value)
         for value in attached.get(
@@ -5008,78 +4991,6 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
         or []
         if str(value).strip()
     ]
-    failure_issue_summary = (
-        dict(attached.get("pseudo_formal_failure_validation_issue_summary", {}) or {})
-        if isinstance(
-            attached.get("pseudo_formal_failure_validation_issue_summary", {}),
-            Mapping,
-        )
-        else {}
-    )
-    failure_issue_actions = [
-        dict(row)
-        for row in attached.get(
-            "pseudo_formal_failure_issue_specific_repair_actions",
-            [],
-        )
-        or []
-        if isinstance(row, Mapping)
-    ][:8]
-    failure_repair_seed = (
-        dict(
-            attached.get(
-                "pseudo_formal_failure_concrete_lane_routable_repair_seed",
-                {},
-            )
-            or {}
-        )
-        if isinstance(
-            attached.get(
-                "pseudo_formal_failure_concrete_lane_routable_repair_seed",
-                {},
-            ),
-            Mapping,
-        )
-        else {}
-    )
-    failure_validator_ready_copy_contract = (
-        dict(
-            attached.get(
-                "pseudo_formal_failure_validator_ready_copy_contract",
-                {},
-            )
-            or {}
-        )
-        if isinstance(
-            attached.get(
-                "pseudo_formal_failure_validator_ready_copy_contract",
-                {},
-            ),
-            Mapping,
-        )
-        else {}
-    )
-    failure_repair_seed_available = bool(
-        failure_repair_seed.get("blocks", []) if failure_repair_seed else []
-    )
-    failure_copy_contract_summary = (
-        _runtime_pseudo_formal_failure_copy_contract_summary(
-            repair_seed=failure_repair_seed,
-            validator_ready_copy_contract=failure_validator_ready_copy_contract,
-        )
-    )
-    failure_copy_ready = _bool_like(
-        failure_copy_contract_summary.get(
-            "validator_ready_copy_contract_satisfied",
-            False,
-        )
-    )
-    failure_copy_exact_semantic_ready = _bool_like(
-        failure_copy_contract_summary.get(
-            "exact_semantic_definition_lane_ready_if_copied",
-            False,
-        )
-    )
     proof_evidence_status_ok = _bool_like(
         attached.get("proof_evidence_status_ok", False)
     )
@@ -5128,27 +5039,10 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
             "pseudo_formal_failure_required_target_lanes": (
                 failure_required_target_lanes
             ),
-            "pseudo_formal_failure_validation_issue_summary": (
-                failure_issue_summary
-            ),
-            "pseudo_formal_failure_issue_specific_repair_actions": (
-                failure_issue_actions
-            ),
-            "pseudo_formal_failure_concrete_lane_routable_repair_seed": (
-                failure_repair_seed
-            ),
-            "pseudo_formal_failure_validator_ready_copy_contract": (
-                failure_validator_ready_copy_contract
-            ),
-            "pseudo_formal_failure_repair_seed_available": (
-                failure_repair_seed_available
-            ),
-            "pseudo_formal_failure_copy_contract_summary": (
-                failure_copy_contract_summary
-            ),
-            "pseudo_formal_failure_copy_ready": failure_copy_ready,
-            "pseudo_formal_failure_copy_exact_semantic_definition_ready": (
-                failure_copy_exact_semantic_ready
+            "formalizer_validation_feedback": validation_feedback,
+            "model_owned_repair_required": model_owned_repair_required,
+            "runtime_selected_mathematical_content": (
+                runtime_selected_mathematical_content
             ),
             "live_generator": live_generator,
             "static_or_fixture_only": static_or_fixture_only,
@@ -5189,10 +5083,10 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
             "no_theorem_proof_claim": no_theorem_proof_claim,
             "attachment_gate_recomputed": attachment_gate_recomputed,
             "target_behavior": (
-                "Use the attached Formalizer PF/BV packet gate as calibration "
-                "for required pseudo-formal activation: Formalizer should emit "
-                "source-anchored PF/BV packets with effective lane-routable work "
-                "orders before Lean/RAG/source-to-bridge follow-up."
+                "Give Formalizer/ProofEngineer the rejected packet, exact validator "
+                "observations, source artifacts, and unchanged response schema. The "
+                "model authors the next candidate or a typed blocker; runtime only "
+                "validates, executes tools, and preserves lineage and budgets."
             ),
             "acceptance_gate": (
                 "A future integrated AgentRuntime turn consumes the emitted "
@@ -5220,27 +5114,10 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
                 "pseudo_formal_failure_required_target_lanes": (
                     failure_required_target_lanes
                 ),
-                "pseudo_formal_failure_validation_issue_summary": (
-                    failure_issue_summary
-                ),
-                "pseudo_formal_failure_issue_specific_repair_actions": (
-                    failure_issue_actions
-                ),
-                "pseudo_formal_failure_concrete_lane_routable_repair_seed": (
-                    failure_repair_seed
-                ),
-                "pseudo_formal_failure_validator_ready_copy_contract": (
-                    failure_validator_ready_copy_contract
-                ),
-                "pseudo_formal_failure_repair_seed_available": (
-                    failure_repair_seed_available
-                ),
-                "pseudo_formal_failure_copy_contract_summary": (
-                    failure_copy_contract_summary
-                ),
-                "pseudo_formal_failure_copy_ready": failure_copy_ready,
-                "pseudo_formal_failure_copy_exact_semantic_definition_ready": (
-                    failure_copy_exact_semantic_ready
+                "formalizer_validation_feedback": validation_feedback,
+                "model_owned_repair_required": model_owned_repair_required,
+                "runtime_selected_mathematical_content": (
+                    runtime_selected_mathematical_content
                 ),
                 "live_generator": live_generator,
                 "static_or_fixture_only": static_or_fixture_only,
@@ -5288,32 +5165,6 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
             "boundary": boundary,
         }
     ]
-    if (result_status.strip() == "FAILED" or failure_type.strip()) and (
-        failure_copy_ready and failure_repair_seed_available
-    ):
-        rows.append(
-            _runtime_formalizer_pf_component_gate_copy_ready_retry_task_row(
-                question_id=question_id,
-                component_eval_manifest_path=manifest_path,
-                provider_name=provider_name,
-                backend_provider_name=backend_provider_name,
-                model=str(attached.get("model", "") or ""),
-                result_status=result_status,
-                failure_type=failure_type,
-                failure_errors=failure_errors,
-                failure_required_target_lanes=failure_required_target_lanes,
-                failure_issue_summary=failure_issue_summary,
-                failure_issue_actions=failure_issue_actions,
-                failure_repair_seed=failure_repair_seed,
-                failure_validator_ready_copy_contract=(
-                    failure_validator_ready_copy_contract
-                ),
-                failure_copy_contract_summary=failure_copy_contract_summary,
-                failure_copy_exact_semantic_ready=(
-                    failure_copy_exact_semantic_ready
-                ),
-            )
-        )
     if (
         capability_ok
         and live_generator
@@ -5347,304 +5198,6 @@ def _runtime_formalizer_pseudo_formal_packet_component_gate_learning_rows(
                 )
             )
     return rows
-
-
-def _runtime_formalizer_pf_component_gate_copy_ready_retry_task_row(
-    *,
-    question_id: str,
-    component_eval_manifest_path: str,
-    provider_name: str,
-    backend_provider_name: str,
-    model: str,
-    result_status: str,
-    failure_type: str,
-    failure_errors: list[str],
-    failure_required_target_lanes: list[str],
-    failure_issue_summary: Mapping[str, Any],
-    failure_issue_actions: list[dict[str, Any]],
-    failure_repair_seed: Mapping[str, Any],
-    failure_validator_ready_copy_contract: Mapping[str, Any],
-    failure_copy_contract_summary: Mapping[str, Any],
-    failure_copy_exact_semantic_ready: bool,
-) -> dict[str, Any]:
-    work_order_id = (
-        "formalizer_pf_component_gate_copy_ready_retry:"
-        + stable_hash(
-            [
-                component_eval_manifest_path,
-                question_id,
-                result_status,
-                failure_type,
-                failure_repair_seed.get("packet_id", ""),
-                failure_copy_contract_summary,
-            ]
-        )[:20]
-    )
-    boundary = (
-        "This row routes a failed Formalizer PF/BV packet component gate back "
-        "to Formalizer with a validator-ready copy fragment. It is not theorem "
-        "proof evidence, not Lean/kernel verification, and not a source theorem "
-        "proof claim."
-    )
-    input_summary = {
-        "trigger": (
-            "FORMALIZER_PSEUDO_FORMAL_PACKET_COMPONENT_GATE_COPY_READY_RETRY"
-        ),
-        "source_component_gate": "formalizer_pseudo_formal_packet_component_gate",
-        "component_eval_manifest_path": component_eval_manifest_path,
-        "provider_name": provider_name,
-        "backend_provider_name": backend_provider_name,
-        "model": model,
-        "result_status": result_status,
-        "failure_type": failure_type,
-        "errors": list(failure_errors),
-        "pseudo_formal_failure_required_target_lanes": list(
-            failure_required_target_lanes
-        ),
-        "pseudo_formal_failure_validation_issue_summary": dict(
-            failure_issue_summary
-        ),
-        "pseudo_formal_failure_issue_specific_repair_actions": list(
-            failure_issue_actions
-        ),
-        "pseudo_formal_failure_concrete_lane_routable_repair_seed": dict(
-            failure_repair_seed
-        ),
-        "pseudo_formal_failure_validator_ready_copy_contract": dict(
-            failure_validator_ready_copy_contract
-        ),
-        "pseudo_formal_failure_copy_contract_summary": dict(
-            failure_copy_contract_summary
-        ),
-        "pseudo_formal_failure_copy_ready": True,
-        "pseudo_formal_failure_copy_exact_semantic_definition_ready": (
-            bool(failure_copy_exact_semantic_ready)
-        ),
-        "runtime_queue_status": (
-            "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
-        ),
-        "proof_evidence_status": (
-            "FORMALIZER_PF_COMPONENT_GATE_COPY_READY_RETRY_NOT_PROOF_EVIDENCE"
-        ),
-    }
-    return {
-        "schema_version": RUNTIME_SCHEMA_VERSION,
-        "artifact_kind": "RuntimeLearningRow",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "question_id": question_id,
-        "learning_task": (
-            "formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task"
-        ),
-        "work_order_id": work_order_id,
-        "next_owner_subsystem": "Formalizer/ProofEngineer",
-        "source_component_gate": "formalizer_pseudo_formal_packet_component_gate",
-        "component_eval_manifest_path": component_eval_manifest_path,
-        "provider_name": provider_name,
-        "backend_provider_name": backend_provider_name,
-        "model": model,
-        "result_status": result_status,
-        "failure_type": failure_type,
-        "errors": list(failure_errors),
-        "pseudo_formal_failure_required_target_lanes": list(
-            failure_required_target_lanes
-        ),
-        "pseudo_formal_failure_validation_issue_summary": dict(
-            failure_issue_summary
-        ),
-        "pseudo_formal_failure_issue_specific_repair_actions": list(
-            failure_issue_actions
-        ),
-        "pseudo_formal_failure_concrete_lane_routable_repair_seed": dict(
-            failure_repair_seed
-        ),
-        "pseudo_formal_failure_validator_ready_copy_contract": dict(
-            failure_validator_ready_copy_contract
-        ),
-        "pseudo_formal_failure_repair_seed_available": True,
-        "pseudo_formal_failure_copy_contract_summary": dict(
-            failure_copy_contract_summary
-        ),
-        "pseudo_formal_failure_copy_ready": True,
-        "pseudo_formal_failure_copy_exact_semantic_definition_ready": (
-            bool(failure_copy_exact_semantic_ready)
-        ),
-        "runtime_queue_status": (
-            "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
-        ),
-        "target_behavior": (
-            "Rerun Formalizer/ProofEngineer on this failed PF/BV component "
-            "gate, copy the validator-ready repair fragment into "
-            "pseudo_formal_proof_packets[0], preserve source anchors, "
-            "conclusions, semantic primitive requirements, target lanes, and "
-            "the non-proof boundary, then emit a valid lane-routable PF/BV "
-            "packet for exact semantic-definition/RAG/BV follow-up."
-        ),
-        "acceptance_gate": (
-            "The retry produces a validator-accepted PF/BV packet whose "
-            "effective work-order rows include the required target lanes, whose "
-            "exact semantic-definition rows are source-anchored with non-empty "
-            "semantic_primitive_requirements and complete PF/BV lineage, and "
-            "whose manifest still makes no theorem proof claim."
-        ),
-        "input_summary": input_summary,
-        "proof_evidence_status": (
-            "FORMALIZER_PF_COMPONENT_GATE_COPY_READY_RETRY_NOT_PROOF_EVIDENCE"
-        ),
-        "proof_evidence_boundary": boundary,
-        "boundary": boundary,
-    }
-
-
-def _runtime_formalizer_pf_copy_ready_retry_next_action_agenda_rows(
-    learning_rows: Sequence[Mapping[str, Any]],
-) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    for row in learning_rows:
-        if not isinstance(row, Mapping):
-            continue
-        if (
-            str(row.get("learning_task", "") or "")
-            != "formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task"
-        ):
-            continue
-        if (
-            str(row.get("source_component_gate", "") or "")
-            != "formalizer_pseudo_formal_packet_component_gate"
-        ):
-            continue
-        runtime_queue_status = str(row.get("runtime_queue_status", "") or "").strip()
-        if (
-            runtime_queue_status
-            != "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
-        ):
-            continue
-        repair_seed_raw = row.get(
-            "pseudo_formal_failure_concrete_lane_routable_repair_seed",
-            {},
-        )
-        input_summary = (
-            row.get("input_summary", {})
-            if isinstance(row.get("input_summary", {}), Mapping)
-            else {}
-        )
-        repair_seed = (
-            repair_seed_raw
-            if isinstance(repair_seed_raw, Mapping)
-            else input_summary.get(
-                "pseudo_formal_failure_concrete_lane_routable_repair_seed",
-                {},
-            )
-        )
-        if not isinstance(repair_seed, Mapping):
-            repair_seed = {}
-        packet_id = str(repair_seed.get("packet_id", "") or "").strip()
-        theorem_id = str(repair_seed.get("theorem_id", "") or "").strip()
-        work_order_id = str(row.get("work_order_id", "") or "").strip()
-        if not work_order_id:
-            work_order_id = (
-                "formalizer_pf_component_gate_copy_ready_retry:"
-                + stable_hash([packet_id, theorem_id, row])[:20]
-            )
-        target_ids = [
-            value
-            for value in (theorem_id, packet_id, work_order_id)
-            if str(value).strip()
-        ][:1]
-        component_eval_manifest_path = str(
-            row.get("component_eval_manifest_path", "")
-            or input_summary.get("component_eval_manifest_path", "")
-            or ""
-        ).strip()
-        boundary = (
-            "This agenda row asks Formalizer/ProofEngineer to rerun a failed "
-            "PF/BV packet gate from a validator-ready copy fragment. It is not "
-            "theorem proof evidence, not source theorem kernel verification, "
-            "and not a Lean proof claim."
-        )
-        rows.append(
-            {
-                "schema_version": RUNTIME_SCHEMA_VERSION,
-                "artifact_kind": "RuntimeNextActionAgendaRow",
-                "id": (
-                    "formalizer_pf_bv_copy_ready_retry:"
-                    + stable_hash([work_order_id, component_eval_manifest_path])[:12]
-                ),
-                "question_id": str(row.get("question_id", "") or ""),
-                "owner_subsystem": "Formalizer/ProofEngineer",
-                "trigger": "FORMALIZER_PF_BV_COPY_READY_RETRY_REQUIRED",
-                "action": str(row.get("target_behavior", "") or "").strip()
-                or (
-                    "Rerun Formalizer/ProofEngineer from the validator-ready "
-                    "PF/BV copy fragment and emit a valid lane-routable "
-                    "pseudo-formal packet."
-                ),
-                "acceptance_gate": str(row.get("acceptance_gate", "") or "").strip()
-                or (
-                    "The retry produces a validator-accepted PF/BV packet with "
-                    "required target lanes, source anchors, conclusions, semantic "
-                    "primitive requirements, complete lineage, and no theorem "
-                    "proof claim."
-                ),
-                "work_order_id": work_order_id,
-                "target_ids": target_ids,
-                "target_theorem_name": theorem_id,
-                "target_packet_id": packet_id,
-                "source_component_gate": "formalizer_pseudo_formal_packet_component_gate",
-                "source_learning_task": str(row.get("learning_task", "") or ""),
-                "component_eval_manifest_path": component_eval_manifest_path,
-                "pseudo_formal_failure_required_target_lanes": list(
-                    row.get(
-                        "pseudo_formal_failure_required_target_lanes",
-                        input_summary.get(
-                            "pseudo_formal_failure_required_target_lanes",
-                            [],
-                        ),
-                    )
-                    or []
-                ),
-                "pseudo_formal_failure_concrete_lane_routable_repair_seed": dict(
-                    repair_seed
-                ),
-                "pseudo_formal_failure_validator_ready_copy_contract": (
-                    dict(
-                        row.get(
-                            "pseudo_formal_failure_validator_ready_copy_contract",
-                            {},
-                        )
-                    )
-                    if isinstance(
-                        row.get(
-                            "pseudo_formal_failure_validator_ready_copy_contract",
-                            {},
-                        ),
-                        Mapping,
-                    )
-                    else {}
-                ),
-                "pseudo_formal_failure_copy_contract_summary": (
-                    dict(row.get("pseudo_formal_failure_copy_contract_summary", {}))
-                    if isinstance(
-                        row.get("pseudo_formal_failure_copy_contract_summary", {}),
-                        Mapping,
-                    )
-                    else {}
-                ),
-                "runtime_queue_status": runtime_queue_status,
-                "runtime_generated_queue_name": "formalizer_pf_bv_copy_ready_retries",
-                "recommended_next_action": str(
-                    row.get("target_behavior", "") or ""
-                ).strip(),
-                "recommended_commands": [],
-                "priority": "high",
-                "proof_evidence_status": (
-                    "FORMALIZER_PF_BV_COPY_READY_RETRY_AGENDA_NOT_PROOF_EVIDENCE"
-                ),
-                "proof_evidence_boundary": boundary,
-                "proof_boundary": boundary,
-                "boundary": boundary,
-            }
-        )
-    return _dedupe_runtime_next_action_agenda_rows(rows)
 
 
 def _runtime_formalizer_pf_component_gate_exact_rows_handoff_diagnostic_row(
@@ -28092,50 +27645,6 @@ def _formalizer_provider_failure_classification(exc: Exception) -> str:
     return "formalizer_provider_generation_failed"
 
 
-def _formalizer_required_pf_bv_block_schema_hints() -> dict[str, str]:
-    return {
-        "conclusion": "top-level non-empty local claim for every block",
-        "source_anchors": (
-            "at least one object pointing to the theory trace, theorem card, "
-            "proof body, paper, or other bounded source with non-empty id or "
-            "excerpt, e.g. {\"kind\":\"theory_trace\",\"id\":\"source_step_1\","
-            "\"excerpt\":\"exact intermediate claim from the derivation\"}; prose-only "
-            "anchors do not satisfy validation"
-        ),
-        "accepted_block_verification": (
-            "if block_verification.verdict is accepted, "
-            "block_verification.rollout_count must be an integer >= 1; "
-            "otherwise use a valid non-accepted verdict such as not_run, "
-            "unknown, or failed; needs_review belongs in faithfulness_status, "
-            "not block_verification.verdict"
-        ),
-    }
-
-
-def _formalizer_required_pf_bv_lane_activation_hints() -> dict[str, str]:
-    return {
-        "source_theorem_exact_semantic_definition": (
-            "set faithfulness_status=faithful and "
-            "lean_feasibility=needs_semantic_definition on at least one "
-            "source-anchored block requiring exact semantic-definition grounding"
-        ),
-        "lean_rag": (
-            "set faithfulness_status=faithful and lean_feasibility=needs_rag "
-            "on at least one source-anchored block requiring formal-source or "
-            "Mathlib/Lean grounding"
-        ),
-        "source_to_bridge": (
-            "set faithfulness_status=faithful and include non-empty "
-            "semantic_primitive_requirements on at least one source-anchored "
-            "block requiring a source-to-bridge primitive or premise"
-        ),
-        "generic_review_rows_do_not_satisfy_activation": (
-            "needs_review/not_run-only blocks are diagnostic; they do not count "
-            "as required target-lane PF/BV activation"
-        ),
-    }
-
-
 def _formalizer_structural_response_validation_feedback(
     *,
     proof_bank_runtime_memory_summary: Mapping[str, Any],
@@ -28341,15 +27850,13 @@ def _formalizer_provider_failure_result(
         "source_theorem_exact_semantic_definition_structural_reformulation_required": (
             structural_reformulation_required
         ),
-        "required_block_schema_hints": (
-            _formalizer_required_pf_bv_block_schema_hints()
-            if pseudo_formalization_required
-            else {}
-        ),
-        "lane_activation_hints": (
-            _formalizer_required_pf_bv_lane_activation_hints()
-            if pseudo_formalization_required
-            else {}
+        "provider_schema_reused": True,
+        "runtime_selected_mathematical_content": False,
+        "independent_review_handoff_allowed": pseudo_formalization_required,
+        "repair_observation_policy": (
+            "retry from the same typed provider schema, source context, and exact "
+            "environment observations; the model may emit an honest independent-"
+            "review handoff instead of self-attesting source faithfulness"
         ),
         "proof_evidence_status": (
             "FORMALIZER_PROVIDER_FAILURE_RETRY_CONTRACT_NOT_PROOF_EVIDENCE"
@@ -28534,12 +28041,6 @@ def _formalizer_packet_validation_failure_result(
     formal_source_retriever: Any | None = None,
 ) -> AgentStepResult:
     validation_errors = [str(error) for error in exc.errors if str(error)]
-    validation_repair_policy = formalizer_validation_repair_policy(validation_errors)
-    validation_repair_directives = formalizer_validation_repair_directives(
-        validation_errors
-    )
-    internal_json_repair_attempts = max(0, int(exc.attempts or 0) - 1)
-    internal_json_repair_counted_as_lineage_retry = False
     prior_environment_feedback = (
         environment_feedback
         if isinstance(environment_feedback, Mapping)
@@ -28576,24 +28077,39 @@ def _formalizer_packet_validation_failure_result(
         if packet_repair_lineage_active
         else 0
     )
-    missing_anchors = _formalizer_missing_semantic_anchor_references(validation_errors)
-    uninstantiated_adapter_binders = (
-        _formalizer_uninstantiated_adapter_object_binders(validation_errors)
+    internal_json_repair_attempts = max(0, int(exc.attempts or 0) - 1)
+    last_invalid_packet = (
+        deepcopy(dict(exc.last_invalid_packet))
+        if isinstance(exc.last_invalid_packet, Mapping)
+        else {}
     )
-    missing_source_binding_contract_metadata = (
-        _formalizer_missing_source_binding_contract_metadata(validation_errors)
+    failure_id = (
+        "formalizer_validation_failure:"
+        + stable_hash(
+            [
+                task.task_id,
+                exc.validation_label,
+                validation_errors,
+                exc.history,
+                last_invalid_packet,
+            ]
+        )[:20]
     )
-    next_action_reference_contract = (
-        _formalizer_next_action_reference_contract_from_validation_errors(
-            validation_errors
+    formalizer_packet_repair_root_failure_id = str(
+        prior_environment_feedback.get(
+            "formalizer_packet_repair_root_failure_id",
+            "",
         )
+        or failure_id
     )
-    source_theorem_candidate_materialization_contract = (
-        _formalizer_source_theorem_candidate_materialization_contract_from_validation_errors(
-            validation_errors,
-            proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
-        )
+    validation_feedback = formalizer_validation_feedback_envelope(
+        validation_errors,
+        validation_label=exc.validation_label,
+        invalid_packet=last_invalid_packet,
+        attempt_history=exc.history,
+        retry_depth=packet_repair_retry_depth,
     )
+
     active_source_theorem_promotion_generation_request = (
         dict(
             prior_environment_feedback.get(
@@ -28649,135 +28165,40 @@ def _formalizer_packet_validation_failure_result(
         if source_theorem_promotion_generation_repair
         else {}
     )
-    pseudo_formalization_required = _feedback_requires_pseudo_formalization(
-        prior_environment_feedback,
-        proof_bank_runtime_memory_summary,
-        {"validation_errors": validation_errors},
-    )
-    pseudo_formalization_validation_errors = [
-        error
-        for error in validation_errors
-        if any(
-            marker in error.lower()
-            for marker in (
-                "pseudo_formalization_required",
-                "pseudo_formal_proof_packets",
-                "pf/bv",
-                "pseudo-formal",
-                "block verification",
-            )
-        )
-    ]
-    pseudo_formalization_validation_issue_summary = (
-        pseudo_formal_validation_issue_summary(
-            pseudo_formalization_validation_errors
-        )
-    )
-    pseudo_formalization_issue_repair_actions = (
-        pseudo_formal_validation_issue_repair_actions(
-            pseudo_formalization_validation_issue_summary
-        )
-    )
-    pseudo_formalization_required_missing_work_order_rows = bool(
-        pseudo_formalization_required and pseudo_formalization_validation_errors
-    )
-    pseudo_formalization_validation_issue_kinds = {
-        str(value)
-        for value in pseudo_formalization_validation_issue_summary.get(
-            "issue_kinds",
-            [],
-        )
-        or []
-        if str(value).strip()
-    }
-    pseudo_formalization_required_invalid_packets = bool(
-        pseudo_formalization_required
-        and int(
-            pseudo_formalization_validation_issue_summary.get(
-                "n_validation_errors",
-                0,
-            )
-            or 0
-        )
-        > 0
-        and bool(
-            pseudo_formalization_validation_issue_kinds
-            - {
-                "missing_required_packet",
-                "no_lane_routable_work_order_rows",
-            }
-        )
-        and int(
-            pseudo_formalization_validation_issue_summary.get(
-                "n_no_lane_routable_work_order_rows",
-                0,
-            )
-            or 0
-        )
-        <= 0
-    )
-    pseudo_formalization_required_no_lane_routable_rows = bool(
-        pseudo_formalization_required
-        and int(
-            pseudo_formalization_validation_issue_summary.get(
-                "n_no_lane_routable_work_order_rows",
-                0,
-            )
-            or 0
-        )
-        > 0
-    )
-    source_theorem_exact_semantic_definition_structural_reformulation_required = (
-        _bool_like(
-            proof_bank_runtime_memory_summary.get(
-                "source_theorem_exact_semantic_definition_structural_reformulation_required",
-                False,
-            )
-        )
-        or _bool_like(
-            prior_environment_feedback.get(
-                "source_theorem_exact_semantic_definition_structural_reformulation_required",
-                False,
-            )
-        )
-    )
-    structural_response_validation_feedback = (
-        _formalizer_structural_response_validation_feedback(
-            proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
-            prior_environment_feedback=prior_environment_feedback,
-        )
-        if source_theorem_exact_semantic_definition_structural_reformulation_required
-        else {}
-    )
-    structural_unverified_required_imports = [
-        str(item).strip()
-        for item in structural_response_validation_feedback.get(
-            "unverified_required_imports",
-            [],
-        )
-        if str(item).strip()
-    ]
-    if structural_unverified_required_imports:
-        hard_negative_import_directive = (
-            "Do not reuse response_validation_feedback.unverified_required_imports "
-            "as Lean candidate required_imports: "
-            + ", ".join(structural_unverified_required_imports[:8])
-            + ". Treat each blocked import/API as a PF/BV work-order constraint "
-            "for lean_rag or exact semantic-definition grounding."
-        )
-        if hard_negative_import_directive not in validation_repair_directives:
-            validation_repair_directives = [
-                *validation_repair_directives,
-                hard_negative_import_directive,
-            ]
 
-    def _runtime_string_list(value: Any) -> list[str]:
-        if isinstance(value, str):
-            return [value] if value else []
-        if not isinstance(value, (list, tuple, set)):
-            return []
-        return [str(item) for item in value if str(item)]
-
+    pseudo_formalization_required = any(
+        _bool_like(source.get(key, False))
+        for source in (
+            proof_bank_runtime_memory_summary,
+            prior_environment_feedback,
+        )
+        for key in (
+            "pseudo_formalization_required",
+            "requires_pseudo_formalization",
+            "source_theorem_exact_semantic_definition_structural_reformulation_required",
+        )
+    )
+    pseudo_formalization_required_reason = str(
+        proof_bank_runtime_memory_summary.get(
+            "pseudo_formalization_required_reason",
+            "",
+        )
+        or prior_environment_feedback.get(
+            "pseudo_formalization_required_reason",
+            "",
+        )
+        or ("runtime_required_pseudo_formalization" if pseudo_formalization_required else "")
+    )
+    pseudo_formalization_target_lanes = (
+        list(
+            _required_pseudo_formal_target_lanes(
+                prior_environment_feedback,
+                proof_bank_runtime_memory_summary,
+            )
+        )
+        if pseudo_formalization_required
+        else []
+    )
     prior_pseudo_formalization_repair_contract = (
         dict(
             prior_environment_feedback.get(
@@ -28795,7 +28216,15 @@ def _formalizer_packet_validation_failure_result(
         )
         else {}
     )
-    pseudo_formalization_target_names = _runtime_string_list(
+
+    def runtime_string_list(value: Any) -> list[str]:
+        if isinstance(value, str):
+            return [value] if value else []
+        if not isinstance(value, (list, tuple, set)):
+            return []
+        return [str(item) for item in value if str(item)]
+
+    pseudo_formalization_target_names = runtime_string_list(
         proof_bank_runtime_memory_summary.get(
             "source_theorem_exact_semantic_definition_structural_reformulation_target_names",
             [],
@@ -28806,7 +28235,7 @@ def _formalizer_packet_validation_failure_result(
         )
         or prior_pseudo_formalization_repair_contract.get("target_names", [])
     )
-    pseudo_formalization_placeholder_symbols = _runtime_string_list(
+    pseudo_formalization_placeholder_symbols = runtime_string_list(
         proof_bank_runtime_memory_summary.get(
             "source_theorem_exact_semantic_definition_structural_reformulation_placeholder_symbols",
             [],
@@ -28820,32 +28249,28 @@ def _formalizer_packet_validation_failure_result(
             [],
         )
     )
-    pseudo_formalization_target_lanes = _runtime_string_list(
-        proof_bank_runtime_memory_summary.get(
-            "pseudo_formal_block_routing_target_lanes",
-            [],
-        )
-        or prior_environment_feedback.get(
-            "pseudo_formal_block_routing_target_lanes",
-            [],
+    structural_reformulation_required = any(
+        _bool_like(source.get(
+            "source_theorem_exact_semantic_definition_structural_reformulation_required",
+            False,
+        ))
+        for source in (
+            proof_bank_runtime_memory_summary,
+            prior_environment_feedback,
         )
     )
-    if (
-        source_theorem_exact_semantic_definition_structural_reformulation_required
-        and not pseudo_formalization_target_lanes
-    ):
-        pseudo_formalization_target_lanes = [
-            "source_theorem_exact_semantic_definition",
-            "lean_rag",
-            "source_to_bridge",
-        ]
-    pseudo_formalization_required_reason = str(
-        proof_bank_runtime_memory_summary.get("pseudo_formalization_required_reason", "")
-        or prior_environment_feedback.get("pseudo_formalization_required_reason", "")
-        or (
-            "formalizer_packet_validation_required_pf_bv"
-            if pseudo_formalization_required
-            else ""
+    structural_response_validation_feedback = (
+        _formalizer_structural_response_validation_feedback(
+            proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
+            prior_environment_feedback=prior_environment_feedback,
+        )
+        if structural_reformulation_required
+        else {}
+    )
+    structural_unverified_required_imports = runtime_string_list(
+        structural_response_validation_feedback.get(
+            "unverified_required_imports",
+            [],
         )
     )
     pseudo_formalization_repair_contract = (
@@ -28855,56 +28280,17 @@ def _formalizer_packet_validation_failure_result(
             "pseudo_formalization_required_reason": (
                 pseudo_formalization_required_reason
             ),
-            "source_theorem_exact_semantic_definition_structural_reformulation_required": (
-                source_theorem_exact_semantic_definition_structural_reformulation_required
-            ),
             "target_lanes": pseudo_formalization_target_lanes,
             "target_names": pseudo_formalization_target_names,
             "placeholder_symbols": pseudo_formalization_placeholder_symbols,
-            **(
-                {
-                    "response_validation_feedback": (
-                        structural_response_validation_feedback
-                    ),
-                    "unverified_required_imports": (
-                        structural_unverified_required_imports
-                    ),
-                    "hard_negative_rejected_imports": (
-                        structural_unverified_required_imports
-                    ),
-                    "source_failed_candidate_packet_id": str(
-                        structural_response_validation_feedback.get(
-                            "source_failed_candidate_packet_id",
-                            "",
-                        )
-                        or ""
-                    ),
-                }
-                if structural_response_validation_feedback
-                else {}
-            ),
-            "required_block_schema_hints": (
-                _formalizer_required_pf_bv_block_schema_hints()
-            ),
-            "lane_activation_hints": (
-                _formalizer_required_pf_bv_lane_activation_hints()
-            ),
-            "validation_issue_summary": (
-                pseudo_formalization_validation_issue_summary
-            ),
-            "validation_issue_repair_actions": (
-                pseudo_formalization_issue_repair_actions
-            ),
-            "validation_issue_kinds": list(
-                pseudo_formalization_validation_issue_summary.get(
-                    "issue_kinds",
-                    [],
-                )
-                or []
-            ),
+            "formalizer_validation_feedback_id": validation_feedback["feedback_id"],
+            "response_schema_authority": "current Formalizer provider schema",
+            "validation_authority": "unchanged local Formalizer validators",
+            "model_owns_block_content_and_repair_strategy": True,
+            "runtime_selected_semantics": False,
             "acceptance_gate": (
-                "valid PF/BV packet must produce lane-routable pseudo-formal "
-                "work-order rows; not proof evidence"
+                "the model-authored packet satisfies the current PF/BV schema and "
+                "unchanged lane-routability validators; this remains non-proof evidence"
             ),
             "proof_evidence_status": (
                 "FORMALIZER_PSEUDO_FORMALIZATION_REPAIR_CONTRACT_NOT_PROOF_EVIDENCE"
@@ -28914,41 +28300,26 @@ def _formalizer_packet_validation_failure_result(
         if pseudo_formalization_required
         else {}
     )
-    pseudo_formalization_feedback_fields = {
-        "pseudo_formalization_required": pseudo_formalization_required,
-        "pseudo_formalization_required_reason": pseudo_formalization_required_reason,
-        "pseudo_formalization_required_missing_work_order_rows": (
-            pseudo_formalization_required_missing_work_order_rows
-        ),
-        "pseudo_formalization_required_invalid_packets": (
-            pseudo_formalization_required_invalid_packets
-        ),
-        "pseudo_formalization_required_no_lane_routable_rows": (
-            pseudo_formalization_required_no_lane_routable_rows
-        ),
-        "pseudo_formalization_validation_errors": (
-            pseudo_formalization_validation_errors
-        ),
-        "pseudo_formalization_validation_issue_summary": (
-            pseudo_formalization_validation_issue_summary
-        ),
-        "pseudo_formalization_validation_issue_repair_actions": (
-            pseudo_formalization_issue_repair_actions
-        ),
-        "pseudo_formalization_repair_contract": (
-            pseudo_formalization_repair_contract
-        ),
-        "source_theorem_exact_semantic_definition_structural_reformulation_required": (
-            source_theorem_exact_semantic_definition_structural_reformulation_required
-        ),
-    }
+    pseudo_formalization_feedback_fields = (
+        {
+            "pseudo_formalization_required": True,
+            "pseudo_formalization_required_reason": (
+                pseudo_formalization_required_reason
+            ),
+            "pseudo_formalization_repair_contract": (
+                pseudo_formalization_repair_contract
+            ),
+            "source_theorem_exact_semantic_definition_structural_reformulation_required": (
+                structural_reformulation_required
+            ),
+        }
+        if pseudo_formalization_required
+        else {"pseudo_formalization_required": False}
+    )
     structural_response_validation_feedback_fields = (
         {
             "response_validation_feedback": structural_response_validation_feedback,
             "unverified_required_imports": structural_unverified_required_imports,
-            "hard_negative_rejected_imports": (
-                structural_unverified_required_imports
-            ),
             "source_failed_candidate_packet_id": str(
                 structural_response_validation_feedback.get(
                     "source_failed_candidate_packet_id",
@@ -28956,15 +28327,11 @@ def _formalizer_packet_validation_failure_result(
                 )
                 or ""
             ),
-            "hard_negative_import_repair_directive": (
-                "Do not reuse the listed unverified_required_imports as Lean "
-                "candidate required_imports; route them as PF/BV work-order "
-                "constraints for lean_rag or exact semantic-definition grounding."
-            ),
         }
         if structural_response_validation_feedback
         else {}
     )
+
     active_local_lean_repair_contract = (
         dict(prior_environment_feedback.get("local_lean_repair_contract", {}) or {})
         if isinstance(
@@ -28974,29 +28341,16 @@ def _formalizer_packet_validation_failure_result(
         else {}
     )
     active_candidate_diagnostics = (
-        list(prior_environment_feedback.get("candidate_diagnostics", []) or [])
+        [
+            deepcopy(dict(row))
+            for row in prior_environment_feedback.get("candidate_diagnostics", []) or []
+            if isinstance(row, Mapping)
+        ]
         if isinstance(
             prior_environment_feedback.get("candidate_diagnostics", []),
             (list, tuple),
         )
         else []
-    )
-    diagnostic_local_lean_repair_contract = (
-        _formalizer_local_lean_repair_contract_from_diagnostics(
-            [
-                dict(row)
-                for row in active_candidate_diagnostics
-                if isinstance(row, Mapping)
-            ]
-        )
-        if active_candidate_diagnostics
-        else {}
-    )
-    active_local_lean_repair_contract = (
-        _formalizer_merge_local_lean_repair_contracts(
-            active_local_lean_repair_contract,
-            diagnostic_local_lean_repair_contract,
-        )
     )
     active_proofengineer_repair_context = (
         dict(prior_environment_feedback.get("proofengineer_repair_context", {}) or {})
@@ -29014,9 +28368,7 @@ def _formalizer_packet_validation_failure_result(
                 unknown_identifiers=active_local_lean_repair_contract.get(
                     "unknown_identifiers",
                     [],
-                )
-                if isinstance(active_local_lean_repair_contract, Mapping)
-                else [],
+                ),
             )
         )
     active_target_shape_contract = (
@@ -29027,13 +28379,14 @@ def _formalizer_packet_validation_failure_result(
         )
         else {}
     )
-    if not active_target_shape_contract:
-        active_target_shape_contract = (
-            _formalizer_target_shape_contract_from_validation_errors(
-                validation_errors,
-                question=question,
-            )
+    active_target_drift_repair_contract = (
+        dict(prior_environment_feedback.get("target_drift_repair_contract", {}) or {})
+        if isinstance(
+            prior_environment_feedback.get("target_drift_repair_contract", {}),
+            Mapping,
         )
+        else {}
+    )
     prior_candidate_reroute_options = prior_environment_feedback.get(
         "candidate_reroute_options",
         [],
@@ -29046,46 +28399,10 @@ def _formalizer_packet_validation_failure_result(
     active_formal_blocker_resource_requests = (
         _formal_blocker_resource_requests_from_feedback(prior_environment_feedback)
     )
-    if active_target_shape_contract and not active_candidate_reroute_options:
-        active_candidate_reroute_options = [
-            (
-                "If the generated Lean theorem is only a narrower support lemma, do "
-                "not place it in formal_targets as the source theorem. "
-                "Emit the source theorem target as FORMAL_GAP and route executable "
-                "helper work only through source_to_bridge_premise_derivation_candidates "
-                "when the exact candidate object, source-binding metadata, and semantic "
-                "anchors are present."
-            ),
-            (
-                "When repeated proof-hole feedback makes source-to-bridge metadata "
-                "unavailable but live Lean/LSP capability still needs a materialized "
-                "artifact, emit at most one helper formal_targets entry with "
-                "source_theorem_target_provenance.source_theorem_target_known=false; "
-                "keep the original source theorem as FORMAL_GAP and never count the "
-                "helper as source-theorem proof evidence."
-            ),
-            (
-                "Do not name source_to_bridge_premise_derivation_candidates in "
-                "next_actions unless this same packet emits the concrete candidate "
-                "object; otherwise describe the blocker in gap_taxonomy, "
-                "lemma_dependency_plan, or proof_bank_obligation_requests."
-            ),
-        ]
-    active_target_drift_repair_contract = (
-        _formalizer_target_drift_repair_contract_from_target_shape_contract(
-            active_target_shape_contract
+    source_theorem_candidate_materialization_contract = (
+        _formalizer_source_theorem_candidate_materialization_contract_from_runtime_memory(
+            proof_bank_runtime_memory_summary
         )
-    )
-    failure_id = (
-        "formalizer_validation_failure:"
-        + stable_hash([task.task_id, exc.validation_label, validation_errors, exc.history])[:20]
-    )
-    formalizer_packet_repair_root_failure_id = str(
-        prior_environment_feedback.get(
-            "formalizer_packet_repair_root_failure_id",
-            "",
-        )
-        or failure_id
     )
     whole_proof_agent_repair = bool(
         str(active_proofengineer_repair_context.get("repair_scope", "") or "")
@@ -29116,12 +28433,8 @@ def _formalizer_packet_validation_failure_result(
             ),
             "validation_error_fingerprint": stable_hash(validation_errors),
             "internal_json_repair_attempts": internal_json_repair_attempts,
-            "internal_json_repair_counted_as_lineage_retry": (
-                internal_json_repair_counted_as_lineage_retry
-            ),
             "required_next_subsystem": "",
             "terminal_disposition": "BLOCKED_NO_VALID_FORMALIZER_PACKET",
-            "formalization_gap_planner_bridge_available": False,
             "proof_evidence_status": (
                 "FORMALIZER_PACKET_VALIDATION_ESCALATION_NOT_PROOF_EVIDENCE"
             ),
@@ -29129,6 +28442,34 @@ def _formalizer_packet_validation_failure_result(
         }
         if packet_validation_escalation_active
         else {}
+    )
+
+    shared_feedback_fields = {
+        "formalizer_validation_feedback": validation_feedback,
+        "target_shape_contract": active_target_shape_contract,
+        "target_drift_repair_contract": active_target_drift_repair_contract,
+        "source_theorem_candidate_materialization_contract": (
+            source_theorem_candidate_materialization_contract
+        ),
+        **source_theorem_promotion_generation_feedback_fields,
+        **pseudo_formalization_feedback_fields,
+        **structural_response_validation_feedback_fields,
+        "local_lean_repair_contract": active_local_lean_repair_contract,
+        "candidate_diagnostics": active_candidate_diagnostics,
+        "proofengineer_repair_context": active_proofengineer_repair_context,
+        "formal_blocker_resource_requests": active_formal_blocker_resource_requests,
+        "candidate_reroute_options": active_candidate_reroute_options,
+    }
+    target_behavior = (
+        "The Formalizer/ProofEngineer model consumes the exact rejected packet, "
+        "validator messages, task-bound source context, retrieval, and compiler or "
+        "proof-state observations, then authors a revised packet or typed blocker. "
+        "AgentRuntime does not choose mathematical or Lean repairs."
+    )
+    acceptance_gate = (
+        "The revised packet passes the same response schema and unchanged local "
+        "Formalizer validators. Any executable Lean candidate must subsequently pass "
+        "active-project Lean/kernel verification before it is proof evidence."
     )
     learning_row = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -29144,53 +28485,9 @@ def _formalizer_packet_validation_failure_result(
             "failure_classification": "formalizer_packet_validation_failed",
             "validation_label": exc.validation_label,
             "validation_errors": validation_errors,
-            "validation_repair_policy": validation_repair_policy,
-            "validation_repair_policy_boundary": (
-                FORMALIZER_VALIDATION_REPAIR_POLICY_BOUNDARY
-            ),
-            "validation_repair_directives": validation_repair_directives,
-            "target_shape_contract": active_target_shape_contract,
-            "target_drift_repair_contract": active_target_drift_repair_contract,
-            "next_action_reference_contract": next_action_reference_contract,
-            "source_theorem_candidate_materialization_contract": (
-                source_theorem_candidate_materialization_contract
-            ),
-            **source_theorem_promotion_generation_feedback_fields,
-            **pseudo_formalization_feedback_fields,
-            **structural_response_validation_feedback_fields,
-            "local_lean_repair_contract": active_local_lean_repair_contract,
-            "candidate_diagnostics": active_candidate_diagnostics,
-            "proofengineer_repair_context": active_proofengineer_repair_context,
-            "formal_blocker_resource_requests": active_formal_blocker_resource_requests,
-            "candidate_reroute_options": active_candidate_reroute_options,
-            "missing_semantic_anchor_references": missing_anchors,
-            "uninstantiated_adapter_object_binders": uninstantiated_adapter_binders,
-            "missing_source_binding_contract_metadata": (
-                missing_source_binding_contract_metadata
-            ),
-            "recommended_formalizer_target_mode": str(
-                proof_bank_runtime_memory_summary.get(
-                    "recommended_formalizer_target_mode", ""
-                )
-                or ""
-            ),
-            "source_theorem_ready_for_exact_proof_body": _bool_like(
-                proof_bank_runtime_memory_summary.get(
-                    "source_theorem_ready_for_exact_proof_body",
-                    False,
-                )
-            ),
-            "source_theorem_exact_proof_body_verified_adapter_context_insufficient": _bool_like(
-                proof_bank_runtime_memory_summary.get(
-                    "source_theorem_exact_proof_body_verified_adapter_context_insufficient",
-                    False,
-                )
-            ),
+            **shared_feedback_fields,
             "attempts": exc.attempts,
             "internal_json_repair_attempts": internal_json_repair_attempts,
-            "internal_json_repair_counted_as_lineage_retry": (
-                internal_json_repair_counted_as_lineage_retry
-            ),
             "formalizer_packet_repair_retry_depth": packet_repair_retry_depth,
             "formalizer_packet_repair_root_failure_id": (
                 formalizer_packet_repair_root_failure_id
@@ -29199,46 +28496,15 @@ def _formalizer_packet_validation_failure_result(
                 packet_repair_retry_depth > 0
             ),
             "packet_validation_escalation": packet_validation_escalation,
-            "formalizer_lean_repair_retry_depth": int(
-                prior_environment_feedback.get(
-                    "formalizer_lean_repair_retry_depth",
-                    0,
-                )
-                or 0
-            ),
-            "repeated_formalizer_lean_candidate_failure": bool(
-                prior_environment_feedback.get(
-                    "repeated_formalizer_lean_candidate_failure",
-                    False,
-                )
-            ),
             "last_attempt_summary": exc.history[-1] if exc.history else {},
         },
-        "target_behavior": _formalizer_validation_failure_target_behavior(
-            source_theorem_candidate_materialization_contract=(
-                source_theorem_candidate_materialization_contract
-            ),
-            local_lean_repair_contract=active_local_lean_repair_contract,
+        "target_behavior": target_behavior,
+        "acceptance_gate": acceptance_gate,
+        "proof_evidence_status": (
+            "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
         ),
-        "acceptance_gate": _formalizer_validation_failure_acceptance_gate(
-            source_theorem_candidate_materialization_contract=(
-                source_theorem_candidate_materialization_contract
-            ),
-            local_lean_repair_contract=active_local_lean_repair_contract,
-        ),
-        "proof_evidence_status": "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
     }
-    if source_theorem_promotion_generation_repair:
-        learning_row["target_behavior"] = (
-            "Repair the exact typed promotion response while preserving every "
-            "requested formal target id, declaration, target id, and provenance; "
-            "emit a complete candidate for the exact compiler child."
-        )
-        learning_row["acceptance_gate"] = (
-            "the response is hash-bound to the promotion request and every requested "
-            "target materializes unchanged before ExactSourceTheoremProofBodyExecutor"
-        )
     failure_artifact = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "RuntimeFormalizerValidationFailure",
@@ -29252,35 +28518,9 @@ def _formalizer_packet_validation_failure_result(
         "validation_label": exc.validation_label,
         "failure_classification": "formalizer_packet_validation_failed",
         "validation_errors": validation_errors,
-        "validation_repair_policy": validation_repair_policy,
-        "validation_repair_policy_boundary": (
-            FORMALIZER_VALIDATION_REPAIR_POLICY_BOUNDARY
-        ),
-        "validation_repair_directives": validation_repair_directives,
-        "target_shape_contract": active_target_shape_contract,
-        "target_drift_repair_contract": active_target_drift_repair_contract,
-        "next_action_reference_contract": next_action_reference_contract,
-        "source_theorem_candidate_materialization_contract": (
-            source_theorem_candidate_materialization_contract
-        ),
-        **source_theorem_promotion_generation_feedback_fields,
-        **pseudo_formalization_feedback_fields,
-        **structural_response_validation_feedback_fields,
-        "local_lean_repair_contract": active_local_lean_repair_contract,
-        "candidate_diagnostics": active_candidate_diagnostics,
-        "proofengineer_repair_context": active_proofengineer_repair_context,
-        "formal_blocker_resource_requests": active_formal_blocker_resource_requests,
-        "candidate_reroute_options": active_candidate_reroute_options,
-        "missing_semantic_anchor_references": missing_anchors,
-        "uninstantiated_adapter_object_binders": uninstantiated_adapter_binders,
-        "missing_source_binding_contract_metadata": (
-            missing_source_binding_contract_metadata
-        ),
+        **shared_feedback_fields,
         "llm_json_repair_history": exc.history,
         "internal_json_repair_attempts": internal_json_repair_attempts,
-        "internal_json_repair_counted_as_lineage_retry": (
-            internal_json_repair_counted_as_lineage_retry
-        ),
         "formalizer_packet_repair_retry_depth": packet_repair_retry_depth,
         "formalizer_packet_repair_root_failure_id": (
             formalizer_packet_repair_root_failure_id
@@ -29288,12 +28528,14 @@ def _formalizer_packet_validation_failure_result(
         "packet_validation_escalation": packet_validation_escalation,
         "proof_bank_runtime_memory_summary": dict(proof_bank_runtime_memory_summary),
         "learning_rows": [learning_row],
-        "recommended_next_action": learning_row["target_behavior"],
-        "proof_evidence_status": "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE",
+        "recommended_next_action": target_behavior,
+        "proof_evidence_status": (
+            "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
+        ),
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
         "boundary": (
-            "This artifact records a local validator failure from an LLM Formalizer "
-            "proposal. It is runtime learning feedback, not Lean proof evidence."
+            "This artifact records model output and exact environment feedback. "
+            "It is neither a runtime-authored repair nor Lean proof evidence."
         ),
     }
     repair_feedback = {
@@ -29301,35 +28543,9 @@ def _formalizer_packet_validation_failure_result(
         "failure_classification": "formalizer_packet_validation_failed",
         "validation_label": exc.validation_label,
         "validation_errors": validation_errors,
-        "validation_repair_policy": validation_repair_policy,
-        "validation_repair_policy_boundary": (
-            FORMALIZER_VALIDATION_REPAIR_POLICY_BOUNDARY
-        ),
-        "validation_repair_directives": validation_repair_directives,
-        "target_shape_contract": active_target_shape_contract,
-        "target_drift_repair_contract": active_target_drift_repair_contract,
-        "next_action_reference_contract": next_action_reference_contract,
-        "source_theorem_candidate_materialization_contract": (
-            source_theorem_candidate_materialization_contract
-        ),
-        **source_theorem_promotion_generation_feedback_fields,
-        **pseudo_formalization_feedback_fields,
-        **structural_response_validation_feedback_fields,
-        "local_lean_repair_contract": active_local_lean_repair_contract,
-        "candidate_diagnostics": active_candidate_diagnostics,
-        "proofengineer_repair_context": active_proofengineer_repair_context,
-        "formal_blocker_resource_requests": active_formal_blocker_resource_requests,
-        "candidate_reroute_options": active_candidate_reroute_options,
-        "missing_semantic_anchor_references": missing_anchors,
-        "uninstantiated_adapter_object_binders": uninstantiated_adapter_binders,
-        "missing_source_binding_contract_metadata": (
-            missing_source_binding_contract_metadata
-        ),
+        **shared_feedback_fields,
         "attempts": exc.attempts,
         "internal_json_repair_attempts": internal_json_repair_attempts,
-        "internal_json_repair_counted_as_lineage_retry": (
-            internal_json_repair_counted_as_lineage_retry
-        ),
         "formalizer_packet_repair_retry_depth": packet_repair_retry_depth,
         "formalizer_packet_repair_root_failure_id": (
             formalizer_packet_repair_root_failure_id
@@ -29338,36 +28554,13 @@ def _formalizer_packet_validation_failure_result(
             packet_repair_retry_depth > 0
         ),
         "packet_validation_escalation": packet_validation_escalation,
-        "formalizer_lean_repair_retry_depth": int(
-            prior_environment_feedback.get("formalizer_lean_repair_retry_depth", 0)
-            or 0
-        ),
-        "repeated_formalizer_lean_candidate_failure": bool(
-            prior_environment_feedback.get(
-                "repeated_formalizer_lean_candidate_failure",
-                False,
-            )
-        ),
         "last_attempt_summary": exc.history[-1] if exc.history else {},
-        "target_behavior": learning_row["target_behavior"],
-        "acceptance_gate": learning_row["acceptance_gate"],
-        "required_repair": (
-            (
-                "emit at least one valid pseudo_formal_proof_packets entry that "
-                "produces lane-routable PF/BV work-order rows before direct "
-                "Lean/prover retry; "
-            )
-            if pseudo_formalization_required_missing_work_order_rows
-            else ""
-        )
-        + _formalizer_validation_failure_required_repair(
-            source_theorem_candidate_materialization_contract=(
-                source_theorem_candidate_materialization_contract
-            ),
-            local_lean_repair_contract=active_local_lean_repair_contract,
-            validation_repair_directives=validation_repair_directives,
+        "target_behavior": target_behavior,
+        "acceptance_gate": acceptance_gate,
+        "required_repair": target_behavior,
+        "proof_evidence_status": (
+            "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
         ),
-        "proof_evidence_status": "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
     }
     repair_feedback = _formalizer_feedback_with_preserved_action_work_order_binding(
@@ -29377,17 +28570,15 @@ def _formalizer_packet_validation_failure_result(
     target_ids = list(
         source_theorem_candidate_materialization_contract.get("target_ids", []) or []
     )
-    if target_ids:
-        learning_row["target_ids"] = target_ids
-        failure_artifact["target_ids"] = target_ids
-        repair_feedback["target_ids"] = target_ids
     target_names = list(
         source_theorem_candidate_materialization_contract.get("target_names", []) or []
     )
-    if target_names:
-        learning_row["target_names"] = target_names
-        failure_artifact["target_names"] = target_names
-        repair_feedback["target_names"] = target_names
+    for payload in (learning_row, failure_artifact, repair_feedback):
+        if target_ids:
+            payload["target_ids"] = target_ids
+        if target_names:
+            payload["target_names"] = target_names
+
     next_inputs = dict(task.inputs)
     next_inputs["environment_feedback"] = repair_feedback
     next_inputs.setdefault("question", _question_to_payload(question))
@@ -29396,61 +28587,35 @@ def _formalizer_packet_validation_failure_result(
         next_task_acceptance_gate = ""
     elif source_theorem_promotion_generation_repair:
         next_task_objective = (
-            "Repair the lineage-bound source-theorem promotion response, preserve "
-            "the exact requested targets, and route the materialized candidate to "
-            "ExactSourceTheoremProofBodyExecutor in this AgentRuntime."
+            "Repair the lineage-bound source-theorem promotion response from the "
+            "exact request, rejected packet, and validator observations."
         )
-        next_task_acceptance_gate = learning_row["acceptance_gate"]
-    elif pseudo_formalization_required_missing_work_order_rows:
-        next_task_objective = (
-            "Repair the Formalizer/ProofEngineer packet by emitting routed PF/BV "
-            "pseudo-formal proof packets before direct Lean/prover work."
-        )
-        next_task_acceptance_gate = (
-            pseudo_formalization_repair_contract.get("acceptance_gate")
-            or "valid PF/BV packet must produce lane-routable pseudo-formal "
-            "work-order rows; not proof evidence"
-        )
+        next_task_acceptance_gate = acceptance_gate
     elif whole_proof_agent_repair:
         next_task_objective = (
-            "Run the lineage-bound whole-theorem ProofEngineer loop: consume "
-            "formal-source retrieval and proof-search results, preserve the exact "
-            "declaration signature, replace the complete proof body, and rerun the "
-            "candidate under local Lean/AXLE."
+            "Continue the lineage-bound whole-theorem ProofEngineer loop from the "
+            "exact target, failed candidate, retrieval, proof state, and validator "
+            "observations."
         )
-        next_task_acceptance_gate = (
-            "an exact-signature whole-proof candidate is materialized and checked by "
-            "local Lean/AXLE, or a typed dependency blocker is returned without "
-            "claiming source-theorem proof"
+        next_task_acceptance_gate = acceptance_gate
+    elif pseudo_formalization_required:
+        next_task_objective = (
+            "Regenerate the required pseudo-formal Formalizer output from the current "
+            "source context, provider schema, and exact validator observations."
         )
+        next_task_acceptance_gate = acceptance_gate
     elif source_theorem_candidate_materialization_contract:
         next_task_objective = (
-            "Repair the Formalizer/ProofEngineer packet by emitting a concrete "
-            "source-theorem materialization candidate before requesting Lean/prover work."
+            "Regenerate the requested exact source-theorem candidate from the "
+            "task-bound materialization request and exact validator observations."
         )
-        next_task_acceptance_gate = (
-            "repaired Formalizer packet passes local materialization validation with an "
-            "exact source-theorem formal_targets Lean candidate; proof still requires "
-            "local Lean/AXLE kernel verification"
-        )
-    elif _formalizer_local_lean_contract_has_repeated_syntax_failure(
-        active_local_lean_repair_contract
-    ):
-        next_task_objective = (
-            "Repair the Formalizer/ProofEngineer packet with the verbatim repeated "
-            "Lean parser/LSP diagnostics, preserve the exact target, and route the "
-            "revised candidate back through the configured Lean environment."
-        )
-        next_task_acceptance_gate = learning_row["acceptance_gate"]
+        next_task_acceptance_gate = acceptance_gate
     else:
         next_task_objective = (
-            "Repair the Formalizer/ProofEngineer packet using local validator "
-            "feedback before materializing Lean candidates or requesting proof work."
+            "Repair the rejected Formalizer packet from its exact schema, source "
+            "context, environment observations, and unchanged validator feedback."
         )
-        next_task_acceptance_gate = (
-            "repaired Formalizer packet passes local validation; any Lean candidate "
-            "still requires local Lean/AXLE kernel verification"
-        )
+        next_task_acceptance_gate = acceptance_gate
     next_task = None if packet_validation_escalation_active else AgentTask(
         task_id=(
             f"proofengineer-source-promotion:{question.id}:"
@@ -29464,10 +28629,7 @@ def _formalizer_packet_validation_failure_result(
         ),
         owner_subsystem=(
             "ProofEngineer"
-            if (
-                source_theorem_promotion_generation_repair
-                or whole_proof_agent_repair
-            )
+            if source_theorem_promotion_generation_repair or whole_proof_agent_repair
             else "FormalizationEvaluator"
         ),
         objective=next_task_objective,
@@ -29485,22 +28647,14 @@ def _formalizer_packet_validation_failure_result(
                     )
                 )
             )
-            if (
-                source_theorem_promotion_generation_repair
-                or whole_proof_agent_repair
-            )
+            if source_theorem_promotion_generation_repair or whole_proof_agent_repair
             else task.allowed_tools
         ),
         expected_artifacts=task.expected_artifacts,
         acceptance_gate=next_task_acceptance_gate,
         stop_condition=(
-            "promotion response rematerialized for the exact compiler or an explicit "
-            "typed blocker recorded"
-            if source_theorem_promotion_generation_repair
-            else
-            "exact whole-proof candidate rerun or typed dependency blocker recorded"
-            if whole_proof_agent_repair
-            else "repaired formalizer packet or explicit formal blocker recorded"
+            "revised packet accepted by the unchanged validator or a typed blocker "
+            "recorded without a proof claim"
         ),
     )
     evidence = EvidenceLedgerEntry(
@@ -29513,12 +28667,9 @@ def _formalizer_packet_validation_failure_result(
         payload={
             "failure_classification": "formalizer_packet_validation_failed",
             "validation_errors": validation_errors,
+            "formalizer_validation_feedback": validation_feedback,
             **pseudo_formalization_feedback_fields,
             **structural_response_validation_feedback_fields,
-            "missing_semantic_anchor_references": missing_anchors,
-            "missing_source_binding_contract_metadata": (
-                missing_source_binding_contract_metadata
-            ),
             "attempts": exc.attempts,
             "proof_evidence_status": (
                 "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
@@ -29528,25 +28679,13 @@ def _formalizer_packet_validation_failure_result(
     return AgentStepResult(
         status="BLOCKED" if packet_validation_escalation_active else "REVISE",
         rationale=(
-            "LLM Formalizer packet failed the same lineage-bound validation "
-            "contract after its one outer retry. No valid Formalizer packet exists "
-            "from which to build a FormalizationGapPlanner bridge, so runtime "
-            "recorded a typed terminal blocker without claiming proof evidence."
+            "The same lineage-bound Formalizer packet failed validation after its "
+            "bounded outer retry; the exact observations were recorded and the lane "
+            "stopped without proof evidence."
             if packet_validation_escalation_active
-            else
-            "LLM ProofEngineer promotion response failed its request-bound target "
-            "contract; structured feedback was preserved and routed back to the "
-            "same promotion ProofEngineer loop."
-            if source_theorem_promotion_generation_repair
-            else
-            "LLM Formalizer/ProofEngineer packet failed local validation; structured "
-            "feedback was recorded and routed to the lineage-bound whole-proof "
-            "ProofEngineer loop."
-            if whole_proof_agent_repair
-            else (
-                "LLM Formalizer/ProofEngineer packet failed local validation; "
-                "structured feedback was recorded and routed back to Formalizer."
-            )
+            else "The model-authored Formalizer packet failed local validation; its "
+            "rejected artifact and exact environment observations were routed back "
+            "to the responsible LLM agent without a runtime-authored repair."
         ),
         produced_artifacts={failure_id: failure_artifact},
         observations=(
@@ -29556,15 +28695,9 @@ def _formalizer_packet_validation_failure_result(
                 payload={
                     "failure_id": failure_id,
                     "failure_classification": "formalizer_packet_validation_failed",
-                    "validation_errors": validation_errors,
-                    "validation_repair_directives": validation_repair_directives,
+                    "formalizer_validation_feedback": validation_feedback,
                     **pseudo_formalization_feedback_fields,
                     **structural_response_validation_feedback_fields,
-                    "missing_semantic_anchor_references": missing_anchors,
-                    "uninstantiated_adapter_object_binders": uninstantiated_adapter_binders,
-                    "missing_source_binding_contract_metadata": (
-                        missing_source_binding_contract_metadata
-                    ),
                     "proof_evidence_status": (
                         "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
                     ),
@@ -29579,13 +28712,6 @@ def _formalizer_packet_validation_failure_result(
             else "formalizer_packet_validation_failed"
         ),
     )
-
-
-def _formalizer_packet_validation_repair_directives(
-    validation_errors: Sequence[str],
-) -> list[str]:
-    """Convert local packet validation failures into concrete LLM repair directives."""
-    return formalizer_validation_repair_directives(validation_errors)
 
 
 def _formalizer_runtime_capability_contract_failure_result_if_needed(
@@ -30164,62 +29290,9 @@ def _formalizer_runtime_capability_contract_failure_result_if_needed(
     )
 
 
-def _formalizer_next_action_reference_contract_from_validation_errors(
-    validation_errors: Sequence[str],
-) -> dict[str, Any]:
-    error_text = " ".join(str(error) for error in validation_errors).lower()
-    if (
-        "next_actions reference source_to_bridge_premise_derivation_candidates"
-        not in error_text
-    ):
-        return {}
-    return {
-        "contract_kind": "next_action_references_must_be_materialized",
-        "inferred_from": "formalizer_packet_validation_errors",
-        "failed_reference": "source_to_bridge_premise_derivation_candidates",
-        "hard_rule": (
-            "A next_actions entry may ask AgentRuntime, AXLE, or local Lean to "
-            "execute source_to_bridge_premise_derivation_candidates only when this "
-            "same packet emits a concrete candidate object with Lean source, "
-            "expected_status=NEEDS_KERNEL_CHECK, and source-binding metadata."
-        ),
-        "allowed_resolutions": [
-            (
-                "emit the concrete source_to_bridge_premise_derivation_candidates "
-                "object and make next_actions reference its exact id or premise name"
-            ),
-            (
-                "remove the executable next_actions reference and describe the "
-                "missing work in gap_taxonomy, lemma_dependency_plan, or "
-                "proof_bank_obligation_requests"
-            ),
-            (
-                "keep the source theorem as FORMAL_GAP when the missing candidate "
-                "cannot be bound to source metadata"
-            ),
-        ],
-        "forbidden_resolution": (
-            "Do not create placeholder source_to_bridge_premise_derivation_candidates "
-            "objects, and do not leave next_actions pointing at absent executable "
-            "work items."
-        ),
-    }
-
-
-def _formalizer_source_theorem_candidate_materialization_contract_from_validation_errors(
-    validation_errors: Sequence[str],
-    *,
+def _formalizer_source_theorem_candidate_materialization_contract_from_runtime_memory(
     proof_bank_runtime_memory_summary: Mapping[str, Any],
 ) -> dict[str, Any]:
-    error_text = " ".join(str(error) for error in validation_errors).lower()
-    materialization_error = any(
-        marker in error_text
-        for marker in (
-            "source_theorem_exact_candidate_materialization_required",
-            "materialization gate",
-            "formal_targets candidate must preserve a requested target id/name",
-        )
-    )
     materialization_required = bool(
         proof_bank_runtime_memory_summary.get(
             "source_theorem_candidate_materialization_required",
@@ -30228,9 +29301,8 @@ def _formalizer_source_theorem_candidate_materialization_contract_from_validatio
         or proof_bank_runtime_memory_summary.get("recommended_formalizer_target_mode")
         == "source_theorem_exact_candidate_materialization_required"
     )
-    if not materialization_error and not materialization_required:
+    if not materialization_required:
         return {}
-
     target_names = [
         str(value).strip()
         for value in proof_bank_runtime_memory_summary.get(
@@ -30260,251 +29332,19 @@ def _formalizer_source_theorem_candidate_materialization_contract_from_validatio
     ]
     return {
         "contract_kind": "source_theorem_candidate_materialization_required",
-        "inferred_from": "formalizer_packet_validation_errors",
+        "source": "proof_bank_runtime_memory_summary",
         "recommended_formalizer_target_mode": (
             "source_theorem_exact_candidate_materialization_required"
         ),
         "target_names": list(dict.fromkeys(target_names)),
         "target_ids": list(dict.fromkeys(target_ids)),
         "blocking_statuses": list(dict.fromkeys(blocking_statuses)),
-        "required_formal_targets_entry": {
-            "expected_status": "NEEDS_KERNEL_CHECK",
-            "lean_statement_sketch": (
-                "nonempty Lean theorem/lemma declaration for the exact source theorem"
-            ),
-            "source_theorem_target_provenance.source_theorem_target_known": True,
-            "target_identity": (
-                "copy a requested target_id/target_name into the formal target or "
-                "source_theorem_target_provenance"
-            ),
-        },
-        "forbidden_substitutes": [
-            "FORMAL_GAP-only source theorem row",
-            "helper/support formal target",
-            "source_to_bridge_premise_derivation_candidates-only packet",
-            "next_actions that request artifacts absent from this packet",
-        ],
-        "acceptance_gate": (
-            "The repaired packet passes local Formalizer validation only when a "
-            "concrete exact source-theorem formal_targets candidate can be "
-            "materialized for signature probes/local Lean. This is not source theorem "
-            "proof evidence until the exact candidate is kernel verified."
-        ),
+        "response_schema_authority": "current Formalizer provider schema",
+        "validation_authority": "unchanged local Formalizer validators",
+        "model_owns_candidate_or_typed_blocker": True,
+        "runtime_selected_semantics": False,
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
     }
-
-
-def _formalizer_local_lean_contract_has_repeated_syntax_failure(
-    contract: Mapping[str, Any] | None,
-) -> bool:
-    if not isinstance(contract, Mapping):
-        return False
-    if not bool(contract.get("repeated_syntax_failure", False)):
-        return False
-    diagnostic_classes = {
-        str(value).strip()
-        for value in contract.get("diagnostic_classes", []) or []
-        if str(value).strip()
-    }
-    return (
-        not diagnostic_classes
-        or "lean_parser_or_syntax_error" in diagnostic_classes
-    )
-
-
-def _formalizer_validation_failure_target_behavior(
-    *,
-    source_theorem_candidate_materialization_contract: Mapping[str, Any],
-    local_lean_repair_contract: Mapping[str, Any],
-) -> str:
-    if source_theorem_candidate_materialization_contract:
-        targets = ", ".join(
-            [
-                *[
-                    str(value)
-                    for value in source_theorem_candidate_materialization_contract.get(
-                        "target_ids",
-                        [],
-                    )
-                    or []
-                ],
-                *[
-                    str(value)
-                    for value in source_theorem_candidate_materialization_contract.get(
-                        "target_names",
-                        [],
-                    )
-                    or []
-                ],
-            ]
-        )
-        suffix = f" for {targets}" if targets else ""
-        return (
-            "rerun Formalizer/ProofEngineer in exact source-theorem candidate "
-            f"materialization mode{suffix}: emit a concrete formal_targets Lean "
-            "theorem/lemma candidate with expected_status=NEEDS_KERNEL_CHECK, "
-            "source_theorem_target_known=true provenance, and requested target "
-            "identity; do not satisfy this repair with FORMAL_GAP-only or "
-            "helper/support-only outputs"
-        )
-    if _formalizer_local_lean_contract_has_repeated_syntax_failure(
-        local_lean_repair_contract
-    ):
-        return (
-            "rerun Formalizer/ProofEngineer with the verbatim repeated Lean "
-            "parser/LSP diagnostics: preserve the exact theorem target, generate "
-            "a revised candidate, and rerun Lean without a Python-side syntax or "
-            "tactic whitelist"
-        )
-    return (
-        "rerun Formalizer/ProofEngineer with a locally valid packet: preserve "
-        "source-binding request metadata, include all required semantic anchors "
-        "and adapter objects in each source-to-bridge premise candidate, and do "
-        "not send candidates to Lean until the local validator accepts them"
-    )
-
-
-def _formalizer_validation_failure_acceptance_gate(
-    *,
-    source_theorem_candidate_materialization_contract: Mapping[str, Any],
-    local_lean_repair_contract: Mapping[str, Any],
-) -> str:
-    if source_theorem_candidate_materialization_contract:
-        return (
-            "Formalizer packet passes local materialization validation with a "
-            "concrete exact source-theorem formal_targets candidate; materialization "
-            "creates a Lean artifact for signature/local Lean feedback but is not "
-            "proof evidence until kernel verified."
-        )
-    if _formalizer_local_lean_contract_has_repeated_syntax_failure(
-        local_lean_repair_contract
-    ):
-        return (
-            "Formalizer packet preserves the exact target and consumes repeated "
-            "Lean compiler/LSP diagnostics in a revised candidate. The candidate "
-            "must be rerun by local Lean/AXLE; Python-side syntax whitelists and "
-            "compiler feedback are not proof evidence."
-        )
-    return (
-        "Formalizer packet passes local schema/semantic validation; any resulting "
-        "source-to-bridge premise candidate still requires local Lean/AXLE kernel "
-        "verification before becoming proof evidence."
-    )
-
-
-def _formalizer_validation_failure_required_repair(
-    *,
-    source_theorem_candidate_materialization_contract: Mapping[str, Any],
-    local_lean_repair_contract: Mapping[str, Any],
-    validation_repair_directives: Sequence[str],
-) -> str:
-    directive_text = " ".join(
-        str(row) for row in validation_repair_directives if str(row)
-    )
-    if source_theorem_candidate_materialization_contract:
-        targets = list(
-            source_theorem_candidate_materialization_contract.get("target_ids", []) or []
-        ) + list(
-            source_theorem_candidate_materialization_contract.get("target_names", [])
-            or []
-        )
-        target_text = (
-            " Requested target id/name(s): "
-            + ", ".join(dict.fromkeys(map(str, targets)))
-            + "."
-            if targets
-            else ""
-        )
-        return (
-            "Return a locally valid Formalizer packet in exact source-theorem "
-            "candidate-materialization mode. The main formal_targets output must be "
-            "a concrete exact source-theorem Lean theorem/lemma candidate with "
-            "expected_status=NEEDS_KERNEL_CHECK, nonempty lean_statement_sketch, "
-            "source_theorem_target_provenance.source_theorem_target_known=true, and "
-            "the requested target identity preserved in the target row or provenance."
-            + target_text
-            + " Do not satisfy this materialization repair with FORMAL_GAP-only, "
-            "helper-only, support-only, or source-to-bridge-only outputs; do not claim "
-            "kernel proof from the candidate. After the packet passes local validation, "
-            "AgentRuntime will materialize the Lean artifact and route local Lean/AXLE "
-            "or signature-probe feedback. "
-            + directive_text
-        )
-    if _formalizer_local_lean_contract_has_repeated_syntax_failure(
-        local_lean_repair_contract
-    ):
-        return (
-            "Return a revised Formalizer packet that preserves the exact theorem "
-            "target and consumes the verbatim Lean compiler/LSP diagnostics. Do "
-            "not replay an identical failed artifact or apply an ASCII, Unicode, "
-            "notation, API, or tactic whitelist in Python. Route the revised "
-            "candidate through local Lean/AXLE; emit FORMAL_GAP only when a real "
-            "semantic or dependency blocker remains, and do not claim kernel proof "
-            "from compiler feedback. "
-            + directive_text
-        )
-    return (
-        "Return a locally valid Formalizer packet. For each "
-        "source_to_bridge_premise_derivation_candidate, preserve source-binding "
-        "metadata by copying the runtime memory request id/object into each "
-        "candidate, reference every missing semantic anchor outside comments, "
-        "derive adapter objects from exact source binders instead of putting "
-        "them in the theorem binder list, or report the exact semantic blocker "
-        "instead of emitting a candidate. If validation feedback identifies a "
-        "task-bound source theorem and no complete no-sorry Lean proof "
-        "is available, emit that source theorem as expected_status=FORMAL_GAP "
-        "with an empty Lean sketch and route support work outside the source "
-        "theorem formal_targets slot. Do not mention "
-        "source_to_bridge_premise_derivation_candidates in next_actions unless "
-        "the packet also emits the concrete candidate object with Lean source, "
-        "expected_status=NEEDS_KERNEL_CHECK, and source-binding metadata. If this "
-        "is a repeated proof-hole/phantom-action repair and no source-to-bridge "
-        "metadata can be copied, emit at most one separate helper formal_targets "
-        "entry with source_theorem_target_provenance.source_theorem_target_known=false "
-        "so Lean/LSP can inspect a real artifact without promoting it to source "
-        "theorem proof evidence; remove any next_actions entry that asks the "
-        "runtime to execute absent source_to_bridge_premise_derivation_candidates. "
-        + directive_text
-    )
-
-
-def _formalizer_missing_semantic_anchor_references(errors: list[str]) -> list[str]:
-    anchors: list[str] = []
-    for error in errors:
-        match = re.search(
-            r"missing required semantic anchor references:\s*([^;]+)",
-            str(error),
-        )
-        if not match:
-            continue
-        for raw_anchor in match.group(1).split(","):
-            anchor = raw_anchor.strip().strip(".")
-            if anchor:
-                anchors.append(anchor)
-    return list(dict.fromkeys(anchors))
-
-
-def _formalizer_uninstantiated_adapter_object_binders(errors: list[str]) -> list[str]:
-    binders: list[str] = []
-    for error in errors:
-        match = re.search(
-            r"takes adapter objects as theorem binders instead of deriving them from source binders:\s*([^;]+)",
-            str(error),
-        )
-        if not match:
-            continue
-        for raw_binder in match.group(1).split(","):
-            binder = raw_binder.strip().strip(".")
-            if binder:
-                binders.append(binder)
-    return list(dict.fromkeys(binders))
-
-
-def _formalizer_missing_source_binding_contract_metadata(errors: list[str]) -> bool:
-    return any(
-        "missing source-binding contract metadata" in str(error)
-        for error in errors
-    )
 
 
 def _materialize_formalizer_lean_candidate_artifacts(
@@ -33592,16 +32432,6 @@ def _formalizer_lean_candidate_repair_feedback(
         _formal_blocker_resource_requests_from_feedback(
             prior_environment_feedback or {}
         ),
-        _formal_blocker_resource_requests_from_unknown_identifiers(
-            local_lean_repair_contract=local_lean_repair_contract,
-            manifest=manifest,
-            diagnostics=diagnostics,
-        ),
-        _formal_blocker_resource_requests_from_unavailable_imports(
-            local_lean_repair_contract=local_lean_repair_contract,
-            manifest=manifest,
-            diagnostics=diagnostics,
-        ),
     )
     prior_feedback = (
         prior_environment_feedback if isinstance(prior_environment_feedback, Mapping) else {}
@@ -33714,20 +32544,9 @@ def _formalizer_lean_candidate_repair_feedback(
         "repair_owner_agent": "ProofEngineer",
         "proofengineer_repair_context": proofengineer_repair_context,
         "required_repair": (
-            (
-                "Regenerate the exact immutable parent target declaration named in "
-                "repair_target_identity_contract. The emitted helper may be kept as "
-                "support, but its successful kernel check cannot close the parent "
-                "source theorem. Preserve the parent target IDs and rerun local Lean."
-            )
-            if target_identity_failed
-            else (
-                "Return a repaired non-vacuous Lean candidate that compiles in the "
-                "configured Lean project. Use the exact local Lean diagnostics below; "
-                "do not repeat rejected precheck patterns, unknown namespaces, "
-                "`True := trivial` targets, or claims that are not tied to the "
-                "statistical theorem/subclaim."
-            )
+            "Inspect the exact rejected artifact, immutable target identity, tool "
+            "observations, proof state, and retrieved declarations. Author the next "
+            "candidate or a typed blocker; AgentRuntime does not select the repair."
         ),
         "proof_evidence_status": "FORMALIZER_LEAN_CANDIDATE_REPAIR_FEEDBACK_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
@@ -33786,95 +32605,44 @@ def _formalizer_lean_candidate_repair_feedback(
 def _enrich_repeated_formalizer_lean_candidate_feedback(
     feedback: dict[str, Any],
 ) -> dict[str, Any]:
-    """Route repeated parser failures through compiler-grounded agent repair."""
+    """Record repeated tool failure lineage without prescribing a Lean repair."""
 
     if not isinstance(feedback, dict):
         return feedback
-    if not bool(feedback.get("repeated_formalizer_lean_candidate_failure", False)):
+    if not _bool_like(
+        feedback.get("repeated_formalizer_lean_candidate_failure", False)
+    ):
         return feedback
-    local_lean_repair_contract = feedback.get("local_lean_repair_contract", {})
-    if not isinstance(local_lean_repair_contract, Mapping):
-        return feedback
-    diagnostic_classes = {
-        str(value).strip()
-        for value in local_lean_repair_contract.get("diagnostic_classes", []) or []
-        if str(value).strip()
-    }
-    if "lean_parser_or_syntax_error" not in diagnostic_classes:
-        return feedback
-
-    contract = dict(local_lean_repair_contract)
-    contract["repeated_syntax_failure"] = True
-    contract["repeated_syntax_failure_rule"] = (
-        "A prior repair retry still failed the configured Lean parser. Preserve "
-        "the exact target, consume the verbatim compiler/LSP diagnostics, generate "
-        "a revised candidate, and rerun Lean. Do not replay an identical artifact "
-        "or apply a Python-side syntax, Unicode, API, or tactic whitelist."
+    contract = (
+        dict(feedback.get("local_lean_repair_contract", {}) or {})
+        if isinstance(feedback.get("local_lean_repair_contract", {}), Mapping)
+        else {}
     )
-    contract["minimal_executable_candidate_rule"] = (
-        "If an executable candidate is emitted after this repeated syntax failure, "
-        "it must preserve the target and pass the configured Lean environment before "
-        "any proof claim is promoted."
-    )
-    feedback["local_lean_repair_contract"] = contract
-
-    reroute_options = [
-        str(value).strip()
-        for value in feedback.get("candidate_reroute_options", []) or []
-        if str(value).strip()
-    ]
-    repeated_options = [
-        (
-            "For repeated parser/syntax failure, consume the exact compiler/LSP "
-            "diagnostics and submit a revised target-preserving candidate for another "
-            "Lean check; do not replay the identical failed artifact."
+    feedback["repeated_formalizer_lean_candidate_observation"] = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RepeatedFormalizerToolObservation",
+        "observation_id": "repeated_formalizer_tool_observation:"
+        + stable_hash(
+            [
+                contract.get("observation_id", ""),
+                feedback.get("formalizer_lean_repair_retry_depth", 0),
+                feedback.get("candidate_diagnostics", []),
+            ]
+        )[:20],
+        "parent_observation_id": str(contract.get("observation_id", "") or ""),
+        "retry_depth": int(
+            feedback.get("formalizer_lean_repair_retry_depth", 0) or 0
         ),
-        (
-            "If a real semantic or dependency blocker prevents a revised candidate, "
-            "record FORMAL_GAP with that blocker instead of inventing a proof claim."
-        ),
-    ]
-    for option in repeated_options:
-        if option not in reroute_options:
-            reroute_options.append(option)
-    if reroute_options:
-        feedback["candidate_reroute_options"] = reroute_options
-
-    required_repair = str(feedback.get("required_repair", "") or "").strip()
-    repeated_required = (
-        "Repeated parser/syntax failure escalation: use verbatim compiler/LSP "
-        "feedback to generate a target-preserving revision and rerun Lean; do not "
-        "apply a handwritten syntax whitelist or replay the same artifact."
-    )
-    if repeated_required not in required_repair:
-        feedback["required_repair"] = (
-            f"{required_repair} {repeated_required}".strip()
-        )
-
-    feedback["repeated_syntax_failure_escalation"] = {
-        "escalation_kind": "lean_repeated_parser_or_syntax_failure",
-        "required_behavior": "llm_revision_with_lean_compiler_feedback",
+        "model_owned_next_action": True,
+        "runtime_selected_repair": False,
         "proof_evidence_status": (
-            "FORMALIZER_LEAN_REPEATED_SYNTAX_ESCALATION_NOT_PROOF_EVIDENCE"
+            "REPEATED_FORMALIZER_TOOL_OBSERVATION_NOT_PROOF_EVIDENCE"
         ),
-        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+        "boundary": (
+            "Repeated Lean failure is a model-visible tool observation. It does "
+            "not select a tactic, import, theorem decomposition, or proof."
+        ),
     }
-
-    repeated_requests = _formal_blocker_resource_requests_from_repeated_syntax_failures(
-        feedback
-    )
-    if repeated_requests:
-        feedback["formal_blocker_resource_requests"] = (
-            _merge_formal_blocker_resource_requests(
-                [
-                    row
-                    for row in feedback.get("formal_blocker_resource_requests", [])
-                    or []
-                    if isinstance(row, Mapping)
-                ],
-                repeated_requests,
-            )
-        )
     return feedback
 
 
@@ -34469,7 +33237,7 @@ def _formalizer_environment_feedback_with_formal_source_grounding(
 
     payload = dict(feedback) if isinstance(feedback, Mapping) else {}
     payload = (
-        _formalizer_environment_feedback_with_refreshed_validation_repair_directives(
+        _formalizer_environment_feedback_with_refreshed_validation_feedback(
             payload
         )
     )
@@ -34561,27 +33329,30 @@ def _proofengineer_repair_context_with_planner_action_search_requests(
     return payload
 
 
-def _formalizer_environment_feedback_with_refreshed_validation_repair_directives(
+def _formalizer_environment_feedback_with_refreshed_validation_feedback(
     feedback: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
-    """Regenerate concrete validator directives for carried pending tasks."""
+    """Keep exact validator observations available on carried pending tasks."""
 
     payload = dict(feedback) if isinstance(feedback, Mapping) else {}
     validation_errors = _feedback_text_values(payload.get("validation_errors", []))
     if not validation_errors:
         return payload
-    existing = _feedback_text_values(payload.get("validation_repair_directives", []))
-    derived = _formalizer_packet_validation_repair_directives(validation_errors)
-    if not derived:
+    existing = payload.get("formalizer_validation_feedback", {})
+    if (
+        isinstance(existing, Mapping)
+        and list(existing.get("validation_error_messages", []) or [])
+        == validation_errors
+    ):
         return payload
-    payload["validation_repair_policy"] = formalizer_validation_repair_policy(
-        validation_errors
-    )
-    payload["validation_repair_policy_boundary"] = (
-        FORMALIZER_VALIDATION_REPAIR_POLICY_BOUNDARY
-    )
-    payload["validation_repair_directives"] = list(
-        dict.fromkeys([*existing, *derived])
+    payload["formalizer_validation_feedback"] = (
+        formalizer_validation_feedback_envelope(
+            validation_errors,
+            validation_label=str(payload.get("validation_label", "") or ""),
+            retry_depth=int(
+                payload.get("formalizer_packet_repair_retry_depth", 0) or 0
+            ),
+        )
     )
     return payload
 
@@ -35394,99 +34165,6 @@ def _formalizer_target_shape_contract_from_diagnostics(
     return contract
 
 
-def _formalizer_target_shape_contract_from_validation_errors(
-    validation_errors: Sequence[str],
-    *,
-    question: OpenResearchQuestion,
-) -> dict[str, Any]:
-    """Recover only explicit target-drift contracts from validator feedback."""
-
-    del question
-    validation_text = " ".join(str(error) for error in validation_errors).lower()
-    if not any(
-        marker in validation_text
-        for marker in (
-            "violates target_shape_contract",
-            "source-theorem target drift",
-        )
-    ):
-        return {}
-    return {
-        "contract_kind": "source_theorem_target_preservation",
-        "inferred_from": "formalizer_packet_validation_errors",
-        "for_formal_targets_expected_status_needs_kernel_check": (
-            "A formal target that claims NEEDS_KERNEL_CHECK for a known source theorem "
-            "must preserve the task-bound objects, assumptions, quantifiers, and "
-            "conclusion. It may not replace the theorem with a narrower helper lemma "
-            "or a proof-hole sketch."
-        ),
-        "source_theorem_target_action": (
-            "Emit a formal_targets entry for the known source theorem only if the Lean "
-            "statement preserves the supplied task-bound semantic contract and contains no "
-            "`sorry`, `admit`, `by?`, or `exact?` holes; otherwise emit that source "
-            "theorem as expected_status=FORMAL_GAP with an empty Lean sketch."
-        ),
-        "helper_lemma_action": (
-            "Move narrower support, typing, or monotonicity helpers out of the "
-            "source-theorem formal_targets slot. Put executable support work only in "
-            "source_to_bridge_premise_derivation_candidates when exact source-binding "
-            "metadata and semantic anchors are available; otherwise use non-executable "
-            "gap/dependency planning. If live capability-eval must keep local Lean/LSP "
-            "tooling exercised after a repeated proof-hole failure, a separate helper "
-            "formal_targets entry may be emitted only with "
-            "source_theorem_target_provenance.source_theorem_target_known=false; it is "
-            "diagnostic Lean evidence, not source-theorem proof evidence."
-        ),
-        "helper_formal_target_escape_hatch": {
-            "when_allowed": (
-                "repeated source-theorem proof-hole or target-shape repair where the "
-                "source theorem itself is emitted as FORMAL_GAP with an empty Lean sketch"
-            ),
-            "required_status": "NEEDS_KERNEL_CHECK",
-            "required_provenance": {
-                "source_theorem_target_known": False,
-                "target_lean_declaration": "",
-                "source_theorem_goal_id": "",
-            },
-            "not_proof_evidence": (
-                "This helper can trigger local Lean/LSP diagnostics but must not be "
-                "counted as source theorem or frontier theorem proof evidence."
-            ),
-        },
-        "forbidden_output_action": (
-            "Do not satisfy a source-theorem repair by emitting a proof-hole theorem "
-            "or helper lemma as formal_targets with expected_status=NEEDS_KERNEL_CHECK."
-        ),
-        "allowed_support_channels": [
-            "source_to_bridge_premise_derivation_candidates",
-            "lemma_dependency_plan",
-            "proof_bank_obligation_requests",
-            "gap_taxonomy",
-        ],
-        "forbidden_replacement_shapes": [
-            "Lean sketch containing sorry/admit/by?/exact?",
-            "result omitting task-bound objects or assumptions",
-            "result with weaker or different quantifiers",
-            "typing lemma",
-            "monotonicity lemma",
-            "helper lemma without the task-bound source-theorem conclusion",
-        ],
-        "if_not_feasible": (
-            "Return expected_status=FORMAL_GAP for the source theorem target and list "
-            "the missing semantic premise/import/bridge. Do not create next_actions "
-            "for absent source_to_bridge_premise_derivation_candidates."
-        ),
-        "fail_closed_source_theorem_formal_target": {
-            "expected_status": "FORMAL_GAP",
-            "lean_statement_sketch": "",
-            "required_metadata": (
-                "Preserve source_theorem_target_provenance for the original source "
-                "theorem and explain the exact missing premise/API/import/bridge in "
-                "gap_taxonomy or dependency planning."
-            ),
-        },
-    }
-
 
 def _formalizer_target_drift_repair_contract_from_target_shape_contract(
     target_shape_contract: Mapping[str, Any],
@@ -35535,203 +34213,38 @@ def _formalizer_target_drift_repair_contract_from_target_shape_contract(
 def _formalizer_local_lean_repair_contract_from_diagnostics(
     diagnostics: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Build a focused repair contract from local Lean diagnostics."""
+    """Carry failed Lean tool observations without deriving a repair strategy."""
 
     repair_diagnostics = [
-        row
+        dict(row)
         for row in diagnostics
         if _formalizer_diagnostic_row_requires_repair(row)
     ]
     if not repair_diagnostics:
         return {}
-    local_lean_text = " ".join(
-        " ".join(
-            [
-                " ".join(
-                    str(error)
-                    for error in row.get("precheck_errors", []) or []
-                ),
-                str(row.get("precheck_status", "") or ""),
-                str(row.get("local_lean_exit_status", "") or ""),
-                str(row.get("local_lean_stdout_excerpt", "") or ""),
-                str(row.get("local_lean_stderr_excerpt", "") or ""),
-            ]
-        )
-        for row in repair_diagnostics
-    ).lower()
-    if not local_lean_text.strip():
-        return {}
-    classes: list[str] = []
-    if (
-        "unexpected token" in local_lean_text
-        or "expected token" in local_lean_text
-        or "expected term" in local_lean_text
-        or "parser/syntax" in local_lean_text
-        or "parser error" in local_lean_text
-        or "syntax error" in local_lean_text
-    ):
-        classes.append("lean_parser_or_syntax_error")
-    if (
-        "unknown module prefix" in local_lean_text
-        or "no directory" in local_lean_text
-        or "imports unavailable module" in local_lean_text
-        or "imports unavailable umbrella module" in local_lean_text
-        or "unavailable module" in local_lean_text
-        or (
-            "object file" in local_lean_text
-            and "of module" in local_lean_text
-            and "does not exist" in local_lean_text
-        )
-    ):
-        classes.append("lean_import_environment_missing")
-    if (
-        "unknown identifier" in local_lean_text
-        or "unknown constant" in local_lean_text
-        or "lean.unknownidentifier" in local_lean_text
-    ):
-        classes.append("lean_unknown_identifier")
-    if "unknown tactic" in local_lean_text:
-        classes.append("lean_unknown_tactic")
-    if (
-        "lean.synthinstancefailed" in local_lean_text
-        or "failed to synthesize instance" in local_lean_text
-    ):
-        classes.append("lean_typeclass_synthesis_failed")
-    if "type mismatch" in local_lean_text or "application type mismatch" in local_lean_text:
-        classes.append("lean_type_mismatch")
-    if "timeout" in local_lean_text:
-        classes.append("lean_timeout")
-    if "source-theorem target drift" in local_lean_text:
-        classes.append("formalizer_source_theorem_target_drift")
-    if not classes:
-        classes.append("lean_local_check_failed")
-    contract: dict[str, Any] = {
-        "contract_kind": "formalizer_local_lean_repair",
-        "diagnostic_classes": classes,
-        "required_behavior": (
-            "Repair the exact local Lean diagnostic. Do not regenerate a broader theorem "
-            "unless it directly removes the reported parser/import/identifier/type error."
-        ),
-        "if_full_source_theorem_remains_too_large": (
-            "Emit expected_status=FORMAL_GAP for the source theorem and route a smaller "
-            "support lemma or premise-derivation task with explicit semantic anchors."
-        ),
-    }
-    if "lean_parser_or_syntax_error" in classes:
-        contract["syntax_repair_rule"] = (
-            "Use the verbatim Lean parser/LSP diagnostics to revise the candidate, "
-            "then rerun the configured Lean environment. Do not apply a Python-side "
-            "ASCII, Unicode, notation, API, or tactic whitelist."
-        )
-    if "lean_import_environment_missing" in classes:
-        contract["import_repair_rule"] = (
-            "Repair unavailable imports before changing theorem content. Use only imports "
-            "known to the configured Lake project, apply any validator-suggested similar "
-            "module path when it matches the intended dependency, or remove unused guessed "
-            "imports. If no valid import/dependency exists, emit a FORMAL_GAP/dependency "
-            "blocker instead of retrying the same module path."
-        )
-        unavailable_prefixes = _formalizer_unavailable_import_prefixes_from_diagnostics(
-            repair_diagnostics
-        )
-        mathlib_root_import_unavailable = (
-            "Mathlib" in unavailable_prefixes
-            and _formalizer_diagnostics_import_exact_module(
-                repair_diagnostics,
-                "Mathlib",
-            )
-        )
-        blocked_import_prefixes = [
-            value
-            for value in unavailable_prefixes
-            if not (value == "Mathlib" and mathlib_root_import_unavailable)
-        ]
-        if blocked_import_prefixes:
-            contract["blocked_import_prefixes"] = blocked_import_prefixes
-            contract["blocked_import_repair_rule"] = (
-                "Do not import any blocked prefix or submodule in the next candidate. "
-                "Use no imports, an import already verified in this same configured "
-                "Lake project, or emit a FORMAL_GAP/dependency blocker."
-            )
-        if mathlib_root_import_unavailable or "Mathlib" in unavailable_prefixes:
-            contract["mathlib_import_unavailable"] = True
-            if mathlib_root_import_unavailable:
-                contract["mathlib_root_import_unavailable"] = True
-            contract["mathlib_repair_rule"] = (
-                "The configured Lake environment reported the Mathlib import root as "
-                "unavailable. Do not retry the umbrella import `import Mathlib`. "
-                "This does not block narrow `Mathlib.*` module imports that are "
-                "verified in the configured Lake project or listed as "
-                "suggested_import_replacements. If the task-bound theorem still "
-                "needs unavailable APIs, fail closed with "
-                "FORMAL_GAP rather than guessing imports."
-            )
-        verified_narrow_imports = _formalizer_verified_narrow_imports_from_diagnostics(
-            repair_diagnostics
-        )
-        if verified_narrow_imports:
-            contract["verified_narrow_imports"] = verified_narrow_imports
-            contract["verified_narrow_import_rule"] = (
-                "If the next candidate needs Mathlib APIs after an umbrella-import "
-                "rejection, import one of these verified narrow modules exactly, and "
-                "only when it matches the dependency. Do not retry `import Mathlib`."
-            )
-        import_replacements = _formalizer_import_replacement_suggestions(
-            repair_diagnostics
-        )
-        if import_replacements:
-            contract["suggested_import_replacements"] = import_replacements
-    if "lean_unknown_identifier" in classes or "lean_type_mismatch" in classes:
-        contract["api_repair_rule"] = (
-            "Do not guess Lean or Mathlib APIs. Use retrieved declarations and exact "
-            "compiler/proof-state feedback; prefer an already kernel-verified bridge or "
-            "helper theorem, a smaller local lemma with known identifiers, or a "
-            "FORMAL_GAP naming the missing API/dependency."
-        )
-        unknown_identifiers = _formalizer_unknown_identifiers_from_diagnostics(
-            repair_diagnostics
-        )
-        if unknown_identifiers:
-            contract["unknown_identifiers"] = unknown_identifiers
-            contract["unknown_identifier_repair_rule"] = (
-                "Do not reference any listed unknown identifier again. Replace it with a "
-                "verified existing theorem/lemma from the configured Lean project, prove "
-                "the needed fact directly using known primitives, or emit a FORMAL_GAP "
-                "naming the missing API."
-            )
-    if "lean_unknown_tactic" in classes:
-        contract["unknown_tactic_repair_rule"] = (
-            "Use the exact unknown-tactic diagnostic, available imports, retrieved "
-            "local declarations, and Lean proof state to generate a revised proof. "
-            "Do not substitute a hardcoded tactic list."
-        )
-    if "lean_typeclass_synthesis_failed" in classes:
-        contract["typeclass_repair_rule"] = (
-            "Use the exact typeclass-synthesis diagnostic, configured imports, "
-            "retrieved local instances/declarations, and Lean proof state to revise "
-            "the candidate. Do not infer a replacement type or instance in Python."
-        )
-    if "lean_timeout" in classes:
-        contract["timeout_repair_rule"] = (
-            "Treat timeout as a candidate-size/search-shape failure, not as proof evidence "
-            "and not as permission to simply raise the timeout. Replace one broad source "
-            "theorem sketch with a smaller checkable lemma/premise derivation, use narrow "
-            "imports when possible, and keep the source theorem target as FORMAL_GAP "
-            "unless the repaired candidate still preserves the task-bound conclusion."
-        )
-        contract["timeout_next_candidate_shape"] = (
-            "Prefer a compact theorem for one named dependency, or a source-to-bridge "
-            "premise derivation tied to explicit source semantic anchors. Do not retry "
-            "the same large full theorem with `import Mathlib` unchanged."
-        )
-    if "formalizer_source_theorem_target_drift" in classes:
-        contract["target_drift_repair_rule"] = (
-            "Do not present a narrower helper lemma as the source theorem formal target. "
-            "Either preserve the task-bound semantic contract, or mark the source theorem "
-            "as FORMAL_GAP and route the helper through a support-lemma or source-to-bridge "
-            "premise channel."
-        )
-    return contract
+    diagnostic_classes: list[str] = []
+    for row in repair_diagnostics:
+        for key in ("local_lean_diagnostic_classes", "diagnostic_classes"):
+            for value in row.get(key, []) or []:
+                text = str(value).strip()
+                if text and text not in diagnostic_classes:
+                    diagnostic_classes.append(text)
+        for diagnostic in row.get("diagnostics", []) or []:
+            if not isinstance(diagnostic, Mapping):
+                continue
+            text = str(
+                diagnostic.get("code", "")
+                or diagnostic.get("class", "")
+                or diagnostic.get("kind", "")
+            ).strip()
+            if text and text not in diagnostic_classes:
+                diagnostic_classes.append(text)
+    return formalizer_tool_observation_envelope(
+        repair_diagnostics,
+        tool_name="lean",
+        producer="configured_local_lean_or_lsp",
+        diagnostic_classes=diagnostic_classes,
+    )
 
 
 def _formalizer_diagnostic_row_requires_repair(row: Mapping[str, Any]) -> bool:
@@ -35756,227 +34269,53 @@ def _formalizer_merge_local_lean_repair_contracts(
     primary: Mapping[str, Any] | None,
     derived: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
-    """Preserve an existing contract while adding sharper diagnostic details."""
+    """Merge only typed observations and provider-supplied diagnostic classes."""
 
-    primary_contract = without_legacy_python_lean_strategy_fields(primary)
-    derived_contract = dict(derived or {})
-    if not primary_contract:
-        return derived_contract
-    if not derived_contract:
-        return primary_contract
-
-    merged = dict(primary_contract)
-    primary_classes = [
-        str(value).strip()
-        for value in primary_contract.get("diagnostic_classes", []) or []
-        if str(value).strip()
+    contracts = [
+        contract
+        for contract in (primary, derived)
+        if isinstance(contract, Mapping) and contract
     ]
-    derived_classes = [
-        str(value).strip()
-        for value in derived_contract.get("diagnostic_classes", []) or []
-        if str(value).strip()
-    ]
-    classes: list[str] = []
-    for value in [*primary_classes, *derived_classes]:
-        if value == "lean_local_check_failed" and any(
-            cls != "lean_local_check_failed" for cls in [*primary_classes, *derived_classes]
-        ):
-            continue
-        if value not in classes:
-            classes.append(value)
-    if classes:
-        merged["diagnostic_classes"] = classes
-
-    for key, value in derived_contract.items():
-        if key == "diagnostic_classes":
-            continue
-        if key in {
-            "blocked_import_prefixes",
-            "unknown_identifiers",
-            "verified_narrow_imports",
-        }:
-            existing_values = [
-                str(item).strip()
-                for item in merged.get(key, []) or []
-                if str(item).strip()
-            ]
-            for item in value or []:
-                item_text = str(item).strip()
-                if item_text and item_text not in existing_values:
-                    existing_values.append(item_text)
-            if existing_values:
-                merged[key] = existing_values
-            continue
-        if key not in merged or not merged.get(key):
-            merged[key] = value
-    return merged
-
-
-def _formalizer_unavailable_import_prefixes_from_diagnostics(
-    diagnostics: Sequence[Mapping[str, Any]],
-) -> list[str]:
-    """Extract unavailable Lean module prefixes from precheck/local Lean output."""
-
-    patterns = (
-        re.compile(
-            r"unknown module prefix\s+[`'](?P<prefix>[A-Za-z0-9_.]+)[`']",
-            re.IGNORECASE,
-        ),
-        re.compile(
-            r"No directory\s+[`'](?P<prefix>[A-Za-z0-9_.]+)[`']\s+or file",
-            re.IGNORECASE,
-        ),
-        re.compile(
-            r"Lean candidate imports unavailable module in configured project:\s*"
-            r"(?P<prefix>[A-Za-z0-9_.]+)",
-            re.IGNORECASE,
-        ),
-        re.compile(
-            r"Lean candidate imports unavailable umbrella module in configured project:\s*"
-            r"(?P<prefix>[A-Za-z0-9_.]+)",
-            re.IGNORECASE,
-        ),
-        re.compile(
-            r"object file\s+[`']?[^`']+?[`']?\s+of module\s+"
-            r"(?P<prefix>[A-Za-z0-9_.]+)\s+does not exist",
-            re.IGNORECASE,
-        ),
-    )
-    prefixes: list[str] = []
-    seen: set[str] = set()
-    for row in diagnostics:
-        text = " ".join(
-            [
-                " ".join(str(error) for error in row.get("precheck_errors", []) or []),
-                str(row.get("local_lean_stdout", "") or ""),
-                str(row.get("local_lean_stderr", "") or ""),
-                str(row.get("local_lean_stdout_excerpt", "") or ""),
-                str(row.get("local_lean_stderr_excerpt", "") or ""),
-            ]
+    if not contracts:
+        return {}
+    observations: list[dict[str, Any]] = []
+    diagnostic_classes: list[str] = []
+    for contract in contracts:
+        for row in contract.get("observations", []) or []:
+            if isinstance(row, Mapping):
+                observations.append(dict(row))
+        for value in contract.get("diagnostic_classes", []) or []:
+            text = str(value).strip()
+            if text and text not in diagnostic_classes:
+                diagnostic_classes.append(text)
+    if observations:
+        return formalizer_tool_observation_envelope(
+            observations,
+            tool_name="lean",
+            producer="configured_local_lean_or_lsp",
+            diagnostic_classes=diagnostic_classes,
         )
-        for pattern in patterns:
-            for match in pattern.finditer(text):
-                prefix = match.group("prefix").strip().strip(".")
-                if prefix and prefix not in seen:
-                    seen.add(prefix)
-                    prefixes.append(prefix)
-    return prefixes[:8]
 
-
-def _formalizer_diagnostics_import_exact_module(
-    diagnostics: Sequence[Mapping[str, Any]],
-    module: str,
-) -> bool:
-    pattern = re.compile(r"^\s*import\s+(?P<modules>.+?)\s*$")
-    for row in diagnostics:
-        source = str(row.get("lean_source_excerpt", "") or "")
-        for line in source.splitlines():
-            match = pattern.match(line)
-            if not match:
-                continue
-            modules = [value.strip() for value in match.group("modules").split()]
-            if module in modules:
-                return True
-    return False
-
-
-def _formalizer_verified_narrow_imports_from_diagnostics(
-    diagnostics: Sequence[Mapping[str, Any]],
-) -> list[str]:
-    """Extract already-verified narrow imports from umbrella-import prechecks."""
-
-    pattern = re.compile(
-        r"verified narrow module\(s\):\s*(?P<modules>[^;\n]+)",
-        re.IGNORECASE,
-    )
-    modules: list[str] = []
-    seen: set[str] = set()
-    for row in diagnostics:
-        for error in row.get("precheck_errors", []) or []:
-            for match in pattern.finditer(str(error)):
-                for raw_module in match.group("modules").split(","):
-                    module = raw_module.strip().strip(".")
-                    if not re.fullmatch(
-                        r"[A-Za-z_][A-Za-z0-9_']*(?:\.[A-Za-z_][A-Za-z0-9_']*)+",
-                        module,
-                    ):
-                        continue
-                    if module and module not in seen:
-                        seen.add(module)
-                        modules.append(module)
-                        if len(modules) >= 8:
-                            return modules
-    return modules
-
-
-def _formalizer_import_replacement_suggestions(
-    diagnostics: Sequence[Mapping[str, Any]],
-) -> list[dict[str, Any]]:
-    """Extract structured import replacement suggestions from precheck messages."""
-
-    suggestions: list[dict[str, Any]] = []
-    seen: set[tuple[str, tuple[str, ...]]] = set()
-    pattern = re.compile(
-        r"Lean candidate imports unavailable module in configured project:\s*"
-        r"(?P<module>[A-Za-z0-9_'.]+)"
-        r"(?:;\s*available similar module\(s\):\s*(?P<similar>[^;]+))?"
-    )
-    for row in diagnostics:
-        for error in row.get("precheck_errors", []) or []:
-            match = pattern.search(str(error))
-            if not match:
-                continue
-            module = match.group("module").strip()
-            similar = tuple(
-                candidate.strip()
-                for candidate in (match.group("similar") or "").split(",")
-                if candidate.strip()
-            )
-            key = (module, similar)
-            if key in seen:
-                continue
-            seen.add(key)
-            suggestions.append(
-                {
-                    "unavailable_module": module,
-                    "suggested_modules": list(similar),
-                    "repair_action": (
-                        "replace the unavailable import with the first matching "
-                        "suggested module when it provides the intended dependency; "
-                        "otherwise remove the guessed import or emit a dependency FORMAL_GAP"
-                    ),
-                }
-            )
-    return suggestions
-
-
-def _formalizer_unknown_identifiers_from_diagnostics(
-    diagnostics: Sequence[Mapping[str, Any]],
-) -> list[str]:
-    """Extract unknown Lean identifiers/constants from local Lean output."""
-
-    names: list[str] = []
-    seen: set[str] = set()
-    pattern = re.compile(
-        r"Unknown\s+(?:identifier|constant)\s+[`'](?P<name>[A-Za-z0-9_.'·]+)[`']",
-        re.IGNORECASE,
-    )
-    for row in diagnostics:
-        text = " ".join(
-            str(row.get(key, "") or "")
-            for key in (
-                "local_lean_stdout",
-                "local_lean_stderr",
-                "local_lean_stdout_excerpt",
-                "local_lean_stderr_excerpt",
-            )
-        )
-        for match in pattern.finditer(text):
-            name = match.group("name").strip()
-            if name and name not in seen:
-                seen.add(name)
-                names.append(name)
-    return names[:8]
+    cleaned = without_legacy_python_lean_strategy_fields(contracts[-1])
+    return {
+        key: deepcopy(value)
+        for key, value in cleaned.items()
+        if key
+        in {
+            "schema_version",
+            "artifact_kind",
+            "observation_id",
+            "producer",
+            "tool_name",
+            "observations",
+            "diagnostic_classes",
+            "diagnostic_classes_source",
+            "model_owned_next_action",
+            "runtime_selected_repair",
+            "repair_authority",
+            "boundary",
+        }
+    }
 
 
 def _formalizer_declared_lean_imports(row: Mapping[str, Any]) -> list[str]:
@@ -43428,18 +41767,6 @@ def run_research_agent_runtime(
         agenda_rows.extend(pseudo_formal_next_action_rows)
     if pseudo_formal_learning_rows:
         learning_rows.extend(pseudo_formal_learning_rows)
-    formalizer_pf_copy_ready_retry_next_action_rows = (
-        _runtime_formalizer_pf_copy_ready_retry_next_action_agenda_rows(
-            learning_rows
-        )
-    )
-    if formalizer_pf_copy_ready_retry_next_action_rows:
-        agenda_rows.extend(formalizer_pf_copy_ready_retry_next_action_rows)
-        learning_rows.extend(
-            _runtime_generated_next_action_learning_rows(
-                formalizer_pf_copy_ready_retry_next_action_rows
-            )
-        )
     source_theorem_formal_environment_work_order_rows = (
         _runtime_source_theorem_formal_environment_work_order_rows(results)
     )
@@ -64688,21 +63015,6 @@ def _critic_repair_feedback(
             ),
             formal_blocker_resource_requests,
         )
-    if formalizer_local_lean_contract:
-        local_lean_manifest_context = dict(formalization_manifest)
-        local_lean_manifest_context["question"] = {
-            "id": question.id,
-            "title": question.title,
-        }
-        formal_blocker_resource_requests = _merge_formal_blocker_resource_requests(
-            formal_blocker_resource_requests,
-            _formal_blocker_resource_requests_from_unavailable_imports(
-                local_lean_repair_contract=formalizer_local_lean_contract,
-                manifest=local_lean_manifest_context,
-                diagnostics=formalizer_candidate_diagnostics,
-                source="critic_local_lean_formalization_feedback",
-            ),
-        )
     semantic_anchor_blocker_feedback = _critic_semantic_anchor_blocker_feedback(
         formal_blocker_resource_requests
     )
@@ -65094,15 +63406,6 @@ def _formal_blocker_resource_requests_from_source_theorem_proof_body_adapter_fee
             if str(value).strip()
         ]
         exact_import_prefixes = [unavailable_import] if unavailable_import else []
-        if not exact_import_prefixes:
-            exact_import_prefixes = _formalizer_unavailable_import_prefixes_from_diagnostics(
-                [
-                    {
-                        "local_lean_stdout_excerpt": diagnostic_text,
-                        "local_lean_stderr_excerpt": diagnostic_text,
-                    }
-                ]
-            )
         candidate_import_prefixes = list(dict.fromkeys(candidate_imports))
         candidate_import_source = (
             "adapter_candidate_imports" if candidate_import_prefixes else ""
@@ -65589,300 +63892,6 @@ def _formal_blocker_target_ids_from_manifest_and_diagnostics(
             or question_target_ids
         )
     )
-
-
-def _formal_blocker_resource_requests_from_unknown_identifiers(
-    *,
-    local_lean_repair_contract: Mapping[str, Any],
-    manifest: Mapping[str, Any],
-    diagnostics: Sequence[Mapping[str, Any]],
-) -> list[dict[str, Any]]:
-    """Convert local Lean unknown identifiers into typed prover/RAG requests."""
-
-    if not isinstance(local_lean_repair_contract, Mapping):
-        return []
-    target_ids = _formal_blocker_target_ids_from_manifest_and_diagnostics(
-        manifest,
-        diagnostics,
-    )
-    rows: list[dict[str, Any]] = []
-    source_manifest_id = str(manifest.get("manifest_id", "") or "")
-    for unknown in local_lean_repair_contract.get("unknown_identifiers", []) or []:
-        identifier = str(unknown).strip()
-        if not identifier:
-            continue
-        blocker = (
-            f"{identifier} unknown identifier in configured Lean project during "
-            "local Lean repair; do not reuse it without a verified local declaration "
-            "or smaller primitive."
-        )
-        fingerprint = stable_hash(
-            [
-                "formalizer_lean_candidate_local_lean_feedback",
-                "lean_unknown_identifier",
-                identifier,
-                source_manifest_id,
-            ]
-        )[:20]
-        rows.append(
-            {
-                "request_id": f"formal_blocker_resource_request:{fingerprint}",
-                "source": "formalizer_lean_candidate_local_lean_feedback",
-                "blocker_kind": "lean_unknown_identifier",
-                "blocker": blocker,
-                "next_owner": "ProofEngineer",
-                "target_ids": target_ids,
-                "formal_source_queries": _formal_blocker_resource_request_queries(
-                    blocker,
-                    blocker_kind="lean_unknown_identifier",
-                    target_ids=target_ids,
-                ),
-                "recommended_tools": [
-                    "formal_source_retriever",
-                    "proof_search",
-                    "lean_lsp_mcp_when_configured",
-                    "local_lean_or_axle",
-                ],
-                "required_resolution": (
-                    "Retrieve or identify a verified local declaration/import, "
-                    "derive the needed fact from known primitives, or keep the "
-                    "affected theorem as FORMAL_GAP with the exact unknown identifier "
-                    "named. Do not emit an executable candidate that reuses the "
-                    "unknown identifier."
-                ),
-                "proof_evidence_status": (
-                    "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
-                ),
-                "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-            }
-        )
-    return rows
-
-
-def _formal_blocker_resource_requests_from_unavailable_imports(
-    *,
-    local_lean_repair_contract: Mapping[str, Any],
-    manifest: Mapping[str, Any],
-    diagnostics: Sequence[Mapping[str, Any]],
-    source: str = "formalizer_lean_candidate_local_lean_feedback",
-) -> list[dict[str, Any]]:
-    """Convert unavailable Lean imports into typed prover/RAG requests."""
-
-    if not isinstance(local_lean_repair_contract, Mapping):
-        return []
-    diagnostic_classes = {
-        str(value)
-        for value in local_lean_repair_contract.get("diagnostic_classes", []) or []
-        if str(value).strip()
-    }
-    if "lean_import_environment_missing" not in diagnostic_classes:
-        return []
-    target_ids = _formal_blocker_target_ids_from_manifest_and_diagnostics(
-        manifest,
-        diagnostics,
-    )
-    replacements = [
-        row
-        for row in local_lean_repair_contract.get(
-            "suggested_import_replacements", []
-        )
-        or []
-        if isinstance(row, Mapping)
-    ]
-    blocked_modules = [
-        str(value).strip()
-        for value in local_lean_repair_contract.get("blocked_import_prefixes", []) or []
-        if str(value).strip()
-    ]
-    for row in replacements:
-        module = str(row.get("unavailable_module", "") or "").strip()
-        if module:
-            blocked_modules.append(module)
-    blocked_modules = list(dict.fromkeys(blocked_modules))
-    if not blocked_modules and local_lean_repair_contract.get(
-        "mathlib_root_import_unavailable", False
-    ):
-        blocked_modules = ["Mathlib"]
-    rows: list[dict[str, Any]] = []
-    source_manifest_id = str(manifest.get("manifest_id", "") or "")
-    source_label = str(source or "formalizer_lean_candidate_local_lean_feedback")
-    for module in blocked_modules:
-        replacement = next(
-            (
-                row
-                for row in replacements
-                if str(row.get("unavailable_module", "") or "").strip() == module
-            ),
-            {},
-        )
-        suggested_modules = [
-            str(value).strip()
-            for value in (
-                replacement.get("suggested_modules", [])
-                if isinstance(replacement, Mapping)
-                else []
-            )
-            or []
-            if str(value).strip()
-        ]
-        blocker = (
-            f"{module} unavailable import in configured Lean project during "
-            "candidate precheck/local Lean repair."
-        )
-        if suggested_modules:
-            blocker += " Suggested replacement module(s): " + ", ".join(
-                suggested_modules[:4]
-            )
-            blocker += ". Use a suggested module only if it provides the intended dependency."
-        else:
-            blocker += " Use a verified local import or fail closed with a dependency FORMAL_GAP."
-        fingerprint = stable_hash(
-            [
-                source_label,
-                "lean_unavailable_import",
-                module,
-                suggested_modules,
-                source_manifest_id,
-            ]
-        )[:20]
-        formal_source_queries = _formal_blocker_resource_request_queries(
-            blocker,
-            blocker_kind="lean_unavailable_import",
-            target_ids=target_ids,
-        )
-        for value in [module, *suggested_modules]:
-            query = f"{value} Lean import"
-            if query not in formal_source_queries:
-                formal_source_queries.append(query)
-        rows.append(
-            {
-                "request_id": f"formal_blocker_resource_request:{fingerprint}",
-                "source": source_label,
-                "blocker_kind": "lean_unavailable_import",
-                "blocker": blocker,
-                "next_owner": "ProofEngineer",
-                "target_ids": target_ids,
-                "unavailable_import": module,
-                "suggested_import_replacements": suggested_modules,
-                "formal_source_queries": formal_source_queries[:5],
-                "recommended_tools": [
-                    "formal_source_retriever",
-                    "lean_lsp_mcp_when_configured",
-                    "local_lean_or_axle",
-                ],
-                "required_resolution": (
-                    "Replace the unavailable import with a verified import in the "
-                    "configured Lake project, remove the guessed import if unused, "
-                    "or keep the affected theorem as FORMAL_GAP with the exact "
-                    "missing dependency named. Do not emit an executable candidate "
-                    "that repeats the unavailable import."
-                ),
-                "proof_evidence_status": (
-                    "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
-                ),
-                "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-            }
-        )
-    return rows
-
-
-def _formal_blocker_resource_requests_from_repeated_syntax_failures(
-    feedback: Mapping[str, Any],
-) -> list[dict[str, Any]]:
-    """Convert repeated parser failures into typed non-proof prover work."""
-
-    if not isinstance(feedback, Mapping):
-        return []
-    contract = (
-        feedback.get("local_lean_repair_contract", {})
-        if isinstance(feedback.get("local_lean_repair_contract", {}), Mapping)
-        else {}
-    )
-    if not contract.get("repeated_syntax_failure", False):
-        return []
-    diagnostics = [
-        row
-        for row in feedback.get("candidate_diagnostics", []) or []
-        if isinstance(row, Mapping)
-    ]
-    target_ids: list[str] = []
-    for row in diagnostics[:5]:
-        for key in ("target_lean_declaration", "candidate_id"):
-            value = str(row.get(key, "") or "").strip()
-            if value and value not in target_ids:
-                target_ids.append(value)
-    diagnostic_excerpts = [
-        str(
-            row.get("local_lean_stdout_excerpt", "")
-            or row.get("local_lean_stderr_excerpt", "")
-            or ""
-        ).strip()
-        for row in diagnostics[:3]
-        if str(
-            row.get("local_lean_stdout_excerpt", "")
-            or row.get("local_lean_stderr_excerpt", "")
-            or ""
-        ).strip()
-    ]
-    target_text = ", ".join(target_ids[:4]) or "materialized Lean candidate"
-    blocker = (
-        "Repeated Lean parser/syntax failure after a Formalizer repair retry for "
-        f"{target_text}. Consume the exact diagnostic, revise the candidate while "
-        "preserving the target, and rerun local Lean; do not replay the same artifact "
-        "or apply a handwritten syntax whitelist."
-    )
-    if diagnostic_excerpts:
-        blocker += " Latest diagnostic excerpt: " + diagnostic_excerpts[0][:320]
-    request_id = (
-        "formal_blocker_resource_request:"
-        + stable_hash(
-            [
-                "formalizer_lean_candidate_local_lean_feedback",
-                "lean_repeated_parser_or_syntax_failure",
-                target_ids,
-                feedback.get("source_manifest_id", ""),
-            ]
-        )[:20]
-    )
-    formal_source_queries = _formal_blocker_resource_request_queries(
-        blocker,
-        blocker_kind="lean_repeated_parser_or_syntax_failure",
-        target_ids=target_ids,
-    )
-    for query in (
-        "Lean parser diagnostic theorem statement repair",
-        "Lean LSP goal compiler feedback proof repair",
-        "Lean local declaration source retrieval",
-    ):
-        if query not in formal_source_queries:
-            formal_source_queries.append(query)
-    return [
-        {
-            "request_id": request_id,
-            "source": "formalizer_lean_candidate_local_lean_feedback",
-            "blocker_kind": "lean_repeated_parser_or_syntax_failure",
-            "blocker": blocker,
-            "next_owner": "ProofEngineer",
-            "target_ids": target_ids,
-            "formal_source_queries": formal_source_queries[:5],
-            "recommended_tools": [
-                "local_lean_or_axle",
-                "lean_lsp_mcp_when_configured",
-                "formal_source_retriever",
-                "proof_search",
-            ],
-            "required_resolution": (
-                "Generate a revised target-preserving candidate from the verbatim "
-                "compiler/LSP diagnostics and rerun local Lean. If a real dependency "
-                "or semantic blocker remains, keep the theorem as FORMAL_GAP with "
-                "that blocker named."
-            ),
-            "proof_evidence_status": (
-                "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
-            ),
-            "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-        }
-    ]
 
 
 def _exact_semantic_formal_blocker_request_key(
@@ -75414,70 +73423,25 @@ def _runtime_learning_memory_formalizer_pseudo_formal_packet_component_gate_feed
         gate_summary = _runtime_component_gate_summary(
             _runtime_learning_component_gate_source(row, input_summary)
         )
-        raw_failure_seed = row.get(
-            "pseudo_formal_failure_concrete_lane_routable_repair_seed",
-            input_summary.get(
-                "pseudo_formal_failure_concrete_lane_routable_repair_seed",
-                {},
-            ),
+        raw_validation_feedback = row.get(
+            "formalizer_validation_feedback",
+            input_summary.get("formalizer_validation_feedback", {}),
         )
-        failure_seed = (
-            dict(raw_failure_seed)
-            if isinstance(raw_failure_seed, Mapping)
+        validation_feedback = (
+            dict(raw_validation_feedback)
+            if isinstance(raw_validation_feedback, Mapping)
             else {}
         )
-        raw_copy_contract = row.get(
-            "pseudo_formal_failure_validator_ready_copy_contract",
-            input_summary.get(
-                "pseudo_formal_failure_validator_ready_copy_contract",
-                {},
-            ),
-        )
-        validator_ready_copy_contract = (
-            dict(raw_copy_contract)
-            if isinstance(raw_copy_contract, Mapping)
-            else {}
-        )
-        raw_copy_contract_summary = row.get(
-            "pseudo_formal_failure_copy_contract_summary",
-            input_summary.get(
-                "pseudo_formal_failure_copy_contract_summary",
-                {},
-            ),
-        )
-        if isinstance(raw_copy_contract_summary, Mapping) and raw_copy_contract_summary:
-            copy_contract_summary = dict(raw_copy_contract_summary)
-        else:
-            copy_contract_summary = (
-                _runtime_pseudo_formal_failure_copy_contract_summary(
-                    repair_seed=failure_seed,
-                    validator_ready_copy_contract=validator_ready_copy_contract,
-                )
-            )
-        raw_issue_summary = row.get(
-            "pseudo_formal_failure_validation_issue_summary",
-            input_summary.get(
-                "pseudo_formal_failure_validation_issue_summary",
-                {},
-            ),
-        )
-        issue_summary = (
-            dict(raw_issue_summary)
-            if isinstance(raw_issue_summary, Mapping)
-            else {}
-        )
-        issue_actions = [
-            dict(item)
-            for item in row.get(
-                "pseudo_formal_failure_issue_specific_repair_actions",
-                input_summary.get(
-                    "pseudo_formal_failure_issue_specific_repair_actions",
-                    [],
-                ),
-            )
-            or []
-            if isinstance(item, Mapping)
+        errors = [
+            str(value)
+            for value in row.get("errors", input_summary.get("errors", [])) or []
+            if str(value).strip()
         ][:8]
+        if not validation_feedback and errors:
+            validation_feedback = formalizer_validation_feedback_envelope(
+                errors,
+                validation_label="Formalizer PF/BV component gate",
+            )
         feedback_rows.append(
             {
                 "learning_task": "formalizer_pseudo_formal_packet_component_gate_feedback",
@@ -75512,12 +73476,7 @@ def _runtime_learning_memory_formalizer_pseudo_formal_packet_component_gate_feed
                     row.get("failure_type", input_summary.get("failure_type", ""))
                     or ""
                 ),
-                "errors": [
-                    str(value)
-                    for value in row.get("errors", input_summary.get("errors", []))
-                    or []
-                    if str(value).strip()
-                ][:8],
+                "errors": errors,
                 "pseudo_formal_failure_required_target_lanes": [
                     str(value)
                     for value in row.get(
@@ -75530,35 +73489,21 @@ def _runtime_learning_memory_formalizer_pseudo_formal_packet_component_gate_feed
                     or []
                     if str(value).strip()
                 ],
-                "pseudo_formal_failure_validation_issue_summary": issue_summary,
-                "pseudo_formal_failure_issue_specific_repair_actions": (
-                    issue_actions
-                ),
-                "pseudo_formal_failure_concrete_lane_routable_repair_seed": (
-                    failure_seed
-                ),
-                "pseudo_formal_failure_validator_ready_copy_contract": (
-                    validator_ready_copy_contract
-                ),
-                "pseudo_formal_failure_copy_contract_summary": (
-                    copy_contract_summary
-                ),
-                "pseudo_formal_failure_copy_ready": _bool_like(
-                    copy_contract_summary.get(
-                        "validator_ready_copy_contract_satisfied",
-                        False,
+                "formalizer_validation_feedback": validation_feedback,
+                "model_owned_repair_required": _bool_like(
+                    row.get(
+                        "model_owned_repair_required",
+                        input_summary.get("model_owned_repair_required", False),
                     )
                 ),
-                "pseudo_formal_failure_copy_exact_semantic_definition_ready": (
-                    _bool_like(
-                        copy_contract_summary.get(
-                            "exact_semantic_definition_lane_ready_if_copied",
+                "runtime_selected_mathematical_content": _bool_like(
+                    row.get(
+                        "runtime_selected_mathematical_content",
+                        input_summary.get(
+                            "runtime_selected_mathematical_content",
                             False,
-                        )
+                        ),
                     )
-                ),
-                "pseudo_formal_failure_repair_seed_available": _bool_like(
-                    failure_seed.get("blocks", []) if failure_seed else []
                 ),
                 "pseudo_formal_routable_target_lanes": [
                     str(value)
@@ -75602,229 +73547,6 @@ def _runtime_learning_memory_formalizer_pseudo_formal_packet_component_gate_feed
             }
         )
     return tuple(feedback_rows)
-
-
-def _runtime_learning_memory_formalizer_pseudo_formal_packet_copy_ready_retry_agenda(
-    architect_context: Mapping[str, Any],
-) -> tuple[dict[str, Any], ...]:
-    """Return prompt-ready Formalizer PF/BV copy-ready retry agenda memory."""
-
-    memory = (
-        architect_context.get("runtime_learning_memory", {})
-        if isinstance(architect_context, Mapping)
-        else {}
-    )
-    if (
-        not isinstance(memory, Mapping)
-        or memory.get("artifact_kind") != "RuntimeLearningMemoryContext"
-    ):
-        return ()
-    rows = memory.get("rows", []) if isinstance(memory.get("rows", []), list) else []
-    retry_rows_by_key: dict[str, dict[str, Any]] = {}
-
-    def value_present(value: Any) -> bool:
-        return value not in (None, "", [], {})
-
-    for row in rows:
-        if not isinstance(row, Mapping):
-            continue
-        input_summary = (
-            row.get("input_summary", {})
-            if isinstance(row.get("input_summary", {}), Mapping)
-            else {}
-        )
-        learning_task = _runtime_learning_row_task(row, input_summary)
-        trigger = _runtime_learning_row_trigger(row, input_summary)
-        source_learning_task = str(
-            row.get("source_learning_task", "")
-            or input_summary.get("source_learning_task", "")
-            or ""
-        ).strip()
-        runtime_queue_status = str(
-            row.get("runtime_queue_status", "")
-            or input_summary.get("runtime_queue_status", "")
-            or ""
-        ).strip()
-        raw_retry_task = (
-            learning_task
-            == "formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task"
-        )
-        generated_retry_agenda = learning_task == "generated_next_action_routing" and (
-            trigger == "FORMALIZER_PF_BV_COPY_READY_RETRY_REQUIRED"
-            or source_learning_task
-            == "formalizer_pseudo_formal_packet_component_gate_copy_ready_retry_task"
-            or runtime_queue_status
-            == "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
-        )
-        if not raw_retry_task and not generated_retry_agenda:
-            continue
-        if raw_retry_task:
-            trigger = "FORMALIZER_PF_BV_COPY_READY_RETRY_REQUIRED"
-            source_learning_task = learning_task
-        if not runtime_queue_status:
-            runtime_queue_status = "PENDING_FORMALIZER_PF_BV_RETRY_FROM_COPY_READY_FAILURE"
-        repair_seed = _runtime_learning_row_mapping_value(
-            row,
-            input_summary,
-            "pseudo_formal_failure_concrete_lane_routable_repair_seed",
-        )
-        copy_contract = _runtime_learning_row_mapping_value(
-            row,
-            input_summary,
-            "pseudo_formal_failure_validator_ready_copy_contract",
-        )
-        copy_contract_summary = _runtime_learning_row_mapping_value(
-            row,
-            input_summary,
-            "pseudo_formal_failure_copy_contract_summary",
-        )
-        if not copy_contract_summary and (repair_seed or copy_contract):
-            copy_contract_summary = _runtime_pseudo_formal_failure_copy_contract_summary(
-                repair_seed=repair_seed,
-                validator_ready_copy_contract=copy_contract,
-            )
-        work_order_id = str(
-            row.get("work_order_id", "")
-            or input_summary.get("work_order_id", "")
-            or ""
-        ).strip()
-        component_eval_manifest_path = str(
-            row.get("component_eval_manifest_path", "")
-            or input_summary.get("component_eval_manifest_path", "")
-            or ""
-        ).strip()
-        target_packet_id = str(
-            row.get("target_packet_id", "")
-            or input_summary.get("target_packet_id", "")
-            or repair_seed.get("packet_id", "")
-            or ""
-        ).strip()
-        target_theorem_name = str(
-            row.get("target_theorem_name", "")
-            or input_summary.get("target_theorem_name", "")
-            or repair_seed.get("theorem_id", "")
-            or ""
-        ).strip()
-        target_ids = list(
-            dict.fromkeys(
-                value
-                for value in (
-                    list(
-                        _runtime_learning_row_string_values(
-                            row,
-                            input_summary,
-                            "target_ids",
-                            "target_id",
-                        )
-                    )
-                    + [
-                        target_theorem_name,
-                        target_packet_id,
-                        work_order_id,
-                    ]
-                )
-                if str(value).strip()
-            )
-        )[:6]
-        agenda_id = str(
-            row.get("id", "") or input_summary.get("agenda_id", "") or ""
-        ).strip()
-        key = (
-            work_order_id
-            or agenda_id
-            or ":".join(
-                value
-                for value in (
-                    component_eval_manifest_path,
-                    target_theorem_name,
-                    target_packet_id,
-                )
-                if value
-            )
-            or json.dumps(row, sort_keys=True, default=str)
-        )
-        retry_row = {
-            "learning_task": learning_task,
-            "question_id": str(
-                row.get("question_id", "")
-                or input_summary.get("question_id", "")
-                or ""
-            ),
-            "agenda_id": agenda_id,
-            "trigger": trigger,
-            "source_learning_task": source_learning_task,
-            "work_order_id": work_order_id,
-            "component_eval_manifest_path": component_eval_manifest_path,
-            "target_ids": target_ids,
-            "target_theorem_name": target_theorem_name,
-            "target_packet_id": target_packet_id,
-            "runtime_queue_status": runtime_queue_status,
-            "runtime_generated_queue_name": str(
-                row.get("runtime_generated_queue_name", "")
-                or input_summary.get("runtime_generated_queue_name", "")
-                or "formalizer_pf_bv_copy_ready_retries"
-            ),
-            "required_target_lanes": list(
-                _runtime_learning_row_string_values(
-                    row,
-                    input_summary,
-                    "pseudo_formal_failure_required_target_lanes",
-                    "required_target_lanes",
-                )
-            )[:8],
-            "concrete_lane_routable_repair_seed": repair_seed,
-            "validator_ready_copy_contract": copy_contract,
-            "validator_ready_copy_contract_summary": copy_contract_summary,
-            "copy_contract_summary": copy_contract_summary,
-            "target_behavior": str(
-                row.get("target_behavior", "")
-                or row.get("action", "")
-                or input_summary.get("target_behavior", "")
-                or input_summary.get("action", "")
-                or ""
-            ),
-            "recommended_next_action": str(
-                row.get("recommended_next_action", "")
-                or input_summary.get("recommended_next_action", "")
-                or row.get("target_behavior", "")
-                or row.get("action", "")
-                or ""
-            ),
-            "action": str(
-                row.get("action", "")
-                or input_summary.get("action", "")
-                or row.get("target_behavior", "")
-                or ""
-            ),
-            "acceptance_gate": str(
-                row.get("acceptance_gate", "")
-                or input_summary.get("acceptance_gate", "")
-                or ""
-            ),
-            "proof_evidence_status": str(
-                row.get("proof_evidence_status", "")
-                or input_summary.get("proof_evidence_status", "")
-                or ""
-            ),
-            "boundary": str(
-                row.get("boundary", "")
-                or row.get("proof_evidence_boundary", "")
-                or row.get("proof_boundary", "")
-                or input_summary.get("boundary", "")
-                or input_summary.get("proof_evidence_boundary", "")
-                or input_summary.get("proof_boundary", "")
-                or ""
-            )[:500],
-        }
-        existing = retry_rows_by_key.get(key)
-        if existing is None:
-            retry_rows_by_key[key] = retry_row
-            continue
-        for field, value in retry_row.items():
-            if not value_present(existing.get(field)) and value_present(value):
-                existing[field] = value
-
-    return tuple(retry_rows_by_key.values())
 
 
 def _runtime_learning_memory_formalizer_pseudo_formal_packet_component_gate_handoff_diagnostics(
@@ -77146,11 +74868,6 @@ def _formalizer_proof_bank_runtime_memory_summary(
             context
         )
     )
-    formalizer_pseudo_formal_packet_copy_ready_retry_agenda_rows = (
-        _runtime_learning_memory_formalizer_pseudo_formal_packet_copy_ready_retry_agenda(
-            context
-        )
-    )
     formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_rows = (
         _runtime_learning_memory_formalizer_pseudo_formal_packet_component_gate_handoff_diagnostics(
             context
@@ -77160,7 +74877,9 @@ def _formalizer_proof_bank_runtime_memory_summary(
         row
         for row in formalizer_pseudo_formal_packet_component_gate_feedback_rows
         if not _bool_like(row.get("capability_evidence_ok", False))
-        and _bool_like(row.get("pseudo_formal_failure_repair_seed_available", False))
+        and _bool_like(row.get("model_owned_repair_required", False))
+        and isinstance(row.get("formalizer_validation_feedback", {}), Mapping)
+        and bool(row.get("formalizer_validation_feedback", {}))
     )
     formalizer_lean_candidate_capability_feedback_rows = (
         _runtime_learning_memory_formalizer_lean_candidate_capability_feedback(
@@ -80477,12 +78196,6 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "formalizer_pseudo_formal_packet_component_gate_failure_available": bool(
             formalizer_pseudo_formal_packet_component_gate_failure_rows
         ),
-        "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_available": bool(
-            formalizer_pseudo_formal_packet_copy_ready_retry_agenda_rows
-        ),
-        "n_formalizer_pseudo_formal_packet_copy_ready_retry_agenda_rows": len(
-            formalizer_pseudo_formal_packet_copy_ready_retry_agenda_rows
-        ),
         "formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_available": bool(
             formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_rows
         ),
@@ -80658,92 +78371,18 @@ def _formalizer_proof_bank_runtime_memory_summary(
                     row.get("pseudo_formal_failure_required_target_lanes", [])
                     or []
                 )[:8],
-                "pseudo_formal_failure_validation_issue_summary": (
-                    dict(
-                        row.get(
-                            "pseudo_formal_failure_validation_issue_summary",
-                            {},
-                        )
-                    )
+                "formalizer_validation_feedback": (
+                    dict(row.get("formalizer_validation_feedback", {}) or {})
                     if isinstance(
-                        row.get(
-                            "pseudo_formal_failure_validation_issue_summary",
-                            {},
-                        ),
-                        Mapping,
+                        row.get("formalizer_validation_feedback", {}), Mapping
                     )
                     else {}
                 ),
-                "pseudo_formal_failure_issue_specific_repair_actions": [
-                    dict(item)
-                    for item in row.get(
-                        "pseudo_formal_failure_issue_specific_repair_actions",
-                        [],
-                    )
-                    or []
-                    if isinstance(item, Mapping)
-                ][:6],
-                "pseudo_formal_failure_concrete_lane_routable_repair_seed": (
-                    dict(
-                        row.get(
-                            "pseudo_formal_failure_concrete_lane_routable_repair_seed",
-                            {},
-                        )
-                    )
-                    if isinstance(
-                        row.get(
-                            "pseudo_formal_failure_concrete_lane_routable_repair_seed",
-                            {},
-                        ),
-                        Mapping,
-                    )
-                    else {}
+                "model_owned_repair_required": _bool_like(
+                    row.get("model_owned_repair_required", False)
                 ),
-                "pseudo_formal_failure_validator_ready_copy_contract": (
-                    dict(
-                        row.get(
-                            "pseudo_formal_failure_validator_ready_copy_contract",
-                            {},
-                        )
-                    )
-                    if isinstance(
-                        row.get(
-                            "pseudo_formal_failure_validator_ready_copy_contract",
-                            {},
-                        ),
-                        Mapping,
-                    )
-                    else {}
-                ),
-                "pseudo_formal_failure_copy_contract_summary": (
-                    dict(
-                        row.get(
-                            "pseudo_formal_failure_copy_contract_summary",
-                            {},
-                        )
-                    )
-                    if isinstance(
-                        row.get(
-                            "pseudo_formal_failure_copy_contract_summary",
-                            {},
-                        ),
-                        Mapping,
-                    )
-                    else {}
-                ),
-                "pseudo_formal_failure_copy_ready": _bool_like(
-                    row.get("pseudo_formal_failure_copy_ready", False)
-                ),
-                "pseudo_formal_failure_copy_exact_semantic_definition_ready": (
-                    _bool_like(
-                        row.get(
-                            "pseudo_formal_failure_copy_exact_semantic_definition_ready",
-                            False,
-                        )
-                    )
-                ),
-                "pseudo_formal_failure_repair_seed_available": _bool_like(
-                    row.get("pseudo_formal_failure_repair_seed_available", False)
+                "runtime_selected_mathematical_content": _bool_like(
+                    row.get("runtime_selected_mathematical_content", False)
                 ),
                 "pseudo_formal_routable_target_lanes": list(
                     row.get("pseudo_formal_routable_target_lanes", []) or []
@@ -80773,87 +78412,18 @@ def _formalizer_proof_bank_runtime_memory_summary(
                     row.get("pseudo_formal_failure_required_target_lanes", [])
                     or []
                 )[:8],
-                "validation_issue_summary": (
-                    dict(
-                        row.get(
-                            "pseudo_formal_failure_validation_issue_summary",
-                            {},
-                        )
-                    )
+                "formalizer_validation_feedback": (
+                    dict(row.get("formalizer_validation_feedback", {}) or {})
                     if isinstance(
-                        row.get(
-                            "pseudo_formal_failure_validation_issue_summary",
-                            {},
-                        ),
-                        Mapping,
+                        row.get("formalizer_validation_feedback", {}), Mapping
                     )
                     else {}
                 ),
-                "issue_specific_repair_actions": [
-                    dict(item)
-                    for item in row.get(
-                        "pseudo_formal_failure_issue_specific_repair_actions",
-                        [],
-                    )
-                    or []
-                    if isinstance(item, Mapping)
-                ][:6],
-                "concrete_lane_routable_repair_seed": (
-                    dict(
-                        row.get(
-                            "pseudo_formal_failure_concrete_lane_routable_repair_seed",
-                            {},
-                        )
-                    )
-                    if isinstance(
-                        row.get(
-                            "pseudo_formal_failure_concrete_lane_routable_repair_seed",
-                            {},
-                        ),
-                        Mapping,
-                    )
-                    else {}
+                "model_owned_repair_required": _bool_like(
+                    row.get("model_owned_repair_required", False)
                 ),
-                "validator_ready_copy_contract": (
-                    dict(
-                        row.get(
-                            "pseudo_formal_failure_validator_ready_copy_contract",
-                            {},
-                        )
-                    )
-                    if isinstance(
-                        row.get(
-                            "pseudo_formal_failure_validator_ready_copy_contract",
-                            {},
-                        ),
-                        Mapping,
-                    )
-                    else {}
-                ),
-                "validator_ready_copy_contract_summary": (
-                    dict(
-                        row.get(
-                            "pseudo_formal_failure_copy_contract_summary",
-                            {},
-                        )
-                    )
-                    if isinstance(
-                        row.get(
-                            "pseudo_formal_failure_copy_contract_summary",
-                            {},
-                        ),
-                        Mapping,
-                    )
-                    else {}
-                ),
-                "validator_ready_copy_contract_satisfied": _bool_like(
-                    row.get("pseudo_formal_failure_copy_ready", False)
-                ),
-                "copy_ready_for_exact_semantic_definition": _bool_like(
-                    row.get(
-                        "pseudo_formal_failure_copy_exact_semantic_definition_ready",
-                        False,
-                    )
+                "runtime_selected_mathematical_content": _bool_like(
+                    row.get("runtime_selected_mathematical_content", False)
                 ),
                 "proof_evidence_status": str(
                     row.get("proof_evidence_status", "") or ""
@@ -80861,83 +78431,6 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "boundary": str(row.get("boundary", "") or ""),
             }
             for row in formalizer_pseudo_formal_packet_component_gate_failure_rows[:3]
-        ],
-        "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_memory": [
-            {
-                "learning_task": str(row.get("learning_task", "") or ""),
-                "question_id": str(row.get("question_id", "") or ""),
-                "agenda_id": str(row.get("agenda_id", "") or ""),
-                "trigger": str(row.get("trigger", "") or ""),
-                "source_learning_task": str(
-                    row.get("source_learning_task", "") or ""
-                ),
-                "work_order_id": str(row.get("work_order_id", "") or ""),
-                "component_eval_manifest_path": str(
-                    row.get("component_eval_manifest_path", "") or ""
-                ),
-                "target_ids": list(row.get("target_ids", []) or [])[:6],
-                "target_theorem_name": str(
-                    row.get("target_theorem_name", "") or ""
-                ),
-                "target_packet_id": str(row.get("target_packet_id", "") or ""),
-                "runtime_queue_status": str(
-                    row.get("runtime_queue_status", "") or ""
-                ),
-                "runtime_generated_queue_name": str(
-                    row.get("runtime_generated_queue_name", "") or ""
-                ),
-                "required_target_lanes": list(
-                    row.get("required_target_lanes", []) or []
-                )[:8],
-                "concrete_lane_routable_repair_seed": (
-                    dict(row.get("concrete_lane_routable_repair_seed", {}) or {})
-                    if isinstance(
-                        row.get("concrete_lane_routable_repair_seed", {}),
-                        Mapping,
-                    )
-                    else {}
-                ),
-                "validator_ready_copy_contract": (
-                    dict(row.get("validator_ready_copy_contract", {}) or {})
-                    if isinstance(
-                        row.get("validator_ready_copy_contract", {}),
-                        Mapping,
-                    )
-                    else {}
-                ),
-                "validator_ready_copy_contract_summary": (
-                    dict(
-                        row.get(
-                            "validator_ready_copy_contract_summary",
-                            {},
-                        )
-                        or {}
-                    )
-                    if isinstance(
-                        row.get("validator_ready_copy_contract_summary", {}),
-                        Mapping,
-                    )
-                    else {}
-                ),
-                "copy_contract_summary": (
-                    dict(row.get("copy_contract_summary", {}) or {})
-                    if isinstance(row.get("copy_contract_summary", {}), Mapping)
-                    else {}
-                ),
-                "target_behavior": str(row.get("target_behavior", "") or ""),
-                "recommended_next_action": str(
-                    row.get("recommended_next_action", "") or ""
-                ),
-                "action": str(row.get("action", "") or ""),
-                "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
-                "proof_evidence_status": str(
-                    row.get("proof_evidence_status", "") or ""
-                ),
-                "boundary": str(row.get("boundary", "") or ""),
-            }
-            for row in formalizer_pseudo_formal_packet_copy_ready_retry_agenda_rows[
-                :3
-            ]
         ],
         "formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_memory": [
             {
@@ -81502,33 +78995,6 @@ def _deterministic_theorem_closure_proposal_packet(
     }
 
 
-def _pseudo_formal_packet_validation_quarantine_required_repair(
-    validation_issue_summary: Mapping[str, Any],
-) -> str:
-    issue_kinds = [
-        str(value)
-        for value in validation_issue_summary.get("issue_kinds", []) or []
-        if str(value).strip()
-    ]
-    issue_focus = ", ".join(issue_kinds[:6]) or "packet validation errors"
-    issue_actions = pseudo_formal_validation_issue_repair_actions(
-        validation_issue_summary
-    )
-    action_focus = "; ".join(
-        str(row.get("required_repair_action", "") or "").strip()
-        for row in issue_actions[:3]
-        if str(row.get("required_repair_action", "") or "").strip()
-    )
-    return (
-        "Repair the pseudo_formal_proof_packets entry before any downstream "
-        "Lean/RAG/source-to-bridge work: emit schema-valid PF/BV blocks with "
-        "top-level conclusion, source_anchors, valid faithfulness_status, and "
-        "valid block_verification metadata; current PF/BV validation issue "
-        f"kinds: {issue_focus}."
-        + (f" Required repair actions: {action_focus}." if action_focus else "")
-    )
-
-
 def _formalizer_pseudo_formal_work_order_rows(
     *,
     proposal_packet: Mapping[str, Any],
@@ -81544,13 +79010,10 @@ def _formalizer_pseudo_formal_work_order_rows(
         normalized_packet = normalize_pseudo_formal_packet(packet)
         packet_validation_errors = validate_pseudo_formal_packet(normalized_packet)
         if packet_validation_errors:
-            validation_issue_summary = pseudo_formal_validation_issue_summary(
-                packet_validation_errors
-            )
-            validation_issue_repair_actions = (
-                pseudo_formal_validation_issue_repair_actions(
-                    validation_issue_summary
-                )
+            validation_feedback = formalizer_validation_feedback_envelope(
+                packet_validation_errors,
+                validation_label="Pseudo-formal proof packet",
+                invalid_packet=normalized_packet,
             )
             source_packet_id = str(
                 normalized_packet.get("packet_id", "")
@@ -81622,23 +79085,13 @@ def _formalizer_pseudo_formal_work_order_rows(
                     + "; ".join(packet_validation_errors[:3])
                 ),
                 "validation_errors": packet_validation_errors,
-                "validation_issue_summary": validation_issue_summary,
-                "validation_issue_kinds": list(
-                    validation_issue_summary.get("issue_kinds", []) or []
-                ),
-                "validation_issue_counts": dict(
-                    validation_issue_summary.get("issue_counts", {})
-                    if isinstance(
-                        validation_issue_summary.get("issue_counts", {}),
-                        Mapping,
-                    )
-                    else {}
-                ),
-                "validation_issue_repair_actions": validation_issue_repair_actions,
+                "formalizer_validation_feedback": validation_feedback,
+                "model_owned_repair_required": True,
+                "runtime_selected_mathematical_content": False,
                 "required_repair": (
-                    _pseudo_formal_packet_validation_quarantine_required_repair(
-                        validation_issue_summary
-                    )
+                    "Inspect the exact validator observations and rejected packet, "
+                    "then author the next packet or a typed blocker. AgentRuntime "
+                    "does not choose the mathematical decomposition or repair."
                 ),
                 "source_formalizer_proposal_id": proposal_id,
                 "source_pseudo_formal_packet_index": packet_index,
@@ -81663,6 +79116,11 @@ def _formalizer_pseudo_formal_work_order_rows(
                 "schema_version": RUNTIME_SCHEMA_VERSION,
                 "artifact_kind": "PseudoFormalizerWorkOrder",
                 **dict(row),
+                "learning_task": PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
+                "source_pseudo_formal_work_order_id": str(
+                    row.get("row_id", "") or ""
+                ),
+                "work_order_id": str(row.get("row_id", "") or ""),
                 "source_formalizer_proposal_id": proposal_id,
                 "source_pseudo_formal_packet_index": packet_index,
                 "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
@@ -90561,30 +88019,18 @@ def _runtime_pseudo_formal_next_action_agenda_rows(
             )
             if str(value).strip()
         ]
-        validation_issue_summary = dict(
-            work_order.get("validation_issue_summary", {})
-            if isinstance(work_order.get("validation_issue_summary", {}), Mapping)
+        validation_feedback = dict(
+            work_order.get("formalizer_validation_feedback", {})
+            if isinstance(
+                work_order.get("formalizer_validation_feedback", {}), Mapping
+            )
             else {}
         )
-        raw_validation_issue_counts = validation_issue_summary.get(
-            "issue_counts",
-            {},
-        )
-        validation_issue_counts = dict(
-            raw_validation_issue_counts
-            if isinstance(raw_validation_issue_counts, Mapping)
-            else {}
-        )
-        raw_validation_issue_kinds = (
-            work_order.get("validation_issue_kinds", [])
-            or validation_issue_summary.get("issue_kinds", [])
-            or []
-        )
-        validation_issue_kinds = [
-            str(value)
-            for value in raw_validation_issue_kinds
-            if str(value).strip()
-        ]
+        if not validation_feedback and validation_errors:
+            validation_feedback = formalizer_validation_feedback_envelope(
+                validation_errors,
+                validation_label="Pseudo-formal proof packet",
+            )
         required_repair = str(work_order.get("required_repair", "") or "")
         owner_subsystem = _pseudo_formal_next_action_owner(
             target_lane,
@@ -90753,9 +88199,13 @@ def _runtime_pseudo_formal_next_action_agenda_rows(
                 "target_lane": target_lane,
                 "reason": str(work_order.get("reason", "") or ""),
                 "validation_errors": validation_errors,
-                "validation_issue_summary": validation_issue_summary,
-                "validation_issue_kinds": validation_issue_kinds,
-                "validation_issue_counts": validation_issue_counts,
+                "formalizer_validation_feedback": validation_feedback,
+                "model_owned_repair_required": bool(
+                    work_order.get("model_owned_repair_required", False)
+                ),
+                "runtime_selected_mathematical_content": bool(
+                    work_order.get("runtime_selected_mathematical_content", False)
+                ),
                 "required_repair": required_repair,
                 "runtime_queue_status": str(
                     work_order.get("runtime_queue_status", "")
@@ -90811,30 +88261,13 @@ def _runtime_pseudo_formal_next_action_learning_rows(
             )
             if str(value).strip()
         ]
-        validation_issue_summary = dict(
-            agenda.get("validation_issue_summary", {})
-            if isinstance(agenda.get("validation_issue_summary", {}), Mapping)
+        validation_feedback = dict(
+            agenda.get("formalizer_validation_feedback", {})
+            if isinstance(
+                agenda.get("formalizer_validation_feedback", {}), Mapping
+            )
             else {}
         )
-        raw_validation_issue_counts = validation_issue_summary.get(
-            "issue_counts",
-            {},
-        )
-        validation_issue_counts = dict(
-            raw_validation_issue_counts
-            if isinstance(raw_validation_issue_counts, Mapping)
-            else {}
-        )
-        raw_validation_issue_kinds = (
-            agenda.get("validation_issue_kinds", [])
-            or validation_issue_summary.get("issue_kinds", [])
-            or []
-        )
-        validation_issue_kinds = [
-            str(value)
-            for value in raw_validation_issue_kinds
-            if str(value).strip()
-        ]
         required_repair = str(agenda.get("required_repair", "") or "")
         rows.append(
             _runtime_learning_row_with_surface_targets(
@@ -90988,9 +88421,13 @@ def _runtime_pseudo_formal_next_action_learning_rows(
                         agenda.get("runtime_queue_status", "") or ""
                     ),
                     "validation_errors": validation_errors,
-                    "validation_issue_summary": validation_issue_summary,
-                    "validation_issue_kinds": validation_issue_kinds,
-                    "validation_issue_counts": validation_issue_counts,
+                    "formalizer_validation_feedback": validation_feedback,
+                    "model_owned_repair_required": bool(
+                        agenda.get("model_owned_repair_required", False)
+                    ),
+                    "runtime_selected_mathematical_content": bool(
+                        agenda.get("runtime_selected_mathematical_content", False)
+                    ),
                     "required_repair": required_repair,
                     "input_summary": {
                         "trigger": str(agenda.get("trigger", "") or ""),
@@ -91146,9 +88583,15 @@ def _runtime_pseudo_formal_next_action_learning_rows(
                             agenda.get("runtime_queue_status", "") or ""
                         ),
                         "validation_errors": validation_errors,
-                        "validation_issue_summary": validation_issue_summary,
-                        "validation_issue_kinds": validation_issue_kinds,
-                        "validation_issue_counts": validation_issue_counts,
+                        "formalizer_validation_feedback": validation_feedback,
+                        "model_owned_repair_required": bool(
+                            agenda.get("model_owned_repair_required", False)
+                        ),
+                        "runtime_selected_mathematical_content": bool(
+                            agenda.get(
+                                "runtime_selected_mathematical_content", False
+                            )
+                        ),
                         "required_repair": required_repair,
                         "runtime_queue_boundary": str(
                             agenda.get("runtime_queue_boundary", "") or ""
@@ -91202,7 +88645,7 @@ def _pseudo_formal_block_verifier_worker_execution_fields(
         "pseudo-formal-block-verifier-component-gate "
         "--runtime-learning-jsonl <runtime_learning_rows.jsonl> "
         "--provider anthropic "
-        "--model-tier sonnet "
+        "--model-tier haiku "
         "--out runs/pseudo_formal_block_verifier_component_gate"
     )
     prompt_command = (
@@ -91218,7 +88661,7 @@ def _pseudo_formal_block_verifier_worker_execution_fields(
         "runs/pseudo_formal_block_verifier_prompt_packets/"
         "pseudo_formal_block_verifier_prompt_packets_manifest.json "
         "--provider anthropic "
-        "--model-tier sonnet "
+        "--model-tier haiku "
         "--out runs/pseudo_formal_block_verifier_llm_responses"
     )
     response_validation_command = (
@@ -91284,23 +88727,6 @@ def _pseudo_formal_block_verifier_worker_execution_fields(
     }
 
 
-def _pseudo_formal_validation_issue_kinds_for_row(row: Mapping[str, Any]) -> list[str]:
-    validation_issue_summary = (
-        row.get("validation_issue_summary", {})
-        if isinstance(row.get("validation_issue_summary", {}), Mapping)
-        else {}
-    )
-    return [
-        str(value)
-        for value in (
-            row.get("validation_issue_kinds", [])
-            or validation_issue_summary.get("issue_kinds", [])
-            or []
-        )
-        if str(value).strip()
-    ]
-
-
 def _pseudo_formal_safe_block_depth(value: Any) -> int:
     try:
         depth = int(value)
@@ -91343,13 +88769,11 @@ def _pseudo_formal_next_action_action(
         _pseudo_formal_work_order_row_kind(row)
         == PSEUDO_FORMAL_PACKET_VALIDATION_QUARANTINE_ROW_KIND
     ):
-        issue_kinds = ", ".join(_pseudo_formal_validation_issue_kinds_for_row(row)[:6])
         return (
-            "repair invalid pseudo-formal packet"
+            "inspect the rejected pseudo-formal packet and exact validator observations"
             + target_text
-            + " so it passes PF/BV schema validation and emits lane-routable "
-            "residual work orders"
-            + (f"; validation issue kinds: {issue_kinds}" if issue_kinds else "")
+            + ", then author a revised packet or typed blocker; runtime does not "
+            "select the mathematical decomposition"
         )
     if (
         _pseudo_formal_work_order_row_kind(row)

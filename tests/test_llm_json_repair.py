@@ -10,6 +10,8 @@ from ai_statistician.llm_json_repair import (
     _apply_typed_semantic_patch,
     _compact_response_metadata,
     _format_generation_error,
+    _validation_error_focus_schemas,
+    _validation_error_focus_values,
     _repair_attempt_max_tokens,
     _repair_prompt,
     _typed_semantic_patch_fits_update_budget,
@@ -22,6 +24,8 @@ from ai_statistician.model_backend import (
     GeneratorResponse,
     LIVE_EVALUATION_CLAUDE_MODEL,
     LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+    PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY,
+    PROVIDER_STRUCTURED_OUTPUT_ON_REPAIR_METADATA_KEY,
 )
 
 
@@ -43,6 +47,126 @@ def test_truncation_repair_never_reduces_a_large_output_budget() -> None:
         20000,
         truncation_repair_mode=True,
     ) == 20000
+
+
+def test_validation_error_focus_resolves_nested_array_rows_and_schema() -> None:
+    payload = {
+        "packets": [
+            {
+                "blocks": [
+                    {"block_id": "b0", "scope_parent_id": "theorem:id"},
+                    {"block_id": "b1", "scope_parent_id": "b0"},
+                ]
+            }
+        ]
+    }
+    block_schema = {
+        "type": "object",
+        "required": ["block_id", "scope_parent_id"],
+        "properties": {
+            "block_id": {"type": "string"},
+            "scope_parent_id": {
+                "type": "string",
+                "description": "Empty or an earlier block_id.",
+            },
+        },
+    }
+    schema = {
+        "type": "object",
+        "properties": {
+            "packets": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "blocks": {"type": "array", "items": block_schema}
+                    },
+                },
+            }
+        },
+    }
+    errors = [
+        "packets[0] blocks[0] scope_parent_id must reference an earlier block"
+    ]
+
+    assert _validation_error_focus_values(payload, errors=errors) == [
+        {
+            "path": ["packets", 0, "blocks", 0],
+            "value": payload["packets"][0]["blocks"][0],
+            "value_truncated": False,
+        }
+    ]
+    assert _validation_error_focus_schemas(schema, errors=errors) == [
+        {
+            "path_pattern": [
+                "packets",
+                "<array_index>",
+                "blocks",
+                "<array_index>",
+            ],
+            "expected_item_schema": block_schema,
+        }
+    ]
+
+
+def test_compact_semantic_patch_can_enable_strict_output_only_for_repair() -> None:
+    class RepairMetadataBackend:
+        provider_name = "static"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                response = {"status": "invalid"}
+            else:
+                repair_payload = json.loads(request.user_prompt.split("\n\n", 1)[1])
+                response = {
+                    "base_payload_fingerprint": repair_payload[
+                        "base_payload_fingerprint"
+                    ],
+                    "updates": [{"path": ["status"], "replacement": "valid"}],
+                }
+            return GeneratorResponse(
+                text=json.dumps(response),
+                provider=self.provider_name,
+                model=request.model,
+            )
+
+    backend = RepairMetadataBackend()
+    packet = generate_validated_json_packet(
+        provider=backend,
+        request=GeneratorRequest(
+            system_prompt="Return JSON.",
+            user_prompt="Produce status JSON.",
+            model="test-haiku",
+            max_tokens=1000,
+            schema={
+                "type": "object",
+                "required": ["status"],
+                "properties": {"status": {"type": "string"}},
+            },
+            metadata={PROVIDER_STRUCTURED_OUTPUT_ON_REPAIR_METADATA_KEY: True},
+        ),
+        extract_payload=lambda text: extract_json_object(text, label="status packet"),
+        build_packet=lambda payload, response, raw_text: dict(payload),
+        validate_packet=lambda candidate: (
+            [] if candidate.get("status") == "valid" else ["status must be valid"]
+        ),
+        validation_label="status packet",
+        max_repair_attempts=1,
+        semantic_patch_repair=True,
+    )
+
+    assert packet["status"] == "valid"
+    assert backend.requests[0].metadata.get(
+        PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY
+    ) is not True
+    assert (
+        backend.requests[1].metadata[PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY]
+        is True
+    )
 
 
 def test_exact_key_cardinality_error_requires_full_regeneration() -> None:
@@ -721,6 +845,87 @@ def test_progress_extension_stops_when_patch_makes_no_progress() -> None:
         row["progress_extension_attempt"] == 0
         for row in caught.value.history
     )
+
+
+def test_progress_extension_allows_non_growing_validator_frontier() -> None:
+    class RevealedResidualBackend:
+        provider_name = "test"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                response = {"first": False, "second": False, "revealed": False}
+            else:
+                repair_payload = json.loads(
+                    request.user_prompt.split("\n\n", 1)[1]
+                )
+                updates = (
+                    [{"path": ["first"], "replacement": True}]
+                    if len(self.requests) == 2
+                    else [
+                        {"path": ["second"], "replacement": True},
+                        {"path": ["revealed"], "replacement": True},
+                    ]
+                )
+                response = {
+                    "base_payload_fingerprint": repair_payload[
+                        "base_payload_fingerprint"
+                    ],
+                    "updates": updates,
+                }
+            return GeneratorResponse(
+                text=json.dumps(response),
+                provider=self.provider_name,
+                model=request.model,
+            )
+
+    def validate(candidate: dict[str, object]) -> list[str]:
+        errors = []
+        if candidate.get("first") is not True:
+            errors.append("first must be true")
+        if candidate.get("second") is not True:
+            errors.append("second must be true")
+        if candidate.get("first") is True and candidate.get("revealed") is not True:
+            errors.append("revealed dependency must be true")
+        return errors
+
+    backend = RevealedResidualBackend()
+    packet = generate_validated_json_packet(
+        provider=backend,
+        request=GeneratorRequest(
+            system_prompt="Return JSON.",
+            user_prompt="Produce a dependency packet.",
+            model="test-haiku",
+            max_tokens=5000,
+            schema={"type": "object"},
+        ),
+        extract_payload=lambda text: extract_json_object(
+            text,
+            label="revealed residual packet",
+        ),
+        build_packet=lambda payload, response, raw_text: dict(payload),
+        validate_packet=validate,
+        validation_label="revealed residual packet",
+        max_repair_attempts=1,
+        semantic_patch_repair=True,
+        allow_progress_repair_extension=True,
+    )
+
+    assert packet["first"] is True
+    assert packet["second"] is True
+    assert packet["revealed"] is True
+    assert len(backend.requests) == 3
+    assert [
+        row["progress_extension_attempt"]
+        for row in packet["llm_json_repair_history"]
+    ] == [0, 0, 1]
+    assert [
+        len(row["errors"])
+        for row in packet["llm_json_repair_history"]
+    ] == [2, 2, 0]
 
 
 def test_progress_extension_rejects_changed_single_residual() -> None:

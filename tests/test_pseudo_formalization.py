@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from ai_statistician.pseudo_formalization import (
+    PSEUDO_FORMAL_FAITHFULNESS_REVIEW_ROW_KIND,
     PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
     PSEUDO_FORMAL_STRUCTURAL_DECOMPOSITION_REQUEST_ROW_KIND,
     PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
@@ -24,13 +25,12 @@ from ai_statistician.pseudo_formalization import (
     pseudo_formal_block_structural_quality,
     pseudo_formal_block_work_order_rows,
     pseudo_formal_packet_json_schema,
+    pseudo_formal_provider_envelope_json_schema,
     pseudo_formal_routable_work_order_rows,
     pseudo_formal_verification_method_contract,
     pseudo_formal_work_order_row_json_schema,
     pseudo_formalizer_output_contract,
     pseudo_formalizer_prompt_contract,
-    pseudo_formal_validation_issue_repair_actions,
-    pseudo_formal_validation_issue_summary,
     validate_pseudo_formal_packet,
 )
 from ai_statistician.pseudo_formal_block_verifier_worker import (
@@ -49,7 +49,11 @@ from ai_statistician.formalizer_llm import (
     build_formalizer_prompt,
     validate_formalizer_packet,
 )
-from ai_statistician.model_backend import GeneratorRequest, GeneratorResponse
+from ai_statistician.model_backend import (
+    LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+    GeneratorRequest,
+    GeneratorResponse,
+)
 from ai_statistician.research_schema import OpenResearchQuestion
 
 
@@ -359,46 +363,6 @@ def test_pseudo_formal_block_normalizer_accepts_llm_aliases_without_weakening_an
     assert block["proof_text"].startswith("Exchangeability")
     assert block["source_anchors"][0]["id"] == "equation:rank_uniformity"
     assert block["faithfulness_status"] == "unchecked"
-
-
-def test_pseudo_formal_validation_issue_summary_classifies_repair_targets() -> None:
-    summary = pseudo_formal_validation_issue_summary(
-        [
-            (
-                "pseudo_formalization_required: proof-body/PF activation feedback "
-                "requires at least one pseudo_formal_proof_packets entry"
-            ),
-            "blocks[0] missing conclusion",
-            "blocks[0] missing source_anchors",
-            "blocks[0] accepted block_verification must record rollout_count >= 1",
-            (
-                "pseudo_formalization_required: valid PF/BV packet did not produce "
-                "lane-routable pseudo-formal work-order rows"
-            ),
-        ]
-    )
-
-    assert summary["n_validation_errors"] == 5
-    assert summary["n_missing_required_packet"] == 1
-    assert summary["n_missing_conclusion"] == 1
-    assert summary["n_missing_source_anchors"] == 1
-    assert summary["n_accepted_without_rollout_count"] == 1
-    assert summary["n_no_lane_routable_work_order_rows"] == 1
-    assert "missing_source_anchors" in summary["blocking_issue_kinds"]
-    assert summary["proof_evidence_status"] == (
-        PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
-    )
-    actions = pseudo_formal_validation_issue_repair_actions(summary)
-    assert any(
-        row["issue_kind"] == "missing_required_packet"
-        and "emit pseudo_formal_proof_packets" in row["required_repair_action"]
-        for row in actions
-    )
-    assert any(
-        row["issue_kind"] == "no_lane_routable_work_order_rows"
-        and "lane-routable" in row["required_repair_action"]
-        for row in actions
-    )
 
 
 def test_pseudo_formal_block_normalizer_accepts_decomposition_type_aliases() -> None:
@@ -1037,6 +1001,10 @@ def test_pseudo_formal_block_verifier_llm_responses_use_generator_backend(
                     "source_pseudo_formal_work_order_id"
                 ],
                 "source_block_id": packet["source_block_id"],
+                "faithfulness_review": {
+                    "status": "faithful",
+                    "reason": "The source anchor states the same rank-uniformity step.",
+                },
                 "block_verification": {
                     "verdict": "accepted",
                     "reason": (
@@ -1097,6 +1065,10 @@ def test_pseudo_formal_block_verifier_component_gate_runs_full_static_chain(
                     "source_pseudo_formal_work_order_id"
                 ],
                 "source_block_id": packet["source_block_id"],
+                "faithfulness_review": {
+                    "status": "faithful",
+                    "reason": "The source anchor states the same rank-uniformity step.",
+                },
                 "block_verification": {
                     "verdict": "accepted",
                     "reason": (
@@ -1166,6 +1138,10 @@ def test_pseudo_formal_block_verifier_component_gate_cli_requires_live_or_opt_in
                     "source_pseudo_formal_work_order_id"
                 ],
                 "source_block_id": packet["source_block_id"],
+                "faithfulness_review": {
+                    "status": "faithful",
+                    "reason": "The source anchor states the same rank-uniformity step.",
+                },
                 "block_verification": {
                     "verdict": "accepted",
                     "reason": (
@@ -1218,6 +1194,29 @@ def test_pseudo_formal_block_verifier_component_gate_cli_requires_live_or_opt_in
     assert main(fixture_args) == 0
 
 
+def test_pseudo_formal_block_verifier_eval_commands_default_to_haiku() -> None:
+    from ai_statistician.cli import build_parser
+
+    parser = build_parser()
+    response_args = parser.parse_args(
+        [
+            "pseudo-formal-block-verifier-llm-responses",
+            "--prompt-packets-manifest",
+            "prompt_packets.json",
+        ]
+    )
+    gate_args = parser.parse_args(
+        [
+            "pseudo-formal-block-verifier-component-gate",
+            "--runtime-learning-jsonl",
+            "runtime_learning_rows.jsonl",
+        ]
+    )
+
+    assert response_args.model_tier == LIVE_EVALUATION_CLAUDE_MODEL_TIER
+    assert gate_args.model_tier == LIVE_EVALUATION_CLAUDE_MODEL_TIER
+
+
 def test_pseudo_formal_block_verifier_response_validation_exports_learning_rows(
     tmp_path,
 ) -> None:
@@ -1236,6 +1235,10 @@ def test_pseudo_formal_block_verifier_response_validation_exports_learning_rows(
             "source_pseudo_formal_work_order_id"
         ],
         "source_block_id": packet["source_block_id"],
+        "faithfulness_review": {
+            "status": "faithful",
+            "reason": "The source anchor states the same rank-uniformity step.",
+        },
         "block_verification": {
             "verdict": "accepted",
             "reason": "The local rank-uniformity step follows from exchangeability.",
@@ -1268,6 +1271,8 @@ def test_pseudo_formal_block_verifier_response_validation_exports_learning_rows(
     assert row["row_kind"] == PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND
     assert row["independent_block_verification_status"] == "completed"
     assert row["block_verification_independent"] is True
+    assert row["faithfulness_status"] == "faithful"
+    assert row["faithfulness_review"]["status"] == "faithful"
     assert row["block_verification"]["verdict"] == "accepted"
     assert row["block_verification_verifier_provenance"] == (
         "independent_block_verifier"
@@ -1359,6 +1364,17 @@ def test_pseudo_formalizer_contract_and_schema_expose_non_proof_boundary() -> No
         "direct_child_or_earlier_statement_only",
     ]
     prompt_contract = pseudo_formalizer_prompt_contract()
+    provider_schema = pseudo_formal_provider_envelope_json_schema()
+    provider_block_schema = provider_schema["properties"]["blocks"]["items"]
+    assert provider_block_schema["properties"]["block_type"]["enum"] == list(
+        contract["block_contract"]["block_type"]
+    )
+    assert provider_block_schema["properties"]["lean_feasibility"]["enum"] == list(
+        contract["block_contract"]["lean_feasibility"]
+    )
+    assert provider_block_schema["properties"]["faithfulness_status"]["enum"] == list(
+        contract["block_contract"]["faithfulness_status"]
+    )
     assert "direct child" in prompt_contract["dependency_rule"]
     assert "same-level dependencies" in prompt_contract["dependency_scope_rule"]
     assert "semantic_primitive_requirements" in prompt_contract[
@@ -1853,119 +1869,27 @@ def test_formalizer_repair_prompt_includes_pf_bv_blueprint_for_invalid_packet() 
     assert packet["llm_json_repair_history"][0]["ok"] is False
     repair_payload = json.loads(backend.requests[1].user_prompt.split("\n\n", 1)[1])
     repair_context = repair_payload["subsystem_repair_context"]
-    blueprint = repair_context["pseudo_formal_required_repair_blueprint"]
-    block_template = blueprint["minimum_valid_packet"]["blocks"][0]
-    seed = blueprint["copy_or_complete_this_packet_seed"]
-    concrete_seed = blueprint["concrete_lane_routable_repair_seed"]
-    copy_fragment = blueprint["copy_ready_response_fragment"]
-    copy_contract = copy_fragment["validator_ready_copy_contract"]
-    issue_summary = repair_context["pseudo_formal_validation_issue_summary"]
-    issue_actions = repair_context["pseudo_formal_issue_specific_repair_actions"]
     top_level_repair_instructions = " ".join(repair_payload["repair_instructions"])
-    assert repair_context["context_reason"] == "pseudo_formal_packet_repair"
-    assert repair_context["pseudo_formal_activation_required"] is True
-    assert "concrete_lane_routable_repair_seed" in top_level_repair_instructions
-    assert "copy_ready_response_fragment" in top_level_repair_instructions
-    assert "pseudo_formal_proof_packets[0]" in top_level_repair_instructions
-    assert "source_anchors" in top_level_repair_instructions
-    assert "semantic_primitive_requirements" in top_level_repair_instructions
-    assert (
-        "pseudo_formal_proof_packets[0].blocks[0].source_anchors"
-        in repair_context["repair_prompt_required_output_paths"]
-    )
-    assert issue_summary["n_missing_conclusion"] == 1
-    assert issue_summary["n_missing_source_anchors"] == 1
-    assert "missing_conclusion" in issue_summary["blocking_issue_kinds"]
-    assert "missing_source_anchors" in issue_summary["blocking_issue_kinds"]
-    assert any(
-        row["issue_kind"] == "missing_conclusion"
-        and "top-level conclusion" in row["required_repair_action"]
-        for row in issue_actions
+    feedback = repair_context["formalizer_validation_feedback"]
+    assert repair_context["context_reason"] == (
+        "unchanged_validator_rejected_model_packet"
     )
     assert any(
-        row["issue_kind"] == "missing_source_anchors"
-        and "source_anchors" in row["required_repair_action"]
-        for row in issue_actions
+        "missing conclusion" in error
+        for error in feedback["validation_error_messages"]
     )
-    assert seed["blocks"][0]["conclusion"]
-    assert seed["blocks"][0]["source_anchors"][0]["id"]
-    assert seed["blocks"][0]["lean_feasibility"] == "needs_semantic_definition"
-    assert concrete_seed["blocks"][0]["conclusion"] == seed["blocks"][0]["conclusion"]
-    assert concrete_seed["blocks"][0]["source_anchors"][0]["id"] == (
-        seed["blocks"][0]["source_anchors"][0]["id"]
+    assert feedback["rejected_packet_projection"][
+        "pseudo_formal_proof_packets"
+    ]
+    assert feedback["repair_authority"]["runtime_selected_semantics"] is False
+    assert repair_context["repair_protocol"]["decision_owner"] == (
+        "Formalizer/ProofEngineer LLM"
     )
-    assert concrete_seed["blocks"][0]["faithfulness_status"] == "faithful"
-    assert concrete_seed["blocks"][0]["lean_feasibility"] == (
-        "needs_semantic_definition"
-    )
-    assert concrete_seed["blocks"][0]["semantic_primitive_requirements"]
-    assert copy_fragment["required_output_key"] == "pseudo_formal_proof_packets"
-    assert copy_fragment["pseudo_formal_proof_packets"][0] == concrete_seed
-    assert copy_contract["copy_source_path"] == (
-        "pseudo_formalization_required_copy_fragment.pseudo_formal_proof_packets"
-    )
-    assert copy_contract["copy_destination_path"] == "pseudo_formal_proof_packets"
-    assert copy_contract["routable_work_order_rows_if_copied"] >= 1
-    assert (
-        "pseudo_formal_proof_packets[0].blocks[0].conclusion"
-        in copy_contract["required_preserved_paths"]
-    )
-    assert blueprint["validator_ready_copy_contract"] == copy_contract
-    assert copy_fragment["validator_alignment"][
-        "must_have_source_anchors"
-    ] is True
-    assert copy_fragment["validator_alignment"][
-        "must_produce_lane_routable_work_order_rows"
-    ] is True
-    assert "not source theorem proof" in copy_fragment["boundary"]
-    assert copy_fragment["pseudo_formal_proof_packets"][0][
-        "prompt_scaffold_origin"
-    ]["scaffold_kind"] == "pseudo_formalization_required_copy_fragment"
-    assert copy_fragment["pseudo_formal_proof_packets"][0][
-        "prompt_scaffold_origin"
-    ]["required_output_key"] == "pseudo_formal_proof_packets"
-    concrete_rows = pseudo_formal_routable_work_order_rows(
-        pseudo_formal_block_work_order_rows(concrete_seed)
-    )
-    assert any(
-        row["target_lane"] == PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
-        and row["source_anchors"][0]["id"]
-        and row["semantic_primitive_requirements"]
-        for row in concrete_rows
-    )
-    assert all(
-        row["source_prompt_scaffold_kind"]
-        == "pseudo_formalization_required_copy_fragment"
-        for row in concrete_rows
-    )
-    assert all(
-        row["prompt_scaffold_origin"]["proof_evidence_status"]
-        == PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
-        for row in concrete_rows
-    )
-    assert (
-        _validate_required_pseudo_formalization_packet(
-            {"pseudo_formal_proof_packets": [concrete_seed]},
-            environment_feedback=_pf_required_feedback(),
-            proof_bank_runtime_memory_summary={},
-        )
-        == []
-    )
-    assert block_template["conclusion"].startswith("<required non-empty")
-    assert block_template["source_anchors"][0]["id"].startswith("<required")
-    assert blueprint["required_target_lanes"] == []
-    assert (
-        "source_theorem_exact_semantic_definition"
-        in blueprint["suggested_target_lanes_when_unspecified"]
-    )
-    assert any(
-        row["rule_id"] == "pseudo_formalization_required"
-        for row in repair_context["validation_repair_policy"]["rules"]
-    )
-    assert (
-        "do not return only generic diagnostic rows when a target lane is required"
-        in blueprint["do_not_repeat"]
-    )
+    assert "pseudo_formal_required_repair_blueprint" not in repair_context
+    assert "validation_repair_policy" not in repair_context
+    assert "pseudo_formal_issue_specific_repair_actions" not in repair_context
+    assert "concrete_lane_routable_repair_seed" not in top_level_repair_instructions
+    assert "copy_ready_response_fragment" not in top_level_repair_instructions
     assert _validate_required_pseudo_formalization_packet(
         packet,
         environment_feedback=_pf_required_feedback(),
@@ -2009,7 +1933,11 @@ def test_required_pf_validator_rejects_independently_verified_but_unrouted_packe
         proof_bank_runtime_memory_summary={},
     )
 
-    assert any("did not produce any effective lane-routable" in error for error in errors)
+    assert '"status":"no_effective_routable_rows"' in errors[0]
+    assert any(
+        "pseudo_formal_proof_packets[0] blocks[0] routing_observation=" in error
+        for error in errors
+    )
 
 
 def test_capability_eval_allows_required_pf_bv_route_without_lean_candidate() -> None:
@@ -2181,7 +2109,7 @@ def test_structural_exact_semantic_memory_requires_pf_packet() -> None:
     assert validate_formalizer_packet(packet) == []
 
 
-def test_structural_exact_semantic_memory_rejects_generic_review_only() -> None:
+def test_structural_exact_semantic_memory_accepts_independent_review_handoff() -> None:
     question = _pf_test_question()
     proof_memory_summary = {
         "source_theorem_exact_semantic_definition_structural_reformulation_required": True,
@@ -2207,10 +2135,51 @@ def test_structural_exact_semantic_memory_rejects_generic_review_only() -> None:
         proof_bank_runtime_memory_summary=proof_memory_summary,
     )
 
-    assert any("only generic review rows" in error for error in errors)
-    assert any("required target lanes" in error for error in errors)
-    assert any("lean_feasibility=needs_semantic_definition" in error for error in errors)
-    assert any("semantic_primitive_requirements" in error for error in errors)
+    assert errors == []
+    rows = pseudo_formal_block_work_order_rows(
+        packet["pseudo_formal_proof_packets"][0]
+    )
+    assert PSEUDO_FORMAL_FAITHFULNESS_REVIEW_ROW_KIND in {
+        str(row.get("row_kind", "")) for row in rows
+    }
+    assert any(
+        row.get("blocked_target_lane")
+        == PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
+        for row in rows
+    )
+
+
+def test_required_review_handoff_requires_source_excerpt() -> None:
+    proof_memory_summary = {
+        "source_theorem_exact_semantic_definition_structural_reformulation_required": True,
+        "pseudo_formalization_required": True,
+        "requires_pseudo_formalization": True,
+    }
+    response = _minimal_formalizer_response(include_pseudo_formal=True)
+    response["pseudo_formal_proof_packets"][0]["blocks"][0]["source_anchors"] = [
+        {"kind": "proof_body", "id": "source-proof:coverage-semantic-step"}
+    ]
+    packet = _normalize_formalizer_packet(
+        response,
+        question=_pf_test_question(),
+        model="static-formalizer",
+        model_tier="haiku",
+        provider_name="static",
+        backend_provider_name="static",
+        raw_response="{}",
+        theory_packet=_pf_theory_packet(),
+        proof_bank_runtime_memory_summary=proof_memory_summary,
+        environment_feedback={},
+    )
+
+    errors = _validate_required_pseudo_formalization_packet(
+        packet,
+        environment_feedback={},
+        proof_bank_runtime_memory_summary=proof_memory_summary,
+    )
+
+    assert '"status":"independent_review_source_context_incomplete"' in errors[0]
+    assert any('"source_anchor_excerpt_count":0' in error for error in errors)
 
 
 def test_structural_exact_semantic_memory_rejects_unnamed_exact_row() -> None:
@@ -2252,12 +2221,15 @@ def test_structural_exact_semantic_memory_rejects_unnamed_exact_row() -> None:
         proof_bank_runtime_memory_summary=proof_memory_summary,
     )
 
+    assert '"status":"required_target_lane_not_observed"' in errors[0]
     assert any(
-        "source_theorem_exact_semantic_definition routing was not materialized"
+        '"observed_blocked_target_lanes":["source_theorem_exact_semantic_definition"]'
         in error
         for error in errors
     )
-    assert any("semantic_primitive_requirements" in error for error in errors)
+    assert any(
+        '"semantic_primitive_requirement_count":0' in error for error in errors
+    )
 
 
 def test_proof_body_adapter_feedback_does_not_require_pf_without_explicit_gate() -> None:
@@ -2400,7 +2372,13 @@ def _independent_bv_request_learning_row() -> dict[str, Any]:
             "pessimistic_acceptance": True,
             "rollout_count": 0,
         },
-        "source_anchors": [{"kind": "theory_trace", "id": "equation:rank_uniformity"}],
+        "source_anchors": [
+            {
+                "kind": "theory_trace",
+                "id": "equation:rank_uniformity",
+                "excerpt": "exchangeability makes every rank position equally likely",
+            }
+        ],
         "runtime_generated_queue_name": PSEUDO_FORMAL_BLOCK_ROUTING_QUEUE_NAME,
         "runtime_queue_status": "PENDING_FORMAL_GAP_FROM_PSEUDO_FORMAL_BLOCK",
         "row_kind": PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,

@@ -23,9 +23,11 @@ from ai_statistician.pseudo_formal_block_verifier_runtime_worker import (
 )
 from ai_statistician.research_paper_index import build_paper_source_index
 from ai_statistician.pseudo_formal_block_verifier_worker import (
+    pseudo_formal_block_verifier_request_rows,
     run_pseudo_formal_block_verifier_rows,
 )
 from ai_statistician.pseudo_formalization import (
+    PSEUDO_FORMAL_FAITHFULNESS_REVIEW_ROW_KIND,
     PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK,
     PSEUDO_FORMAL_BLOCK_ROUTING_METHOD_STAGE,
     PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
@@ -34,6 +36,7 @@ from ai_statistician.pseudo_formalization import (
 )
 from ai_statistician.research_agent_runtime import (
     ResearchAgentRuntimeConfig,
+    _formalizer_pseudo_formal_work_order_rows,
     _runtime_pseudo_formal_block_verifier_dispatch_task,
     _runtime_pseudo_formal_block_verifier_work_order,
 )
@@ -60,6 +63,10 @@ class _PromptBoundVerifierBackend:
                 "source_pseudo_formal_work_order_id"
             ],
             "source_block_id": prompt["source_block_id"],
+            "faithfulness_review": {
+                "status": "faithful",
+                "reason": "The bounded source anchor states the same rank argument.",
+            },
             "block_verification": {
                 "verdict": self.verdict,
                 "reason": "The local argument follows from the explicit premise.",
@@ -134,6 +141,7 @@ def _request_row() -> dict[str, Any]:
             {
                 "source_id": "paper:generic",
                 "locator": "proof of the rank lemma",
+                "excerpt": "exchangeability makes each admissible rank equally likely",
             }
         ],
         "independent_block_verification_required": True,
@@ -150,6 +158,80 @@ def _request_row() -> dict[str, Any]:
             "source_block_id": "block:rank",
         },
     }
+
+
+def test_formalizer_needs_review_root_reaches_independent_worker(
+    tmp_path: Path,
+) -> None:
+    rows = _formalizer_pseudo_formal_work_order_rows(
+        proposal_packet={
+            "packet_id": "formalizer-proposal:review-root",
+            "pseudo_formal_proof_packets": [
+                {
+                    "theorem_id": "generic_rank_identity",
+                    "source_artifact_id": "theory:generic-rank",
+                    "blocks": [
+                        {
+                            "block_id": "block:review-root",
+                            "block_type": "theorem",
+                            "premises": ["the observations are exchangeable"],
+                            "conclusion": "the rank has the claimed finite law",
+                            "proof_text": (
+                                "Permutation invariance makes admissible ranks "
+                                "equally likely."
+                            ),
+                            "dependency_ids": [],
+                            "scope_parent_id": "",
+                            "source_anchors": [
+                                {
+                                    "kind": "theory_trace",
+                                    "id": "trace:rank-law",
+                                    "excerpt": "exchangeability yields rank uniformity",
+                                }
+                            ],
+                            "semantic_primitive_requirements": ["finite_rank_law"],
+                            "lean_feasibility": "needs_semantic_definition",
+                            "faithfulness_status": "needs_review",
+                            "faithfulness_repair": {
+                                "status": "needs_repair",
+                                "attempts": 0,
+                                "flagged_discrepancies": [],
+                            },
+                            "block_verification": {"verdict": "not_run"},
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+
+    request_rows = pseudo_formal_block_verifier_request_rows(rows)
+
+    assert len(request_rows) == 1
+    request_row = request_rows[0]
+    assert request_row["row_kind"] == PSEUDO_FORMAL_FAITHFULNESS_REVIEW_ROW_KIND
+    assert request_row["learning_task"] == PSEUDO_FORMAL_BLOCK_ROUTING_LEARNING_TASK
+    assert request_row["source_pseudo_formal_work_order_id"] == request_row["row_id"]
+    assert request_row["dependency_statement_context"] == []
+
+    backend = _PromptBoundVerifierBackend()
+    turn = run_pseudo_formal_block_verifier_rows(
+        request_rows,
+        provider=backend,
+        provider_name="static",
+        model="static-haiku",
+        model_tier="haiku",
+        max_packets=1,
+        question_id="generic_exchangeability",
+        out_dir=tmp_path / "review_turn",
+    )
+
+    assert turn["all_ok"] is True
+    assert turn["n_runtime_learning_rows"] == 1
+    learning_row = turn["runtime_learning_rows"][0]
+    assert learning_row["faithfulness_status"] == "faithful"
+    assert learning_row["faithfulness_review"]["status"] == "faithful"
+    assert learning_row["block_verification"]["verdict"] == "accepted"
 
 
 def _runtime_fixture(
@@ -273,7 +355,10 @@ def test_in_memory_block_verifier_turn_emits_validated_nonproof_feedback(
     assert manifest["n_runtime_learning_rows"] == 1
     assert manifest["live_generator"] is False
     learning_row = manifest["runtime_learning_rows"][0]
+    assert learning_row["question_id"] == "generic_exchangeability"
     assert learning_row["independent_block_verification_status"] == "completed"
+    assert learning_row["faithfulness_status"] == "faithful"
+    assert learning_row["faithfulness_review"]["status"] == "faithful"
     assert learning_row["block_verification"]["verdict"] == "accepted"
     assert learning_row["kernel_verified"] is False
     assert learning_row["source_theorem_kernel_verified"] is False

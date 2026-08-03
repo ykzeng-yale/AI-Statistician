@@ -29,6 +29,7 @@ from ai_statistician.pseudo_formalization import (
     PSEUDO_FORMALIZATION_PROMOTION_GATE,
     PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
     PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
+    normalize_pseudo_formal_packet,
     pseudo_formal_block_work_order_rows,
     pseudo_formal_routable_work_order_rows,
     PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
@@ -52,7 +53,7 @@ def test_formalizer_output_contract_bridge_examples_are_domain_neutral() -> None
     )
 
 
-def test_formalizer_generic_repair_keeps_failed_targets_and_role_contract() -> None:
+def test_formalizer_generic_repair_keeps_failed_targets_without_role_recipe() -> None:
     invalid_packet = {
         "formal_targets": [
             {
@@ -81,7 +82,7 @@ def test_formalizer_generic_repair_keeps_failed_targets_and_role_contract() -> N
         invalid_packet=invalid_packet,
     )
 
-    assert context["context_reason"] == "typed_packet_contract_repair"
+    assert context["context_reason"] == "unchanged_validator_rejected_model_packet"
     assert context["rejected_packet_fingerprint"] == formalizer_module.stable_hash(
         invalid_packet
     )
@@ -91,16 +92,12 @@ def test_formalizer_generic_repair_keeps_failed_targets_and_role_contract() -> N
     assert context["source_target_binding_options"][0][
         "target_lean_declaration"
     ] == "source_theorem_target"
-    role_contract = context["formal_target_role_contract"]
-    assert role_contract["SOURCE_THEOREM_CANDIDATE"]["expected_status"] == (
-        "NEEDS_KERNEL_CHECK"
-    )
-    assert role_contract["SOURCE_THEOREM_FORMAL_GAP"]["expected_status"] == (
-        "FORMAL_GAP"
-    )
-    assert role_contract["SOURCE_THEOREM_FORMAL_GAP"][
-        "lean_statement_sketch"
-    ] == "empty"
+    assert context["runtime_selected_semantics"] is False
+    assert context["formalizer_validation_feedback"][
+        "rejected_packet_projection"
+    ]["formal_targets"] == invalid_packet["formal_targets"]
+    assert "formal_target_role_contract" not in context
+    assert "repair_prompt_priority_instructions" not in context
 
 
 def test_formalizer_generic_repair_exposes_theory_card_source_bindings() -> None:
@@ -184,11 +181,14 @@ def test_formalizer_generic_repair_exposes_theory_card_source_bindings() -> None
             "open_obligations": ["kernel check required"],
         }
     ]
-    instructions = " ".join(context["repair_prompt_priority_instructions"])
-    assert "the exact target" in instructions
-    assert "candidate_lean_declaration" in instructions
-    assert "source_theorem_goal_id" in instructions
-    assert "fail closed" in instructions
+    assert context["response_schema_authority"] == (
+        "current Formalizer provider JSON schema"
+    )
+    assert context["validation_authority"] == (
+        "unchanged local Formalizer validators"
+    )
+    assert context["runtime_selected_semantics"] is False
+    assert "repair_prompt_priority_instructions" not in context
 
 
 def _write_static_formalizer_response(path: Path) -> None:
@@ -348,6 +348,30 @@ def test_required_pf_is_enforced_by_provider_schema_before_local_validation() ->
         "id",
         "excerpt",
     ]
+    assert block_schema["properties"]["block_type"]["enum"] == [
+        "theorem",
+        "proposition",
+        "lemma",
+        "claim",
+        "fact",
+        "definition",
+        "calculation",
+        "case",
+    ]
+    assert block_schema["properties"]["lean_feasibility"]["enum"] == [
+        "lean_now",
+        "needs_rag",
+        "needs_library",
+        "needs_semantic_definition",
+        "pseudo_only",
+        "unknown",
+    ]
+    assert block_schema["properties"]["faithfulness_status"]["enum"] == [
+        "unchecked",
+        "faithful",
+        "unfaithful",
+        "needs_review",
+    ]
     assert "pseudo_formal_proof_packets" not in optional_schema["required"]
     assert "minItems" not in optional_schema["properties"][
         "pseudo_formal_proof_packets"
@@ -379,7 +403,7 @@ def test_required_pf_is_enforced_by_provider_schema_before_local_validation() ->
     }
 
 
-def test_formalizer_required_pf_prompt_includes_source_bound_packet_seed() -> None:
+def test_formalizer_required_pf_prompt_exposes_source_context_without_packet_seed() -> None:
     question = _pseudo_formal_packet_eval_question()
     theory_packet = _pseudo_formal_packet_eval_theory_packet()
     feedback = _pseudo_formal_packet_eval_feedback()
@@ -400,101 +424,51 @@ def test_formalizer_required_pf_prompt_includes_source_bound_packet_seed() -> No
     )
 
     payload = _prompt_payload(prompt)
-    seed = payload["pseudo_formalization_required_packet_seed"]
-    copy_fragment = payload["pseudo_formalization_required_copy_fragment"]
-    copy_contract = copy_fragment["validator_ready_copy_contract"]
-    block = seed["blocks"][0]
-
-    assert seed["theorem_id"] == "theorem:coverage"
-    assert seed["source_artifact_id"] == "theory:formalizer_pseudo_formal_packet_eval"
-    assert seed["proof_evidence_status"] == PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
-    assert seed["kernel_verified"] is False
-    assert seed["source_theorem_kernel_verified"] is False
-    assert PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION in (
-        seed["required_target_lanes_to_satisfy"]
+    assert payload["theory_packet_summary"]["packet_id"] == (
+        "theory:formalizer_pseudo_formal_packet_eval"
     )
-    assert block["conclusion"]
-    assert block["source_anchors"][0]["id"] == "proof_body:rank_threshold_step"
-    assert block["lean_feasibility"] == "needs_semantic_definition"
-    assert block["semantic_primitive_requirements"]
-    assert block["faithfulness_status"] == "faithful"
+    assert payload["theory_packet_summary"]["theorem_cards"][0]["id"] == (
+        "theorem:coverage"
+    )
     assert feedback["pseudo_formal_block_routing_target_lanes"] == [
         "source_theorem_exact_semantic_definition",
         "source_to_bridge",
     ]
-    assert copy_contract["copy_source_path"] == (
-        "pseudo_formalization_required_copy_fragment.pseudo_formal_proof_packets"
+    assert payload["pseudo_formalization_required_target_lanes"] == (
+        feedback["pseudo_formal_block_routing_target_lanes"]
     )
-    assert copy_contract["copy_destination_path"] == "pseudo_formal_proof_packets"
-    assert (
-        "pseudo_formal_proof_packets[0].blocks[0].source_anchors"
-        in copy_contract["required_preserved_paths"]
-    )
-    assert copy_contract["routable_work_order_rows_if_copied"] >= 1
-    assert PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION in (
-        copy_contract["routable_target_lanes_if_copied"]
-    )
-    assert payload["required_output_contract"]["pseudo_formal_proof_packets"][
-        "validator_ready_copy_contract_path"
-    ] == (
-        "pseudo_formalization_required_copy_fragment."
-        "validator_ready_copy_contract"
-    )
-    assert "pseudo_formalization_required_packet_seed" in prompt
-    assert "\"id\":\"source_step\"" in prompt
-    assert "coverage_threshold" not in prompt
+    output_contract = payload["required_output_contract"][
+        "pseudo_formal_proof_packets"
+    ]
+    assert output_contract["required"] is True
+    assert output_contract["runtime_selected_mathematical_content"] is False
+    assert "pseudo_formalization_required_packet_seed" not in payload
+    assert "pseudo_formalization_required_copy_fragment" not in payload
+    assert "copy_from" not in output_contract
 
 
-def test_formalizer_prompt_prefers_component_gate_failure_repair_seed() -> None:
+def test_formalizer_prompt_exposes_component_failure_without_repair_seed() -> None:
     question = _pseudo_formal_packet_eval_question()
-    component_seed = {
-        "schema_version": 1,
-        "packet_id": "pseudo_formal_packet:component_gate_repair",
-        "theorem_id": "theorem:coverage",
-        "source_artifact_id": "formalizer_pf_component_gate:failed_manifest",
-        "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
-        "kernel_verified": False,
-        "source_theorem_kernel_verified": False,
-        "blocks": [
-            {
-                "block_id": "pf_block:component_gate_exact",
-                "block_type": "claim",
-                "block_depth": 1,
-                "premises": ["calibration rank threshold source step"],
-                "conclusion": (
-                    "C_n is the exact source semantic primitive for the "
-                    "coverage event."
-                ),
-                "proof_text": "The source proof uses C_n as the rank threshold.",
-                "dependency_ids": [],
-                "scope_parent_id": "",
-                "dependency_scope": "earlier_block_statement_only",
-                "inherited_scope": [],
-                "source_anchors": [
+    validation_errors = [
+        "pseudo_formal_proof_packets[0] invalid: blocks[0] missing conclusion",
+        (
+            "pseudo_formalization_required: valid PF/BV packet did not "
+            "produce any effective lane-routable pseudo-formal work-order rows"
+        ),
+    ]
+    validation_feedback = (
+        formalizer_module.formalizer_validation_feedback_envelope(
+            validation_errors,
+            invalid_packet={
+                "pseudo_formal_proof_packets": [
                     {
-                        "kind": "proof_body",
-                        "id": "proof_body:component_gate_rank_threshold",
-                        "excerpt": "C_n rank threshold coverage event",
+                        "packet_id": "pseudo_formal_packet:rejected",
+                        "blocks": [{"block_id": "pf_block:rejected"}],
                     }
-                ],
-                "semantic_primitive_requirements": ["component_gate_C_n"],
-                "lean_feasibility": "needs_semantic_definition",
-                "faithfulness_status": "faithful",
-                "faithfulness_repair": {
-                    "status": "not_required",
-                    "attempts": 0,
-                    "flagged_discrepancies": [],
-                },
-                "block_verification": {
-                    "verdict": "unknown",
-                    "verifier_provenance": "not_run",
-                    "independent_verifier": False,
-                    "rollout_count": 0,
-                },
-                "kernel_verified": False,
-            }
-        ],
-    }
+                ]
+            },
+        )
+    )
     proof_memory_summary = {
         "pseudo_formalization_required": True,
         "requires_pseudo_formalization": True,
@@ -513,18 +487,9 @@ def test_formalizer_prompt_prefers_component_gate_failure_repair_seed() -> None:
                     PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
                     PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
                 ],
-                "validation_issue_summary": {
-                    "issue_kinds": [
-                        "missing_conclusion",
-                        "missing_source_anchors",
-                    ],
-                    "blocking_issue_kinds": [
-                        "missing_conclusion",
-                        "missing_source_anchors",
-                    ],
-                    "n_no_lane_routable_work_order_rows": 1,
-                },
-                "concrete_lane_routable_repair_seed": component_seed,
+                "formalizer_validation_feedback": validation_feedback,
+                "model_owned_repair_required": True,
+                "runtime_selected_mathematical_content": False,
                 "proof_evidence_status": (
                     "FORMALIZER_PSEUDO_FORMAL_PACKET_COMPONENT_GATE_FEEDBACK_"
                     "NOT_PROOF_EVIDENCE"
@@ -537,10 +502,10 @@ def test_formalizer_prompt_prefers_component_gate_failure_repair_seed() -> None:
         question=question,
         theory_packet=_pseudo_formal_packet_eval_theory_packet(),
         simulation_manifest={
-            "manifest_id": "simulation:component_seed_test",
+            "manifest_id": "simulation:component_feedback_test",
             "proof_evidence_status": "SIMULATION_NOT_PROOF_EVIDENCE",
         },
-        algorithm_manifest={"manifest_id": "algorithm:component_seed_test"},
+        algorithm_manifest={"manifest_id": "algorithm:component_feedback_test"},
         registered_problem={"question_id": question.id},
         theorem_goals=[],
         proof_bank_obligation_catalog=[],
@@ -548,78 +513,40 @@ def test_formalizer_prompt_prefers_component_gate_failure_repair_seed() -> None:
         environment_feedback={},
     )
     payload = _prompt_payload(prompt)
-    seed = payload["pseudo_formalization_required_packet_seed"]
-    copy_fragment = payload["pseudo_formalization_required_copy_fragment"]
-    copy_packet = copy_fragment["pseudo_formal_proof_packets"][0]
-    copy_contract = copy_fragment["validator_ready_copy_contract"]
-    rows = pseudo_formal_routable_work_order_rows(
-        pseudo_formal_block_work_order_rows(copy_packet)
-    )
-
-    assert seed["packet_id"] == "pseudo_formal_packet:component_gate_repair"
-    assert seed["component_gate_failure_seed_source"] == (
+    memory = payload["proof_bank_runtime_memory_summary"][
         "formalizer_pseudo_formal_packet_component_gate_failure_memory"
+    ][0]
+    assert memory["component_eval_manifest_path"] == (
+        "runs/component_gate_failure/manifest.json"
     )
-    assert seed["prompt_scaffold_origin"]["source"] == (
-        "formalizer_pseudo_formal_packet_component_gate_failure_memory"
-    )
-    assert seed["blocks"][0]["source_anchors"][0]["id"] == (
-        "proof_body:component_gate_rank_threshold"
-    )
-    assert seed["blocks"][0]["semantic_primitive_requirements"] == [
-        "component_gate_C_n"
+    assert memory["required_target_lanes"] == [
+        PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
+        PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
     ]
-    assert payload["pseudo_formalization_component_gate_failure_repair_seed"][
-        "packet_id"
-    ] == "pseudo_formal_packet:component_gate_repair"
-    assert copy_packet["packet_id"] == "pseudo_formal_packet:component_gate_repair"
-    assert copy_contract["first_packet_copy_source_path"] == (
-        "pseudo_formalization_required_copy_fragment."
-        "pseudo_formal_proof_packets[0]"
-    )
-    assert copy_contract["first_packet_destination_path"] == (
-        "pseudo_formal_proof_packets[0]"
-    )
-    assert copy_contract["copy_is_not_proof_evidence"] is True
-    assert PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION in (
-        copy_contract["routable_target_lanes_if_copied"]
-    )
-    assert any(
-        row["target_lane"] == PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
-        and row["source_anchors"][0]["id"]
-        == "proof_body:component_gate_rank_threshold"
-        and row["semantic_primitive_requirements"] == ["component_gate_C_n"]
-        for row in rows
-    )
+    assert memory["formalizer_validation_feedback"][
+        "validation_error_messages"
+    ] == validation_errors
+    assert memory["model_owned_repair_required"] is True
+    assert memory["runtime_selected_mathematical_content"] is False
+    assert "concrete_lane_routable_repair_seed" not in memory
+    assert "pseudo_formalization_required_packet_seed" not in payload
+    assert "pseudo_formalization_required_copy_fragment" not in payload
+    assert "pseudo_formalization_component_gate_failure_repair_seed" not in payload
 
     repair_context = _formalizer_repair_context(
-        errors=[
-            "pseudo_formal_proof_packets[0] invalid: blocks[0] missing conclusion",
-            (
-                "pseudo_formalization_required: valid PF/BV packet did not "
-                "produce any effective lane-routable pseudo-formal work-order rows"
-            ),
-        ],
+        errors=validation_errors,
         question=question,
         theory_packet=_pseudo_formal_packet_eval_theory_packet(),
         environment_feedback={},
         proof_bank_runtime_memory_summary=proof_memory_summary,
     )
-    blueprint = repair_context["pseudo_formal_required_repair_blueprint"]
-    assert blueprint["component_gate_failure_repair_seed"]["packet_id"] == (
-        "pseudo_formal_packet:component_gate_repair"
-    )
-    assert blueprint["copy_ready_response_fragment"]["pseudo_formal_proof_packets"][
-        0
-    ]["blocks"][0]["source_anchors"][0]["id"] == (
-        "proof_body:component_gate_rank_threshold"
-    )
-    assert blueprint["validator_ready_copy_contract"][
-        "copy_destination_path"
-    ] == "pseudo_formal_proof_packets"
-
-
-def test_required_pf_validation_enforces_satisfied_component_copy_contract() -> None:
+    assert repair_context["formalizer_validation_feedback"][
+        "validation_error_messages"
+    ] == repair_context["detected_validation_errors"]
+    assert repair_context["repair_protocol"]["runtime_selected_semantics"] is False
+    assert "pseudo_formal_required_repair_blueprint" not in repair_context
+    assert "validation_repair_policy" not in repair_context
+def test_required_pf_validation_does_not_enforce_prior_component_copy() -> None:
     component_seed = {
         "schema_version": 1,
         "packet_id": "pseudo_formal_packet:component_gate_repair",
@@ -701,10 +628,11 @@ def test_required_pf_validation_enforces_satisfied_component_copy_contract() -> 
         proof_bank_runtime_memory_summary=proof_memory_summary,
         environment_feedback={},
     )
-    copy_packet = _prompt_payload(prompt)[
-        "pseudo_formalization_required_copy_fragment"
-    ]["pseudo_formal_proof_packets"][0]
-    copied_response = {"pseudo_formal_proof_packets": [copy_packet]}
+    payload = _prompt_payload(prompt)
+    assert "pseudo_formalization_required_copy_fragment" not in payload
+    assert "pseudo_formalization_required_packet_seed" not in payload
+    authored_packet = normalize_pseudo_formal_packet(component_seed)
+    copied_response = {"pseudo_formal_proof_packets": [authored_packet]}
 
     assert (
         _validate_required_pseudo_formalization_packet(
@@ -715,7 +643,7 @@ def test_required_pf_validation_enforces_satisfied_component_copy_contract() -> 
         == []
     )
 
-    enriched_packet = json.loads(json.dumps(copy_packet))
+    enriched_packet = json.loads(json.dumps(authored_packet))
     enriched_packet["blocks"][0]["source_anchors"].append(
         {
             "kind": "proof_body",
@@ -735,7 +663,7 @@ def test_required_pf_validation_enforces_satisfied_component_copy_contract() -> 
         == []
     )
 
-    drifted_packet = json.loads(json.dumps(copy_packet))
+    drifted_packet = json.loads(json.dumps(authored_packet))
     drifted_packet["blocks"][0]["source_anchors"] = [
         {
             "kind": "proof_body",
@@ -745,15 +673,14 @@ def test_required_pf_validation_enforces_satisfied_component_copy_contract() -> 
     ]
     drifted_response = {"pseudo_formal_proof_packets": [drifted_packet]}
 
-    errors = _validate_required_pseudo_formalization_packet(
-        drifted_response,
-        environment_feedback={},
-        proof_bank_runtime_memory_summary=proof_memory_summary,
+    assert (
+        _validate_required_pseudo_formalization_packet(
+            drifted_response,
+            environment_feedback={},
+            proof_bank_runtime_memory_summary=proof_memory_summary,
+        )
+        == []
     )
-
-    assert len(errors) == 1
-    assert "validator_ready_copy_contract" in errors[0]
-    assert "pseudo_formal_proof_packets[0].blocks[0].source_anchors" in errors[0]
 
 
 def test_formalizer_prompt_string_false_does_not_require_pf_bv() -> None:
@@ -793,6 +720,32 @@ def test_formalizer_prompt_string_false_does_not_require_pf_bv() -> None:
         payload["required_output_contract"]["pseudo_formal_proof_packets"],
         str,
     )
+    assert "optional PF/BV routing packets" in payload["required_output_contract"][
+        "pseudo_formal_proof_packets"
+    ]
+    assert "you must emit at least one pseudo_formal_proof_packets" not in prompt
+
+
+def test_formalizer_prompt_does_not_infer_pf_bv_control_flow_from_prose() -> None:
+    question = _pseudo_formal_packet_eval_question()
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_pseudo_formal_packet_eval_theory_packet(),
+        simulation_manifest={"manifest_id": "simulation:prose_only_pf"},
+        algorithm_manifest={"manifest_id": "algorithm:prose_only_pf"},
+        registered_problem={"question_id": question.id},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback={
+            "diagnostic": (
+                "A prior note said PF/BV activation required and must emit "
+                "pseudo_formal_proof_packets, but no typed mode was requested."
+            )
+        },
+    )
+    payload = _prompt_payload(prompt)
+
     assert "optional PF/BV routing packets" in payload["required_output_contract"][
         "pseudo_formal_proof_packets"
     ]
@@ -850,6 +803,7 @@ def test_formalizer_pseudo_formal_packet_eval_static_fixture_routes_rows(
 
     assert manifest["artifact_kind"] == "FormalizerPseudoFormalPacketEvalManifest"
     assert manifest["result_status"] == "OK"
+    assert manifest["completion_mode"] == "required_target_lane_materialized"
     assert manifest["live_generator"] is False
     assert manifest["static_or_fixture_only"] is True
     assert manifest["model_tier"] == LIVE_EVALUATION_CLAUDE_MODEL_TIER
@@ -880,30 +834,12 @@ def test_formalizer_pseudo_formal_packet_eval_static_fixture_routes_rows(
         is True
     )
     assert manifest["exact_semantic_definition_rows_lineage_complete"] is True
-    assert (
-        manifest["fixture_plumbing_requirements"][
-            "exact_semantic_definition_lane_present"
-        ]
-        is True
-    )
-    assert (
-        manifest["fixture_plumbing_requirements"][
-            "exact_semantic_definition_rows_source_anchored"
-        ]
-        is True
-    )
-    assert (
-        manifest["fixture_plumbing_requirements"][
-            "exact_semantic_definition_rows_semantic_requirements_present"
-        ]
-        is True
-    )
-    assert (
-        manifest["fixture_plumbing_requirements"][
-            "exact_semantic_definition_rows_lineage_complete"
-        ]
-        is True
-    )
+    assert manifest["fixture_plumbing_requirements"][
+        "required_lane_progress_ready"
+    ] is True
+    assert manifest["fixture_plumbing_requirements"][
+        "exact_semantic_definition_rows_ready_when_materialized"
+    ] is True
     assert "source_theorem_exact_semantic_definition" in (
         manifest["pseudo_formal_routable_target_lanes"]
     )
@@ -936,6 +872,7 @@ def test_formalizer_pseudo_formal_packet_eval_static_fixture_routes_rows(
         if line.strip()
     ]
     assert len(exact_rows) == 1
+    assert exact_rows[0]["question_id"] == "formalizer_pseudo_formal_packet_probe"
     assert exact_rows[0]["target_lane"] == (
         PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
     )
@@ -968,6 +905,52 @@ def test_formalizer_pseudo_formal_packet_eval_static_fixture_routes_rows(
     )
 
 
+def test_formalizer_pseudo_formal_packet_eval_routes_unreviewed_block_to_reviewer(
+    tmp_path: Path,
+) -> None:
+    response_file = tmp_path / "formalizer_response.json"
+    _write_static_formalizer_response(response_file)
+    response = json.loads(response_file.read_text(encoding="utf-8"))
+    block = response["pseudo_formal_proof_packets"][0]["blocks"][0]
+    block["faithfulness_status"] = "needs_review"
+    block["faithfulness_repair"] = {
+        "status": "needs_repair",
+        "attempts": 0,
+        "flagged_discrepancies": [],
+    }
+    response_file.write_text(json.dumps(response), encoding="utf-8")
+
+    manifest = run_formalizer_pseudo_formal_packet_eval(
+        out_dir=tmp_path / "out",
+        provider_name="static",
+        static_response_file=response_file,
+    )
+
+    assert manifest["result_status"] == "OK"
+    assert manifest["completion_mode"] == "independent_faithfulness_review_handoff"
+    assert manifest["exact_semantic_definition_lane_present"] is False
+    assert manifest["faithfulness_review_handoff_ready"] is True
+    assert manifest["n_pseudo_formal_faithfulness_review_handoff_rows"] == 1
+    assert manifest["fixture_plumbing_ok"] is True
+    review_rows_path = Path(
+        manifest["artifacts"]["faithfulness_review_handoff_rows_jsonl"]
+    )
+    review_rows = [
+        json.loads(line)
+        for line in review_rows_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert review_rows[0]["learning_task"] == (
+        "pseudo_formal_block_routing_feedback"
+    )
+    assert review_rows[0]["question_id"] == (
+        "formalizer_pseudo_formal_packet_probe"
+    )
+    assert review_rows[0]["source_pseudo_formal_work_order_id"] == (
+        review_rows[0]["row_id"]
+    )
+
+
 def test_formalizer_pseudo_formal_packet_eval_rejects_missing_exact_lane(
     tmp_path: Path,
 ) -> None:
@@ -987,7 +970,8 @@ def test_formalizer_pseudo_formal_packet_eval_rejects_missing_exact_lane(
         )
 
     assert any(
-        "required source_theorem_exact_semantic_definition routing" in error
+        '"status":"required_target_lane_not_observed"' in error
+        and "source_theorem_exact_semantic_definition" in error
         for error in exc_info.value.errors
     )
 
@@ -1011,18 +995,14 @@ def test_formalizer_pseudo_formal_packet_eval_rejects_inactionable_exact_rows(
         )
 
     assert any(
-        "required source_theorem_exact_semantic_definition routing was not materialized"
+        '"observed_blocked_target_lanes":["source_theorem_exact_semantic_definition"]'
         in error
-        and "non-empty semantic_primitive_requirements" in error
-        for error in exc_info.value.errors
-    )
-    assert any(
-        "semantic_primitive_requirements" in error
+        and '"semantic_primitive_requirement_count":0' in error
         for error in exc_info.value.errors
     )
 
 
-def test_formalizer_pseudo_formal_packet_eval_failure_manifest_exports_repair_seed(
+def test_formalizer_pseudo_formal_packet_eval_failure_manifest_exports_feedback(
     tmp_path: Path,
 ) -> None:
     exc = PacketValidationError(
@@ -1050,60 +1030,27 @@ def test_formalizer_pseudo_formal_packet_eval_failure_manifest_exports_repair_se
     manifest = write_formalizer_pseudo_formal_packet_eval_failure_manifest(
         out_dir=tmp_path / "out",
         provider_name="anthropic",
-        model="claude-sonnet",
+        model="claude-haiku-4-5-20251001",
         exc=exc,
     )
 
-    issue_summary = manifest["pseudo_formal_failure_validation_issue_summary"]
-    concrete_seed = manifest[
-        "pseudo_formal_failure_concrete_lane_routable_repair_seed"
-    ]
-    copy_contract = manifest[
-        "pseudo_formal_failure_validator_ready_copy_contract"
-    ]
-    copy_summary = manifest["pseudo_formal_failure_copy_contract_summary"]
-    concrete_block = concrete_seed["blocks"][0]
-    rows = pseudo_formal_routable_work_order_rows(
-        pseudo_formal_block_work_order_rows(concrete_seed)
-    )
-
-    assert issue_summary["n_missing_conclusion"] == 1
-    assert issue_summary["n_missing_source_anchors"] == 1
-    assert issue_summary["n_no_lane_routable_work_order_rows"] == 1
+    feedback = manifest["formalizer_validation_feedback"]
+    assert feedback["validation_error_messages"] == exc.errors
+    assert feedback["repair_authority"]["runtime_selected_semantics"] is False
+    assert feedback["repair_authority"]["model_owns"]
     assert manifest["pseudo_formal_failure_required_target_lanes"] == [
         "source_theorem_exact_semantic_definition",
         "source_to_bridge",
     ]
-    assert concrete_block["conclusion"]
-    assert concrete_block["source_anchors"][0]["id"] == (
-        "proof_body:rank_threshold_step"
-    )
-    assert concrete_block["semantic_primitive_requirements"]
-    assert concrete_block["lean_feasibility"] == "needs_semantic_definition"
-    assert copy_contract["copy_source_path"] == (
-        "pseudo_formalization_required_copy_fragment.pseudo_formal_proof_packets"
-    )
-    assert copy_contract["copy_destination_path"] == "pseudo_formal_proof_packets"
-    assert copy_contract["routable_work_order_rows_if_copied"] >= 1
-    assert "pseudo_formal_proof_packets[0].blocks[0].source_anchors" in (
-        copy_contract["required_preserved_paths"]
-    )
-    assert copy_summary["repair_seed_valid"] is True
-    assert copy_summary["validator_ready_copy_contract_satisfied"] is True
-    assert copy_summary["exact_semantic_definition_lane_ready_if_copied"] is True
-    assert copy_summary["n_routable_work_order_rows_if_copied"] >= 1
-    assert (
-        copy_summary[
-            "n_exact_semantic_definition_rows_with_source_anchors_if_copied"
-        ]
-        >= 1
-    )
-    assert manifest["pseudo_formal_failure_copy_ready"] is True
-    assert (
-        manifest["pseudo_formal_failure_copy_exact_semantic_definition_ready"]
-        is True
-    )
-    assert manifest["pseudo_formal_failure_repair_seed_available"] is True
+    assert manifest["model_owned_repair_required"] is True
+    assert manifest["runtime_selected_mathematical_content"] is False
+    assert "pseudo_formal_failure_issue_specific_repair_actions" not in manifest
+    assert "pseudo_formal_failure_concrete_lane_routable_repair_seed" not in manifest
+    assert "pseudo_formal_failure_validator_ready_copy_contract" not in manifest
+    assert "pseudo_formal_failure_copy_contract_summary" not in manifest
+    assert "pseudo_formal_required_repair_blueprint" not in manifest[
+        "pseudo_formal_failure_repair_context"
+    ]
     assert manifest["nonproof_boundary_preserved"] is True
     assert manifest["raw_model_output_written"] is False
     assert manifest["source_theorem_kernel_verified"] is False
@@ -1111,25 +1058,14 @@ def test_formalizer_pseudo_formal_packet_eval_failure_manifest_exports_repair_se
     assert manifest["proof_evidence_status"] == (
         FORMALIZER_PSEUDO_FORMAL_PACKET_EVAL_NOT_PROOF_EVIDENCE
     )
-    assert any(
-        row["target_lane"] == PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION
-        and row["source_anchors"][0]["id"] == "proof_body:rank_threshold_step"
-        and row["semantic_primitive_requirements"]
-        for row in rows
-    )
     result = json.loads(
         Path(manifest["artifacts"]["result_json"]).read_text(encoding="utf-8")
     )
-    assert result["pseudo_formal_failure_concrete_lane_routable_repair_seed"][
-        "blocks"
-    ][0]["source_anchors"][0]["id"] == "proof_body:rank_threshold_step"
-    assert result["pseudo_formal_failure_validator_ready_copy_contract"][
-        "copy_destination_path"
-    ] == "pseudo_formal_proof_packets"
-    assert result["pseudo_formal_failure_copy_contract_summary"][
-        "validator_ready_copy_contract_satisfied"
-    ] is True
-    assert result["pseudo_formal_failure_copy_ready"] is True
+    assert result["formalizer_validation_feedback"]["feedback_id"] == (
+        feedback["feedback_id"]
+    )
+    assert result["model_owned_repair_required"] is True
+    assert result["runtime_selected_mathematical_content"] is False
     assert result["nonproof_boundary_preserved"] is True
     assert result["source_theorem_kernel_verified"] is False
     assert result["full_frontier_theorem_proved"] is False

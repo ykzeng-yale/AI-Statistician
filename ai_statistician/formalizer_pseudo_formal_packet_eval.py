@@ -13,6 +13,10 @@ from .formalizer_llm import (
     validate_formalizer_packet,
 )
 from .llm_json_repair import PacketValidationError
+from .formalizer_repair_policy import formalizer_validation_feedback_envelope
+from .pseudo_formal_block_verifier_worker import (
+    pseudo_formal_block_verifier_request_rows,
+)
 from .model_backend import (
     AnthropicGeneratorBackend,
     LIVE_EVALUATION_CLAUDE_MODEL_TIER,
@@ -23,14 +27,15 @@ from .model_backend import (
     resolve_live_evaluation_model,
 )
 from .pseudo_formalization import (
+    PSEUDO_FORMAL_FAITHFULNESS_REVIEW_ROW_KIND,
     PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
     PSEUDO_FORMAL_NON_ROUTABLE_WORK_ORDER_ROW_KINDS,
     PSEUDO_FORMAL_TARGET_LANE_EXACT_SEMANTIC_DEFINITION,
     PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
     pseudo_formal_block_work_order_rows,
-    pseudo_formal_failure_copy_contract_summary,
     pseudo_formal_routable_work_order_rows,
     pseudo_formal_work_order_row_has_required_lineage,
+    pseudo_formal_work_order_row_has_reviewable_source_anchor,
     pseudo_formal_work_order_row_has_semantic_requirements,
     pseudo_formal_work_order_row_has_source_anchor,
     validate_pseudo_formal_packet,
@@ -148,6 +153,12 @@ def write_formalizer_pseudo_formal_packet_eval_failure_manifest(
         else [f"{type(exc).__name__}: {exc}"]
     )
     history = list(exc.history) if isinstance(exc, PacketValidationError) else []
+    invalid_packet = (
+        dict(exc.last_invalid_packet)
+        if isinstance(exc, PacketValidationError)
+        and isinstance(exc.last_invalid_packet, Mapping)
+        else {}
+    )
     repair_context = _formalizer_repair_context(
         errors=errors,
         question=_pseudo_formal_packet_eval_question(),
@@ -155,27 +166,21 @@ def write_formalizer_pseudo_formal_packet_eval_failure_manifest(
         environment_feedback=_pseudo_formal_packet_eval_feedback(),
         proof_bank_runtime_memory_summary={},
     )
-    repair_blueprint = (
-        dict(repair_context.get("pseudo_formal_required_repair_blueprint", {}) or {})
-        if isinstance(repair_context.get("pseudo_formal_required_repair_blueprint", {}), Mapping)
-        else {}
+    validation_feedback = formalizer_validation_feedback_envelope(
+        errors,
+        validation_label=(
+            exc.validation_label
+            if isinstance(exc, PacketValidationError)
+            else "Formalizer PF/BV component eval"
+        ),
+        invalid_packet=invalid_packet,
+        attempt_history=history,
     )
-    validator_ready_copy_contract = (
-        dict(repair_blueprint.get("validator_ready_copy_contract", {}) or {})
-        if isinstance(repair_blueprint.get("validator_ready_copy_contract", {}), Mapping)
-        else {}
-    )
-    concrete_repair_seed = (
-        repair_blueprint.get("concrete_lane_routable_repair_seed", {})
-    )
-    concrete_repair_seed = (
-        dict(concrete_repair_seed)
-        if isinstance(concrete_repair_seed, Mapping)
-        else {}
-    )
-    copy_contract_summary = pseudo_formal_failure_copy_contract_summary(
-        repair_seed=concrete_repair_seed,
-        validator_ready_copy_contract=validator_ready_copy_contract,
+    required_target_lanes = list(
+        _pseudo_formal_packet_eval_feedback().get(
+            "pseudo_formal_block_routing_target_lanes",
+            [],
+        )
     )
     manifest: dict[str, Any] = {
         "schema_version": 1,
@@ -192,42 +197,10 @@ def write_formalizer_pseudo_formal_packet_eval_failure_manifest(
         "errors": errors,
         "llm_json_repair_history": history,
         "pseudo_formal_failure_repair_context": repair_context,
-        "pseudo_formal_failure_validation_issue_summary": repair_context.get(
-            "pseudo_formal_validation_issue_summary",
-            {},
-        ),
-        "pseudo_formal_failure_issue_specific_repair_actions": repair_context.get(
-            "pseudo_formal_issue_specific_repair_actions",
-            [],
-        ),
-        "pseudo_formal_failure_concrete_lane_routable_repair_seed": (
-            concrete_repair_seed
-        ),
-        "pseudo_formal_failure_validator_ready_copy_contract": (
-            validator_ready_copy_contract
-        ),
-        "pseudo_formal_failure_copy_contract_summary": copy_contract_summary,
-        "pseudo_formal_failure_copy_ready": bool(
-            copy_contract_summary.get(
-                "validator_ready_copy_contract_satisfied",
-                False,
-            )
-        ),
-        "pseudo_formal_failure_copy_exact_semantic_definition_ready": bool(
-            copy_contract_summary.get(
-                "exact_semantic_definition_lane_ready_if_copied",
-                False,
-            )
-        ),
-        "pseudo_formal_failure_repair_seed_available": bool(
-            concrete_repair_seed.get("blocks", [])
-        ),
-        "pseudo_formal_failure_required_target_lanes": list(
-            repair_blueprint.get(
-                "required_target_lanes",
-                [],
-            )
-        ),
+        "formalizer_validation_feedback": validation_feedback,
+        "pseudo_formal_failure_required_target_lanes": required_target_lanes,
+        "model_owned_repair_required": True,
+        "runtime_selected_mathematical_content": False,
         "capability_evidence_ok": False,
         "fixture_plumbing_ok": False,
         "nonproof_boundary_preserved": True,
@@ -249,38 +222,12 @@ def write_formalizer_pseudo_formal_packet_eval_failure_manifest(
                 "result_status": "FAILED",
                 "errors": errors,
                 "llm_json_repair_history": history,
-                "pseudo_formal_failure_validation_issue_summary": (
-                    manifest["pseudo_formal_failure_validation_issue_summary"]
+                "formalizer_validation_feedback": validation_feedback,
+                "pseudo_formal_failure_required_target_lanes": (
+                    required_target_lanes
                 ),
-                "pseudo_formal_failure_issue_specific_repair_actions": (
-                    manifest[
-                        "pseudo_formal_failure_issue_specific_repair_actions"
-                    ]
-                ),
-                "pseudo_formal_failure_concrete_lane_routable_repair_seed": (
-                    manifest[
-                        "pseudo_formal_failure_concrete_lane_routable_repair_seed"
-                    ]
-                ),
-                "pseudo_formal_failure_validator_ready_copy_contract": (
-                    manifest[
-                        "pseudo_formal_failure_validator_ready_copy_contract"
-                    ]
-                ),
-                "pseudo_formal_failure_copy_contract_summary": (
-                    manifest["pseudo_formal_failure_copy_contract_summary"]
-                ),
-                "pseudo_formal_failure_copy_ready": (
-                    manifest["pseudo_formal_failure_copy_ready"]
-                ),
-                "pseudo_formal_failure_copy_exact_semantic_definition_ready": (
-                    manifest[
-                        "pseudo_formal_failure_copy_exact_semantic_definition_ready"
-                    ]
-                ),
-                "pseudo_formal_failure_repair_seed_available": (
-                    manifest["pseudo_formal_failure_repair_seed_available"]
-                ),
+                "model_owned_repair_required": True,
+                "runtime_selected_mathematical_content": False,
                 "nonproof_boundary_preserved": (
                     manifest["nonproof_boundary_preserved"]
                 ),
@@ -421,6 +368,9 @@ def _formalizer_pseudo_formal_packet_eval_manifest(
         if errors:
             pf_error_rows.append({"index": index, "errors": errors})
         work_order_rows.extend(pseudo_formal_block_work_order_rows(pf_packet))
+    for row in work_order_rows:
+        row["question_id"] = question.id
+        row["question_title"] = question.title
     routable_rows = pseudo_formal_routable_work_order_rows(work_order_rows)
     diagnostic_rows = [
         dict(row)
@@ -470,6 +420,56 @@ def _formalizer_pseudo_formal_packet_eval_manifest(
     exact_semantic_rows_lineage_complete = bool(exact_semantic_rows) and len(
         exact_semantic_rows_with_lineage
     ) == len(exact_semantic_rows)
+    required_target_lanes = {
+        str(value)
+        for value in feedback.get("pseudo_formal_block_routing_target_lanes", [])
+        or []
+        if str(value).strip()
+    }
+    required_lane_blocked_source_ids = {
+        str(row.get("source_block_id", "") or "")
+        for row in work_order_rows
+        if str(row.get("blocked_target_lane", "") or "")
+        in required_target_lanes
+    }
+    independent_review_rows = pseudo_formal_block_verifier_request_rows(
+        work_order_rows
+    )
+    faithfulness_review_handoff_rows = [
+        row
+        for row in independent_review_rows
+        if str(row.get("row_kind", "") or "")
+        == PSEUDO_FORMAL_FAITHFULNESS_REVIEW_ROW_KIND
+        and str(row.get("source_block_id", "") or "")
+        in required_lane_blocked_source_ids
+    ]
+    faithfulness_review_handoff_source_anchored = bool(
+        faithfulness_review_handoff_rows
+    ) and all(
+        pseudo_formal_work_order_row_has_reviewable_source_anchor(row)
+        for row in faithfulness_review_handoff_rows
+    )
+    faithfulness_review_handoff_lineage_complete = bool(
+        faithfulness_review_handoff_rows
+    ) and all(
+        pseudo_formal_work_order_row_has_required_lineage(row)
+        for row in faithfulness_review_handoff_rows
+    )
+    faithfulness_review_handoff_ready = bool(
+        faithfulness_review_handoff_rows
+        and faithfulness_review_handoff_source_anchored
+        and faithfulness_review_handoff_lineage_complete
+    )
+    exact_semantic_definition_rows_ready = bool(
+        exact_semantic_definition_lane_present
+        and exact_semantic_rows_source_anchored
+        and exact_semantic_rows_semantic_requirements_present
+        and exact_semantic_rows_lineage_complete
+    )
+    required_lane_progress_ready = bool(
+        exact_semantic_definition_rows_ready
+        or faithfulness_review_handoff_ready
+    )
     nonproof_boundary = (
         packet.get("kernel_verified") is False
         and packet.get("full_frontier_theorem_proved") is False
@@ -486,13 +486,14 @@ def _formalizer_pseudo_formal_packet_eval_manifest(
         "formalizer_packet_valid": bool(valid_packet),
         "pseudo_formal_packets_present": packet_present,
         "routable_work_order_rows_present": routable_rows_present,
-        "exact_semantic_definition_lane_present": exact_semantic_definition_lane_present,
-        "exact_semantic_definition_rows_source_anchored": exact_semantic_rows_source_anchored,
-        "exact_semantic_definition_rows_semantic_requirements_present": (
-            exact_semantic_rows_semantic_requirements_present
+        "required_lane_progress_ready": required_lane_progress_ready,
+        "exact_semantic_definition_rows_ready_when_materialized": bool(
+            not exact_semantic_definition_lane_present
+            or exact_semantic_definition_rows_ready
         ),
-        "exact_semantic_definition_rows_lineage_complete": (
-            exact_semantic_rows_lineage_complete
+        "faithfulness_review_handoff_ready_when_required": bool(
+            not faithfulness_review_handoff_rows
+            or faithfulness_review_handoff_ready
         ),
         "nonproof_boundary_preserved": bool(nonproof_boundary),
     }
@@ -506,6 +507,7 @@ def _formalizer_pseudo_formal_packet_eval_manifest(
     work_order_rows_path = out_dir / "pseudo_formal_work_order_rows.jsonl"
     routable_rows_path = out_dir / "pseudo_formal_routable_work_order_rows.jsonl"
     exact_rows_path = out_dir / "pseudo_formal_exact_semantic_definition_rows.jsonl"
+    review_rows_path = out_dir / "pseudo_formal_faithfulness_review_handoff_rows.jsonl"
     diagnostic_rows_path = out_dir / "pseudo_formal_diagnostic_work_order_rows.jsonl"
     return {
         "schema_version": 1,
@@ -521,6 +523,13 @@ def _formalizer_pseudo_formal_packet_eval_manifest(
         "static_or_fixture_only": not live_generator,
         "component_eval": "Formalizer/ProofEngineer PF/BV packet emission",
         "result_status": "OK" if valid_packet else "FAILED_VALIDATION",
+        "completion_mode": (
+            "required_target_lane_materialized"
+            if exact_semantic_definition_rows_ready
+            else "independent_faithfulness_review_handoff"
+            if faithfulness_review_handoff_ready
+            else "required_lane_progress_missing"
+        ),
         "n_pseudo_formal_packets": len(pf_packets),
         "n_pseudo_formal_packet_validation_error_sets": len(pf_error_rows),
         "n_pseudo_formal_work_order_rows": len(work_order_rows),
@@ -544,6 +553,16 @@ def _formalizer_pseudo_formal_packet_eval_manifest(
         "exact_semantic_definition_rows_lineage_complete": (
             exact_semantic_rows_lineage_complete
         ),
+        "n_pseudo_formal_faithfulness_review_handoff_rows": len(
+            faithfulness_review_handoff_rows
+        ),
+        "faithfulness_review_handoff_source_anchored": (
+            faithfulness_review_handoff_source_anchored
+        ),
+        "faithfulness_review_handoff_lineage_complete": (
+            faithfulness_review_handoff_lineage_complete
+        ),
+        "faithfulness_review_handoff_ready": faithfulness_review_handoff_ready,
         "pseudo_formal_routable_row_kinds": sorted(
             {str(row.get("row_kind", "") or "") for row in routable_rows}
         ),
@@ -575,12 +594,14 @@ def _formalizer_pseudo_formal_packet_eval_manifest(
             "work_order_rows_jsonl": str(work_order_rows_path),
             "routable_work_order_rows_jsonl": str(routable_rows_path),
             "exact_semantic_definition_rows_jsonl": str(exact_rows_path),
+            "faithfulness_review_handoff_rows_jsonl": str(review_rows_path),
             "diagnostic_work_order_rows_jsonl": str(diagnostic_rows_path),
         },
         "_artifact_rows": {
             "work_order_rows": work_order_rows,
             "routable_work_order_rows": routable_rows,
             "exact_semantic_definition_rows": exact_semantic_rows,
+            "faithfulness_review_handoff_rows": faithfulness_review_handoff_rows,
             "diagnostic_work_order_rows": diagnostic_rows,
         },
     }
@@ -619,6 +640,10 @@ def _write_formalizer_pseudo_formal_packet_eval_artifacts(
         artifact_rows.get("exact_semantic_definition_rows", []),
     )
     _write_jsonl_rows(
+        Path(str(artifacts.get("faithfulness_review_handoff_rows_jsonl", ""))),
+        artifact_rows.get("faithfulness_review_handoff_rows", []),
+    )
+    _write_jsonl_rows(
         Path(str(artifacts.get("diagnostic_work_order_rows_jsonl", ""))),
         artifact_rows.get("diagnostic_work_order_rows", []),
     )
@@ -626,6 +651,7 @@ def _write_formalizer_pseudo_formal_packet_eval_artifacts(
         key: public_manifest.get(key)
         for key in (
             "result_status",
+            "completion_mode",
             "formalizer_validation_errors",
             "required_pseudo_formalization_errors",
             "pseudo_formal_packet_validation_errors",
@@ -637,6 +663,8 @@ def _write_formalizer_pseudo_formal_packet_eval_artifacts(
             "n_pseudo_formal_exact_semantic_definition_rows_with_source_anchors",
             "n_pseudo_formal_exact_semantic_definition_rows_with_semantic_requirements",
             "n_pseudo_formal_exact_semantic_definition_rows_with_lineage",
+            "n_pseudo_formal_faithfulness_review_handoff_rows",
+            "faithfulness_review_handoff_ready",
             "pseudo_formal_routable_row_kinds",
             "pseudo_formal_routable_target_lanes",
             "pseudo_formal_diagnostic_row_kinds",
@@ -650,6 +678,7 @@ def _write_formalizer_pseudo_formal_packet_eval_artifacts(
             "work_order_rows_jsonl",
             "routable_work_order_rows_jsonl",
             "exact_semantic_definition_rows_jsonl",
+            "faithfulness_review_handoff_rows_jsonl",
             "diagnostic_work_order_rows_jsonl",
         )
     }
