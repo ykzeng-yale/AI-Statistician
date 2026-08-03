@@ -19,6 +19,7 @@ from ai_statistician.generated_metric_contract import (
     validate_generated_metric_requirements,
 )
 from ai_statistician.llm_json_repair import (
+    SEMANTIC_PATCH_PROGRESS_POLICY_STRICT_RESIDUAL_SET,
     extract_json_object,
     generate_validated_json_packet,
 )
@@ -317,6 +318,195 @@ def test_exact_key_transport_atomically_inserts_missing_field_binding() -> None:
         for row in applications
     ) == 1
     assert all(row["runtime_selected_semantics"] is False for row in applications)
+
+
+def test_new_gate_shape_residual_hands_off_to_exact_key_transport() -> None:
+    initial_requirement = materialize_generated_metric_gate_field_authorities(
+        {
+            "requirement_id": "aggregate_predicate_rate",
+            "target_subsystems": ["SimulationEngineer"],
+            "metric_semantics": "share of replicates satisfying a predicate",
+            "metric_value_kind": "boolean",
+            "measurement_protocol": (
+                "Record one predicate per replicate and report their mean."
+            ),
+            "required_runtime_replicates": 17,
+            "operator": "==",
+            "threshold": 1,
+            "lower": None,
+            "upper": None,
+            "tolerance": 0,
+            "aggregation": "mean",
+            "minimum_pass_count": None,
+            "minimum_pass_fraction": None,
+            "required": True,
+            "source_anchors": [DESIGN_ANCHOR],
+            "acceptance_authority_kind": (
+                "architect_preregistered_design"
+            ),
+            "acceptance_authority_rationale": (
+                "Preregister the aggregate predicate rate before execution."
+            ),
+            "gate_field_authorities": [],
+            "boundary": "Empirical acceptance control, not theorem evidence.",
+        }
+    )
+
+    class DependencyClosureBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                payload = {
+                    "empirical_metric_requirements": [initial_requirement]
+                }
+            elif request.metadata[
+                "json_repair_semantic_patch_transport_kind"
+            ] == "generic_path_patch":
+                prompt = json.loads(request.user_prompt.split("\n\n", 1)[1])
+                payload = {
+                    "base_payload_fingerprint": prompt[
+                        "base_payload_fingerprint"
+                    ],
+                    "updates": [
+                        {
+                            "path": [
+                                "empirical_metric_requirements",
+                                0,
+                                "metric_value_kind",
+                            ],
+                            "replacement": "numeric",
+                        },
+                        {
+                            "path": [
+                                "empirical_metric_requirements",
+                                0,
+                                "gate_field_authorities",
+                            ],
+                            "replacement_json": json.dumps(
+                                [
+                                    {
+                                        "field_name": "predicate_rate",
+                                        "authority_kind": "diagnostic_only",
+                                        "rationale": (
+                                            "Record a diagnostic description."
+                                        ),
+                                    }
+                                ]
+                            ),
+                        },
+                    ],
+                }
+            else:
+                prompt = json.loads(request.user_prompt)
+                payload = {
+                    "base_payload_fingerprint": prompt[
+                        "base_payload_fingerprint"
+                    ],
+                    "decisions": {
+                        decision_id: {
+                            "resolution": "architect_preregistered_design",
+                            "source_binding_id": "",
+                            "rationale": (
+                                "Preregister this aggregate threshold before "
+                                "execution."
+                            ),
+                        }
+                        for decision_id in prompt[
+                            "gate_field_resolution_decisions_by_id"
+                        ]
+                    },
+                }
+            return GeneratorResponse(
+                text=json.dumps(payload),
+                provider=self.provider_name,
+                model=request.model,
+            )
+
+    backend = DependencyClosureBackend()
+
+    def build_packet(payload, _response, _raw_text):
+        return {
+            "empirical_metric_requirements": [
+                materialize_generated_metric_gate_field_authorities(row)
+                for row in payload.get("empirical_metric_requirements", [])
+            ]
+        }
+
+    packet = generate_validated_json_packet(
+        provider=backend,
+        request=GeneratorRequest(
+            system_prompt="Return JSON.",
+            user_prompt="Author one metric requirement.",
+            model="claude-haiku-4-5-20251001",
+            max_tokens=5000,
+            schema={"type": "object"},
+        ),
+        extract_payload=lambda text: extract_json_object(
+            text,
+            label="metric requirements",
+        ),
+        build_packet=build_packet,
+        validate_packet=lambda candidate: _validation_errors(
+            candidate["empirical_metric_requirements"]
+        ),
+        validation_label="metric requirements",
+        max_repair_attempts=1,
+        repair_context_builder=lambda **kwargs: _metric_authoring_repair_context(
+            invalid_packet=kwargs.get("invalid_packet"),
+            errors=kwargs.get("errors", []),
+            runtime_replicates=17,
+            acceptance_authority_catalog_id="catalog:test",
+            acceptance_authority_catalog=CATALOG,
+            required_target_rows=[],
+            independent_semantic_review_repair={},
+        ),
+        semantic_patch_repair=True,
+        semantic_patch_transport_builder=(
+            build_metric_authority_semantic_patch_transport
+        ),
+        allow_progress_repair_extension=True,
+        progress_repair_policy=(
+            SEMANTIC_PATCH_PROGRESS_POLICY_STRICT_RESIDUAL_SET
+        ),
+    )
+
+    assert len(backend.requests) == 3
+    assert backend.requests[2].metadata[
+        "json_repair_semantic_patch_transport_kind"
+    ] == ARCHITECT_METRIC_AUTHORITY_PATCH_TRANSPORT_KIND
+    requirements = packet["empirical_metric_requirements"]
+    assert requirements[0]["metric_value_kind"] == "numeric"
+    assert requirements[0]["threshold"] == 1
+    assert [
+        row["field"] for row in requirements[0]["gate_field_authorities"]
+    ] == ["threshold"]
+    history = packet["llm_json_repair_history"]
+    assert history[1]["progress_transition"] == (
+        "subsystem_semantic_patch_transport:"
+        + ARCHITECT_METRIC_AUTHORITY_PATCH_TRANSPORT_KIND
+    )
+    assert history[2]["semantic_patch_transport_kind"] == (
+        ARCHITECT_METRIC_AUTHORITY_PATCH_TRANSPORT_KIND
+    )
+    assert history[2]["semantic_patch_application_rows"][0][
+        "runtime_selected_semantics"
+    ] is False
+    application = history[2]["semantic_patch_application_rows"][0]
+    assert application[
+        "runtime_canonicalized_gate_field_authorities"
+    ] is True
+    assert application[
+        "runtime_removed_noncanonical_authority_rows"
+    ] == 1
+    assert application["runtime_canonical_gate_field_order"] == [
+        "threshold"
+    ]
+    assert application["runtime_structural_normalization_only"] is True
 
 
 def test_exact_key_transport_rejects_unlisted_or_partial_choices() -> None:

@@ -1497,6 +1497,14 @@ def _generated_metric_expected_gate_numeric_field_names(
     return fields
 
 
+def generated_metric_expected_gate_field_names(
+    requirement: Mapping[str, Any],
+) -> list[str]:
+    """Expose the evaluator-owned canonical field order to typed transports."""
+
+    return _generated_metric_expected_gate_numeric_field_names(requirement)
+
+
 def generated_metric_gate_field_authority_rollup(
     gate_field_authorities: Sequence[Mapping[str, Any]],
     *,
@@ -1659,9 +1667,11 @@ def _generated_metric_gate_field_authority_errors(
     ]
     if observed_fields != expected_fields:
         errors.append(
-            f"{prefix}.gate_field_authorities must bind each declared substantive "
-            f"numeric field exactly once in order: expected={expected_fields!r} "
-            f"observed={observed_fields!r}"
+            generated_metric_numeric_authority_error(
+                f"{prefix}.gate_field_authorities must bind each declared "
+                "substantive numeric field exactly once in order: "
+                f"expected={expected_fields!r} observed={observed_fields!r}"
+            )
         )
 
     top_level_anchors = {

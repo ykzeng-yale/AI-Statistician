@@ -7,6 +7,9 @@ import re
 from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
+from .generated_metric_contract import (
+    generated_metric_expected_gate_field_names,
+)
 from .llm_json_repair import SemanticPatchTransport
 
 
@@ -672,7 +675,69 @@ def _apply_metric_authority_decision_envelope(
         requirement = raw_requirements[requirement_index]
         if not isinstance(requirement, dict):
             continue
-        authority_rows = requirement.get("gate_field_authorities", [])
+        raw_authority_rows = requirement.get("gate_field_authorities", [])
+        if not isinstance(raw_authority_rows, list):
+            raise ValueError(
+                f"requirement {requirement_id} gate_field_authorities must be array"
+            )
+        expected_fields = generated_metric_expected_gate_field_names(
+            requirement
+        )
+        authority_by_field: dict[str, dict[str, Any]] = {}
+        removed_noncanonical_rows = 0
+        for raw_row in raw_authority_rows:
+            if not isinstance(raw_row, Mapping):
+                removed_noncanonical_rows += 1
+                continue
+            field = str(raw_row.get("field", "") or "").strip()
+            if field not in expected_fields:
+                removed_noncanonical_rows += 1
+                continue
+            if field in authority_by_field:
+                raise ValueError(
+                    f"requirement {requirement_id} has duplicate authority rows "
+                    f"for field {field}"
+                )
+            authority_by_field[field] = dict(raw_row)
+        missing_fields = [
+            field for field in expected_fields if field not in authority_by_field
+        ]
+        if missing_fields:
+            raise ValueError(
+                f"requirement {requirement_id} remains missing authority rows for "
+                + ", ".join(missing_fields)
+            )
+        authority_rows = [
+            authority_by_field[field] for field in expected_fields
+        ]
+        if authority_rows != raw_authority_rows:
+            requirement["gate_field_authorities"] = authority_rows
+            patched_paths.append(
+                [
+                    "empirical_metric_requirements",
+                    requirement_index,
+                    "gate_field_authorities",
+                ]
+            )
+            application_row = next(
+                (
+                    row
+                    for row in application_rows
+                    if row.get("requirement_id") == requirement_id
+                ),
+                None,
+            )
+            if application_row is not None:
+                application_row[
+                    "runtime_canonicalized_gate_field_authorities"
+                ] = True
+                application_row[
+                    "runtime_removed_noncanonical_authority_rows"
+                ] = removed_noncanonical_rows
+                application_row[
+                    "runtime_canonical_gate_field_order"
+                ] = list(expected_fields)
+                application_row["runtime_structural_normalization_only"] = True
         rationale_rows = [
             (
                 str(row.get("field", "") or "").strip(),

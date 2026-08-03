@@ -434,24 +434,6 @@ def generate_validated_json_packet(
             packet["llm_json_repair_history"] = history
             return packet
         if attempt_index < attempts - 1:
-            strict_patch_progress_required = bool(
-                progress_repair_policy
-                == SEMANTIC_PATCH_PROGRESS_POLICY_STRICT_RESIDUAL_SET
-                and history[-1].get("repair_mode")
-                == "typed_semantic_patch"
-            )
-            extension_progress_required = (
-                attempt_index >= base_attempts - 1
-            )
-            if (
-                strict_patch_progress_required
-                or extension_progress_required
-            ) and not _typed_semantic_patch_history_made_policy_progress(
-                history,
-                progress_repair_policy=progress_repair_policy,
-            ):
-                break
-        if attempt_index < attempts - 1:
             repair_context = (
                 repair_context_builder(
                     original_user_prompt=original_user_prompt,
@@ -547,6 +529,35 @@ def generate_validated_json_packet(
                     if retry_prompt_builder is not None
                     else _repair_prompt(**retry_prompt_kwargs)
                 )
+            strict_patch_progress_required = bool(
+                progress_repair_policy
+                == SEMANTIC_PATCH_PROGRESS_POLICY_STRICT_RESIDUAL_SET
+                and history[-1].get("repair_mode")
+                == "typed_semantic_patch"
+            )
+            extension_progress_required = (
+                attempt_index >= base_attempts - 1
+            )
+            policy_progress = _typed_semantic_patch_history_made_policy_progress(
+                history,
+                progress_repair_policy=progress_repair_policy,
+            )
+            subsystem_transport_transition = (
+                _typed_semantic_patch_history_reached_subsystem_transport(
+                    history,
+                    next_transport=semantic_patch_transport,
+                )
+            )
+            if (
+                strict_patch_progress_required
+                or extension_progress_required
+            ) and not (policy_progress or subsystem_transport_transition):
+                break
+            if subsystem_transport_transition:
+                history[-1]["progress_transition"] = (
+                    "subsystem_semantic_patch_transport:"
+                    + str(semantic_patch_transport.kind)
+                )
     raise PacketValidationError(
         validation_label=validation_label,
         attempts=len(history),
@@ -621,6 +632,57 @@ def _typed_semantic_patch_history_made_policy_progress(
         and not _history_row_indicates_truncation(current)
     )
     return patch_made_progress or regeneration_reached_patchable_residual
+
+
+def _typed_semantic_patch_history_reached_subsystem_transport(
+    history: list[dict[str, Any]],
+    *,
+    next_transport: SemanticPatchTransport | None,
+) -> bool:
+    """Allow one new residual to enter a bounded subsystem-owned transport."""
+
+    if len(history) < 2 or next_transport is None:
+        return False
+    current = history[-1]
+    previous = history[-2]
+    if (
+        current.get("repair_mode") != "typed_semantic_patch"
+        or current.get("semantic_patch_transport_kind")
+        != "generic_path_patch"
+        or not str(next_transport.kind or "").strip()
+        or next_transport.kind == "generic_path_patch"
+        or not current.get("patched_paths")
+        or current.get("payload_extracted") is not True
+        or current.get("packet_built") is not True
+        or _history_row_indicates_truncation(current)
+    ):
+        return False
+    current_errors = current.get("errors", [])
+    previous_errors = previous.get("errors", [])
+    if (
+        not isinstance(current_errors, list)
+        or not current_errors
+        or not isinstance(previous_errors, list)
+        or not previous_errors
+    ):
+        return False
+    current_error_set = {str(error) for error in current_errors}
+    if current_error_set == {str(error) for error in previous_errors}:
+        return False
+    if any(
+        current_error_set
+        == {
+            str(error)
+            for error in prior.get("errors", [])
+        }
+        for prior in history[:-1]
+        if isinstance(prior.get("errors", []), list)
+    ):
+        return False
+    return not any(
+        str(error).startswith("typed semantic patch repair failed:")
+        for error in current_errors
+    )
 
 
 def _typed_semantic_patch_prompt(
