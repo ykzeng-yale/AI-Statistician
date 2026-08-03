@@ -366,6 +366,21 @@ EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK: tuple[
             "public inference abstraction"
         ),
     ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="statinference_indexed_estimator_statlib_adapter",
+        query=(
+            "sample size indexed deterministic estimator measure based "
+            "inference model conditional risk integral"
+        ),
+        expected_name_fragments=(
+            "IndexedEstimator.conditionalRisk_toInferenceModelofMeasure",
+        ),
+        expected_source_ids=("empirical_process_lean",),
+        rationale=(
+            "formalization should reuse the checked adapter from existing "
+            "StatInference estimator objects into Statlib's inference semantics"
+        ),
+    ),
 )
 
 

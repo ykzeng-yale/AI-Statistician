@@ -19,7 +19,7 @@ from .metric_protocol_finding_ledger import (
 from .research_schema import OpenResearchQuestion
 
 
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 3
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 4
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 4
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
@@ -27,6 +27,28 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "ideal_to_executable_observation_mapping",
     "termination_censoring_and_resource_feasibility",
     "guarantee_transport_and_measurement_identifiability",
+)
+_ESTIMATOR_DECLARATION_REQUIREMENTS = (
+    (
+        "procedure_identity_declared_valid",
+        "established procedure identity",
+    ),
+    (
+        "theorem_applications_declared_valid",
+        "valid theorem applications",
+    ),
+    (
+        "ideal_to_executable_mapping_declared",
+        "source-declared executable mapping",
+    ),
+    (
+        "total_or_typed_bounded_outcome_declared",
+        "bounded or typed outcome",
+    ),
+    (
+        "guarantee_transport_argument_declared",
+        "guarantee transport",
+    ),
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE"
@@ -782,11 +804,10 @@ def _derived_verdict(packet: Mapping[str, Any]) -> str:
     all_estimators_pass = all(
         isinstance(row, Mapping)
         and str(row.get("status", "") or "").strip().upper() == "PASS"
-        and row.get("procedure_identity_declared_valid") is True
-        and row.get("theorem_applications_declared_valid") is True
-        and row.get("ideal_to_executable_mapping_declared") is True
-        and row.get("total_or_typed_bounded_outcome_declared") is True
-        and row.get("guarantee_transport_argument_declared") is True
+        and all(
+            row.get(field) is True
+            for field, _description in _ESTIMATOR_DECLARATION_REQUIREMENTS
+        )
         for row in estimator_rows or []
     )
     all_prior_findings_resolved = all(
@@ -871,6 +892,47 @@ def _source_interface_inventories(
     return inventories
 
 
+def _invalid_estimator_declarations(
+    row: Mapping[str, Any],
+) -> list[tuple[str, str]]:
+    return [
+        (field, description)
+        for field, description in _ESTIMATOR_DECLARATION_REQUIREMENTS
+        if row.get(field) is not True
+    ]
+
+
+def _normalize_estimator_status_summaries(
+    rows: Sequence[Mapping[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    normalized_rows: list[dict[str, Any]] = []
+    normalizations: list[dict[str, Any]] = []
+    for source_row in rows:
+        row = dict(source_row)
+        reported_status = str(row.get("status", "") or "").strip().upper()
+        invalid_declarations = _invalid_estimator_declarations(row)
+        if reported_status == "PASS" and invalid_declarations:
+            row["status"] = "UNCERTAIN"
+            normalizations.append(
+                {
+                    "estimator_id": str(row.get("estimator_id", "") or "").strip(),
+                    "model_reported_status": "PASS",
+                    "runtime_normalized_status": "UNCERTAIN",
+                    "false_or_missing_declaration_fields": [
+                        field for field, _description in invalid_declarations
+                    ],
+                    "rule": (
+                        "A PASS estimator summary requires every granular declaration "
+                        "flag to be true; the runtime only downgraded the redundant "
+                        "summary and preserved all model-authored semantic fields."
+                    ),
+                    "runtime_selected_semantics": False,
+                }
+            )
+        normalized_rows.append(row)
+    return normalized_rows, normalizations
+
+
 def _normalize_packet(
     payload: Mapping[str, Any],
     *,
@@ -914,11 +976,15 @@ def _normalize_packet(
             for row in raw_prior_finding_reviews or []
             if isinstance(row, Mapping)
         ]
-    body["estimator_execution_checks"] = [
+    estimator_rows = [
         dict(row)
         for row in body.get("estimator_execution_checks", []) or []
         if isinstance(row, Mapping)
     ]
+    (
+        body["estimator_execution_checks"],
+        body["runtime_estimator_status_normalizations"],
+    ) = _normalize_estimator_status_summaries(estimator_rows)
     normalized_findings: list[dict[str, Any]] = []
     for raw_finding in body.get("findings", []) or []:
         if not isinstance(raw_finding, Mapping):
@@ -1145,35 +1211,9 @@ def validate_architect_theory_execution_preflight_packet(
     ):
         errors.append("theory execution preflight prior finding status is invalid")
 
-    estimator_declaration_requirements = (
-        (
-            "procedure_identity_declared_valid",
-            "established procedure identity",
-        ),
-        (
-            "theorem_applications_declared_valid",
-            "valid theorem applications",
-        ),
-        (
-            "ideal_to_executable_mapping_declared",
-            "source-declared executable mapping",
-        ),
-        (
-            "total_or_typed_bounded_outcome_declared",
-            "bounded or typed outcome",
-        ),
-        (
-            "guarantee_transport_argument_declared",
-            "guarantee transport",
-        ),
-    )
     for row_index, row in enumerate(estimator_rows):
         status = str(row.get("status", "") or "").strip().upper()
-        invalid_declarations = [
-            (field, description)
-            for field, description in estimator_declaration_requirements
-            if row.get(field) is not True
-        ]
+        invalid_declarations = _invalid_estimator_declarations(row)
         if status == "PASS" and invalid_declarations:
             estimator_id = str(row.get("estimator_id", "") or "").strip()
             errors.append(
@@ -1186,6 +1226,48 @@ def validate_architect_theory_execution_preflight_packet(
                     for field, description in invalid_declarations
                 )
             )
+    normalization_rows = packet.get("runtime_estimator_status_normalizations", [])
+    if not isinstance(normalization_rows, list):
+        errors.append(
+            "theory execution preflight estimator status normalizations must be a list"
+        )
+        normalization_rows = []
+    estimator_rows_by_id = {
+        str(row.get("estimator_id", "") or "").strip(): row
+        for row in estimator_rows
+    }
+    observed_normalization_ids: set[str] = set()
+    for normalization in normalization_rows:
+        if not isinstance(normalization, Mapping):
+            errors.append(
+                "theory execution preflight estimator status normalization is invalid"
+            )
+            continue
+        estimator_id = str(normalization.get("estimator_id", "") or "").strip()
+        row = estimator_rows_by_id.get(estimator_id)
+        expected_fields = (
+            [field for field, _description in _invalid_estimator_declarations(row)]
+            if row is not None
+            else []
+        )
+        if (
+            not estimator_id
+            or estimator_id in observed_normalization_ids
+            or row is None
+            or normalization.get("model_reported_status") != "PASS"
+            or normalization.get("runtime_normalized_status") != "UNCERTAIN"
+            or str(row.get("status", "") or "").strip().upper() != "UNCERTAIN"
+            or list(
+                normalization.get("false_or_missing_declaration_fields", []) or []
+            )
+            != expected_fields
+            or not expected_fields
+            or normalization.get("runtime_selected_semantics") is not False
+        ):
+            errors.append(
+                "theory execution preflight estimator status normalization mismatch"
+            )
+        observed_normalization_ids.add(estimator_id)
     if packet.get("derived_consistency_warnings", []) != (
         _derived_consistency_warnings(packet)
     ):

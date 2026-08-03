@@ -24,10 +24,10 @@ makes them port guidance rather than an importable proof dependency.
 | --- | --- | --- |
 | Mathlib | `81343555dae873c8de2de2b27bbabf7bc4d8d97a` | Kernel-checked mathematical foundation |
 | StatLib | `6575d611b5d32ef6013e9560d30b1a82a1972fb6` | Pinned reusable statistics API |
-| EmpericalProcessLEAN Lean graph source | `0a0d81d6be0b3b433fc176c08c8729711e34b557` | Active downstream statistics/proof library |
+| EmpericalProcessLEAN Lean graph source | `afe250da47daabbf6c97cad1b5a3e9c88abe2f4c` | Active downstream statistics/proof library |
 | AI4SLT | `d0f506f0a695018265dccb33bcb05e2f5ca1c876` | Version-bound external retrieval and port corpus |
 
-`EmpericalProcessLEAN/main` now points to `0a0d81d6`. The integration retains
+`EmpericalProcessLEAN/main` now points to `afe250da`. The integration retains
 source history from the VdVW and WDSM branches, absorbs the later Chewi,
 Durrett, and van der Vaart work, and recovers seven additional proof commits
 that were still reachable only from non-main branches. A second content-level
@@ -49,11 +49,14 @@ optimization, source-matched applications, and evaluation surfaces. The
 README publishes the same source-owned taxonomy with resolvable module paths;
 RAG may use those labels as organization metadata, never as proof evidence.
 
-“StatLib-backed” describes package dependency and API ownership, not a blanket
-import added to every proof module. At this snapshot exactly two leaf modules
-directly import `StatInference.Foundation`: `Inference.Deterministic` and
-`Inference.QMD`. Their public `Inference` entry and `StatInference` root make
-four modules whose recursive dependency route contains the foundation. The
+"StatLib-backed" describes package dependency and API ownership, not a blanket
+import added to every proof module. At this snapshot the reusable inference
+extensions consume the foundation through `Inference.Deterministic`,
+`Inference.QMD`, and the new `Estimator.InferenceModel` adapter. The adapter
+embeds the existing sample-size-indexed estimator object into Statlib's
+`InferenceModelofMeasure` and proves its conditional-risk integral identity.
+Their public domain entries and the `StatInference` root expose one coherent
+API. The
 remaining canonical modules keep minimal Mathlib/local imports until they use a
 StatLib statistical object. This follows the same layering rule as Mathlib:
 reuse an upstream object where semantics match without coupling unrelated
@@ -76,7 +79,7 @@ Current schema-v5 graphs:
 
 | Corpus | Lean files | Declarations | Duplicate names | Snapshot |
 | --- | ---: | ---: | ---: | --- |
-| StatInference canonical closure | 1,206 | 51,997 | 0 | `BOUND_MATCH` |
+| StatInference canonical closure | 1,211 | 52,004 | 0 | `BOUND_MATCH` |
 | Pinned StatLib closure | 3 | 32 | 0 | `BOUND_MATCH` |
 | AI4SLT public source | 65 | 2,000 | 0 | `BOUND_MATCH` |
 
@@ -110,29 +113,32 @@ pinned StatLib theorem at rank 2, with no oversized result in the top eight;
 an exact oversized-name query still recovered its declaration and explicit
 quality-gate marker.
 
-Both vendored historical snapshots were reconciled against this closure. Every
-historical file has a current path; changed qualified declarations retain
+Both vendored historical snapshots were reconciled against this closure. The
+430 Lean files in AI-Statistician's frozen EmpericalProcessLEAN source all have
+current paths, while the canonical library adds 932 Lean files beyond that
+snapshot. Changed qualified declarations retain
 current short-name owners except four trivial `0 = 0` demo markers and one
 obsolete reverse bridge whose semantics changed. The snapshots remain
 audit/training inputs and are no longer competing live Formalizer providers.
 
 ## Verification
 
-- A clean `lake build StatInference` completed all 9,838 jobs on Lean
+- A clean `lake build StatInference` completed all 9,843 jobs on Lean
   `v4.30.0`. This fresh build exposed and fixed a root import cycle in the
   benchmark module; a structural test now prevents any submodule from importing
   the canonical root.
 - `lake env lean StatInference.lean` completed successfully.
-- The canonical import closure covers 1,206 Lean files and all 489 WDSM modules.
-- The production graph indexes 51,997 public declarations and 210,204
-  declaration-reference edges plus 3,307 import edges, with zero duplicate
+- The canonical import closure covers 1,211 Lean files and all 489 WDSM modules.
+- The production graph indexes 52,004 public declarations and 210,290
+  declaration-reference edges plus 3,318 import edges, with zero duplicate
   names and zero `sorry`.
-- Sixteen source-integration tests verify the direct StatLib dependency,
+- Seventeen source-integration tests verify the direct StatLib dependency,
   canonical reachability of every recovered module, and the root-import rule.
-- All 58 Lean-RAG tests pass, including the source-owned taxonomy path contract,
+- All 59 Lean-RAG tests pass, including the source-owned taxonomy path contract,
   declaration-aware live-result filtering, and canonical graph-neighbor policy.
-- Namespace-aware `#print axioms` scans covered all eleven recovered public
-  theorems with zero unexpected axioms; only the accepted Mathlib foundations
+- Namespace-aware `#print axioms` scans covered all sixteen recovered public
+  theorem endpoints plus both declarations in the estimator adapter with zero
+  unexpected axioms; only the accepted Mathlib foundations
   `Classical.choice`, `Quot.sound`, and `propext` were reported.
 - Every recovered public declaration passed the source declaration policy, and
   the changed Lean files contain no
@@ -143,6 +149,11 @@ audit/training inputs and are no longer competing live Formalizer providers.
 - The combined retrieval benchmark found all 30 cases at top 8. Its strict
   result remains 28/30 because of pre-existing LML and SciLean scoped-context
   misses; both StatLib cases and all AI4SLT cases passed their source scope.
+- The external user-intent benchmark found all 25 cases at top 8. The new
+  indexed-estimator/conditional-risk query ranks the canonical StatInference
+  adapter first globally and first in active-project scoped context. Its strict
+  aggregate remains false only because the existing LeanMachineLearning UCB
+  and SciLean Gaussian-calculus cases miss the source-scoped top-2 gate.
 - Declaration quality is source-agnostic: structural source-number prefixes,
   explicit numbered surfaces, thin wrappers, and oversized names are soft
   ranking metadata. No book or theorem name is encoded in this ranking path.

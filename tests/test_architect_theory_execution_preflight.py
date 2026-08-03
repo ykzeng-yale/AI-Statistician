@@ -343,6 +343,7 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     ):
         assert phrase in protocol
     assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["runtime_estimator_status_normalizations"] == []
     assert packet["execution_authorized"] is False
     assert packet["kernel_verified"] is False
     assert packet["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
@@ -500,7 +501,7 @@ def test_preflight_cannot_accept_invalid_theorem_application() -> None:
     assert any("consistency warnings mismatch" in error for error in errors)
 
 
-def test_preflight_does_not_repair_a_redundant_summary_conflict() -> None:
+def test_preflight_preserves_primitive_summary_conflict_without_retry() -> None:
     payload = _payload(accept=False)
     payload["dimension_reviews"]["primitive_mathematical_consistency"] = {
         "status": "PASS",
@@ -538,6 +539,89 @@ def test_preflight_does_not_repair_a_redundant_summary_conflict() -> None:
     assert packet["derived_consistency_warnings"][0]["warning_code"] == (
         "primitive_summary_conflicts_with_estimator_checks"
     )
+    assert validate_architect_theory_execution_preflight_packet(
+        packet,
+        material=material,
+    ) == []
+
+
+def test_preflight_downgrades_inconsistent_estimator_pass_without_retry() -> None:
+    payload = _payload(accept=True)
+    payload["dimension_reviews"]["primitive_mathematical_consistency"] = {
+        "status": "UNCERTAIN",
+        "rationale": "One invoked theorem hypothesis is not established.",
+        "evidence_refs": ["theory.theorem_cards", "theory.estimator_specs"],
+    }
+    payload["estimator_execution_checks"][0][
+        "theorem_applications_declared_valid"
+    ] = False
+    payload["estimator_execution_checks"][0]["theorem_hypothesis_measure_audit"] = (
+        "The source does not establish every invoked theorem hypothesis."
+    )
+    payload["findings"] = [
+        {
+            "severity": "high",
+            "category": "unestablished_theorem_hypothesis",
+            "summary": "An invoked theorem hypothesis remains unestablished.",
+            "required_change": (
+                "Establish the hypothesis under the law used by the conclusion."
+            ),
+            "evidence_refs": ["theory.theorem_cards", "theory.estimator_specs"],
+        }
+    ]
+    payload["repair_instructions"] = [
+        "Revise the upstream derivation to establish the theorem hypothesis."
+    ]
+    backend = _Backend(payload)
+
+    packet = review_architect_theory_execution_preflight(
+        provider=backend,
+        question=_question(),
+        theory_protocol_material=_theory_material(),
+        upstream_research_contract={
+            "formal_targets": [],
+            "simulation_targets": ["evaluate the declared risk"],
+        },
+        model=TEST_HAIKU_MODEL,
+        model_tier="haiku",
+        max_tokens=7000,
+        temperature=0.0,
+        provider_name="anthropic",
+        max_repair_attempts=1,
+    )
+    material = build_architect_theory_execution_preflight_material(
+        question=_question(),
+        theory_protocol_material=_theory_material(),
+        upstream_research_contract={
+            "formal_targets": [],
+            "simulation_targets": ["evaluate the declared risk"],
+        },
+    )
+
+    assert len(backend.requests) == 1
+    estimator_row = packet["estimator_execution_checks"][0]
+    assert estimator_row["status"] == "UNCERTAIN"
+    assert estimator_row["theorem_applications_declared_valid"] is False
+    assert packet["overall_verdict"] == "REVISE"
+    assert packet["findings"][0]["category"] == (
+        "unestablished_theorem_hypothesis"
+    )
+    assert packet["runtime_estimator_status_normalizations"] == [
+        {
+            "estimator_id": "generic_stream_method",
+            "model_reported_status": "PASS",
+            "runtime_normalized_status": "UNCERTAIN",
+            "false_or_missing_declaration_fields": [
+                "theorem_applications_declared_valid"
+            ],
+            "rule": (
+                "A PASS estimator summary requires every granular declaration flag "
+                "to be true; the runtime only downgraded the redundant summary and "
+                "preserved all model-authored semantic fields."
+            ),
+            "runtime_selected_semantics": False,
+        }
+    ]
     assert validate_architect_theory_execution_preflight_packet(
         packet,
         material=material,
