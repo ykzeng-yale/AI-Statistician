@@ -155,13 +155,12 @@ from .model_backend import (
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
     ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
     ANTHROPIC_MODEL_SOURCE_EVIDENCE,
-    CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS,
     DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER,
     DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
-    DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
     DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
     DEFAULT_LIVE_GENERATOR_PROVIDER,
     PROHIBITED_AGENT_GENERATOR_PROVIDERS,
+    PROHIBITED_LIVE_ANTHROPIC_MODEL_TIERS,
     SUPPORTED_GENERATOR_PROVIDERS,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
     SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS,
@@ -3210,7 +3209,9 @@ def _llm_model_policy_payload() -> dict[str, object]:
     models_by_tier = dict(
         ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY.get("models_by_tier", {})
     )
-    outside_cost_tier_models = dict(CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS)
+    prohibited_claude_tiers = tuple(
+        sorted(PROHIBITED_LIVE_ANTHROPIC_MODEL_TIERS)
+    )
     supported_live_providers = tuple(SUPPORTED_LIVE_GENERATOR_PROVIDERS)
     supported_providers = tuple(SUPPORTED_GENERATOR_PROVIDERS)
     static_replay_providers = tuple(SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS)
@@ -3221,9 +3222,8 @@ def _llm_model_policy_payload() -> dict[str, object]:
         == {
             "haiku": DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
             "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
-            "opus": DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
         }
-        and outside_cost_tier_models
+        and prohibited_claude_tiers == ("opus",)
         and not set(prohibited_providers).intersection(supported_providers)
         and not set(static_replay_providers).intersection(supported_live_providers)
     )
@@ -3243,17 +3243,11 @@ def _llm_model_policy_payload() -> dict[str, object]:
         "latest_claude_api_aliases_by_tier": dict(
             DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER
         ),
+        "prohibited_claude_model_tiers": prohibited_claude_tiers,
         "runtime_model_id_policy": (
             "Runtime calls use latest_claude_models_by_tier API IDs. Claude API "
             "aliases are documented for operator reference only, and Haiku stays "
             "pinned to the dated API ID instead of the shorter alias."
-        ),
-        "latest_claude_family_models_outside_cost_tiers": outside_cost_tier_models,
-        "outside_cost_tier_policy": (
-            "Claude family models outside Opus/Sonnet/Haiku are tracked for "
-            "operator awareness but are not automatic AI Statistician cost "
-            "tiers. Haiku/Sonnet/Opus requests must resolve to their matching "
-            "Claude tier families."
         ),
         "request_time_model_resolution_policy": {
             "empty_model_resolution": (
@@ -3263,8 +3257,8 @@ def _llm_model_policy_payload() -> dict[str, object]:
             ),
             "tier_specific_env_overrides": (
                 "Tier-specific Claude environment variables override only their "
-                "matching Haiku, Sonnet, or Opus tier and must not collapse "
-                "cost-aware routing across tiers."
+                "matching Haiku or Sonnet tier and must not collapse cost-aware "
+                "routing across tiers."
             ),
             "explicit_model_override_policy": (
                 "An explicit model remains an explicit operator override; "
@@ -3305,9 +3299,6 @@ def _llm_model_policy_markdown(payload: dict[str, object]) -> str:
     policy = dict(payload.get("claude_model_selection", {}) or {})
     source_evidence = dict(payload.get("source_evidence", {}) or {})
     models = dict(payload.get("latest_claude_models_by_tier", {}) or {})
-    outside_models = dict(
-        payload.get("latest_claude_family_models_outside_cost_tiers", {}) or {}
-    )
     resolution_policy = dict(
         payload.get("request_time_model_resolution_policy", {}) or {}
     )
@@ -3324,7 +3315,11 @@ def _llm_model_policy_markdown(payload: dict[str, object]) -> str:
         "",
         f"- Claude Haiku: `{models.get('haiku', '')}`",
         f"- Claude Sonnet: `{models.get('sonnet', '')}`",
-        f"- Claude Opus: `{models.get('opus', '')}`",
+        "- Prohibited live Claude tiers: "
+        + ", ".join(
+            str(value)
+            for value in payload.get("prohibited_claude_model_tiers", ())
+        ),
         "- Claude API aliases: "
         + ", ".join(
             f"{key}=`{value}`"
@@ -3335,8 +3330,6 @@ def _llm_model_policy_markdown(payload: dict[str, object]) -> str:
             )
         ),
         f"- Runtime ID policy: {payload.get('runtime_model_id_policy', '')}",
-        "- Outside Opus/Sonnet/Haiku cost tiers: "
-        + ", ".join(f"{key}=`{value}`" for key, value in sorted(outside_models.items())),
         "",
         "## Request-Time Resolution",
         "",

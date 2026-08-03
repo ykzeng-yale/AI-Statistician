@@ -12139,7 +12139,6 @@ def _write_research_agent_runtime_contract_smoke(runtime_dir: Path) -> Path:
                 "resolved_claude_models_by_tier": {
                     "haiku": "claude-haiku-contract-smoke",
                     "sonnet": "claude-sonnet-contract-smoke",
-                    "opus": "claude-opus-contract-smoke",
                 }
             },
         },

@@ -26,26 +26,22 @@ PROHIBITED_AGENT_GENERATOR_PROVIDERS = (
     "gemini_cli",
 )
 DEFAULT_LIVE_GENERATOR_PROVIDER = "anthropic"
-DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL = "claude-opus-4-8"
 DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL = "claude-haiku-4-5-20251001"
 DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL = "claude-sonnet-5"
-DEFAULT_CLAUDE_FABLE_GENERATOR_MODEL = "claude-fable-5"
-DEFAULT_CLAUDE_MYTHOS_GENERATOR_MODEL = "claude-mythos-5"
 DEFAULT_ANTHROPIC_GENERATOR_MODEL = DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
 DEFAULT_STATIC_GENERATOR_MODEL = "static"
 DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS = 120.0
 PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY = "provider_structured_output"
 MAX_LIVE_ANTHROPIC_MODEL_TIER = "sonnet"
 ALLOWED_LIVE_ANTHROPIC_MODEL_TIERS = frozenset({"haiku", "sonnet"})
+PROHIBITED_LIVE_ANTHROPIC_MODEL_TIERS = frozenset({"opus"})
 DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER = {
     "haiku": DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
     "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
-    "opus": DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
 }
 DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER = {
     "haiku": "claude-haiku-4-5",
     "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
-    "opus": DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
 }
 AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY = {
     "ArchitectCoordinator": "sonnet",
@@ -67,12 +63,11 @@ AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY = {
 AI_STATISTICIAN_LLM_CONTEXTUAL_MODEL_TIER_POLICY = {
     "TheoryDeveloper:serious": "sonnet",
 }
-CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS = {
-    "fable": DEFAULT_CLAUDE_FABLE_GENERATOR_MODEL,
-    "mythos_limited_availability": DEFAULT_CLAUDE_MYTHOS_GENERATOR_MODEL,
-}
-CLAUDE_MODEL_TIERS = tuple(DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER)
 LIVE_CLAUDE_MODEL_TIERS = ("haiku", "sonnet")
+CLAUDE_MODEL_TIERS = (
+    *LIVE_CLAUDE_MODEL_TIERS,
+    *sorted(PROHIBITED_LIVE_ANTHROPIC_MODEL_TIERS),
+)
 LIVE_EVALUATION_CLAUDE_MODEL_TIER = "haiku"
 LIVE_EVALUATION_CLAUDE_MODEL = DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL
 ANTHROPIC_CLAUDE_TIER_ENV_VARS = {
@@ -85,7 +80,7 @@ ANTHROPIC_CLAUDE_TIER_ENV_VARS = {
         "AI_STATISTICIAN_ANTHROPIC_SONNET_MODEL",
     ),
 }
-ANTHROPIC_MODEL_SOURCE_CHECKED_DATE = "2026-07-19"
+ANTHROPIC_MODEL_SOURCE_CHECKED_DATE = "2026-08-02"
 ANTHROPIC_MODELS_OVERVIEW_URL = (
     "https://platform.claude.com/docs/en/about-claude/models/overview"
 )
@@ -135,16 +130,10 @@ ANTHROPIC_MODEL_SOURCE_EVIDENCE = {
     "model_ids_and_versioning_url": ANTHROPIC_MODEL_IDS_AND_VERSIONING_URL,
     "verified_latest_cost_tier_api_ids": dict(DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER),
     "verified_api_aliases_by_tier": dict(DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER),
-    "verified_outside_cost_tier_models": dict(CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS),
     "claims": [
         (
-            "The latest Opus/Sonnet/Haiku comparison lists Claude API IDs "
-            "claude-opus-4-8, claude-sonnet-5, and "
-            "claude-haiku-4-5-20251001."
-        ),
-        (
-            "Claude Fable 5 and Claude Mythos 5 are tracked separately from "
-            "the Opus/Sonnet/Haiku cost-aware tier contract."
+            "The source-checked project allowlist uses Claude Sonnet 5 and "
+            "the dated Claude Haiku 4.5 API snapshot."
         ),
         (
             "Claude 4.6+ dateless model IDs are pinned snapshots, not "
@@ -163,24 +152,18 @@ ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY = {
     "allowed_live_anthropic_model_tiers": sorted(
         ALLOWED_LIVE_ANTHROPIC_MODEL_TIERS
     ),
+    "prohibited_live_anthropic_model_tiers": sorted(
+        PROHIBITED_LIVE_ANTHROPIC_MODEL_TIERS
+    ),
     "models_by_tier": DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER,
     "api_aliases_by_tier": DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER,
     "subsystem_model_tier_policy": AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
     "contextual_model_tier_policy": AI_STATISTICIAN_LLM_CONTEXTUAL_MODEL_TIER_POLICY,
     "runtime_model_id_policy": (
         "AI Statistician resolves live runtime calls only for the Haiku and "
-        "Sonnet tiers. The broader models_by_tier catalog and API aliases are "
-        "recorded for source and historical audit only; they cannot authorize "
-        "an Opus API request."
-    ),
-    "models_outside_opus_sonnet_haiku_cost_tiers": (
-        CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS
-    ),
-    "outside_tier_model_policy": (
-        "Claude Fable/Mythos family IDs are tracked as outside the "
-        "Haiku/Sonnet/Opus cost-aware tier contract. They are not automatic "
-        "runtime tiers for AI Statistician; live use of any tier outside "
-        "Haiku/Sonnet is rejected before provider-client construction."
+        "Sonnet tiers. No higher-tier model ID is stored in the configurable "
+        "catalog; any other Claude family or tier is rejected before provider-"
+        "client construction."
     ),
     "tier_specific_model_env_vars": ANTHROPIC_CLAUDE_TIER_ENV_VARS,
     "global_model_override_policy": (
@@ -376,8 +359,8 @@ def resolve_generator_model(
 
     LLM worker configs may leave ``requested_model`` empty so environment
     overrides and the live Claude Haiku/Sonnet split are evaluated when a
-    request is actually built, not when a module is imported. Opus remains in
-    the source catalog for historical audit only and is rejected for live use.
+    request is actually built, not when a module is imported. Only the Haiku
+    and Sonnet allowlist can resolve to a live request.
     """
 
     return default_generator_model(
@@ -416,24 +399,6 @@ def claude_model_tier_for_model(model: str) -> str:
     return ""
 
 
-def claude_outside_cost_tier_family_for_model(model: str) -> str:
-    """Return the Claude family name for tracked outside-tier model ids."""
-
-    key = str(model or "").strip().lower()
-    if not key:
-        return ""
-    for family, model_id in CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS.items():
-        if key == str(model_id).lower():
-            return family
-        if family.endswith("_limited_availability"):
-            family_prefix = family.removesuffix("_limited_availability")
-        else:
-            family_prefix = family
-        if key.startswith(f"claude-{family_prefix}-"):
-            return family
-    return ""
-
-
 def live_anthropic_model_ceiling_violation(
     model: str,
     *,
@@ -466,16 +431,16 @@ def claude_model_tier_mismatch(
 
     expected = str(expected_model_tier or "").strip().lower()
     actual = claude_model_tier_for_model(model)
-    outside_family = claude_outside_cost_tier_family_for_model(model)
-    if not expected or not actual or expected == actual:
-        if expected and outside_family:
-            prefix = f"{subject} " if subject else ""
-            return (
-                f"{prefix}expected Claude {expected} tier but is configured "
-                f"with outside-tier Claude {outside_family} model {model}"
-            )
+    if not expected or expected == actual:
         return ""
     prefix = f"{subject} " if subject else ""
+    if not actual:
+        if str(model or "").strip().lower().startswith("claude-"):
+            return (
+                f"{prefix}expected Claude {expected} tier but is configured "
+                f"with unapproved Claude model {model}"
+            )
+        return ""
     return f"{prefix}expected Claude {expected} tier but is configured with {model}"
 
 
@@ -597,8 +562,8 @@ def claude_tier_routing_contract(
         "latest_claude_api_aliases_by_tier": dict(
             DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER
         ),
-        "latest_claude_family_models_outside_cost_tiers": dict(
-            CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS
+        "prohibited_live_anthropic_model_tiers": tuple(
+            sorted(PROHIBITED_LIVE_ANTHROPIC_MODEL_TIERS)
         ),
         "resolved_claude_models_by_tier": models_by_tier,
         "allowed_live_anthropic_model_tiers": tuple(

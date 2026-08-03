@@ -3687,7 +3687,6 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert llm_model_policy["latest_claude_models_by_tier"] == {
         "haiku": "claude-haiku-4-5-20251001",
         "sonnet": "claude-sonnet-5",
-        "opus": "claude-opus-4-8",
     }
     assert (
         llm_model_policy["latest_claude_api_aliases_by_tier"]
@@ -3695,9 +3694,9 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         == {
             "haiku": "claude-haiku-4-5",
             "sonnet": "claude-sonnet-5",
-            "opus": "claude-opus-4-8",
         }
     )
+    assert llm_model_policy["prohibited_claude_model_tiers"] == ["opus"]
     assert "Runtime calls use latest_claude_models_by_tier API IDs" in (
         llm_model_policy["runtime_model_id_policy"]
     )
@@ -3711,19 +3710,12 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     ] == {
         "haiku": "claude-haiku-4-5-20251001",
         "sonnet": "claude-sonnet-5",
-        "opus": "claude-opus-4-8",
     }
     assert (
         "Claude 4.6+ dateless model IDs are pinned snapshots"
         in " ".join(llm_model_policy["source_evidence"]["claims"])
     )
-    assert llm_model_policy["latest_claude_family_models_outside_cost_tiers"] == {
-        "fable": "claude-fable-5",
-        "mythos_limited_availability": "claude-mythos-5",
-    }
-    assert "not automatic AI Statistician cost tiers" in llm_model_policy[
-        "outside_cost_tier_policy"
-    ]
+    assert "opus" not in llm_model_policy["latest_claude_models_by_tier"]
     request_time_policy = llm_model_policy["request_time_model_resolution_policy"]
     assert "request is built" in request_time_policy["empty_model_resolution"]
     assert (

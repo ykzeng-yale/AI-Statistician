@@ -28,17 +28,18 @@ used by `ai_statistician doctor`, even when only a subset of LLM agents is
 enabled. LLM worker configs carry a `model_tier` and may leave `model` empty;
 the concrete provider model is resolved when a request is built, so
 tier-specific environment overrides apply to direct worker construction as well
-as CLI-created agents. As of the 2026-07-19 Anthropic Models overview and Model
+as CLI-created agents. As of the 2026-08-02 Anthropic Models overview and Model
 IDs/versioning source check, the pinned live Claude API IDs are Haiku
-`claude-haiku-4-5-20251001` and Sonnet `claude-sonnet-5`. The source catalog
-also records higher-tier IDs for historical audit, but they are not live routes;
-any request above Sonnet fails before an Anthropic client is constructed. The
+`claude-haiku-4-5-20251001` and Sonnet `claude-sonnet-5`. The configurable
+catalog contains only those two allowed tiers; it stores no higher-tier model
+ID. Any other Claude family or tier fails before an Anthropic client is
+constructed. The
 policy also records official API aliases by tier, but
 runtime calls use those pinned API IDs; in particular, Haiku stays on
 `claude-haiku-4-5-20251001` rather than the shorter `claude-haiku-4-5` alias.
 Claude 4.6+ dateless IDs are treated as pinned snapshots, not evergreen aliases.
-Claude Fable/Mythos family IDs are tracked outside the live Haiku/Sonnet policy,
-so they are not selected automatically for AI Statistician helper tiers. Use
+Opus remains only a prohibited input label used by the pre-client policy gate;
+it has no configured model ID or runtime route. Use
 `AI_STATISTICIAN_CLAUDE_HAIKU_MODEL` and
 `AI_STATISTICIAN_CLAUDE_SONNET_MODEL` for live tier-specific overrides. Leave
 `AI_STATISTICIAN_LLM_MODEL` unset in normal Anthropic runs; the global override

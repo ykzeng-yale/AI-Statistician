@@ -181,12 +181,11 @@ from .model_backend import (
     ANTHROPIC_MODEL_IDS_AND_VERSIONING_URL,
     ANTHROPIC_MODEL_ID_VERSIONING_POLICY,
     ANTHROPIC_MODELS_OVERVIEW_URL,
-    CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS,
     DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER,
     DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
-    DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
     DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
     DEFAULT_LIVE_GENERATOR_PROVIDER,
+    PROHIBITED_LIVE_ANTHROPIC_MODEL_TIERS,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
     SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS,
 )
@@ -4584,16 +4583,8 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
         if isinstance(llm_model_policy.get("latest_claude_models_by_tier", {}), dict)
         else {}
     )
-    llm_outside_cost_tier_models = (
-        llm_model_policy.get("latest_claude_family_models_outside_cost_tiers", {})
-        if isinstance(
-            llm_model_policy.get(
-                "latest_claude_family_models_outside_cost_tiers",
-                {},
-            ),
-            dict,
-        )
-        else {}
+    llm_prohibited_claude_tiers = set(
+        _str_tuple(llm_model_policy.get("prohibited_claude_model_tiers", ()))
     )
     llm_api_aliases_by_tier = (
         llm_model_policy.get("latest_claude_api_aliases_by_tier", {})
@@ -4759,19 +4750,18 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
         _check(
             "llm_model_policy_latest_claude_tiers",
             "contract",
-            "latest Claude Haiku/Sonnet/Opus tier ids",
+            "configured Claude Haiku/Sonnet tier ids",
             json.dumps(llm_models_by_tier, sort_keys=True),
             llm_models_by_tier
             == {
                 "haiku": DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
                 "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
-                "opus": DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
             },
         ),
         _check(
             "llm_model_policy_latest_claude_api_aliases",
             "contract",
-            "latest Claude Haiku/Sonnet/Opus API aliases",
+            "configured Claude Haiku/Sonnet API aliases",
             json.dumps(llm_api_aliases_by_tier, sort_keys=True),
             llm_api_aliases_by_tier
             == DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER
@@ -4818,13 +4808,12 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             and "not evergreen" in llm_model_id_versioning_policy.lower(),
         ),
         _check(
-            "llm_model_policy_outside_cost_tier_models",
+            "llm_model_policy_prohibited_claude_tiers",
             "contract",
-            "Claude family models outside Opus/Sonnet/Haiku tier ids",
-            json.dumps(llm_outside_cost_tier_models, sort_keys=True),
-            llm_outside_cost_tier_models == CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS
-            and "not automatic AI Statistician cost tiers"
-            in str(llm_model_policy.get("outside_cost_tier_policy", "")),
+            "higher Claude tiers have no configured model id",
+            json.dumps(sorted(llm_prohibited_claude_tiers)),
+            llm_prohibited_claude_tiers
+            == set(PROHIBITED_LIVE_ANTHROPIC_MODEL_TIERS),
         ),
         _check(
             "llm_model_policy_request_time_resolution",
@@ -9139,7 +9128,6 @@ def _llm_request_generation_policy_errors(
     elif claude_models != {
         "haiku": DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
         "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
-        "opus": DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
     }:
         errors.append("llm_generation_policy.claude_models_by_tier mismatch")
     if str(policy.get("claude_model_source_checked_date", "")).strip() != (

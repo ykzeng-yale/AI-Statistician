@@ -4425,8 +4425,8 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
-        row["check_name"] == "llm_model_policy_outside_cost_tier_models"
-        and "claude-fable-5" in row["observed"]
+        row["check_name"] == "llm_model_policy_prohibited_claude_tiers"
+        and row["observed"] == '["opus"]'
         and row["ok"]
         for row in audit_payload["checks"]
     )

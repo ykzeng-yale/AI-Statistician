@@ -993,7 +993,6 @@ def test_runtime_audit_accepts_architect_resume_theory_refresh_route(
                 "resolved_claude_models_by_tier": {
                     "haiku": "claude-haiku-test",
                     "sonnet": "claude-sonnet-test",
-                    "opus": "claude-opus-test",
                 }
             },
         },
@@ -85697,7 +85696,6 @@ def test_research_agent_runtime_records_theory_to_simulation_loop_in_legacy_base
     assert topology["policy"]["claude_model_selection"]["models_by_tier"] == {
         "haiku": "claude-haiku-4-5-20251001",
         "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
-        "opus": "claude-opus-4-8",
     }
     assert topology["policy"]["resolved_claude_models_by_tier"] == {
         "haiku": "claude-haiku-4-5-20251001",
@@ -87232,7 +87230,6 @@ def _write_budgeted_continuation_runtime_audit_fixture(
                 "resolved_claude_models_by_tier": {
                     "haiku": "claude-haiku-test",
                     "sonnet": "claude-sonnet-test",
-                    "opus": "claude-opus-test",
                 }
             },
         },
@@ -87724,7 +87721,6 @@ def test_runtime_audit_recomputes_source_theorem_formal_environment_work_orders(
                         "resolved_claude_models_by_tier": {
                             "haiku": "claude-haiku-test",
                             "sonnet": "claude-sonnet-test",
-                            "opus": "claude-opus-test",
                         }
                     },
                 },
@@ -101642,7 +101638,6 @@ def test_runtime_topology_audit_rejects_resolved_claude_tier_policy_violation() 
             "resolved_claude_models_by_tier": {
                 "haiku": "claude-sonnet-4-6",
                 "sonnet": "claude-sonnet-4-6",
-                "opus": "claude-sonnet-4-6",
             },
             "resolved_claude_model_tier_policy_status": "POLICY_VIOLATION",
             "resolved_claude_model_tier_policy_violations": [
@@ -101678,7 +101673,6 @@ def test_runtime_topology_audit_rejects_static_as_supported_live_provider() -> N
             "resolved_claude_models_by_tier": {
                 "haiku": "claude-haiku-4-5-20251001",
                 "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
-                "opus": "claude-opus-4-8",
             },
             "resolved_claude_model_tier_policy_status": "OK",
             "resolved_claude_model_tier_policy_violations": [],
@@ -101742,7 +101736,6 @@ def test_runtime_topology_summary_requires_explicit_live_backend_identity() -> N
             "resolved_claude_models_by_tier": {
                 "haiku": "claude-haiku-4-5-20251001",
                 "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
-                "opus": "claude-opus-4-8",
             },
             "resolved_claude_model_tier_policy_status": "OK",
             "resolved_claude_model_tier_policy_violations": [],
@@ -101852,7 +101845,6 @@ def test_runtime_topology_audit_rejects_live_count_without_live_backend_identity
             "resolved_claude_models_by_tier": {
                 "haiku": "claude-haiku-4-5-20251001",
                 "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
-                "opus": "claude-opus-4-8",
             },
             "resolved_claude_model_tier_policy_status": "OK",
             "resolved_claude_model_tier_policy_violations": [],
@@ -101895,7 +101887,6 @@ def test_runtime_topology_audit_rejects_subsystem_model_tier_drift() -> None:
             "resolved_claude_models_by_tier": {
                 "haiku": "claude-haiku-4-5-20251001",
                 "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
-                "opus": "claude-opus-4-8",
             },
             "resolved_claude_model_tier_policy_status": "OK",
             "resolved_claude_model_tier_policy_violations": [],

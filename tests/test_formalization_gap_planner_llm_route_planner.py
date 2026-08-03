@@ -2229,7 +2229,6 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert generation_policy["claude_models_by_tier"] == {
         "haiku": "claude-haiku-4-5-20251001",
         "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
-        "opus": "claude-opus-4-8",
     }
     assert "not evergreen aliases" in generation_policy["claude_model_id_versioning"]
     assert {"codex", "codex_exec"}.issubset(
@@ -12756,7 +12755,6 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
     assert payload["llm_route_planner_model_tier_policy"]["claude_model_selection"]["models_by_tier"] == {
         "haiku": "claude-haiku-4-5-20251001",
         "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
-        "opus": "claude-opus-4-8",
     }
     assert (
         "not evergreen aliases"
