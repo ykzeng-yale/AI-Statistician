@@ -4,7 +4,11 @@ from copy import deepcopy
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
-from .metric_protocol_stage import build_theory_informed_metric_protocol_material
+from .theory_semantic_material import (
+    THEORY_SEMANTIC_MATERIAL_KINDS,
+    THEORY_SEMANTIC_MATERIAL_PROOF_STATUSES,
+    build_theory_semantic_material,
+)
 
 
 THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY = (
@@ -156,7 +160,7 @@ def build_postexecution_theory_revision_binding(
         errors.append("post-execution parent theory packet is absent from blackboard")
         theory_material: dict[str, Any] = {}
     else:
-        theory_material = build_theory_informed_metric_protocol_material(
+        theory_material = build_theory_semantic_material(
             theory_packet=parent_packet,
             theory_packet_id=parent_packet_id,
         )
@@ -290,10 +294,13 @@ def theory_developer_revision_binding_errors(
     if not isinstance(material, Mapping) or not material:
         errors.append("theory revision binding has no immutable theory material")
         material = {}
-    if material.get("artifact_kind") != (
-        "RuntimeTheoryInformedMetricProtocolMaterial"
-    ):
+    if material.get("artifact_kind") not in THEORY_SEMANTIC_MATERIAL_KINDS:
         errors.append("theory revision binding has invalid theory material")
+    if (
+        material.get("proof_evidence_status")
+        not in THEORY_SEMANTIC_MATERIAL_PROOF_STATUSES
+    ):
+        errors.append("theory revision parent crossed the proof boundary")
     if material.get("execution_results_available") is not False:
         errors.append("theory revision parent material contains execution results")
     if str(material.get("source_theory_packet_id", "") or "").strip() != (

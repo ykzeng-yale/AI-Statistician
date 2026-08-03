@@ -1,0 +1,456 @@
+from __future__ import annotations
+
+import json
+from copy import deepcopy
+from dataclasses import dataclass, field, replace
+from typing import Any, Callable, Mapping
+
+from .agent_runtime import agent_runtime_substage
+from .fingerprint import stable_hash
+from .model_backend import (
+    ClientToolCall,
+    ClientToolDefinition,
+    ClientToolTurnRequest,
+    ClientToolTurnResponse,
+)
+
+
+@dataclass(frozen=True)
+class ClientToolExecutionContext:
+    turn_index: int
+    call_index: int
+    calls_in_turn: int
+    total_calls_before: int
+
+
+@dataclass(frozen=True)
+class ClientToolExecutionResult:
+    """One caller-executed tool result returned to the same model context."""
+
+    content: Any
+    is_error: bool = False
+    state_changed: bool = False
+    terminal: bool = False
+    terminal_payload: Mapping[str, Any] | None = None
+    observation_key: str = ""
+
+
+@dataclass(frozen=True)
+class ClientToolLoopResult:
+    """Successful bounded loop result; acceptance remains caller-owned."""
+
+    terminal_payload: Mapping[str, Any]
+    messages: tuple[Mapping[str, Any], ...]
+    history: tuple[Mapping[str, Any], ...]
+    provider: str
+    model: str
+    turns: int
+    tool_calls: int
+    runtime_executed_tool_calls: int
+    transcript_fingerprint: str
+    provider_usage: Mapping[str, int] = field(default_factory=dict)
+    final_response_metadata: Mapping[str, Any] = field(default_factory=dict)
+
+
+class ClientToolLoopError(RuntimeError):
+    def __init__(
+        self,
+        *,
+        reason: str,
+        turns: int,
+        tool_calls: int,
+        runtime_executed_tool_calls: int,
+        history: list[Mapping[str, Any]],
+        messages: list[Mapping[str, Any]] | None = None,
+        provider: str = "",
+        model: str = "",
+        final_response_metadata: Mapping[str, Any] | None = None,
+    ) -> None:
+        self.reason = str(reason)
+        self.turns = int(turns)
+        self.tool_calls = int(tool_calls)
+        self.runtime_executed_tool_calls = int(runtime_executed_tool_calls)
+        self.history = [deepcopy(dict(row)) for row in history]
+        self.messages = [
+            deepcopy(dict(message)) for message in (messages or [])
+        ]
+        self.provider = str(provider)
+        self.model = str(model)
+        self.final_response_metadata = deepcopy(
+            dict(final_response_metadata or {})
+        )
+        self.provider_usage = _provider_usage_totals(self.history)
+        self.transcript_fingerprint = stable_hash(self.messages)
+        super().__init__(
+            f"bounded client-tool loop stopped after {turns} turn(s) and "
+            f"{tool_calls} call(s): {reason}"
+        )
+
+
+class ClientToolInputError(ValueError):
+    """A caller-reviewed tool error whose bounded detail is safe for the model."""
+
+
+ClientToolExecutor = Callable[
+    [ClientToolCall, ClientToolExecutionContext],
+    ClientToolExecutionResult,
+]
+
+
+def run_bounded_client_tool_loop(
+    *,
+    backend: Any,
+    request: ClientToolTurnRequest,
+    execute_tool: ClientToolExecutor,
+    max_turns: int,
+    max_tool_calls: int,
+    max_no_progress_turns: int,
+) -> ClientToolLoopResult:
+    """Run model -> client tool -> observation turns under caller-owned bounds."""
+
+    if max_turns < 1 or max_tool_calls < 1 or max_no_progress_turns < 1:
+        raise ValueError("client-tool loop budgets must all be positive")
+    generate_turn = getattr(backend, "generate_client_tool_turn", None)
+    if not callable(generate_turn):
+        raise ValueError("backend does not support client-tool turns")
+    allowed_tool_names = [tool.name for tool in request.tools]
+    if (
+        not allowed_tool_names
+        or any(not str(name).strip() for name in allowed_tool_names)
+        or len(set(allowed_tool_names)) != len(allowed_tool_names)
+    ):
+        raise ValueError("client-tool definitions must have unique nonempty names")
+    tool_definitions = {tool.name: tool for tool in request.tools}
+    allowed_tools = set(tool_definitions)
+    messages = [deepcopy(dict(message)) for message in request.messages]
+    history: list[dict[str, Any]] = []
+    seen_observations: set[str] = set()
+    total_calls = 0
+    runtime_executed_tool_calls = 0
+    no_progress_turns = 0
+    last_response: ClientToolTurnResponse | None = None
+
+    def loop_error(
+        reason: str,
+        *,
+        turns: int,
+        tool_calls: int,
+    ) -> ClientToolLoopError:
+        return ClientToolLoopError(
+            reason=reason,
+            turns=turns,
+            tool_calls=tool_calls,
+            runtime_executed_tool_calls=runtime_executed_tool_calls,
+            history=history,
+            messages=messages,
+            provider=(last_response.provider if last_response else ""),
+            model=(last_response.model if last_response else request.model),
+            final_response_metadata=(
+                last_response.metadata if last_response else {}
+            ),
+        )
+
+    for turn_index in range(max_turns):
+        with agent_runtime_substage(
+            "client_tool_model_turn",
+            metadata={
+                "turn_index": turn_index,
+                "max_turns": max_turns,
+                "model_tool_calls_before": total_calls,
+                "max_model_tool_calls": max_tool_calls,
+                "model": request.model,
+                "n_available_tools": len(request.tools),
+            },
+        ):
+            response = generate_turn(
+                replace(
+                    request,
+                    messages=tuple(messages),
+                    metadata={
+                        **dict(request.metadata),
+                        "client_tool_loop_turn_index": turn_index,
+                        "client_tool_loop_max_turns": max_turns,
+                        "client_tool_loop_calls_before": total_calls,
+                        "client_tool_loop_max_calls": max_tool_calls,
+                    },
+                )
+            )
+        if not isinstance(response, ClientToolTurnResponse):
+            raise TypeError(
+                "client-tool backend returned the wrong response type"
+            )
+        last_response = response
+        assistant_blocks = [
+            deepcopy(dict(block)) for block in response.content_blocks
+        ]
+        messages.append({"role": "assistant", "content": assistant_blocks})
+        calls = list(response.tool_calls)
+        turn_row: dict[str, Any] = {
+            "turn_index": turn_index,
+            "provider": response.provider,
+            "model": response.model,
+            "stop_reason": str(
+                response.metadata.get("provider_stop_reason", "") or ""
+            ),
+            "n_tool_calls": len(calls),
+            "tool_calls": [],
+            "response_metadata": _compact_tool_response_metadata(
+                response.metadata
+            ),
+        }
+        history.append(turn_row)
+
+        if not calls:
+            observation_key = "no_tool_call:" + stable_hash(
+                [response.text, assistant_blocks]
+            )
+            new_observation = observation_key not in seen_observations
+            seen_observations.add(observation_key)
+            no_progress_turns = (
+                0 if new_observation else no_progress_turns + 1
+            )
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "No client tool was called. Continue by calling one of "
+                        "the supplied tools; prose alone cannot change or submit "
+                        "the runtime artifact."
+                    ),
+                }
+            )
+            if no_progress_turns >= max_no_progress_turns:
+                raise loop_error(
+                    "repeated turns without a client tool call",
+                    turns=turn_index + 1,
+                    tool_calls=total_calls,
+                )
+            continue
+
+        tool_result_blocks: list[dict[str, Any]] = []
+        turn_state_changed = False
+        turn_new_observation = False
+        terminal_payload: Mapping[str, Any] | None = None
+        for call_index, call in enumerate(calls):
+            total_calls += 1
+            if total_calls > max_tool_calls:
+                raise loop_error(
+                    "global client-tool call budget exhausted",
+                    turns=turn_index + 1,
+                    tool_calls=total_calls - 1,
+                )
+            context = ClientToolExecutionContext(
+                turn_index=turn_index,
+                call_index=call_index,
+                calls_in_turn=len(calls),
+                total_calls_before=total_calls - 1,
+            )
+            executed_by_runtime = False
+            if call.name not in allowed_tools:
+                execution = ClientToolExecutionResult(
+                    content={
+                        "ok": False,
+                        "error": "unknown_client_tool",
+                        "allowed_tools": allowed_tool_names,
+                    },
+                    is_error=True,
+                    observation_key="unknown_client_tool:" + call.name,
+                )
+            elif (
+                tool_definitions[call.name].terminal
+                and call_index != len(calls) - 1
+            ):
+                execution = ClientToolExecutionResult(
+                    content={
+                        "ok": False,
+                        "error": "terminal_tool_must_be_last_in_turn",
+                    },
+                    is_error=True,
+                    observation_key="terminal_tool_must_be_last_in_turn",
+                )
+            else:
+                executed_by_runtime = True
+                runtime_executed_tool_calls += 1
+                try:
+                    execution = execute_tool(call, context)
+                except ClientToolInputError as exc:
+                    execution = ClientToolExecutionResult(
+                        content={
+                            "ok": False,
+                            "error": "client_tool_input_rejected",
+                            "exception_type": type(exc).__name__,
+                            "detail": str(exc)[:1200],
+                        },
+                        is_error=True,
+                        observation_key=(
+                            "client_tool_input_rejected:"
+                            + stable_hash([call.name, type(exc).__name__, str(exc)])
+                        ),
+                    )
+                except Exception as exc:
+                    execution = ClientToolExecutionResult(
+                        content={
+                            "ok": False,
+                            "error": "client_tool_internal_failure",
+                            "exception_type": type(exc).__name__,
+                            "detail_withheld": True,
+                        },
+                        is_error=True,
+                        observation_key=(
+                            "client_tool_internal_failure:"
+                            + stable_hash([call.name, type(exc).__name__])
+                        ),
+                    )
+            if execution.terminal and not tool_definitions[call.name].terminal:
+                execution = ClientToolExecutionResult(
+                    content={
+                        "ok": False,
+                        "error": "terminal_result_from_nonterminal_tool",
+                    },
+                    is_error=True,
+                    observation_key="terminal_result_from_nonterminal_tool",
+                )
+            observation_key = execution.observation_key or stable_hash(
+                [call.name, execution.is_error, execution.content]
+            )
+            if observation_key not in seen_observations:
+                turn_new_observation = True
+                seen_observations.add(observation_key)
+            turn_state_changed = (
+                turn_state_changed or execution.state_changed
+            )
+            result_text = _client_tool_result_text(execution.content)
+            tool_result_blocks.append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": call.call_id,
+                    "content": result_text,
+                    "is_error": bool(execution.is_error),
+                }
+            )
+            turn_row["tool_calls"].append(
+                {
+                    "call_index": call_index,
+                    "call_id": call.call_id,
+                    "name": call.name,
+                    "input_fingerprint": stable_hash(dict(call.input)),
+                    "result_fingerprint": stable_hash(
+                        [execution.is_error, execution.content]
+                    ),
+                    "result_excerpt": result_text[:2000],
+                    "is_error": bool(execution.is_error),
+                    "executed_by_runtime": executed_by_runtime,
+                    "state_changed": bool(execution.state_changed),
+                    "terminal": bool(execution.terminal),
+                    "observation_key": observation_key,
+                }
+            )
+            if execution.terminal and not execution.is_error:
+                if not isinstance(execution.terminal_payload, Mapping):
+                    raise loop_error(
+                        "terminal client tool returned no payload",
+                        turns=turn_index + 1,
+                        tool_calls=total_calls,
+                    )
+                terminal_payload = deepcopy(
+                    dict(execution.terminal_payload)
+                )
+
+        messages.append({"role": "user", "content": tool_result_blocks})
+        if terminal_payload is not None:
+            return ClientToolLoopResult(
+                terminal_payload=terminal_payload,
+                messages=tuple(messages),
+                history=tuple(history),
+                provider=response.provider,
+                model=response.model,
+                turns=turn_index + 1,
+                tool_calls=total_calls,
+                runtime_executed_tool_calls=runtime_executed_tool_calls,
+                transcript_fingerprint=stable_hash(messages),
+                provider_usage=_provider_usage_totals(history),
+                final_response_metadata=deepcopy(dict(response.metadata)),
+            )
+
+        if turn_state_changed or turn_new_observation:
+            no_progress_turns = 0
+        else:
+            no_progress_turns += 1
+        if no_progress_turns >= max_no_progress_turns:
+            raise loop_error(
+                "repeated client-tool turns made no new progress",
+                turns=turn_index + 1,
+                tool_calls=total_calls,
+            )
+
+    raise loop_error(
+        "global client-tool turn budget exhausted",
+        turns=max_turns,
+        tool_calls=total_calls,
+    )
+
+
+def _client_tool_result_text(value: Any, *, max_chars: int = 12000) -> str:
+    if isinstance(value, str):
+        text = value
+    else:
+        text = json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+            ensure_ascii=False,
+        )
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars] + "\n[tool result truncated by runtime]"
+
+
+def _compact_tool_response_metadata(
+    metadata: Mapping[str, Any],
+) -> dict[str, Any]:
+    keys = (
+        "client_tool_transport",
+        "tools_executed_by_backend",
+        "n_client_tool_calls",
+        "provider_stop_reason",
+        "provider_usage",
+        "retry_count",
+        "provider_capability_fallback_count",
+        "requested_model",
+        "provider_reported_model",
+        "request_model_tier",
+        "provider_reported_model_tier",
+    )
+    return {
+        key: deepcopy(metadata[key])
+        for key in keys
+        if key in metadata
+    }
+
+
+def _provider_usage_totals(
+    history: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...],
+) -> dict[str, int]:
+    totals: dict[str, int] = {}
+    for turn in history:
+        metadata = turn.get("response_metadata", {})
+        usage = (
+            metadata.get("provider_usage", {})
+            if isinstance(metadata, Mapping)
+            else {}
+        )
+        if not isinstance(usage, Mapping):
+            continue
+        for key in (
+            "input_tokens",
+            "output_tokens",
+            "cache_creation_input_tokens",
+            "cache_read_input_tokens",
+            "total_tokens",
+        ):
+            value = usage.get(key)
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                continue
+            totals[key] = totals.get(key, 0) + max(0, int(value))
+    return totals

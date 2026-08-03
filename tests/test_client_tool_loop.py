@@ -1,0 +1,330 @@
+from __future__ import annotations
+
+from contextlib import contextmanager
+from dataclasses import replace
+
+import pytest
+
+from ai_statistician.client_tool_loop import (
+    ClientToolExecutionResult,
+    ClientToolInputError,
+    ClientToolLoopError,
+    run_bounded_client_tool_loop,
+)
+from ai_statistician.model_backend import (
+    ClientToolCall,
+    ClientToolDefinition,
+    ClientToolTurnRequest,
+    ClientToolTurnResponse,
+)
+
+
+class ScriptedToolTurnBackend:
+    provider_name = "scripted_tool_turn"
+
+    def __init__(self, responses: list[ClientToolTurnResponse]) -> None:
+        self.responses = list(responses)
+        self.requests: list[ClientToolTurnRequest] = []
+
+    def generate_client_tool_turn(
+        self,
+        request: ClientToolTurnRequest,
+    ) -> ClientToolTurnResponse:
+        self.requests.append(request)
+        if not self.responses:
+            raise AssertionError("ScriptedToolTurnBackend exhausted")
+        return self.responses.pop(0)
+
+
+def _tool(name: str, *, terminal: bool = False) -> ClientToolDefinition:
+    return ClientToolDefinition(
+        name=name,
+        description=f"Execute {name}.",
+        input_schema={
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {},
+        },
+        terminal=terminal,
+    )
+
+
+def _response(*calls: ClientToolCall, text: str = "") -> ClientToolTurnResponse:
+    blocks = []
+    if text:
+        blocks.append({"type": "text", "text": text})
+    blocks.extend(
+        {
+            "type": "tool_use",
+            "id": call.call_id,
+            "name": call.name,
+            "input": dict(call.input),
+        }
+        for call in calls
+    )
+    return ClientToolTurnResponse(
+        content_blocks=tuple(blocks),
+        tool_calls=tuple(calls),
+        text=text,
+        provider="anthropic",
+        model="claude-haiku-4-5-20251001",
+        metadata={
+            "client_tool_transport": True,
+            "tools_executed_by_backend": False,
+            "provider_stop_reason": "tool_use",
+            "provider_usage": {"input_tokens": 11, "output_tokens": 3},
+        },
+    )
+
+
+def _request() -> ClientToolTurnRequest:
+    return ClientToolTurnRequest(
+        system_prompt="Use runtime tools.",
+        messages=({"role": "user", "content": "Repair the artifact."},),
+        tools=(
+            _tool("edit"),
+            _tool("check"),
+            _tool("submit", terminal=True),
+        ),
+        model="claude-haiku-4-5-20251001",
+        metadata={"model_tier": "haiku"},
+    )
+
+
+def test_bounded_client_tool_loop_returns_terminal_runtime_payload() -> None:
+    backend = ScriptedToolTurnBackend(
+        [
+            _response(
+                ClientToolCall("call-edit", "edit", {"value": 2}),
+                ClientToolCall("call-check", "check", {}),
+            ),
+            _response(ClientToolCall("call-submit", "submit", {})),
+        ]
+    )
+    state = {"value": 1}
+
+    def execute(call, context):
+        if call.name == "edit":
+            state["value"] = call.input["value"]
+            return ClientToolExecutionResult(
+                content={"ok": True, "value": state["value"]},
+                state_changed=True,
+                observation_key="edited:2",
+            )
+        if call.name == "check":
+            return ClientToolExecutionResult(
+                content={"ok": state["value"] == 2},
+                observation_key="check:passed",
+            )
+        assert context.call_index == context.calls_in_turn - 1
+        return ClientToolExecutionResult(
+            content={"ok": True, "submitted": True},
+            terminal=True,
+            terminal_payload={"value": state["value"]},
+            observation_key="submitted:2",
+        )
+
+    result = run_bounded_client_tool_loop(
+        backend=backend,
+        request=_request(),
+        execute_tool=execute,
+        max_turns=3,
+        max_tool_calls=5,
+        max_no_progress_turns=2,
+    )
+
+    assert result.terminal_payload == {"value": 2}
+    assert result.turns == 2
+    assert result.tool_calls == 3
+    assert result.runtime_executed_tool_calls == 3
+    assert result.provider_usage == {"input_tokens": 22, "output_tokens": 6}
+    assert result.transcript_fingerprint
+    assert len(backend.requests) == 2
+    second_messages = backend.requests[1].messages
+    assert second_messages[-2]["role"] == "assistant"
+    assert second_messages[-1]["content"][0]["type"] == "tool_result"
+    assert result.history[0]["tool_calls"][0]["name"] == "edit"
+    assert '"value":2' in result.history[0]["tool_calls"][0][
+        "result_excerpt"
+    ]
+    assert result.history[0]["response_metadata"][
+        "tools_executed_by_backend"
+    ] is False
+
+
+def test_bounded_client_tool_loop_stops_repeated_no_tool_turns() -> None:
+    response = _response(text="I will describe the change instead.")
+    backend = ScriptedToolTurnBackend([response, response, response])
+
+    with pytest.raises(ClientToolLoopError, match="without a client tool") as exc:
+        run_bounded_client_tool_loop(
+            backend=backend,
+            request=_request(),
+            execute_tool=lambda call, context: ClientToolExecutionResult({}),
+            max_turns=4,
+            max_tool_calls=5,
+            max_no_progress_turns=2,
+        )
+
+    assert exc.value.tool_calls == 0
+    assert exc.value.turns == 3
+    assert exc.value.messages
+    assert exc.value.provider == "anthropic"
+    assert exc.value.model == "claude-haiku-4-5-20251001"
+    assert exc.value.transcript_fingerprint
+
+
+def test_bounded_client_tool_loop_does_not_accept_early_terminal_call() -> None:
+    backend = ScriptedToolTurnBackend(
+        [
+            _response(
+                ClientToolCall("call-submit", "submit", {}),
+                ClientToolCall("call-edit", "edit", {}),
+            )
+        ]
+    )
+
+    executed_tools = []
+
+    def execute(call, context):
+        executed_tools.append(call.name)
+        if call.name == "submit":
+            return ClientToolExecutionResult(
+                content={"ok": True},
+                terminal=True,
+                terminal_payload={"accepted": True},
+            )
+        return ClientToolExecutionResult(
+            content={"ok": True},
+            observation_key="edit-after-submit",
+        )
+
+    with pytest.raises(ClientToolLoopError, match="turn budget exhausted"):
+        run_bounded_client_tool_loop(
+            backend=backend,
+            request=replace(
+                _request(),
+                tools=(_tool("edit"), _tool("submit", terminal=True)),
+            ),
+            execute_tool=execute,
+            max_turns=1,
+            max_tool_calls=3,
+            max_no_progress_turns=1,
+        )
+
+    first_turn = backend.requests[0]
+    assert first_turn.tool_choice == "any"
+    assert executed_tools == ["edit"]
+
+
+def test_bounded_client_tool_loop_never_executes_unknown_tool() -> None:
+    backend = ScriptedToolTurnBackend(
+        [_response(ClientToolCall("call-unknown", "shell", {"cmd": "rm -rf /"}))]
+    )
+    executions = 0
+
+    def execute(call, context):
+        nonlocal executions
+        executions += 1
+        return ClientToolExecutionResult(content={"ok": True})
+
+    with pytest.raises(ClientToolLoopError, match="turn budget exhausted") as exc:
+        run_bounded_client_tool_loop(
+            backend=backend,
+            request=_request(),
+            execute_tool=execute,
+            max_turns=1,
+            max_tool_calls=2,
+            max_no_progress_turns=1,
+        )
+
+    assert executions == 0
+    assert exc.value.runtime_executed_tool_calls == 0
+
+
+def test_bounded_client_tool_loop_exposes_only_declared_safe_error_detail() -> None:
+    safe_backend = ScriptedToolTurnBackend(
+        [
+            _response(ClientToolCall("call-safe", "edit", {})),
+            _response(text="stop"),
+        ]
+    )
+
+    with pytest.raises(ClientToolLoopError):
+        run_bounded_client_tool_loop(
+            backend=safe_backend,
+            request=_request(),
+            execute_tool=lambda call, context: (_ for _ in ()).throw(
+                ClientToolInputError("safe validator detail")
+            ),
+            max_turns=2,
+            max_tool_calls=2,
+            max_no_progress_turns=1,
+        )
+
+    internal_backend = ScriptedToolTurnBackend(
+        [
+            _response(ClientToolCall("call-internal", "edit", {})),
+            _response(text="stop"),
+        ]
+    )
+    secret = "private-runtime-detail"
+
+    with pytest.raises(ClientToolLoopError):
+        run_bounded_client_tool_loop(
+            backend=internal_backend,
+            request=_request(),
+            execute_tool=lambda call, context: (_ for _ in ()).throw(
+                RuntimeError(secret)
+            ),
+            max_turns=2,
+            max_tool_calls=2,
+            max_no_progress_turns=1,
+        )
+
+    safe_result = safe_backend.requests[1].messages[-1]["content"][0]
+    internal_result = internal_backend.requests[1].messages[-1]["content"][0]
+    assert "safe validator detail" in safe_result["content"]
+    assert secret not in internal_result["content"]
+    assert '"detail_withheld":true' in internal_result["content"]
+
+
+def test_bounded_client_tool_loop_uses_existing_runtime_substage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed = []
+
+    @contextmanager
+    def record_substage(name, *, metadata):
+        observed.append(("start", name, dict(metadata)))
+        yield
+        observed.append(("finish", name, dict(metadata)))
+
+    monkeypatch.setattr(
+        "ai_statistician.client_tool_loop.agent_runtime_substage",
+        record_substage,
+    )
+    backend = ScriptedToolTurnBackend(
+        [_response(ClientToolCall("call-submit", "submit", {}))]
+    )
+
+    result = run_bounded_client_tool_loop(
+        backend=backend,
+        request=_request(),
+        execute_tool=lambda call, context: ClientToolExecutionResult(
+            content={"ok": True},
+            terminal=True,
+            terminal_payload={"ok": True},
+        ),
+        max_turns=2,
+        max_tool_calls=2,
+        max_no_progress_turns=1,
+    )
+
+    assert result.terminal_payload == {"ok": True}
+    assert [row[:2] for row in observed] == [
+        ("start", "client_tool_model_turn"),
+        ("finish", "client_tool_model_turn"),
+    ]
+    assert observed[0][2]["turn_index"] == 0
+    assert observed[0][2]["model"] == "claude-haiku-4-5-20251001"

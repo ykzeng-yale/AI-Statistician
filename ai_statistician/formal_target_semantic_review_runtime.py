@@ -28,6 +28,11 @@ from .formal_target_semantic_reviewer_llm import (
 from .llm_json_repair import PacketValidationError
 from .model_backend import LIVE_EVALUATION_CLAUDE_MODEL_TIER
 from .research_schema import OpenResearchQuestion
+from .theory_semantic_material import build_theory_semantic_material
+from .theory_revision_lineage import (
+    THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
+    build_theory_developer_revision_binding,
+)
 from .typed_repair_handoff import build_typed_repair_handoff_contract
 
 
@@ -978,7 +983,11 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             review_packet_id: review_packet,
             execution_id: execution_manifest,
         }
+        feedback_id = "formal_target_semantic_review_feedback:" + stable_hash(
+            [question.id, work_order_id, review_packet_id, execution_id]
+        )[:20]
         feedback = {
+            "feedback_id": feedback_id,
             "feedback_type": "formal_target_semantic_review_feedback",
             "feedback_source": FORMAL_TARGET_SEMANTIC_REVIEWER_SUBSYSTEM,
             "candidate_materialization_id": str(
@@ -1153,9 +1162,29 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                 "Independent whole-target semantic review rejected the current "
                 "exact theorem statement; generate a fresh hash-bound target."
             ]
+            active_repair_scopes = list(
+                dict.fromkeys(
+                    str(row.get("repair_scope", "") or "").strip()
+                    for row in active_repair_findings
+                    if str(row.get("repair_scope", "") or "").strip()
+                )
+            )
+            active_repair_instructions = list(
+                dict.fromkeys(
+                    str(row.get("required_change", "") or "").strip()
+                    for row in active_repair_findings
+                    if str(row.get("required_change", "") or "").strip()
+                )
+            )
+            routed_feedback = {
+                **feedback,
+                "findings": active_repair_findings,
+                "active_repair_scopes": active_repair_scopes,
+                "repair_instructions": active_repair_instructions,
+            }
             next_feedback = {
                 **prior_feedback,
-                **feedback,
+                **routed_feedback,
                 "proofengineer_repair_context": stale_context,
             }
             next_inputs["environment_feedback"] = next_feedback
@@ -1193,6 +1222,24 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                 )
                 next_context["previous_theory_packet_hash"] = (
                     previous_theory_packet_hash
+                )
+                theory_material = build_theory_semantic_material(
+                    theory_packet=theory_packet,
+                    theory_packet_id=previous_theory_packet_id,
+                )
+                next_context[THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY] = (
+                    build_theory_developer_revision_binding(
+                        revision_source="formal_target_semantic_review",
+                        question_id=question.id,
+                        source_feedback=routed_feedback,
+                        theory_material=theory_material,
+                        feedback_id=feedback_id,
+                        upstream_theory_revision_count=revision_count + 1,
+                        max_upstream_theory_revisions=max_revisions,
+                        execution_results_observed=True,
+                        source_review_packet_id=review_packet_id,
+                        source_review_execution_id=execution_id,
+                    )
                 )
                 next_task = AgentTask(
                     task_id=(

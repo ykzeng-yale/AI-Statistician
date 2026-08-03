@@ -34,6 +34,9 @@ from ai_statistician.estimator_interface_contract import (
     theory_estimator_interface_contracts,
 )
 from ai_statistician.model_backend import (
+    ClientToolCall,
+    ClientToolTurnRequest,
+    ClientToolTurnResponse,
     DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
     DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
     GeneratorRequest,
@@ -93,6 +96,74 @@ class SequentialGeneratorBackend:
                 "provider_stop_reason": "end_turn",
             },
         )
+
+
+class ScriptedTheoryToolBackend:
+    provider_name = "anthropic"
+
+    def __init__(
+        self,
+        *,
+        tool_responses: list[ClientToolTurnResponse],
+        generator_responses: list[dict[str, object]],
+    ) -> None:
+        self.tool_responses = list(tool_responses)
+        self.generator_responses = list(generator_responses)
+        self.tool_requests: list[ClientToolTurnRequest] = []
+        self.generator_requests: list[GeneratorRequest] = []
+
+    def generate_client_tool_turn(
+        self,
+        request: ClientToolTurnRequest,
+    ) -> ClientToolTurnResponse:
+        self.tool_requests.append(request)
+        if not self.tool_responses:
+            raise AssertionError("ScriptedTheoryToolBackend tool responses exhausted")
+        return self.tool_responses.pop(0)
+
+    def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+        self.generator_requests.append(request)
+        if not self.generator_responses:
+            raise AssertionError(
+                "ScriptedTheoryToolBackend generator responses exhausted"
+            )
+        return GeneratorResponse(
+            text=json.dumps(self.generator_responses.pop(0)),
+            provider=self.provider_name,
+            model=request.model,
+            metadata={
+                "generator_only": True,
+                "tools_available": False,
+                "provider_stop_reason": "end_turn",
+            },
+        )
+
+
+def _tool_turn_response(
+    *calls: ClientToolCall,
+) -> ClientToolTurnResponse:
+    return ClientToolTurnResponse(
+        content_blocks=tuple(
+            {
+                "type": "tool_use",
+                "id": call.call_id,
+                "name": call.name,
+                "input": dict(call.input),
+            }
+            for call in calls
+        ),
+        tool_calls=tuple(calls),
+        text="",
+        provider="anthropic",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        metadata={
+            "client_tool_transport": True,
+            "tools_executed_by_backend": False,
+            "provider_stop_reason": "tool_use",
+            "request_model_tier": "haiku",
+            "provider_reported_model_tier": "haiku",
+        },
+    )
 
 
 class ProviderWithoutIdentity:
@@ -1171,6 +1242,372 @@ def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -
     )
     assert transport["applied_top_level_sections"] == ["problem_card"]
     assert transport["kernel_verified"] is False
+
+
+def test_theory_revision_native_client_tools_preserve_model_owned_semantics() -> None:
+    parent = _serious_sample_response()
+    parent["estimator_specs"][0]["inputs"] = ["observations"]
+    parent["estimator_specs"][0]["outputs"] = ["estimate"]
+    question = OpenResearchQuestion(
+        id="native_tool_revision",
+        title="Native client-tool theory revision",
+        description="Revise a parent through runtime-executed client tools.",
+    )
+    context = _metric_theory_revision_context(question=question, parent=parent)
+    revised_assumptions = [
+        *parent["problem_card"]["assumptions"],
+        "bounded outcomes",
+    ]
+    decision = _bounded_outcome_feedback_decisions()[
+        "metric_protocol_finding:bounded-outcome"
+    ]
+    provider = ScriptedTheoryToolBackend(
+        tool_responses=[
+            _tool_turn_response(
+                ClientToolCall(
+                    "toolu-decision",
+                    "record_feedback_decision",
+                    {
+                        "finding_index": 0,
+                        **decision,
+                    },
+                ),
+                ClientToolCall(
+                    "toolu-replace",
+                    "replace_artifact_value",
+                    {
+                        "section": "problem_card",
+                        "relative_path": ["assumptions"],
+                        "replacement": revised_assumptions,
+                    },
+                ),
+            ),
+            _tool_turn_response(
+                ClientToolCall(
+                    "toolu-submit",
+                    "submit_revision",
+                    {},
+                )
+            ),
+        ],
+        generator_responses=[
+            {
+                "interfaces": {
+                    parent["estimator_specs"][0]["id"]: parent[
+                        "estimator_specs"
+                    ][0]["estimator_interface_contract"]
+                }
+            }
+        ],
+    )
+    developer = LLMTheoryDeveloperAgent(
+        provider=provider,
+        config=ResearchArchitectConfig(
+            provider_name="anthropic",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            serious_model_tier="haiku",
+        ),
+    )
+
+    packet = developer.derive(question, architect_context=context)
+
+    assert packet["ok"] is True
+    assert packet["problem_card"]["assumptions"] == revised_assumptions
+    assert packet["theorem_cards"] == parent["theorem_cards"]
+    assert len(provider.tool_requests) == 2
+    assert len(provider.generator_requests) == 1
+    assert provider.generator_requests[0].metadata[
+        "theory_developer_phase"
+    ] == "estimator_interface_authoring"
+    first_request = provider.tool_requests[0]
+    assert first_request.model == DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL
+    assert first_request.tool_choice == "any"
+    tools = {tool.name: tool for tool in first_request.tools}
+    assert set(tools) == {
+        "record_feedback_decision",
+        "replace_artifact_value",
+        "submit_revision",
+    }
+    assert tools["replace_artifact_value"].input_schema["properties"][
+        "replacement"
+    ] == {}
+    assert tools["record_feedback_decision"].input_schema["properties"][
+        "finding_index"
+    ]["enum"] == [0]
+    assert "decision_key" not in tools[
+        "record_feedback_decision"
+    ].input_schema["properties"]
+    assert (
+        first_request.messages[0]["content"].count("replacement_json")
+        == 0
+    )
+    tool_prompt = json.loads(
+        first_request.messages[0]["content"].split("\n\n", 1)[1]
+    )
+    assert tool_prompt["feedback_decision_contract"][
+        "required_finding_indices"
+    ] == [0]
+    assert "routed_findings_by_decision_key" not in tool_prompt
+    assert tool_prompt["routed_findings"][0]["finding_index"] == 0
+    assert "finding_id" not in tool_prompt["routed_findings"][0]["finding"]
+    second_request = provider.tool_requests[1]
+    assert second_request.messages[-1]["role"] == "user"
+    assert all(
+        block["type"] == "tool_result"
+        for block in second_request.messages[-1]["content"]
+    )
+    transport = packet["theory_revision_transport"]
+    assert transport["base_core_payload_fingerprint"] == (
+        build_theory_developer_revision_inputs(
+            context,
+            question=question,
+        )["base_core_payload_fingerprint"]
+    )
+    assert transport["applied_paths"] == [["problem_card", "assumptions"]]
+    loop = transport["client_tool_loop"]
+    assert loop["transport"] == "native_client_tools"
+    assert loop["turns"] == 2
+    assert loop["tool_calls"] == 3
+    assert loop["runtime_executed_tool_calls"] == 3
+    assert loop["explicit_submit_locally_valid"] is True
+    assert loop["local_candidate_validation_passed"] is True
+    assert loop["model_explicit_submit"] is True
+    assert loop["budget_exhausted"] is False
+    assert loop["handoff_mode"] == "model_submit"
+    assert loop["tools_executed_by_runtime"] is True
+    assert loop["tools_executed_by_backend"] is False
+    assert loop["identity_binding"] == (
+        "finding_index_to_runtime_decision_key"
+    )
+    assert loop["runtime_selected_semantics"] is False
+    assert loop["independent_acceptance_required"] is True
+    assert loop["kernel_verified"] is False
+    assert packet["theory_generation_phases"][0][
+        "client_tool_transport"
+    ] == "native_client_tools"
+    assert packet["theory_generation_phases"][0]["client_tool_turns"] == 2
+    assert packet["theory_generation_phases"][0]["client_tool_calls"] == 3
+
+
+def test_theory_revision_hands_off_valid_candidate_at_turn_budget() -> None:
+    parent = _serious_sample_response()
+    parent["estimator_specs"][0]["inputs"] = ["observations"]
+    parent["estimator_specs"][0]["outputs"] = ["estimate"]
+    question = OpenResearchQuestion(
+        id="native_tool_budget_handoff",
+        title="Bounded client-tool candidate handoff",
+        description="Keep a locally valid candidate when explicit submit is omitted.",
+    )
+    context = _metric_theory_revision_context(question=question, parent=parent)
+    decision = _bounded_outcome_feedback_decisions()[
+        "metric_protocol_finding:bounded-outcome"
+    ]
+    revised_assumptions = [
+        *parent["problem_card"]["assumptions"],
+        "bounded outcomes",
+    ]
+    revised_required = [
+        *parent["estimator_specs"][0]["required_assumptions"],
+        "bounded outcomes",
+    ]
+    revised_risks = [
+        *parent["theorem_cards"][0]["semantic_risks"],
+        "verify the bounded-outcome condition",
+    ]
+    revised_claim = (
+        parent["theory_derivation_packet"]["derivation_steps"][0]["claim"]
+        + " under bounded outcomes"
+    )
+    provider = ScriptedTheoryToolBackend(
+        tool_responses=[
+            _tool_turn_response(
+                ClientToolCall(
+                    "toolu-decision",
+                    "record_feedback_decision",
+                    {"finding_index": 0, **decision},
+                )
+            ),
+            _tool_turn_response(
+                ClientToolCall(
+                    "toolu-assumptions",
+                    "replace_artifact_value",
+                    {
+                        "section": "problem_card",
+                        "relative_path": ["assumptions"],
+                        "replacement": revised_assumptions,
+                    },
+                )
+            ),
+            _tool_turn_response(
+                ClientToolCall(
+                    "toolu-required",
+                    "replace_artifact_value",
+                    {
+                        "section": "estimator_specs",
+                        "relative_path": [0, "required_assumptions"],
+                        "replacement": revised_required,
+                    },
+                )
+            ),
+            _tool_turn_response(
+                ClientToolCall(
+                    "toolu-risks",
+                    "replace_artifact_value",
+                    {
+                        "section": "theorem_cards",
+                        "relative_path": [0, "semantic_risks"],
+                        "replacement": revised_risks,
+                    },
+                )
+            ),
+            _tool_turn_response(
+                ClientToolCall(
+                    "toolu-claim",
+                    "replace_artifact_value",
+                    {
+                        "section": "theory_derivation_packet",
+                        "relative_path": ["derivation_steps", 0, "claim"],
+                        "replacement": revised_claim,
+                    },
+                )
+            ),
+        ],
+        generator_responses=[
+            {
+                "interfaces": {
+                    parent["estimator_specs"][0]["id"]: parent[
+                        "estimator_specs"
+                    ][0]["estimator_interface_contract"]
+                }
+            }
+        ],
+    )
+    developer = LLMTheoryDeveloperAgent(
+        provider=provider,
+        config=ResearchArchitectConfig(
+            provider_name="anthropic",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            serious_model_tier="haiku",
+        ),
+    )
+
+    packet = developer.derive(question, architect_context=context)
+
+    assert packet["ok"] is True
+    assert packet["problem_card"]["assumptions"] == revised_assumptions
+    loop = packet["theory_revision_transport"]["client_tool_loop"]
+    assert loop["turns"] == 5
+    assert loop["model_explicit_submit"] is False
+    assert loop["explicit_submit_locally_valid"] is False
+    assert loop["budget_exhausted"] is True
+    assert loop["local_candidate_validation_passed"] is True
+    assert loop["handoff_mode"] == "turn_budget_validated_candidate"
+    assert loop["independent_acceptance_required"] is True
+    assert len(provider.tool_requests) == 5
+    assert len(provider.generator_requests) == 1
+
+
+def test_theory_revision_client_tool_error_returns_to_same_model_context() -> None:
+    parent = _serious_sample_response()
+    parent["estimator_specs"][0]["inputs"] = ["observations"]
+    parent["estimator_specs"][0]["outputs"] = ["estimate"]
+    question = OpenResearchQuestion(
+        id="native_tool_feedback",
+        title="Native client-tool feedback",
+        description="Return exact invalid-path feedback to the same model context.",
+    )
+    context = _metric_theory_revision_context(question=question, parent=parent)
+    revised_assumptions = [
+        *parent["problem_card"]["assumptions"],
+        "bounded outcomes",
+    ]
+    decision = _bounded_outcome_feedback_decisions()[
+        "metric_protocol_finding:bounded-outcome"
+    ]
+    provider = ScriptedTheoryToolBackend(
+        tool_responses=[
+            _tool_turn_response(
+                ClientToolCall(
+                    "toolu-decision",
+                    "record_feedback_decision",
+                    {
+                        "finding_index": 0,
+                        **decision,
+                    },
+                ),
+                ClientToolCall(
+                    "toolu-invalid",
+                    "replace_artifact_value",
+                    {
+                        "section": "theory_derivation_packet",
+                        "relative_path": [
+                            "theorem_cards",
+                            0,
+                            "informal_statement",
+                        ],
+                        "replacement": "invalid sibling nesting",
+                    },
+                ),
+            ),
+            _tool_turn_response(
+                ClientToolCall(
+                    "toolu-valid",
+                    "replace_artifact_value",
+                    {
+                        "section": "problem_card",
+                        "relative_path": ["assumptions"],
+                        "replacement": revised_assumptions,
+                    },
+                ),
+                ClientToolCall(
+                    "toolu-submit",
+                    "submit_revision",
+                    {},
+                ),
+            ),
+        ],
+        generator_responses=[
+            {
+                "interfaces": {
+                    parent["estimator_specs"][0]["id"]: parent[
+                        "estimator_specs"
+                    ][0]["estimator_interface_contract"]
+                }
+            }
+        ],
+    )
+    developer = LLMTheoryDeveloperAgent(
+        provider=provider,
+        config=ResearchArchitectConfig(
+            provider_name="anthropic",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            serious_model_tier="haiku",
+        ),
+    )
+
+    packet = developer.derive(question, architect_context=context)
+
+    assert packet["ok"] is True
+    feedback_blocks = provider.tool_requests[1].messages[-1]["content"]
+    invalid_result = next(
+        block
+        for block in feedback_blocks
+        if block["tool_use_id"] == "toolu-invalid"
+    )
+    assert invalid_result["is_error"] is True
+    assert "full_path=['theory_derivation_packet', 'theorem_cards'" in (
+        invalid_result["content"]
+    )
+    assert packet["theory_revision_transport"]["path_normalizations"] == []
+    assert packet["theory_revision_transport"]["applied_paths"] == [
+        ["problem_card", "assumptions"]
+    ]
 
 
 def test_postexecution_theory_revision_uses_current_parent_bound_feedback() -> None:

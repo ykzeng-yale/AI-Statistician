@@ -632,12 +632,70 @@ class GeneratorResponse:
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class ClientToolDefinition:
+    """One provider-neutral client tool exposed for a bounded agent turn."""
+
+    name: str
+    description: str
+    input_schema: Mapping[str, Any]
+    terminal: bool = False
+
+
+@dataclass(frozen=True)
+class ClientToolCall:
+    """One model-selected call that must be executed by AgentRuntime code."""
+
+    call_id: str
+    name: str
+    input: Mapping[str, Any]
+
+
+@dataclass(frozen=True)
+class ClientToolTurnRequest:
+    """One conversational model turn with caller-executed client tools."""
+
+    system_prompt: str
+    messages: tuple[Mapping[str, Any], ...]
+    tools: tuple[ClientToolDefinition, ...]
+    model: str
+    max_tokens: int = 4096
+    temperature: float = 0.0
+    tool_choice: str = "any"
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ClientToolTurnResponse:
+    """Canonical assistant blocks and calls returned by a client-tool turn."""
+
+    content_blocks: tuple[Mapping[str, Any], ...]
+    tool_calls: tuple[ClientToolCall, ...]
+    text: str
+    provider: str
+    model: str
+    raw: Any | None = None
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+
 class GeneratorBackend(Protocol):
     """A restricted LLM backend used as a generator, not as an acting agent."""
 
     provider_name: str
 
     def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+        ...
+
+
+class ClientToolTurnBackend(Protocol):
+    """Transport for one turn; the caller, never the backend, executes tools."""
+
+    provider_name: str
+
+    def generate_client_tool_turn(
+        self,
+        request: ClientToolTurnRequest,
+    ) -> ClientToolTurnResponse:
         ...
 
 
@@ -797,7 +855,7 @@ def _anthropic_rejected_optional_parameter(exc: Exception) -> str:
 
 
 class AnthropicGeneratorBackend:
-    """Anthropic Messages API backend with no tool exposure."""
+    """Anthropic transport; ordinary generation is tool-free and tools stay client-side."""
 
     provider_name = "anthropic"
 
@@ -991,6 +1049,143 @@ class AnthropicGeneratorBackend:
                 "provider_structured_output_cached_fallback": (
                     cached_oversized_structured_output_schema
                 ),
+                "timeout_seconds": timeout_s,
+                "retry_count": retry_count,
+                "provider_capability_fallback_count": capability_fallback_count,
+                "omitted_unsupported_request_parameters": list(
+                    omitted_unsupported_parameters
+                ),
+                "cached_unsupported_request_parameters": sorted(
+                    cached_unsupported_parameters
+                ),
+                "requested_model": request.model,
+                "provider_reported_model": response_model,
+                **_provider_response_diagnostics(response),
+                **_claude_generator_model_tier_metadata(
+                    request_model=request.model,
+                    response_model=response_model,
+                    request_metadata=request.metadata,
+                ),
+            },
+        )
+
+    def generate_client_tool_turn(
+        self,
+        request: ClientToolTurnRequest,
+    ) -> ClientToolTurnResponse:
+        """Transport one native client-tool turn without executing any tool."""
+
+        if not self.api_key:
+            raise ValueError("ANTHROPIC_API_KEY is not set")
+        if not request.tools:
+            raise ValueError("client-tool turn requires at least one tool")
+        tool_names = [str(tool.name or "").strip() for tool in request.tools]
+        if any(not name for name in tool_names) or len(set(tool_names)) != len(
+            tool_names
+        ):
+            raise ValueError("client-tool names must be nonempty and unique")
+        if request.tool_choice not in {"auto", "any"}:
+            raise ValueError("client-tool choice must be auto or any")
+        ceiling_violation = live_anthropic_model_ceiling_violation(
+            request.model,
+            requested_model_tier=str(
+                request.metadata.get("model_tier", "") or ""
+            ),
+        )
+        if ceiling_violation:
+            raise ValueError(ceiling_violation)
+        try:
+            import anthropic
+        except Exception as exc:  # pragma: no cover - import depends on local env
+            raise ValueError(f"failed to import anthropic package: {exc!r}") from exc
+
+        timeout_s = _live_generator_timeout_seconds(self.timeout_s)
+        client = anthropic.Anthropic(
+            api_key=self.api_key,
+            timeout=timeout_s,
+            max_retries=0,
+        )
+        request_kwargs: dict[str, Any] = {
+            "model": request.model,
+            "max_tokens": request.max_tokens,
+            "temperature": request.temperature,
+            "system": request.system_prompt,
+            "messages": [deepcopy(dict(message)) for message in request.messages],
+            "tools": [
+                {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "input_schema": deepcopy(dict(tool.input_schema)),
+                }
+                for tool in request.tools
+            ],
+            "tool_choice": {"type": request.tool_choice},
+        }
+        with self._capability_lock:
+            cached_unsupported_parameters = set(
+                self._unsupported_optional_parameters_by_model.get(
+                    request.model,
+                    set(),
+                )
+            )
+        for parameter in cached_unsupported_parameters:
+            request_kwargs.pop(parameter, None)
+        omitted_unsupported_parameters = sorted(cached_unsupported_parameters)
+        response, retry_count = _call_with_generator_retries(
+            lambda: _call_with_wall_clock_timeout(
+                lambda: _anthropic_create_with_capability_fallback(
+                    client.messages,
+                    request_kwargs=request_kwargs,
+                    omitted_unsupported_parameters=(
+                        omitted_unsupported_parameters
+                    ),
+                ),
+                timeout_s=timeout_s,
+                provider_name=self.provider_name,
+                model=request.model,
+            )
+        )
+        with self._capability_lock:
+            self._unsupported_optional_parameters_by_model.setdefault(
+                request.model,
+                set(),
+            ).update(omitted_unsupported_parameters)
+
+        response_model = _response_model(response, fallback=request.model)
+        response_ceiling_violation = live_anthropic_model_ceiling_violation(
+            response_model,
+            requested_model_tier=str(
+                request.metadata.get("model_tier", "") or ""
+            ),
+        )
+        if response_ceiling_violation:
+            raise ValueError(
+                "Anthropic returned a model outside the configured live ceiling: "
+                + response_ceiling_violation
+            )
+        content_blocks = _anthropic_client_tool_content_blocks(response)
+        tool_calls = _anthropic_client_tool_calls(content_blocks)
+        capability_fallback_count = len(
+            set(omitted_unsupported_parameters) - cached_unsupported_parameters
+        )
+        return ClientToolTurnResponse(
+            content_blocks=tuple(content_blocks),
+            tool_calls=tuple(tool_calls),
+            text="".join(
+                str(block.get("text", "") or "")
+                for block in content_blocks
+                if block.get("type") == "text"
+            ),
+            provider=self.provider_name,
+            model=response_model,
+            raw=response,
+            metadata={
+                "generator_only": True,
+                "client_tool_transport": True,
+                "tools_available": True,
+                "tools_executed_by_backend": False,
+                "client_tool_names": tool_names,
+                "n_client_tool_calls": len(tool_calls),
                 "timeout_seconds": timeout_s,
                 "retry_count": retry_count,
                 "provider_capability_fallback_count": capability_fallback_count,
@@ -1214,6 +1409,83 @@ def _anthropic_text(response: Any) -> str:
     if parts:
         return "".join(parts)
     return str(response)
+
+
+def _anthropic_client_tool_content_blocks(
+    response: Any,
+) -> list[dict[str, Any]]:
+    """Project Anthropic blocks into replayable provider-neutral mappings."""
+
+    blocks: list[dict[str, Any]] = []
+    for item in getattr(response, "content", []) or []:
+        block_type = str(getattr(item, "type", "") or "").strip()
+        if block_type == "text" or (
+            not block_type and getattr(item, "text", None) is not None
+        ):
+            blocks.append(
+                {
+                    "type": "text",
+                    "text": str(getattr(item, "text", "") or ""),
+                }
+            )
+            continue
+        if block_type == "tool_use":
+            tool_input = getattr(item, "input", {})
+            if not isinstance(tool_input, Mapping):
+                raise ValueError("Anthropic client-tool input must be an object")
+            blocks.append(
+                {
+                    "type": "tool_use",
+                    "id": str(getattr(item, "id", "") or ""),
+                    "name": str(getattr(item, "name", "") or ""),
+                    "input": deepcopy(dict(tool_input)),
+                }
+            )
+            continue
+        dumped: Any = None
+        if hasattr(item, "model_dump"):
+            try:
+                dumped = item.model_dump(exclude_none=True)
+            except Exception:
+                dumped = None
+        if isinstance(dumped, Mapping) and dumped.get("type"):
+            blocks.append(deepcopy(dict(dumped)))
+            continue
+        raise ValueError(
+            "Anthropic client-tool response contains an unsupported content block"
+        )
+    return blocks
+
+
+def _anthropic_client_tool_calls(
+    content_blocks: list[Mapping[str, Any]],
+) -> list[ClientToolCall]:
+    calls: list[ClientToolCall] = []
+    seen_ids: set[str] = set()
+    for block in content_blocks:
+        if block.get("type") != "tool_use":
+            continue
+        call_id = str(block.get("id", "") or "").strip()
+        name = str(block.get("name", "") or "").strip()
+        tool_input = block.get("input", {})
+        if (
+            not call_id
+            or call_id in seen_ids
+            or not name
+            or not isinstance(tool_input, Mapping)
+        ):
+            raise ValueError(
+                "Anthropic client-tool calls require unique ids, names, and object inputs"
+            )
+        seen_ids.add(call_id)
+        calls.append(
+            ClientToolCall(
+                call_id=call_id,
+                name=name,
+                input=deepcopy(dict(tool_input)),
+            )
+        )
+    return calls
 
 
 def _response_model(response: Any, *, fallback: str) -> str:

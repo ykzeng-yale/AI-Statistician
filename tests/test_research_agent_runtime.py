@@ -55668,6 +55668,64 @@ def test_runtime_evidence_summary_counts_structured_theory_derivation_trace() ->
     assert "not execution or proof evidence" in theory["boundary"]
 
 
+def test_runtime_evidence_summary_counts_theory_client_tool_harness() -> None:
+    theory_packet = _structured_theory_packet_fixture()
+    theory_packet["llm_client_tool_loop"] = {
+        "artifact_kind": "SemanticRevisionClientToolLoopEvidence",
+        "transport": "native_client_tools",
+        "turns": 2,
+        "tool_calls": 7,
+        "runtime_executed_tool_calls": 7,
+        "provider_usage": {
+            "input_tokens": 1200,
+            "output_tokens": 340,
+            "cache_read_input_tokens": 500,
+        },
+        "model_explicit_submit": True,
+        "explicit_submit_locally_valid": True,
+        "local_candidate_validation_passed": True,
+        "handoff_mode": "model_submit",
+        "tools_executed_by_runtime": True,
+        "tools_executed_by_backend": False,
+        "provider_capability_fallback_count": 0,
+        "runtime_selected_semantics": False,
+        "independent_acceptance_required": True,
+        "kernel_verified": False,
+    }
+
+    theory = _runtime_evidence_summary(
+        [
+            {
+                "blackboard": {
+                    "artifacts": {
+                        "theory_derivation:structured": theory_packet,
+                    }
+                }
+            }
+        ]
+    )["theory"]
+    summary = theory["client_tool_revision"]
+
+    assert summary["n_packets"] == 1
+    assert summary["n_native_transport_packets"] == 1
+    assert summary["n_model_explicit_submit_handoffs"] == 1
+    assert summary["n_locally_valid_candidate_handoffs"] == 1
+    assert summary["n_turn_budget_validated_candidate_handoffs"] == 0
+    assert summary["n_runtime_tool_execution_claims"] == 1
+    assert summary["n_backend_tool_execution_claims"] == 0
+    assert summary["n_runtime_selected_semantics_claims"] == 0
+    assert summary["n_independent_acceptance_required"] == 1
+    assert summary["n_turns"] == 2
+    assert summary["n_tool_calls"] == 7
+    assert summary["n_runtime_executed_tool_calls"] == 7
+    assert summary["provider_input_tokens"] == 1200
+    assert summary["provider_output_tokens"] == 340
+    assert summary["provider_cache_read_input_tokens"] == 500
+    assert summary["observed"] is True
+    assert summary["all_harness_boundaries_respected"] is True
+    assert "Independent semantic review" in summary["boundary"]
+
+
 def test_runtime_evidence_summary_recomputes_stale_alignment_contract() -> None:
     theory_packet = {
         "artifact_kind": "TheoryDerivationPacket",
@@ -55885,6 +55943,45 @@ def test_runtime_theory_summary_merge_prefers_recomputed_unresolved_alignment() 
         ]
         == 3
     )
+
+
+def test_runtime_theory_summary_merge_includes_derived_client_tool_evidence() -> None:
+    merged = _merge_runtime_theory_summaries(
+        {
+            "client_tool_revision": {
+                "n_packets": 9,
+                "observed": True,
+                "all_harness_boundaries_respected": True,
+                "boundary": "stale manifest summary",
+            }
+        },
+        {
+            "client_tool_revision": {
+                "n_packets": 1,
+                "n_native_transport_packets": 1,
+                "n_locally_valid_candidate_handoffs": 1,
+                "n_model_explicit_submit_handoffs": 1,
+                "n_turn_budget_validated_candidate_handoffs": 0,
+                "n_runtime_tool_execution_claims": 1,
+                "n_backend_tool_execution_claims": 0,
+                "n_runtime_selected_semantics_claims": 0,
+                "n_independent_acceptance_required": 1,
+                "n_provider_capability_fallbacks": 0,
+                "n_turns": 1,
+                "n_tool_calls": 4,
+                "observed": True,
+                "all_harness_boundaries_respected": True,
+                "boundary": "tool submission is not semantic acceptance",
+            }
+        },
+    )
+
+    summary = merged["client_tool_revision"]
+    assert summary["n_packets"] == 1
+    assert summary["n_tool_calls"] == 4
+    assert summary["observed"] is True
+    assert summary["all_harness_boundaries_respected"] is True
+    assert summary["boundary"] == "tool submission is not semantic acceptance"
 
 
 def test_runtime_audit_recomputes_theory_trace_counts_from_results(

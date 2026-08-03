@@ -22,6 +22,8 @@ from ai_statistician.model_backend import (
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
     SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS,
     AnthropicGeneratorBackend,
+    ClientToolDefinition,
+    ClientToolTurnRequest,
     GeneratorRequest,
     LiveGeneratorTimeoutError,
     OpenAIResponsesGeneratorBackend,
@@ -130,6 +132,123 @@ def test_anthropic_generator_backend_calls_messages_api_without_tools(
         "input_tokens": 11,
         "output_tokens": 5,
     }
+
+
+def test_anthropic_generator_backend_transports_client_tool_turn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            captured["kwargs"] = kwargs
+            return SimpleNamespace(
+                content=[
+                    SimpleNamespace(type="text", text="I will inspect it."),
+                    SimpleNamespace(
+                        type="tool_use",
+                        id="toolu_123",
+                        name="inspect_artifact",
+                        input={"path": ["problem_card", "estimand"]},
+                    ),
+                ],
+                model="claude-haiku-4-5-20251001",
+                stop_reason="tool_use",
+                usage=SimpleNamespace(input_tokens=31, output_tokens=17),
+            )
+
+    class FakeAnthropicClient:
+        def __init__(self, *, api_key: str, timeout: float, max_retries: int) -> None:
+            self.messages = FakeMessages()
+
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        SimpleNamespace(Anthropic=FakeAnthropicClient),
+    )
+    request = ClientToolTurnRequest(
+        system_prompt="Use tools.",
+        messages=({"role": "user", "content": "Inspect the theory."},),
+        tools=(
+            ClientToolDefinition(
+                name="inspect_artifact",
+                description="Read one artifact path.",
+                input_schema={
+                    "type": "object",
+                    "required": ["path"],
+                    "properties": {"path": {"type": "array"}},
+                },
+            ),
+        ),
+        model="claude-haiku-4-5-20251001",
+        max_tokens=256,
+        metadata={"model_tier": "haiku"},
+    )
+
+    response = AnthropicGeneratorBackend(
+        api_key="test-anthropic-key"
+    ).generate_client_tool_turn(request)
+
+    kwargs = captured["kwargs"]
+    assert kwargs["messages"] == [
+        {"role": "user", "content": "Inspect the theory."}
+    ]
+    assert kwargs["tools"] == [
+        {
+            "name": "inspect_artifact",
+            "description": "Read one artifact path.",
+            "input_schema": request.tools[0].input_schema,
+        }
+    ]
+    assert kwargs["tool_choice"] == {"type": "any"}
+    assert "output_config" not in kwargs
+    assert response.text == "I will inspect it."
+    assert response.tool_calls[0].call_id == "toolu_123"
+    assert response.tool_calls[0].name == "inspect_artifact"
+    assert response.tool_calls[0].input == {
+        "path": ["problem_card", "estimand"]
+    }
+    assert response.metadata["client_tool_transport"] is True
+    assert response.metadata["generator_only"] is True
+    assert response.metadata["tools_executed_by_backend"] is False
+    assert response.metadata["provider_stop_reason"] == "tool_use"
+
+
+def test_anthropic_client_tool_turn_rejects_opus_before_client_creation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client_created = False
+
+    class FakeAnthropicClient:
+        def __init__(self, **kwargs) -> None:
+            nonlocal client_created
+            client_created = True
+
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        SimpleNamespace(Anthropic=FakeAnthropicClient),
+    )
+    request = ClientToolTurnRequest(
+        system_prompt="Use tools.",
+        messages=({"role": "user", "content": "Inspect."},),
+        tools=(
+            ClientToolDefinition(
+                name="inspect",
+                description="Inspect.",
+                input_schema={"type": "object", "properties": {}},
+            ),
+        ),
+        model="claude-opus-4-8",
+        metadata={"model_tier": "opus"},
+    )
+
+    with pytest.raises(ValueError, match="capped at sonnet"):
+        AnthropicGeneratorBackend(
+            api_key="test-anthropic-key"
+        ).generate_client_tool_turn(request)
+
+    assert client_created is False
 
 
 def test_anthropic_generator_backend_rejects_opus_before_client_creation(

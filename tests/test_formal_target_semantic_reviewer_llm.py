@@ -39,6 +39,9 @@ from ai_statistician.research_agent_runtime_audit import (
     _audit_result_path,
     _runtime_capability_scorecard,
 )
+from ai_statistician.theory_revision_lineage import (
+    THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
+)
 
 
 def _question() -> OpenResearchQuestion:
@@ -501,6 +504,10 @@ def test_formal_target_review_preserves_mixed_repair_frontier(
         "upstream_theory",
         "formal_target",
     ]
+    assert feedback["active_repair_scopes"] == ["upstream_theory"]
+    assert feedback["repair_instructions"] == [
+        "Add the missing premise to the theory packet."
+    ]
     assert [
         row["repair_scope"] for row in feedback["active_repair_findings"]
     ] == ["upstream_theory"]
@@ -595,10 +602,82 @@ def test_formal_target_semantic_review_blocks_back_to_theory_developer(
     assert result.next_task.inputs["architect_context"][
         "formal_target_semantic_review_revision_count"
     ] == 1
+    revision_binding = result.next_task.inputs["architect_context"][
+        THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY
+    ]
+    assert revision_binding["revision_source"] == (
+        "formal_target_semantic_review"
+    )
+    assert revision_binding["source_theory_packet_id"] == (
+        previous_theory_packet_id
+    )
+    assert revision_binding["source_theory_packet_hash"] == (
+        previous_theory_packet_hash
+    )
+    assert revision_binding["source_review_packet_id"]
+    assert revision_binding["source_review_execution_id"]
+    assert revision_binding["execution_results_observed"] is True
+    assert revision_binding["theory_material"]["artifact_kind"] == (
+        "RuntimeTheorySemanticMaterial"
+    )
     handoff = result.next_task.inputs["architect_context"]["runtime_feedback_loop"][
         "direct_repair_handoff_contract"
     ]
     assert handoff["target_repair_subsystem"] == "TheoryDeveloper"
+
+
+def test_formal_target_theory_handoff_routes_only_active_scope(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        "BLOCK",
+        reviewer_response_overrides={
+            "findings": [
+                {
+                    "severity": "high",
+                    "category": "unsupported_theory_claim",
+                    "summary": "The derivation omits a required mathematical premise.",
+                    "required_change": "Revise the theory and its dependents.",
+                    "repair_scope": "upstream_theory",
+                    "evidence_refs": ["theory_derivation_packet"],
+                },
+                {
+                    "severity": "high",
+                    "category": "formal_target_shape",
+                    "summary": "The generated declaration has the wrong binder shape.",
+                    "required_change": "Regenerate the exact formal target.",
+                    "repair_scope": "formal_target",
+                    "evidence_refs": ["exact_formal_target"],
+                },
+            ],
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REVISE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert [row["repair_scope"] for row in feedback["findings"]] == [
+        "upstream_theory"
+    ]
+    assert feedback["active_repair_scopes"] == ["upstream_theory"]
+    assert feedback["repair_instructions"] == [
+        "Revise the theory and its dependents."
+    ]
+    assert [
+        row["repair_scope"] for row in feedback["deferred_repair_findings"]
+    ] == ["formal_target"]
+    binding = result.next_task.inputs["architect_context"][
+        THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY
+    ]
+    assert binding["feedback_id"] == feedback["feedback_id"]
+    assert [
+        row["repair_scope"]
+        for row in binding["source_feedback"]["findings"]
+    ] == ["upstream_theory"]
 
 
 def test_formal_target_revision_budget_survives_theory_replans(

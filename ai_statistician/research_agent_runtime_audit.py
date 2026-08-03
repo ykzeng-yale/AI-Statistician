@@ -12038,6 +12038,14 @@ def audit_research_agent_runtime(
         "theory_derivation_trace_boundary": str(
             runtime_theory_summary.get("boundary", "") or ""
         ),
+        "theory_client_tool_revision_summary": dict(
+            runtime_theory_summary.get("client_tool_revision", {}) or {}
+        )
+        if isinstance(
+            runtime_theory_summary.get("client_tool_revision", {}),
+            Mapping,
+        )
+        else {},
         "runtime_theory_trace_downstream_feedback_summary": (
             runtime_theory_trace_downstream_feedback_summary
         ),
@@ -32259,6 +32267,11 @@ def _merge_runtime_theory_summaries(
             value = str(derived_summary.get(key, "") or "").strip()
             if value:
                 merged[key] = value
+    derived_client_tool = derived_summary.get("client_tool_revision", {})
+    if isinstance(derived_client_tool, Mapping):
+        # Result artifacts are the authority for this nested runtime transcript.
+        # Do not let a stale manifest preserve a prior true boundary judgment.
+        merged["client_tool_revision"] = dict(derived_client_tool)
     return merged
 
 

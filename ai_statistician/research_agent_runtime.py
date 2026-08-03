@@ -12225,6 +12225,19 @@ class TheoryDeveloperRuntimeSubsystem:
         )
         theory_config = getattr(self.theory_developer, "config", None)
         theory_provider = getattr(self.theory_developer, "provider", None)
+        theory_provider_name = str(
+            getattr(theory_provider, "provider_name", "")
+            or getattr(theory_config, "provider_name", "")
+            or ""
+        ).strip().lower()
+        client_tool_revision_expected = bool(
+            context.get(THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY)
+            and getattr(theory_config, "use_client_tool_revision", False)
+            and theory_provider_name == "anthropic"
+            and callable(
+                getattr(theory_provider, "generate_client_tool_turn", None)
+            )
+        )
         try:
             with agent_runtime_substage(
                 "theory_packet_generation",
@@ -12234,19 +12247,14 @@ class TheoryDeveloperRuntimeSubsystem:
                         or getattr(theory_config, "model_tier", "")
                         or ""
                     ),
-                    "provider": str(
-                        getattr(theory_provider, "provider_name", "")
-                        or getattr(theory_config, "provider_name", "")
-                        or ""
-                    ),
+                    "provider": theory_provider_name,
                     "validation_retry_attempt": validation_retry_attempt,
                     "provider_structured_output_expected": bool(
-                        str(
-                            getattr(theory_provider, "provider_name", "")
-                            or getattr(theory_config, "provider_name", "")
-                            or ""
-                        ).strip().lower()
-                        == "anthropic"
+                        theory_provider_name == "anthropic"
+                        and not client_tool_revision_expected
+                    ),
+                    "client_tool_revision_expected": (
+                        client_tool_revision_expected
                     ),
                 },
             ):
@@ -101467,6 +101475,32 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "all_required_theory_trace_consumers_observed": False,
         "all_required_theory_trace_alignment_consumers_observed": False,
         "structured_derivation_trace_observed": False,
+        "client_tool_revision": {
+            "n_packets": 0,
+            "n_native_transport_packets": 0,
+            "n_locally_valid_candidate_handoffs": 0,
+            "n_model_explicit_submit_handoffs": 0,
+            "n_turn_budget_validated_candidate_handoffs": 0,
+            "n_runtime_tool_execution_claims": 0,
+            "n_backend_tool_execution_claims": 0,
+            "n_runtime_selected_semantics_claims": 0,
+            "n_independent_acceptance_required": 0,
+            "n_provider_capability_fallbacks": 0,
+            "n_turns": 0,
+            "n_tool_calls": 0,
+            "n_runtime_executed_tool_calls": 0,
+            "provider_input_tokens": 0,
+            "provider_output_tokens": 0,
+            "provider_cache_creation_input_tokens": 0,
+            "provider_cache_read_input_tokens": 0,
+            "observed": False,
+            "all_harness_boundaries_respected": False,
+            "boundary": (
+                "Client-tool evidence proves bounded model/runtime interaction "
+                "and local submission only. Independent semantic review and "
+                "Lean/kernel verification remain separate authorities."
+            ),
+        },
         "theory_trace_consumption_boundary": THEORY_TRACE_CONSUMPTION_BOUNDARY,
         "theory_trace_alignment_boundary": THEORY_TRACE_ALIGNMENT_BOUNDARY,
         "boundary": (
@@ -102002,6 +102036,87 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
             kind = str(artifact.get("artifact_kind", ""))
             if kind == "TheoryDerivationPacket":
                 theory["n_theory_derivation_packets"] += 1
+                tool_loop = artifact.get("llm_client_tool_loop", {})
+                if not isinstance(tool_loop, Mapping) or not tool_loop:
+                    revision_transport = artifact.get(
+                        "theory_revision_transport", {}
+                    )
+                    tool_loop = (
+                        revision_transport.get("client_tool_loop", {})
+                        if isinstance(revision_transport, Mapping)
+                        else {}
+                    )
+                if isinstance(tool_loop, Mapping) and tool_loop:
+                    client_tool = theory["client_tool_revision"]
+                    client_tool["n_packets"] += 1
+                    client_tool["n_native_transport_packets"] += int(
+                        str(tool_loop.get("transport", "") or "")
+                        == "native_client_tools"
+                    )
+                    client_tool["n_model_explicit_submit_handoffs"] += int(
+                        tool_loop.get("model_explicit_submit") is True
+                    )
+                    client_tool["n_locally_valid_candidate_handoffs"] += int(
+                        tool_loop.get("local_candidate_validation_passed")
+                        is True
+                    )
+                    client_tool[
+                        "n_turn_budget_validated_candidate_handoffs"
+                    ] += int(
+                        str(tool_loop.get("handoff_mode", "") or "")
+                        == "turn_budget_validated_candidate"
+                    )
+                    client_tool["n_runtime_tool_execution_claims"] += int(
+                        tool_loop.get("tools_executed_by_runtime") is True
+                    )
+                    client_tool["n_backend_tool_execution_claims"] += int(
+                        tool_loop.get("tools_executed_by_backend") is True
+                    )
+                    client_tool["n_runtime_selected_semantics_claims"] += int(
+                        tool_loop.get("runtime_selected_semantics") is True
+                    )
+                    client_tool["n_independent_acceptance_required"] += int(
+                        tool_loop.get("independent_acceptance_required") is True
+                    )
+                    client_tool["n_provider_capability_fallbacks"] += (
+                        _runtime_safe_int(
+                            tool_loop.get(
+                                "provider_capability_fallback_count", 0
+                            )
+                        )
+                    )
+                    client_tool["n_turns"] += _runtime_safe_int(
+                        tool_loop.get("turns", 0)
+                    )
+                    client_tool["n_tool_calls"] += _runtime_safe_int(
+                        tool_loop.get("tool_calls", 0)
+                    )
+                    client_tool["n_runtime_executed_tool_calls"] += (
+                        _runtime_safe_int(
+                            tool_loop.get("runtime_executed_tool_calls", 0)
+                        )
+                    )
+                    provider_usage = tool_loop.get("provider_usage", {})
+                    provider_usage = (
+                        provider_usage
+                        if isinstance(provider_usage, Mapping)
+                        else {}
+                    )
+                    for summary_key, usage_key in (
+                        ("provider_input_tokens", "input_tokens"),
+                        ("provider_output_tokens", "output_tokens"),
+                        (
+                            "provider_cache_creation_input_tokens",
+                            "cache_creation_input_tokens",
+                        ),
+                        (
+                            "provider_cache_read_input_tokens",
+                            "cache_read_input_tokens",
+                        ),
+                    ):
+                        client_tool[summary_key] += _runtime_safe_int(
+                            provider_usage.get(usage_key, 0)
+                        )
                 contract = (
                     artifact.get("theory_derivation_contract", {})
                     if isinstance(artifact.get("theory_derivation_contract", {}), Mapping)
@@ -103135,6 +103250,32 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         and int(theory["n_theory_derivation_packets_with_equation_chain"]) > 0
         and int(theory["n_theory_derivation_packets_with_assumption_ledger"]) > 0
         and int(theory["n_theory_derivation_packets_with_formalization_handoff"]) > 0
+    )
+    client_tool = theory["client_tool_revision"]
+    client_tool["observed"] = bool(int(client_tool["n_packets"]) > 0)
+    client_tool["all_harness_boundaries_respected"] = bool(
+        client_tool["observed"]
+        and int(client_tool["n_native_transport_packets"])
+        == int(client_tool["n_packets"])
+        and int(client_tool["n_locally_valid_candidate_handoffs"])
+        == int(client_tool["n_packets"])
+        and (
+            int(client_tool["n_model_explicit_submit_handoffs"])
+            + int(
+                client_tool[
+                    "n_turn_budget_validated_candidate_handoffs"
+                ]
+            )
+        )
+        == int(client_tool["n_packets"])
+        and int(client_tool["n_runtime_tool_execution_claims"])
+        == int(client_tool["n_packets"])
+        and int(client_tool["n_runtime_executed_tool_calls"])
+        >= int(client_tool["n_packets"])
+        and int(client_tool["n_backend_tool_execution_claims"]) == 0
+        and int(client_tool["n_runtime_selected_semantics_claims"]) == 0
+        and int(client_tool["n_independent_acceptance_required"])
+        == int(client_tool["n_packets"])
     )
     return {
         "schema_version": RUNTIME_SCHEMA_VERSION,
