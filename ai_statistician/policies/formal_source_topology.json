@@ -32,6 +32,9 @@
       "git_remotes": [
         "github.com/ykzeng-yale/empericalprocesslean"
       ],
+      "dependency_source_ids": [
+        "statlib"
+      ],
       "reuse_policy": "require_target_import_visibility_then_reelaborate_exact_candidate_locally"
     },
     {

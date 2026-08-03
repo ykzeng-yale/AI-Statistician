@@ -14,6 +14,9 @@ FORMAL_SOURCE_TOPOLOGY_POLICY_PATH = (
 FORMAL_SOURCE_TOPOLOGY_EVIDENCE_STATUS = (
     "SOURCE_TOPOLOGY_AND_TOOLCHAIN_RELATION_NOT_PROOF_EVIDENCE"
 )
+FORMAL_SOURCE_SCOPE_EXPANSION_POLICY = (
+    "explicit_scope_plus_transitive_declared_dependencies_v1"
+)
 _HEX_REVISION_RE = re.compile(r"^[0-9a-f]{7,64}$")
 
 
@@ -32,6 +35,7 @@ class FormalSourceTopology:
     active_lean_toolchain: str = ""
     active_mathlib_revision: str = ""
     identity_basis: tuple[str, ...] = ()
+    dependency_source_ids: tuple[str, ...] = ()
 
     def as_prompt_payload(self) -> dict[str, object]:
         return {
@@ -46,6 +50,10 @@ class FormalSourceTopology:
             "active_lean_toolchain": self.active_lean_toolchain,
             "active_mathlib_revision": self.active_mathlib_revision,
             "identity_basis": list(self.identity_basis),
+            "dependency_source_ids": list(self.dependency_source_ids),
+            "source_scope_expansion_policy": (
+                FORMAL_SOURCE_SCOPE_EXPANSION_POLICY
+            ),
             "evidence_status": FORMAL_SOURCE_TOPOLOGY_EVIDENCE_STATUS,
         }
 
@@ -181,6 +189,65 @@ def fallback_formal_source_topology(source_id: str) -> FormalSourceTopology | No
     return None
 
 
+def canonicalize_formal_source_scope_ids(
+    source_scope_ids: Sequence[str],
+) -> tuple[str, ...]:
+    """Resolve configured aliases while preserving unknown source identities."""
+
+    requested = tuple(
+        dict.fromkeys(
+            str(value).strip()
+            for value in source_scope_ids
+            if str(value).strip()
+        )
+    )
+    if not requested:
+        return ()
+    policy = load_formal_source_topology_policy()
+    source_by_identity = {
+        identity: source
+        for source in policy.sources
+        for identity in (
+            source.topology.source_id,
+            *source.topology.aliases,
+        )
+    }
+    return tuple(
+        dict.fromkeys(
+            source_by_identity[source_id].topology.source_id
+            if source_id in source_by_identity
+            else source_id
+            for source_id in requested
+        )
+    )
+
+
+def expand_formal_source_scope_ids(
+    source_scope_ids: Sequence[str],
+) -> tuple[str, ...]:
+    """Resolve aliases and include only dependencies declared by source policy."""
+
+    requested = canonicalize_formal_source_scope_ids(source_scope_ids)
+    if not requested:
+        return ()
+    policy = load_formal_source_topology_policy()
+    source_by_id = {
+        source.topology.source_id: source
+        for source in policy.sources
+    }
+    effective: list[str] = []
+    pending = list(requested)
+    while pending:
+        requested_id = pending.pop(0)
+        source = source_by_id.get(requested_id)
+        if requested_id in effective:
+            continue
+        effective.append(requested_id)
+        if source is not None:
+            pending.extend(source.topology.dependency_source_ids)
+    return tuple(effective)
+
+
 @lru_cache(maxsize=1)
 def load_formal_source_topology_policy() -> _TopologyPolicy:
     raw = json.loads(FORMAL_SOURCE_TOPOLOGY_POLICY_PATH.read_text(encoding="utf-8"))
@@ -193,6 +260,7 @@ def load_formal_source_topology_policy() -> _TopologyPolicy:
         raise ValueError("formal source topology requires non-empty sources")
     sources: list[_ConfiguredSource] = []
     seen_ids: set[str] = set()
+    seen_identities: set[str] = set()
     for raw_source in raw_sources:
         if not isinstance(raw_source, dict):
             raise ValueError("formal source topology source rows must be objects")
@@ -203,6 +271,12 @@ def load_formal_source_topology_policy() -> _TopologyPolicy:
         aliases = _text_tuple(raw_source.get("aliases", ()))
         if source_id in aliases:
             raise ValueError(f"source id repeated as alias: {source_id}")
+        identities = (source_id, *aliases)
+        duplicate_identities = seen_identities.intersection(identities)
+        if duplicate_identities:
+            duplicate = sorted(duplicate_identities)[0]
+            raise ValueError(f"duplicate formal source identity: {duplicate}")
+        seen_identities.update(identities)
         sources.append(
             _ConfiguredSource(
                 topology=FormalSourceTopology(
@@ -215,6 +289,9 @@ def load_formal_source_topology_policy() -> _TopologyPolicy:
                     reuse_policy=_required_text(raw_source, "reuse_policy"),
                     topology_id=topology_id,
                     is_active_project=source_id == active_project_source_id,
+                    dependency_source_ids=_text_tuple(
+                        raw_source.get("dependency_source_ids", ())
+                    ),
                 ),
                 entry_modules=_text_tuple(raw_source.get("entry_modules", ())),
                 git_remotes=tuple(
@@ -228,11 +305,45 @@ def load_formal_source_topology_policy() -> _TopologyPolicy:
         )
     if active_project_source_id not in seen_ids:
         raise ValueError("active formal source is not declared")
+    _validate_source_dependencies(sources)
     return _TopologyPolicy(
         topology_id=topology_id,
         active_project_source_id=active_project_source_id,
         sources=tuple(sources),
     )
+
+
+def _validate_source_dependencies(sources: Sequence[_ConfiguredSource]) -> None:
+    source_ids = {source.topology.source_id for source in sources}
+    dependencies = {
+        source.topology.source_id: source.topology.dependency_source_ids
+        for source in sources
+    }
+    for source_id, dependency_ids in dependencies.items():
+        for dependency_id in dependency_ids:
+            if dependency_id not in source_ids:
+                raise ValueError(
+                    f"unknown formal source dependency: {source_id} -> {dependency_id}"
+                )
+            if dependency_id == source_id:
+                raise ValueError(f"self-dependent formal source: {source_id}")
+
+    visited: set[str] = set()
+    active: set[str] = set()
+
+    def visit(source_id: str) -> None:
+        if source_id in active:
+            raise ValueError("cyclic formal source dependencies")
+        if source_id in visited:
+            return
+        active.add(source_id)
+        for dependency_id in dependencies[source_id]:
+            visit(dependency_id)
+        active.remove(source_id)
+        visited.add(source_id)
+
+    for source_id in sorted(source_ids):
+        visit(source_id)
 
 
 def _compatibility_status(

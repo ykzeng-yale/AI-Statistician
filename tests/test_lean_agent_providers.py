@@ -191,6 +191,77 @@ def test_composite_source_scope_filters_unscoped_provider_fallback() -> None:
     assert diagnostic["n_out_of_scope_hits_dropped"] == 1
 
 
+def test_composite_active_scope_exposes_statlib_without_exposing_companion() -> None:
+    @dataclass
+    class Provider:
+        name: str = "unscoped"
+
+        def search(self, _query: str, *, k: int = 10):
+            return [
+                ExternalFormalSourceHit(
+                    declaration=_declaration(
+                        "StatInference.local_result",
+                        source_id="empirical_process_lean",
+                    ),
+                    score=2.0,
+                    matched_terms=("result",),
+                ),
+                ExternalFormalSourceHit(
+                    declaration=_declaration(
+                        "QMD.foundation_result",
+                        source_id="statlib",
+                    ),
+                    score=1.5,
+                    matched_terms=("result",),
+                ),
+                ExternalFormalSourceHit(
+                    declaration=_declaration(
+                        "SLT.companion_result",
+                        source_id="lean_stat_learning_theory",
+                    ),
+                    score=100.0,
+                    matched_terms=("result",),
+                ),
+            ][:k]
+
+    retriever = CompositeFormalSourceRetriever((Provider(),))
+
+    hits = retriever.search_with_source_scope(
+        "result",
+        source_scope_ids=("empirical_process_lean",),
+        k=4,
+    )
+
+    assert {hit.declaration.source_id for hit in hits} == {
+        "empirical_process_lean",
+        "statlib",
+    }
+    diagnostic = retriever.runtime_diagnostics()[0]
+    assert diagnostic["requested_source_scope_ids"] == [
+        "empirical_process_lean"
+    ]
+    assert diagnostic["effective_source_scope_ids"] == [
+        "empirical_process_lean",
+        "statlib",
+    ]
+    assert diagnostic["dependency_added_source_scope_ids"] == ["statlib"]
+
+    retriever.reset_runtime_diagnostics()
+    retriever.search_with_source_scope(
+        "result",
+        source_scope_ids=("local_statinference_repo",),
+        k=4,
+    )
+    alias_diagnostic = retriever.runtime_diagnostics()[0]
+    assert alias_diagnostic["requested_source_scope_ids"] == [
+        "local_statinference_repo"
+    ]
+    assert alias_diagnostic["canonical_requested_source_scope_ids"] == [
+        "empirical_process_lean"
+    ]
+    assert alias_diagnostic["dependency_added_source_scope_ids"] == ["statlib"]
+
+
 def test_emperical_process_lean_provider_calls_structured_graph_api(
     tmp_path: Path,
 ) -> None:

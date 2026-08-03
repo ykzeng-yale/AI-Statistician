@@ -14,7 +14,10 @@ from ai_statistician.formal_source_retrieval_benchmark import (
     run_formal_source_retrieval_benchmark,
 )
 from ai_statistician.formal_source_topology import (
+    FORMAL_SOURCE_SCOPE_EXPANSION_POLICY,
     FORMAL_SOURCE_TOPOLOGY_EVIDENCE_STATUS,
+    canonicalize_formal_source_scope_ids,
+    expand_formal_source_scope_ids,
     identify_formal_source_topology,
     resolve_formal_source_topologies,
 )
@@ -109,6 +112,39 @@ def test_topology_resolves_foundation_and_companion_against_active_project() -> 
     )
     assert resolved["lean_stat_learning_theory"].compatibility_status == (
         "different_lean_toolchain_requires_port"
+    )
+
+
+def test_active_project_scope_includes_only_declared_foundation_dependencies() -> None:
+    assert canonicalize_formal_source_scope_ids(
+        ("local_statinference_repo", "unregistered_source")
+    ) == ("empirical_process_lean", "unregistered_source")
+    assert expand_formal_source_scope_ids(("empirical_process_lean",)) == (
+        "empirical_process_lean",
+        "statlib",
+    )
+    assert expand_formal_source_scope_ids(("local_statinference_repo",)) == (
+        "empirical_process_lean",
+        "statlib",
+    )
+    assert expand_formal_source_scope_ids(("statlib",)) == ("statlib",)
+    assert expand_formal_source_scope_ids(("lean_stat_learning_theory",)) == (
+        "lean_stat_learning_theory",
+    )
+    assert expand_formal_source_scope_ids(("unregistered_source",)) == (
+        "unregistered_source",
+    )
+
+    active = _topology(
+        remote="https://github.com/ykzeng-yale/EmpericalProcessLEAN.git",
+        entry_module="StatInference",
+        source_root="/tmp/StatInference",
+        lean_toolchain="leanprover/lean4:v4.30.0",
+        mathlib_revision="a" * 40,
+    )
+    assert active.dependency_source_ids == ("statlib",)
+    assert active.as_prompt_payload()["source_scope_expansion_policy"] == (
+        FORMAL_SOURCE_SCOPE_EXPANSION_POLICY
     )
 
 

@@ -15,8 +15,10 @@ from .formal_source_index import (
     diversify_formal_source_hits,
 )
 from .formal_source_topology import (
+    FORMAL_SOURCE_SCOPE_EXPANSION_POLICY,
     FORMAL_SOURCE_TOPOLOGY_EVIDENCE_STATUS,
     FormalSourceTopology,
+    expand_formal_source_scope_ids,
 )
 
 
@@ -685,9 +687,10 @@ class LeanRagDependencyRetriever:
         source_scope_ids: tuple[str, ...],
         k: int = 10,
     ) -> list[FormalSourceHit]:
-        if source_scope_ids and not any(
+        effective_scope_ids = expand_formal_source_scope_ids(source_scope_ids)
+        if effective_scope_ids and not any(
             self.supports_source_id(source_id)
-            for source_id in source_scope_ids
+            for source_id in effective_scope_ids
         ):
             return []
         return self.search(query, k=k)
@@ -744,6 +747,9 @@ class LeanRagDependencyMultiRetriever:
                 topology.as_prompt_payload()
                 for topology in self.source_topologies
             ),
+            "source_scope_expansion_policy": (
+                FORMAL_SOURCE_SCOPE_EXPANSION_POLICY
+            ),
             "providers": providers,
         }
 
@@ -761,14 +767,15 @@ class LeanRagDependencyMultiRetriever:
         source_scope_ids: tuple[str, ...],
         k: int = 10,
     ) -> list[FormalSourceHit]:
-        if not source_scope_ids:
+        effective_scope_ids = expand_formal_source_scope_ids(source_scope_ids)
+        if not effective_scope_ids:
             return self.search(query, k=k)
         scoped_retrievers = tuple(
             retriever
             for retriever in self.retrievers
             if any(
                 retriever.supports_source_id(source_id)
-                for source_id in source_scope_ids
+                for source_id in effective_scope_ids
             )
         )
         return self._search_retrievers(

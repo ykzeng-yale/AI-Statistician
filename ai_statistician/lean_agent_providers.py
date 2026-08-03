@@ -14,6 +14,11 @@ from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from .fingerprint import stable_hash
 from .formal_source_index import FormalDeclaration
+from .formal_source_topology import (
+    FORMAL_SOURCE_SCOPE_EXPANSION_POLICY,
+    canonicalize_formal_source_scope_ids,
+    expand_formal_source_scope_ids,
+)
 from .lean_proof_agent_contract import llm_proof_body_generation_contract
 from .llm_json_repair import generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest
@@ -179,6 +184,9 @@ class CompositeFormalSourceRetriever:
                 "main_retrieval_allowlist_with_provider_owned_"
                 "anchor_scoped_support_corpora"
             ),
+            "source_scope_expansion_policy": (
+                FORMAL_SOURCE_SCOPE_EXPANSION_POLICY
+            ),
             "source_scoped_search": any(
                 callable(getattr(provider, "search_with_source_scope", None))
                 for provider in self.providers
@@ -219,15 +227,25 @@ class CompositeFormalSourceRetriever:
         source_scope_ids: Sequence[str],
         k: int = 10,
     ) -> list[CompositeFormalSourceHit]:
+        requested_scope_ids = tuple(
+            dict.fromkeys(
+                str(value).strip()
+                for value in source_scope_ids
+                if str(value).strip()
+            )
+        )
+        canonical_requested_scope_ids = canonicalize_formal_source_scope_ids(
+            requested_scope_ids
+        )
         return self._search(
             query,
             k=k,
-            source_scope_ids=tuple(
-                dict.fromkeys(
-                    str(value).strip()
-                    for value in source_scope_ids
-                    if str(value).strip()
-                )
+            source_scope_ids=expand_formal_source_scope_ids(
+                canonical_requested_scope_ids
+            ),
+            requested_source_scope_ids=requested_scope_ids,
+            canonical_requested_source_scope_ids=(
+                canonical_requested_scope_ids
             ),
         )
 
@@ -307,6 +325,8 @@ class CompositeFormalSourceRetriever:
         *,
         k: int,
         source_scope_ids: tuple[str, ...],
+        requested_source_scope_ids: tuple[str, ...] = (),
+        canonical_requested_source_scope_ids: tuple[str, ...] = (),
     ) -> list[CompositeFormalSourceHit]:
         limit = max(int(k), 0)
         if limit == 0:
@@ -341,6 +361,29 @@ class CompositeFormalSourceRetriever:
             }
             if source_scope_ids:
                 diagnostic["source_scope_ids"] = list(source_scope_ids)
+                diagnostic["requested_source_scope_ids"] = list(
+                    requested_source_scope_ids or source_scope_ids
+                )
+                diagnostic["canonical_requested_source_scope_ids"] = list(
+                    canonical_requested_source_scope_ids
+                    or requested_source_scope_ids
+                    or source_scope_ids
+                )
+                diagnostic["effective_source_scope_ids"] = list(
+                    source_scope_ids
+                )
+                diagnostic["dependency_added_source_scope_ids"] = [
+                    source_id
+                    for source_id in source_scope_ids
+                    if source_id
+                    not in (
+                        canonical_requested_source_scope_ids
+                        or requested_source_scope_ids
+                    )
+                ]
+                diagnostic["source_scope_expansion_policy"] = (
+                    FORMAL_SOURCE_SCOPE_EXPANSION_POLICY
+                )
                 diagnostic["source_scope_semantics"] = (
                     "main_retrieval_allowlist_with_provider_owned_"
                     "anchor_scoped_support_corpora"

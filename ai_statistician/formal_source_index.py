@@ -14,6 +14,7 @@ from pathlib import Path
 
 from .fingerprint import stable_hash
 from .formal_source_topology import (
+    expand_formal_source_scope_ids,
     fallback_formal_source_topology,
     identify_formal_source_topology,
     read_lean_rag_graph_metadata,
@@ -257,7 +258,7 @@ class FormalSourceRetriever:
         return self._search(
             query,
             k=k,
-            source_scope_ids=source_scope_ids,
+            source_scope_ids=expand_formal_source_scope_ids(source_scope_ids),
         )
 
     def _search(
@@ -609,7 +610,7 @@ class FormalSourceSqliteIndex:
         return self._search(
             query,
             k=k,
-            source_scope_ids=source_scope_ids,
+            source_scope_ids=expand_formal_source_scope_ids(source_scope_ids),
         )
 
     def _search(

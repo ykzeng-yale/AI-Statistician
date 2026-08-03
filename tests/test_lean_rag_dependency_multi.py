@@ -1161,6 +1161,37 @@ def test_source_scoped_dependency_search_queries_only_bound_corpus_graphs(
     ) == []
 
 
+def test_active_source_scope_queries_its_statlib_dependency_but_not_companion(
+    tmp_path: Path,
+) -> None:
+    active = LeanRagDependencyRetriever(
+        _write_dependency_db(tmp_path / "active.sqlite", corpus="Active"),
+        source_id="empirical_process_lean",
+    )
+    statlib = LeanRagDependencyRetriever(
+        _write_dependency_db(tmp_path / "statlib.sqlite", corpus="Statlib"),
+        source_id="statlib",
+    )
+    companion = LeanRagDependencyRetriever(
+        _write_dependency_db(tmp_path / "companion.sqlite", corpus="AI4SLT"),
+        source_id="lean_stat_learning_theory",
+    )
+    retriever = LeanRagDependencyMultiRetriever(
+        (active, statlib, companion)
+    )
+
+    hits = retriever.search_with_source_scope(
+        "master error bound",
+        source_scope_ids=("empirical_process_lean",),
+        k=8,
+    )
+
+    assert {hit.declaration.source_id for hit in hits} == {
+        "empirical_process_lean",
+        "statlib",
+    }
+
+
 def test_short_name_fallback_refuses_ambiguous_declarations(
     tmp_path: Path,
 ) -> None:

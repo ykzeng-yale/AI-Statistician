@@ -13,6 +13,10 @@ from .formal_source_index import (
     FormalSourceSqliteIndex,
     diversify_formal_source_hits,
 )
+from .formal_source_topology import (
+    FORMAL_SOURCE_SCOPE_EXPANSION_POLICY,
+    expand_formal_source_scope_ids,
+)
 
 
 @dataclass(frozen=True)
@@ -147,7 +151,7 @@ class FormalSourceHybridRetriever:
         return self._search(
             query,
             k=k,
-            source_scope_ids=source_scope_ids,
+            source_scope_ids=expand_formal_source_scope_ids(source_scope_ids),
         )
 
     def _search(
@@ -336,7 +340,7 @@ class FormalSourceDependencyHybridRetriever:
         return self._search(
             query,
             k=k,
-            source_scope_ids=source_scope_ids,
+            source_scope_ids=expand_formal_source_scope_ids(source_scope_ids),
         )
 
     def _search(
@@ -571,6 +575,9 @@ def _formal_source_hybrid_descriptor(retriever: object) -> dict[str, object]:
         "declarations_by_source_id": dict(sorted(source_counts.items())),
         "source_scoped_search": callable(
             getattr(retriever, "search_with_source_scope", None)
+        ),
+        "source_scope_expansion_policy": (
+            FORMAL_SOURCE_SCOPE_EXPANSION_POLICY
         ),
         "declaration_outline_context": True,
         "dependency_context": callable(
