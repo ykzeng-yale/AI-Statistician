@@ -20,7 +20,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 
 
-GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 9
+GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 10
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -1271,12 +1271,10 @@ def _json_pointer_value(root: Any, locator: str) -> tuple[bool, Any]:
     return True, current
 
 
-def _generated_code_semantic_review_row_cited_values(
-    *,
+def _generated_code_semantic_review_artifact_roots(
     review_material: Mapping[str, Any],
-    row: Mapping[str, Any],
-) -> list[dict[str, Any]]:
-    role_roots = {
+) -> dict[str, Any]:
+    return {
         "source_theory_packet": review_material.get("theory_packet", {}),
         "metric_protocol_candidate": review_material.get(
             "architect_frozen_evidence_contract",
@@ -1288,6 +1286,14 @@ def _generated_code_semantic_review_row_cited_values(
         ),
         "generated_source_artifact": review_material,
     }
+
+
+def _generated_code_semantic_review_effective_locator(
+    *,
+    artifact_role: str,
+    locator: Any,
+) -> str:
+    effective_locator = _normalize_evidence_locator(locator)
     removable_prefixes = {
         "source_theory_packet": (
             "/source_theory_packet",
@@ -1305,6 +1311,22 @@ def _generated_code_semantic_review_row_cited_values(
             "/review_material",
         ),
     }
+    for prefix in removable_prefixes.get(artifact_role, ()):
+        if effective_locator == prefix:
+            return "/"
+        if effective_locator.startswith(prefix + "/"):
+            return effective_locator[len(prefix):]
+    return effective_locator
+
+
+def _generated_code_semantic_review_row_cited_values(
+    *,
+    review_material: Mapping[str, Any],
+    row: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    role_roots = _generated_code_semantic_review_artifact_roots(
+        review_material
+    )
     resolved_rows: list[dict[str, Any]] = []
     for citation in row.get("evidence_citations", []) or []:
         if not isinstance(citation, Mapping):
@@ -1312,14 +1334,10 @@ def _generated_code_semantic_review_row_cited_values(
         role = str(citation.get("artifact_role", "") or "").strip()
         locator = _normalize_evidence_locator(citation.get("locator", ""))
         root = role_roots.get(role)
-        effective_locator = locator
-        for prefix in removable_prefixes.get(role, ()):
-            if effective_locator == prefix:
-                effective_locator = "/"
-                break
-            if effective_locator.startswith(prefix + "/"):
-                effective_locator = effective_locator[len(prefix):]
-                break
+        effective_locator = _generated_code_semantic_review_effective_locator(
+            artifact_role=role,
+            locator=locator,
+        )
         resolved, value = _json_pointer_value(root, effective_locator)
         canonical_locator = effective_locator
         if not resolved and role == "generated_source_artifact":
@@ -1379,6 +1397,219 @@ def _generated_code_semantic_review_row_cited_values(
             }
         )
     return resolved_rows
+
+
+def _json_pointer_resolution_diagnostic(root: Any, locator: str) -> dict[str, Any]:
+    components = (
+        []
+        if locator in {"", "/"}
+        else locator.lstrip("/").split("/")
+    )
+    current = root
+    resolved_components: list[str] = []
+    for depth, raw_component in enumerate(components):
+        component = raw_component.replace("~1", "/").replace("~0", "~")
+        if isinstance(current, Mapping):
+            if component in current:
+                current = current[component]
+                resolved_components.append(raw_component)
+                continue
+            child_components = [
+                str(key).replace("~", "~0").replace("/", "~1")
+                for key in sorted(current, key=str)[:16]
+            ]
+            return {
+                "failed_component_index": depth,
+                "failed_component": component,
+                "nearest_existing_locator": (
+                    "/" + "/".join(resolved_components)
+                    if resolved_components
+                    else "/"
+                ),
+                "available_child_locators": [
+                    "/" + "/".join([*resolved_components, child])
+                    for child in child_components
+                ],
+            }
+        if isinstance(current, (list, tuple)):
+            try:
+                index = int(component)
+            except (TypeError, ValueError):
+                index = -1
+            if 0 <= index < len(current):
+                current = current[index]
+                resolved_components.append(str(index))
+                continue
+            return {
+                "failed_component_index": depth,
+                "failed_component": component,
+                "nearest_existing_locator": (
+                    "/" + "/".join(resolved_components)
+                    if resolved_components
+                    else "/"
+                ),
+                "available_child_locators": [
+                    "/" + "/".join([*resolved_components, str(index)])
+                    for index in range(min(len(current), 16))
+                ],
+                "array_length": len(current),
+            }
+        return {
+            "failed_component_index": depth,
+            "failed_component": component,
+            "nearest_existing_locator": (
+                "/" + "/".join(resolved_components)
+                if resolved_components
+                else "/"
+            ),
+            "available_child_locators": [],
+            "failure_kind": "json_pointer_traverses_scalar",
+        }
+    return {
+        "nearest_existing_locator": locator or "/",
+        "available_child_locators": [],
+    }
+
+
+def _generated_code_semantic_review_missing_citation_diagnostics(
+    *,
+    review_material: Mapping[str, Any],
+    model_payload: Mapping[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """Bind a missing citation error to exact model paths and current values."""
+
+    if not isinstance(model_payload, Mapping):
+        return []
+    roots = _generated_code_semantic_review_artifact_roots(review_material)
+    gate_rows = _generated_code_semantic_review_metric_gate_projection(
+        review_material
+    )
+    diagnostics: list[dict[str, Any]] = []
+
+    def inspect_row(
+        row: Mapping[str, Any],
+        *,
+        row_kind: str,
+        row_path: list[str | int],
+    ) -> None:
+        for citation_index, citation in enumerate(
+            row.get("evidence_citations", []) or []
+        ):
+            if not isinstance(citation, Mapping):
+                continue
+            resolution = _generated_code_semantic_review_row_cited_values(
+                review_material=review_material,
+                row={"evidence_citations": [citation]},
+            )
+            if resolution and resolution[0]["resolved"]:
+                continue
+            role = str(citation.get("artifact_role", "") or "").strip()
+            locator = _normalize_evidence_locator(
+                citation.get("locator", "")
+            )
+            effective_locator = (
+                _generated_code_semantic_review_effective_locator(
+                    artifact_role=role,
+                    locator=locator,
+                )
+            )
+            candidates = [
+                {
+                    "evidence_citation": dict(gate["evidence_citation"]),
+                    "runtime_gate_value": {
+                        key: gate.get(key)
+                        for key in (
+                            "artifact_id",
+                            "contract_id",
+                            "requirement_id",
+                            "metric_path",
+                            "aggregate_value",
+                            "operator",
+                            "threshold",
+                            "lower",
+                            "upper",
+                            "tolerance",
+                            "required",
+                            "passed",
+                            "errors",
+                        )
+                    },
+                }
+                for gate in gate_rows
+                if isinstance(gate.get("evidence_citation"), Mapping)
+                and str(
+                    gate["evidence_citation"].get("artifact_role", "")
+                    or ""
+                )
+                == role
+            ]
+            locator_components = locator.lstrip("/").split("/")
+            if (
+                len(locator_components) >= 2
+                and locator_components[0]
+                == "runtime_metric_gate_projection"
+            ):
+                try:
+                    gate_index = int(locator_components[1])
+                except (TypeError, ValueError):
+                    gate_index = -1
+                if 0 <= gate_index < len(candidates):
+                    candidates.insert(0, candidates.pop(gate_index))
+            diagnostics.append(
+                {
+                    "row_kind": row_kind,
+                    "model_payload_citation_path": [
+                        *row_path,
+                        "evidence_citations",
+                        citation_index,
+                    ],
+                    "model_payload_locator_path": [
+                        *row_path,
+                        "evidence_citations",
+                        citation_index,
+                        "locator",
+                    ],
+                    "artifact_role": role,
+                    "invalid_locator": locator,
+                    "effective_locator": effective_locator,
+                    **_json_pointer_resolution_diagnostic(
+                        roots.get(role),
+                        effective_locator,
+                    ),
+                    "candidate_current_artifact_citations": candidates[:4],
+                }
+            )
+
+    for index, row in enumerate(
+        model_payload.get("prior_finding_reviews", []) or []
+    ):
+        if isinstance(row, Mapping):
+            inspect_row(
+                row,
+                row_kind="prior_finding_review",
+                row_path=["prior_finding_reviews", index],
+            )
+    dimension_reviews = model_payload.get("dimension_reviews", {}) or {}
+    if isinstance(dimension_reviews, Mapping):
+        for dimension in GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS:
+            row = dimension_reviews.get(dimension)
+            if isinstance(row, Mapping):
+                inspect_row(
+                    row,
+                    row_kind="dimension_review",
+                    row_path=["dimension_reviews", dimension],
+                )
+    for index, row in enumerate(model_payload.get("findings", []) or []):
+        if isinstance(row, Mapping):
+            actionable = str(row.get("repair_scope", "") or "") != "none"
+            inspect_row(
+                row,
+                row_kind=(
+                    "actionable_finding" if actionable else "advisory_finding"
+                ),
+                row_path=["findings", index],
+            )
+    return diagnostics[:16]
 
 
 def _generated_code_semantic_review_cited_values(
@@ -1617,6 +1848,7 @@ class LLMGeneratedCodeSemanticReviewerAgent:
 
         def build_repair_context(**kwargs: Any) -> dict[str, Any]:
             invalid_packet = kwargs.get("invalid_packet")
+            invalid_payload = kwargs.get("invalid_payload")
             decision_closure_state = (
                 _generated_code_semantic_review_decision_closure_state(
                     invalid_packet
@@ -1637,13 +1869,31 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 "acceptance threshold; scope findings only to source_code or "
                 "upstream_theory when the supplied evidence supports them."
             )
-            return {
+            missing_citation_diagnostics = (
+                _generated_code_semantic_review_missing_citation_diagnostics(
+                    review_material=review_material,
+                    model_payload=(
+                        invalid_payload
+                        if isinstance(invalid_payload, Mapping)
+                        else None
+                    ),
+                )
+            )
+            context = {
                 "source_subsystem": str(
                     trusted_lineage.get("source_subsystem", "") or ""
                 ),
                 "local_validation_errors": list(kwargs.get("errors", []) or []),
                 "repair_prompt_priority_instructions": [
                     phase_repair_instruction,
+                    (
+                        "Repair every unresolved citation at its exact "
+                        "missing_current_artifact_citation_diagnostics[]."
+                        "model_payload_citation_path. Choose an exact current-"
+                        "artifact candidate only when its value semantically "
+                        "supports that row; do not patch the row's summary, "
+                        "rationale, severity, or repair scope instead."
+                    ),
                     (
                         "Each finding repair_scope is a reviewer hypothesis needed by "
                         "this packet schema, not final ownership authority. The "
@@ -1735,6 +1985,11 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                     )
                 ),
             }
+            if missing_citation_diagnostics:
+                context[
+                    "missing_current_artifact_citation_diagnostics"
+                ] = missing_citation_diagnostics
+            return context
 
         return generate_validated_json_packet(
             provider=self.provider,
@@ -2092,6 +2347,15 @@ def _generated_code_semantic_review_metric_gate_projection(
                         "metric_contract_evaluation/evaluations/"
                         f"{evaluation_index}"
                     ),
+                    "evidence_citation": {
+                        "artifact_role": "generated_source_artifact",
+                        "locator": (
+                            "/exact_executed_artifacts/"
+                            f"{artifact_index}/source_row/"
+                            "metric_contract_evaluation/evaluations/"
+                            f"{evaluation_index}"
+                        ),
+                    },
                     "outcome_authority": (
                         "runtime_generated_metric_contract_evaluator"
                     ),
@@ -2259,7 +2523,10 @@ def build_generated_code_semantic_review_prompt(
         "outcomes: never describe a row with passed=true as outside its runtime "
         "tolerance or failed. You may still reject its measurement semantics, but "
         "must explicitly distinguish that structural defect from the passed numeric "
-        "gate. Before marking PASS, check every numerical and logical statement in "
+        "gate. When citing a gate outcome, copy that row's evidence_citation exactly; "
+        "runtime_metric_gate_projection is a prompt-only label and is not itself a "
+        "valid artifact locator. Before marking PASS, check every numerical and "
+        "logical statement in "
         "your rationale against the exact cited values, operators, runtime arguments, "
         "and assumptions; a stated violation or unresolved contradiction cannot "
         "support PASS. "
@@ -2770,7 +3037,11 @@ def _generated_code_semantic_review_lineage_errors(
                 "review authority contract"
             )
         actionable = str(raw_row.get("repair_scope", "") or "") != "none"
-        if actionable and review_material is not None:
+        if (
+            actionable
+            and schema_version < 10
+            and review_material is not None
+        ):
             cited_values = _generated_code_semantic_review_row_cited_values(
                 review_material=review_material,
                 row=raw_row,
@@ -2976,6 +3247,16 @@ def validate_generated_code_semantic_review_packet(
                     row_label=f"semantic review dimension {dimension}",
                 )
             )
+        if schema_version >= 10 and review_material is not None:
+            cited_values = _generated_code_semantic_review_row_cited_values(
+                review_material=review_material,
+                row=row,
+            )
+            if any(not cited_value["resolved"] for cited_value in cited_values):
+                errors.append(
+                    f"semantic review dimension {dimension} cites a missing "
+                    "current artifact value"
+                )
         if (
             schema_version >= 7
             and dimension_index < len(
@@ -3000,7 +3281,7 @@ def validate_generated_code_semantic_review_packet(
             "findings exceeds the acceptance-critical finding budget"
         )
     finding_repair_scopes: set[str] = set()
-    for row in findings:
+    for finding_index, row in enumerate(findings):
         if not isinstance(row, Mapping):
             errors.append("findings entries must be objects")
             continue
@@ -3048,6 +3329,16 @@ def validate_generated_code_semantic_review_packet(
                     row_label="semantic review finding",
                 )
             )
+        if schema_version >= 10 and review_material is not None:
+            cited_values = _generated_code_semantic_review_row_cited_values(
+                review_material=review_material,
+                row=row,
+            )
+            if any(not cited_value["resolved"] for cited_value in cited_values):
+                errors.append(
+                    f"semantic review finding {finding_index} cites a missing "
+                    "current artifact value"
+                )
 
     expected_verdict = _generated_code_semantic_review_derived_verdict(
         dimension_reviews=dimension_rows,

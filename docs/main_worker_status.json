@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-08-03T02:15:55Z",
+  "updated_at": "2026-08-03T02:47:33Z",
   "role": "main_worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
   "active_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
@@ -61,7 +61,8 @@
     "formal_rag_declaration_identity": "The shared source parser and runtime graph adapter preserve complete Unicode Lean declaration identities, including inline-attributed declarations, and reject unversioned, pre-v4, identity-policy-incompatible, or reference-policy-incompatible graphs before retrieval. Schema 5 strips comments and strings, excludes private/local/anonymous generated declarations, follows an optional canonical entry-module import closure, and does not guess receiver-style h.foo projections. This is a generic source-index contract, not a Lean grammar repair rule or theorem-family policy.",
     "formal_source_physical_identity": "Overlapping configured source roots index each resolved physical Lean file once, with configured root order defining ownership. Superseded vendored snapshots are inventory/training inputs rather than live roots. Dependency graphs remain separate version-bound corpora: StatInference 51,993, Statlib 32, and AI4SLT 2,000 retrievable public declarations.",
     "generated_code_profile_transport": "AlgorithmEngineer and SimulationEngineer share one provider schema with three structural branches: Python stdlib omits dependencies, while Python or R scientific_wasm declares only supported imported packages. Runtime still performs the authoritative safety and execution checks. Simulation output budget is 8,000 tokens to avoid predictable code-plus-metrics truncation.",
-    "generated_code_review_provenance": "Independent generated-code review treats procedure_id as an immutable authority identity and keeps large execution projections under canonical exact_result. Historical /exact_result/projection locators remain readable only through an explicit canonical_locator compatibility projection. Review acceptance therefore binds the exact procedure, source, arguments, results, theory packet, and frozen metric protocol rather than a nearby artifact."
+    "generated_code_review_provenance": "Independent generated-code review treats procedure_id as an immutable authority identity and keeps large execution projections under canonical exact_result. Historical /exact_result/projection locators remain readable only through an explicit canonical_locator compatibility projection. Review acceptance therefore binds the exact procedure, source, arguments, results, theory packet, and frozen metric protocol rather than a nearby artifact.",
+    "generated_code_review_citation_transport": "Schema v10 requires every dimension, prior-finding review, actionable finding, and advisory finding citation to resolve against the current immutable review material. A failed JSON Pointer now returns the exact raw model-payload path, failed component, nearest existing node, bounded child locators, and exact current runtime-gate citation candidates to the same typed Haiku repair loop. Runtime presents evidence choices but does not select their semantics, alter a finding, change a metric value, or relax a validator. Schema-v9 packets remain replayable under their original contract."
   },
   "ai4slt_formal_rag": {
     "repository": "https://github.com/YuanheZ/lean-stat-learning-theory",
@@ -211,7 +212,7 @@
     "boundary": "AI4SLT source docs, section summaries, README taxonomy, naming examples, and citations may rank candidate declarations, but TheoryDeveloper and Formalizer receive role-specific bounded signature-first projections rather than broad source prose; only one bounded primary declaration doc or citation may disambiguate intent. Signatures, dependency context, and train-state hits remain non-proof candidate context. Toolchain/snapshot identity is disclosed, and every selected declaration or generated action must be re-elaborated in the exact active project before it can contribute to kernel evidence."
   },
   "latest_full_live_development_eval": {
-    "run": "runs/main_worker_cross_family_development_20260802_v199_exact_key_prior_lineage_exact_haiku",
+    "run": "runs/main_worker_cross_family_development_20260803_v209_exact_key_metric_gap_route_clean_haiku",
     "panel": "frozen development panel: right_censored_survival_km and sequential_anytime_bernoulli",
     "evaluation_model": "claude-haiku-4-5-20251001",
     "enabled_llm_agents_at_exact_haiku": 10,
@@ -219,25 +220,15 @@
     "status_counts": {
       "BLOCKED": 2
     },
-    "capability_scorecard": "95/121",
+    "capability_scorecard": "86/121",
     "capability_ready_for_full_ai_statistician": false,
-    "survival_path": "Completed fresh Architect, Retrieval, TheoryDeveloper, independent theory preflight with one bounded theory revision, metric author and independent review, generated AlgorithmEngineer execution and review, generated SimulationEngineer failed-then-passed repair and review, FormalizationEvaluator, formal-target semantic review, three local Lean candidate checks, one live Lean/LSP proof-state call, and structural replan into FormalizationGapPlanner.",
-    "survival_terminal_blocker": "The route planner's 45k-input/9k-output monolithic response truncated, then its route_core_compaction staged fragment remained contract-invalid after one repair. Four staged sections could not assemble because the first dependency stage never passed. No invalid route was promoted.",
-    "sequential_path": "Completed fresh Architect, Retrieval, TheoryDeveloper, independent theory preflight with one bounded theory revision, then reached metric authoring.",
-    "sequential_terminal_blocker": "Metric authority repair reduced seven numeric-authority defects to one but exhausted the bounded repair budget after incorrectly relabeling the remaining alpha=0.05 threshold as theory_derived instead of preserving a valid field-level source owner or architect preregistration. Generated execution remained unauthorized.",
-    "generated_code_sandbox_executions": 3,
-    "generated_code_sandbox_passes": 3,
-    "generated_simulation_sandbox_executions": 1,
-    "generated_simulation_sandbox_passes": 1,
-    "generated_simulation_failed_then_passed_sequences": 1,
-    "formal_gaps": 2,
-    "formalizer_local_lean_checks": 3,
-    "formalizer_local_lean_compiles": 0,
-    "lean_lsp_mcp_live_calls": 1,
-    "formalizer_proof_state_feedback_rows": 3,
+    "survival_path": "Fresh Architect, Retrieval, TheoryDeveloper, and independent pre-execution review ran. One bounded TheoryDeveloper revision was consumed before any code execution.",
+    "survival_terminal_blocker": "The revised theory packet listed incompatible finite-boundary behaviors instead of committing to one executable estimator-interface decision, so the pre-execution gate blocked before coding.",
+    "sequential_path": "Fresh theory, metric authoring and independent review, generated algorithm execution and review, and generated simulation execution ran. The exact H1 mean stopping time was 161.1625 against the unchanged frozen <=60 gate.",
+    "sequential_terminal_blocker": "The independent generated-code reviewer exhausted three bounded attempts because an actionable finding cited a prompt-only path rather than an exact current-artifact locator. No invalid packet was promoted.",
     "exact_source_theorem_kernel_closure": "0/2",
     "held_out_panel": "sealed; PCA and extremes were not run",
-    "evidence_boundary": "95/121 is integrated capability coverage, not theorem completion. RAG hits, generated code, simulations, failed Lean candidates, and route plans remain non-proof evidence."
+    "evidence_boundary": "86/121 is integrated capability coverage, not theorem completion. V212 repairs the recorded reviewer boundary only; it is not a fresh integrated rerun, empirical acceptance, formalization, or proof evidence."
   },
   "latest_live_research_eval": {
     "run": "runs/main_worker_research_eval_20260802_v196_exact_haiku_sequential",
@@ -279,45 +270,36 @@
     "result": "The fresh exact-Haiku sequential run completed the research-only loop without an upstream-theory revision and reached the typed research_eval endpoint. Bounded structured-packet repairs still occurred inside TheoryDeveloper and metric authoring. Together with V191 survival, both development families now have fresh research-loop closure; neither has exact theorem closure."
   },
   "latest_component_replay": {
-    "run": "runs/main_worker_route_core_exact_key_live_replay_20260802_v207",
-    "source_runtime_result": "runs/main_worker_cross_family_development_20260802_v199_exact_key_prior_lineage_exact_haiku/runtime_formalization_gap_planner_seeds/right_censored_survival_km_runtime_formalization_gap_planner_standalone_seed_2b75ba94ff1f36806da4.json",
+    "run": "runs/main_worker_v209_sequential_semantic_citation_replay_20260803_v212",
+    "source_runtime_result": "runs/main_worker_cross_family_development_20260803_v209_exact_key_metric_gap_route_clean_haiku/sequential_anytime_bernoulli_runtime_result.json",
+    "source_materialization_id": "generated_code_semantic_review_materialization:3d77c90467a9043ccb4f",
+    "review_input_fingerprint": "f0e8fdaa2c40c6014b7d9986bcb073edc32133181a6660b59c21bec1d42143ab",
     "evaluation_model": "claude-haiku-4-5-20251001",
-    "status": "PASS",
-    "provider_calls": 4,
-    "provider_phases": [
-      "route_core_compaction",
-      "formal_realization_and_alignment",
-      "residual_batch_interpretation",
-      "formal_attempt_queue_and_standalone_route"
-    ],
+    "schema_version": 10,
+    "status": "REVISE",
+    "provider_calls": 2,
     "structured_output_applied": true,
-    "reused_contract_valid_stages": 0,
-    "contract_valid_stages": "4/4",
-    "assembled_response_contract_ok": true,
-    "provider_input_tokens": 49425,
-    "provider_output_tokens": 7669,
-    "max_tokens": 9000,
-    "repair_attempts": 0,
+    "repair_attempts": 1,
     "validation_errors": 0,
-    "route_adoption_ready": false,
-    "route_adoption_blockers": [
-      "source grounding remains pending",
-      "formal-gap boundaries require resolution",
-      "search requests and planner actions require real execution and replay",
-      "uncertainty and semantic alignment risks require review"
+    "patched_paths": [
+      "dimension_reviews/execution_argument_alignment/evidence_citations/2/locator",
+      "dimension_reviews/metric_semantics_alignment/evidence_citations/1/locator",
+      "findings/1/evidence_citations/1/locator"
     ],
+    "frozen_failed_gate_preserved": "expected_stopping_time_H1=161.1625 against <=60",
+    "remaining_semantic_review_risk": "One accepted finding narrative incorrectly calls a runtime passed=true alpha=0.10 tolerance row outside tolerance. The structurally valid REVISE packet must still pass downstream independent ownership/consistency feedback in a fresh AgentRuntime run; runtime did not parse or silently rewrite the prose.",
     "kernel_verified": false,
-    "evidence_scope": "component transport and assembly replay only; route planning, retrieval requests, and formal schedules are not integrated theorem evidence"
+    "evidence_scope": "exact-input component replay only; a contract-valid reviewer packet is independent review evidence, not integrated research completion, metric acceptance, or theorem proof"
   },
   "current_readiness": {
     "fully_end_to_end_ready": false,
     "development_research_loop_current_mechanism": "2/2 completed in fresh exact-Haiku runs: V191 survival and V196 sequential accepted at the typed research_eval endpoint",
     "exact_source_theorem_kernel_closure": "0/2",
     "held_out_generalization": "not run",
-    "primary_blocker": "V207 removed the FormalizationGapPlanner transport blocker and V208 removed the recorded sequential metric-authority residual at their respective component boundaries. Neither has yet been consumed together by a fresh integrated AgentRuntime run. The assembled formal plan must still execute source searches, resource-bound actions, formal-gap repairs, and target-prover replay; exact source-theorem closure remains zero.",
+    "primary_blocker": "V209 remains BLOCKED 2/2. V212 closes the recorded sequential reviewer's exact-citation transport at a component boundary, but no fresh AgentRuntime has consumed it; survival still requires a TheoryDeveloper revision that commits to one executable interface decision. Neither task has reached exact source-theorem kernel closure.",
     "secondary_blockers": [
-      "V208 closed V199 sequential's final field-level numeric-authority residual in a one-call exact-Haiku component replay, but fresh integrated metric authoring and independent review have not yet consumed the new transport",
-      "V207 proves fresh four-stage route transport and assembly only at the planner component boundary; a fresh full runtime must consume the assembled plan and execute feedback actions without post-runtime side effects",
+      "V212 proves all current reviewer-authored citations can be repaired to resolvable immutable artifact locators, but its accepted prose still contains one passed-tolerance contradiction that downstream independent feedback must reject or rescope",
+      "The survival revision transport preserves lineage but the TheoryDeveloper did not select one finite-boundary behavior; the next fix must improve shared executable-decision feedback rather than encode a survival formula",
       "research completion correctly ignores artifacts tied to a superseded theory, but a separate historical progress projection is still needed to expose earlier sandbox and reviewer passes",
       "accepted metric-protocol preflight still performs metric author, independent reviewer, and final Architect plan calls serially",
       "legacy post-runtime formal side effects are disabled, but their dead control-flow branches still need mechanical extraction from the central runtime",
@@ -326,16 +308,18 @@
     ]
   },
   "next_main_worker_actions": [
-    "Repair the shared generated-code semantic reviewer transport exposed by V209: provide exact current-artifact locator feedback or catalog-bound choices after a missing citation, replay the recorded sequential review materialization, and preserve the failed stopping-time result and frozen gate unchanged.",
+    "Run a fresh integrated development evaluation so AgentRuntime consumes schema-v10 citation repair and the independent ownership/consistency feedback can address the remaining passed-tolerance prose contradiction without a hardcoded natural-language parser.",
     "Make a TheoryDeveloper revision respond to an unresolved reviewer finding with one exact executable interface decision rather than listing incompatible alternatives; validate this on the recorded survival preflight lineage without encoding Greenwood or survival-specific behavior.",
     "Reduce accepted preflight cost by reusing the already validated plan skeleton when attaching an immutable metric protocol; preserve the independent reviewer and authority boundary.",
     "Record historical partial-stage progress separately from final active-candidate completion so superseded evidence remains visible but cannot satisfy the gate.",
     "Require exact source-theorem active-project kernel closure for both development tasks before opening PCA or extremes; keep both held-out tasks sealed.",
-    "Use StatLib, canonical StatInference, and AI4SLT qualified declarations, clean schema-v5 dependency context, and train-only state-action analogies inside the existing Formalizer/ProofEngineer feedback loop; require active-project Lean/kernel closure.",
+    "Use Statlib, canonical StatInference, and AI4SLT qualified declarations, clean schema-v5 dependency context, and train-only state-action analogies inside the existing Formalizer/ProofEngineer feedback loop; require active-project Lean/kernel closure.",
     "Keep all formal execution in Architect-visible typed tasks, mechanically extract the disabled post-runtime branches from the central runtime, then evaluate learned tactic-state search without hardcoded Lean repairs.",
     "Keep PCA and extremes sealed until both development families satisfy the frozen protocol."
   ],
   "verification": {
+    "v212_generated_code_review_citation_component": "The exact V209 sequential review materialization and unchanged f0e8fdaa2c40c6014b7d9986bcb073edc32133181a6660b59c21bec1d42143ab input were replayed with claude-haiku-4-5-20251001 under schema v10. The first response had three unresolved dimension/finding locators; one typed repair changed exactly those three locator paths and produced a contract-valid REVISE packet. The observed expected_stopping_time_H1=161.1625 and frozen <=60 gate were unchanged. One finding narrative still contradicts a runtime passed=true tolerance row, so downstream independent consistency/ownership feedback remains required. This is component review evidence only, not integrated runtime, metric acceptance, or proof evidence.",
+    "generated_code_review_citation_regression": "130 focused generated-code reviewer, generic JSON repair, research-eval, and selected AgentRuntime review/routing tests passed with 1 skipped and 1,172 unrelated runtime tests deselected in 90.84 seconds. The final reviewer-only panel passed 73 tests with 1 skipped, py_compile and git diff --check passed, and no provider call occurred in these regressions. Ruff was unavailable in the repository environment.",
     "v209_full_live_development_panel": "The fresh frozen development panel ran both survival and sequential tasks with all 10 enabled Anthropic agents at exact claude-haiku-4-5-20251001 and no Sonnet or Opus calls. Both tasks ended BLOCKED, the capability scorecard passed 86/121 and remained ready=false, no formal lane was reached, and exact theorem closure remains 0/2. Survival stopped before coding after one TheoryDeveloper revision listed incompatible boundary behaviors instead of committing to one executable interface decision. Sequential completed theory, metric review, generated algorithm execution/review, and generated simulation execution; expected stopping time under H1 was 161.1625 against the frozen <=60 gate, then the independent reviewer exhausted three repairs because an actionable finding cited a missing current-artifact value. These are honest semantic and transport blockers, not permission to patch a statistical answer or relax a validator.",
     "v208_metric_authority_exact_key_component": "The recorded V199 sequential final-invalid packet and its revised theory catalog were replayed through one exact claude-haiku-4-5-20251001 structured-output call. The model selected source_binding to theory#/theory_derivation_packet/sanity_checks/2/recomputation, whose source explicitly derives the alpha=0.05 Markov bound. The unchanged validator reduced 1 numeric-authority error to 0; all thresholds, bounds, tolerances, and quorum fields were byte-for-byte unchanged. Provider structured output was applied with zero fallback using 1,525 input and 227 output tokens. This is component repair evidence only, not an integrated AgentRuntime result, empirical acceptance, formalization, or proof.",
     "metric_authority_transport_regression": "340 shared JSON-repair, metric-contract, reviewer, TheoryDeveloper, Formalizer, PF/BV, provider, and model-policy tests passed; 13 selected AgentRuntime metric-authoring/lineage tests and 8 frozen cross-family protocol tests passed. The recorded multi-field failure-shape replay closes in one exact-key repair, strict residual policy stops a label-shift without spending the remaining base budget, and non-metric reviewer progressive repair remains enabled. No provider call occurred in these regressions.",

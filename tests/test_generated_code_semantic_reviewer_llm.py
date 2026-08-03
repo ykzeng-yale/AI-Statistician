@@ -28,6 +28,7 @@ from ai_statistician.generated_code_semantic_reviewer_llm import (
     generated_code_semantic_review_repair_scope,
     generated_code_semantic_review_repair_scopes,
     validate_generated_code_semantic_review_packet,
+    _generated_code_semantic_review_missing_citation_diagnostics,
     _generated_code_semantic_review_row_cited_values,
 )
 from ai_statistician.generated_code_semantic_review_replan import (
@@ -477,7 +478,7 @@ def _review_response(
             "evidence_citations": [
                 {
                     "artifact_role": "generated_source_artifact",
-                    "locator": f"/exact_executed_artifacts/0/{dimension}",
+                    "locator": "/exact_executed_artifacts/0/exact_source_code",
                 }
             ],
         }
@@ -1994,42 +1995,43 @@ def test_semantic_reviewer_prompt_keeps_sibling_metrics_out_of_artifact_gate() -
 
 
 def test_semantic_reviewer_prompt_surfaces_runtime_metric_gate_outcomes() -> None:
-    prompt = build_generated_code_semantic_review_prompt(
-        question=_question(),
-        review_material={
-            "exact_executed_artifacts": [
-                {
-                    "artifact_id": "simulation:one",
-                    "source_row": {
-                        "metric_contracts": [
+    review_material = {
+        "exact_executed_artifacts": [
+            {
+                "artifact_id": "simulation:one",
+                "source_row": {
+                    "metric_contracts": [
+                        {
+                            "contract_id": "MC:one",
+                            "requirement_id": "requirement:one",
+                            "operator": "<=",
+                            "threshold": 0.05,
+                            "tolerance": 0.015,
+                            "required": True,
+                        }
+                    ],
+                    "metric_contract_evaluation": {
+                        "evaluations": [
                             {
                                 "contract_id": "MC:one",
                                 "requirement_id": "requirement:one",
+                                "artifact_id": "simulation:one",
+                                "metric_path": ["error_rate"],
                                 "operator": "<=",
-                                "threshold": 0.05,
-                                "tolerance": 0.015,
+                                "aggregate_value": 0.0625,
                                 "required": True,
+                                "passed": True,
+                                "errors": [],
                             }
-                        ],
-                        "metric_contract_evaluation": {
-                            "evaluations": [
-                                {
-                                    "contract_id": "MC:one",
-                                    "requirement_id": "requirement:one",
-                                    "artifact_id": "simulation:one",
-                                    "metric_path": ["error_rate"],
-                                    "operator": "<=",
-                                    "aggregate_value": 0.0625,
-                                    "required": True,
-                                    "passed": True,
-                                    "errors": [],
-                                }
-                            ]
-                        },
+                        ]
                     },
-                }
-            ]
-        },
+                },
+            }
+        ]
+    }
+    prompt = build_generated_code_semantic_review_prompt(
+        question=_question(),
+        review_material=review_material,
     )
     payload = json.loads(prompt.rsplit("\n\n", 1)[1])
     gate = payload["runtime_metric_gate_projection"][0]
@@ -2042,7 +2044,21 @@ def test_semantic_reviewer_prompt_surfaces_runtime_metric_gate_outcomes() -> Non
     assert gate["outcome_authority"] == (
         "runtime_generated_metric_contract_evaluator"
     )
+    assert gate["evidence_citation"] == {
+        "artifact_role": "generated_source_artifact",
+        "locator": (
+            "/exact_executed_artifacts/0/source_row/"
+            "metric_contract_evaluation/evaluations/0"
+        ),
+    }
+    cited = _generated_code_semantic_review_row_cited_values(
+        review_material=review_material,
+        row={"evidence_citations": [gate["evidence_citation"]]},
+    )
+    assert cited[0]["resolved"] is True
+    assert cited[0]["value"]["aggregate_value"] == 0.0625
     assert "never describe a row with passed=true" in prompt
+    assert "prompt-only label" in prompt
 
 
 def test_semantic_review_routes_valid_protocol_implementation_mismatch_to_source() -> None:
@@ -2215,7 +2231,7 @@ def test_all_pass_actionable_finding_requires_model_repair_not_normalization(
     assert review_packet["cumulative_finding_ledger"] == []
 
 
-def test_schema_v9_derives_runtime_owned_dimensions_and_typed_citations(
+def test_schema_v10_derives_runtime_owned_dimensions_and_typed_citations(
     tmp_path: Path,
 ) -> None:
     subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accept=True)
@@ -2227,7 +2243,7 @@ def test_schema_v9_derives_runtime_owned_dimensions_and_typed_citations(
         for artifact in result.produced_artifacts.values()
         if artifact.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
     )
-    assert review_packet["schema_version"] == 9
+    assert review_packet["schema_version"] == 10
     assert validate_generated_code_semantic_review_packet(review_packet) == []
     first_dimension = review_packet["dimension_reviews"][0]
     assert first_dimension["dimension"] == (
@@ -2236,15 +2252,13 @@ def test_schema_v9_derives_runtime_owned_dimensions_and_typed_citations(
     assert first_dimension["evidence_citations"] == [
         {
             "artifact_role": "generated_source_artifact",
-            "locator": (
-                f"/exact_executed_artifacts/0/{first_dimension['dimension']}"
-            ),
+            "locator": "/exact_executed_artifacts/0/exact_source_code",
         }
     ]
     assert first_dimension["evidence_refs"] == [
         (
             "generated_source_artifact#"
-            f"/exact_executed_artifacts/0/{first_dimension['dimension']}"
+            "/exact_executed_artifacts/0/exact_source_code"
         )
     ]
     assert first_dimension["artifact_citations"] == [
@@ -2629,7 +2643,7 @@ def test_schema_v7_normalizes_model_locator_format(
     response = _review_response(accept=True)
     response["dimension_reviews"][0]["evidence_citations"][0][
         "locator"
-    ] = "exact_executed_artifacts/0/theory_assumption_alignment"
+    ] = "exact_executed_artifacts/0/exact_source_code"
     reviewer = LLMGeneratedCodeSemanticReviewerAgent(
         provider=StaticJSONGeneratorBackend(response),
         config=GeneratedCodeSemanticReviewerConfig(
@@ -2651,7 +2665,7 @@ def test_schema_v7_normalizes_model_locator_format(
     )
     first_dimension = review_packet["dimension_reviews"][0]
     assert first_dimension["evidence_citations"][0]["locator"] == (
-        "/exact_executed_artifacts/0/theory_assumption_alignment"
+        "/exact_executed_artifacts/0/exact_source_code"
     )
     assert validate_generated_code_semantic_review_packet(review_packet) == []
 
@@ -3067,6 +3081,277 @@ def test_semantic_repair_exposes_unclosed_decision_without_selecting_owner(
     assert review_packet["overall_verdict"] == "REVISE"
     assert review_packet["repair_scope"] == "source_code"
     assert review_packet["findings"][0]["repair_scope"] == "source_code"
+
+
+def test_semantic_repair_supplies_exact_metric_gate_artifact_citation(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        accept=False,
+        metric_failed=True,
+    )
+    response = _review_response(accept=False, repair_scope="source_code")
+    response["findings"][0]["evidence_citations"] = [
+        {
+            "artifact_role": "generated_source_artifact",
+            "locator": "/runtime_metric_gate_projection/0",
+        }
+    ]
+
+    class MetricGateCitationPatchBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+            self.repair_payload: dict[str, object] = {}
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                payload = response
+            else:
+                self.repair_payload = json.loads(
+                    request.user_prompt.split("\n\n", 1)[1]
+                )
+                repair_context = self.repair_payload[
+                    "subsystem_repair_context"
+                ]
+                diagnostic = repair_context[
+                    "missing_current_artifact_citation_diagnostics"
+                ][0]
+                citation = diagnostic[
+                    "candidate_current_artifact_citations"
+                ][0]["evidence_citation"]
+                payload = {
+                    "base_payload_fingerprint": self.repair_payload[
+                        "base_payload_fingerprint"
+                    ],
+                    "updates": [
+                        {
+                            "path": diagnostic[
+                                "model_payload_citation_path"
+                            ],
+                            "replacement_json": json.dumps(citation),
+                        }
+                    ],
+                }
+            return GeneratorResponse(
+                text=json.dumps(payload),
+                provider=self.provider_name,
+                model=request.model,
+            )
+
+    backend = MetricGateCitationPatchBackend()
+    subsystem.reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=backend,
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="anthropic",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            max_repair_attempts=1,
+        ),
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REVISE", result.observations
+    repair_context = backend.repair_payload["subsystem_repair_context"]
+    diagnostic = repair_context[
+        "missing_current_artifact_citation_diagnostics"
+    ][0]
+    assert diagnostic["row_kind"] == "actionable_finding"
+    assert diagnostic["model_payload_citation_path"] == [
+        "findings",
+        0,
+        "evidence_citations",
+        0,
+    ]
+    assert diagnostic["model_payload_locator_path"] == [
+        "findings",
+        0,
+        "evidence_citations",
+        0,
+        "locator",
+    ]
+    assert diagnostic["invalid_locator"] == "/runtime_metric_gate_projection/0"
+    gate = repair_context["runtime_metric_gate_projection"][0]
+    assert gate["evidence_citation"] == {
+        "artifact_role": "generated_source_artifact",
+        "locator": (
+            "/exact_executed_artifacts/0/source_row/"
+            "metric_contract_evaluation/evaluations/0"
+        ),
+    }
+    assert any(
+        "model_payload_citation_path" in instruction
+        for instruction in backend.repair_payload["repair_instructions"]
+    )
+    review_packet = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "GeneratedCodeSemanticReviewPacket"
+    )
+    assert review_packet["findings"][0]["evidence_citations"] == [
+        gate["evidence_citation"]
+    ]
+
+
+def test_missing_citation_diagnostic_reports_nearest_current_artifact_node() -> None:
+    review_material = {
+        "exact_executed_artifacts": [
+            {
+                "artifact_id": "algorithm:one",
+                "exact_source_code": "def estimate(values): return 0.0",
+                "exact_result": {"estimate": 0.0},
+            }
+        ]
+    }
+    payload = {
+        "prior_finding_reviews": [],
+        "findings": [
+            {
+                "repair_scope": "source_code",
+                "evidence_citations": [
+                    {
+                        "artifact_role": "generated_source_artifact",
+                        "locator": "/exact_executed_artifacts/0/missing_field",
+                    }
+                ],
+            }
+        ],
+    }
+
+    diagnostics = _generated_code_semantic_review_missing_citation_diagnostics(
+        review_material=review_material,
+        model_payload=payload,
+    )
+
+    assert len(diagnostics) == 1
+    diagnostic = diagnostics[0]
+    assert diagnostic["failed_component"] == "missing_field"
+    assert diagnostic["nearest_existing_locator"] == "/exact_executed_artifacts/0"
+    assert (
+        "/exact_executed_artifacts/0/exact_source_code"
+        in diagnostic["available_child_locators"]
+    )
+    assert (
+        "/exact_executed_artifacts/0/exact_result"
+        in diagnostic["available_child_locators"]
+    )
+
+
+def test_schema_v10_rejects_prompt_only_dimension_citation(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        accept=False,
+        metric_failed=True,
+    )
+    response = _review_response(accept=False, repair_scope="source_code")
+    response["dimension_reviews"][0]["evidence_citations"] = [
+        {
+            "artifact_role": "generated_source_artifact",
+            "locator": "/runtime_metric_gate_projection/0",
+        }
+    ]
+    subsystem.reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=StaticJSONGeneratorBackend(response),
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="static",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            max_repair_attempts=0,
+        ),
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "BLOCKED"
+    validation_errors = result.observations[0].payload[
+        "validation_errors"
+    ]
+    assert (
+        "semantic review dimension question_alignment cites a missing "
+        "current artifact value"
+        in validation_errors
+    )
+
+
+def test_missing_dimension_citation_diagnostic_prioritizes_exact_gate() -> None:
+    review_material = {
+        "exact_executed_artifacts": [
+            {
+                "artifact_id": "simulation:one",
+                "source_row": {
+                    "metric_contracts": [
+                        {
+                            "contract_id": "metric-contract:one",
+                            "requirement_id": "requirement:one",
+                            "operator": "<=",
+                            "threshold": 1.0,
+                            "required": True,
+                        }
+                    ],
+                    "metric_contract_evaluation": {
+                        "evaluations": [
+                            {
+                                "contract_id": "metric-contract:one",
+                                "requirement_id": "requirement:one",
+                                "artifact_id": "simulation:one",
+                                "aggregate_value": 2.0,
+                                "operator": "<=",
+                                "required": True,
+                                "passed": False,
+                                "errors": ["frozen gate failed"],
+                            }
+                        ]
+                    },
+                },
+            }
+        ]
+    }
+    payload = {
+        "dimension_reviews": {
+            "frozen_measurement_protocol_alignment": {
+                "evidence_citations": [
+                    {
+                        "artifact_role": "generated_source_artifact",
+                        "locator": "/runtime_metric_gate_projection/0",
+                    }
+                ]
+            }
+        },
+        "findings": [],
+        "prior_finding_reviews": [],
+    }
+
+    diagnostics = _generated_code_semantic_review_missing_citation_diagnostics(
+        review_material=review_material,
+        model_payload=payload,
+    )
+
+    assert len(diagnostics) == 1
+    diagnostic = diagnostics[0]
+    assert diagnostic["row_kind"] == "dimension_review"
+    assert diagnostic["model_payload_citation_path"] == [
+        "dimension_reviews",
+        "frozen_measurement_protocol_alignment",
+        "evidence_citations",
+        0,
+    ]
+    candidate = diagnostic["candidate_current_artifact_citations"][0]
+    assert candidate["evidence_citation"] == {
+        "artifact_role": "generated_source_artifact",
+        "locator": (
+            "/exact_executed_artifacts/0/source_row/"
+            "metric_contract_evaluation/evaluations/0"
+        ),
+    }
+    assert candidate["runtime_gate_value"]["aggregate_value"] == 2.0
+    assert candidate["runtime_gate_value"]["passed"] is False
 
 
 def test_semantic_repair_exposes_exact_severity_enum_for_bounded_patch(
