@@ -26130,6 +26130,9 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
             ),
         }
     ]
+    expected_metric_rows[0]["acceptance_authority_rationale"] = (
+        expected_metric_rows[0]["gate_field_authorities"][0]["rationale"]
+    )
 
     class SequencedAnthropicBackend:
         provider_name = "anthropic"
@@ -26150,55 +26153,26 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
                 if request.metadata.get("json_repair_mode") == (
                     "typed_semantic_patch"
                 ):
-                    repair_payload = json.loads(
-                        request.user_prompt.split("\n\n", 1)[1]
-                    )
-                    if request.metadata["json_repair_attempt"] == 1:
-                        updates = [
-                            {
-                                "path": [
-                                    "empirical_metric_requirements",
-                                    0,
-                                    "gate_field_authorities",
-                                    0,
-                                    "rationale",
-                                ],
-                                "replacement": (
-                                    "This rationale-only edit does not change "
-                                    "the field-level source-derived ownership."
-                                ),
-                            }
+                    repair_payload = json.loads(request.user_prompt)
+                    decisions = {
+                        decision_id: {
+                            "resolution": (
+                                "architect_preregistered_design"
+                            ),
+                            "source_binding_id": "",
+                            "rationale": expected_metric_rows[0][
+                                "gate_field_authorities"
+                            ][0]["rationale"],
+                        }
+                        for decision_id in repair_payload[
+                            "gate_field_resolution_decisions_by_id"
                         ]
-                    else:
-                        patch_contract = repair_payload[
-                            "subsystem_repair_context"
-                        ]["numeric_authority_repair_matrix"][0][
-                            "architect_preregistered_design_patch_contracts"
-                        ][0]
-                        required_updates = patch_contract[
-                            "required_updates_if_selected"
-                        ]
-                        updates = [
-                            {
-                                "path": required_updates[0]["path"],
-                                "replacement": required_updates[0][
-                                    "replacement"
-                                ],
-                            },
-                            {
-                                "path": required_updates[1]["path"],
-                                "replacement": (
-                                    expected_metric_rows[0][
-                                        "gate_field_authorities"
-                                    ][0]["rationale"]
-                                ),
-                            },
-                        ]
+                    }
                     payload = {
                         "base_payload_fingerprint": repair_payload[
                             "base_payload_fingerprint"
                         ],
-                        "updates": updates,
+                        "decisions": decisions,
                     }
                 else:
                     payload = {"empirical_metric_requirements": metric_rows}
@@ -26446,12 +26420,11 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         },
     )
 
-    assert len(backend.requests) == 6
+    assert len(backend.requests) == 5
     (
         preflight_request,
         metric_request,
-        first_patch_request,
-        second_patch_request,
+        patch_request,
         review_request,
         architect_request,
     ) = backend.requests
@@ -26463,22 +26436,17 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert metric_request.metadata["json_repair_progress_extension_allowed"] is True
     assert metric_request.model == LIVE_EVALUATION_CLAUDE_MODEL
     assert metric_request.max_tokens == 8000
-    assert first_patch_request.model == LIVE_EVALUATION_CLAUDE_MODEL
-    assert first_patch_request.max_tokens == 8000
-    assert first_patch_request.metadata["json_repair_mode"] == (
+    assert patch_request.model == LIVE_EVALUATION_CLAUDE_MODEL
+    assert patch_request.max_tokens == 8000
+    assert patch_request.metadata["json_repair_mode"] == (
         "typed_semantic_patch"
     )
-    assert first_patch_request.metadata[
+    assert patch_request.metadata[
         "json_repair_progress_extension_attempt"
     ] == 0
-    assert second_patch_request.model == LIVE_EVALUATION_CLAUDE_MODEL
-    assert second_patch_request.max_tokens == 8000
-    assert second_patch_request.metadata["json_repair_mode"] == (
-        "typed_semantic_patch"
-    )
-    assert second_patch_request.metadata[
-        "json_repair_progress_extension_attempt"
-    ] == 0
+    assert patch_request.metadata[
+        "json_repair_semantic_patch_transport_kind"
+    ] == "architect_metric_authority_exact_key_decision_patch_v1"
     assert metric_request.schema["required"] == [
         "empirical_metric_requirements"
     ]
@@ -26577,60 +26545,27 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert "upper versus lower limits" in hard_requirements
     assert "at-most versus at-least counts" in hard_requirements
     assert "Do not emit required_runtime_replicates" in hard_requirements
-    repair_payload = json.loads(
-        second_patch_request.user_prompt.split("\n\n", 1)[1]
+    repair_payload = json.loads(patch_request.user_prompt)
+    repair_decisions = repair_payload[
+        "gate_field_resolution_decisions_by_id"
+    ]
+    assert len(repair_decisions) == 1
+    repair_decision = next(iter(repair_decisions.values()))
+    assert repair_decision["requirement_id"] == (
+        "sequential:simulationengineer:gate"
     )
-    assert any(
-        "cannot authorize threshold=0.25" in error
-        and "runtime will not infer or map the owner" in error
-        for error in repair_payload["local_validation_errors"]
+    assert repair_decision["field"] == "threshold"
+    assert repair_decision["value"] == 0.25
+    assert repair_decision["current_owner"] == "theory_derived"
+    assert repair_decision["source_binding_options"] == []
+    assert repair_decision["allowed_resolutions"] == [
+        "architect_preregistered_design",
+        "diagnostic_only",
+        "remove_requirement",
+    ]
+    assert patch_request.schema["properties"]["decisions"]["required"] == list(
+        repair_decisions
     )
-    repair_context = repair_payload["subsystem_repair_context"]
-    authority_matrix = repair_context["numeric_authority_repair_matrix"]
-    repair_catalog = repair_context["acceptance_authority_catalog"]
-    priority_instructions = " ".join(
-        repair_context["repair_prompt_priority_instructions"]
-    )
-    assert "architect_preregistered_design" in priority_instructions
-    assert "copying the value into theory" in priority_instructions
-    assert "Authority is field-level" in priority_instructions
-    assert "retain valid source authority for other fields" in (
-        priority_instructions
-    )
-    assert repair_context["acceptance_authority_catalog_scope"] == (
-        "numeric_authority_local_slice"
-    )
-    assert repair_context["acceptance_authority_catalog_total_rows"] > len(
-        repair_catalog
-    )
-    assert repair_context["acceptance_authority_catalog_repair_rows"] == len(
-        repair_catalog
-    )
-    assert repair_context["numeric_authority_repair_automatic_selection"] is False
-    assert {row["anchor_id"] for row in repair_catalog} == {
-        "theory#/theorem_cards/0/conclusion"
-    }
-    assert len(authority_matrix) == 1
-    assert authority_matrix[0]["requirement_index"] == 0
-    assert authority_matrix[0][
-        "numeric_gate_fields_without_exact_catalog_match"
-    ] == ["threshold"]
-    assert authority_matrix[0]["automatic_repair_applied"] is False
-    patch_contract = authority_matrix[0][
-        "architect_preregistered_design_patch_contracts"
-    ][0]
-    assert patch_contract["runtime_applies_automatically"] is False
-    assert patch_contract["rationale_only_update_resolves_ownership"] is False
-    assert patch_contract["required_updates_if_selected"][0] == {
-        "path": [
-            "empirical_metric_requirements",
-            0,
-            "gate_field_authorities",
-            0,
-            "authority_kind",
-        ],
-        "replacement": "architect_preregistered_design",
-    }
     assert metric_prompt["metric_evaluation_semantics"]["authoring_example"][
         "threshold"
     ] == 0.10
@@ -26654,7 +26589,17 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     ] is True
     assert packet["metric_requirement_authoring"][
         "llm_json_repair_attempts"
-    ] == 2
+    ] == 1
+    authoring_summary = packet["metric_requirement_authoring"]
+    assert authoring_summary["semantic_patch_transport_kinds"] == [
+        "architect_metric_authority_exact_key_decision_patch_v1"
+    ]
+    assert authoring_summary["semantic_patch_application_rows"][0][
+        "model_selected_resolution"
+    ] == "architect_preregistered_design"
+    assert authoring_summary["semantic_patch_application_rows"][0][
+        "runtime_selected_semantics"
+    ] is False
     assert packet["metric_requirement_authoring"][
         "runtime_owned_requirement_bindings"
     ]["required_runtime_replicates"] == {

@@ -776,6 +776,25 @@ def _architect_metric_requirement_authoring_summary(
     review_history = packet.get("semantic_review_history", [])
     if not isinstance(review_history, list):
         review_history = []
+    semantic_patch_transport_kinds = list(
+        dict.fromkeys(
+            str(row.get("semantic_patch_transport_kind", "") or "").strip()
+            for row in history
+            if isinstance(row, Mapping)
+            and str(
+                row.get("semantic_patch_transport_kind", "") or ""
+            ).strip()
+        )
+    )
+    semantic_patch_application_rows = [
+        dict(application)
+        for row in history
+        if isinstance(row, Mapping)
+        for application in row.get(
+            "semantic_patch_application_rows", []
+        )
+        if isinstance(application, Mapping)
+    ]
     return {
         "artifact_kind": str(packet.get("artifact_kind", "") or ""),
         "packet_id": str(packet.get("packet_id", "") or ""),
@@ -804,6 +823,12 @@ def _architect_metric_requirement_authoring_summary(
         ),
         "llm_json_repair_attempts": int(
             packet.get("llm_json_repair_attempts", 0) or 0
+        ),
+        "semantic_patch_transport_kinds": (
+            semantic_patch_transport_kinds
+        ),
+        "semantic_patch_application_rows": (
+            semantic_patch_application_rows
         ),
         "provider_structured_output_requested": bool(
             response_metadata.get("provider_structured_output_requested")

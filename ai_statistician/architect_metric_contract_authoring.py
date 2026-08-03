@@ -6,6 +6,10 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from .agent_runtime import agent_runtime_substage
+from .architect_metric_authority_patch_transport import (
+    build_metric_authority_semantic_patch_transport,
+    metric_gate_authority_resolution_decisions,
+)
 from .architect_metric_repair_ownership_router_llm import (
     ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED,
     LLMArchitectMetricRepairOwnershipRouterAgent,
@@ -40,6 +44,7 @@ from .generated_metric_contract import (
 )
 from .llm_json_repair import (
     PacketValidationError,
+    SEMANTIC_PATCH_PROGRESS_POLICY_STRICT_RESIDUAL_SET,
     extract_json_object,
     generate_validated_json_packet,
 )
@@ -629,6 +634,12 @@ def _metric_authoring_repair_context(
             acceptance_authority_catalog=acceptance_authority_catalog,
         )
     )
+    gate_field_resolution_decisions_by_id = (
+        metric_gate_authority_resolution_decisions(
+            numeric_authority_repair_matrix,
+            validation_errors=error_rows,
+        )
+    )
     for matrix_row in numeric_authority_repair_matrix:
         unmatched_fields = [
             str(field)
@@ -803,6 +814,9 @@ def _metric_authoring_repair_context(
         repair_catalog_scope = "numeric_authority_local_slice"
 
     context = {
+        "gate_field_resolution_decisions_by_id": (
+            gate_field_resolution_decisions_by_id
+        ),
         "unmatched_gate_resolution_decisions": (
             unmatched_gate_resolution_decisions
         ),
@@ -2078,6 +2092,16 @@ def author_reviewed_architect_metric_requirements(
                             requirement
                         )
                     )
+                (
+                    requirement_rows,
+                    newly_omitted_nonrequired_rows,
+                ) = _confirmatory_metric_requirement_rows(
+                    requirement_rows,
+                    evaluation_mode=evaluation_mode,
+                )
+                omitted_nonrequired_rows.extend(
+                    newly_omitted_nonrequired_rows
+                )
             parent_packet_id = str(
                 prior_authoring_packet.get("packet_id", "") or ""
             )
@@ -2307,7 +2331,13 @@ def author_reviewed_architect_metric_requirements(
                     )
                 ),
                 semantic_patch_repair=True,
+                semantic_patch_transport_builder=(
+                    build_metric_authority_semantic_patch_transport
+                ),
                 allow_progress_repair_extension=True,
+                progress_repair_policy=(
+                    SEMANTIC_PATCH_PROGRESS_POLICY_STRICT_RESIDUAL_SET
+                ),
             )
         authoring_packet_hash = stable_hash(authoring_packet)
         review_material = {

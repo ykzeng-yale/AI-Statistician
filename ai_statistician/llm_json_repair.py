@@ -4,7 +4,7 @@ from copy import deepcopy
 import json
 import math
 import re
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import Any, Callable, Mapping
 
 from .model_backend import GeneratorBackend, GeneratorRequest, GeneratorResponse
@@ -15,6 +15,44 @@ PacketValidator = Callable[[Mapping[str, Any]], list[str]]
 PayloadExtractor = Callable[[str], dict[str, Any]]
 RepairContextBuilder = Callable[..., Mapping[str, Any] | None]
 RetryPromptBuilder = Callable[..., str]
+
+
+SemanticPatchApplyResult = tuple[
+    dict[str, Any],
+    list[list[str | int]],
+    list[dict[str, Any]],
+]
+SemanticPatchEnvelopeApplier = Callable[
+    [Mapping[str, Any]],
+    SemanticPatchApplyResult,
+]
+
+
+@dataclass(frozen=True)
+class SemanticPatchTransport:
+    """Subsystem-owned typed transport for one local semantic repair turn."""
+
+    kind: str
+    prompt: str
+    schema: Mapping[str, Any]
+    apply_envelope: SemanticPatchEnvelopeApplier
+
+
+SemanticPatchTransportBuilder = Callable[..., SemanticPatchTransport | None]
+
+
+SEMANTIC_PATCH_PROGRESS_POLICY_BOUNDED = (
+    "bounded_error_count_or_single_residual_change_v1"
+)
+SEMANTIC_PATCH_PROGRESS_POLICY_STRICT_RESIDUAL_SET = (
+    "strict_residual_error_set_reduction_v1"
+)
+_SEMANTIC_PATCH_PROGRESS_POLICIES = frozenset(
+    {
+        SEMANTIC_PATCH_PROGRESS_POLICY_BOUNDED,
+        SEMANTIC_PATCH_PROGRESS_POLICY_STRICT_RESIDUAL_SET,
+    }
+)
 
 
 _TYPED_SEMANTIC_PATCH_MAX_VALIDATION_ERRORS = 8
@@ -174,7 +212,11 @@ def generate_validated_json_packet(
     repair_context_builder: RepairContextBuilder | None = None,
     retry_prompt_builder: RetryPromptBuilder | None = None,
     semantic_patch_repair: bool = False,
+    semantic_patch_transport_builder: (
+        SemanticPatchTransportBuilder | None
+    ) = None,
     allow_progress_repair_extension: bool = False,
+    progress_repair_policy: str = SEMANTIC_PATCH_PROGRESS_POLICY_BOUNDED,
 ) -> dict[str, Any]:
     """Generate, locally validate, and retry a structured LLM packet.
 
@@ -184,12 +226,18 @@ def generate_validated_json_packet(
     prompts when the packet is malformed or unsafe.
     """
 
+    if progress_repair_policy not in _SEMANTIC_PATCH_PROGRESS_POLICIES:
+        raise ValueError(
+            "unknown semantic patch progress policy: "
+            f"{progress_repair_policy}"
+        )
     original_user_prompt = request.user_prompt
     user_prompt = original_user_prompt
     history: list[dict[str, Any]] = []
     last_errors: list[str] = []
     semantic_patch_base_payload: dict[str, Any] | None = None
     semantic_patch_base_fingerprint = ""
+    semantic_patch_transport: SemanticPatchTransport | None = None
     last_invalid_packet: dict[str, Any] | None = None
     base_attempts = max(0, max_repair_attempts) + 1
     progress_repair_extensions = int(bool(allow_progress_repair_extension))
@@ -220,7 +268,10 @@ def generate_validated_json_packet(
                 user_prompt=user_prompt,
                 max_tokens=request_max_tokens,
                 schema=(
-                    _typed_semantic_patch_schema(
+                    deepcopy(dict(semantic_patch_transport.schema))
+                    if typed_semantic_patch_mode
+                    and semantic_patch_transport is not None
+                    else _typed_semantic_patch_schema(
                         max_updates=typed_semantic_patch_max_updates
                     )
                     if typed_semantic_patch_mode
@@ -236,10 +287,21 @@ def generate_validated_json_packet(
                     "json_repair_progress_extension_allowed": bool(
                         allow_progress_repair_extension
                     ),
+                    "json_repair_progress_extension_policy": (
+                        progress_repair_policy
+                    ),
                     "json_repair_previous_attempt_truncated": truncation_repair_mode,
                     "json_repair_truncation_repair_mode": truncation_repair_mode,
                     "json_repair_request_max_tokens": request_max_tokens,
                     "json_repair_max_updates": typed_semantic_patch_max_updates,
+                    "json_repair_semantic_patch_transport_kind": (
+                        semantic_patch_transport.kind
+                        if typed_semantic_patch_mode
+                        and semantic_patch_transport is not None
+                        else "generic_path_patch"
+                        if typed_semantic_patch_mode
+                        else ""
+                    ),
                     "json_repair_mode": (
                         "typed_semantic_patch"
                         if typed_semantic_patch_mode
@@ -254,7 +316,7 @@ def generate_validated_json_packet(
         payload: dict[str, Any] | None = None
         packet: dict[str, Any] | None = None
         patched_paths: list[list[str | int]] = []
-        patch_path_normalizations: list[dict[str, Any]] = []
+        patch_annotations: list[dict[str, Any]] = []
         patched_payload_fingerprint = ""
         try:
             effective_raw_text = raw_text
@@ -263,16 +325,27 @@ def generate_validated_json_packet(
                     raw_text,
                     label=f"{validation_label} typed semantic patch",
                 )
-                (
-                    payload,
-                    patched_paths,
-                    patch_path_normalizations,
-                ) = _apply_typed_semantic_patch(
-                    base_payload=semantic_patch_base_payload or {},
-                    expected_base_fingerprint=semantic_patch_base_fingerprint,
-                    patch_envelope=patch_envelope,
-                    max_updates=typed_semantic_patch_max_updates,
-                )
+                if semantic_patch_transport is not None:
+                    (
+                        payload,
+                        patched_paths,
+                        patch_annotations,
+                    ) = semantic_patch_transport.apply_envelope(
+                        patch_envelope
+                    )
+                else:
+                    (
+                        payload,
+                        patched_paths,
+                        patch_annotations,
+                    ) = _apply_typed_semantic_patch(
+                        base_payload=semantic_patch_base_payload or {},
+                        expected_base_fingerprint=(
+                            semantic_patch_base_fingerprint
+                        ),
+                        patch_envelope=patch_envelope,
+                        max_updates=typed_semantic_patch_max_updates,
+                    )
                 patched_payload_fingerprint = _stable_payload_fingerprint(payload)
                 effective_raw_text = json.dumps(
                     payload,
@@ -325,6 +398,7 @@ def generate_validated_json_packet(
             "response_text_chars": len(raw_text),
             "request_max_tokens": request_max_tokens,
             "progress_extension_attempt": progress_extension_attempt,
+            "progress_extension_policy": progress_repair_policy,
             "payload_extracted": payload is not None,
             "packet_built": packet is not None,
             "response_metadata": _compact_response_metadata(response.metadata),
@@ -334,8 +408,22 @@ def generate_validated_json_packet(
                 {
                     "base_payload_fingerprint": semantic_patch_base_fingerprint,
                     "patched_paths": patched_paths,
-                    "patch_path_normalizations": patch_path_normalizations,
+                    "patch_path_normalizations": (
+                        []
+                        if semantic_patch_transport is not None
+                        else patch_annotations
+                    ),
+                    "semantic_patch_application_rows": (
+                        patch_annotations
+                        if semantic_patch_transport is not None
+                        else []
+                    ),
                     "patched_payload_fingerprint": patched_payload_fingerprint,
+                    "semantic_patch_transport_kind": (
+                        semantic_patch_transport.kind
+                        if semantic_patch_transport is not None
+                        else "generic_path_patch"
+                    ),
                 }
             )
         history.append(history_row)
@@ -345,12 +433,24 @@ def generate_validated_json_packet(
             packet["llm_json_repair_attempts"] = attempt_index
             packet["llm_json_repair_history"] = history
             return packet
-        if (
-            attempt_index >= base_attempts - 1
-            and attempt_index < attempts - 1
-            and not _typed_semantic_patch_history_made_strict_progress(history)
-        ):
-            break
+        if attempt_index < attempts - 1:
+            strict_patch_progress_required = bool(
+                progress_repair_policy
+                == SEMANTIC_PATCH_PROGRESS_POLICY_STRICT_RESIDUAL_SET
+                and history[-1].get("repair_mode")
+                == "typed_semantic_patch"
+            )
+            extension_progress_required = (
+                attempt_index >= base_attempts - 1
+            )
+            if (
+                strict_patch_progress_required
+                or extension_progress_required
+            ) and not _typed_semantic_patch_history_made_policy_progress(
+                history,
+                progress_repair_policy=progress_repair_policy,
+            ):
+                break
         if attempt_index < attempts - 1:
             repair_context = (
                 repair_context_builder(
@@ -386,23 +486,54 @@ def generate_validated_json_packet(
                 semantic_patch_base_fingerprint = _stable_payload_fingerprint(
                     semantic_patch_base_payload
                 )
-                user_prompt = _typed_semantic_patch_prompt(
-                    original_user_prompt=original_user_prompt,
-                    errors=last_errors,
-                    validation_label=validation_label,
-                    base_payload=semantic_patch_base_payload,
-                    base_payload_fingerprint=semantic_patch_base_fingerprint,
-                    repair_context=repair_context,
-                    max_updates=_typed_semantic_patch_update_budget(last_errors),
-                    source_schema=(
-                        request.schema
-                        if isinstance(request.schema, Mapping)
-                        else None
-                    ),
+                semantic_patch_transport = (
+                    semantic_patch_transport_builder(
+                        original_user_prompt=original_user_prompt,
+                        errors=last_errors,
+                        validation_label=validation_label,
+                        base_payload=semantic_patch_base_payload,
+                        base_payload_fingerprint=(
+                            semantic_patch_base_fingerprint
+                        ),
+                        repair_context=repair_context,
+                        max_updates=_typed_semantic_patch_update_budget(
+                            last_errors
+                        ),
+                        source_schema=(
+                            request.schema
+                            if isinstance(request.schema, Mapping)
+                            else None
+                        ),
+                    )
+                    if semantic_patch_transport_builder is not None
+                    else None
+                )
+                user_prompt = (
+                    semantic_patch_transport.prompt
+                    if semantic_patch_transport is not None
+                    else _typed_semantic_patch_prompt(
+                        original_user_prompt=original_user_prompt,
+                        errors=last_errors,
+                        validation_label=validation_label,
+                        base_payload=semantic_patch_base_payload,
+                        base_payload_fingerprint=(
+                            semantic_patch_base_fingerprint
+                        ),
+                        repair_context=repair_context,
+                        max_updates=_typed_semantic_patch_update_budget(
+                            last_errors
+                        ),
+                        source_schema=(
+                            request.schema
+                            if isinstance(request.schema, Mapping)
+                            else None
+                        ),
+                    )
                 )
             else:
                 semantic_patch_base_payload = None
                 semantic_patch_base_fingerprint = ""
+                semantic_patch_transport = None
                 retry_prompt_kwargs = {
                     "original_user_prompt": original_user_prompt,
                     "bad_response": raw_text,
@@ -425,8 +556,10 @@ def generate_validated_json_packet(
     )
 
 
-def _typed_semantic_patch_history_made_strict_progress(
+def _typed_semantic_patch_history_made_policy_progress(
     history: list[dict[str, Any]],
+    *,
+    progress_repair_policy: str,
 ) -> bool:
     """Allow one opt-in extension after bounded, machine-observable progress."""
 
@@ -436,6 +569,12 @@ def _typed_semantic_patch_history_made_strict_progress(
     current = history[-1]
     previous_errors = previous.get("errors", [])
     current_errors = current.get("errors", [])
+    previous_error_set = {
+        str(error) for error in previous_errors
+    } if isinstance(previous_errors, list) else set()
+    current_error_set = {
+        str(error) for error in current_errors
+    } if isinstance(current_errors, list) else set()
     changed_single_residual = bool(
         isinstance(previous_errors, list)
         and isinstance(current_errors, list)
@@ -443,15 +582,21 @@ def _typed_semantic_patch_history_made_strict_progress(
         and len(current_errors) == 1
         and previous_errors != current_errors
     )
+    residual_errors_made_progress = (
+        bool(current_error_set < previous_error_set)
+        if progress_repair_policy
+        == SEMANTIC_PATCH_PROGRESS_POLICY_STRICT_RESIDUAL_SET
+        else bool(
+            len(current_errors) < len(previous_errors)
+            or changed_single_residual
+        )
+    )
     patch_made_progress = bool(
         current.get("repair_mode") == "typed_semantic_patch"
         and isinstance(previous_errors, list)
         and isinstance(current_errors, list)
         and current_errors
-        and (
-            len(current_errors) < len(previous_errors)
-            or changed_single_residual
-        )
+        and residual_errors_made_progress
         and current.get("patched_paths")
         and not any(
             str(error).startswith("typed semantic patch repair failed:")

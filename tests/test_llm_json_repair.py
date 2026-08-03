@@ -6,6 +6,7 @@ import pytest
 
 from ai_statistician.llm_json_repair import (
     PacketValidationError,
+    SEMANTIC_PATCH_PROGRESS_POLICY_STRICT_RESIDUAL_SET,
     _apply_typed_semantic_patch,
     _compact_response_metadata,
     _format_generation_error,
@@ -635,7 +636,7 @@ def test_progress_extension_stops_when_patch_makes_no_progress() -> None:
     )
 
 
-def test_progress_extension_allows_one_changed_single_residual() -> None:
+def test_progress_extension_rejects_changed_single_residual() -> None:
     class ChangedResidualBackend:
         provider_name = "test"
 
@@ -681,35 +682,42 @@ def test_progress_extension_allows_one_changed_single_residual() -> None:
         return ["numeric bound is absent from the evaluation design"]
 
     backend = ChangedResidualBackend()
-    packet = generate_validated_json_packet(
-        provider=backend,
-        request=GeneratorRequest(
-            system_prompt="Return JSON.",
-            user_prompt="Assign a valid numeric authority owner.",
-            model="test-haiku",
-            max_tokens=5000,
-            schema={"type": "object"},
-        ),
-        extract_payload=lambda text: extract_json_object(
-            text,
-            label="numeric authority packet",
-        ),
-        build_packet=lambda payload, response, raw_text: dict(payload),
-        validate_packet=validate,
-        validation_label="numeric authority packet",
-        max_repair_attempts=1,
-        semantic_patch_repair=True,
-        allow_progress_repair_extension=True,
-    )
+    with pytest.raises(PacketValidationError) as caught:
+        generate_validated_json_packet(
+            provider=backend,
+            request=GeneratorRequest(
+                system_prompt="Return JSON.",
+                user_prompt="Assign a valid numeric authority owner.",
+                model="test-haiku",
+                max_tokens=5000,
+                schema={"type": "object"},
+            ),
+            extract_payload=lambda text: extract_json_object(
+                text,
+                label="numeric authority packet",
+            ),
+            build_packet=lambda payload, response, raw_text: dict(payload),
+            validate_packet=validate,
+            validation_label="numeric authority packet",
+            max_repair_attempts=2,
+            semantic_patch_repair=True,
+            allow_progress_repair_extension=True,
+            progress_repair_policy=(
+                SEMANTIC_PATCH_PROGRESS_POLICY_STRICT_RESIDUAL_SET
+            ),
+        )
 
-    assert packet["authority_kind"] == "architect_preregistered_design"
-    assert len(backend.requests) == 3
+    assert caught.value.attempts == 2
+    assert len(backend.requests) == 2
+    assert caught.value.errors == [
+        "theory_derived cannot authorize the numeric bound"
+    ]
     assert [
         row["progress_extension_attempt"]
-        for row in packet["llm_json_repair_history"]
-    ] == [0, 0, 1]
-    assert packet["llm_json_repair_history"][0]["errors"] != (
-        packet["llm_json_repair_history"][1]["errors"]
+        for row in caught.value.history
+    ] == [0, 0]
+    assert caught.value.history[0]["errors"] != (
+        caught.value.history[1]["errors"]
     )
 
 
