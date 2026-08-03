@@ -2155,7 +2155,8 @@ def test_theory_developer_preserves_metric_protocol_revision_lineage() -> None:
     assert parent_theory_packet["theory_derivation_packet"]["equation_chain"][0][
         "step_id"
     ] in revision_prompt
-    assert "Paths are relative to base_core_payload" in revision_prompt
+    assert "make relative_path start inside that section" in revision_prompt
+    assert "runtime binds the immutable parent fingerprint" in revision_prompt
     result = TheoryDeveloperRuntimeSubsystem(
         theory_developer=StaticTheoryDeveloper(),  # type: ignore[arg-type]
         n_runs=17,

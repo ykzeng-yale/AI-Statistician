@@ -2856,17 +2856,85 @@ def _theory_revision_feedback_decision_contract(
 def _theory_revision_envelope_json_schema(
     decision_contract: Mapping[str, Any],
 ) -> dict[str, Any]:
+    valid_sections = [
+        str(value)
+        for value in decision_contract.get("valid_top_level_sections", []) or []
+        if str(value).strip()
+    ]
+    if not valid_sections:
+        raise ValueError(
+            "theory revision envelope requires at least one editable section"
+        )
     schema = typed_semantic_patch_schema(
         max_updates=THEORY_REVISION_PATCH_MAX_UPDATES
     )
-    schema["required"] = [
-        *list(schema.get("required", []) or []),
-        "feedback_decisions",
-    ]
+    schema["required"] = ["feedback_decisions", "updates"]
+    schema["properties"].pop("base_payload_fingerprint", None)
     schema["properties"]["feedback_decisions"] = deepcopy(
         dict(decision_contract.get("feedback_decisions_schema", {}) or {})
     )
+    update_variants = schema["properties"]["updates"]["items"]["anyOf"]
+    for variant in update_variants:
+        properties = variant["properties"]
+        relative_path_schema = deepcopy(properties.pop("path"))
+        relative_path_schema["minItems"] = 0
+        properties["section"] = {
+            "type": "string",
+            "enum": valid_sections,
+        }
+        properties["relative_path"] = relative_path_schema
+        variant["required"] = [
+            "section",
+            "relative_path",
+            *[
+                field
+                for field in ("replacement", "replacement_json")
+                if field in properties
+            ],
+        ]
     return schema
+
+
+def _bind_theory_revision_patch_envelope(
+    raw_payload: Mapping[str, Any],
+    *,
+    base_core_payload: Mapping[str, Any],
+    base_fingerprint: str,
+) -> dict[str, Any]:
+    """Bind model-authored section-relative edits to runtime-owned lineage."""
+
+    raw_updates = raw_payload.get("updates", [])
+    if not isinstance(raw_updates, list):
+        raise ValueError("theory revision updates must be an array")
+    updates: list[dict[str, Any]] = []
+    for update_index, raw_update in enumerate(raw_updates):
+        if not isinstance(raw_update, Mapping):
+            raise ValueError(
+                f"theory revision update {update_index} must be an object"
+            )
+        section = raw_update.get("section")
+        if not isinstance(section, str) or section not in base_core_payload:
+            raise ValueError(
+                f"theory revision update {update_index} section must be one "
+                "existing top-level theory section"
+            )
+        relative_path = raw_update.get("relative_path")
+        if not isinstance(relative_path, list):
+            raise ValueError(
+                f"theory revision update {update_index} relative_path must be an array"
+            )
+        update = {
+            "path": [section, *relative_path],
+        }
+        if "replacement" in raw_update:
+            update["replacement"] = raw_update["replacement"]
+        if "replacement_json" in raw_update:
+            update["replacement_json"] = raw_update["replacement_json"]
+        updates.append(update)
+    return {
+        "base_payload_fingerprint": base_fingerprint,
+        "updates": updates,
+    }
 
 
 def _validate_theory_revision_feedback_decisions(
@@ -3027,21 +3095,23 @@ def _build_targeted_theory_revision_prompt(
         ),
         "base_core_payload": base_core_payload,
         "patch_contract": {
-            "base_payload_fingerprint": (
-                "copy lineage.base_core_payload_fingerprint exactly"
+            "lineage_binding": (
+                "runtime binds every update to the immutable base fingerprint"
             ),
             "updates": [
                 {
-                    "path": ["problem_card", "assumptions"],
+                    "section": "problem_card",
+                    "relative_path": ["assumptions"],
                     "replacement_json": "JSON-encoded replacement array",
                 },
                 {
-                    "path": ["theory_derivation_packet", "equation_chain", 0, "rhs"],
+                    "section": "theory_derivation_packet",
+                    "relative_path": ["equation_chain", 0, "rhs"],
                     "replacement": "replacement scalar",
                 },
             ],
             "maximum_updates": THEORY_REVISION_PATCH_MAX_UPDATES,
-            "valid_top_level_path_keys": valid_top_level_path_keys,
+            "valid_sections": valid_top_level_path_keys,
             "existing_paths_only": True,
             "feedback_decisions": (
                 "one exact-key semantic decision object for every "
@@ -3049,8 +3119,8 @@ def _build_targeted_theory_revision_prompt(
             ),
         },
         "revision_instructions": [
-            "Return one typed revision envelope containing feedback_decisions, base_payload_fingerprint, and updates; never regenerate the full theory packet.",
-            "Copy base_payload_fingerprint exactly and update only defective fields plus their direct semantic dependents.",
+            "Return one typed revision envelope containing feedback_decisions and updates; never regenerate the full theory packet.",
+            "The runtime binds the immutable parent fingerprint; update only defective fields plus their direct semantic dependents.",
             "Every unmentioned field is immutable and will be preserved byte-for-structure by the runtime.",
             "Derive replacements from the primitive DGP, estimand, and theorem hypotheses; reviewer prose is diagnostic evidence, not an answer key.",
             "For every exact routed_findings_by_decision_key key, emit one feedback_decisions entry choosing one current executable semantic resolution and listing genuinely rejected alternatives.",
@@ -3060,9 +3130,9 @@ def _build_targeted_theory_revision_prompt(
             "Recompute guarantee-carrying identities and check data-dependent operations, finite typed returns, and guarantee transport where the feedback makes them relevant.",
             "For a structural correction, replace the smallest complete semantic section using replacement_json; do not scatter cosmetic leaf edits.",
             "Use replacement only for a JSON scalar and replacement_json for every object or array.",
-            "Paths are relative to base_core_payload and may not target runtime metadata, lineage, evidence status, model fields, packet ids, or kernel status.",
-            "The first path component must be one exact valid_top_level_path_keys value; top-level siblings may not be nested under theory_derivation_packet or another section.",
-            "Every complete path must already exist in base_core_payload; replace an existing section or leaf instead of inventing a new field.",
+            "Choose section from valid_sections, then make relative_path start inside that section; never repeat section in relative_path or put a top-level sibling there.",
+            "Use an empty relative_path only to replace the selected whole section. The combined section-relative path must already exist in base_core_payload.",
+            "Updates may not target runtime metadata, lineage, evidence status, model fields, packet ids, or kernel status.",
             "Resolve repaired critic findings instead of preserving them as unresolved; retain genuinely open risks explicitly.",
             "Do not invent code execution, simulation results, source matches, Lean diagnostics, or proof evidence.",
         ],
@@ -3189,11 +3259,16 @@ def _generate_targeted_theory_revision(
             if isinstance(feedback_decisions, Mapping)
             else {}
         )
+        bound_patch_envelope = _bind_theory_revision_patch_envelope(
+            raw_payload,
+            base_core_payload=base_core_payload,
+            base_fingerprint=base_fingerprint,
+        )
         patched_payload, applied_paths, path_normalizations = (
             apply_typed_semantic_patch(
                 base_payload=base_core_payload,
                 expected_base_fingerprint=base_fingerprint,
-                patch_envelope=raw_payload,
+                patch_envelope=bound_patch_envelope,
                 max_updates=THEORY_REVISION_PATCH_MAX_UPDATES,
                 allow_new_object_keys=False,
             )

@@ -1014,13 +1014,13 @@ def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -
     )
     base_fingerprint = revision_inputs["base_core_payload_fingerprint"]
     invalid_patch = {
-        "base_payload_fingerprint": base_fingerprint,
         "feedback_decisions": _bounded_outcome_feedback_decisions(),
         "updates": [
             {
-                "path": ["theory_derivation_packet", "missing_section"],
+                "section": "theory_derivation_packet",
+                "relative_path": ["theorem_cards", 0, "informal_statement"],
                 "replacement_json": json.dumps(
-                    ["A path outside the immutable parent contract."]
+                    "A top-level sibling cannot be addressed inside this section."
                 ),
             }
         ],
@@ -1030,11 +1030,12 @@ def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -
         "bounded outcomes",
     ]
     valid_patch = {
-        "base_payload_fingerprint": base_fingerprint,
+        "base_payload_fingerprint": "model-value-is-not-authoritative",
         "feedback_decisions": _bounded_outcome_feedback_decisions(),
         "updates": [
             {
-                "path": ["problem_card", "assumptions"],
+                "section": "problem_card",
+                "relative_path": ["assumptions"],
                 "replacement_json": json.dumps(revised_assumptions),
             }
         ],
@@ -1080,10 +1081,25 @@ def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -
     )
     assert first_request.max_tokens <= 8000
     assert set(first_request.schema["properties"]) == {
-        "base_payload_fingerprint",
         "feedback_decisions",
         "updates",
     }
+    update_variants = first_request.schema["properties"]["updates"]["items"][
+        "anyOf"
+    ]
+    assert all(
+        set(variant["required"])
+        in (
+            {"section", "relative_path", "replacement"},
+            {"section", "relative_path", "replacement_json"},
+        )
+        for variant in update_variants
+    )
+    assert all(
+        variant["properties"]["section"]["enum"]
+        == sorted(revision_inputs["base_core_payload"])
+        for variant in update_variants
+    )
     decision_schema = first_request.schema["properties"][
         "feedback_decisions"
     ]["properties"]["metric_protocol_finding:bounded-outcome"]
@@ -1091,7 +1107,10 @@ def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -
     assert "never regenerate the full theory packet" in first_request.user_prompt
     assert "preserved byte-for-structure" in first_request.user_prompt
     assert '"existing_paths_only":true' in first_request.user_prompt
-    assert '"valid_top_level_path_keys"' in first_request.user_prompt
+    assert '"valid_sections"' in first_request.user_prompt
+    assert "runtime binds the immutable parent fingerprint" in (
+        first_request.user_prompt
+    )
     revision_prompt = json.loads(first_request.user_prompt.split("\n\n", 1)[1])
     decision_contract = revision_prompt["feedback_decision_contract"]
     assert decision_contract["n_routed_findings"] == 1
@@ -1109,7 +1128,13 @@ def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -
     ] is True
     assert first_request.metadata["n_feedback_decisions_required"] == 1
     assert "original immutable base" in retry_request.user_prompt
-    assert "may replace only an existing object key" in retry_request.user_prompt
+    retry_prompt = json.loads(retry_request.user_prompt.split("\n\n", 1)[1])
+    assert any(
+        "full_path=['theory_derivation_packet', 'theorem_cards', 0, "
+        "'informal_statement']" in error
+        and "available_keys=['assumption_ledger'" in error
+        for error in retry_prompt["local_validation_errors"]
+    )
     assert retry_request.metadata["json_repair_attempt"] == 1
     assert interface_request.metadata["theory_developer_phase"] == (
         "estimator_interface_authoring"
@@ -1255,13 +1280,11 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
         question=question,
     )
     core_patch = {
-        "base_payload_fingerprint": revision_inputs[
-            "base_core_payload_fingerprint"
-        ],
         "feedback_decisions": _bounded_outcome_feedback_decisions(),
         "updates": [
             {
-                "path": ["problem_card", "assumptions"],
+                "section": "problem_card",
+                "relative_path": ["assumptions"],
                 "replacement_json": json.dumps(
                     [*parent["problem_card"]["assumptions"], "bounded outcomes"]
                 ),
