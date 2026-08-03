@@ -12,6 +12,7 @@ from ai_statistician.agent_runtime import (
     BlackboardState,
 )
 from ai_statistician.fingerprint import stable_hash
+from ai_statistician.formalizer_llm import build_formalizer_prompt
 from ai_statistician.model_backend import GeneratorRequest, GeneratorResponse
 from ai_statistician.pseudo_formal_block_verifier_runtime_worker import (
     PSEUDO_FORMAL_BLOCK_VERIFIER_INDEPENDENCE_CONTRACT,
@@ -20,6 +21,7 @@ from ai_statistician.pseudo_formal_block_verifier_runtime_worker import (
     PSEUDO_FORMAL_BLOCK_VERIFIER_RUNTIME_WORK_ORDER_NOT_PROOF_EVIDENCE,
     PSEUDO_FORMAL_BLOCK_VERIFIER_SUBSYSTEM,
     PseudoFormalBlockVerifierRuntimeWorker,
+    pseudo_formal_block_verifier_feedback_task_errors,
 )
 from ai_statistician.research_paper_index import build_paper_source_index
 from ai_statistician.pseudo_formal_block_verifier_worker import (
@@ -35,10 +37,13 @@ from ai_statistician.pseudo_formalization import (
     PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
 )
 from ai_statistician.research_agent_runtime import (
+    FormalizationEvaluatorRuntimeSubsystem,
     ResearchAgentRuntimeConfig,
+    _formalizer_proof_bank_runtime_memory_summary,
     _formalizer_pseudo_formal_work_order_rows,
     _runtime_pseudo_formal_block_verifier_dispatch_task,
     _runtime_pseudo_formal_block_verifier_work_order,
+    _runtime_repeated_pseudo_formal_block_verifier_rows,
 )
 from ai_statistician.research_agent_runtime_audit import (
     _runtime_capability_scorecard,
@@ -236,14 +241,20 @@ def test_formalizer_needs_review_root_reaches_independent_worker(
 
 def _runtime_fixture(
     tmp_path: Path,
+    *,
+    request_row: Mapping[str, Any] | None = None,
 ) -> tuple[
     PseudoFormalBlockVerifierRuntimeWorker,
     AgentTask,
     BlackboardState,
     _PromptBoundVerifierBackend,
 ]:
-    question = {"id": "generic_exchangeability", "title": "Generic rank"}
-    row = _request_row()
+    question = {
+        "id": "generic_exchangeability",
+        "title": "Generic rank",
+        "description": "Check a rank identity under exchangeability.",
+    }
+    row = dict(request_row) if isinstance(request_row, Mapping) else _request_row()
     source_manifest = {
         "artifact_kind": "RuntimeFormalizationManifest",
         "manifest_id": "formalization-manifest:1",
@@ -275,7 +286,7 @@ def _runtime_fixture(
     policy = {
         "provider_name": "static",
         "model": "",
-        "model_tier": "sonnet",
+        "model_tier": "haiku",
         "max_packets": 8,
         "max_tokens": 2000,
         "temperature": 0.0,
@@ -375,6 +386,12 @@ def test_runtime_worker_returns_feedback_to_proofengineer_memory(
     assert result.status == "REVISE"
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "ProofEngineer"
+    blackboard.artifacts.update(result.produced_artifacts)
+    assert pseudo_formal_block_verifier_feedback_task_errors(
+        result.next_task,
+        blackboard,
+        question_id="generic_exchangeability",
+    ) == []
     memory = result.next_task.inputs["architect_context"][
         "runtime_learning_memory"
     ]
@@ -390,7 +407,116 @@ def test_runtime_worker_returns_feedback_to_proofengineer_memory(
     assert execution["execution_contract_satisfied"] is True
     assert execution["capability_evidence_ok"] is False
     assert execution["kernel_verified"] is False
+    contract = result.next_task.inputs[
+        "pseudo_formal_block_verifier_feedback_contract"
+    ]
+    assert contract["runtime_work_order_id"] == task.inputs[
+        "pseudo_formal_block_verifier_work_order_id"
+    ]
+    assert contract["runtime_turn_id"] in result.produced_artifacts
+    assert contract["feedback_row_hashes"] == [stable_hash(memory["rows"][0])]
+    assert contract["contract_fingerprint"] == execution[
+        "feedback_contract_fingerprint"
+    ]
     assert len(backend.requests) == 1
+
+
+def test_faithfulness_review_feedback_reaches_real_formalizer_prompt(
+    tmp_path: Path,
+) -> None:
+    review_row = _request_row()
+    review_row["row_kind"] = PSEUDO_FORMAL_FAITHFULNESS_REVIEW_ROW_KIND
+    worker, task, blackboard, _backend = _runtime_fixture(
+        tmp_path,
+        request_row=review_row,
+    )
+
+    result = worker.run(task, blackboard)
+
+    assert result.next_task is not None
+    context = result.next_task.inputs["architect_context"]
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context=context,
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+    assert summary[
+        "pseudo_formal_independent_block_verification_feedback_active"
+    ] is True
+    assert summary[
+        "pseudo_formal_independent_block_verification_verdicts"
+    ] == ["accepted"]
+    assert summary[
+        "pseudo_formal_independent_block_verification_feedback_memory"
+    ][0]["row_kind"] == PSEUDO_FORMAL_FAITHFULNESS_REVIEW_ROW_KIND
+    assert len(
+        _runtime_repeated_pseudo_formal_block_verifier_rows(
+            [review_row],
+            summary,
+        )
+    ) == 1
+    revised_row = {
+        **review_row,
+        "source_block_proof_text": (
+            review_row["source_block_proof_text"]
+            + " The revised argument also checks the boundary rank."
+        ),
+    }
+    assert _runtime_repeated_pseudo_formal_block_verifier_rows(
+        [revised_row],
+        summary,
+    ) == []
+
+    prompt = build_formalizer_prompt(
+        question=OpenResearchQuestion(
+            id="generic_exchangeability",
+            title="Generic rank",
+            description="Check a rank identity under exchangeability.",
+        ),
+        theory_packet={},
+        simulation_manifest={},
+        algorithm_manifest={},
+        registered_problem={},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=summary,
+        environment_feedback=result.next_task.inputs["environment_feedback"],
+    )
+    assert "Independent pseudo-formal block-verifier feedback is available" in prompt
+    assert "RuntimePseudoFormalBlockVerifierFeedbackContract" in prompt
+    assert "pseudo_formal_faithfulness_review" in prompt
+
+
+def test_formalizer_rejects_tampered_pf_bv_parent_before_model_call(
+    tmp_path: Path,
+) -> None:
+    worker, task, blackboard, _backend = _runtime_fixture(tmp_path)
+    result = worker.run(task, blackboard)
+    assert result.next_task is not None
+    blackboard.artifacts.update(result.produced_artifacts)
+    source_manifest_id = result.next_task.inputs[
+        "pseudo_formal_block_verifier_feedback_contract"
+    ]["source_formalization_manifest_id"]
+    blackboard.artifacts[source_manifest_id] = {
+        **blackboard.artifacts[source_manifest_id],
+        "tampered": True,
+    }
+
+    class MustNotRunProposalAgent:
+        def propose(self, **_kwargs: Any) -> Any:
+            raise AssertionError("model must not run for invalid feedback lineage")
+
+    outcome = FormalizationEvaluatorRuntimeSubsystem(
+        proposal_agent=MustNotRunProposalAgent(),
+    ).run(result.next_task, blackboard)
+
+    assert outcome.status == "BLOCKED"
+    assert outcome.failure_classification == (
+        "pseudo_formal_block_verifier_feedback_binding_failed"
+    )
+    assert "source manifest hash mismatch" in outcome.observations[0].summary
 
 
 def test_runtime_worker_routes_provider_failure_to_critic(tmp_path: Path) -> None:
@@ -428,9 +554,9 @@ def test_typed_runtime_executes_verifier_then_proofengineer_in_same_loop(
             assert feedback[
                 "pseudo_formal_independent_block_verification_feedback_active"
             ] is True
-            assert feedback["pseudo_formal_block_verification_verdicts"] == [
-                "accepted"
-            ]
+            assert feedback[
+                "pseudo_formal_independent_block_verification_verdicts"
+            ] == ["accepted"]
             return AgentStepResult(
                 status="COMPLETED",
                 rationale="ProofEngineer consumed the bounded verifier feedback.",
@@ -724,6 +850,7 @@ def test_formalizer_dispatch_builds_hash_bound_runtime_work_order() -> None:
     assert work_order["source_formalization_manifest_hash"] == stable_hash(manifest)
     assert work_order["work_order_row_hashes"] == [stable_hash(_request_row())]
     assert work_order["execution_policy"]["max_packets"] == 4
+    assert work_order["execution_policy"]["model_tier"] == "haiku"
     assert work_order["kernel_verified"] is False
     assert dispatch.owner_subsystem == PSEUDO_FORMAL_BLOCK_VERIFIER_SUBSYSTEM
     assert dispatch.inputs["pseudo_formal_block_verifier_work_order_hash"] == (

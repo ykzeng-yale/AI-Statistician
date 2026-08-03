@@ -253,7 +253,7 @@ def export_pseudo_formal_block_verifier_llm_responses(
     provider: GeneratorBackend,
     provider_name: str = "anthropic",
     model: str = "",
-    model_tier: str = "sonnet",
+    model_tier: str = LIVE_EVALUATION_CLAUDE_MODEL_TIER,
     max_packets: int = 20,
     max_tokens: int = 2000,
     temperature: float = 0.0,
@@ -364,6 +364,60 @@ def pseudo_formal_block_verifier_request_rows(
     return request_rows
 
 
+def pseudo_formal_block_verifier_review_content_fingerprint(
+    row: Mapping[str, Any],
+) -> str:
+    """Fingerprint only the bounded context judged by the independent reviewer."""
+
+    input_summary = _input_summary(row)
+    return stable_hash(
+        {
+            "question_id": str(
+                row.get("question_id", "")
+                or input_summary.get("question_id", "")
+                or ""
+            ),
+            "target_theorem_name": str(
+                row.get("target_theorem_name", "")
+                or input_summary.get("target_theorem_name", "")
+                or row.get("source_theorem_id", "")
+                or input_summary.get("source_theorem_id", "")
+                or ""
+            ),
+            "source_block_conclusion": str(
+                row.get("source_block_conclusion", "")
+                or input_summary.get("source_block_conclusion", "")
+                or ""
+            ),
+            "source_block_premises": _string_list_value(
+                row,
+                input_summary,
+                "source_block_premises",
+            ),
+            "inherited_scope": _string_list_value(
+                row,
+                input_summary,
+                "inherited_scope",
+            ),
+            "dependency_statement_context": _mapping_list_value(
+                row,
+                input_summary,
+                "dependency_statement_context",
+            ),
+            "source_block_proof_text": str(
+                row.get("source_block_proof_text", "")
+                or input_summary.get("source_block_proof_text", "")
+                or ""
+            ),
+            "source_anchors": _mapping_list_value(
+                row,
+                input_summary,
+                "source_anchors",
+            ),
+        }
+    )
+
+
 def _pseudo_formal_review_outcome_counts(
     validation_rows: Sequence[Mapping[str, Any]],
 ) -> dict[str, int]:
@@ -430,7 +484,7 @@ def run_pseudo_formal_block_verifier_rows(
     provider: GeneratorBackend,
     provider_name: str = "anthropic",
     model: str = "",
-    model_tier: str = "sonnet",
+    model_tier: str = LIVE_EVALUATION_CLAUDE_MODEL_TIER,
     max_packets: int = 20,
     max_tokens: int = 2000,
     temperature: float = 0.0,
@@ -994,6 +1048,9 @@ def _prompt_packet_from_request(row: Mapping[str, Any]) -> dict[str, Any]:
         "source_block_proof_text": proof_text,
         "source_anchors": source_anchors,
         "source_request_row_kind": source_request_row_kind,
+        "review_content_fingerprint": (
+            pseudo_formal_block_verifier_review_content_fingerprint(row)
+        ),
         "strictness_threshold": _strictness_threshold(row, input_summary),
         "aggregation_rule": PSEUDO_FORMAL_DEFAULT_AGGREGATION_RULE,
         "system_prompt": PSEUDO_FORMAL_BLOCK_VERIFIER_SYSTEM_PROMPT,
@@ -1250,6 +1307,9 @@ def _runtime_learning_row_from_response(
         "independent_block_verification_completed": True,
         "block_verifier_feedback_id": verifier_feedback_id,
         "block_verifier_prompt_packet_id": str(packet.get("prompt_packet_id", "") or ""),
+        "block_verifier_review_content_fingerprint": str(
+            packet.get("review_content_fingerprint", "") or ""
+        ),
         "bv_calibration": {
             "strictness_threshold": str(
                 block_verification.get(
@@ -1285,6 +1345,9 @@ def _runtime_learning_row_from_response(
         "input_summary": {
             "trigger": PSEUDO_FORMAL_BLOCK_VERIFIER_FEEDBACK_TRIGGER,
             "prompt_packet_id": str(packet.get("prompt_packet_id", "") or ""),
+            "review_content_fingerprint": str(
+                packet.get("review_content_fingerprint", "") or ""
+            ),
             "work_order_id": work_order_id,
             "row_kind": source_request_row_kind,
             "target_lane": PSEUDO_FORMAL_TARGET_LANE_FORMAL_GAP,

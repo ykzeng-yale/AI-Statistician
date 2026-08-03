@@ -1028,13 +1028,13 @@ def test_pseudo_formal_block_verifier_llm_responses_use_generator_backend(
         provider=provider,
         provider_name="static",
         model="static",
-        model_tier="sonnet",
         max_packets=1,
     )
 
     assert llm_manifest["all_ok"] is True
     assert llm_manifest["n_ok_responses"] == 1
     assert llm_manifest["provider_name"] == "static"
+    assert llm_manifest["model_tier"] == LIVE_EVALUATION_CLAUDE_MODEL_TIER
     response = llm_manifest["responses"][0]
     assert response["prompt_packet_id"] == packet["prompt_packet_id"]
     assert response["block_verification"]["verdict"] == "accepted"

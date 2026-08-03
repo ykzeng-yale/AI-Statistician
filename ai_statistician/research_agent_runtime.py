@@ -323,6 +323,7 @@ from .proof_state_feedback import (
     proof_state_feedback_row_to_json,
 )
 from .pseudo_formalization import (
+    PSEUDO_FORMAL_FAITHFULNESS_REVIEW_ROW_KIND,
     PSEUDO_FORMAL_STRUCTURAL_DECOMPOSITION_REQUEST_ROW_KIND,
     PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
     PSEUDO_FORMAL_BLOCK_ROUTING_HIGH_PRIORITY_TARGET_LANES,
@@ -492,9 +493,12 @@ from .pseudo_formal_block_verifier_runtime_worker import (
     PSEUDO_FORMAL_BLOCK_VERIFIER_RUNTIME_WORK_ORDER_NOT_PROOF_EVIDENCE,
     PSEUDO_FORMAL_BLOCK_VERIFIER_SUBSYSTEM,
     PseudoFormalBlockVerifierRuntimeWorker,
+    pseudo_formal_block_verifier_feedback_binding_failure_result,
+    pseudo_formal_block_verifier_feedback_task_errors,
 )
 from .pseudo_formal_block_verifier_worker import (
     pseudo_formal_block_verifier_request_rows,
+    pseudo_formal_block_verifier_review_content_fingerprint,
 )
 from .source_theorem_promotion_runtime_worker import (
     SOURCE_THEOREM_PROMOTION_RUNTIME_EXECUTION_KIND,
@@ -6985,7 +6989,9 @@ class ResearchAgentRuntimeConfig:
     formalizer_candidate_lean_timeout: int = 30
     pseudo_formal_block_verifier_runtime: bool = False
     pseudo_formal_block_verifier_runtime_model: str = ""
-    pseudo_formal_block_verifier_runtime_model_tier: str = "sonnet"
+    pseudo_formal_block_verifier_runtime_model_tier: str = (
+        LIVE_EVALUATION_CLAUDE_MODEL_TIER
+    )
     pseudo_formal_block_verifier_runtime_max_packets: int = 8
     pseudo_formal_block_verifier_runtime_max_tokens: int = 2000
     pseudo_formal_block_verifier_runtime_temperature: float = 0.0
@@ -21947,6 +21953,34 @@ def _runtime_pseudo_formal_block_verifier_rows_from_manifest(
     )
 
 
+def _runtime_repeated_pseudo_formal_block_verifier_rows(
+    pending_rows: Sequence[Mapping[str, Any]],
+    proof_memory_summary: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    reviewed_fingerprints = {
+        str(row.get("block_verifier_review_content_fingerprint", "") or "")
+        for row in proof_memory_summary.get(
+            "pseudo_formal_independent_block_verification_feedback_memory",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+        and str(
+            row.get("independent_block_verification_status", "") or ""
+        )
+        == "completed"
+        and str(
+            row.get("block_verifier_review_content_fingerprint", "") or ""
+        )
+    }
+    return [
+        dict(row)
+        for row in pending_rows
+        if pseudo_formal_block_verifier_review_content_fingerprint(row)
+        in reviewed_fingerprints
+    ]
+
+
 def _runtime_pseudo_formal_block_verifier_work_order(
     *,
     source_task: AgentTask,
@@ -21975,7 +22009,7 @@ def _runtime_pseudo_formal_block_verifier_work_order(
         "model": str(model or ""),
         "model_tier": str(
             runtime_config.pseudo_formal_block_verifier_runtime_model_tier
-            or "sonnet"
+            or LIVE_EVALUATION_CLAUDE_MODEL_TIER
         ),
         "max_packets": max_packets,
         "max_tokens": max(
@@ -23228,6 +23262,19 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 failure_classification=(
                     "formalization_gap_planner_action_work_order_binding_failed"
                 ),
+            )
+        pseudo_formal_feedback_binding_errors = (
+            pseudo_formal_block_verifier_feedback_task_errors(
+                task,
+                blackboard,
+                question_id=question.id,
+            )
+        )
+        if pseudo_formal_feedback_binding_errors:
+            return pseudo_formal_block_verifier_feedback_binding_failure_result(
+                task=task,
+                question=_question_to_payload(question),
+                errors=pseudo_formal_feedback_binding_errors,
             )
         context = dict(task.inputs.get("architect_context", {}) or {})
         context["runtime_task"] = _runtime_task_prompt_summary(task)
@@ -26349,11 +26396,69 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     ),
                 )
             )
+            repeated_pseudo_formal_block_verifier_rows = (
+                _runtime_repeated_pseudo_formal_block_verifier_rows(
+                    pending_pseudo_formal_block_verifier_rows,
+                    proof_bank_runtime_memory_summary,
+                )
+            )
+            pseudo_formal_block_verifier_no_progress = bool(
+                self.runtime_config.pseudo_formal_block_verifier_runtime
+                and self.pseudo_formal_block_verifier_available
+                and self.proposal_agent is not None
+                and pending_pseudo_formal_block_verifier_rows
+                and len(repeated_pseudo_formal_block_verifier_rows)
+                == len(pending_pseudo_formal_block_verifier_rows)
+            )
+            if pseudo_formal_block_verifier_no_progress:
+                critic_inputs = dict(critic_task.inputs)
+                critic_inputs["pseudo_formal_block_verifier_feedback"] = {
+                    "feedback_type": "pseudo_formal_block_verifier_no_progress",
+                    "source_formalization_manifest_id": manifest_id,
+                    "review_content_fingerprints": [
+                        pseudo_formal_block_verifier_review_content_fingerprint(row)
+                        for row in repeated_pseudo_formal_block_verifier_rows
+                    ],
+                    "n_repeated_rows": len(
+                        repeated_pseudo_formal_block_verifier_rows
+                    ),
+                    "required_action": (
+                        "Replan if no other changed formal work is available; the "
+                        "author re-emitted the same bounded review context after "
+                        "receiving independent feedback."
+                    ),
+                    "proof_evidence_status": (
+                        "PSEUDO_FORMAL_BLOCK_VERIFIER_NO_PROGRESS_NOT_PROOF_EVIDENCE"
+                    ),
+                    "proof_evidence_boundary": PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
+                }
+                critic_task = replace(critic_task, inputs=critic_inputs)
+                observations.append(
+                    EnvironmentObservation(
+                        observation_type="pseudo_formal_block_verifier_no_progress",
+                        summary=(
+                            "Formalizer re-emitted only PF/BV review contexts already "
+                            "judged by the independent reviewer; duplicate review was "
+                            "suppressed while other changed formal work remains eligible."
+                        ),
+                        payload={
+                            "source_formalization_manifest_id": manifest_id,
+                            "n_repeated_rows": len(
+                                repeated_pseudo_formal_block_verifier_rows
+                            ),
+                            "proof_evidence_status": (
+                                "PSEUDO_FORMAL_BLOCK_VERIFIER_NO_PROGRESS_"
+                                "NOT_PROOF_EVIDENCE"
+                            ),
+                        },
+                    )
+                )
             pseudo_formal_block_verifier_runtime_dispatch_ready = bool(
                 self.runtime_config.pseudo_formal_block_verifier_runtime
                 and self.pseudo_formal_block_verifier_available
                 and self.proposal_agent is not None
                 and pending_pseudo_formal_block_verifier_rows
+                and not pseudo_formal_block_verifier_no_progress
             )
             if compiled_exact_review_dispatch is not None:
                 compiled_review_dispatch_blocked = str(
@@ -40425,7 +40530,7 @@ def run_research_agent_runtime(
                     ),
                     model_tier=str(
                         config.pseudo_formal_block_verifier_runtime_model_tier
-                        or "sonnet"
+                        or LIVE_EVALUATION_CLAUDE_MODEL_TIER
                     ),
                     max_packets=pseudo_formal_block_verifier_max_packets,
                     max_tokens=max(
@@ -58822,7 +58927,11 @@ def _runtime_learning_pseudo_formal_independent_bv_status(
         input_summary,
     )
     request_role = bool(
-        row_kind == PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND
+        row_kind
+        in {
+            PSEUDO_FORMAL_BLOCK_VERIFICATION_REQUEST_ROW_KIND,
+            PSEUDO_FORMAL_FAITHFULNESS_REVIEW_ROW_KIND,
+        }
         or row.get("independent_block_verification_required", False)
         or input_summary.get("independent_block_verification_required", False)
         or str(row.get("next_owner_subsystem", "") or "").strip()
@@ -73126,6 +73235,21 @@ def _runtime_learning_memory_pseudo_formal_block_routing_feedback(
                     or ""
                 ),
                 "block_verification": dict(block_verification),
+                "block_verifier_feedback_id": str(
+                    row.get("block_verifier_feedback_id", "")
+                    or input_summary.get("block_verifier_feedback_id", "")
+                    or ""
+                ),
+                "block_verifier_prompt_packet_id": str(
+                    row.get("block_verifier_prompt_packet_id", "")
+                    or input_summary.get("prompt_packet_id", "")
+                    or ""
+                ),
+                "block_verifier_review_content_fingerprint": str(
+                    row.get("block_verifier_review_content_fingerprint", "")
+                    or input_summary.get("review_content_fingerprint", "")
+                    or ""
+                ),
                 "block_verification_verifier_provenance": (
                     block_verification_provenance
                 ),
@@ -79232,6 +79356,15 @@ def _pseudo_formal_runtime_memory_row(row: Mapping[str, Any]) -> dict[str, Any]:
             row.get("block_verification", {})
             if isinstance(row.get("block_verification", {}), Mapping)
             else {}
+        ),
+        "block_verifier_feedback_id": str(
+            row.get("block_verifier_feedback_id", "") or ""
+        ),
+        "block_verifier_prompt_packet_id": str(
+            row.get("block_verifier_prompt_packet_id", "") or ""
+        ),
+        "block_verifier_review_content_fingerprint": str(
+            row.get("block_verifier_review_content_fingerprint", "") or ""
         ),
         "block_verification_verifier_provenance": str(
             row.get("block_verification_verifier_provenance", "") or ""

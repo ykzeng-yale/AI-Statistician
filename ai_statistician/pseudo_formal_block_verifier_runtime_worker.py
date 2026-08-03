@@ -14,7 +14,7 @@ from .agent_runtime import (
     ToolCallRecord,
 )
 from .fingerprint import stable_hash
-from .model_backend import GeneratorBackend
+from .model_backend import GeneratorBackend, LIVE_EVALUATION_CLAUDE_MODEL_TIER
 from .pseudo_formal_block_verifier_worker import (
     pseudo_formal_block_verifier_request_rows,
     run_pseudo_formal_block_verifier_rows,
@@ -36,6 +36,12 @@ PSEUDO_FORMAL_BLOCK_VERIFIER_RUNTIME_NOT_PROOF_EVIDENCE = (
 PSEUDO_FORMAL_BLOCK_VERIFIER_RUNTIME_WORK_ORDER_NOT_PROOF_EVIDENCE = (
     "PSEUDO_FORMAL_BLOCK_VERIFIER_RUNTIME_WORK_ORDER_NOT_PROOF_EVIDENCE"
 )
+PSEUDO_FORMAL_BLOCK_VERIFIER_FEEDBACK_CONTRACT_KIND = (
+    "RuntimePseudoFormalBlockVerifierFeedbackContract"
+)
+PSEUDO_FORMAL_BLOCK_VERIFIER_FEEDBACK_TYPE = (
+    "pseudo_formal_block_verifier_feedback"
+)
 PSEUDO_FORMAL_BLOCK_VERIFIER_INDEPENDENCE_CONTRACT = (
     "Use a fresh BlockVerifier prompt with explicit premises, inherited scope, "
     "dependency statements, conclusion, and local proof text only. Do not expose "
@@ -44,6 +50,251 @@ PSEUDO_FORMAL_BLOCK_VERIFIER_INDEPENDENCE_CONTRACT = (
 
 
 SourceRowsResolver = Callable[[Mapping[str, Any]], list[dict[str, Any]]]
+
+
+def pseudo_formal_block_verifier_feedback_task_errors(
+    task: AgentTask,
+    blackboard: BlackboardState,
+    *,
+    question_id: str,
+) -> list[str]:
+    """Validate the immutable reviewer-to-author feedback edge before LLM use."""
+
+    inputs = task.inputs if isinstance(task.inputs, Mapping) else {}
+    feedback = (
+        inputs.get("environment_feedback", {})
+        if isinstance(inputs.get("environment_feedback", {}), Mapping)
+        else {}
+    )
+    contract = (
+        inputs.get("pseudo_formal_block_verifier_feedback_contract", {})
+        if isinstance(
+            inputs.get("pseudo_formal_block_verifier_feedback_contract", {}),
+            Mapping,
+        )
+        else {}
+    )
+    feedback_active = bool(
+        feedback.get(
+            "pseudo_formal_independent_block_verification_feedback_active",
+            False,
+        )
+        or str(feedback.get("feedback_type", "") or "")
+        == PSEUDO_FORMAL_BLOCK_VERIFIER_FEEDBACK_TYPE
+        or contract
+    )
+    if not feedback_active:
+        return []
+
+    errors: list[str] = []
+    if not contract:
+        return ["pseudo-formal verifier feedback contract missing"]
+    if str(contract.get("artifact_kind", "") or "") != (
+        PSEUDO_FORMAL_BLOCK_VERIFIER_FEEDBACK_CONTRACT_KIND
+    ):
+        errors.append("pseudo-formal verifier feedback contract kind mismatch")
+    contract_payload = {
+        key: value
+        for key, value in contract.items()
+        if key != "contract_fingerprint"
+    }
+    if str(contract.get("contract_fingerprint", "") or "") != stable_hash(
+        contract_payload
+    ):
+        errors.append("pseudo-formal verifier feedback contract fingerprint mismatch")
+    expected_scalars = {
+        "feedback_type": PSEUDO_FORMAL_BLOCK_VERIFIER_FEEDBACK_TYPE,
+        "question_id": str(question_id or ""),
+        "target_task_id": task.task_id,
+        "target_subsystem": task.owner_subsystem,
+        "proof_evidence_status": (
+            PSEUDO_FORMAL_BLOCK_VERIFIER_RUNTIME_NOT_PROOF_EVIDENCE
+        ),
+    }
+    for field, expected in expected_scalars.items():
+        if str(contract.get(field, "") or "") != expected:
+            errors.append(f"pseudo-formal verifier feedback {field} mismatch")
+    if task.owner_subsystem != "ProofEngineer":
+        errors.append("pseudo-formal verifier feedback target is not ProofEngineer")
+    if contract.get("kernel_verified") is not False:
+        errors.append("pseudo-formal verifier feedback claims kernel verification")
+    if contract.get("source_theorem_kernel_verified") is not False:
+        errors.append(
+            "pseudo-formal verifier feedback claims source theorem verification"
+        )
+
+    nested_contract = feedback.get(
+        "pseudo_formal_block_verifier_feedback_contract",
+        {},
+    )
+    if not isinstance(nested_contract, Mapping) or dict(nested_contract) != dict(
+        contract
+    ):
+        errors.append("environment feedback contract mismatch")
+
+    execution_id = str(contract.get("runtime_execution_id", "") or "")
+    execution = blackboard.artifacts.get(execution_id, {})
+    if not execution_id or not isinstance(execution, Mapping) or not execution:
+        errors.append("pseudo-formal verifier execution artifact missing")
+        execution = {}
+    elif str(execution.get("artifact_kind", "") or "") != (
+        PSEUDO_FORMAL_BLOCK_VERIFIER_RUNTIME_EXECUTION_KIND
+    ):
+        errors.append("pseudo-formal verifier execution artifact kind mismatch")
+    if execution:
+        if execution.get("execution_contract_satisfied") is not True:
+            errors.append("pseudo-formal verifier execution contract was not satisfied")
+        if str(execution.get("execution_replay_fingerprint", "") or "") != (
+            _execution_replay_fingerprint(execution)
+        ):
+            errors.append("pseudo-formal verifier execution fingerprint mismatch")
+        if str(execution.get("feedback_contract_fingerprint", "") or "") != str(
+            contract.get("contract_fingerprint", "") or ""
+        ):
+            errors.append("pseudo-formal verifier feedback/execution binding mismatch")
+        resume_task = execution.get("resume_next_task", {})
+        resume_inputs = (
+            resume_task.get("inputs", {})
+            if isinstance(resume_task, Mapping)
+            and isinstance(resume_task.get("inputs", {}), Mapping)
+            else {}
+        )
+        resume_contract = resume_inputs.get(
+            "pseudo_formal_block_verifier_feedback_contract",
+            {},
+        )
+        if not isinstance(resume_contract, Mapping) or dict(resume_contract) != dict(
+            contract
+        ):
+            errors.append("pseudo-formal verifier resume-task contract mismatch")
+        for contract_field, execution_field in (
+            ("question_id", "question_id"),
+            ("runtime_work_order_id", "work_order_id"),
+            ("runtime_work_order_hash", "work_order_hash"),
+            ("source_formalization_manifest_id", "source_formalization_manifest_id"),
+            (
+                "source_formalization_manifest_hash",
+                "source_formalization_manifest_hash",
+            ),
+            ("runtime_turn_id", "runtime_turn_id"),
+            ("runtime_turn_hash", "runtime_turn_hash"),
+        ):
+            if str(contract.get(contract_field, "") or "") != str(
+                execution.get(execution_field, "") or ""
+            ):
+                errors.append(
+                    "pseudo-formal verifier feedback "
+                    f"{contract_field} lineage mismatch"
+                )
+
+    work_order_id = str(contract.get("runtime_work_order_id", "") or "")
+    work_order = blackboard.artifacts.get(work_order_id, {})
+    if not work_order_id or not isinstance(work_order, Mapping) or not work_order:
+        errors.append("pseudo-formal verifier source work order missing")
+    elif stable_hash(work_order) != str(
+        contract.get("runtime_work_order_hash", "") or ""
+    ):
+        errors.append("pseudo-formal verifier source work-order hash mismatch")
+
+    source_manifest_id = str(
+        contract.get("source_formalization_manifest_id", "") or ""
+    )
+    source_manifest = blackboard.artifacts.get(source_manifest_id, {})
+    if (
+        not source_manifest_id
+        or not isinstance(source_manifest, Mapping)
+        or not source_manifest
+    ):
+        errors.append("pseudo-formal verifier source manifest missing")
+    elif stable_hash(source_manifest) != str(
+        contract.get("source_formalization_manifest_hash", "") or ""
+    ):
+        errors.append("pseudo-formal verifier source manifest hash mismatch")
+
+    runtime_turn_id = str(contract.get("runtime_turn_id", "") or "")
+    runtime_turn = blackboard.artifacts.get(runtime_turn_id, {})
+    if not runtime_turn_id or not isinstance(runtime_turn, Mapping) or not runtime_turn:
+        errors.append("pseudo-formal verifier runtime turn missing")
+        runtime_turn = {}
+    elif stable_hash(runtime_turn) != str(contract.get("runtime_turn_hash", "") or ""):
+        errors.append("pseudo-formal verifier runtime-turn hash mismatch")
+
+    feedback_rows = [
+        dict(row)
+        for row in feedback.get(
+            "pseudo_formal_independent_block_verification_feedback_memory",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    feedback_row_hashes = [stable_hash(row) for row in feedback_rows]
+    if feedback_row_hashes != list(contract.get("feedback_row_hashes", []) or []):
+        errors.append("pseudo-formal verifier feedback-row hashes mismatch")
+    if runtime_turn:
+        turn_rows = [
+            dict(row)
+            for row in runtime_turn.get("runtime_learning_rows", []) or []
+            if isinstance(row, Mapping)
+        ]
+        if feedback_rows != turn_rows:
+            errors.append("pseudo-formal verifier feedback rows differ from runtime turn")
+    return sorted(set(errors))
+
+
+def pseudo_formal_block_verifier_feedback_binding_failure_result(
+    *,
+    task: AgentTask,
+    question: Mapping[str, Any],
+    errors: Sequence[str],
+) -> AgentStepResult:
+    failure_id = "pseudo_formal_block_verifier_feedback_binding_failure:" + stable_hash(
+        [task.task_id, list(errors)]
+    )[:20]
+    failure_artifact = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimePseudoFormalBlockVerifierFeedbackBindingFailure",
+        "failure_id": failure_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "task_id": task.task_id,
+        "question": dict(question),
+        "binding_errors": list(errors),
+        "expected_feedback_contract_kind": (
+            PSEUDO_FORMAL_BLOCK_VERIFIER_FEEDBACK_CONTRACT_KIND
+        ),
+        "kernel_verified": False,
+        "source_theorem_kernel_verified": False,
+        "proof_evidence_status": (
+            "PSEUDO_FORMAL_BLOCK_VERIFIER_FEEDBACK_BINDING_FAILURE_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
+    }
+    return AgentStepResult(
+        status="BLOCKED",
+        rationale=(
+            "ProofEngineer rejected missing, changed, or cross-task independent "
+            "PF/BV feedback before invoking the model, retriever, or Lean environment."
+        ),
+        produced_artifacts={failure_id: failure_artifact},
+        observations=(
+            EnvironmentObservation(
+                observation_type=(
+                    "pseudo_formal_block_verifier_feedback_binding_failure"
+                ),
+                summary="; ".join(errors)[:500],
+                payload={
+                    "failure_id": failure_id,
+                    "binding_errors": list(errors),
+                    "proof_evidence_status": failure_artifact[
+                        "proof_evidence_status"
+                    ],
+                },
+            ),
+        ),
+        failure_classification=(
+            "pseudo_formal_block_verifier_feedback_binding_failed"
+        ),
+    )
 
 
 def _task_from_payload(payload: Mapping[str, Any]) -> AgentTask:
@@ -161,7 +412,7 @@ class PseudoFormalBlockVerifierRuntimeWorker:
         provider: GeneratorBackend,
         provider_name: str,
         model: str = "",
-        model_tier: str = "sonnet",
+        model_tier: str = LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         max_packets: int = 8,
         max_tokens: int = 2000,
         temperature: float = 0.0,
@@ -172,7 +423,7 @@ class PseudoFormalBlockVerifierRuntimeWorker:
         self.provider = provider
         self.provider_name = str(provider_name or "")
         self.model = str(model or "")
-        self.model_tier = str(model_tier or "sonnet")
+        self.model_tier = str(model_tier or LIVE_EVALUATION_CLAUDE_MODEL_TIER)
         self.max_packets = max(1, int(max_packets))
         self.max_tokens = max(1, int(max_tokens))
         self.temperature = float(temperature)
@@ -367,6 +618,10 @@ class PseudoFormalBlockVerifierRuntimeWorker:
                 source_task,
                 question_id=question_id,
                 execution_id=execution_id,
+                work_order_id=work_order_id,
+                work_order_hash=expected_work_order_hash,
+                source_manifest_id=source_manifest_id,
+                source_manifest_hash=source_manifest_hash,
                 runtime_turn=runtime_turn,
                 learning_rows=learning_rows,
             )
@@ -431,6 +686,17 @@ class PseudoFormalBlockVerifierRuntimeWorker:
                     PSEUDO_FORMAL_BLOCK_VERIFIER_RUNTIME_NOT_PROOF_EVIDENCE
                 ),
                 "proof_evidence_boundary": PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
+                "feedback_contract_fingerprint": str(
+                    (
+                        next_task.inputs.get(
+                            "pseudo_formal_block_verifier_feedback_contract",
+                            {},
+                        )
+                        if isinstance(next_task.inputs, Mapping)
+                        else {}
+                    ).get("contract_fingerprint", "")
+                    or ""
+                ),
                 "resume_next_task": asdict(next_task),
                 "execution_result_status": result_status,
                 "execution_failure_classification": failure_classification,
@@ -535,9 +801,53 @@ class PseudoFormalBlockVerifierRuntimeWorker:
         *,
         question_id: str,
         execution_id: str,
+        work_order_id: str,
+        work_order_hash: str,
+        source_manifest_id: str,
+        source_manifest_hash: str,
         runtime_turn: Mapping[str, Any],
         learning_rows: Sequence[Mapping[str, Any]],
     ) -> AgentTask:
+        next_task_id = (
+            f"proofengineer-pseudo-formal-bv:{question_id}:"
+            f"{stable_hash(execution_id)[:8]}"
+        )
+        feedback_contract: dict[str, Any] = {
+            "schema_version": RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": PSEUDO_FORMAL_BLOCK_VERIFIER_FEEDBACK_CONTRACT_KIND,
+            "feedback_type": PSEUDO_FORMAL_BLOCK_VERIFIER_FEEDBACK_TYPE,
+            "question_id": question_id,
+            "source_task_id": source_task.task_id,
+            "source_subsystem": source_task.owner_subsystem,
+            "target_task_id": next_task_id,
+            "target_subsystem": "ProofEngineer",
+            "runtime_execution_id": execution_id,
+            "runtime_work_order_id": work_order_id,
+            "runtime_work_order_hash": work_order_hash,
+            "source_formalization_manifest_id": source_manifest_id,
+            "source_formalization_manifest_hash": source_manifest_hash,
+            "runtime_turn_id": str(runtime_turn.get("manifest_id", "") or ""),
+            "runtime_turn_hash": stable_hash(runtime_turn),
+            "feedback_row_ids": [
+                str(row.get("block_verifier_feedback_id", "") or "")
+                for row in learning_rows
+            ],
+            "feedback_row_hashes": [stable_hash(row) for row in learning_rows],
+            "review_content_fingerprints": [
+                str(
+                    row.get("block_verifier_review_content_fingerprint", "")
+                    or ""
+                )
+                for row in learning_rows
+            ],
+            "kernel_verified": False,
+            "source_theorem_kernel_verified": False,
+            "proof_evidence_status": (
+                PSEUDO_FORMAL_BLOCK_VERIFIER_RUNTIME_NOT_PROOF_EVIDENCE
+            ),
+            "proof_evidence_boundary": PSEUDO_FORMALIZATION_PROOF_BOUNDARY,
+        }
+        feedback_contract["contract_fingerprint"] = stable_hash(feedback_contract)
         inputs = dict(source_task.inputs)
         architect_context = (
             dict(inputs.get("architect_context", {}))
@@ -595,18 +905,21 @@ class PseudoFormalBlockVerifierRuntimeWorker:
         )
         feedback.update(
             {
-                "failure_classification": (
-                    "pseudo_formal_block_verification_feedback"
-                ),
+                "feedback_type": PSEUDO_FORMAL_BLOCK_VERIFIER_FEEDBACK_TYPE,
+                "repair_owner_agent": "ProofEngineer",
+                "failure_classification": PSEUDO_FORMAL_BLOCK_VERIFIER_FEEDBACK_TYPE,
                 "pseudo_formal_block_verifier_runtime_execution_id": execution_id,
                 "pseudo_formal_independent_block_verification_feedback_active": True,
+                "pseudo_formal_block_verifier_feedback_contract": dict(
+                    feedback_contract
+                ),
                 "pseudo_formal_independent_block_verification_feedback_memory": [
                     dict(row) for row in learning_rows
                 ],
                 "n_pseudo_formal_independent_block_verification_feedback_rows": len(
                     learning_rows
                 ),
-                "pseudo_formal_block_verification_verdicts": [
+                "pseudo_formal_independent_block_verification_verdicts": [
                     str(
                         (
                             row.get("block_verification", {})
@@ -626,15 +939,15 @@ class PseudoFormalBlockVerifierRuntimeWorker:
         architect_context["environment_feedback"] = feedback
         inputs["architect_context"] = architect_context
         inputs["environment_feedback"] = feedback
+        inputs["pseudo_formal_block_verifier_feedback_contract"] = dict(
+            feedback_contract
+        )
         inputs["pseudo_formal_block_verifier_runtime_turn_id"] = str(
             runtime_turn.get("manifest_id", "") or ""
         )
         return replace(
             source_task,
-            task_id=(
-                f"proofengineer-pseudo-formal-bv:{question_id}:"
-                f"{stable_hash(execution_id)[:8]}"
-            ),
+            task_id=next_task_id,
             owner_subsystem="ProofEngineer",
             inputs=inputs,
             allowed_tools=tuple(

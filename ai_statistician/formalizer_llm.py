@@ -7770,6 +7770,13 @@ def _compact_formalizer_environment_feedback(
             feedback.get("repair_owner_agent", "")
             or input_summary.get("repair_owner_agent", "")
         ),
+        "pseudo_formal_block_verifier_feedback_contract": _compact_value(
+            feedback.get("pseudo_formal_block_verifier_feedback_contract", {})
+            or input_summary.get(
+                "pseudo_formal_block_verifier_feedback_contract",
+                {},
+            )
+        ),
         "formalization_gap_planner_action_work_order": _compact_value(
             feedback.get("formalization_gap_planner_action_work_order", {})
             or input_summary.get(
@@ -8723,6 +8730,9 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "faithfulness_status",
                 "faithfulness_repair_status",
                 "block_verification",
+                "block_verifier_feedback_id",
+                "block_verifier_prompt_packet_id",
+                "block_verifier_review_content_fingerprint",
                 "block_verification_verifier_provenance",
                 "block_verification_independent",
                 "independent_block_verification_required",
@@ -8844,6 +8854,9 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                     "faithfulness_status",
                     "faithfulness_repair_status",
                     "block_verification",
+                    "block_verifier_feedback_id",
+                    "block_verifier_prompt_packet_id",
+                    "block_verifier_review_content_fingerprint",
                     "block_verification_verifier_provenance",
                     "block_verification_independent",
                     "independent_block_verification_required",
