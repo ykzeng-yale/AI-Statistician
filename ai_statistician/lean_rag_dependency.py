@@ -9,9 +9,11 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from .formal_source_index import (
+    FORMAL_SOURCE_DEFAULT_SEARCH_QUALITY_POLICY,
     FormalDeclaration,
     FormalSourceHit,
     LEAN_IDENTIFIER_PATTERN,
+    _is_exact_formal_declaration_query,
     _lean_source_without_comments_preserve_lines,
     _search_tokens,
     diversify_formal_source_hits,
@@ -37,9 +39,7 @@ LEAN_RAG_CROSS_SOURCE_EVIDENCE_STATUS = (
     "SOURCE_DERIVED_CROSS_CORPUS_DECLARATION_REFERENCE_NOT_PROOF_EVIDENCE"
 )
 LEAN_RAG_SQL_REFERENCE_QUERY_BATCH_SIZE = 200
-LEAN_RAG_DEFAULT_SEARCH_QUALITY_POLICY = (
-    "oversized_declaration_names_require_exact_lookup_v1"
-)
+LEAN_RAG_DEFAULT_SEARCH_QUALITY_POLICY = FORMAL_SOURCE_DEFAULT_SEARCH_QUALITY_POLICY
 STOP_TOKENS = {
     "the",
     "a",
@@ -627,7 +627,7 @@ class LeanRagDependencyRetriever:
         oversized_exact_lookup = bool(
             quality_metadata_present
             and "oversized_name" in quality_flags
-            and _is_exact_declaration_query(
+            and _is_exact_formal_declaration_query(
                 query,
                 name=name,
                 short_name=short_name,
@@ -1217,16 +1217,6 @@ def _bounded_quality_score(value: object) -> int:
     except (TypeError, ValueError):
         return 0
     return max(0, min(100, score))
-
-
-def _is_exact_declaration_query(
-    query: str,
-    *,
-    name: str,
-    short_name: str,
-) -> bool:
-    requested = " ".join(str(query or "").strip().split())
-    return bool(requested and requested in {name, short_name})
 
 
 def _source_snapshot_report(metadata: dict[str, str]) -> dict[str, object]:

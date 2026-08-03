@@ -18,10 +18,22 @@ from ai_statistician.formal_source_topology import (
     FORMAL_SOURCE_SCOPE_EXPANSION_POLICY,
     FORMAL_SOURCE_TOPOLOGY_EVIDENCE_STATUS,
     canonicalize_formal_source_scope_ids,
+    configured_formal_source_entry_modules,
     expand_formal_source_scope_ids,
     identify_formal_source_topology,
     resolve_formal_source_topologies,
 )
+
+
+def test_configured_entry_modules_resolve_canonical_ids_and_aliases() -> None:
+    assert configured_formal_source_entry_modules("statlib") == ("Statlib",)
+    assert configured_formal_source_entry_modules(
+        "empirical_process_lean"
+    ) == ("StatInference",)
+    assert configured_formal_source_entry_modules(
+        "local_statinference_repo"
+    ) == ("StatInference",)
+    assert configured_formal_source_entry_modules("unregistered_source") == ()
 
 
 def _topology(

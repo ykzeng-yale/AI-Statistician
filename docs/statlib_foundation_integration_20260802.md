@@ -24,13 +24,10 @@ makes them port guidance rather than an importable proof dependency.
 | --- | --- | --- |
 | Mathlib | `81343555dae873c8de2de2b27bbabf7bc4d8d97a` | Kernel-checked mathematical foundation |
 | StatLib | `6575d611b5d32ef6013e9560d30b1a82a1972fb6` | Pinned reusable statistics API |
-| EmpericalProcessLEAN Lean graph source | `f4b1c73dcc705b4041029cffa1e9d4c6ea0547e6` | Active downstream statistics/proof library |
+| EmpericalProcessLEAN Lean graph source | `b8c2b3b5927cf69a7577cf25b3c509796ff44269` | Active downstream statistics/proof library |
 | AI4SLT | `d0f506f0a695018265dccb33bcb05e2f5ca1c876` | Version-bound external retrieval and port corpus |
 
-`EmpericalProcessLEAN/main` now points to `f88583b8`; that commit changes only
-integration tests and documentation, so its `StatInference/` source tree is
-identical to the graph-bound `f4b1c73d` snapshot and does not require a graph
-rebuild. The integration retains
+`EmpericalProcessLEAN/main` now points to `b8c2b3b5`. The integration retains
 source history from the VdVW and WDSM branches, absorbs the later Chewi,
 Durrett, and van der Vaart work, and recovers seven additional proof commits
 that were still reachable only from non-main branches. The recovered work adds
@@ -39,6 +36,14 @@ stationary-chain return-period results, and stopped/terminal Bernstein
 projection links. Their public modules are imported by `StatInference.lean`,
 so they are part of one canonical StatLib-backed library rather than branch-only
 or ad hoc retrieval material.
+
+The canonical root now imports `StatInference.Foundation` plus 14 stable
+domain entries. Those entries organize the existing import DAG into StatLib-
+founded inference, asymptotics, local asymptotic theory, semiparametrics,
+causal inference, empirical processes, probability, estimation, experiments,
+optimization, source-matched applications, and evaluation surfaces. The
+README publishes the same source-owned taxonomy with resolvable module paths;
+RAG may use those labels as organization metadata, never as proof evidence.
 
 “StatLib-backed” describes package dependency and API ownership, not a blanket
 import added to every proof module. At this snapshot exactly two leaf modules
@@ -67,7 +72,7 @@ Current schema-v5 graphs:
 
 | Corpus | Lean files | Declarations | Duplicate names | Snapshot |
 | --- | ---: | ---: | ---: | --- |
-| StatInference canonical closure | 1,192 | 51,993 | 0 | `BOUND_MATCH` |
+| StatInference canonical closure | 1,205 | 51,993 | 0 | `BOUND_MATCH` |
 | Pinned StatLib closure | 3 | 32 | 0 | `BOUND_MATCH` |
 | AI4SLT public source | 65 | 2,000 | 0 | `BOUND_MATCH` |
 
@@ -81,6 +86,26 @@ direct import from module-mode `StatInference.Foundation`. The foundation
 therefore mirrors the two public submodule imports at the current pin, and a
 dynamic parity test fails if the pinned `Statlib.lean` root changes.
 
+The lightweight declaration index now follows the same configured entry-module
+closure instead of scanning every `.lean` file beneath a root. Nested aliases
+of the same canonical source collapse to the broadest project root independent
+of inventory order, and a configured source with no resolvable entry module
+fails closed. A fresh StatInference lightweight build indexed 27,164
+declarations from 1,075 declaration-bearing files, attached one of 11
+source-authored domain labels to every declaration, and admitted zero
+non-WDSM `Matching` compatibility files. This index remains a cheap retrieval
+surface; the schema-v5 dependency graph is the source of exact import and
+declaration-reference lineage.
+
+The dependency graph and lightweight Python/SQLite retrievers now share the
+same source-agnostic oversized-name policy taken from the source RAG design:
+generated-scale Lean short names remain available by exact full or short
+declaration identity, but do not occupy ordinary semantic results. Replaying a
+QMD/inference query kept the downstream StatInference adapter at rank 1 and the
+pinned StatLib theorem at rank 2, with no oversized result in the top eight;
+an exact oversized-name query still recovered its declaration and explicit
+quality-gate marker.
+
 Both vendored historical snapshots were reconciled against this closure. Every
 historical file has a current path; changed qualified declarations retain
 current short-name owners except four trivial `0 = 0` demo markers and one
@@ -89,16 +114,18 @@ audit/training inputs and are no longer competing live Formalizer providers.
 
 ## Verification
 
-- A clean `lake build StatInference` completed all 9,824 jobs on Lean
+- A clean `lake build StatInference` completed all 9,837 jobs on Lean
   `v4.30.0`. This fresh build exposed and fixed a root import cycle in the
   benchmark module; a structural test now prevents any submodule from importing
   the canonical root.
 - `lake env lean StatInference.lean` completed successfully.
-- The canonical import closure covers 1,192 Lean files and all 489 WDSM modules.
+- The canonical import closure covers 1,205 Lean files and all 489 WDSM modules.
 - The production graph indexes 51,993 public declarations and 210,115
-  declaration-reference edges, with zero duplicate names and zero `sorry`.
-- Thirteen source-integration tests verify the direct StatLib dependency,
+  declaration-reference edges plus 3,304 import edges, with zero duplicate
+  names and zero `sorry`.
+- Sixteen source-integration tests verify the direct StatLib dependency,
   canonical reachability of every recovered module, and the root-import rule.
+- All 51 Lean-RAG tests pass, including the source-owned taxonomy path contract.
 - Namespace-aware `#print axioms` scans covered all seven recovered public
   theorems with zero unexpected axioms; only the accepted Mathlib foundations
   `Classical.choice`, `Quot.sound`, and `propext` were reported.

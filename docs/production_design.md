@@ -1225,6 +1225,15 @@ Canonical statistical Lean foundation:
 - The production dependency graph follows the recursive import closure of the
   library entry module and excludes private, local, anonymous, and unreachable
   branch declarations. Full-tree graphs are audit corpora, not production RAG.
+- The lightweight declaration fallback follows that same configured entry
+  closure. It collapses nested aliases of one canonical source, fails closed
+  when a configured entry cannot be resolved, and binds source-authored README
+  module groups only to declarations inside the closure. Directory-wide scans
+  remain available only for unconfigured fixture or audit corpora.
+- Dependency-graph and lightweight retrievers share one structural declaration-
+  name quality policy: an oversized Lean surface is hidden from semantic search
+  but remains available through exact full or short declaration identity. This
+  is retrieval hygiene, not a theorem, tactic, or proof-authoring rule.
 - A graph's `BOUND_MATCH` status proves only that it matches its own source
   snapshot. Toolchain- or Mathlib-mismatched sources such as an external
   statistical-learning library provide port guidance until a declaration is

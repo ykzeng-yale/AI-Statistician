@@ -14,6 +14,8 @@ from pathlib import Path
 
 from .fingerprint import stable_hash
 from .formal_source_topology import (
+    canonicalize_formal_source_scope_ids,
+    configured_formal_source_entry_modules,
     expand_formal_source_scope_ids,
     fallback_formal_source_topology,
     identify_formal_source_topology,
@@ -97,6 +99,10 @@ SOURCE_OUTLINE_PROMINENCE_BONUS = 0.75
 DECLARATION_NAME_CONCEPT_ANCHOR_BONUS = 3.0
 DECLARATION_NAME_COVERAGE_BONUS_CAP = 4.0
 FORMAL_SOURCE_SQLITE_SCHEMA_VERSION = "6"
+FORMAL_SOURCE_DEFAULT_SEARCH_QUALITY_POLICY = (
+    "oversized_declaration_names_require_exact_lookup_v1"
+)
+FORMAL_SOURCE_OVERSIZED_SHORT_NAME_CHARS = 100
 SKIPPED_PATH_PARTS = {
     ".git",
     ".lake",
@@ -313,6 +319,7 @@ class FormalSourceRetriever:
                 hit.declaration.name,
             ),
         )
+        ordered = _filter_oversized_declaration_names(query, ordered)
         return diversify_formal_source_hits(ordered, k=k)
 
 
@@ -672,6 +679,7 @@ class FormalSourceSqliteIndex:
                 hit.declaration.name,
             ),
         )
+        ordered = _filter_oversized_declaration_names(query, ordered)
         return diversify_formal_source_hits(ordered, k=k)
 
     def load_declarations(self) -> list[FormalDeclaration]:
@@ -692,10 +700,49 @@ class FormalSourceSqliteIndex:
         return [_decl_from_sqlite_row(row) for row in rows]
 
 
-DEFAULT_FORMAL_SOURCE_ROOTS: tuple[FormalSourceRoot, ...] = tuple(
-    FormalSourceRoot(target.id, target.location, target.source_type)
-    for target in SOURCE_INVENTORY_TARGETS
-    if target.source_type == "lean_library"
+def _deduplicate_formal_source_roots(
+    roots: tuple[FormalSourceRoot, ...],
+) -> tuple[FormalSourceRoot, ...]:
+    """Keep the broadest root for nested aliases of one canonical source."""
+
+    selected: list[tuple[FormalSourceRoot, str, Path]] = []
+    for root in roots:
+        canonical_ids = canonicalize_formal_source_scope_ids((root.id,))
+        owner_id = canonical_ids[0] if canonical_ids else root.id
+        location = Path(root.location).expanduser()
+        try:
+            resolved = location.resolve()
+        except OSError:
+            resolved = location.absolute()
+        if any(
+            owner_id == prior_owner
+            and (resolved == prior or resolved.is_relative_to(prior))
+            for _, prior_owner, prior in selected
+        ):
+            continue
+        selected = [
+            row
+            for row in selected
+            if not (
+                owner_id == row[1]
+                and row[2].is_relative_to(resolved)
+            )
+        ]
+        selected.append((root, owner_id, resolved))
+    return tuple(root for root, _, _ in selected)
+
+
+def _default_formal_source_roots() -> tuple[FormalSourceRoot, ...]:
+    roots = tuple(
+        FormalSourceRoot(target.id, target.location, target.source_type)
+        for target in SOURCE_INVENTORY_TARGETS
+        if target.source_type == "lean_library"
+    )
+    return _deduplicate_formal_source_roots(roots)
+
+
+DEFAULT_FORMAL_SOURCE_ROOTS: tuple[FormalSourceRoot, ...] = (
+    _default_formal_source_roots()
 )
 
 
@@ -749,6 +796,7 @@ def build_formal_source_index(
     AXLE to prove a new statistical obligation.
     """
 
+    roots = _deduplicate_formal_source_roots(roots)
     rows: list[FormalDeclaration] = []
     seen_roots: set[Path] = set()
     seen_source_files: set[Path] = set()
@@ -827,6 +875,7 @@ def build_formal_source_search_backend(
     in-memory backend for small fixtures and tests.
     """
 
+    roots = _deduplicate_formal_source_roots(roots)
     cache_file = Path(cache_path) if cache_path is not None else None
     source_snapshots = (
         _formal_source_root_snapshots(roots)
@@ -1250,6 +1299,7 @@ def _cache_covers_configured_roots(
     newly available formal libraries.
     """
 
+    roots = _deduplicate_formal_source_roots(roots)
     present_source_ids = {declaration.source_id for declaration in declarations}
     required_source_ids = {
         root.id
@@ -1301,6 +1351,7 @@ def _cache_covers_configured_roots(
 def _formal_source_root_snapshots(
     roots: tuple[FormalSourceRoot, ...],
 ) -> dict[str, object]:
+    roots = _deduplicate_formal_source_roots(roots)
     return {
         root.id: _formal_source_root_snapshot(root)
         for root in roots
@@ -1318,6 +1369,13 @@ def _formal_source_root_snapshot(root: FormalSourceRoot) -> dict[str, object]:
         "source_type": root.source_type,
         "exists": location.is_dir(),
     }
+    entry_modules = configured_formal_source_entry_modules(root.id)
+    snapshot["entry_modules"] = list(entry_modules)
+    snapshot["corpus_scope_policy"] = (
+        "configured_entry_import_closure_v1"
+        if entry_modules
+        else "directory_inventory_v1"
+    )
     if not location.is_dir():
         return snapshot
 
@@ -1846,6 +1904,55 @@ def _declaration_lookup_key(value: str) -> str:
         for character in str(value or "").strip(" `").casefold()
         if character.isalnum()
     )
+
+
+def _is_exact_formal_declaration_query(
+    query: str,
+    *,
+    name: str,
+    short_name: str,
+) -> bool:
+    requested = " ".join(str(query or "").strip().split())
+    return bool(requested and requested in {name, short_name})
+
+
+def _filter_oversized_declaration_names(
+    query: str,
+    hits: list[FormalSourceHit],
+) -> list[FormalSourceHit]:
+    """Keep generated-scale Lean names available only by exact identity."""
+
+    filtered: list[FormalSourceHit] = []
+    for hit in hits:
+        declaration = hit.declaration
+        if _source_type_key(declaration.source_type) not in {
+            "lean",
+            "lean4",
+            "lean_library",
+        }:
+            filtered.append(hit)
+            continue
+        short_name = declaration.name.rsplit(".", 1)[-1]
+        if len(short_name) <= FORMAL_SOURCE_OVERSIZED_SHORT_NAME_CHARS:
+            filtered.append(hit)
+            continue
+        if not _is_exact_formal_declaration_query(
+            query,
+            name=declaration.name,
+            short_name=short_name,
+        ):
+            continue
+        filtered.append(
+            replace(
+                hit,
+                matched_terms=tuple(
+                    dict.fromkeys(
+                        (*hit.matched_terms, "oversized_name_exact_lookup")
+                    )
+                ),
+            )
+        )
+    return filtered
 
 
 def diversify_formal_source_hits(
@@ -3022,6 +3129,7 @@ def _iter_formal_source_files(
 
     n_files = 0
     suffixes = _formal_source_suffixes(root)
+    canonical_files = _canonical_lean_import_closure_files(root, location)
     for dirpath, dirnames, filenames in os.walk(location):
         dirnames[:] = sorted(dirname for dirname in dirnames if dirname not in SKIPPED_PATH_PARTS)
         for filename in sorted(filenames):
@@ -3030,6 +3138,13 @@ def _iter_formal_source_files(
             path = Path(dirpath) / filename
             if _skip_path(path, base=location) or not _file_size_ok(path, max_file_bytes):
                 continue
+            if canonical_files is not None:
+                try:
+                    source_file_identity = path.resolve()
+                except OSError:
+                    source_file_identity = path.absolute()
+                if source_file_identity not in canonical_files:
+                    continue
             if excluded_source_files:
                 try:
                     source_file_identity = path.resolve()
@@ -3041,6 +3156,61 @@ def _iter_formal_source_files(
             n_files += 1
             if n_files >= max_files:
                 return
+
+
+def _canonical_lean_import_closure_files(
+    root: FormalSourceRoot,
+    location: Path,
+) -> set[Path] | None:
+    """Resolve a configured library's local files from its canonical entry."""
+
+    if _source_type_key(root.source_type) not in {"lean", "lean4", "lean_library"}:
+        return None
+    entry_modules = configured_formal_source_entry_modules(root.id)
+    if not entry_modules:
+        return None
+
+    project_root: Path | None = None
+    for candidate in (location, location.parent):
+        if all(
+            candidate.joinpath(*module.split(".")).with_suffix(".lean").is_file()
+            for module in entry_modules
+        ):
+            project_root = candidate
+            break
+    if project_root is None:
+        return set()
+
+    try:
+        resolved_location = location.resolve()
+    except OSError:
+        resolved_location = location.absolute()
+    reachable_files: set[Path] = set()
+    visited_modules: set[str] = set()
+    pending = list(entry_modules)
+    while pending:
+        module = pending.pop()
+        if module in visited_modules:
+            continue
+        visited_modules.add(module)
+        path = project_root.joinpath(*module.split(".")).with_suffix(".lean")
+        if not path.is_file():
+            continue
+        try:
+            resolved_path = path.resolve()
+        except OSError:
+            resolved_path = path.absolute()
+        if resolved_path == resolved_location or resolved_path.is_relative_to(
+            resolved_location
+        ):
+            reachable_files.add(resolved_path)
+        try:
+            source = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        for line in _lean_source_without_comments_preserve_lines(source).splitlines():
+            pending.extend(_imports_from_line(line, "lean"))
+    return reachable_files
 
 
 def _formal_source_suffixes(root: FormalSourceRoot) -> tuple[str, ...]:

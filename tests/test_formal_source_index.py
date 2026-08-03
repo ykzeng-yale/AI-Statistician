@@ -14,6 +14,8 @@ from ai_statistician.formal_source_index import (
     FormalSourceRoot,
     FormalSourceSqliteIndex,
     _cache_covers_configured_roots,
+    _deduplicate_formal_source_roots,
+    _formal_source_root_snapshot,
     _search_tokens,
     build_formal_source_index,
     build_formal_source_search_backend,
@@ -50,7 +52,150 @@ def test_default_formal_source_roots_exclude_historical_snapshots() -> None:
     source_ids = {root.id for root in DEFAULT_FORMAL_SOURCE_ROOTS}
 
     assert "empirical_process_lean" in source_ids
+    assert "local_statinference_repo" not in source_ids
     assert "legacy_ai_statistician_statinference" not in source_ids
+
+
+def test_nested_alias_root_deduplication_is_inventory_order_independent(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    nested_root = project_root / "StatInference"
+    nested_root.mkdir(parents=True)
+    (project_root / "StatInference.lean").write_text(
+        "import StatInference.Canonical\n",
+        encoding="utf-8",
+    )
+    (nested_root / "Canonical.lean").write_text(
+        "theorem canonicalResult : True := by trivial\n",
+        encoding="utf-8",
+    )
+    project = FormalSourceRoot("empirical_process_lean", str(project_root))
+    alias = FormalSourceRoot("local_statinference_repo", str(nested_root))
+
+    assert _deduplicate_formal_source_roots((project, alias)) == (project,)
+    assert _deduplicate_formal_source_roots((alias, project)) == (project,)
+    for roots in ((project, alias), (alias, project)):
+        assert [
+            (row.source_id, row.name)
+            for row in build_formal_source_index(roots=roots)
+        ] == [("empirical_process_lean", "canonicalResult")]
+
+
+def test_configured_lean_source_indexes_only_canonical_import_closure(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    library_root = project_root / "StatInference"
+    library_root.mkdir(parents=True)
+    (project_root / "StatInference.lean").write_text(
+        "import StatInference.Canonical\n",
+        encoding="utf-8",
+    )
+    (library_root / "Canonical.lean").write_text(
+        "namespace Statistics\n"
+        "theorem canonicalResult : True := by trivial\n"
+        "end Statistics\n",
+        encoding="utf-8",
+    )
+    (library_root / "CompatibilityMirror.lean").write_text(
+        "namespace Statistics\n"
+        "theorem duplicateResult : True := by trivial\n"
+        "end Statistics\n",
+        encoding="utf-8",
+    )
+    (project_root / "README.md").write_text(
+        "| Group | Modules | Role |\n"
+        "|---|---|---|\n"
+        "| Canonical statistics | `StatInference/Canonical.lean` | "
+        "Reusable public statistical API. |\n",
+        encoding="utf-8",
+    )
+
+    declarations = build_formal_source_index(
+        roots=(
+            FormalSourceRoot(
+                "empirical_process_lean",
+                str(project_root),
+            ),
+        )
+    )
+
+    assert [row.name for row in declarations] == [
+        "Statistics.canonicalResult"
+    ]
+    assert declarations[0].module_group == "Canonical statistics"
+    assert declarations[0].module_group_summary == (
+        "Reusable public statistical API."
+    )
+    snapshot = _formal_source_root_snapshot(
+        FormalSourceRoot("empirical_process_lean", str(project_root))
+    )
+    assert snapshot["entry_modules"] == ["StatInference"]
+    assert snapshot["corpus_scope_policy"] == (
+        "configured_entry_import_closure_v1"
+    )
+
+
+def test_configured_lean_source_fails_closed_without_its_entry_module(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "Unreachable.lean").write_text(
+        "theorem unreachableResult : True := by trivial\n",
+        encoding="utf-8",
+    )
+
+    declarations = build_formal_source_index(
+        roots=(FormalSourceRoot("empirical_process_lean", str(tmp_path)),)
+    )
+
+    assert declarations == []
+
+
+def test_lightweight_retrievers_hide_oversized_names_except_exact_lookup(
+    tmp_path: Path,
+) -> None:
+    oversized_name = "Statistics." + "generatedScoreAdjustmentIdentity" * 5
+    declarations = [
+        FormalDeclaration(
+            source_id="fixture",
+            source_type="lean_library",
+            path="Statistics/Generated.lean",
+            line=1,
+            kind="theorem",
+            name=oversized_name,
+            namespace="Statistics",
+            signature=f"theorem {oversized_name.rsplit('.', 1)[-1]} : True",
+        ),
+        FormalDeclaration(
+            source_id="fixture",
+            source_type="lean_library",
+            path="Statistics/Score.lean",
+            line=1,
+            kind="theorem",
+            name="Statistics.scoreAdjustmentIdentity",
+            namespace="Statistics",
+            signature="theorem scoreAdjustmentIdentity : True",
+        ),
+    ]
+    retrievers = [
+        FormalSourceRetriever(declarations),
+        FormalSourceSqliteIndex.build(
+            declarations,
+            tmp_path / "quality.sqlite",
+        ),
+    ]
+
+    for retriever in retrievers:
+        semantic_hits = retriever.search("score adjustment identity", k=10)
+        assert oversized_name not in {
+            hit.declaration.name for hit in semantic_hits
+        }
+        exact_hits = retriever.search(oversized_name, k=10)
+        exact = next(
+            hit for hit in exact_hits if hit.declaration.name == oversized_name
+        )
+        assert "oversized_name_exact_lookup" in exact.matched_terms
 
 
 def test_task_bound_formal_source_queries_keep_semantics_after_exact_name() -> None:
@@ -176,7 +321,7 @@ def test_lean_index_keeps_public_imports_and_excludes_private_api(
     )
 
     declarations = build_formal_source_index(
-        roots=(FormalSourceRoot("statlib", str(source_root)),)
+        roots=(FormalSourceRoot("fixture_statlib", str(source_root)),)
     )
 
     assert [row.name for row in declarations] == [

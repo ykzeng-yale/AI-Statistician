@@ -189,6 +189,16 @@ def fallback_formal_source_topology(source_id: str) -> FormalSourceTopology | No
     return None
 
 
+def configured_formal_source_entry_modules(source_id: str) -> tuple[str, ...]:
+    """Return canonical Lean entry modules for a configured source or alias."""
+
+    requested = str(source_id or "").strip()
+    for source in load_formal_source_topology_policy().sources:
+        if requested in (source.topology.source_id, *source.topology.aliases):
+            return source.entry_modules
+    return ()
+
+
 def canonicalize_formal_source_scope_ids(
     source_scope_ids: Sequence[str],
 ) -> tuple[str, ...]:
