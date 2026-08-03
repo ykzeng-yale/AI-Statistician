@@ -2109,8 +2109,9 @@ def test_theory_developer_preserves_metric_protocol_revision_lineage() -> None:
         },
     )
     assert "serious_upstream_theory_revision" in revision_prompt
-    assert "typed patch contract" in revision_prompt
-    assert "never a regenerated theory packet" in revision_prompt
+    assert "typed revision contract" in revision_prompt
+    assert "never regenerate the full theory packet" in revision_prompt
+    assert "feedback_decision_contract" in revision_prompt
     assert "missing theory calibration" in revision_prompt
     assert "base_core_payload" in revision_prompt
     assert parent_theory_packet["theory_derivation_packet"]["equation_chain"][0][

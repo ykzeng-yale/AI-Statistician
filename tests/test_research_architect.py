@@ -423,6 +423,28 @@ def _metric_theory_revision_context(
     }
 
 
+def _bounded_outcome_feedback_decisions(
+    *,
+    affected_section: str = "problem_card",
+) -> dict[str, object]:
+    return {
+        "metric_protocol_finding:bounded-outcome": {
+            "selected_resolution": (
+                "Require bounded outcomes in the admitted DGP and propagate "
+                "that premise through its guarantee-bearing dependents."
+            ),
+            "rationale": (
+                "The reviewed finite-sample guarantee uses boundedness and "
+                "cannot leave the premise implicit."
+            ),
+            "rejected_alternatives": [
+                "Leave bounded outcomes implicit in downstream code."
+            ],
+            "affected_top_level_sections": [affected_section],
+        }
+    }
+
+
 def test_research_architect_records_llm_theory_packet_and_evidence_ledger() -> None:
     out_dir = Path("runs/test_research_architect")
     shutil.rmtree(out_dir, ignore_errors=True)
@@ -997,10 +1019,13 @@ def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -
     base_fingerprint = revision_inputs["base_core_payload_fingerprint"]
     invalid_patch = {
         "base_payload_fingerprint": base_fingerprint,
+        "feedback_decisions": _bounded_outcome_feedback_decisions(),
         "updates": [
             {
-                "path": ["theory_derivation_packet", "invented_section"],
-                "replacement_json": "[]",
+                "path": ["theory_derivation_packet", "self_critique"],
+                "replacement_json": json.dumps(
+                    ["A detached change that the decision did not authorize."]
+                ),
             }
         ],
     }
@@ -1010,6 +1035,7 @@ def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -
     ]
     valid_patch = {
         "base_payload_fingerprint": base_fingerprint,
+        "feedback_decisions": _bounded_outcome_feedback_decisions(),
         "updates": [
             {
                 "path": ["problem_card", "assumptions"],
@@ -1046,7 +1072,6 @@ def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -
     assert packet["theory_derivation_packet"]["self_critique"] == parent[
         "theory_derivation_packet"
     ]["self_critique"]
-    assert "invented_section" not in packet["theory_derivation_packet"]
     assert len(provider.requests) == 3
     assert [request.model for request in provider.requests] == [
         DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
@@ -1060,13 +1085,31 @@ def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -
     assert first_request.max_tokens <= 8000
     assert set(first_request.schema["properties"]) == {
         "base_payload_fingerprint",
+        "feedback_decisions",
         "updates",
     }
-    assert "never a regenerated theory packet" in first_request.user_prompt
+    assert "never regenerate the full theory packet" in first_request.user_prompt
     assert "preserved byte-for-structure" in first_request.user_prompt
     assert '"existing_paths_only":true' in first_request.user_prompt
     assert '"valid_top_level_path_keys"' in first_request.user_prompt
+    revision_prompt = json.loads(first_request.user_prompt.split("\n\n", 1)[1])
+    decision_contract = revision_prompt["feedback_decision_contract"]
+    assert decision_contract["n_routed_findings"] == 1
+    assert decision_contract["active_finding_ids"] == [
+        "metric_protocol_finding:bounded-outcome"
+    ]
+    assert decision_contract["required_decision_keys"] == [
+        "metric_protocol_finding:bounded-outcome"
+    ]
+    assert decision_contract[
+        "one_current_executable_resolution_per_finding"
+    ] is True
+    assert decision_contract[
+        "reviewer_alternatives_are_candidates_not_a_runtime_branch"
+    ] is True
+    assert first_request.metadata["n_feedback_decisions_required"] == 1
     assert "original immutable base" in retry_request.user_prompt
+    assert "same top-level sections" in retry_request.user_prompt
     assert retry_request.metadata["json_repair_attempt"] == 1
     assert interface_request.metadata["theory_developer_phase"] == (
         "estimator_interface_authoring"
@@ -1080,6 +1123,9 @@ def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -
     assert interface_prompt["frozen_core_theory"][
         "active_revision_obligations"
     ][0]["finding_id"] == "metric_protocol_finding:bounded-outcome"
+    assert interface_prompt["frozen_core_theory"][
+        "active_revision_obligations"
+    ][0]["selected_resolution"].startswith("Require bounded outcomes")
     transport = packet["theory_revision_transport"]
     assert transport["source_theory_packet_id"] == (
         "theory_derivation:targeted-revision-parent"
@@ -1095,6 +1141,12 @@ def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -
     assert transport["revision_obligations"][0]["required_change"] == (
         "Revise the theory semantics and direct dependents."
     )
+    assert transport["feedback_decisions"] == (
+        _bounded_outcome_feedback_decisions()
+    )
+    assert transport["revision_obligations"][0][
+        "affected_top_level_sections"
+    ] == ["problem_card"]
     assert transport["kernel_verified"] is False
 
 
@@ -1177,6 +1229,9 @@ def test_postexecution_theory_revision_uses_current_parent_bound_feedback() -> N
     assert "serious_upstream_theory_revision" in prompt
     assert "generated_code_semantic_review_postexecution" in prompt
     assert "theory_derivation:stale-preflight-parent" not in prompt
+    assert "feedback_decision_contract" in prompt
+    assert "one_current_executable_resolution_per_finding" in prompt
+    assert "reviewer alternatives are candidates" in prompt
 
     tampered_context = json.loads(json.dumps(context))
     tampered_context[THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY][
@@ -1205,6 +1260,7 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
         "base_payload_fingerprint": revision_inputs[
             "base_core_payload_fingerprint"
         ],
+        "feedback_decisions": _bounded_outcome_feedback_decisions(),
         "updates": [
             {
                 "path": ["problem_card", "assumptions"],

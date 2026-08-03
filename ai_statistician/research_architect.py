@@ -2734,6 +2734,249 @@ def build_theory_developer_revision_inputs(
     }
 
 
+def _theory_revision_feedback_decision_rows(
+    revision_inputs: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    feedback = revision_inputs.get("feedback", {})
+    feedback = dict(feedback) if isinstance(feedback, Mapping) else {}
+    rows: list[dict[str, Any]] = []
+    used_keys: set[str] = set()
+    for index, finding in enumerate(feedback.get("findings", []) or []):
+        if not isinstance(finding, Mapping):
+            continue
+        finding_row = deepcopy(dict(finding))
+        finding_id = str(finding_row.get("finding_id", "") or "").strip()
+        decision_key = finding_id or (
+            "routed_finding:" + stable_hash([index, finding_row])[:20]
+        )
+        if decision_key in used_keys:
+            decision_key += ":" + stable_hash([index, finding_row])[:8]
+        used_keys.add(decision_key)
+        rows.append(
+            {
+                "decision_key": decision_key,
+                "finding_id": finding_id,
+                "finding_index": index,
+                "finding_fingerprint": stable_hash(finding_row),
+                "finding": finding_row,
+            }
+        )
+    return rows
+
+
+def _theory_revision_feedback_decisions_json_schema(
+    *,
+    decision_rows: Sequence[Mapping[str, Any]],
+    valid_top_level_path_keys: Sequence[str],
+) -> dict[str, Any]:
+    decision_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "selected_resolution",
+            "rationale",
+            "rejected_alternatives",
+            "affected_top_level_sections",
+        ],
+        "properties": {
+            "selected_resolution": {"type": "string", "minLength": 1},
+            "rationale": {"type": "string", "minLength": 1},
+            "rejected_alternatives": {
+                "type": "array",
+                "maxItems": 5,
+                "items": {"type": "string", "minLength": 1},
+            },
+            "affected_top_level_sections": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": max(1, len(valid_top_level_path_keys)),
+                "uniqueItems": True,
+                "items": {
+                    "type": "string",
+                    "enum": list(valid_top_level_path_keys),
+                },
+            },
+        },
+    }
+    decision_keys = [
+        str(row.get("decision_key", "") or "") for row in decision_rows
+    ]
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": decision_keys,
+        "properties": {
+            key: deepcopy(decision_schema) for key in decision_keys
+        },
+    }
+
+
+def _theory_revision_feedback_decision_contract(
+    revision_inputs: Mapping[str, Any],
+) -> dict[str, Any]:
+    decision_rows = _theory_revision_feedback_decision_rows(revision_inputs)
+    base_core_payload = revision_inputs.get("base_core_payload", {})
+    valid_top_level_sections = (
+        sorted(str(key) for key in base_core_payload)
+        if isinstance(base_core_payload, Mapping)
+        else []
+    )
+    decision_bindings = [
+        {
+            key: row.get(key)
+            for key in (
+                "decision_key",
+                "finding_id",
+                "finding_index",
+                "finding_fingerprint",
+            )
+        }
+        for row in decision_rows
+    ]
+    contract_basis = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeTheoryRevisionFeedbackDecisionContract",
+        "revision_binding_id": revision_inputs.get("revision_binding_id", ""),
+        "source_feedback_fingerprint": revision_inputs.get(
+            "source_feedback_fingerprint", ""
+        ),
+        "decision_bindings": decision_bindings,
+        "valid_top_level_sections": valid_top_level_sections,
+    }
+    return {
+        **contract_basis,
+        "decision_contract_id": (
+            "theory_revision_feedback_decisions:"
+            + stable_hash(contract_basis)[:20]
+        ),
+        "routed_findings": {
+            str(row.get("decision_key", "") or ""): {
+                "finding_id": row.get("finding_id", ""),
+                "finding_fingerprint": row.get("finding_fingerprint", ""),
+                "finding": deepcopy(dict(row.get("finding", {}) or {})),
+            }
+            for row in decision_rows
+        },
+        "feedback_decisions_schema": (
+            _theory_revision_feedback_decisions_json_schema(
+                decision_rows=decision_rows,
+                valid_top_level_path_keys=valid_top_level_sections,
+            )
+        ),
+    }
+
+
+def _theory_revision_envelope_json_schema(
+    decision_contract: Mapping[str, Any],
+) -> dict[str, Any]:
+    schema = typed_semantic_patch_schema(
+        max_updates=THEORY_REVISION_PATCH_MAX_UPDATES
+    )
+    schema["required"] = [
+        *list(schema.get("required", []) or []),
+        "feedback_decisions",
+    ]
+    schema["properties"]["feedback_decisions"] = deepcopy(
+        dict(decision_contract.get("feedback_decisions_schema", {}) or {})
+    )
+    return schema
+
+
+def _validate_theory_revision_feedback_decisions(
+    decisions: Any,
+    *,
+    decision_contract: Mapping[str, Any],
+    applied_paths: Sequence[Sequence[str | int]],
+) -> list[str]:
+    if not isinstance(decisions, Mapping):
+        return ["theory revision feedback_decisions must be an exact-key object"]
+    bindings = [
+        row
+        for row in decision_contract.get("decision_bindings", []) or []
+        if isinstance(row, Mapping)
+    ]
+    expected_keys = {
+        str(row.get("decision_key", "") or "") for row in bindings
+    }
+    errors: list[str] = []
+    if set(str(key) for key in decisions) != expected_keys:
+        errors.append(
+            "theory revision feedback_decisions must cover every routed finding exactly"
+        )
+    valid_sections = {
+        str(value)
+        for value in decision_contract.get(
+            "valid_top_level_sections", []
+        )
+        or []
+    }
+    declared_sections: set[str] = set()
+    for decision_key in sorted(expected_keys):
+        decision = decisions.get(decision_key, {})
+        if not isinstance(decision, Mapping):
+            errors.append(
+                f"theory revision decision {decision_key} must be an object"
+            )
+            continue
+        selected_resolution = str(
+            decision.get("selected_resolution", "") or ""
+        ).strip()
+        if not selected_resolution:
+            errors.append(
+                f"theory revision decision {decision_key} has no selected resolution"
+            )
+        if not str(decision.get("rationale", "") or "").strip():
+            errors.append(
+                f"theory revision decision {decision_key} has no rationale"
+            )
+        rejected = decision.get("rejected_alternatives", [])
+        if (
+            not isinstance(rejected, list)
+            or len(rejected) > 5
+            or any(not str(value).strip() for value in rejected)
+        ):
+            errors.append(
+                f"theory revision decision {decision_key} has invalid rejected alternatives"
+            )
+        elif selected_resolution and selected_resolution.casefold() in {
+            str(value).strip().casefold() for value in rejected
+        }:
+            errors.append(
+                f"theory revision decision {decision_key} rejects its selected resolution"
+            )
+        affected = decision.get("affected_top_level_sections", [])
+        if (
+            not isinstance(affected, list)
+            or not affected
+            or len(set(str(value) for value in affected)) != len(affected)
+        ):
+            errors.append(
+                f"theory revision decision {decision_key} has invalid affected sections"
+            )
+            continue
+        unknown_sections = {
+            str(value) for value in affected
+        } - valid_sections
+        if unknown_sections:
+            errors.append(
+                f"theory revision decision {decision_key} names an unknown section"
+            )
+            continue
+        declared_sections.update(str(value) for value in affected)
+
+    applied_sections = {
+        str(path[0])
+        for path in applied_paths
+        if path and isinstance(path[0], str)
+    }
+    if expected_keys and declared_sections != applied_sections:
+        errors.append(
+            "theory revision feedback decisions and applied patch paths must "
+            "name the same top-level sections"
+        )
+    return errors
+
+
 def _build_targeted_theory_revision_prompt(
     *,
     question: OpenResearchQuestion,
@@ -2750,6 +2993,31 @@ def _build_targeted_theory_revision_prompt(
         if isinstance(base_core_payload, Mapping)
         else []
     )
+    decision_contract = _theory_revision_feedback_decision_contract(
+        revision_inputs
+    )
+    raw_feedback = revision_inputs.get("feedback", {})
+    feedback = dict(raw_feedback) if isinstance(raw_feedback, Mapping) else {}
+    feedback_findings = [
+        row
+        for row in feedback.get("findings", []) or []
+        if isinstance(row, Mapping)
+    ]
+    active_finding_ids = list(
+        dict.fromkeys(
+            str(value).strip()
+            for value in feedback.get("active_unresolved_finding_ids", []) or []
+            if str(value).strip()
+        )
+    )
+    if not active_finding_ids:
+        active_finding_ids = list(
+            dict.fromkeys(
+                str(row.get("finding_id", "") or "").strip()
+                for row in feedback_findings
+                if str(row.get("finding_id", "") or "").strip()
+            )
+        )
     payload: dict[str, Any] = {
         "question": {
             "id": question.id,
@@ -2785,9 +3053,29 @@ def _build_targeted_theory_revision_prompt(
             "base_core_payload_fingerprint": base_fingerprint,
         },
         "routed_feedback": _compact_environment_feedback_for_prompt(
-            revision_inputs.get("feedback", {})
-            if isinstance(revision_inputs.get("feedback", {}), Mapping)
-            else {}
+            feedback
+        ),
+        "feedback_decision_contract": {
+            "decision_contract_id": decision_contract.get(
+                "decision_contract_id", ""
+            ),
+            "n_routed_findings": len(feedback_findings),
+            "active_finding_ids": active_finding_ids,
+            "required_decision_keys": [
+                str(row.get("decision_key", "") or "")
+                for row in decision_contract.get("decision_bindings", []) or []
+                if isinstance(row, Mapping)
+            ],
+            "output_field": "feedback_decisions",
+            "one_current_executable_resolution_per_finding": True,
+            "reviewer_alternatives_are_candidates_not_a_runtime_branch": True,
+            "semantic_choice_owner": "TheoryDeveloper",
+            "independent_acceptance_owner": (
+                "ArchitectTheoryExecutionPreflightReviewer"
+            ),
+        },
+        "routed_findings_by_decision_key": deepcopy(
+            dict(decision_contract.get("routed_findings", {}) or {})
         ),
         "base_core_payload": base_core_payload,
         "patch_contract": {
@@ -2807,12 +3095,20 @@ def _build_targeted_theory_revision_prompt(
             "maximum_updates": THEORY_REVISION_PATCH_MAX_UPDATES,
             "valid_top_level_path_keys": valid_top_level_path_keys,
             "existing_paths_only": True,
+            "feedback_decisions": (
+                "one exact-key semantic decision object for every "
+                "feedback_decision_contract.required_decision_keys value"
+            ),
         },
         "revision_instructions": [
-            "Return only one typed patch envelope, never a regenerated theory packet.",
+            "Return one typed revision envelope containing feedback_decisions, base_payload_fingerprint, and updates; never regenerate the full theory packet.",
             "Copy base_payload_fingerprint exactly and update only defective fields plus their direct semantic dependents.",
             "Every unmentioned field is immutable and will be preserved byte-for-structure by the runtime.",
             "Derive replacements from the primitive DGP, estimand, and theorem hypotheses; reviewer prose is diagnostic evidence, not an answer key.",
+            "For every exact routed_findings_by_decision_key key, emit one feedback_decisions entry choosing one current executable semantic resolution and listing genuinely rejected alternatives.",
+            "Implement each selected resolution in this same envelope and keep its rejected alternatives out of every executable branch and return contract; reviewer alternatives are candidates, not an answer key or runtime branch.",
+            "The union of affected_top_level_sections across feedback_decisions must exactly equal the top-level sections touched by updates.",
+            "Propagate each selected behavior consistently across the smallest complete set of existing formula, algorithm, input, output, normalization, assumption, diagnostic, simulation, theorem-risk, and interface-facing fields that depend on it. A finite executable procedure must expose one unambiguous typed outcome for every admitted input.",
             "Recompute guarantee-carrying identities and check data-dependent operations, finite typed returns, and guarantee transport where the feedback makes them relevant.",
             "For a structural correction, replace the smallest complete semantic section using replacement_json; do not scatter cosmetic leaf edits.",
             "Use replacement only for a JSON scalar and replacement_json for every object or array.",
@@ -2830,23 +3126,24 @@ def _build_targeted_theory_revision_prompt(
             transport_feedback
         )
         payload["transport_recovery_instruction"] = (
-            "The previous patch transport failed local parsing or validation. "
-            "Return a complete compact patch envelope against the same parent."
+            "The previous revision transport failed local parsing or validation. "
+            "Return a complete compact revision envelope against the same parent."
         )
     if validation_errors:
         payload["local_validation_errors"] = [
             str(error) for error in validation_errors[:12]
         ]
         payload["retry_instruction"] = (
-            "Return a fresh complete patch envelope against the original immutable "
-            "base, correcting every local validation error. Do not patch the prior patch."
+            "Return a fresh complete revision envelope against the original immutable "
+            "base, correcting every local validation error. Do not patch the prior envelope."
         )
     if previous_patch_excerpt:
         payload["previous_invalid_patch_excerpt"] = previous_patch_excerpt[:2000]
     return (
         "Revise one lineage-bound statistical theory workspace. Return ONLY JSON "
-        "matching the typed patch contract; the runtime applies it to the immutable "
-        "parent and validates the resulting full theory packet.\n\n"
+        "matching the typed revision contract; the runtime binds its decisions to "
+        "the patch, applies it to the immutable parent, and validates the resulting "
+        "full theory packet.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
     )
 
@@ -2870,6 +3167,9 @@ def _generate_targeted_theory_revision(
 ) -> dict[str, Any]:
     """Ask the same TheoryDeveloper for a bounded semantic delta, then validate it."""
 
+    feedback_decision_contract = (
+        _theory_revision_feedback_decision_contract(revision_inputs)
+    )
     user_prompt = _build_targeted_theory_revision_prompt(
         question=question,
         revision_inputs=revision_inputs,
@@ -2880,8 +3180,8 @@ def _generate_targeted_theory_revision(
         model=request_model,
         max_tokens=min(max_tokens, THEORY_REVISION_PATCH_MAX_TOKENS),
         temperature=temperature,
-        schema=typed_semantic_patch_schema(
-            max_updates=THEORY_REVISION_PATCH_MAX_UPDATES
+        schema=_theory_revision_envelope_json_schema(
+            feedback_decision_contract
         ),
         metadata={
             "subsystem": "TheoryDeveloper",
@@ -2904,6 +3204,12 @@ def _generate_targeted_theory_revision(
                 "revision_binding_id", ""
             ),
             "revision_source": revision_inputs.get("revision_source", ""),
+            "feedback_decision_contract_id": feedback_decision_contract.get(
+                "decision_contract_id", ""
+            ),
+            "n_feedback_decisions_required": len(
+                feedback_decision_contract.get("decision_bindings", []) or []
+            ),
             "base_core_payload_fingerprint": revision_inputs.get(
                 "base_core_payload_fingerprint", ""
             ),
@@ -2927,6 +3233,14 @@ def _generate_targeted_theory_revision(
         response: Any,
         raw_text: str,
     ) -> dict[str, Any]:
+        feedback_decisions = deepcopy(
+            raw_payload.get("feedback_decisions", {})
+        )
+        feedback_decision_rows = (
+            dict(feedback_decisions)
+            if isinstance(feedback_decisions, Mapping)
+            else {}
+        )
         patched_payload, applied_paths, path_normalizations = (
             apply_typed_semantic_patch(
                 base_payload=base_core_payload,
@@ -2951,8 +3265,26 @@ def _generate_targeted_theory_revision(
             if isinstance(source_feedback, Mapping)
             else {}
         )
-        revision_obligations = [
-            {
+        decision_by_finding_index = {
+            int(binding.get("finding_index", -1)): (
+                feedback_decision_rows.get(
+                    str(binding.get("decision_key", "") or ""),
+                    {},
+                )
+            )
+            for binding in feedback_decision_contract.get(
+                "decision_bindings", []
+            )
+            or []
+            if isinstance(binding, Mapping)
+        }
+        revision_obligations = []
+        for finding_index, finding in enumerate(
+            source_feedback.get("findings", []) or []
+        ):
+            if not isinstance(finding, Mapping):
+                continue
+            obligation = {
                 key: deepcopy(value)
                 for key, value in finding.items()
                 if key
@@ -2964,9 +3296,20 @@ def _generate_targeted_theory_revision(
                     "evidence_refs",
                 }
             }
-            for finding in source_feedback.get("findings", []) or []
-            if isinstance(finding, Mapping)
-        ]
+            decision = decision_by_finding_index.get(finding_index, {})
+            if isinstance(decision, Mapping) and decision:
+                obligation["selected_resolution"] = str(
+                    decision.get("selected_resolution", "") or ""
+                )
+                obligation["rejected_alternatives"] = deepcopy(
+                    list(decision.get("rejected_alternatives", []) or [])
+                )
+                obligation["affected_top_level_sections"] = deepcopy(
+                    list(
+                        decision.get("affected_top_level_sections", []) or []
+                    )
+                )
+            revision_obligations.append(obligation)
         packet["theory_revision_transport"] = {
             "artifact_kind": "TheoryDeveloperTargetedRevisionTransport",
             "revision_binding_id": revision_inputs.get(
@@ -2983,6 +3326,19 @@ def _generate_targeted_theory_revision(
             "source_feedback_fingerprint": revision_inputs.get(
                 "source_feedback_fingerprint", ""
             ),
+            "feedback_decision_contract_id": feedback_decision_contract.get(
+                "decision_contract_id", ""
+            ),
+            "feedback_decision_bindings": deepcopy(
+                list(
+                    feedback_decision_contract.get("decision_bindings", [])
+                    or []
+                )
+            ),
+            "feedback_decisions_fingerprint": stable_hash(
+                feedback_decisions
+            ),
+            "feedback_decisions": feedback_decisions,
             "revision_obligations": revision_obligations,
             "active_unresolved_finding_ids": [
                 str(value)
@@ -3021,6 +3377,24 @@ def _generate_targeted_theory_revision(
         }
         return packet
 
+    def validate_packet(packet: Mapping[str, Any]) -> list[str]:
+        errors = validate_theory_core_packet(packet)
+        transport = packet.get("theory_revision_transport", {})
+        if not isinstance(transport, Mapping):
+            return [*errors, "theory revision transport must be an object"]
+        return [
+            *errors,
+            *_validate_theory_revision_feedback_decisions(
+                transport.get("feedback_decisions", {}),
+                decision_contract=feedback_decision_contract,
+                applied_paths=(
+                    transport.get("applied_paths", [])
+                    if isinstance(transport.get("applied_paths", []), list)
+                    else []
+                ),
+            ),
+        ]
+
     def retry_prompt_builder(
         *,
         original_user_prompt: str,
@@ -3043,7 +3417,7 @@ def _generate_targeted_theory_revision(
         request=request,
         extract_payload=_extract_json_object,
         build_packet=build_packet,
-        validate_packet=validate_theory_core_packet,
+        validate_packet=validate_packet,
         validation_label="LLM TheoryDeveloper targeted revision packet",
         max_repair_attempts=max_repair_attempts,
         retry_prompt_builder=retry_prompt_builder,
