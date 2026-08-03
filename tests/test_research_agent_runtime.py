@@ -37257,12 +37257,34 @@ def test_formalizer_candidate_materialization_sends_absurd_to_lean(
 
 def test_formalizer_candidate_materialization_captures_malformed_formal_target(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     task = AgentTask(
         task_id="task:formalizer_candidate_malformed_formal_target",
         owner_subsystem="FormalizationEvaluator",
         objective="capture malformed LLM formal target instead of silently skipping it",
+    )
+    observed_sources: list[str] = []
+
+    def fake_local_check(**kwargs: object) -> dict[str, object]:
+        artifact_path = Path(str(kwargs["artifact_path"]))
+        observed_sources.append(artifact_path.read_text(encoding="utf-8"))
+        return {
+            "local_lean_attempted": True,
+            "local_lean_compiled": False,
+            "local_lean_source_compiled": False,
+            "local_lean_exit_status": "1",
+            "local_lean_stdout": "",
+            "local_lean_stderr": "unexpected token ':'; expected command",
+            "candidate_identity_lean_checked": False,
+            "candidate_identity_lean_verified": False,
+        }
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_run_formalizer_lean_candidate_local_check",
+        fake_local_check,
     )
     manifest = _materialize_formalizer_lean_candidate_artifacts(
         root=tmp_path / "formalizer_lean_candidates",
@@ -37288,14 +37310,19 @@ def test_formalizer_candidate_materialization_captures_malformed_formal_target(
 
     row = manifest["candidate_rows"][0]
     assert manifest["n_candidate_sources"] == 1
-    assert manifest["n_candidate_artifacts_written"] == 0
-    assert manifest["n_precheck_rejected"] == 1
-    assert manifest["n_local_lean_checked"] == 0
+    assert manifest["n_candidate_artifacts_written"] == 1
+    assert manifest["n_precheck_rejected"] == 0
+    assert manifest["n_local_lean_checked"] == 1
     assert row["candidate_kind"] == "formal_target_lean_statement_sketch"
-    assert row["precheck_status"] == "REJECTED_BY_RUNTIME_PRECHECK"
-    errors = " ".join(row["precheck_errors"])
-    assert "exact?" in errors
-    assert "must contain a declaration" not in errors
+    assert row["precheck_status"] == "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE"
+    assert row["precheck_errors"] == []
+    assert row["local_lean_attempted"] is True
+    assert row["local_lean_compiled"] is False
+    assert "unexpected token" in row["local_lean_stderr"]
+    assert observed_sources == [
+        "variable (n : Nat) : n = n := by\n"
+        "  exact?"
+    ]
 
 
 def test_formalizer_candidate_materialization_routes_type_star_to_local_lean(
@@ -38700,14 +38727,36 @@ def test_formalizer_source_theorem_target_string_false_kernel_still_requests_env
     )
 
 
-def test_formalizer_candidate_materialization_rejects_formal_gap_placeholder_in_lean(
+def test_formalizer_candidate_materialization_delegates_unknown_name_to_lean(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     task = AgentTask(
         task_id="task:formalizer_candidate_formal_gap_placeholder",
         owner_subsystem="FormalizationEvaluator",
-        objective="reject fake formal gap constant inside Lean source",
+        objective="send an unknown generated identifier to Lean for diagnostics",
+    )
+    observed_sources: list[str] = []
+
+    def fake_local_check(**kwargs: object) -> dict[str, object]:
+        artifact_path = Path(str(kwargs["artifact_path"]))
+        observed_sources.append(artifact_path.read_text(encoding="utf-8"))
+        return {
+            "local_lean_attempted": True,
+            "local_lean_compiled": False,
+            "local_lean_source_compiled": False,
+            "local_lean_exit_status": "1",
+            "local_lean_stdout": "",
+            "local_lean_stderr": "unknown identifier 'FORMAL_GAP_exchangeability_rank_uniformity'",
+            "candidate_identity_lean_checked": False,
+            "candidate_identity_lean_verified": False,
+        }
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_run_formalizer_lean_candidate_local_check",
+        fake_local_check,
     )
     manifest = _materialize_formalizer_lean_candidate_artifacts(
         root=tmp_path / "formalizer_lean_candidates",
@@ -38735,10 +38784,34 @@ def test_formalizer_candidate_materialization_rejects_formal_gap_placeholder_in_
 
     row = manifest["candidate_rows"][0]
     assert manifest["n_candidate_sources"] == 1
-    assert manifest["n_candidate_artifacts_written"] == 0
-    assert manifest["n_precheck_rejected"] == 1
-    assert row["precheck_status"] == "REJECTED_BY_RUNTIME_PRECHECK"
-    assert "FORMAL_GAP placeholder" in " ".join(row["precheck_errors"])
+    assert manifest["n_candidate_artifacts_written"] == 1
+    assert manifest["n_precheck_rejected"] == 0
+    assert manifest["n_local_lean_checked"] == 1
+    assert manifest["n_local_lean_compiled"] == 0
+    assert row["precheck_status"] == "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE"
+    assert row["precheck_errors"] == []
+    assert row["local_lean_attempted"] is True
+    assert row["local_lean_compiled"] is False
+    assert "unknown identifier" in row["local_lean_stderr"]
+    assert observed_sources == [
+        "theorem split_conformal_coverage_lb : True := by\n"
+        "  exact FORMAL_GAP_exchangeability_rank_uniformity"
+    ]
+
+
+def test_formalizer_candidate_precheck_leaves_lean_syntax_and_tactics_to_lean() -> None:
+    source = (
+        "theorem generated_candidate (p : Prop) (hp : p) : p := by\n"
+        "  -- TODO: let Lean report whether this search succeeds\n"
+        "  exact?\n"
+        "/* malformed text is also a Lean diagnostic, not a Python repair rule */\n"
+    )
+
+    assert formalizer_module._lean_statement_trust_boundary_error(source) == ""
+    assert runtime_module._formalizer_lean_candidate_precheck_errors(
+        source,
+        lean_project=None,
+    ) == []
 
 
 def test_formalizer_candidate_materialization_diagnoses_unavailable_import(
@@ -38803,7 +38876,8 @@ def test_formalizer_candidate_materialization_diagnoses_unavailable_import(
     assert "Mathlib.Probability.ProbabilityMeasure" in " ".join(
         row["precheck_errors"]
     )
-    assert "Mathlib.MeasureTheory.Measure.ProbabilityMeasure" in " ".join(
+    assert "use formal-environment search" in " ".join(row["precheck_errors"])
+    assert "Mathlib.MeasureTheory.Measure.ProbabilityMeasure" not in " ".join(
         row["precheck_errors"]
     )
 
@@ -38872,7 +38946,8 @@ def test_formalizer_candidate_materialization_diagnoses_mathlib_umbrella_import(
     assert row["local_lean_attempted"] is True
     error_text = " ".join(row["precheck_errors"])
     assert "imports unavailable umbrella module" in error_text
-    assert "Mathlib.MeasureTheory.Measure.ProbabilityMeasure" in error_text
+    assert "use formal-environment search" in error_text
+    assert "Mathlib.MeasureTheory.Measure.ProbabilityMeasure" not in error_text
     contract = manifest["learning_rows"][0]["local_lean_repair_contract"]
     assert contract["artifact_kind"] == "FormalizerToolObservationEnvelope"
     assert contract["diagnostic_classes"] == []
@@ -75643,7 +75718,7 @@ def test_runtime_learning_memory_routes_closure_instantiation_failure_to_adapter
     ] == "split_conformal_coverage"
 
 
-def test_formalizer_validator_rejects_adapter_placeholder_syntax_and_full_target_statement() -> None:
+def test_formalizer_validator_leaves_adapter_syntax_to_lean_and_checks_identity() -> None:
     packet = {
         "formal_targets": [
             {
@@ -75699,7 +75774,7 @@ def test_formalizer_validator_rejects_adapter_placeholder_syntax_and_full_target
     errors = validate_formalizer_packet(packet)
 
     assert any("target_lean_declaration must be a Lean declaration identifier" in error for error in errors)
-    assert any("contains C-style placeholder comment syntax" in error for error in errors)
+    assert not any("C-style placeholder comment syntax" in error for error in errors)
 
 
 def test_formalizer_validator_leaves_contradiction_terms_to_lean() -> None:
@@ -75766,7 +75841,7 @@ def test_formalizer_validator_leaves_contradiction_terms_to_lean() -> None:
     assert not any("absurd" in error for error in errors)
 
 
-def test_formalizer_validator_rejects_source_to_bridge_skeleton_marker() -> None:
+def test_formalizer_validator_leaves_source_to_bridge_tactic_to_lean() -> None:
     packet = {
         "formal_targets": [
             {
@@ -75826,7 +75901,8 @@ def test_formalizer_validator_rejects_source_to_bridge_skeleton_marker() -> None
 
     errors = validate_formalizer_packet(packet)
 
-    assert any("fail_if_success" in error for error in errors)
+    assert not any("fail_if_success" in error for error in errors)
+    assert any("vacuous True" in error for error in errors)
 
 
 def test_formalizer_validator_binds_identity_without_parsing_declaration_kind() -> None:

@@ -160,6 +160,9 @@ from .formal_target_semantic_review_runtime import (
     _runtime_formal_target_semantic_review_dispatch,
 )
 from .lean_candidate_identity import run_lean_candidate_identity_probe
+from .lean_candidate_revision_tool_loop import (
+    resolve_accepted_lean_candidate_revision_binding,
+)
 from .formal_verifier_agentic_proof_execution_artifact_verifier import (
     FORBIDDEN_ARTIFACT_TOKENS,
     _lean_command as _runtime_owned_lean_command,
@@ -24000,6 +24003,10 @@ class FormalizationEvaluatorRuntimeSubsystem:
         lean_candidate_materialization: dict[str, Any] | None = None
         candidate_proof_state_manifest: dict[str, Any] | None = None
         candidate_proof_state_evidence: EvidenceLedgerEntry | None = None
+        lean_candidate_client_tool_loop_evidence: dict[str, Any] = {}
+        lean_candidate_client_tool_loop_ledger_entry: (
+            EvidenceLedgerEntry | None
+        ) = None
 
         def record_candidate_proof_state_feedback(
             proof_state_feedback: Mapping[str, Any],
@@ -24195,17 +24202,57 @@ class FormalizationEvaluatorRuntimeSubsystem:
                             payload=formal_source_grounding_summary,
                         )
                     )
-                proposal_packet = self.proposal_agent.propose(
-                    question=question,
-                    theory_packet=packet if isinstance(packet, Mapping) else {},
-                    simulation_manifest=simulation_manifest if isinstance(simulation_manifest, Mapping) else {},
-                    algorithm_manifest=algorithm_manifest if isinstance(algorithm_manifest, Mapping) else {},
-                    registered_problem=_problem_to_json(problem),
-                    theorem_goals=[_theorem_goal_to_json(row) for row in theorem_goals],
-                    proof_bank_obligation_catalog=proof_bank_obligation_catalog,
-                    proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
-                    environment_feedback=environment_feedback,
+                client_tool_repair = (
+                    _runtime_formalizer_lean_candidate_client_tool_repair(
+                        proposal_agent=self.proposal_agent,
+                        question=question,
+                        task=task,
+                        blackboard=blackboard,
+                        theory_packet=(
+                            packet if isinstance(packet, Mapping) else {}
+                        ),
+                        environment_feedback=environment_feedback,
+                        proof_bank_runtime_memory_summary=(
+                            proof_bank_runtime_memory_summary
+                        ),
+                        formal_source_retriever=self.formal_source_retriever,
+                        lean_candidate_root=self.lean_candidate_root,
+                        lean_candidate_local_lean=(
+                            self.lean_candidate_local_lean
+                        ),
+                        lean_candidate_lean_project=(
+                            self.lean_candidate_lean_project
+                        ),
+                        lean_candidate_lean_timeout=(
+                            self.lean_candidate_lean_timeout
+                        ),
+                    )
                 )
+                if client_tool_repair is not None:
+                    (
+                        proposal_packet,
+                        lean_candidate_client_tool_loop_evidence,
+                    ) = client_tool_repair
+                else:
+                    proposal_packet = self.proposal_agent.propose(
+                        question=question,
+                        theory_packet=packet if isinstance(packet, Mapping) else {},
+                        simulation_manifest=(
+                            simulation_manifest
+                            if isinstance(simulation_manifest, Mapping)
+                            else {}
+                        ),
+                        algorithm_manifest=(
+                            algorithm_manifest
+                            if isinstance(algorithm_manifest, Mapping)
+                            else {}
+                        ),
+                        registered_problem=_problem_to_json(problem),
+                        theorem_goals=[_theorem_goal_to_json(row) for row in theorem_goals],
+                        proof_bank_obligation_catalog=proof_bank_obligation_catalog,
+                        proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
+                        environment_feedback=environment_feedback,
+                    )
             except PacketValidationError as exc:
                 return preserve_external_proof_search(
                     _formalizer_packet_validation_failure_result(
@@ -24440,6 +24487,130 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 else {}
             )
             produced_artifacts[proposal_id] = proposal_packet
+            if lean_candidate_client_tool_loop_evidence:
+                loop_artifact_id = str(
+                    lean_candidate_client_tool_loop_evidence.get(
+                        "artifact_id",
+                        "",
+                    )
+                    or "formalizer_lean_candidate_client_tool_loop:"
+                    + stable_hash(
+                        [
+                            task.task_id,
+                            proposal_id,
+                            lean_candidate_client_tool_loop_evidence,
+                        ]
+                    )[:20]
+                )
+                lean_candidate_client_tool_loop_evidence["artifact_id"] = (
+                    loop_artifact_id
+                )
+                produced_artifacts[loop_artifact_id] = (
+                    _runtime_artifact_with_architect_control(
+                        loop_artifact_id,
+                        lean_candidate_client_tool_loop_evidence,
+                        formalization_control_seed,
+                        subsystem_override=subsystem_name,
+                    )
+                )
+                lean_candidate_client_tool_loop_ledger_entry = (
+                    EvidenceLedgerEntry(
+                        evidence_id="evidence:"
+                        + stable_hash([task.task_id, loop_artifact_id])[:20],
+                        task_id=task.task_id,
+                        artifact_id=loop_artifact_id,
+                        evidence_type=(
+                            "formalizer_lean_candidate_client_tool_loop"
+                        ),
+                        status=(
+                            "LEAN_CANDIDATE_CLIENT_TOOL_LOOP_RECORDED_"
+                            "NOT_PROOF_EVIDENCE"
+                        ),
+                        boundary=FORMALIZER_BOUNDARY,
+                        payload={
+                            "candidate_id": str(
+                                lean_candidate_client_tool_loop_evidence.get(
+                                    "candidate_id",
+                                    "",
+                                )
+                                or ""
+                            ),
+                            "parent_source_hash": str(
+                                lean_candidate_client_tool_loop_evidence.get(
+                                    "parent_source_hash",
+                                    "",
+                                )
+                                or ""
+                            ),
+                            "submitted_source_hash": str(
+                                lean_candidate_client_tool_loop_evidence.get(
+                                    "submitted_source_hash",
+                                    "",
+                                )
+                                or ""
+                            ),
+                            "runtime_executed_tool_calls": int(
+                                lean_candidate_client_tool_loop_evidence.get(
+                                    "runtime_executed_tool_calls",
+                                    0,
+                                )
+                                or 0
+                            ),
+                            "runtime_selected_lean_code": False,
+                            "independent_semantic_review_required": True,
+                            "kernel_verified": False,
+                        },
+                    )
+                )
+                observations.append(
+                    EnvironmentObservation(
+                        observation_type=(
+                            "formalizer_lean_candidate_client_tool_loop"
+                        ),
+                        summary=(
+                            "model-owned Lean edit/search/check loop submitted a "
+                            "locally compiling candidate for independent review"
+                        ),
+                        payload={
+                            "artifact_id": loop_artifact_id,
+                            "candidate_id": str(
+                                lean_candidate_client_tool_loop_evidence.get(
+                                    "candidate_id",
+                                    "",
+                                )
+                                or ""
+                            ),
+                            "turns": int(
+                                lean_candidate_client_tool_loop_evidence.get(
+                                    "turns",
+                                    0,
+                                )
+                                or 0
+                            ),
+                            "tool_calls": int(
+                                lean_candidate_client_tool_loop_evidence.get(
+                                    "tool_calls",
+                                    0,
+                                )
+                                or 0
+                            ),
+                            "runtime_executed_tool_calls": int(
+                                lean_candidate_client_tool_loop_evidence.get(
+                                    "runtime_executed_tool_calls",
+                                    0,
+                                )
+                                or 0
+                            ),
+                            "proof_evidence_status": str(
+                                lean_candidate_client_tool_loop_evidence.get(
+                                    "proof_evidence_status",
+                                    "",
+                                )
+                                or ""
+                            ),
+                        },
+                    )
+                )
             pseudo_formal_work_order_rows = _formalizer_pseudo_formal_work_order_rows(
                 proposal_packet=proposal_packet
             )
@@ -26002,6 +26173,72 @@ class FormalizationEvaluatorRuntimeSubsystem:
         ]
         if external_proof_search_tool_calls:
             tool_calls[0:0] = external_proof_search_tool_calls
+        if lean_candidate_client_tool_loop_evidence:
+            loop_turns = int(
+                lean_candidate_client_tool_loop_evidence.get("turns", 0) or 0
+            )
+            loop_tool_calls = int(
+                lean_candidate_client_tool_loop_evidence.get("tool_calls", 0)
+                or 0
+            )
+            loop_lean_checks = int(
+                lean_candidate_client_tool_loop_evidence.get(
+                    "local_lean_checks",
+                    0,
+                )
+                or 0
+            )
+            tool_calls.append(
+                ToolCallRecord(
+                    tool_name=(
+                        "LLMFormalizerProofEngineerAgent."
+                        "repair_lean_candidate_with_client_tools"
+                    ),
+                    inputs={
+                        "candidate_id": str(
+                            lean_candidate_client_tool_loop_evidence.get(
+                                "candidate_id",
+                                "",
+                            )
+                            or ""
+                        ),
+                        "parent_source_hash": str(
+                            lean_candidate_client_tool_loop_evidence.get(
+                                "parent_source_hash",
+                                "",
+                            )
+                            or ""
+                        ),
+                        "model": str(
+                            lean_candidate_client_tool_loop_evidence.get(
+                                "model",
+                                "",
+                            )
+                            or ""
+                        ),
+                        "model_tier": str(
+                            lean_candidate_client_tool_loop_evidence.get(
+                                "model_tier",
+                                "",
+                            )
+                            or ""
+                        ),
+                    },
+                    output_hash=str(
+                        lean_candidate_client_tool_loop_evidence.get(
+                            "submitted_source_hash",
+                            "",
+                        )
+                        or ""
+                    ),
+                    exit_status="0",
+                    stdout_summary=(
+                        f"turns={loop_turns} tool_calls={loop_tool_calls} "
+                        f"local_lean_checks={loop_lean_checks}"
+                    ),
+                    safety_boundary=FORMALIZER_BOUNDARY,
+                )
+            )
         if proof_state_manifest is not None:
             tool_calls.append(
                 ToolCallRecord(
@@ -27024,6 +27261,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     evidence,
                     proof_state_evidence,
                     candidate_proof_state_evidence,
+                    lean_candidate_client_tool_loop_ledger_entry,
                     proof_state_routing_evidence,
                     gap_planner_evidence,
                     pseudo_formal_block_verifier_dispatch_evidence,
@@ -34649,6 +34887,203 @@ def _run_formalizer_lean_candidate_local_check(
     )
 
 
+def _runtime_formalizer_lean_candidate_client_tool_repair(
+    *,
+    proposal_agent: LLMFormalizerProofEngineerAgent,
+    question: OpenResearchQuestion,
+    task: AgentTask,
+    blackboard: BlackboardState,
+    theory_packet: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any],
+    proof_bank_runtime_memory_summary: Mapping[str, Any],
+    formal_source_retriever: Any | None,
+    lean_candidate_root: Path,
+    lean_candidate_local_lean: bool,
+    lean_candidate_lean_project: Path | None,
+    lean_candidate_lean_timeout: int,
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    """Run a same-context model edit/search/Lean loop for an accepted target."""
+
+    config = getattr(proposal_agent, "config", None)
+    provider = getattr(proposal_agent, "provider", None)
+    if (
+        not lean_candidate_local_lean
+        or lean_candidate_lean_project is None
+        or not Path(lean_candidate_lean_project).exists()
+        or not bool(
+            getattr(config, "use_client_tool_lean_candidate_repair", False)
+        )
+        or not callable(getattr(provider, "generate_client_tool_turn", None))
+    ):
+        return None
+    binding = resolve_accepted_lean_candidate_revision_binding(
+        question_id=question.id,
+        artifacts=blackboard.artifacts,
+        environment_feedback=environment_feedback,
+        exact_target_statement_hash=_external_exact_target_statement_hash,
+        target_statement_hash_algorithm=EXACT_TARGET_STATEMENT_HASH_ALGORITHM,
+    )
+    if binding is None:
+        return None
+    repair_context = binding.repair_context
+    materialization_id = binding.materialization_id
+    parent_packet_id = binding.parent_packet_id
+    parent_packet = binding.parent_packet
+    candidate_id = binding.candidate_id
+    candidate_declaration = binding.candidate_lean_declaration
+    source_field = binding.candidate_source_field
+    artifact_path = binding.candidate_artifact_path
+    expected_source_hash = binding.candidate_source_hash
+    initial_source = binding.initial_source
+
+    repair_root = (
+        Path(lean_candidate_root)
+        / _safe_identifier(question.id)
+        / "client_tool_repair"
+        / stable_hash(
+            [task.task_id, materialization_id, candidate_id, expected_source_hash]
+        )[:12]
+    )
+    active_repair_contract = environment_feedback.get(
+        "local_lean_repair_contract",
+        {},
+    )
+    if not isinstance(active_repair_contract, Mapping):
+        active_repair_contract = {}
+    candidate_metadata = binding.candidate_metadata
+
+    def check_candidate(source: str) -> Mapping[str, Any]:
+        source_hash = stable_hash(source)
+        precheck_errors = _formalizer_lean_candidate_precheck_errors(
+            source,
+            candidate_metadata=candidate_metadata,
+            source_field=source_field,
+            local_lean_repair_contract=active_repair_contract,
+            lean_project=Path(lean_candidate_lean_project),
+        )
+        blocking_errors = _formalizer_lean_candidate_blocking_precheck_errors(
+            precheck_errors
+        )
+        if blocking_errors:
+            return {
+                "source_hash": source_hash,
+                "compiled": False,
+                "precheck_errors": precheck_errors,
+                "blocking_precheck_errors": blocking_errors,
+                "local_lean_attempted": False,
+                "local_lean_exit_status": "",
+                "local_lean_stdout": "",
+                "local_lean_stderr": "",
+            }
+        repair_root.mkdir(parents=True, exist_ok=True)
+        path = repair_root / (
+            _safe_identifier(candidate_id) + "_" + source_hash[:12] + ".lean"
+        )
+        path.write_text(source, encoding="utf-8")
+        local_result = _run_formalizer_lean_candidate_local_check(
+            artifact_path=path,
+            candidate_lean_declaration=candidate_declaration,
+            lean_project=Path(lean_candidate_lean_project),
+            lean_timeout=lean_candidate_lean_timeout,
+        )
+        return {
+            "source_hash": source_hash,
+            "compiled": _bool_like(
+                local_result.get("local_lean_compiled", False)
+            ),
+            "artifact_path": str(path),
+            "precheck_errors": precheck_errors,
+            "blocking_precheck_errors": blocking_errors,
+            "local_lean_attempted": _bool_like(
+                local_result.get("local_lean_attempted", False)
+            ),
+            "local_lean_source_compiled": _bool_like(
+                local_result.get("local_lean_source_compiled", False)
+            ),
+            "local_lean_exit_status": str(
+                local_result.get("local_lean_exit_status", "") or ""
+            ),
+            "local_lean_stdout": str(
+                local_result.get("local_lean_stdout", "") or ""
+            )[:4000],
+            "local_lean_stderr": str(
+                local_result.get("local_lean_stderr", "") or ""
+            )[:4000],
+            "candidate_identity_lean_checked": _bool_like(
+                local_result.get("candidate_identity_lean_checked", False)
+            ),
+            "candidate_identity_lean_verified": _bool_like(
+                local_result.get("candidate_identity_lean_verified", False)
+            ),
+            "candidate_identity_lean_stdout": str(
+                local_result.get("candidate_identity_lean_stdout", "") or ""
+            )[:2000],
+            "candidate_identity_lean_stderr": str(
+                local_result.get("candidate_identity_lean_stderr", "") or ""
+            )[:2000],
+            "local_lean_command": list(
+                local_result.get("local_lean_command", []) or []
+            ),
+            "local_lean_project": str(lean_candidate_lean_project),
+        }
+
+    source_scope_ids = _proofengineer_formal_source_scope_ids(repair_context)
+
+    def search_formal_environment(query: str, k: int) -> Any:
+        if formal_source_retriever is None:
+            return {
+                "query": query,
+                "hits": [],
+                "retrieval_status": "formal_source_retriever_unavailable",
+            }
+        groups = _proofengineer_formal_source_grounding_hit_groups(
+            formal_source_retriever,
+            proof_state_query_seeds=(),
+            query_seeds=(query,),
+            unknown_identifiers=(),
+            source_scope_ids=source_scope_ids,
+            semantic_query_role="model_selected_lean_repair_query",
+            k=k,
+            max_groups=1,
+        )
+        return groups[0] if groups else {"query": query, "hits": []}
+
+    revised_packet, loop_evidence = (
+        proposal_agent.repair_lean_candidate_with_client_tools(
+            question=question,
+            theory_packet=theory_packet,
+            parent_packet=parent_packet,
+            candidate_id=candidate_id,
+            candidate_source_field=source_field,
+            candidate_lean_declaration=candidate_declaration,
+            initial_source=initial_source,
+            environment_feedback=environment_feedback,
+            proof_bank_runtime_memory_summary=(
+                proof_bank_runtime_memory_summary
+            ),
+            check_candidate=check_candidate,
+            search_formal_environment=search_formal_environment,
+        )
+    )
+    evidence = {
+        **dict(loop_evidence),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "question_id": question.id,
+        "task_id": task.task_id,
+        "parent_materialization_manifest_id": materialization_id,
+        "parent_formalizer_packet_id": parent_packet_id,
+        "parent_candidate_artifact_path": str(artifact_path),
+        "parent_candidate_source_hash": expected_source_hash,
+        "active_lean_project": str(lean_candidate_lean_project),
+        "source_scope_ids": list(source_scope_ids),
+    }
+    evidence["artifact_id"] = (
+        "formalizer_lean_candidate_client_tool_loop:"
+        + stable_hash(evidence)[:20]
+    )
+    return revised_packet, evidence
+
+
 def _formalizer_lean_candidate_precheck_errors(
     source: str,
     *,
@@ -34663,19 +35098,13 @@ def _formalizer_lean_candidate_precheck_errors(
     errors: list[str] = []
     if len(text) > 20000:
         errors.append("Lean candidate source exceeds 20000 characters")
+    # Block only proof-authority violations here. Lean owns syntax and tactic
+    # diagnostics; the independent reviewer owns target fidelity.
     forbidden_patterns = (
         (r"\bsorry\b", "contains Lean sorry placeholder"),
         (r"\badmit\b", "contains Lean admit placeholder"),
         (r"\baxiom\b", "contains Lean axiom declaration"),
         (r"\bunsafe\b", "contains unsafe Lean declaration"),
-        (r"\bby\?", "contains interactive proof-hole marker by?"),
-        (r"\bexact\?", "contains interactive proof-hole marker exact?"),
-        (
-            r"\bFORMAL_GAP[A-Za-z0-9_]*\b",
-            "contains FORMAL_GAP placeholder in Lean source",
-        ),
-        (r"\bfail_if_success\b", "contains skeleton marker fail_if_success"),
-        (r"/\*|\*/", "contains C-style placeholder comment syntax"),
     )
     for pattern, message in forbidden_patterns:
         if re.search(pattern, text, flags=re.IGNORECASE):
@@ -34754,46 +35183,28 @@ def _formalizer_import_precheck_errors(
             and _lean_module_directory_exists(module, roots)
             and not _lean_compiled_module_exists(module, roots)
         ):
-            suggestions = _lean_umbrella_module_import_suggestions(module, roots)
-            suggestion_text = (
-                "; verified narrow module(s): " + ", ".join(suggestions)
-                if suggestions
-                else ""
-            )
             errors.append(
                 "Lean candidate imports unavailable umbrella module in configured "
                 "project: "
                 + module
-                + "; import a specific module instead"
-                + suggestion_text
+                + "; use formal-environment search and import a verified specific "
+                "module instead"
             )
             continue
         if not _lean_module_exists(module, roots):
             if _lean_module_directory_exists(module, roots):
-                suggestions = _lean_umbrella_module_import_suggestions(module, roots)
-                suggestion_text = (
-                    "; verified narrow module(s): " + ", ".join(suggestions)
-                    if suggestions
-                    else ""
-                )
                 errors.append(
                     "Lean candidate imports unavailable umbrella module in configured "
                     "project: "
                     + module
-                    + "; import a specific module instead"
-                    + suggestion_text
+                    + "; use formal-environment search and import a verified specific "
+                    "module instead"
                 )
                 continue
-            suggestions = _lean_module_suggestions(module, roots)
-            suggestion_text = (
-                "; available similar module(s): " + ", ".join(suggestions)
-                if suggestions
-                else ""
-            )
             errors.append(
                 "Lean candidate imports unavailable module in configured project: "
                 + module
-                + suggestion_text
+                + "; use formal-environment search before the next Lean check"
             )
     return errors
 
@@ -34841,90 +35252,6 @@ def _lean_compiled_module_exists(module: str, roots: Sequence[Path]) -> bool:
         return False
     rel = Path(*module.split(".")).with_suffix(".olean")
     return any((root / rel).exists() for root in roots)
-
-
-def _lean_umbrella_module_import_suggestions(
-    module: str,
-    roots: Sequence[Path],
-    *,
-    limit: int = 5,
-) -> list[str]:
-    preferred = (
-        f"{module}.MeasureTheory.Measure.ProbabilityMeasure",
-        f"{module}.Probability.IdentDistribIndep",
-        f"{module}.Data.Real.Basic",
-        f"{module}.Data.Finset.Basic",
-        f"{module}.Tactic",
-    )
-    suggestions: list[str] = []
-    seen: set[str] = set()
-    for candidate in preferred:
-        if _lean_module_exists(candidate, roots) and candidate not in seen:
-            seen.add(candidate)
-            suggestions.append(candidate)
-            if len(suggestions) >= limit:
-                return suggestions
-    rel = Path(*module.split("."))
-    for root in roots:
-        module_dir = root / rel
-        if not module_dir.is_dir():
-            continue
-        for suffix in (".olean", ".lean"):
-            for path in module_dir.rglob(f"*{suffix}"):
-                candidate = _lean_import_candidate_from_relative_parts(
-                    path.relative_to(root).with_suffix("").parts
-                )
-                if candidate in seen:
-                    continue
-                seen.add(candidate)
-                suggestions.append(candidate)
-                if len(suggestions) >= limit:
-                    return suggestions
-    return suggestions
-
-
-def _lean_module_suggestions(
-    module: str,
-    roots: Sequence[Path],
-    *,
-    limit: int = 5,
-) -> list[str]:
-    if not re.match(r"^[A-Za-z_][A-Za-z0-9_'.]*(?:\.[A-Za-z_][A-Za-z0-9_'.]*)*$", module):
-        return []
-    leaf = module.split(".")[-1]
-    if not leaf:
-        return []
-    suggestions: list[str] = []
-    seen: set[str] = set()
-    for root in roots:
-        if not root.exists():
-            continue
-        for suffix in (".lean", ".olean"):
-            for path in root.rglob(f"{leaf}{suffix}"):
-                rel = path.relative_to(root).with_suffix("")
-                candidate = _lean_import_candidate_from_relative_parts(rel.parts)
-                if candidate in seen:
-                    continue
-                seen.add(candidate)
-                suggestions.append(candidate)
-                if len(suggestions) >= limit:
-                    return suggestions
-    return suggestions
-
-
-def _lean_import_candidate_from_relative_parts(parts: Sequence[str]) -> str:
-    import_roots = (
-        "Mathlib",
-        "StatInference",
-        "LeanPractice",
-        "Batteries",
-        "Archive",
-    )
-    part_list = [str(part) for part in parts if str(part)]
-    for root in import_roots:
-        if root in part_list:
-            return ".".join(part_list[part_list.index(root) :])
-    return ".".join(part_list)
 
 
 def _formalizer_source_theorem_target_drift_errors(

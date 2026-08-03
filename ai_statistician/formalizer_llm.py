@@ -15,8 +15,17 @@ from .formal_source_prompt_context import (
 from .formalizer_repair_policy import (
     formalizer_validation_feedback_envelope,
 )
-from .llm_json_repair import extract_json_object, generate_validated_json_packet
+from .llm_json_repair import (
+    PacketValidationError,
+    extract_json_object,
+    generate_validated_json_packet,
+)
 from .lean_proof_agent_contract import without_legacy_python_lean_strategy_fields
+from .lean_candidate_revision_tool_loop import (
+    LeanCandidateCheck,
+    FormalEnvironmentSearch,
+    run_lean_candidate_revision_tool_loop,
+)
 from .model_backend import (
     PROVIDER_STRUCTURED_OUTPUT_ON_REPAIR_METADATA_KEY,
     GeneratorBackend,
@@ -106,6 +115,12 @@ class FormalizerConfig:
     temperature: float = 0.1
     provider_name: str = "anthropic"
     max_repair_attempts: int = 1
+    use_client_tool_lean_candidate_repair: bool = True
+    client_tool_lean_candidate_max_turns: int = 6
+    client_tool_lean_candidate_max_source_updates: int = 3
+    client_tool_lean_candidate_max_searches: int = 3
+    client_tool_lean_candidate_max_checks: int = 3
+    client_tool_lean_candidate_max_no_progress_turns: int = 2
 
 
 def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
@@ -265,51 +280,18 @@ class LLMFormalizerProofEngineerAgent:
             )
 
         def validate_packet(packet: Mapping[str, Any]) -> list[str]:
-            errors = validate_formalizer_packet(packet)
-            errors.extend(
-                _validate_indexed_lean_environment_candidate_bindings(
-                    packet,
-                    environment_feedback=environment_feedback or {},
-                )
+            return _formalizer_contextual_validation_errors(
+                packet,
+                environment_feedback=environment_feedback or {},
+                proof_bank_runtime_memory_summary=(
+                    proof_bank_runtime_memory_summary or {}
+                ),
+                requires_lean_candidate=requires_lean_candidate,
+                requires_repeated_syntax_contract=(
+                    requires_repeated_syntax_contract
+                ),
+                requires_pseudo_formalization=requires_pseudo_formalization,
             )
-            errors.extend(
-                _validate_source_theorem_candidate_materialization_packet(
-                    packet,
-                    environment_feedback=environment_feedback or {},
-                    proof_bank_runtime_memory_summary=(
-                        proof_bank_runtime_memory_summary or {}
-                    ),
-                )
-            )
-            errors.extend(
-                _validate_exact_source_theorem_whole_proof_repair_packet(
-                    packet,
-                    proof_bank_runtime_memory_summary=(
-                        proof_bank_runtime_memory_summary or {}
-                    ),
-                )
-            )
-            if requires_lean_candidate or requires_repeated_syntax_contract:
-                errors.extend(
-                    _validate_capability_eval_formalizer_lean_candidate_packet(
-                        packet,
-                        environment_feedback=environment_feedback or {},
-                        proof_bank_runtime_memory_summary=(
-                            proof_bank_runtime_memory_summary or {}
-                        ),
-                    )
-                )
-            if requires_pseudo_formalization:
-                errors.extend(
-                    _validate_required_pseudo_formalization_packet(
-                        packet,
-                        environment_feedback=environment_feedback or {},
-                        proof_bank_runtime_memory_summary=(
-                            proof_bank_runtime_memory_summary or {}
-                        ),
-                    )
-                )
-            return sorted(set(errors))
 
         return generate_validated_json_packet(
             provider=self.provider,
@@ -332,6 +314,379 @@ class LLMFormalizerProofEngineerAgent:
             semantic_patch_repair=True,
             allow_progress_repair_extension=True,
         )
+
+    def repair_lean_candidate_with_client_tools(
+        self,
+        *,
+        question: OpenResearchQuestion,
+        theory_packet: Mapping[str, Any],
+        parent_packet: Mapping[str, Any],
+        candidate_id: str,
+        candidate_source_field: str,
+        candidate_lean_declaration: str,
+        initial_source: str,
+        environment_feedback: Mapping[str, Any],
+        proof_bank_runtime_memory_summary: Mapping[str, Any] | None,
+        check_candidate: LeanCandidateCheck,
+        search_formal_environment: FormalEnvironmentSearch,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Repair one accepted target through model-selected Lean tool actions."""
+
+        if not self.config.use_client_tool_lean_candidate_repair:
+            raise ValueError("Formalizer Lean candidate client-tool repair is disabled")
+        if not callable(getattr(self.provider, "generate_client_tool_turn", None)):
+            raise ValueError("Formalizer provider does not support client-tool turns")
+        request_model = resolve_generator_model(
+            provider_name=self.config.provider_name,
+            requested_model=self.config.model,
+            model_tier=self.config.model_tier,
+        )
+        loop = run_lean_candidate_revision_tool_loop(
+            provider=self.provider,
+            system_prompt=(
+                FORMALIZER_SYSTEM_PROMPT
+                + "\nYou are repairing one independently reviewed Lean target. "
+                "You own every Lean edit and search query. Use the client tools to "
+                "inspect the active formal environment and compile the exact current "
+                "source. Do not answer with prose or JSON, and do not weaken the target."
+            ),
+            user_prompt=_build_lean_candidate_revision_tool_prompt(
+                question=question,
+                parent_packet=parent_packet,
+                candidate_id=candidate_id,
+                candidate_source_field=candidate_source_field,
+                candidate_lean_declaration=candidate_lean_declaration,
+                initial_source=initial_source,
+                environment_feedback=environment_feedback,
+            ),
+            model=request_model,
+            model_tier=self.config.model_tier,
+            temperature=self.config.temperature,
+            max_tokens=self.config.max_tokens,
+            max_turns=max(1, self.config.client_tool_lean_candidate_max_turns),
+            max_source_updates=max(
+                1,
+                self.config.client_tool_lean_candidate_max_source_updates,
+            ),
+            max_searches=max(1, self.config.client_tool_lean_candidate_max_searches),
+            max_checks=max(1, self.config.client_tool_lean_candidate_max_checks),
+            max_no_progress_turns=max(
+                1,
+                self.config.client_tool_lean_candidate_max_no_progress_turns,
+            ),
+            candidate_id=candidate_id,
+            candidate_lean_declaration=candidate_lean_declaration,
+            initial_source=initial_source,
+            check_candidate=check_candidate,
+            search_formal_environment=search_formal_environment,
+            request_metadata={
+                "subsystem": "FormalizerProofEngineer",
+                "agent": "LLMFormalizerProofEngineerAgent",
+                "formalizer_phase": "lean_candidate_client_tool_repair",
+                "parent_packet_id": str(parent_packet.get("packet_id", "") or ""),
+                "proof_evidence_status": FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE,
+            },
+        )
+        revised_payload = _formalizer_revision_payload_from_packet(parent_packet)
+        _replace_formalizer_lean_candidate_source(
+            revised_payload,
+            candidate_id=candidate_id,
+            candidate_source_field=candidate_source_field,
+            candidate_lean_declaration=candidate_lean_declaration,
+            lean_source=loop.lean_source,
+        )
+        revised_payload["ok"] = True
+        revised_payload["validation_errors"] = []
+        revised_payload["llm_json_repair_attempts"] = 0
+        revised_payload["llm_json_repair_history"] = []
+        packet = _normalize_formalizer_packet(
+            revised_payload,
+            question=question,
+            model=loop.evidence.get("model", request_model) or request_model,
+            model_tier=self.config.model_tier,
+            provider_name=self.config.provider_name,
+            backend_provider_name=str(
+                loop.evidence.get("provider", self.config.provider_name)
+                or self.config.provider_name
+            ),
+            raw_response=str(loop.evidence.get("transcript_fingerprint", "") or ""),
+            theory_packet=theory_packet,
+            proof_bank_runtime_memory_summary=(
+                proof_bank_runtime_memory_summary or {}
+            ),
+            environment_feedback=environment_feedback,
+        )
+        requires_lean_candidate = _feedback_requires_formalizer_lean_candidate(
+            environment_feedback
+        )
+        requires_repeated_syntax_contract = (
+            _feedback_has_repeated_syntax_failure_contract(environment_feedback)
+        )
+        requires_pseudo_formalization = _feedback_requires_pseudo_formalization(
+            environment_feedback,
+            proof_bank_runtime_memory_summary or {},
+        )
+        errors = _formalizer_contextual_validation_errors(
+            packet,
+            environment_feedback=environment_feedback,
+            proof_bank_runtime_memory_summary=(
+                proof_bank_runtime_memory_summary or {}
+            ),
+            requires_lean_candidate=requires_lean_candidate,
+            requires_repeated_syntax_contract=requires_repeated_syntax_contract,
+            requires_pseudo_formalization=requires_pseudo_formalization,
+        )
+        if errors:
+            raise PacketValidationError(
+                validation_label=(
+                    "LLM Formalizer Lean candidate client-tool repair packet"
+                ),
+                attempts=int(loop.evidence.get("turns", 1) or 1),
+                errors=sorted(set(errors)),
+                history=[],
+                last_invalid_packet=packet,
+                recovery_checkpoint={
+                    "candidate_id": candidate_id,
+                    "parent_packet_id": str(
+                        parent_packet.get("packet_id", "") or ""
+                    ),
+                    "submitted_source_hash": loop.source_hash,
+                    "client_tool_loop": dict(loop.evidence),
+                },
+            )
+        return packet, dict(loop.evidence)
+
+
+def _formalizer_contextual_validation_errors(
+    packet: Mapping[str, Any],
+    *,
+    environment_feedback: Mapping[str, Any],
+    proof_bank_runtime_memory_summary: Mapping[str, Any],
+    requires_lean_candidate: bool,
+    requires_repeated_syntax_contract: bool,
+    requires_pseudo_formalization: bool,
+) -> list[str]:
+    errors = validate_formalizer_packet(packet)
+    errors.extend(
+        _validate_indexed_lean_environment_candidate_bindings(
+            packet,
+            environment_feedback=environment_feedback,
+        )
+    )
+    errors.extend(
+        _validate_source_theorem_candidate_materialization_packet(
+            packet,
+            environment_feedback=environment_feedback,
+            proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
+        )
+    )
+    errors.extend(
+        _validate_exact_source_theorem_whole_proof_repair_packet(
+            packet,
+            proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
+        )
+    )
+    if requires_lean_candidate or requires_repeated_syntax_contract:
+        errors.extend(
+            _validate_capability_eval_formalizer_lean_candidate_packet(
+                packet,
+                environment_feedback=environment_feedback,
+                proof_bank_runtime_memory_summary=(
+                    proof_bank_runtime_memory_summary
+                ),
+            )
+        )
+    if requires_pseudo_formalization:
+        errors.extend(
+            _validate_required_pseudo_formalization_packet(
+                packet,
+                environment_feedback=environment_feedback,
+                proof_bank_runtime_memory_summary=(
+                    proof_bank_runtime_memory_summary
+                ),
+            )
+        )
+    return sorted(set(errors))
+
+
+_FORMALIZER_PACKET_REVISION_ENVELOPE_KEYS = frozenset(
+    {
+        "schema_version",
+        "artifact_kind",
+        "packet_id",
+        "created_at",
+        "source_agent",
+        "provider",
+        "backend_provider",
+        "model",
+        "model_tier",
+        "question",
+        "raw_response_fingerprint",
+        "proof_evidence_status",
+        "proof_evidence_boundary",
+        "kernel_verified",
+        "full_frontier_theorem_proved",
+        "theory_trace_consumption_contract",
+        "theory_trace_alignment_contract",
+        "runtime_architect_control",
+    }
+)
+
+
+def _formalizer_revision_payload_from_packet(
+    packet: Mapping[str, Any],
+) -> dict[str, Any]:
+    if str(packet.get("artifact_kind", "") or "") != (
+        "FormalizerProofEngineerProposalPacket"
+    ):
+        raise ValueError("parent artifact is not a Formalizer proposal packet")
+    return {
+        str(key): deepcopy(value)
+        for key, value in packet.items()
+        if key not in _FORMALIZER_PACKET_REVISION_ENVELOPE_KEYS
+    }
+
+
+def _replace_formalizer_lean_candidate_source(
+    payload: dict[str, Any],
+    *,
+    candidate_id: str,
+    candidate_source_field: str,
+    candidate_lean_declaration: str,
+    lean_source: str,
+) -> None:
+    """Apply model-authored source to one runtime-bound packet row."""
+
+    source_field = str(candidate_source_field or "").strip()
+    if source_field not in {
+        "formal_targets",
+        "source_to_bridge_premise_derivation_candidates",
+    }:
+        raise ValueError("unsupported Formalizer Lean candidate source field")
+    rows = payload.get(source_field, [])
+    if not isinstance(rows, list):
+        raise ValueError("parent Formalizer candidate container is not a list")
+    matches: list[dict[str, Any]] = []
+    for index, raw_row in enumerate(rows, start=1):
+        if not isinstance(raw_row, dict):
+            continue
+        if source_field == "formal_targets":
+            row_id = str(raw_row.get("id", "") or f"formal_target_candidate_{index}")
+            row_declaration = str(
+                raw_row.get("candidate_lean_declaration", "") or ""
+            ).strip()
+        else:
+            raw_names = raw_row.get("premise_names", [])
+            names = (
+                [str(value).strip() for value in raw_names if str(value).strip()]
+                if isinstance(raw_names, list | tuple | set)
+                else []
+            )
+            row_id = (
+                str(raw_row.get("id", "") or "").strip()
+                or str(raw_row.get("candidate_request_id", "") or "").strip()
+                or str(
+                    raw_row.get(
+                        "source_to_bridge_premise_derivation_candidate_request_id",
+                        "",
+                    )
+                    or ""
+                ).strip()
+                or "_".join(names)
+                or str(raw_row.get("premise_name", "") or "").strip()
+                or f"source_to_bridge_premise_candidate_{index}"
+            )
+            row_declaration = str(
+                raw_row.get("premise_candidate_declaration_name", "") or ""
+            ).strip()
+        if row_id == candidate_id or (
+            candidate_lean_declaration
+            and row_declaration == candidate_lean_declaration
+        ):
+            matches.append(raw_row)
+    if len(matches) != 1:
+        raise ValueError(
+            "runtime-bound Formalizer candidate did not resolve to exactly one parent row"
+        )
+    row = matches[0]
+    row["lean_imports"] = []
+    if source_field == "formal_targets":
+        row["lean_statement_sketch"] = lean_source
+        row["candidate_lean_declaration"] = candidate_lean_declaration
+    else:
+        row["premise_derivation_candidate_lean_source"] = lean_source
+        row.pop("candidate_lean_source", None)
+        row["premise_candidate_declaration_name"] = candidate_lean_declaration
+
+
+def _build_lean_candidate_revision_tool_prompt(
+    *,
+    question: OpenResearchQuestion,
+    parent_packet: Mapping[str, Any],
+    candidate_id: str,
+    candidate_source_field: str,
+    candidate_lean_declaration: str,
+    initial_source: str,
+    environment_feedback: Mapping[str, Any],
+) -> str:
+    repair_context = environment_feedback.get("proofengineer_repair_context", {})
+    accepted_review = (
+        dict(repair_context)
+        if isinstance(repair_context, Mapping)
+        else {}
+    )
+    payload = {
+        "task": (
+            "Repair the exact current Lean source through search/edit/check actions. "
+            "Call submit_compiled_source only after check_lean_source passes for the "
+            "current source."
+        ),
+        "question": {
+            "id": question.id,
+            "title": question.title,
+            "description": question.description,
+        },
+        "immutable_binding": {
+            "parent_packet_id": str(parent_packet.get("packet_id", "") or ""),
+            "candidate_id": candidate_id,
+            "candidate_source_field": candidate_source_field,
+            "candidate_lean_declaration": candidate_lean_declaration,
+            "source_theorem_target_identity_status": str(
+                accepted_review.get("source_theorem_target_identity_status", "")
+                or ""
+            ),
+            "formalizer_candidate_semantic_review_status": str(
+                accepted_review.get(
+                    "formalizer_candidate_semantic_review_status",
+                    "",
+                )
+                or ""
+            ),
+            "target_theorem_statement_hash": str(
+                accepted_review.get("target_theorem_statement_hash", "")
+                or accepted_review.get(
+                    "formalizer_candidate_semantic_review_target_statement_hash",
+                    "",
+                )
+                or ""
+            ),
+        },
+        "current_lean_source": initial_source,
+        "runtime_feedback": _compact_formalizer_environment_feedback(
+            environment_feedback
+        ),
+        "proof_construction_strategy": (
+            formalizer_proof_construction_strategy_contract()
+        ),
+        "boundaries": {
+            "model_owns_lean_source_and_search_queries": True,
+            "runtime_selected_lean_repair": False,
+            "local_compile_is_not_source_theorem_semantic_acceptance": True,
+            "independent_semantic_review_after_revision_required": True,
+            "runtime_kernel_promotion_gate_required": True,
+        },
+    }
+    return json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
 
 
 def _formalizer_repair_context(
@@ -1916,7 +2271,7 @@ def validate_formalizer_packet(packet: Mapping[str, Any]) -> list[str]:
                     + declaration_error
                 )
         lean_statement_sketch = str(row.get("lean_statement_sketch", "") or "")
-        placeholder_error = _lean_statement_placeholder_syntax_error(
+        placeholder_error = _lean_statement_trust_boundary_error(
             lean_statement_sketch
         )
         if placeholder_error:
@@ -1964,7 +2319,7 @@ def validate_formalizer_packet(packet: Mapping[str, Any]) -> list[str]:
                 "adapter_object_names_requiring_source_instantiation from the "
                 "runtime memory request"
             )
-        placeholder_error = _lean_statement_placeholder_syntax_error(candidate_source)
+        placeholder_error = _lean_statement_trust_boundary_error(candidate_source)
         if placeholder_error:
             errors.append(
                 "source_to_bridge_premise_derivation_candidates Lean candidate "
@@ -3000,7 +3355,7 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
                 f"{target_id} must provide candidate_lean_declaration for the "
                 "exact declaration emitted by lean_statement_sketch"
             )
-        placeholder_error = _lean_statement_placeholder_syntax_error(source)
+        placeholder_error = _lean_statement_trust_boundary_error(source)
         if placeholder_error:
             errors.append(
                 "capability_eval formal target "
@@ -3042,7 +3397,7 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
                 "capability_eval source-to-bridge candidate "
                 f"{premise_id} must set expected_status=NEEDS_KERNEL_CHECK"
             )
-        placeholder_error = _lean_statement_placeholder_syntax_error(source)
+        placeholder_error = _lean_statement_trust_boundary_error(source)
         if placeholder_error:
             errors.append(
                 "capability_eval source-to-bridge candidate "
@@ -4261,10 +4616,8 @@ def _feedback_requests_placeholder_fail_closed(
         for marker in (
             "lean sorry placeholder",
             "lean admit placeholder",
-            "interactive proof-hole marker",
-            "unsupported tactic hole",
-            " exact?",
-            " by?",
+            "lean axiom declaration",
+            "unsafe lean declaration",
             "admit",
             "sorry",
         )
@@ -4315,7 +4668,7 @@ def _fail_closed_placeholder_lean_candidates(
         if not isinstance(row, dict):
             continue
         lean_source = str(row.get("lean_statement_sketch", "") or "")
-        placeholder_error = _lean_statement_placeholder_syntax_error(lean_source)
+        placeholder_error = _lean_statement_trust_boundary_error(lean_source)
         if not placeholder_error:
             continue
         previous_role = _formal_target_role(row)
@@ -4369,7 +4722,7 @@ def _fail_closed_placeholder_lean_candidates(
                 kept_source_to_bridge.append(candidate)
                 continue
             candidate_source = _source_to_bridge_candidate_lean_source(candidate)
-            placeholder_error = _lean_statement_placeholder_syntax_error(
+            placeholder_error = _lean_statement_trust_boundary_error(
                 candidate_source
             )
             if not placeholder_error:
@@ -9812,20 +10165,16 @@ def _target_lean_declaration_identifier_error(value: Any) -> str:
     return ""
 
 
-def _lean_statement_placeholder_syntax_error(source: str) -> str:
+def _lean_statement_trust_boundary_error(source: str) -> str:
+    """Reject only proof-authority violations; Lean owns syntax diagnostics."""
+
     if not source:
         return ""
     patterns = (
-        (r"/\*|\*/", "contains C-style placeholder comment syntax"),
-        (r"\bplaceholder\b", "contains placeholder text inside Lean syntax"),
-        (r"\bTODO\b", "contains TODO marker inside Lean syntax"),
-        (r"\bfail_if_success\b", "contains ProofEngineer skeleton marker fail_if_success"),
         (r"\bsorry\b", "contains Lean sorry placeholder"),
         (r"\badmit\b", "contains Lean admit placeholder"),
         (r"\baxiom\b", "contains Lean axiom declaration"),
         (r"\bunsafe\b", "contains unsafe Lean declaration"),
-        (r"\bby\?", "contains interactive proof-hole marker by?"),
-        (r"\bexact\?", "contains interactive proof-hole marker exact?"),
     )
     for pattern, message in patterns:
         if re.search(pattern, source, flags=re.IGNORECASE):
