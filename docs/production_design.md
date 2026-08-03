@@ -2056,16 +2056,19 @@ The package integrates existing systems where appropriate:
   statement/proof/mixed references, fan-in/fan-out, `has_sorry`, and FTS over
   signatures/proofs. It treats every hit as a premise suggestion that must be
   checked by the local Lean kernel.
-- The direct shared-retrieval adapter targets
-  `codex/lean-reuse-source-integration` at `2ade029e`. It globally ranks hits
-  across all selected checkouts instead of allowing manifest order to dominate,
-  and rejects hits whose tracked Lean-source signature is explicitly `changed`.
-  Unknown legacy signature state remains visible in provenance but never turns a
+- The direct shared-retrieval adapter targets canonical
+  `EmpericalProcessLEAN/main` at `0a0d81d6`. Linked proof worktrees share one
+  Git-common graph directory. Live canonical search parses the enclosing Lean
+  declaration, deduplicates proof-body matches, applies query coverage to the
+  declaration, and excludes noncanonical neighbor weight from graph ranking.
+  Tracked source drift remains visible in provenance and never turns a
   retrieval hit into proof evidence.
-- `CodexProver` branch `codex/evaluator-shard-no-workflow-push` at `730f8f29`
-  is a reference contract for exact-candidate hashes, repair trajectories, MCP
-  guidance, and checker authority. Its heuristic declaration-span and source
-  rewrite helpers are deliberately not used as Lean editing authority.
+- `CodexProver` cumulative branch `42c1fd28` remains a reference contract for
+  exact-candidate hashes, packet-scoped runtime reads, MCP guidance, and checker
+  authority. It was not merged: its 1,365-test offline audit and focused
+  authority/artifact panel fail, and it includes machine-bound paths plus 8,983
+  historical run files. Its heuristic declaration-span and source-rewrite
+  helpers are deliberately not used as Lean editing authority.
 - The system audit also records the shared `lean_rag` package contract through
   `ai-statistician lean-rag-package-audit` and the
   `--lean-rag-package-root` option. This reads the package knowledgebase rather

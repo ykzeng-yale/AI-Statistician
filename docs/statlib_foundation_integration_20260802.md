@@ -24,13 +24,17 @@ makes them port guidance rather than an importable proof dependency.
 | --- | --- | --- |
 | Mathlib | `81343555dae873c8de2de2b27bbabf7bc4d8d97a` | Kernel-checked mathematical foundation |
 | StatLib | `6575d611b5d32ef6013e9560d30b1a82a1972fb6` | Pinned reusable statistics API |
-| EmpericalProcessLEAN Lean graph source | `b8c2b3b5927cf69a7577cf25b3c509796ff44269` | Active downstream statistics/proof library |
+| EmpericalProcessLEAN Lean graph source | `0a0d81d6be0b3b433fc176c08c8729711e34b557` | Active downstream statistics/proof library |
 | AI4SLT | `d0f506f0a695018265dccb33bcb05e2f5ca1c876` | Version-bound external retrieval and port corpus |
 
-`EmpericalProcessLEAN/main` now points to `b8c2b3b5`. The integration retains
+`EmpericalProcessLEAN/main` now points to `0a0d81d6`. The integration retains
 source history from the VdVW and WDSM branches, absorbs the later Chewi,
 Durrett, and van der Vaart work, and recovers seven additional proof commits
-that were still reachable only from non-main branches. The recovered work adds
+that were still reachable only from non-main branches. A second content-level
+branch audit recovered four more public results without replaying their stale
+histories: the bounded-polytope logarithmic barrier, aperiodic Markov-chain
+convergence, periodic cyclic decomposition, and the prefix-stopped Bernstein
+projection-link empirical-supremum bound. The recovered work adds
 regular self-concordant barrier sums, affine pullbacks, inf-projections,
 stationary-chain return-period results, and stopped/terminal Bernstein
 projection links. Their public modules are imported by `StatInference.lean`,
@@ -72,7 +76,7 @@ Current schema-v5 graphs:
 
 | Corpus | Lean files | Declarations | Duplicate names | Snapshot |
 | --- | ---: | ---: | ---: | --- |
-| StatInference canonical closure | 1,205 | 51,993 | 0 | `BOUND_MATCH` |
+| StatInference canonical closure | 1,206 | 51,997 | 0 | `BOUND_MATCH` |
 | Pinned StatLib closure | 3 | 32 | 0 | `BOUND_MATCH` |
 | AI4SLT public source | 65 | 2,000 | 0 | `BOUND_MATCH` |
 
@@ -114,23 +118,24 @@ audit/training inputs and are no longer competing live Formalizer providers.
 
 ## Verification
 
-- A clean `lake build StatInference` completed all 9,837 jobs on Lean
+- A clean `lake build StatInference` completed all 9,838 jobs on Lean
   `v4.30.0`. This fresh build exposed and fixed a root import cycle in the
   benchmark module; a structural test now prevents any submodule from importing
   the canonical root.
 - `lake env lean StatInference.lean` completed successfully.
-- The canonical import closure covers 1,205 Lean files and all 489 WDSM modules.
-- The production graph indexes 51,993 public declarations and 210,115
-  declaration-reference edges plus 3,304 import edges, with zero duplicate
+- The canonical import closure covers 1,206 Lean files and all 489 WDSM modules.
+- The production graph indexes 51,997 public declarations and 210,204
+  declaration-reference edges plus 3,307 import edges, with zero duplicate
   names and zero `sorry`.
 - Sixteen source-integration tests verify the direct StatLib dependency,
   canonical reachability of every recovered module, and the root-import rule.
-- All 51 Lean-RAG tests pass, including the source-owned taxonomy path contract.
-- Namespace-aware `#print axioms` scans covered all seven recovered public
+- All 58 Lean-RAG tests pass, including the source-owned taxonomy path contract,
+  declaration-aware live-result filtering, and canonical graph-neighbor policy.
+- Namespace-aware `#print axioms` scans covered all eleven recovered public
   theorems with zero unexpected axioms; only the accepted Mathlib foundations
   `Classical.choice`, `Quot.sound`, and `propext` were reported.
-- All eight declarations introduced by the recovered proof commits passed the
-  source declaration policy, and the changed Lean files contain no
+- Every recovered public declaration passed the source declaration policy, and
+  the changed Lean files contain no
   `sorry`/`admit`/`axiom`.
 - The canonical graph contains zero `sorry`/`admit` declarations.
 - All three graph health reports are schema-v5, integrity-valid, and

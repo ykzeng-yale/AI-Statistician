@@ -1455,12 +1455,15 @@ requires the existing target-bound local Lean/AXLE gate.
 The historical AI-for-math paper registry now includes the paper and official
 repository, so `RetrievalMemory` sees them through the live paper-source index.
 The source inventory also tracks the current CodexProver, OpenProver,
-EmpericalProcessLEAN, and pseudo-formalization checkouts. The latest CodexProver
-branch contributes a secure stdio MCP and held-out target-binding design, but
-its held-out escalation policy remains explicitly unadmitted; the next provider
-hardening should reuse its scoped-path and secret-free environment contracts
-under the existing OpenProver typed provider rather than create another
-orchestration plane.
+EmpericalProcessLEAN, and pseudo-formalization checkouts. All owned CodexProver
+branches are contained in cumulative tip `42c1fd28`, but that tip is not a
+merge candidate: its offline 1,365-test run and focused authority/artifact
+rerun fail, and most of its diff is historical run evidence. It still
+contributes useful secure-stdio MCP, held-out target-binding, packet identity,
+runtime-read audit, and independent exact-check designs. Provider hardening
+should adapt those scoped-path and secret-free environment contracts under the
+existing OpenProver typed provider rather than create another orchestration
+plane or import its machine-bound evaluation state.
 
 ## Independent Generated-Metric Requirement Authority
 
