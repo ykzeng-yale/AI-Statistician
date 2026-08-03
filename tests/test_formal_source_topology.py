@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 from ai_statistician.formal_source_prompt_context import (
     _formal_source_dependency_context,
+    compact_formal_source_grounding_hits_for_prompt,
 )
 from ai_statistician.formal_source_index import (
     FormalDeclaration,
@@ -207,6 +208,96 @@ def test_external_companion_prompt_requires_port_and_local_reelaboration() -> No
         "activation_gate"
     ]
     assert "kernel_verified" not in payload
+
+
+def test_compact_prompt_distinguishes_dependency_reuse_from_external_port() -> None:
+    def hit(
+        *,
+        source_id: str,
+        name: str,
+        role: str,
+        relation: str,
+        compatibility: str,
+        classification: str,
+        activation_gate: str,
+    ) -> dict[str, object]:
+        return {
+            "source_id": source_id,
+            "path": f"{source_id}/Source.lean",
+            "line": 1,
+            "name": name,
+            "signature": f"theorem {name.rsplit('.', 1)[-1]} : True",
+            "declaration_source_context": {
+                "module": name.rsplit(".", 1)[0],
+                "dependency_context": {
+                    "source_topology": {
+                        "role": role,
+                        "relation_to_active_project": relation,
+                        "compatibility_status": compatibility,
+                    },
+                    "candidate_use_policy": {
+                        "classification": classification,
+                        "activation_gate": activation_gate,
+                    },
+                },
+            },
+        }
+
+    compact = compact_formal_source_grounding_hits_for_prompt(
+        [
+            {
+                "query_role": "initial_formalization_context",
+                "source_scope_ids": [
+                    "statlib",
+                    "lean_stat_learning_theory",
+                ],
+                "hits": [
+                    hit(
+                        source_id="statlib",
+                        name="QMD.integral_score_eq_zero_of_mem_nhds",
+                        role="canonical_statistics_foundation",
+                        relation="direct_lake_dependency",
+                        compatibility=(
+                            "same_lean_toolchain_and_mathlib_revision"
+                        ),
+                        classification=(
+                            "direct_dependency_import_closure_candidate"
+                        ),
+                        activation_gate="exactly re-elaborate locally before reuse",
+                    ),
+                    hit(
+                        source_id="lean_stat_learning_theory",
+                        name="LeastSquares.master_error_bound",
+                        role="verified_companion_library",
+                        relation="external_companion",
+                        compatibility=(
+                            "different_lean_toolchain_requires_port"
+                        ),
+                        classification="external_companion_port_candidate",
+                        activation_gate=(
+                            "port into the active toolchain and exactly "
+                            "re-elaborate locally before reuse"
+                        ),
+                    ),
+                ],
+            }
+        ]
+    )
+
+    statlib_activation = compact[0]["hits"][0]["source_activation"]
+    companion_activation = compact[0]["hits"][1]["source_activation"]
+    assert statlib_activation["relation_to_active_project"] == (
+        "direct_lake_dependency"
+    )
+    assert statlib_activation["classification"] == (
+        "direct_dependency_import_closure_candidate"
+    )
+    assert companion_activation["relation_to_active_project"] == (
+        "external_companion"
+    )
+    assert companion_activation["classification"] == (
+        "external_companion_port_candidate"
+    )
 
 
 def test_retrieval_benchmark_records_nonproof_source_topology() -> None:

@@ -13,9 +13,11 @@ FORMAL_SOURCE_OUTLINE_PROMPT_POLICY = (
     "signatures. Source-scoped queries may retain two ranked target candidates. Rich "
     "provenance, source prose, citation crosswalks, architecture summaries, nearby "
     "naming examples, downstream declarations, and proof bodies remain in runtime "
-    "artifacts but are omitted from the model prompt. Retrieved declarations remain "
-    "candidate context until the exact target artifact passes active-project "
-    "Lean/kernel checking."
+    "artifacts but are omitted from the model prompt. Per-hit source activation says "
+    "whether a declaration is in the active import closure, a direct dependency, or "
+    "an external port candidate. It is routing context, not proof evidence. Retrieved "
+    "declarations remain candidate context until the exact target artifact passes "
+    "active-project Lean/kernel checking."
 )
 FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS = 5600
 PROOFENGINEER_REPAIR_QUERY_ROLES = frozenset(
@@ -128,6 +130,9 @@ def _compact_formal_source_hit_for_prompt(
         payload["signature"] = signature
     context = hit.get("declaration_source_context", {})
     if isinstance(context, Mapping):
+        source_activation = _compact_formal_source_activation_for_prompt(context)
+        if source_activation:
+            payload["source_activation"] = source_activation
         payload["declaration_source_context"] = (
             _compact_declaration_source_context_for_prompt(
                 context,
@@ -139,6 +144,40 @@ def _compact_formal_source_hit_for_prompt(
         key: child
         for key, child in payload.items()
         if child not in (None, "", [], {})
+    }
+
+
+def _compact_formal_source_activation_for_prompt(
+    context: Mapping[str, Any],
+) -> dict[str, str]:
+    dependency_context = context.get("dependency_context", {})
+    if not isinstance(dependency_context, Mapping):
+        return {}
+    topology = dependency_context.get("source_topology", {})
+    candidate_policy = dependency_context.get("candidate_use_policy", {})
+    if not isinstance(topology, Mapping):
+        topology = {}
+    if not isinstance(candidate_policy, Mapping):
+        candidate_policy = {}
+    payload = {
+        "role": str(topology.get("role", "") or "")[:120],
+        "relation_to_active_project": str(
+            topology.get("relation_to_active_project", "") or ""
+        )[:120],
+        "compatibility_status": str(
+            topology.get("compatibility_status", "") or ""
+        )[:160],
+        "classification": str(
+            candidate_policy.get("classification", "") or ""
+        )[:160],
+        "activation_gate": str(
+            candidate_policy.get("activation_gate", "") or ""
+        )[:420],
+    }
+    return {
+        key: value
+        for key, value in payload.items()
+        if value
     }
 
 
@@ -211,6 +250,7 @@ def _fit_formal_source_prompt_projection(groups: list[dict[str, Any]]) -> None:
         return
     for group in groups[1:]:
         for secondary in group["hits"]:
+            secondary.get("source_activation", {}).pop("activation_gate", None)
             secondary_context = secondary.get(
                 "declaration_source_context",
                 {},
@@ -276,6 +316,7 @@ def _fit_formal_source_prompt_projection(groups: list[dict[str, Any]]) -> None:
             "name",
             "signature",
             "signature_status",
+            "source_activation",
         }
         and value not in (None, "", [], {})
     }

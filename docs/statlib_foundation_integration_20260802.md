@@ -24,10 +24,10 @@ makes them port guidance rather than an importable proof dependency.
 | --- | --- | --- |
 | Mathlib | `81343555dae873c8de2de2b27bbabf7bc4d8d97a` | Kernel-checked mathematical foundation |
 | StatLib | `6575d611b5d32ef6013e9560d30b1a82a1972fb6` | Pinned reusable statistics API |
-| EmpericalProcessLEAN | `2053b8f7af9c6dd3c29118296ef7c152229cbf62` | Active downstream statistics/proof library |
+| EmpericalProcessLEAN | `f4b1c73dcc705b4041029cffa1e9d4c6ea0547e6` | Active downstream statistics/proof library |
 | AI4SLT | `d0f506f0a695018265dccb33bcb05e2f5ca1c876` | Version-bound external retrieval and port corpus |
 
-`EmpericalProcessLEAN/main` now points to `2053b8f7`. The integration retains
+`EmpericalProcessLEAN/main` now points to `f4b1c73d`. The integration retains
 source history from the VdVW and WDSM branches, absorbs the later Chewi,
 Durrett, and van der Vaart work, and recovers seven additional proof commits
 that were still reachable only from non-main branches. The recovered work adds
@@ -63,6 +63,10 @@ verified `StatInference.Matching.WDSM` modules. The 151 top-level
 `StatInference.Matching.*` compatibility mirrors remain outside production RAG;
 their 481 declarations duplicate the WDSM owners. Structural tests fail if a
 new unique module is orphaned or a compatibility mirror enters the closure.
+Statlib's canonical root is still a legacy import file, so Lean rejects a
+direct import from module-mode `StatInference.Foundation`. The foundation
+therefore mirrors the two public submodule imports at the current pin, and a
+dynamic parity test fails if the pinned `Statlib.lean` root changes.
 
 Both vendored historical snapshots were reconciled against this closure. Every
 historical file has a current path; changed qualified declarations retain
@@ -80,7 +84,7 @@ audit/training inputs and are no longer competing live Formalizer providers.
 - The canonical import closure covers 1,192 Lean files and all 489 WDSM modules.
 - The production graph indexes 51,993 public declarations and 210,115
   declaration-reference edges, with zero duplicate names and zero `sorry`.
-- Eleven source-integration tests verify the direct StatLib dependency,
+- Twelve source-integration tests verify the direct StatLib dependency,
   canonical reachability of every recovered module, and the root-import rule.
 - Namespace-aware `#print axioms` scans covered all seven recovered public
   theorems with zero unexpected axioms; only the accepted Mathlib foundations
@@ -124,6 +128,12 @@ It does not imply compatibility with the active target. The Formalizer must:
    than full proof bodies;
 4. re-elaborate every selected declaration and generated candidate locally;
 5. preserve the existing kernel/evidence boundary.
+
+The bounded Formalizer prompt now retains a per-hit source-activation
+projection. It distinguishes active-project declarations, pinned direct
+dependencies such as Statlib, and external port candidates such as AI4SLT,
+while omitting broad provenance and proof bodies. This topology controls how a
+candidate may be activated; it never upgrades retrieval into proof evidence.
 
 An explicit source request is expanded only through declared transitive
 dependencies. This is topology-driven scope selection, not score manipulation:
