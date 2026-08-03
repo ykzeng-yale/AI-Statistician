@@ -16515,6 +16515,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 "budget_exhausted"
             )
             is True
+            and lineage_budget_state.get("local_repair_available") is not True
         ):
             deferred_task = _agent_task_from_runtime_payload(
                 deferred_task_payload
@@ -16616,6 +16617,15 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             repair_scope == "source_code"
             and lineage_budget_state.get("local_repair_available") is True
         ):
+            source_repair_budget = dict(
+                work_order.get("source_repair_budget", {}) or {}
+            )
+            reviewer_bound_repair_reserved = bool(
+                source_repair_budget.get("budget_exhausted") is True
+            )
+            if reviewer_bound_repair_reserved:
+                feedback["ordinary_source_repair_budget_exhausted"] = True
+                feedback["reviewer_bound_repair_reserved"] = True
             source_planned_task_payload = (
                 _runtime_generated_code_semantic_review_source_repair_task_payload(
                     source_subsystem=source_subsystem,
@@ -16705,9 +16715,33 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 lineage_budget_state,
                 action="local_repair",
             )
+            execution_manifest["semantic_review_lineage_budget"][
+                "reviewer_bound_repair_reserved"
+            ] = reviewer_bound_repair_reserved
             next_context[
                 GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY
             ] = lineage_ledger
+            if reviewer_bound_repair_reserved:
+                next_context[
+                    "runtime_generated_code_semantic_review_reviewer_bound_repair"
+                ] = {
+                    "artifact_kind": (
+                        "RuntimeGeneratedCodeSemanticReviewReviewerBoundRepair"
+                    ),
+                    "source_manifest_id": str(
+                        work_order.get("source_manifest_id", "") or ""
+                    ),
+                    "review_execution_id": execution_id,
+                    "semantic_review_lineage_key": str(
+                        lineage_budget_state.get("lineage_key", "") or ""
+                    ),
+                    "source_repair_budget": source_repair_budget,
+                    "reviewer_bound_repair_reserved": True,
+                    "source_artifact_remains_unaccepted": True,
+                    "proof_evidence_status": (
+                        "REVIEWER_BOUND_SOURCE_REPAIR_NOT_PROOF_EVIDENCE"
+                    ),
+                }
             execution_manifest["semantic_review_lineage_budget"][
                 "selected_action"
             ] = "local_repair"

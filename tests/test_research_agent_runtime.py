@@ -98,6 +98,7 @@ from ai_statistician.architect_coordinator_llm import (
 )
 from ai_statistician.architect_metric_contract_authoring import (
     _confirmatory_metric_requirement_rows,
+    _metric_semantic_review_response_identity_history_rows,
 )
 from ai_statistician.architect_research_path_policy_eval import (
     run_architect_research_path_policy_eval,
@@ -25753,7 +25754,7 @@ def _source_code_revise_semantic_review_payload(
     }
 
 
-def test_semantic_review_honors_exhausted_source_repair_budget(
+def test_semantic_review_reserves_one_reviewer_bound_source_repair(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(
@@ -25921,7 +25922,7 @@ def test_semantic_review_honors_exhausted_source_repair_budget(
         ).run(dispatch["next_task"], blackboard)
     )
 
-    assert review_result.status == "REROUTE", (
+    assert review_result.status == "REVISE", (
         review_result.rationale,
         review_result.failure_classification,
         [
@@ -25930,14 +25931,63 @@ def test_semantic_review_honors_exhausted_source_repair_budget(
         ],
     )
     assert review_result.failure_classification == (
-        "generated_code_semantic_review_source_repair_budget_yield"
+        "generated_code_semantic_review_revise"
     )
     assert review_result.next_task is not None
-    assert review_result.next_task.owner_subsystem == "FormalizationEvaluator"
-    assert review_result.next_task.inputs["environment_feedback"][
+    assert review_result.next_task.owner_subsystem == "SimulationEvaluator"
+    first_feedback = review_result.next_task.inputs["environment_feedback"]
+    assert first_feedback["ordinary_source_repair_budget_exhausted"] is True
+    assert first_feedback["reviewer_bound_repair_reserved"] is True
+    first_context = review_result.next_task.inputs["architect_context"]
+    reservation = first_context[
+        "runtime_generated_code_semantic_review_reviewer_bound_repair"
+    ]
+    assert reservation["source_repair_budget"]["budget_exhausted"] is True
+    assert reservation["source_artifact_remains_unaccepted"] is True
+    assert reservation["reviewer_bound_repair_reserved"] is True
+
+    repeated_dispatch = (
+        runtime_module._runtime_generated_code_semantic_review_dispatch(
+            task=replace(
+                repair_task,
+                task_id="simulation:source-budget-reentered",
+                inputs={
+                    **repair_task.inputs,
+                    "architect_context": first_context,
+                },
+            ),
+            question=question,
+            source_subsystem="SimulationEvaluator",
+            source_manifest=source_manifest,
+            theory_packet=theory_packet,
+            proposal_packet=proposal_packet,
+            architect_context=first_context,
+            deferred_next_task=deferred_task,
+            max_revisions=1,
+            metric_failure_feedback=metric_feedback,
+        )
+    )
+    assert repeated_dispatch is not None
+    repeated_work_order = repeated_dispatch["work_order"]
+    blackboard.artifacts[repeated_work_order["work_order_id"]] = (
+        repeated_work_order
+    )
+    repeated_result = (
+        runtime_module.GeneratedCodeSemanticReviewerRuntimeSubsystem(
+            reviewer=reviewer,
+            max_revisions=1,
+        ).run(repeated_dispatch["next_task"], blackboard)
+    )
+    assert repeated_result.status == "REROUTE"
+    assert repeated_result.failure_classification == (
+        "generated_code_semantic_review_source_repair_budget_yield"
+    )
+    assert repeated_result.next_task is not None
+    assert repeated_result.next_task.owner_subsystem == "FormalizationEvaluator"
+    assert repeated_result.next_task.inputs["environment_feedback"][
         "source_artifact_remains_unaccepted"
     ] is True
-    yield_state = review_result.next_task.inputs["architect_context"][
+    yield_state = repeated_result.next_task.inputs["architect_context"][
         "runtime_generated_code_semantic_review_source_budget_yield"
     ]
     assert yield_state["source_repair_budget"]["budget_exhausted"] is True
@@ -26089,25 +26139,18 @@ def test_semantic_review_does_not_send_rejected_algorithm_to_simulation(
         ).run(dispatch["next_task"], blackboard)
     )
 
-    assert review_result.status == "REROUTE", review_result.rationale
+    assert review_result.status == "REVISE", review_result.rationale
     assert review_result.failure_classification == (
-        "generated_code_semantic_review_source_repair_budget_yield"
+        "generated_code_semantic_review_revise"
     )
     assert review_result.next_task is not None
-    assert review_result.next_task.owner_subsystem == "FormalizationEvaluator"
-    assert review_result.next_task.inputs["algorithm_sandbox_manifest_id"] == (
-        source_manifest["manifest_id"]
-    )
+    assert review_result.next_task.owner_subsystem == "AlgorithmEngineer"
     next_feedback = review_result.next_task.inputs["environment_feedback"]
-    assert next_feedback["source_artifact_remains_unaccepted"] is True
-    assert next_feedback["execution_evidence_status"] == (
-        "ALGORITHM_REPAIR_YIELD_DOES_NOT_SATISFY_GENERATED_CODE_GATE"
-    )
+    assert next_feedback["ordinary_source_repair_budget_exhausted"] is True
+    assert next_feedback["reviewer_bound_repair_reserved"] is True
     assert review_result.next_task.inputs["architect_context"][
         "runtime_feedback_loop"
-    ]["handoff"] == (
-        "algorithm_engineer_repair_budget_yield_to_formalization"
-    )
+    ]["handoff"] == "generated_code_semantic_review_repair"
 
 
 def test_semantic_review_selects_source_planned_repair_task() -> None:
@@ -26849,6 +26892,7 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert semantic_review_history[0]["claim_checks"][0]["check_type"] == (
         "direct_substitution"
     )
+    assert semantic_review_history[0]["response_identity_checks"] == []
     review_certificate = packet["evidence_contract"][
         "empirical_metric_requirements_preexecution_review"
     ]
@@ -27139,6 +27183,31 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert simulation_routed.next_task.inputs["architect_context"][
         "architect_initial_routing"
     ]["requires_prerequisite_algorithm"] is False
+
+
+def test_metric_review_history_copies_response_identity_audits() -> None:
+    source_row = {
+        "response_identity_audit_id": "response_identity_audit:generic",
+        "primitive_reconstruction": "Reconstruct the response from its primitives.",
+        "independently_derived_sample_size_order": "O(n^-1/2)",
+        "derived_polynomial_exponent": -0.5,
+        "derived_log_exponent": 0.0,
+        "convention_consistent": True,
+        "unresolved_conflicts": [],
+        "verdict": "PASS",
+    }
+
+    copied = (
+        _metric_semantic_review_response_identity_history_rows(
+            {"response_identity_checks": [source_row, "invalid-row"]}
+        )
+    )
+
+    assert copied == [source_row]
+    assert copied[0] is not source_row
+    assert copied[0]["unresolved_conflicts"] is not source_row[
+        "unresolved_conflicts"
+    ]
 
 
 def test_architect_numeric_authority_failure_stays_candidate_owned() -> None:

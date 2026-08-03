@@ -442,6 +442,18 @@ def _metric_protocol_combined_repair_scope(
     )
 
 
+def _metric_semantic_review_response_identity_history_rows(
+    semantic_review_packet: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Copy accepted response-identity audits into immutable review history."""
+
+    return [
+        deepcopy(dict(row))
+        for row in semantic_review_packet.get("response_identity_checks", []) or []
+        if isinstance(row, Mapping)
+    ]
+
+
 def _metric_candidate_repair_available(findings: list[dict[str, Any]]) -> bool:
     return any(
         str(row.get("repair_scope", "") or "").strip()
@@ -2687,6 +2699,11 @@ def author_reviewed_architect_metric_requirements(
                     for row in semantic_review_packet.get("claim_checks", []) or []
                     if isinstance(row, Mapping)
                 ],
+                "response_identity_checks": (
+                    _metric_semantic_review_response_identity_history_rows(
+                        semantic_review_packet
+                    )
+                ),
                 "findings": routed_findings,
                 "repair_instructions": list(
                     semantic_review_packet.get("repair_instructions", []) or []
