@@ -26212,19 +26212,21 @@ def _metric_sample_size_order_derivation_fixture(
 
 
 def _accepted_theory_execution_preflight_payload(request) -> dict[str, object]:
-    properties = request.schema["properties"]
-    dimension_schema = properties["dimension_reviews"]
-    estimator_item = properties["estimator_execution_checks"]["items"][
-        "properties"
+    prompt_payload = json.loads(request.user_prompt.split("\n\n", 1)[1])
+    ordered_slots = prompt_payload["ordered_review_slots"]
+    dimensions = [
+        row["dimension"] for row in ordered_slots["dimension_reviews"]
     ]
-    dimensions = dimension_schema["required"]
-    estimator_ids = estimator_item["estimator_id"]["enum"]
-    evidence_refs = dimension_schema["properties"][dimensions[0]]["properties"][
-        "evidence_refs"
-    ]["items"]["enum"][:2]
+    estimator_ids = [
+        row["estimator_id"]
+        for row in ordered_slots["estimator_execution_checks"]
+    ]
+    evidence_refs = request.schema["$defs"]["dimension_review"][
+        "properties"
+    ]["evidence_refs"]["items"]["enum"][:2]
     return {
-        "dimension_reviews": {
-            dimension: {
+        "dimension_reviews": [
+            {
                 "status": "PASS",
                 "rationale": (
                     "The ideal object, finite observation, and requested regime "
@@ -26232,11 +26234,10 @@ def _accepted_theory_execution_preflight_payload(request) -> dict[str, object]:
                 ),
                 "evidence_refs": evidence_refs,
             }
-            for dimension in dimensions
-        },
+            for _dimension in dimensions
+        ],
         "estimator_execution_checks": [
             {
-                "estimator_id": estimator_id,
                 "ideal_procedure_semantics": "The source defines one ideal method.",
                 "procedure_identity_recomputation": (
                     "The finite-support identity is reconstructed from the fixture DGP."
@@ -26267,10 +26268,9 @@ def _accepted_theory_execution_preflight_payload(request) -> dict[str, object]:
                 "status": "PASS",
                 "evidence_refs": evidence_refs,
             }
-            for estimator_id in estimator_ids
+            for _estimator_id in estimator_ids
         ],
         "findings": [],
-        "repair_instructions": [],
     }
 
 

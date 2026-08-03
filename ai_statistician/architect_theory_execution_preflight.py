@@ -19,8 +19,8 @@ from .metric_protocol_finding_ledger import (
 from .research_schema import OpenResearchQuestion
 
 
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 4
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 4
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 6
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 6
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
     "primitive_mathematical_consistency",
@@ -175,10 +175,13 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "method improvements."
     ),
     (
-        "Resolve every active prior finding by its supplied finding_id. Mark it "
-        "RESOLVED_BY_CURRENT_THEORY only when current source anchors show the required "
-        "change; otherwise mark it UNRESOLVED and link exactly one current finding to "
-        "that id. Do not disguise a persistent defect as a newly worded finding."
+        "Review dimensions, estimators, and active prior findings in the exact ordered "
+        "slots supplied by ordered_review_slots. AgentRuntime owns and binds their "
+        "identities; do not copy identity strings into output rows. Mark a prior "
+        "finding RESOLVED_BY_CURRENT_THEORY only when current source anchors show the "
+        "required change and set current_finding=null; otherwise mark it UNRESOLVED "
+        "and place exactly one semantic continuation in current_finding. Do not "
+        "disguise a persistent defect as a newly worded finding."
     ),
 )
 
@@ -478,7 +481,6 @@ def architect_theory_execution_preflight_json_schema(
         "dimension_reviews",
         "estimator_execution_checks",
         "findings",
-        "repair_instructions",
     ]
     if active_prior_finding_ids:
         required_fields.append("prior_finding_reviews")
@@ -511,96 +513,119 @@ def architect_theory_execution_preflight_json_schema(
         "required_change",
         "evidence_refs",
     ]
-    if active_prior_finding_ids:
-        finding_required_fields.append("prior_finding_id")
-        finding_properties["prior_finding_id"] = {
-            "type": "string",
-            "enum": ["", *active_prior_finding_ids],
-            "description": (
-                "Use the exact active prior finding_id when this row continues "
-                "that defect; use the empty string only for a genuinely new defect."
-            ),
+    finding_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": list(finding_required_fields),
+        "properties": deepcopy(finding_properties),
+    }
+    dimension_review_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["status", "rationale", "evidence_refs"],
+        "properties": {
+            "status": {
+                "type": "string",
+                "enum": ["PASS", "FAIL", "UNCERTAIN"],
+            },
+            "rationale": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300,
+            },
+            "evidence_refs": evidence_refs,
+        },
+    }
+    prior_finding_review_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "status",
+            "rationale",
+            "evidence_refs",
+            "current_finding",
+        ],
+        "properties": {
+            "status": {
+                "type": "string",
+                "enum": [
+                    METRIC_PROTOCOL_FINDING_UNRESOLVED,
+                    METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
+                ],
+            },
+            "rationale": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 280,
+            },
+            "evidence_refs": evidence_refs,
+            "current_finding": {
+                "description": (
+                    "Supply one semantic continuation for UNRESOLVED and null for "
+                    "RESOLVED_BY_CURRENT_THEORY. AgentRuntime binds the ordered slot "
+                    "to the prior and canonical finding identity."
+                ),
+                "anyOf": [
+                    {"$ref": "#/$defs/finding"},
+                    {"type": "null"},
+                ],
+            },
+        },
+    }
+
+    def ordered_slot_schema(
+        *,
+        count: int,
+        definition: str,
+        description: str,
+    ) -> dict[str, Any]:
+        slots = [f"slot_{index}" for index in range(count)]
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "required": slots,
+            "description": description,
+            "properties": {
+                slot: {"$ref": f"#/$defs/{definition}"}
+                for slot in slots
+            },
         }
+
     schema = {
         "type": "object",
         "additionalProperties": False,
         "required": required_fields,
         "properties": {
-            "prior_finding_reviews": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": active_prior_finding_ids,
-                "description": (
-                    "Review every active prior finding exactly once. Runtime-owned "
-                    "finding_id values are the object keys; do not copy them into "
-                    "the review values."
+            "prior_finding_reviews": ordered_slot_schema(
+                count=len(active_prior_finding_ids),
+                definition="prior_finding_review",
+                description=(
+                    "One review per active prior finding in ordered_review_slots. "
+                    "AgentRuntime binds the slot identity."
                 ),
-                "properties": {
-                    finding_id: {
-                        "type": "object",
-                        "additionalProperties": False,
-                        "required": [
-                            "status",
-                            "rationale",
-                            "evidence_refs",
-                        ],
-                        "properties": {
-                            "status": {
-                                "type": "string",
-                                "enum": [
-                                    METRIC_PROTOCOL_FINDING_UNRESOLVED,
-                                    METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
-                                ],
-                            },
-                            "rationale": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 280,
-                            },
-                            "evidence_refs": evidence_refs,
-                        },
-                    }
-                    for finding_id in active_prior_finding_ids
-                },
-            },
+            ),
             "dimension_reviews": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": list(
-                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
+                "type": "array",
+                "minItems": len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS),
+                "maxItems": len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS),
+                "description": (
+                    "One review per dimension in ordered_review_slots order. Do not "
+                    "copy dimension names into rows."
                 ),
-                "properties": {
-                    dimension: {
-                        "type": "object",
-                        "additionalProperties": False,
-                        "required": ["status", "rationale", "evidence_refs"],
-                        "properties": {
-                            "status": {
-                                "type": "string",
-                                "enum": ["PASS", "FAIL", "UNCERTAIN"],
-                            },
-                            "rationale": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 300,
-                            },
-                            "evidence_refs": evidence_refs,
-                        },
-                    }
-                    for dimension in (
-                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
-                    )
-                },
+                "items": {"$ref": "#/$defs/dimension_review"},
             },
             "estimator_execution_checks": {
                 "type": "array",
                 "minItems": len(estimator_ids),
                 "maxItems": len(estimator_ids),
+                "description": (
+                    "One check per estimator in ordered_review_slots order. Do not "
+                    "copy estimator IDs into rows."
+                ),
                 "items": {
                     "type": "object",
                     "additionalProperties": False,
                     "required": [
-                        "estimator_id",
                         "ideal_procedure_semantics",
                         "procedure_identity_recomputation",
                         "selection_conditioning_or_operator_audit",
@@ -618,7 +643,6 @@ def architect_theory_execution_preflight_json_schema(
                         "evidence_refs",
                     ],
                     "properties": {
-                        "estimator_id": {"type": "string", "enum": estimator_ids},
                         "ideal_procedure_semantics": {
                             "type": "string",
                             "minLength": 1,
@@ -730,30 +754,29 @@ def architect_theory_execution_preflight_json_schema(
                 "type": "array",
                 "maxItems": max(3, len(active_prior_finding_ids)),
                 "description": (
-                    "Only defects that block metric authoring or finite execution. "
-                    "Exclude downstream proof obligations and robustness outside the "
-                    "admitted DGP."
+                    "Only genuinely new defects that block metric authoring or finite "
+                    "execution. Continue active prior defects only inside the ordered "
+                    "prior_finding_reviews current_finding field. Exclude downstream "
+                    "proof obligations and robustness outside the admitted DGP."
                 ),
-                "items": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "required": finding_required_fields,
-                    "properties": finding_properties,
-                },
-            },
-            "repair_instructions": {
-                "type": "array",
-                "maxItems": 3,
-                "description": (
-                    "Minimum upstream changes needed to remove current execution "
-                    "blockers; do not request theorem-proof closure here."
-                ),
-                "items": {"type": "string", "minLength": 1, "maxLength": 280},
+                "items": {"$ref": "#/$defs/finding"},
             },
         },
     }
+    schema["$defs"] = {
+        "dimension_review": dimension_review_schema,
+        "estimator_execution_check": deepcopy(
+            schema["properties"]["estimator_execution_checks"]["items"]
+        ),
+        "prior_finding_review": prior_finding_review_schema,
+        "finding": finding_schema,
+    }
+    schema["properties"]["estimator_execution_checks"]["items"] = {
+        "$ref": "#/$defs/estimator_execution_check"
+    }
     if not active_prior_finding_ids:
         schema["properties"].pop("prior_finding_reviews", None)
+        schema["$defs"].pop("prior_finding_review", None)
     return schema
 
 
@@ -773,12 +796,35 @@ def build_architect_theory_execution_preflight_prompt(
         ),
         "review_protocol_version": ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION,
         "review_protocol": list(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL),
-        "required_dimensions": list(
-            ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
-        ),
-        "required_estimator_ids": list(
-            material.get("required_estimator_ids", []) or []
-        ),
+        "ordered_review_slots": {
+            "dimension_reviews": [
+                {
+                    "output_index": index,
+                    "dimension": dimension,
+                }
+                for index, dimension in enumerate(
+                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
+                )
+            ],
+            "estimator_execution_checks": [
+                {
+                    "output_index": index,
+                    "estimator_id": str(estimator_id),
+                }
+                for index, estimator_id in enumerate(
+                    material.get("required_estimator_ids", []) or []
+                )
+            ],
+            "prior_finding_reviews": [
+                {
+                    "output_slot": f"slot_{index}",
+                    "finding_id": str(finding_id),
+                }
+                for index, finding_id in enumerate(
+                    material.get("active_prior_finding_ids", []) or []
+                )
+            ],
+        },
         "source_material": source_material,
         "verdict_policy": (
             "Do not return an overall verdict. AgentRuntime derives it from the "
@@ -823,6 +869,17 @@ def _derived_verdict(packet: Mapping[str, Any]) -> str:
         and all_prior_findings_resolved
         and not packet.get("findings", [])
         else "REVISE"
+    )
+
+
+def _derived_repair_instructions(packet: Mapping[str, Any]) -> list[str]:
+    return list(
+        dict.fromkeys(
+            str(row.get("required_change", "") or "").strip()
+            for row in packet.get("findings", []) or []
+            if isinstance(row, Mapping)
+            and str(row.get("required_change", "") or "").strip()
+        )
     )
 
 
@@ -933,6 +990,26 @@ def _normalize_estimator_status_summaries(
     return normalized_rows, normalizations
 
 
+def _ordered_review_slot_rows(
+    value: Any,
+    *,
+    expected_count: int,
+) -> dict[int, dict[str, Any]]:
+    if isinstance(value, Mapping):
+        return {
+            index: dict(value[f"slot_{index}"])
+            for index in range(expected_count)
+            if isinstance(value.get(f"slot_{index}"), Mapping)
+        }
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        return {
+            index: dict(row)
+            for index, row in enumerate(value[:expected_count])
+            if isinstance(row, Mapping)
+        }
+    return {}
+
+
 def _normalize_packet(
     payload: Mapping[str, Any],
     *,
@@ -944,48 +1021,126 @@ def _normalize_packet(
     raw_response: str,
 ) -> dict[str, Any]:
     body = dict(payload)
-    raw_dimension_reviews = body.get("dimension_reviews", {})
-    if isinstance(raw_dimension_reviews, Mapping):
-        body["dimension_reviews"] = [
-            {
-                "dimension": dimension,
-                **dict(raw_dimension_reviews.get(dimension, {}) or {}),
-            }
-            for dimension in ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
-            if isinstance(raw_dimension_reviews.get(dimension, {}), Mapping)
-        ]
-    else:
-        body["dimension_reviews"] = [
-            dict(row)
-            for row in raw_dimension_reviews or []
-            if isinstance(row, Mapping)
-        ]
-    raw_prior_finding_reviews = body.get("prior_finding_reviews", {})
-    if isinstance(raw_prior_finding_reviews, Mapping):
-        body["prior_finding_reviews"] = [
-            {
-                "finding_id": finding_id,
-                **dict(raw_prior_finding_reviews.get(finding_id, {}) or {}),
-            }
-            for finding_id in material.get("active_prior_finding_ids", []) or []
-            if isinstance(raw_prior_finding_reviews.get(finding_id, {}), Mapping)
-        ]
-    else:
-        body["prior_finding_reviews"] = [
-            dict(row)
-            for row in raw_prior_finding_reviews or []
-            if isinstance(row, Mapping)
-        ]
-    estimator_rows = [
-        dict(row)
-        for row in body.get("estimator_execution_checks", []) or []
-        if isinstance(row, Mapping)
+    raw_dimension_reviews = _ordered_review_slot_rows(
+        body.get("dimension_reviews", {}),
+        expected_count=len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS),
+    )
+    body["dimension_reviews"] = [
+        {
+            "dimension": dimension,
+            **{
+                key: (
+                    str(value or "").strip().upper()
+                    if key == "status"
+                    else value
+                )
+                for key, value in raw_dimension_reviews[index].items()
+                if key != "dimension"
+            },
+        }
+        for index, dimension in enumerate(
+            ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
+        )
+        if index in raw_dimension_reviews
     ]
+    active_prior_finding_ids = list(
+        material.get("active_prior_finding_ids", []) or []
+    )
+    raw_prior_finding_reviews = _ordered_review_slot_rows(
+        body.get("prior_finding_reviews", {}),
+        expected_count=len(active_prior_finding_ids),
+    )
+    prior_finding_continuations: list[dict[str, Any]] = []
+    prior_finding_identity_bindings: list[dict[str, Any]] = []
+    normalized_prior_reviews: list[dict[str, Any]] = []
+    for transport_index, raw_finding_id in enumerate(
+        active_prior_finding_ids
+    ):
+        if transport_index not in raw_prior_finding_reviews:
+            continue
+        finding_id = str(raw_finding_id)
+        review = {
+            key: (
+                str(value or "").strip().upper()
+                if key == "status"
+                else value
+            )
+            for key, value in raw_prior_finding_reviews[transport_index].items()
+            if key not in {"finding_id", "prior_finding_id"}
+        }
+        raw_continuation = review.pop("current_finding", None)
+        normalized_prior_reviews.append({"finding_id": finding_id, **review})
+        if isinstance(raw_continuation, Mapping):
+            continuation = {
+                key: value
+                for key, value in dict(raw_continuation).items()
+                if key not in {"finding_id", "prior_finding_id", "repair_scope"}
+            }
+            prior_finding_continuations.append(
+                {
+                    **continuation,
+                    "prior_finding_id": finding_id,
+                    "finding_id": finding_id,
+                    "repair_scope": "upstream_theory",
+                }
+            )
+            prior_finding_identity_bindings.append(
+                {
+                    "transport_index": transport_index,
+                    "prior_finding_id": finding_id,
+                    "canonical_finding_id": finding_id,
+                    "model_continuation_fingerprint": stable_hash(continuation),
+                    "identity_source": "prior_finding_reviews_ordered_slot",
+                    "runtime_selected_semantics": False,
+                }
+            )
+    body["prior_finding_reviews"] = normalized_prior_reviews
+    required_estimator_ids = list(
+        material.get("required_estimator_ids", []) or []
+    )
+    raw_estimator_rows = {
+        index: {
+            key: value
+            for key, value in row.items()
+            if key != "estimator_id"
+        }
+        for index, row in _ordered_review_slot_rows(
+            body.get("estimator_execution_checks", {}),
+            expected_count=len(required_estimator_ids),
+        ).items()
+    }
+    estimator_rows: list[dict[str, Any]] = []
+    estimator_identity_bindings: list[dict[str, Any]] = []
+    for transport_index, raw_estimator_id in enumerate(
+        required_estimator_ids
+    ):
+        if transport_index not in raw_estimator_rows:
+            continue
+        estimator_id = str(raw_estimator_id)
+        model_row = raw_estimator_rows[transport_index]
+        if "status" in model_row:
+            model_row["status"] = str(
+                model_row.get("status", "") or ""
+            ).strip().upper()
+        estimator_rows.append({"estimator_id": estimator_id, **model_row})
+        estimator_identity_bindings.append(
+            {
+                "transport_index": transport_index,
+                "estimator_id": estimator_id,
+                "model_reported_status": model_row.get("status"),
+                "model_row_fingerprint": stable_hash(model_row),
+                "identity_source": "estimator_execution_checks_ordered_index",
+                "runtime_selected_semantics": False,
+            }
+        )
     (
         body["estimator_execution_checks"],
         body["runtime_estimator_status_normalizations"],
     ) = _normalize_estimator_status_summaries(estimator_rows)
-    normalized_findings: list[dict[str, Any]] = []
+    body["runtime_estimator_identity_bindings"] = estimator_identity_bindings
+    normalized_findings: list[dict[str, Any]] = list(
+        prior_finding_continuations
+    )
     for raw_finding in body.get("findings", []) or []:
         if not isinstance(raw_finding, Mapping):
             continue
@@ -1003,11 +1158,10 @@ def _normalize_packet(
             )[0]
         normalized_findings.append(finding)
     body["findings"] = normalized_findings
-    body["repair_instructions"] = [
-        str(value)
-        for value in body.get("repair_instructions", []) or []
-        if str(value).strip()
-    ]
+    body["runtime_prior_finding_identity_bindings"] = (
+        prior_finding_identity_bindings
+    )
+    body["repair_instructions"] = _derived_repair_instructions(body)
     body["derived_consistency_warnings"] = _derived_consistency_warnings(body)
     body["overall_verdict"] = _derived_verdict(body)
     packet_id = "architect_theory_execution_preflight:" + stable_hash(
@@ -1165,7 +1319,7 @@ def validate_architect_theory_execution_preflight_packet(
         if isinstance(row, Mapping)
     ]
     dimensions = [str(row.get("dimension", "") or "") for row in dimension_rows]
-    if sorted(dimensions) != sorted(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS):
+    if dimensions != list(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS):
         errors.append("theory execution preflight must review every dimension exactly once")
     estimator_rows = [
         row
@@ -1176,7 +1330,7 @@ def validate_architect_theory_execution_preflight_packet(
     required_estimator_ids = [
         str(value) for value in material.get("required_estimator_ids", []) or []
     ]
-    if sorted(estimator_ids) != sorted(required_estimator_ids):
+    if estimator_ids != required_estimator_ids:
         errors.append("theory execution preflight must check every estimator exactly once")
 
     prior_finding_reviews = [
@@ -1193,9 +1347,7 @@ def validate_architect_theory_execution_preflight_packet(
         str(row.get("finding_id", "") or "")
         for row in prior_finding_reviews
     ]
-    if sorted(observed_prior_finding_ids) != sorted(
-        expected_prior_finding_ids
-    ) or len(observed_prior_finding_ids) != len(expected_prior_finding_ids):
+    if observed_prior_finding_ids != expected_prior_finding_ids:
         errors.append(
             "theory execution preflight must resolve every active prior "
             "finding_id exactly once"
@@ -1268,6 +1420,42 @@ def validate_architect_theory_execution_preflight_packet(
                 "theory execution preflight estimator status normalization mismatch"
             )
         observed_normalization_ids.add(estimator_id)
+    normalization_by_id = {
+        str(row.get("estimator_id", "") or "").strip(): row
+        for row in normalization_rows
+        if isinstance(row, Mapping)
+    }
+    expected_estimator_identity_bindings: list[dict[str, Any]] = []
+    for transport_index, row in enumerate(estimator_rows):
+        estimator_id = str(row.get("estimator_id", "") or "").strip()
+        model_row = {
+            key: value
+            for key, value in row.items()
+            if key != "estimator_id"
+        }
+        normalization = normalization_by_id.get(estimator_id, {})
+        model_reported_status = (
+            normalization.get("model_reported_status")
+            if normalization
+            else model_row.get("status")
+        )
+        model_row["status"] = model_reported_status
+        expected_estimator_identity_bindings.append(
+            {
+                "transport_index": transport_index,
+                "estimator_id": estimator_id,
+                "model_reported_status": model_reported_status,
+                "model_row_fingerprint": stable_hash(model_row),
+                "identity_source": "estimator_execution_checks_ordered_index",
+                "runtime_selected_semantics": False,
+            }
+        )
+    if packet.get("runtime_estimator_identity_bindings", []) != (
+        expected_estimator_identity_bindings
+    ):
+        errors.append(
+            "theory execution preflight estimator identity bindings mismatch"
+        )
     if packet.get("derived_consistency_warnings", []) != (
         _derived_consistency_warnings(packet)
     ):
@@ -1313,6 +1501,37 @@ def validate_architect_theory_execution_preflight_packet(
         errors.append(
             "theory execution preflight finding ids must be nonempty and unique"
         )
+    expected_identity_bindings = [
+        {
+            "transport_index": transport_index,
+            "prior_finding_id": finding_id,
+            "canonical_finding_id": finding_id,
+            "model_continuation_fingerprint": stable_hash(
+                {
+                    field: row.get(field)
+                    for field in (
+                        "severity",
+                        "category",
+                        "summary",
+                        "required_change",
+                        "evidence_refs",
+                    )
+                }
+            ),
+            "identity_source": "prior_finding_reviews_ordered_slot",
+            "runtime_selected_semantics": False,
+        }
+        for transport_index, finding_id in enumerate(expected_prior_finding_ids)
+        for row in findings
+        if str(row.get("prior_finding_id", "") or "").strip()
+        == finding_id
+    ]
+    if packet.get("runtime_prior_finding_identity_bindings", []) != (
+        expected_identity_bindings
+    ):
+        errors.append(
+            "theory execution preflight prior finding identity bindings mismatch"
+        )
     for prior_review in prior_finding_reviews:
         finding_id = str(prior_review.get("finding_id", "") or "").strip()
         status = str(prior_review.get("status", "") or "").strip().upper()
@@ -1341,14 +1560,15 @@ def validate_architect_theory_execution_preflight_packet(
     if not required_estimator_ids and expected_verdict != "REVISE":
         errors.append("theory execution preflight cannot accept without an estimator")
     repair_instructions = packet.get("repair_instructions", [])
-    if expected_verdict == "REVISE" and (
-        not findings
-        or not isinstance(repair_instructions, list)
-        or not any(str(value).strip() for value in repair_instructions)
-    ):
-        errors.append("REVISE theory execution preflight needs findings and repair instructions")
-    if expected_verdict == "ACCEPT" and repair_instructions:
-        errors.append("ACCEPT theory execution preflight cannot request repair")
+    expected_repair_instructions = _derived_repair_instructions(packet)
+    if repair_instructions != expected_repair_instructions:
+        errors.append(
+            "theory execution preflight repair instructions are not runtime-derived"
+        )
+    if expected_verdict == "REVISE" and not findings:
+        errors.append(
+            "REVISE theory execution preflight needs at least one finding"
+        )
     for field in (
         "independent_agent",
         "independent_invocation",
@@ -1447,9 +1667,14 @@ def review_architect_theory_execution_preflight(
     prompt = build_architect_theory_execution_preflight_prompt(material)
     schema = architect_theory_execution_preflight_json_schema(material)
     review_estimator_count = len(material.get("required_estimator_ids", []) or [])
+    review_prior_finding_count = len(
+        material.get("active_prior_finding_ids", []) or []
+    )
     review_output_token_cap = min(
-        8000,
-        5600 + 1200 * max(0, review_estimator_count - 1),
+        12000,
+        5600
+        + 1200 * max(0, review_estimator_count - 1)
+        + 900 * review_prior_finding_count,
     )
     request = GeneratorRequest(
         system_prompt=ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT,
@@ -1471,6 +1696,7 @@ def review_architect_theory_execution_preflight(
             "review_prompt_chars": len(prompt),
             "review_schema_chars": len(json.dumps(schema, separators=(",", ":"))),
             "review_estimator_count": review_estimator_count,
+            "review_prior_finding_count": review_prior_finding_count,
             "review_output_token_cap": review_output_token_cap,
         },
     )
@@ -1492,44 +1718,31 @@ def review_architect_theory_execution_preflight(
 
     def build_repair_context(**kwargs: Any) -> dict[str, Any]:
         invalid_payload = kwargs.get("invalid_payload", {})
-        raw_estimator_rows = (
-            invalid_payload.get("estimator_execution_checks", [])
-            if isinstance(invalid_payload, Mapping)
-            else []
+        required_estimator_ids = list(
+            material.get("required_estimator_ids", []) or []
         )
         estimator_paths = [
             {
-                "estimator_id": str(row.get("estimator_id", "") or ""),
+                "estimator_id": str(estimator_id),
                 "path": ["estimator_execution_checks", index],
             }
-            for index, row in enumerate(raw_estimator_rows or [])
-            if isinstance(row, Mapping)
-            and str(row.get("estimator_id", "") or "").strip()
+            for index, estimator_id in enumerate(required_estimator_ids)
         ]
-        raw_prior_finding_reviews = (
-            invalid_payload.get("prior_finding_reviews", [])
-            if isinstance(invalid_payload, Mapping)
-            else []
+        required_prior_finding_ids = list(
+            material.get("active_prior_finding_ids", []) or []
         )
-        if isinstance(raw_prior_finding_reviews, Mapping):
-            prior_finding_paths = [
-                {
-                    "finding_id": str(finding_id),
-                    "path": ["prior_finding_reviews", str(finding_id)],
-                }
-                for finding_id in material.get("active_prior_finding_ids", []) or []
-                if isinstance(raw_prior_finding_reviews.get(finding_id, {}), Mapping)
-            ]
-        else:
-            prior_finding_paths = [
-                {
-                    "finding_id": str(row.get("finding_id", "") or ""),
-                    "path": ["prior_finding_reviews", index],
-                }
-                for index, row in enumerate(raw_prior_finding_reviews or [])
-                if isinstance(row, Mapping)
-                and str(row.get("finding_id", "") or "").strip()
-            ]
+        prior_finding_paths = [
+            {
+                "finding_id": str(finding_id),
+                "path": ["prior_finding_reviews", f"slot_{index}"],
+                "current_finding_path": [
+                    "prior_finding_reviews",
+                    f"slot_{index}",
+                    "current_finding",
+                ],
+            }
+            for index, finding_id in enumerate(required_prior_finding_ids)
+        ]
         raw_findings = (
             invalid_payload.get("findings", [])
             if isinstance(invalid_payload, Mapping)
@@ -1539,11 +1752,6 @@ def review_architect_theory_execution_preflight(
             {
                 "finding_index": index,
                 "path": ["findings", index],
-                "prior_finding_id_path": [
-                    "findings",
-                    index,
-                    "prior_finding_id",
-                ],
             }
             for index, row in enumerate(raw_findings or [])
             if isinstance(row, Mapping)
@@ -1558,8 +1766,10 @@ def review_architect_theory_execution_preflight(
                 "normalized review artifact"
             ),
             "dimension_review_patch_paths": {
-                dimension: ["dimension_reviews", dimension]
-                for dimension in ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
+                dimension: ["dimension_reviews", index]
+                for index, dimension in enumerate(
+                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
+                )
             },
             "estimator_execution_check_patch_paths": estimator_paths,
             "prior_finding_review_patch_paths": prior_finding_paths,
@@ -1588,8 +1798,10 @@ def review_architect_theory_execution_preflight(
                 if isinstance(row, Mapping)
             ],
             "consistency_policy": (
-                "Repair statuses, findings, and instructions together. Preserve "
-                "semantic judgments unless a listed validation error requires change."
+                "Repair statuses and findings together. AgentRuntime projects repair "
+                "instructions from model-authored finding.required_change values. "
+                "Preserve semantic judgments unless a listed validation error "
+                "requires change."
             ),
             "repair_prompt_priority_instructions": [
                 (
@@ -1601,9 +1813,11 @@ def review_architect_theory_execution_preflight(
                 ),
                 (
                     "For every prior_finding_reviews row whose status is UNRESOLVED, "
-                    "set exactly one current findings row's prior_finding_id to that "
-                    "exact finding_id. Use prior_finding_id='', not an invented link "
-                    "field, for a genuinely new finding. Runtime owns finding_id."
+                    "put exactly one semantic continuation at its supplied "
+                    "current_finding_path. Set current_finding=null for a resolved "
+                    "prior row. AgentRuntime binds the ordered slot to both canonical "
+                    "prior_finding_id and finding_id; never copy either identity into "
+                    "any output row."
                 ),
                 (
                     "Treat source_interface_inventories as exact source facts. Do not "

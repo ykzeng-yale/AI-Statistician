@@ -196,8 +196,8 @@ def _theory_material() -> dict[str, object]:
 def _payload(*, accept: bool) -> dict[str, object]:
     status = "PASS" if accept else "FAIL"
     return {
-        "dimension_reviews": {
-            dimension: {
+        "dimension_reviews": [
+            {
                 "status": status,
                 "rationale": (
                     "The primitive claim and finite observation agree."
@@ -209,11 +209,10 @@ def _payload(*, accept: bool) -> dict[str, object]:
                     "theory.estimator_specs",
                 ],
             }
-            for dimension in ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
-        },
+            for _dimension in ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
+        ],
         "estimator_execution_checks": [
             {
-                "estimator_id": "generic_stream_method",
                 "ideal_procedure_semantics": "The ideal method reads until an event.",
                 "procedure_identity_recomputation": (
                     "The first-event identity is reconstructed on event and no-event "
@@ -283,13 +282,6 @@ def _payload(*, accept: bool) -> dict[str, object]:
                 }
             ]
         ),
-        "repair_instructions": (
-            []
-            if accept
-            else [
-                "Revise the theory-to-execution interface before metric authoring."
-            ]
-        ),
     }
 
 
@@ -323,6 +315,7 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
         },
     )
     prompt = build_architect_theory_execution_preflight_prompt(material)
+    prompt_payload = json.loads(prompt.split("\n\n", 1)[1])
     packet, backend = _review(accept=True)
 
     assert len(prompt) < 30_000
@@ -344,6 +337,12 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
         assert phrase in protocol
     assert packet["overall_verdict"] == "ACCEPT"
     assert packet["runtime_estimator_status_normalizations"] == []
+    assert packet["runtime_estimator_identity_bindings"][0][
+        "identity_source"
+    ] == "estimator_execution_checks_ordered_index"
+    assert packet["runtime_estimator_identity_bindings"][0][
+        "runtime_selected_semantics"
+    ] is False
     assert packet["execution_authorized"] is False
     assert packet["kernel_verified"] is False
     assert packet["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
@@ -382,9 +381,26 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     assert "Exclude downstream proof obligations" in (
         backend.requests[0].schema["properties"]["findings"]["description"]
     )
-    assert backend.requests[0].schema["properties"]["dimension_reviews"][
-        "type"
-    ] == "object"
+    dimension_schema = backend.requests[0].schema["properties"][
+        "dimension_reviews"
+    ]
+    assert dimension_schema["type"] == "array"
+    assert dimension_schema["minItems"] == len(
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
+    )
+    estimator_schema = backend.requests[0].schema["properties"][
+        "estimator_execution_checks"
+    ]
+    assert estimator_schema["items"] == {
+        "$ref": "#/$defs/estimator_execution_check"
+    }
+    assert "estimator_id" not in backend.requests[0].schema["$defs"][
+        "estimator_execution_check"
+    ]["properties"]
+    assert "repair_instructions" not in backend.requests[0].schema["properties"]
+    assert prompt_payload["ordered_review_slots"][
+        "estimator_execution_checks"
+    ] == [{"output_index": 0, "estimator_id": "generic_stream_method"}]
     assert "prior_finding_reviews" not in backend.requests[0].schema[
         "properties"
     ]
@@ -394,11 +410,14 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     ) == []
 
 
-def test_preflight_patch_paths_follow_raw_exact_key_transport() -> None:
+def test_preflight_patch_paths_follow_raw_ordered_slot_transport() -> None:
     initial_payload = _payload(accept=False)
-    initial_payload["dimension_reviews"]["primitive_mathematical_consistency"][
-        "evidence_refs"
-    ] = ["unknown.anchor"]
+    primitive_index = ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS.index(
+        "primitive_mathematical_consistency"
+    )
+    initial_payload["dimension_reviews"][primitive_index]["evidence_refs"] = [
+        "unknown.anchor"
+    ]
     backend = _SequencedBackend(initial_payload)
 
     packet = review_architect_theory_execution_preflight(
@@ -422,7 +441,7 @@ def test_preflight_patch_paths_follow_raw_exact_key_transport() -> None:
     assert "current_invalid_packet" not in context
     assert context["dimension_review_patch_paths"][
         "primitive_mathematical_consistency"
-    ] == ["dimension_reviews", "primitive_mathematical_consistency"]
+    ] == ["dimension_reviews", primitive_index]
     assert context["estimator_execution_check_patch_paths"] == [
         {
             "estimator_id": "generic_stream_method",
@@ -433,7 +452,7 @@ def test_preflight_patch_paths_follow_raw_exact_key_transport() -> None:
     assert packet["llm_json_repair_history"][1]["patched_paths"] == [
         [
             "dimension_reviews",
-            "primitive_mathematical_consistency",
+            primitive_index,
             "evidence_refs",
         ]
     ]
@@ -503,7 +522,7 @@ def test_preflight_cannot_accept_invalid_theorem_application() -> None:
 
 def test_preflight_preserves_primitive_summary_conflict_without_retry() -> None:
     payload = _payload(accept=False)
-    payload["dimension_reviews"]["primitive_mathematical_consistency"] = {
+    payload["dimension_reviews"][1] = {
         "status": "PASS",
         "rationale": "The primitive formulas are internally well formed.",
         "evidence_refs": ["theory.estimator_specs"],
@@ -547,7 +566,7 @@ def test_preflight_preserves_primitive_summary_conflict_without_retry() -> None:
 
 def test_preflight_downgrades_inconsistent_estimator_pass_without_retry() -> None:
     payload = _payload(accept=True)
-    payload["dimension_reviews"]["primitive_mathematical_consistency"] = {
+    payload["dimension_reviews"][1] = {
         "status": "UNCERTAIN",
         "rationale": "One invoked theorem hypothesis is not established.",
         "evidence_refs": ["theory.theorem_cards", "theory.estimator_specs"],
@@ -555,9 +574,9 @@ def test_preflight_downgrades_inconsistent_estimator_pass_without_retry() -> Non
     payload["estimator_execution_checks"][0][
         "theorem_applications_declared_valid"
     ] = False
-    payload["estimator_execution_checks"][0]["theorem_hypothesis_measure_audit"] = (
-        "The source does not establish every invoked theorem hypothesis."
-    )
+    payload["estimator_execution_checks"][0][
+        "theorem_hypothesis_measure_audit"
+    ] = "The source does not establish every invoked theorem hypothesis."
     payload["findings"] = [
         {
             "severity": "high",
@@ -568,9 +587,6 @@ def test_preflight_downgrades_inconsistent_estimator_pass_without_retry() -> Non
             ),
             "evidence_refs": ["theory.theorem_cards", "theory.estimator_specs"],
         }
-    ]
-    payload["repair_instructions"] = [
-        "Revise the upstream derivation to establish the theorem hypothesis."
     ]
     backend = _Backend(payload)
 
@@ -606,6 +622,9 @@ def test_preflight_downgrades_inconsistent_estimator_pass_without_retry() -> Non
     assert packet["findings"][0]["category"] == (
         "unestablished_theorem_hypothesis"
     )
+    assert packet["repair_instructions"] == [
+        packet["findings"][0]["required_change"]
+    ]
     assert packet["runtime_estimator_status_normalizations"] == [
         {
             "estimator_id": "generic_stream_method",
@@ -646,12 +665,13 @@ def test_preflight_closes_prior_findings_by_stable_identity() -> None:
 
     accepted_payload = _payload(accept=True)
     accepted_payload["prior_finding_reviews"] = {
-        prior_finding_ids[0]: {
+        "slot_0": {
             "status": "RESOLVED_BY_CURRENT_THEORY",
             "rationale": (
                 "The current estimator interface now exposes the bounded outcome."
             ),
             "evidence_refs": ["theory.estimator_specs"],
+            "current_finding": None,
         }
     }
     backend = _Backend(accepted_payload)
@@ -676,14 +696,23 @@ def test_preflight_closes_prior_findings_by_stable_identity() -> None:
         "prior_finding_reviews"
     ]
     assert prior_review_schema["type"] == "object"
-    assert prior_review_schema["required"] == prior_finding_ids
-    assert prior_review_schema["additionalProperties"] is False
-    assert set(prior_review_schema["properties"]) == set(prior_finding_ids)
-    assert "finding_id" not in prior_review_schema["properties"][
-        prior_finding_ids[0]
-    ]["properties"]
+    assert prior_review_schema["required"] == ["slot_0"]
+    assert prior_review_schema["properties"]["slot_0"] == {
+        "$ref": "#/$defs/prior_finding_review"
+    }
+    prior_review_definition = backend.requests[0].schema["$defs"][
+        "prior_finding_review"
+    ]
+    assert "finding_id" not in prior_review_definition["properties"]
+    assert "current_finding" in prior_review_definition["required"]
+    assert prior_review_definition["properties"]["current_finding"]["anyOf"][
+        1
+    ] == {"type": "null"}
+    finding_definition = backend.requests[0].schema["$defs"]["finding"]
+    assert "prior_finding_id" not in finding_definition["properties"]
     assert accepted["overall_verdict"] == "ACCEPT"
     assert accepted["active_unresolved_finding_ids"] == []
+    assert accepted["runtime_prior_finding_identity_bindings"] == []
     assert accepted["prior_finding_resolution_summary"] == {
         "prior_active_finding_ids": prior_finding_ids,
         "resolved_prior_finding_ids": prior_finding_ids,
@@ -697,23 +726,98 @@ def test_preflight_closes_prior_findings_by_stable_identity() -> None:
     )
 
 
-def test_preflight_repairs_unresolved_prior_finding_with_typed_link() -> None:
+def test_preflight_binds_unresolved_prior_finding_from_ordered_slot() -> None:
     rejected, _backend = _review(accept=False)
     prior_ledger = rejected["cumulative_finding_ledger"]
     prior_finding_id = rejected["active_unresolved_finding_ids"][0]
     initial_payload = _payload(accept=False)
+    continuation = initial_payload["findings"].pop()
+    continuation["summary"] = (
+        "The revised finite interface still omits one declared outcome."
+    )
     initial_payload["prior_finding_reviews"] = {
-        prior_finding_id: {
+        "slot_0": {
             "status": "UNRESOLVED",
             "rationale": "The revised source still leaves the finite branch undefined.",
             "evidence_refs": ["theory.estimator_specs"],
+            "current_finding": continuation,
         }
     }
-    initial_payload["findings"][0]["summary"] = (
-        "The revised finite interface still omits one declared outcome."
+    backend = _Backend(initial_payload)
+    packet = review_architect_theory_execution_preflight(
+        provider=backend,
+        question=_question(),
+        theory_protocol_material=_theory_material(),
+        upstream_research_contract={
+            "formal_targets": [],
+            "simulation_targets": ["evaluate the declared risk"],
+        },
+        model=TEST_HAIKU_MODEL,
+        model_tier="haiku",
+        max_tokens=7000,
+        temperature=0.0,
+        provider_name="anthropic",
+        max_repair_attempts=0,
+        prior_finding_ledger=prior_ledger,
     )
 
-    class PriorFindingLinkBackend:
+    assert len(backend.requests) == 1
+    finding_schema = backend.requests[0].schema["$defs"]["finding"]
+    assert "prior_finding_id" not in finding_schema["properties"]
+    assert "finding_id" not in finding_schema["properties"]
+    prior_schema = backend.requests[0].schema["properties"][
+        "prior_finding_reviews"
+    ]["properties"]["slot_0"]
+    assert prior_schema == {"$ref": "#/$defs/prior_finding_review"}
+    assert "current_finding" in backend.requests[0].schema["$defs"][
+        "prior_finding_review"
+    ]["required"]
+    assert packet["findings"][0]["prior_finding_id"] == prior_finding_id
+    assert packet["findings"][0]["finding_id"] == prior_finding_id
+    assert packet["findings"][0]["summary"] == continuation["summary"]
+    assert packet["runtime_prior_finding_identity_bindings"] == [
+        {
+            "transport_index": 0,
+            "prior_finding_id": prior_finding_id,
+            "canonical_finding_id": prior_finding_id,
+            "model_continuation_fingerprint": stable_hash(continuation),
+            "identity_source": "prior_finding_reviews_ordered_slot",
+            "runtime_selected_semantics": False,
+        }
+    ]
+    assert packet["prior_finding_resolution_summary"][
+        "still_unresolved_prior_finding_ids"
+    ] == [prior_finding_id]
+    assert validate_architect_theory_execution_preflight_packet(
+        packet,
+        material=build_architect_theory_execution_preflight_material(
+            question=_question(),
+            theory_protocol_material=_theory_material(),
+            upstream_research_contract={
+                "formal_targets": [],
+                "simulation_targets": ["evaluate the declared risk"],
+            },
+            prior_finding_ledger=prior_ledger,
+        ),
+    ) == []
+
+
+def test_preflight_repairs_missing_ordered_prior_continuation() -> None:
+    rejected, _backend = _review(accept=False)
+    prior_ledger = rejected["cumulative_finding_ledger"]
+    prior_finding_id = rejected["active_unresolved_finding_ids"][0]
+    initial_payload = _payload(accept=False)
+    continuation = initial_payload["findings"].pop()
+    initial_payload["prior_finding_reviews"] = {
+        "slot_0": {
+            "status": "UNRESOLVED",
+            "rationale": "The finite source branch remains undefined.",
+            "evidence_refs": ["theory.estimator_specs"],
+            "current_finding": None,
+        }
+    }
+
+    class MissingContinuationBackend:
         provider_name = "anthropic"
 
         def __init__(self) -> None:
@@ -727,17 +831,17 @@ def test_preflight_repairs_unresolved_prior_finding_with_typed_link() -> None:
             else:
                 repair_payload = json.loads(request.user_prompt.split("\n\n", 1)[1])
                 self.repair_context = repair_payload["subsystem_repair_context"]
-                prior_path = self.repair_context["current_finding_patch_paths"][0][
-                    "prior_finding_id_path"
-                ]
+                prior_row = self.repair_context[
+                    "prior_finding_review_patch_paths"
+                ][0]
                 payload = {
                     "base_payload_fingerprint": repair_payload[
                         "base_payload_fingerprint"
                     ],
                     "updates": [
                         {
-                            "path": prior_path,
-                            "replacement_json": json.dumps(prior_finding_id),
+                            "path": prior_row["current_finding_path"],
+                            "replacement_json": json.dumps(continuation),
                         }
                     ],
                 }
@@ -751,7 +855,7 @@ def test_preflight_repairs_unresolved_prior_finding_with_typed_link() -> None:
                 },
             )
 
-    backend = PriorFindingLinkBackend()
+    backend = MissingContinuationBackend()
     packet = review_architect_theory_execution_preflight(
         provider=backend,
         question=_question(),
@@ -769,44 +873,25 @@ def test_preflight_repairs_unresolved_prior_finding_with_typed_link() -> None:
         prior_finding_ledger=prior_ledger,
     )
 
-    finding_schema = backend.requests[0].schema["properties"]["findings"][
-        "items"
-    ]
-    assert "prior_finding_id" in finding_schema["required"]
-    assert finding_schema["properties"]["prior_finding_id"]["enum"] == [
-        "",
-        prior_finding_id,
-    ]
-    assert backend.repair_context["current_finding_patch_paths"] == [
-        {
-            "finding_index": 0,
-            "path": ["findings", 0],
-            "prior_finding_id_path": ["findings", 0, "prior_finding_id"],
-        }
-    ]
+    assert len(backend.requests) == 2
+    assert backend.repair_context["current_finding_patch_paths"] == []
     assert backend.repair_context["prior_finding_review_patch_paths"] == [
         {
             "finding_id": prior_finding_id,
-            "path": ["prior_finding_reviews", prior_finding_id],
+            "path": ["prior_finding_reviews", "slot_0"],
+            "current_finding_path": [
+                "prior_finding_reviews",
+                "slot_0",
+                "current_finding",
+            ],
         }
     ]
     assert packet["findings"][0]["prior_finding_id"] == prior_finding_id
     assert packet["findings"][0]["finding_id"] == prior_finding_id
-    assert packet["prior_finding_resolution_summary"][
-        "still_unresolved_prior_finding_ids"
-    ] == [prior_finding_id]
-    assert validate_architect_theory_execution_preflight_packet(
-        packet,
-        material=build_architect_theory_execution_preflight_material(
-            question=_question(),
-            theory_protocol_material=_theory_material(),
-            upstream_research_contract={
-                "formal_targets": [],
-                "simulation_targets": ["evaluate the declared risk"],
-            },
-            prior_finding_ledger=prior_ledger,
-        ),
-    ) == []
+    assert packet["runtime_prior_finding_identity_bindings"][0][
+        "runtime_selected_semantics"
+    ] is False
+    assert packet["llm_json_repair_attempts"] == 1
 
 
 def test_rejected_preflight_skips_metric_author_and_execution_lineage() -> None:
