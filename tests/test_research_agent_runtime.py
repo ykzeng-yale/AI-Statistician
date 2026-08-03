@@ -15,6 +15,7 @@ from typing import Any
 import pytest
 
 import ai_statistician.cli as cli_module
+import ai_statistician.architect_coordinator_llm as architect_coordinator_module
 import ai_statistician.exact_source_theorem_proof_body_executor as exact_executor_module
 import ai_statistician.formalizer_llm as formalizer_module
 import ai_statistician.research_agent_runtime as runtime_module
@@ -84,12 +85,14 @@ from ai_statistician.source_theorem_exact_semantic_definition_authoring_worker i
 )
 from ai_statistician.architect_coordinator_llm import (
     ARCHITECT_COORDINATOR_JSON_SCHEMA,
+    ARCHITECT_REUSABLE_VALIDATED_PLAN_FIELDS,
     ArchitectCoordinatorConfig,
     LLMArchitectCoordinatorAgent,
     _architect_metric_authoring_deferred_for_active_replan,
     _architect_packet_repair_context,
     _normalize_architect_packet,
     architect_capability_gap_routing_agenda,
+    architect_validated_plan_reuse_metadata,
     build_architect_coordinator_prompt,
     validate_architect_coordinator_packet,
 )
@@ -982,6 +985,16 @@ def test_runtime_audit_accepts_architect_resume_theory_refresh_route(
         "n_questions": 1,
         "n_runtime_next_action_items": 1,
         "n_runtime_learning_rows": 1,
+        "config": {
+            "formalizer_candidate_lean_project": (
+                "/tmp/canonical-statinference-project"
+            ),
+            "source_theorem_exact_semantic_definition_source_roots": [
+                "/tmp/canonical-statinference-project/StatInference",
+                "/tmp/canonical-statinference-project/.lake/packages/Statlib/Statlib",
+            ],
+            "provider_api_key": "must-not-be-exported",
+        },
         "llm_runtime_topology": {
             "policy_status": "OK",
             "counts": {
@@ -1014,6 +1027,30 @@ def test_runtime_audit_accepts_architect_resume_theory_refresh_route(
     assert audit["result_errors"] == []
     assert audit["n_budgeted_continuation_contract_ok"] == 1
     assert audit["runtime_architect_control_status"] == "PRESENT"
+    assert audit["config"] == {
+        "formalizer_candidate_lean_project": (
+            "/tmp/canonical-statinference-project"
+        ),
+        "source_theorem_exact_semantic_definition_source_roots": [
+            "/tmp/canonical-statinference-project/StatInference",
+            "/tmp/canonical-statinference-project/.lake/packages/Statlib/Statlib",
+        ],
+    }
+    assert "provider_api_key" not in audit["config"]
+    rerun_commands = {
+        str(row.get("recommended_capability_eval_command", "") or "")
+        for row in audit["runtime_capability_gap_routing_rows"]
+    }
+    assert rerun_commands
+    assert any(
+        "--lean-project /tmp/canonical-statinference-project" in command
+        for command in rerun_commands
+    )
+    assert all(
+        "legacy_sources/emperical_process_lean" not in command
+        and "legacy_sources/ai_statistician" not in command
+        for command in rerun_commands
+    )
 
 
 def test_simulation_evaluator_routes_weak_theory_trace_to_theory_developer() -> None:
@@ -23614,6 +23651,176 @@ def test_live_architect_defers_metric_authoring_until_theory_is_available() -> N
     assert pending_routing["source"] == "metric_protocol_theory_prerequisite"
 
 
+def test_live_architect_reuses_validated_plan_after_metric_review(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    runtime_config = {
+        "evaluation_mode": "capability_eval",
+        "formal_verification_policy": "required",
+        "n_runs": 17,
+    }
+    initial_response = _architect_sample_response(
+        required_runtime_replicates=17
+    )
+    initial_packet = _normalize_architect_packet(
+        initial_response,
+        question=question,
+        model=LIVE_EVALUATION_CLAUDE_MODEL,
+        model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        provider_name="anthropic",
+        raw_response=json.dumps(initial_response),
+        runtime_config=runtime_config,
+        architect_context={},
+    )
+    context = _theory_informed_metric_context_fixture()
+    context["architect_runtime_plan"] = {
+        field: copy.deepcopy(initial_packet[field])
+        for field in ARCHITECT_REUSABLE_VALIDATED_PLAN_FIELDS
+    }
+    context["architect_runtime_plan"]["validated_plan_reuse_metadata"] = (
+        architect_validated_plan_reuse_metadata(
+            initial_packet,
+            question_id=question.id,
+        )
+    )
+    theory_material = context["architect_metric_protocol_theory_material"]
+    requirements = initial_response["evidence_contract"][
+        "empirical_metric_requirements"
+    ]
+    requirement_set_id = runtime_module.generated_metric_requirement_set_id(
+        requirements
+    )
+    semantic_review_packet = {
+        "packet_id": "architect_metric_semantic_review:reuse-test",
+        "model": LIVE_EVALUATION_CLAUDE_MODEL,
+        "model_tier": LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        "independent_agent": True,
+        "independent_invocation": True,
+        "independent_model": False,
+        "independent_model_tier": False,
+    }
+    metric_authoring_packet = {
+        "artifact_kind": "ArchitectMetricRequirementAuthoringPacket",
+        "packet_id": "architect_metric_requirement_authoring:reuse-test",
+        "provider_name": "anthropic",
+        "model": LIVE_EVALUATION_CLAUDE_MODEL,
+        "model_tier": LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        "source_theory_packet_id": theory_material["source_theory_packet_id"],
+        "source_theory_packet_hash": theory_material[
+            "source_theory_packet_hash"
+        ],
+        "empirical_metric_requirements": requirements,
+        "empirical_metric_requirement_set_id": requirement_set_id,
+        "semantic_review_status": "ACCEPT",
+        "semantic_review_packet": semantic_review_packet,
+        "semantic_review_packet_hash": runtime_module.stable_hash(
+            semantic_review_packet
+        ),
+        "proof_evidence_status": (
+            "ARCHITECT_METRIC_REQUIREMENT_AUTHORING_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    monkeypatch.setattr(
+        architect_coordinator_module,
+        "author_reviewed_architect_metric_requirements",
+        lambda **_kwargs: copy.deepcopy(metric_authoring_packet),
+    )
+
+    class NoSecondPlanBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate(self, request):
+            self.requests.append(request)
+            raise AssertionError(
+                "accepted metric attachment must not regenerate the Architect plan"
+            )
+
+    backend = NoSecondPlanBackend()
+    packet = LLMArchitectCoordinatorAgent(
+        provider=backend,
+        config=ArchitectCoordinatorConfig(
+            provider_name="anthropic",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        ),
+    ).propose(
+        question=question,
+        architect_context=context,
+        runtime_config=runtime_config,
+    )
+
+    assert backend.requests == []
+    assert packet["plan_generation_mode"] == (
+        "validated_plan_reuse_with_independent_metric_attachment"
+    )
+    assert packet["fresh_architect_plan_model_invocation"] is False
+    provenance = packet["validated_plan_reuse_provenance"]
+    assert provenance["source_architect_packet_id"] == initial_packet[
+        "packet_id"
+    ]
+    assert provenance["metric_authoring_packet_hash"] == (
+        runtime_module.stable_hash(metric_authoring_packet)
+    )
+    assert provenance["runtime_may_generate_research_content"] is False
+    contract = packet["evidence_contract"]
+    assert contract["empirical_metric_requirement_set_id"] == requirement_set_id
+    assert contract["empirical_metric_protocol_phase"] == (
+        "preexecution_review_accepted"
+    )
+    assert contract["metric_protocol_execution_authorized"] is True
+    assert validate_architect_coordinator_packet(packet) == []
+
+    tampered_context = copy.deepcopy(context)
+    tampered_context["architect_runtime_plan"][
+        "validated_plan_reuse_metadata"
+    ]["validated_plan_fingerprint"] = "tampered"
+
+    class FallbackPlanBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate(self, request):
+            self.requests.append(request)
+            return GeneratorResponse(
+                text=json.dumps(initial_response),
+                provider="anthropic",
+                model=request.model,
+                metadata={
+                    "provider_structured_output_requested": bool(request.schema),
+                    "provider_structured_output_applied": bool(request.schema),
+                },
+            )
+
+    fallback_backend = FallbackPlanBackend()
+    fallback_packet = LLMArchitectCoordinatorAgent(
+        provider=fallback_backend,
+        config=ArchitectCoordinatorConfig(
+            provider_name="anthropic",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        ),
+    ).propose(
+        question=question,
+        architect_context=tampered_context,
+        runtime_config=runtime_config,
+    )
+
+    assert len(fallback_backend.requests) == 1
+    assert fallback_backend.requests[0].metadata["subsystem"] == (
+        "ArchitectCoordinator"
+    )
+    assert "validated_plan_reuse_provenance" not in fallback_packet
+    assert validate_architect_coordinator_packet(fallback_packet) == []
+
+
 def test_live_architect_does_not_let_metric_authoring_intercept_source_repair() -> None:
     question = next(
         question
@@ -27078,6 +27285,13 @@ def test_architect_metric_reviewer_packet_failure_is_typed_not_subsystem_excepti
                     "model_requested_overall_verdict": "ACCEPT",
                     "overall_verdict": "REVISE",
                     "dimension_reviews": [],
+                    "estimator_execution_checks": [
+                        {
+                            "estimator_id": "generic-estimator",
+                            "status": "PASS",
+                            "procedure_identity_declared_valid": False,
+                        }
+                    ],
                     "findings": [],
                     "proof_evidence_status": (
                         "ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
@@ -27116,6 +27330,9 @@ def test_architect_metric_reviewer_packet_failure_is_typed_not_subsystem_excepti
         "claude-haiku-4-5-20251001"
     )
     assert failure["last_invalid_packet_available"] is True
+    assert failure["last_invalid_review_projection"][
+        "estimator_execution_checks"
+    ][0]["estimator_id"] == "generic-estimator"
     assert failure["metric_protocol_execution_authorized"] is False
     assert failure["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
     assert result.observations[0].observation_type == (

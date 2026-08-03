@@ -1145,20 +1145,46 @@ def validate_architect_theory_execution_preflight_packet(
     ):
         errors.append("theory execution preflight prior finding status is invalid")
 
-    for row in estimator_rows:
+    estimator_declaration_requirements = (
+        (
+            "procedure_identity_declared_valid",
+            "established procedure identity",
+        ),
+        (
+            "theorem_applications_declared_valid",
+            "valid theorem applications",
+        ),
+        (
+            "ideal_to_executable_mapping_declared",
+            "source-declared executable mapping",
+        ),
+        (
+            "total_or_typed_bounded_outcome_declared",
+            "bounded or typed outcome",
+        ),
+        (
+            "guarantee_transport_argument_declared",
+            "guarantee transport",
+        ),
+    )
+    for row_index, row in enumerate(estimator_rows):
         status = str(row.get("status", "") or "").strip().upper()
-        declaration_flags = (
-            row.get("procedure_identity_declared_valid"),
-            row.get("theorem_applications_declared_valid"),
-            row.get("ideal_to_executable_mapping_declared"),
-            row.get("total_or_typed_bounded_outcome_declared"),
-            row.get("guarantee_transport_argument_declared"),
-        )
-        if status == "PASS" and any(value is not True for value in declaration_flags):
+        invalid_declarations = [
+            (field, description)
+            for field, description in estimator_declaration_requirements
+            if row.get(field) is not True
+        ]
+        if status == "PASS" and invalid_declarations:
+            estimator_id = str(row.get("estimator_id", "") or "").strip()
             errors.append(
-                "PASS estimator preflight requires an established procedure "
-                "identity, valid theorem applications, source-declared executable "
-                "mapping, bounded outcome, and guarantee transport"
+                f"estimator_execution_checks[{row_index}] estimator_id="
+                f"{estimator_id!r} status=PASS has false or missing declaration "
+                "flags: "
+                + ", ".join(
+                    f"estimator_execution_checks[{row_index}].{field} "
+                    f"({description})"
+                    for field, description in invalid_declarations
+                )
             )
     if packet.get("derived_consistency_warnings", []) != (
         _derived_consistency_warnings(packet)

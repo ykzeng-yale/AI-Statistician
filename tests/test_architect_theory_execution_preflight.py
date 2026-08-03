@@ -459,6 +459,12 @@ def test_preflight_cannot_accept_an_unestablished_procedure_identity() -> None:
 
     assert any("established procedure identity" in error for error in errors)
     assert any(
+        "estimator_execution_checks[0].procedure_identity_declared_valid"
+        in error
+        and "estimator_id='generic_stream_method'" in error
+        for error in errors
+    )
+    assert any(
         "consistency warnings mismatch" in error
         for error in errors
     )
@@ -485,6 +491,12 @@ def test_preflight_cannot_accept_invalid_theorem_application() -> None:
     )
 
     assert any("valid theorem applications" in error for error in errors)
+    assert any(
+        "estimator_execution_checks[0].theorem_applications_declared_valid"
+        in error
+        and "estimator_id='generic_stream_method'" in error
+        for error in errors
+    )
     assert any("consistency warnings mismatch" in error for error in errors)
 
 

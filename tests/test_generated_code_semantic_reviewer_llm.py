@@ -2705,6 +2705,91 @@ def test_schema_v7_rejects_legacy_duplicate_fields_as_model_input(
         in error
         for error in result.observations[0].payload["validation_errors"]
     )
+    failure = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewValidationFailure"
+    )
+    assert failure["last_invalid_packet_available"] is True
+    assert failure["last_invalid_packet_fingerprint"]
+    assert failure["last_invalid_review_projection"]["dimension_reviews"]
+    assert failure["semantic_review_acceptance_authorized"] is False
+    assert result.observations[0].payload["failure_id"] == failure["failure_id"]
+
+
+def test_runtime_persists_full_generated_review_validation_replay_lineage(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accept=True)
+    repair_history = [
+        {
+            "attempt_index": 0,
+            "model": LIVE_EVALUATION_CLAUDE_MODEL,
+            "provider": "anthropic",
+            "ok": False,
+            "errors": ["missing current artifact locator"],
+            "response_metadata": {
+                "provider_stop_reason": "end_turn",
+                "provider_usage": {"input_tokens": 123, "output_tokens": 45},
+            },
+        }
+    ]
+    invalid_packet = {
+        "packet_id": "generated_code_semantic_review:invalid",
+        "review_input_fingerprint": "review-input:invalid",
+        "model_requested_overall_verdict": "ACCEPT",
+        "overall_verdict": "REVISE",
+        "repair_scope": "source_code",
+        "repair_scopes": ["source_code"],
+        "repair_owner": "AlgorithmEngineer",
+        "dimension_reviews": [
+            {
+                "dimension": "experiment_non_vacuity_and_identifiability",
+                "status": "PASS",
+            }
+        ],
+        "findings": [],
+        "repair_instructions": [],
+        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+    }
+
+    class InvalidReviewer:
+        def review(self, **_kwargs):
+            raise PacketValidationError(
+                validation_label="generated-code semantic review packet",
+                attempts=1,
+                errors=[
+                    "semantic review dimension experiment_non_vacuity_and_identifiability "
+                    "cites a missing current artifact value"
+                ],
+                history=repair_history,
+                last_invalid_packet=invalid_packet,
+            )
+
+    subsystem.reviewer = InvalidReviewer()
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "BLOCKED"
+    failure = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewValidationFailure"
+    )
+    assert failure["llm_json_repair_history"] == repair_history
+    assert failure["last_invalid_packet_fingerprint"] == stable_hash(
+        invalid_packet
+    )
+    assert failure["last_invalid_review_projection"]["dimension_reviews"] == (
+        invalid_packet["dimension_reviews"]
+    )
+    assert failure["review_input_fingerprint"]
+    assert failure["execution_evidence_status"].endswith(
+        "NOT_EXECUTION_EVIDENCE"
+    )
+    assert failure["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
+    assert result.observations[0].payload["failure_id"] == failure["failure_id"]
 
 
 def test_schema_v8_binds_fixed_dimension_object_keys(

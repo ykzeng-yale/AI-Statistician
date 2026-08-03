@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping
@@ -95,6 +96,22 @@ RESEARCH_EVAL_FORBIDDEN_FORMAL_SUBSYSTEMS = frozenset(
         "ExactSourceTheoremProver",
         "FormalizationGapPlanner",
     }
+)
+ARCHITECT_REUSABLE_VALIDATED_PLAN_FIELDS = (
+    "intake_assessment",
+    "problem_analysis",
+    "stat_knowledge_bank_plan",
+    "literature_fair_comparison_plan",
+    "evidence_contract",
+    "subsystem_execution_plan",
+    "retrieval_strategy",
+    "iteration_policy",
+    "evidence_gates",
+    "risk_register",
+    "next_actions",
+)
+ARCHITECT_VALIDATED_PLAN_REUSE_METADATA_KIND = (
+    "ArchitectValidatedPlanReuseMetadata"
 )
 
 
@@ -315,6 +332,24 @@ class LLMArchitectCoordinatorAgent:
                 metric_authoring_packet,
             )
         )
+        reused_packet = _architect_packet_from_validated_plan_reuse(
+            question=question,
+            architect_context=effective_architect_context,
+            runtime_config=runtime_config,
+            metric_authoring_packet=metric_authoring_packet,
+        )
+        if reused_packet is not None:
+            with agent_runtime_substage(
+                "architect_plan_reuse",
+                metadata={
+                    "fresh_architect_plan_model_invocation": False,
+                    "metric_protocol_authored": True,
+                    "source_architect_packet_id": reused_packet[
+                        "validated_plan_reuse_provenance"
+                    ]["source_architect_packet_id"],
+                },
+            ):
+                return reused_packet
         user_prompt = build_architect_coordinator_prompt(
             question=question,
             architect_context=effective_architect_context,
@@ -379,6 +414,171 @@ class LLMArchitectCoordinatorAgent:
                 max_repair_attempts=self.config.max_repair_attempts,
                 repair_context_builder=build_repair_context,
             )
+
+
+def architect_validated_plan_reuse_metadata(
+    packet: Mapping[str, Any],
+    *,
+    question_id: str,
+) -> dict[str, Any]:
+    plan_projection = {
+        field: deepcopy(packet.get(field))
+        for field in ARCHITECT_REUSABLE_VALIDATED_PLAN_FIELDS
+    }
+    return {
+        "artifact_kind": ARCHITECT_VALIDATED_PLAN_REUSE_METADATA_KIND,
+        "question_id": question_id,
+        "source_architect_packet_id": str(packet.get("packet_id", "") or ""),
+        "source_architect_packet_hash": stable_hash(packet),
+        "source_architect_model": str(packet.get("model", "") or ""),
+        "source_architect_model_tier": str(
+            packet.get("model_tier", "") or ""
+        ),
+        "source_architect_provider": str(packet.get("provider", "") or ""),
+        "validated_plan_fingerprint": stable_hash(plan_projection),
+        "fresh_architect_plan_model_invocation_required_after_metric_review": (
+            False
+        ),
+        "runtime_may_generate_research_content": False,
+        "proof_evidence_status": (
+            "ARCHITECT_VALIDATED_PLAN_REUSE_METADATA_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": (
+            "This metadata permits reuse only of an already validated, hash-bound "
+            "LLM Architect plan. Runtime may attach a separately authored and "
+            "independently accepted metric protocol, but may not create or revise "
+            "research semantics."
+        ),
+    }
+
+
+def _architect_packet_from_validated_plan_reuse(
+    *,
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+    runtime_config: Mapping[str, Any],
+    metric_authoring_packet: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if not metric_authoring_packet:
+        return None
+    authoring_summary = architect_context.get(
+        "architect_metric_requirement_authoring", {}
+    )
+    if not (
+        isinstance(authoring_summary, Mapping)
+        and authoring_summary.get("semantic_review_status") == "ACCEPT"
+        and authoring_summary.get("semantic_review_independent_agent") is True
+        and authoring_summary.get("semantic_review_independent_invocation") is True
+        and str(authoring_summary.get("source_theory_packet_id", "") or "")
+        and str(authoring_summary.get("source_theory_packet_hash", "") or "")
+        and theory_informed_metric_protocol_material(architect_context)
+    ):
+        return None
+    prior_plan = architect_context.get("architect_runtime_plan", {})
+    prior_plan = prior_plan if isinstance(prior_plan, Mapping) else {}
+    reuse_metadata = prior_plan.get("validated_plan_reuse_metadata", {})
+    if not (
+        isinstance(reuse_metadata, Mapping)
+        and reuse_metadata.get("artifact_kind")
+        == ARCHITECT_VALIDATED_PLAN_REUSE_METADATA_KIND
+        and str(reuse_metadata.get("question_id", "") or "") == question.id
+        and str(
+            reuse_metadata.get("source_architect_packet_id", "") or ""
+        )
+        and str(
+            reuse_metadata.get("source_architect_packet_hash", "") or ""
+        )
+    ):
+        return None
+    plan_projection = {
+        field: deepcopy(prior_plan.get(field))
+        for field in ARCHITECT_REUSABLE_VALIDATED_PLAN_FIELDS
+    }
+    if (
+        any(value in (None, "", [], {}) for value in plan_projection.values())
+        or stable_hash(plan_projection)
+        != str(reuse_metadata.get("validated_plan_fingerprint", "") or "")
+    ):
+        return None
+    plan_projection["subsystem_execution_plan"] = [
+        deepcopy(dict(row)) if isinstance(row, Mapping) else deepcopy(row)
+        for row in plan_projection["subsystem_execution_plan"]
+        if not (
+            isinstance(row, Mapping)
+            and row.get("llm_authored") is False
+            and row.get("runtime_defaults_required") is True
+        )
+    ]
+    source_model = str(
+        reuse_metadata.get("source_architect_model", "") or ""
+    )
+    source_model_tier = str(
+        reuse_metadata.get("source_architect_model_tier", "") or ""
+    )
+    source_provider = str(
+        reuse_metadata.get("source_architect_provider", "") or ""
+    )
+    if not all((source_model, source_model_tier, source_provider)):
+        return None
+    packet = _normalize_architect_packet(
+        plan_projection,
+        question=question,
+        model=source_model,
+        model_tier=source_model_tier,
+        provider_name=source_provider,
+        raw_response=(
+            "validated-plan-reuse:"
+            + str(reuse_metadata["source_architect_packet_id"])
+        ),
+        runtime_config=runtime_config,
+        architect_context=architect_context,
+    )
+    packet["metric_requirement_authoring"] = (
+        _architect_metric_requirement_authoring_summary(
+            metric_authoring_packet
+        )
+    )
+    packet["plan_generation_mode"] = (
+        "validated_plan_reuse_with_independent_metric_attachment"
+    )
+    packet["fresh_architect_plan_model_invocation"] = False
+    packet["validated_plan_reuse_provenance"] = {
+        "artifact_kind": "ArchitectValidatedPlanReuseProvenance",
+        "source_architect_packet_id": str(
+            reuse_metadata["source_architect_packet_id"]
+        ),
+        "source_architect_packet_hash": str(
+            reuse_metadata["source_architect_packet_hash"]
+        ),
+        "validated_plan_fingerprint": str(
+            reuse_metadata["validated_plan_fingerprint"]
+        ),
+        "metric_authoring_packet_id": str(
+            metric_authoring_packet.get("packet_id", "") or ""
+        ),
+        "metric_authoring_packet_hash": stable_hash(metric_authoring_packet),
+        "semantic_review_packet_id": str(
+            authoring_summary.get("semantic_review_packet_id", "") or ""
+        ),
+        "semantic_review_packet_hash": str(
+            authoring_summary.get("semantic_review_packet_hash", "") or ""
+        ),
+        "fresh_architect_plan_model_invocation": False,
+        "runtime_only_attachment": True,
+        "runtime_may_generate_research_content": False,
+        "proof_evidence_status": (
+            "ARCHITECT_VALIDATED_PLAN_REUSE_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": (
+            "The statistical plan is reused byte-for-structure from a validated "
+            "LLM Architect packet. Runtime only attaches the current theory-bound "
+            "metric protocol after independent acceptance; this is orchestration "
+            "provenance, not execution or proof evidence."
+        ),
+    }
+    if validate_architect_coordinator_packet(packet):
+        return None
+    return packet
 
 
 def _architect_metric_authoring_deferred_for_active_replan(

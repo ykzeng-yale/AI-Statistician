@@ -35,6 +35,7 @@ from .architect_coordinator_llm import (
     ARCHITECT_COORDINATOR_BOUNDARY,
     ARCHITECT_COORDINATOR_PROPOSAL_NOT_EVIDENCE,
     LLMArchitectCoordinatorAgent,
+    architect_validated_plan_reuse_metadata,
     architect_capability_gap_routing_agenda,
     architect_formal_target_is_completion_placeholder,
 )
@@ -8323,19 +8324,33 @@ class ArchitectCoordinatorRuntimeSubsystem:
             context
         )
         context["architect_runtime_plan"] = {
-            "subsystem_execution_plan": packet.get("subsystem_execution_plan", []),
+            field: deepcopy(packet.get(field))
+            for field in (
+                "intake_assessment",
+                "problem_analysis",
+                "stat_knowledge_bank_plan",
+                "literature_fair_comparison_plan",
+                "evidence_contract",
+                "subsystem_execution_plan",
+                "retrieval_strategy",
+                "iteration_policy",
+                "evidence_gates",
+                "risk_register",
+                "next_actions",
+            )
+        }
+        context["architect_runtime_plan"].update({
             "subsystem_execution_plan_provenance": packet.get(
                 "subsystem_execution_plan_provenance", {}
             ),
-            "problem_analysis": packet.get("problem_analysis", {}),
-            "stat_knowledge_bank_plan": packet.get("stat_knowledge_bank_plan", {}),
-            "literature_fair_comparison_plan": packet.get("literature_fair_comparison_plan", []),
-            "evidence_contract": packet.get("evidence_contract", {}),
-            "retrieval_strategy": packet.get("retrieval_strategy", {}),
-            "iteration_policy": packet.get("iteration_policy", {}),
-            "evidence_gates": packet.get("evidence_gates", []),
+            "validated_plan_reuse_metadata": (
+                architect_validated_plan_reuse_metadata(
+                    packet,
+                    question_id=question.id,
+                )
+            ),
             "boundary": packet.get("evidence_boundary", ARCHITECT_COORDINATOR_BOUNDARY),
-        }
+        })
         if capability_gap_routing_agenda:
             context["architect_runtime_plan"][
                 "runtime_capability_gap_routing_agenda"
@@ -8351,6 +8366,12 @@ class ArchitectCoordinatorRuntimeSubsystem:
                 "n_subsystem_steps": len(packet.get("subsystem_execution_plan", []) or []),
                 "subsystem_execution_plan_provenance": packet.get(
                     "subsystem_execution_plan_provenance", {}
+                ),
+                "validated_plan_reuse_provenance": packet.get(
+                    "validated_plan_reuse_provenance", {}
+                ),
+                "fresh_architect_plan_model_invocation": packet.get(
+                    "fresh_architect_plan_model_invocation", True
                 ),
                 "evidence_contract": packet.get("evidence_contract", {}),
                 "runtime_executed": False,
@@ -15359,20 +15380,108 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 trusted_lineage=trusted_lineage,
             )
         except PacketValidationError as exc:
+            last_invalid_packet = (
+                deepcopy(dict(exc.last_invalid_packet))
+                if isinstance(exc.last_invalid_packet, Mapping)
+                else {}
+            )
+            invalid_review_projection = {
+                key: deepcopy(last_invalid_packet.get(key))
+                for key in (
+                    "packet_id",
+                    "review_input_fingerprint",
+                    "model_requested_overall_verdict",
+                    "model_requested_repair_scope",
+                    "model_requested_repair_scopes",
+                    "overall_verdict",
+                    "repair_scope",
+                    "repair_scopes",
+                    "repair_owner",
+                    "prior_finding_reviews",
+                    "dimension_reviews",
+                    "findings",
+                    "repair_instructions",
+                    "proof_evidence_status",
+                )
+                if key in last_invalid_packet
+            }
+            validation_errors = [str(error) for error in exc.errors]
+            failure_id = (
+                "generated_code_semantic_review_validation_failure:"
+                + stable_hash(
+                    [
+                        work_order_id,
+                        work_order_hash,
+                        exc.validation_label,
+                        validation_errors,
+                        exc.history,
+                        invalid_review_projection,
+                    ]
+                )[:20]
+            )
+            failure_artifact = {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "artifact_kind": (
+                    "RuntimeGeneratedCodeSemanticReviewValidationFailure"
+                ),
+                "failure_id": failure_id,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "question_id": question.id,
+                "task_id": task.task_id,
+                "work_order_id": work_order_id,
+                "work_order_hash": work_order_hash,
+                "materialization_id": materialization_id,
+                "materialization_hash": stable_hash(materialization),
+                "review_input_fingerprint": stable_hash(review_material),
+                "validation_label": exc.validation_label,
+                "validation_errors": validation_errors,
+                "validation_attempts": exc.attempts,
+                "llm_json_repair_history": [
+                    deepcopy(dict(row)) for row in exc.history
+                ],
+                "last_invalid_packet_available": bool(last_invalid_packet),
+                "last_invalid_packet_fingerprint": (
+                    stable_hash(last_invalid_packet)
+                    if last_invalid_packet
+                    else ""
+                ),
+                "last_invalid_review_projection": invalid_review_projection,
+                "semantic_review_acceptance_authorized": False,
+                "confirmatory_empirical_evidence_eligible": bool(
+                    review_material.get(
+                        "confirmatory_empirical_evidence_eligible",
+                        False,
+                    )
+                ),
+                "kernel_verified": False,
+                "execution_evidence_status": (
+                    "GENERATED_CODE_SEMANTIC_REVIEW_VALIDATION_FAILURE_NOT_EXECUTION_EVIDENCE"
+                ),
+                "proof_evidence_status": (
+                    "GENERATED_CODE_SEMANTIC_REVIEW_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
+                ),
+                "evidence_boundary": GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
+            }
             return AgentStepResult(
                 status="BLOCKED",
                 rationale=(
                     "The independent semantic reviewer exhausted typed packet "
                     "repair without a contract-valid verdict."
                 ),
-                produced_artifacts={materialization_id: materialization},
+                produced_artifacts={
+                    materialization_id: materialization,
+                    failure_id: failure_artifact,
+                },
                 observations=(
                     EnvironmentObservation(
                         observation_type="generated_code_semantic_review_packet_invalid",
                         summary=str(exc)[:500],
                         payload={
                             "work_order_id": work_order_id,
-                            "validation_errors": list(exc.errors),
+                            "failure_id": failure_id,
+                            "validation_errors": validation_errors,
+                            "validation_attempts": exc.attempts,
+                            "semantic_review_acceptance_authorized": False,
                             "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                         },
                     ),

@@ -4545,11 +4545,25 @@ def audit_research_agent_runtime(
         result_payloads=[_load_json(path, errors) for path in result_paths],
         row_summaries=[asdict(row) for row in rows],
     )
+    raw_manifest_config = manifest.get("config", {})
+    raw_manifest_config = (
+        raw_manifest_config if isinstance(raw_manifest_config, Mapping) else {}
+    )
+    rerun_foundation_config = {
+        key: value
+        for key, value in raw_manifest_config.items()
+        if key
+        in {
+            "formalizer_candidate_lean_project",
+            "source_theorem_exact_semantic_definition_source_roots",
+        }
+    }
     payload: dict[str, Any] = {
         "schema_version": RESEARCH_AGENT_RUNTIME_AUDIT_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "runtime_dir": str(runtime_dir),
         "manifest": str(manifest_path),
+        "config": rerun_foundation_config,
         "fresh_start_cross_task_e2e": fresh_start_cross_task_e2e,
         "fresh_start_cross_task_e2e_generalization_demonstrated": bool(
             fresh_start_cross_task_e2e[

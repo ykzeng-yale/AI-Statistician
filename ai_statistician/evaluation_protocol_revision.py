@@ -474,6 +474,7 @@ def architect_metric_semantic_review_validation_failure_result(
             "prior_finding_reviews",
             "claim_checks",
             "dimension_reviews",
+            "estimator_execution_checks",
             "findings",
             "repair_instructions",
             "proof_evidence_status",
