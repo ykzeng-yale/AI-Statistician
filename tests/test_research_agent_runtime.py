@@ -27284,6 +27284,13 @@ def test_architect_metric_reviewer_packet_failure_is_typed_not_subsystem_excepti
                     ),
                     "model_requested_overall_verdict": "ACCEPT",
                     "overall_verdict": "REVISE",
+                    "response_identity_checks": [
+                        {
+                            "response_identity_audit_id": "response-audit:invalid",
+                            "derived_polynomial_exponent": None,
+                            "derived_log_exponent": None,
+                        }
+                    ],
                     "dimension_reviews": [],
                     "estimator_execution_checks": [
                         {
@@ -27333,6 +27340,15 @@ def test_architect_metric_reviewer_packet_failure_is_typed_not_subsystem_excepti
     assert failure["last_invalid_review_projection"][
         "estimator_execution_checks"
     ][0]["estimator_id"] == "generic-estimator"
+    assert failure["last_invalid_review_projection"][
+        "response_identity_checks"
+    ] == [
+        {
+            "response_identity_audit_id": "response-audit:invalid",
+            "derived_polynomial_exponent": None,
+            "derived_log_exponent": None,
+        }
+    ]
     assert failure["metric_protocol_execution_authorized"] is False
     assert failure["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
     assert result.observations[0].observation_type == (

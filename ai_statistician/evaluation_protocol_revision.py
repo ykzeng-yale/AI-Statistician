@@ -473,6 +473,7 @@ def architect_metric_semantic_review_validation_failure_result(
             "recommended_repair_scope",
             "prior_finding_reviews",
             "claim_checks",
+            "response_identity_checks",
             "dimension_reviews",
             "estimator_execution_checks",
             "findings",

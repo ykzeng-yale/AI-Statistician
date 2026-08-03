@@ -920,13 +920,14 @@ def test_metric_review_requires_primitive_identity_audit_before_coding() -> None
     repair_instructions = " ".join(
         repair_context["repair_prompt_priority_instructions"]
     )
-    assert len(repair_context["repair_prompt_priority_instructions"]) == 5
+    assert len(repair_context["repair_prompt_priority_instructions"]) == 6
     assert "Preserve unresolved_assumptions" in repair_instructions
     assert "foundational identity mapping" in repair_instructions
     assert "distinct zero-based indices" in repair_instructions
     assert "runtime binds exact foundational claim/context refs" in (
         repair_instructions
     )
+    assert "finite numeric derived_polynomial_exponent" in repair_instructions
     assert "current_candidate as immutable authority" in repair_instructions
     assert "requirement_schema" not in repair_context
     assert len(json.dumps(repair_context, separators=(",", ":"))) < 12_000
@@ -1095,7 +1096,20 @@ def test_metric_review_audits_every_estimator_response_semantic_independently() 
     ]["properties"]
     assert "normalization_reconciliation" in compact_schema
     assert "normalization_reconstruction" not in compact_schema
+    response_required = backend.requests[0].schema["properties"][
+        "response_identity_checks"
+    ]["items"]["required"]
+    assert "derived_polynomial_exponent" in response_required
+    assert "derived_log_exponent" in response_required
     assert validate_architect_metric_semantic_review_packet(packet) == []
+    response_repair_context = _architect_metric_semantic_review_repair_context(
+        enriched,
+        invalid_packet=packet,
+        errors=["independently derived exponents disagree"],
+    )
+    assert response_repair_context["rejected_review_packet"][
+        "response_identity_checks"
+    ] == packet["response_identity_checks"]
 
     not_indexed_material = deepcopy(material)
     not_indexed_rate = not_indexed_material[
@@ -1116,8 +1130,8 @@ def test_metric_review_audits_every_estimator_response_semantic_independently() 
     not_indexed_payload = deepcopy(payload)
     not_indexed_check = not_indexed_payload["response_identity_checks"][0]
     not_indexed_check["response_identity_audit_id"] = not_indexed_audit_id
-    not_indexed_check.pop("derived_polynomial_exponent")
-    not_indexed_check.pop("derived_log_exponent")
+    not_indexed_check["derived_polynomial_exponent"] = 0.0
+    not_indexed_check["derived_log_exponent"] = 0.0
 
     not_indexed_packet, _, _ = _review(
         accept=True,

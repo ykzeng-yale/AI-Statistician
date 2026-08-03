@@ -1549,6 +1549,7 @@ def _architect_metric_semantic_review_repair_context(
             in {
                 "prior_finding_reviews",
                 "claim_checks",
+                "response_identity_checks",
                 "dimension_reviews",
                 "findings",
                 "overall_verdict",
@@ -1630,6 +1631,14 @@ def _architect_metric_semantic_review_repair_context(
                 "runtime binds exact foundational claim/context refs and response "
                 "semantics from those identities. Preserve complete normalization/"
                 "order reconciliation; unresolved disagreement requires FAIL."
+            ),
+            (
+                "Every response_identity_check must retain finite numeric "
+                "derived_polynomial_exponent and derived_log_exponent fields. Use "
+                "0.0 for a genuinely not_indexed response. If the independent "
+                "derivation disagrees with the declared rate, preserve the derived "
+                "values and mark the check FAIL with an explicit conflict rather "
+                "than deleting either exponent."
             ),
             (
                 "Resolve each expected prior finding exactly once from its current "
@@ -1802,7 +1811,7 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
         "per response_identity_row; reconstruct its meaning, normalization, and "
         "sample-size order from primitives and test a boundary or defining invariant. "
         "Audit indexed rate contributions; FAIL omitted or mis-signed terms. For "
-        "not_indexed, verify classification and omit exponents."
+        "not_indexed, verify classification and emit both exponents as 0.0."
     ),
     (
         "Each claim check must cite current fields, show a substitution, arithmetic, "
@@ -2359,6 +2368,8 @@ _RESPONSE_IDENTITY_CHECK_SCHEMA: dict[str, Any] = {
         "response_identity_audit_id",
         "primitive_reconstruction",
         "independently_derived_sample_size_order",
+        "derived_polynomial_exponent",
+        "derived_log_exponent",
         "convention_consistent",
         "unresolved_conflicts",
         "verdict",

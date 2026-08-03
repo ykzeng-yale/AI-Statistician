@@ -20,7 +20,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 
 
-GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 10
+GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 11
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -88,6 +88,11 @@ GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS = (
     "upstream_generated_dependency",
     "generated_source_artifact",
 )
+GENERATED_CODE_SEMANTIC_REVIEW_REQUIRED_DEFECT_ARTIFACT_ROLES = {
+    "source_code": frozenset({"generated_source_artifact"}),
+    "upstream_metric_contract": frozenset({"metric_protocol_candidate"}),
+    "upstream_theory": frozenset({"source_theory_packet"}),
+}
 GENERATED_CODE_SEMANTIC_REVIEW_REPAIR_DEPENDENCY_ORDER = (
     "upstream_theory",
     "upstream_metric_contract",
@@ -745,6 +750,35 @@ def _typed_evidence_citation_errors(
     ]:
         errors.append(f"{row_label} artifact_citations must be runtime-derived")
     return errors
+
+
+def _repair_scope_defect_artifact_errors(
+    *,
+    row: Mapping[str, Any],
+    row_label: str,
+) -> list[str]:
+    """Keep normative authority citations distinct from the artifact at fault."""
+
+    repair_scope = str(row.get("repair_scope", "") or "").strip()
+    required_roles = (
+        GENERATED_CODE_SEMANTIC_REVIEW_REQUIRED_DEFECT_ARTIFACT_ROLES.get(
+            repair_scope,
+            frozenset(),
+        )
+    )
+    if not required_roles:
+        return []
+    cited_roles = {
+        str(value or "").strip()
+        for value in row.get("artifact_citations", []) or []
+        if str(value or "").strip()
+    }
+    if required_roles.issubset(cited_roles):
+        return []
+    return [
+        f"{row_label} repair_scope={repair_scope} must cite the defective "
+        "artifact role: " + ", ".join(sorted(required_roles))
+    ]
 
 
 def _generated_code_semantic_review_repair_plan(
@@ -1879,6 +1913,9 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                     ),
                 )
             )
+            required_defect_roles = (
+                GENERATED_CODE_SEMANTIC_REVIEW_REQUIRED_DEFECT_ARTIFACT_ROLES
+            )
             context = {
                 "source_subsystem": str(
                     trusted_lineage.get("source_subsystem", "") or ""
@@ -1946,6 +1983,13 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                         "artifact_citations; do not author those duplicate fields."
                     ),
                     (
+                        "For every actionable finding, cite the artifact that is "
+                        "actually defective as well as any separate mathematical or "
+                        "protocol authority used to judge it. A theory citation can "
+                        "justify why generated code is wrong, but cannot replace the "
+                        "generated_source_artifact citation required by source_code."
+                    ),
+                    (
                         "Preserve every required dimension_reviews object key. Do not "
                         "add, remove, or rename a dimension key; AgentRuntime maps "
                         "those fixed keys to canonical review rows."
@@ -1984,6 +2028,10 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                         review_material
                     )
                 ),
+                "repair_scope_defect_artifact_contract": {
+                    scope: sorted(roles)
+                    for scope, roles in required_defect_roles.items()
+                },
             }
             if missing_citation_diagnostics:
                 context[
@@ -3327,6 +3375,13 @@ def validate_generated_code_semantic_review_packet(
                 _typed_evidence_citation_errors(
                     row=row,
                     row_label="semantic review finding",
+                )
+            )
+        if schema_version >= 11:
+            errors.extend(
+                _repair_scope_defect_artifact_errors(
+                    row=row,
+                    row_label=f"semantic review finding {finding_index}",
                 )
             )
         if schema_version >= 10 and review_material is not None:

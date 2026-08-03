@@ -2243,7 +2243,7 @@ def test_schema_v10_derives_runtime_owned_dimensions_and_typed_citations(
         for artifact in result.produced_artifacts.values()
         if artifact.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
     )
-    assert review_packet["schema_version"] == 10
+    assert review_packet["schema_version"] == 11
     assert validate_generated_code_semantic_review_packet(review_packet) == []
     first_dimension = review_packet["dimension_reviews"][0]
     assert first_dimension["dimension"] == (
@@ -2668,6 +2668,39 @@ def test_schema_v7_normalizes_model_locator_format(
         "/exact_executed_artifacts/0/exact_source_code"
     )
     assert validate_generated_code_semantic_review_packet(review_packet) == []
+
+
+def test_actionable_finding_must_cite_the_artifact_it_would_repair(
+    tmp_path: Path,
+) -> None:
+    response = _review_response(accept=False, repair_scope="source_code")
+    response["findings"][0]["evidence_citations"] = [
+        {
+            "artifact_role": "source_theory_packet",
+            "locator": "/theory_derivation_packet/derivation_steps/0",
+        }
+    ]
+    reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=StaticJSONGeneratorBackend(response),
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="static",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            max_repair_attempts=0,
+        ),
+    )
+    subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accept=True)
+    subsystem.reviewer = reviewer
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "BLOCKED"
+    assert any(
+        "repair_scope=source_code must cite the defective artifact role: "
+        "generated_source_artifact"
+        in error
+        for error in result.observations[0].payload["validation_errors"]
+    )
 
 
 def test_schema_v7_rejects_legacy_duplicate_fields_as_model_input(
@@ -4367,10 +4400,14 @@ def test_runtime_uses_router_scope_instead_of_reviewer_scope(
         metric_failed=True,
         repair_scope="upstream_metric_contract",
         finding_evidence_refs=[
+            "metric_protocol_candidate#/empirical_metric_requirements/0",
             "generated_source_artifact#/exact_source_code",
             "generated_source_artifact#/exact_result",
         ],
-        finding_artifact_citations=["generated_source_artifact"],
+        finding_artifact_citations=[
+            "metric_protocol_candidate",
+            "generated_source_artifact",
+        ],
     )
     subsystem.repair_ownership_router = _repair_ownership_router("source_code")
 

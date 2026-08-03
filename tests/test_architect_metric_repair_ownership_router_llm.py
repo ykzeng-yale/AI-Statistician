@@ -12,6 +12,7 @@ from ai_statistician.architect_metric_repair_ownership_router_llm import (
     ArchitectMetricRepairOwnershipRouterConfig,
     LLMArchitectMetricRepairOwnershipRouterAgent,
     _normalize_architect_metric_repair_ownership_packet,
+    _ownership_routing_findings,
     _postexecution_artifact_target_eligibility,
     _postexecution_router_dimension_projection,
     apply_architect_metric_repair_ownership_routes,
@@ -203,7 +204,11 @@ def test_repair_router_overrides_free_scope_with_artifact_bound_ownership() -> N
         backend.requests[0].user_prompt
     )
     assert "routing prescription" in backend.requests[0].user_prompt
-    assert '"repair_scope":"metric_contract"' not in (
+    assert (
+        '"reviewer_ownership_hypothesis":{"repair_scope":"metric_contract"'
+        in backend.requests[0].user_prompt
+    )
+    assert '"required_change":"Revise the source derivation' not in (
         backend.requests[0].user_prompt
     )
     assert "Keep every change inside the metric contract" not in (
@@ -576,6 +581,41 @@ def test_postexecution_eligibility_uses_typed_artifact_citations() -> None:
         "generated_source_artifact"
     ]
     assert eligibility[0]["expanded_review_dimensions"] == []
+
+
+def test_router_retains_reviewer_owner_as_non_authoritative_hypothesis() -> None:
+    routed = _ownership_routing_findings(
+        {
+            "findings": [
+                {
+                    "severity": "high",
+                    "summary": "The exact generated source computes the wrong value.",
+                    "required_change": "Repair the generated implementation.",
+                    "repair_scope": "source_code",
+                    "repair_owner": "AlgorithmEngineer",
+                    "evidence_refs": [
+                        "generated_source_artifact#/exact_source_code",
+                        "source_theory_packet#/estimator_specs/0/formula",
+                    ],
+                    "artifact_citations": [
+                        "source_theory_packet",
+                        "generated_source_artifact",
+                    ],
+                }
+            ]
+        },
+        actionable_only=True,
+    )
+
+    assert routed[0]["reviewer_ownership_hypothesis"] == {
+        "repair_scope": "source_code",
+        "repair_owner": "AlgorithmEngineer",
+    }
+    assert "repair_scope" not in routed[0]
+    assert routed[0]["artifact_citations"] == [
+        "source_theory_packet",
+        "generated_source_artifact",
+    ]
 
 
 def test_postexecution_dependency_citation_routes_only_dependency_owner() -> None:
