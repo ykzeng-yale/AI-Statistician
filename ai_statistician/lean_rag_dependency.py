@@ -5,12 +5,14 @@ import re
 import sqlite3
 import subprocess
 from contextlib import closing
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from .formal_source_index import (
     FormalDeclaration,
     FormalSourceHit,
+    LEAN_IDENTIFIER_PATTERN,
+    _lean_source_without_comments_preserve_lines,
     _search_tokens,
     diversify_formal_source_hits,
 )
@@ -28,6 +30,13 @@ LEAN_RAG_DECLARATION_IDENTITY_POLICY = "unicode_lean_identifier_v1"
 LEAN_RAG_DECLARATION_REFERENCE_POLICY = (
     "comment_string_free_explicit_names_v1"
 )
+LEAN_RAG_CROSS_SOURCE_REFERENCE_POLICY = (
+    "topology_declared_direct_dependency_exact_or_unique_short_name_v1"
+)
+LEAN_RAG_CROSS_SOURCE_EVIDENCE_STATUS = (
+    "SOURCE_DERIVED_CROSS_CORPUS_DECLARATION_REFERENCE_NOT_PROOF_EVIDENCE"
+)
+LEAN_RAG_SQL_REFERENCE_QUERY_BATCH_SIZE = 200
 LEAN_RAG_DEFAULT_SEARCH_QUALITY_POLICY = (
     "oversized_declaration_names_require_exact_lookup_v1"
 )
@@ -53,6 +62,13 @@ LEAN_DECLARATION_KIND_RE = re.compile(
 
 
 @dataclass(frozen=True)
+class LeanRagCrossSourceReference:
+    source_id: str
+    declaration_name: str
+    match_kind: str
+
+
+@dataclass(frozen=True)
 class LeanRagDependencyContext:
     fan_in: int
     fan_out: int
@@ -60,6 +76,10 @@ class LeanRagDependencyContext:
     used_by: tuple[str, ...]
     statement_uses: tuple[str, ...] = ()
     proof_uses: tuple[str, ...] = ()
+    cross_source_statement_uses: tuple[LeanRagCrossSourceReference, ...] = ()
+    cross_source_proof_uses: tuple[LeanRagCrossSourceReference, ...] = ()
+    cross_source_dependency_policy: str = ""
+    cross_source_evidence_status: str = ""
     source_id: str = ""
     db_path: str = ""
     module: str = ""
@@ -855,8 +875,243 @@ class LeanRagDependencyMultiRetriever:
                 path=path,
             )
             if context is not None:
-                return context
+                return self._attach_cross_source_references(
+                    retriever,
+                    context,
+                    declaration_name=declaration_name,
+                    path=path,
+                    limit=limit,
+                )
         return None
+
+    def _attach_cross_source_references(
+        self,
+        owner: LeanRagDependencyRetriever,
+        context: LeanRagDependencyContext,
+        *,
+        declaration_name: str,
+        path: str,
+        limit: int,
+    ) -> LeanRagDependencyContext:
+        topology = owner.source_topology
+        if topology is None or not topology.dependency_source_ids or limit <= 0:
+            return context
+        segments = _declaration_source_segments(
+            owner,
+            declaration_name=declaration_name,
+            path=path,
+        )
+        if segments is None:
+            return context
+
+        dependencies: list[LeanRagDependencyRetriever] = []
+        for dependency_source_id in topology.dependency_source_ids:
+            matches = [
+                candidate
+                for candidate in self.retrievers
+                if candidate.source_id == dependency_source_id
+                and candidate.source_topology is not None
+                and candidate.source_topology.topology_id == topology.topology_id
+                and candidate.is_healthy()
+            ]
+            if len(matches) == 1:
+                dependencies.append(matches[0])
+        if not dependencies:
+            return context
+
+        excluded_names = (segments.name, segments.name.rsplit(".", 1)[-1])
+        statement_references: list[LeanRagCrossSourceReference] = []
+        proof_references: list[LeanRagCrossSourceReference] = []
+        for dependency in dependencies:
+            statement_references.extend(
+                _resolve_cross_source_references(
+                    dependency,
+                    segments.signature,
+                    excluded_names=excluded_names,
+                    limit=max(0, limit - len(statement_references)),
+                )
+            )
+            proof_references.extend(
+                _resolve_cross_source_references(
+                    dependency,
+                    segments.proof,
+                    excluded_names=excluded_names,
+                    limit=max(0, limit - len(proof_references)),
+                )
+            )
+        if not statement_references and not proof_references:
+            return context
+        return replace(
+            context,
+            cross_source_statement_uses=tuple(statement_references[:limit]),
+            cross_source_proof_uses=tuple(proof_references[:limit]),
+            cross_source_dependency_policy=(
+                LEAN_RAG_CROSS_SOURCE_REFERENCE_POLICY
+            ),
+            cross_source_evidence_status=(
+                LEAN_RAG_CROSS_SOURCE_EVIDENCE_STATUS
+            ),
+        )
+
+
+@dataclass(frozen=True)
+class _DeclarationSourceSegments:
+    name: str
+    signature: str
+    proof: str
+
+
+def _declaration_source_segments(
+    retriever: LeanRagDependencyRetriever,
+    *,
+    declaration_name: str,
+    path: str,
+) -> _DeclarationSourceSegments | None:
+    if not retriever.is_healthy():
+        return None
+    normalized_path = str(path or "").replace("\\", "/").strip("/")
+    short_name = declaration_name.rsplit(".", 1)[-1]
+    try:
+        with closing(sqlite3.connect(retriever.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT name, short_name, path, signature, proof
+                FROM declarations
+                WHERE name = ? OR short_name = ?
+                ORDER BY CASE WHEN name = ? THEN 0 ELSE 1 END,
+                         length(name),
+                         name
+                """,
+                (declaration_name, short_name, declaration_name),
+            ).fetchall()
+            row = _select_declaration_row(
+                rows,
+                declaration_name=declaration_name,
+                normalized_path=normalized_path,
+            )
+    except sqlite3.DatabaseError:
+        return None
+    if row is None or not _is_externally_reusable_signature(
+        str(row["signature"] or "")
+    ):
+        return None
+    return _DeclarationSourceSegments(
+        name=str(row["name"] or ""),
+        signature=str(row["signature"] or ""),
+        proof=str(row["proof"] or ""),
+    )
+
+
+def _resolve_cross_source_references(
+    retriever: LeanRagDependencyRetriever,
+    source_text: str,
+    *,
+    excluded_names: tuple[str, ...],
+    limit: int,
+) -> tuple[LeanRagCrossSourceReference, ...]:
+    if limit <= 0 or not source_text or not retriever.is_healthy():
+        return ()
+    excluded = {
+        str(value).strip()
+        for value in excluded_names
+        if str(value).strip()
+    }
+    identifiers: list[str] = []
+    for raw_identifier in re.findall(
+        LEAN_IDENTIFIER_PATTERN,
+        _lean_source_without_comments_preserve_lines(source_text),
+    ):
+        identifier = str(raw_identifier).removeprefix("_root_.").strip(".")
+        if not identifier or identifier in excluded or identifier in identifiers:
+            continue
+        identifiers.append(identifier)
+    if not identifiers:
+        return ()
+
+    rows: list[sqlite3.Row] = []
+    try:
+        with closing(sqlite3.connect(retriever.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            for start in range(
+                0,
+                len(identifiers),
+                LEAN_RAG_SQL_REFERENCE_QUERY_BATCH_SIZE,
+            ):
+                exact_names = tuple(
+                    identifiers[
+                        start : start + LEAN_RAG_SQL_REFERENCE_QUERY_BATCH_SIZE
+                    ]
+                )
+                short_names = tuple(
+                    dict.fromkeys(
+                        identifier.rsplit(".", 1)[-1]
+                        for identifier in exact_names
+                    )
+                )
+                exact_placeholders = ", ".join("?" for _ in exact_names)
+                short_placeholders = ", ".join("?" for _ in short_names)
+                rows.extend(
+                    conn.execute(
+                        f"""
+                        SELECT id, name, short_name, signature
+                        FROM declarations
+                        WHERE name IN ({exact_placeholders})
+                           OR short_name IN ({short_placeholders})
+                        ORDER BY name
+                        """,
+                        (*exact_names, *short_names),
+                    ).fetchall()
+                )
+    except sqlite3.DatabaseError:
+        return ()
+
+    reusable_rows = []
+    seen_row_ids: set[int] = set()
+    for row in rows:
+        row_id = int(row["id"])
+        if row_id in seen_row_ids or not _is_externally_reusable_signature(
+            str(row["signature"] or "")
+        ):
+            continue
+        seen_row_ids.add(row_id)
+        reusable_rows.append(row)
+    rows_by_name: dict[str, list[sqlite3.Row]] = {}
+    rows_by_short_name: dict[str, list[sqlite3.Row]] = {}
+    for row in reusable_rows:
+        rows_by_name.setdefault(str(row["name"] or ""), []).append(row)
+        rows_by_short_name.setdefault(
+            str(row["short_name"] or ""),
+            [],
+        ).append(row)
+
+    references: list[LeanRagCrossSourceReference] = []
+    seen: set[tuple[str, str]] = set()
+    for identifier in identifiers:
+        exact_rows = rows_by_name.get(identifier, [])
+        match_kind = "exact_name"
+        matched_rows = exact_rows
+        if len(exact_rows) != 1:
+            short_name = identifier.rsplit(".", 1)[-1]
+            matched_rows = rows_by_short_name.get(short_name, [])
+            match_kind = "globally_unique_short_name"
+        if len(matched_rows) != 1:
+            continue
+        declaration_name = str(matched_rows[0]["name"] or "")
+        key = (retriever.source_id, declaration_name)
+        if not declaration_name or key in seen:
+            continue
+        seen.add(key)
+        references.append(
+            LeanRagCrossSourceReference(
+                source_id=retriever.source_id,
+                declaration_name=declaration_name,
+                match_kind=match_kind,
+            )
+        )
+        if len(references) >= limit:
+            break
+    return tuple(references)
 
 
 def _select_declaration_row(

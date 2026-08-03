@@ -1305,7 +1305,53 @@ def _formal_source_dependency_context(
             str(value)
             for value in getattr(context, "uses", ()) or ()
         ]
+    cross_source_statement_uses = _cross_source_reference_payloads(
+        getattr(context, "cross_source_statement_uses", ()) or ()
+    )
+    cross_source_proof_uses = _cross_source_reference_payloads(
+        getattr(context, "cross_source_proof_uses", ()) or ()
+    )
+    if cross_source_statement_uses or cross_source_proof_uses:
+        payload["cross_source_statement_uses"] = cross_source_statement_uses
+        payload["cross_source_proof_uses"] = cross_source_proof_uses
+        payload["cross_source_dependency_policy"] = str(
+            getattr(context, "cross_source_dependency_policy", "") or ""
+        )
+        payload["cross_source_evidence_status"] = str(
+            getattr(context, "cross_source_evidence_status", "")
+            or "SOURCE_DERIVED_CROSS_CORPUS_REFERENCE_NOT_PROOF_EVIDENCE"
+        )
+        if cross_source_proof_uses:
+            payload["cross_source_proof_dependency_origin"] = (
+                "explicit_references_extracted_from_target_source_proof"
+            )
+            payload["cross_source_proof_dependency_evaluation_policy"] = (
+                "permitted_for_production_source_reuse_but_excluded_from_held_out_"
+                "or_from_scratch_prover_generalization_claims"
+            )
     return payload
+
+
+def _cross_source_reference_payloads(
+    references: Sequence[Any],
+) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for reference in references:
+        source_id = str(getattr(reference, "source_id", "") or "").strip()
+        declaration_name = str(
+            getattr(reference, "declaration_name", "") or ""
+        ).strip()
+        match_kind = str(getattr(reference, "match_kind", "") or "").strip()
+        if not source_id or not declaration_name:
+            continue
+        rows.append(
+            {
+                "source_id": source_id,
+                "name": declaration_name,
+                "match_kind": match_kind,
+            }
+        )
+    return rows
 
 
 def _formal_source_module_name(

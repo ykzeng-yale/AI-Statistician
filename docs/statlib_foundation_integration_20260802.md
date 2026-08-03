@@ -24,10 +24,13 @@ makes them port guidance rather than an importable proof dependency.
 | --- | --- | --- |
 | Mathlib | `81343555dae873c8de2de2b27bbabf7bc4d8d97a` | Kernel-checked mathematical foundation |
 | StatLib | `6575d611b5d32ef6013e9560d30b1a82a1972fb6` | Pinned reusable statistics API |
-| EmpericalProcessLEAN | `f4b1c73dcc705b4041029cffa1e9d4c6ea0547e6` | Active downstream statistics/proof library |
+| EmpericalProcessLEAN Lean graph source | `f4b1c73dcc705b4041029cffa1e9d4c6ea0547e6` | Active downstream statistics/proof library |
 | AI4SLT | `d0f506f0a695018265dccb33bcb05e2f5ca1c876` | Version-bound external retrieval and port corpus |
 
-`EmpericalProcessLEAN/main` now points to `f4b1c73d`. The integration retains
+`EmpericalProcessLEAN/main` now points to `f88583b8`; that commit changes only
+integration tests and documentation, so its `StatInference/` source tree is
+identical to the graph-bound `f4b1c73d` snapshot and does not require a graph
+rebuild. The integration retains
 source history from the VdVW and WDSM branches, absorbs the later Chewi,
 Durrett, and van der Vaart work, and recovers seven additional proof commits
 that were still reachable only from non-main branches. The recovered work adds
@@ -36,6 +39,16 @@ stationary-chain return-period results, and stopped/terminal Bernstein
 projection links. Their public modules are imported by `StatInference.lean`,
 so they are part of one canonical StatLib-backed library rather than branch-only
 or ad hoc retrieval material.
+
+“StatLib-backed” describes package dependency and API ownership, not a blanket
+import added to every proof module. At this snapshot exactly two leaf modules
+directly import `StatInference.Foundation`: `Inference.Deterministic` and
+`Inference.QMD`. Their public `Inference` entry and `StatInference` root make
+four modules whose recursive dependency route contains the foundation. The
+remaining canonical modules keep minimal Mathlib/local imports until they use a
+StatLib statistical object. This follows the same layering rule as Mathlib:
+reuse an upstream object where semantics match without coupling unrelated
+mathematics for branding or retrieval.
 
 StatLib `main` was separately inspected at `0dc5b767`. It now follows Lean
 `v4.33.0-rc1`; since the compatible pin, its only `Statlib/` source changes are
@@ -84,7 +97,7 @@ audit/training inputs and are no longer competing live Formalizer providers.
 - The canonical import closure covers 1,192 Lean files and all 489 WDSM modules.
 - The production graph indexes 51,993 public declarations and 210,115
   declaration-reference edges, with zero duplicate names and zero `sorry`.
-- Twelve source-integration tests verify the direct StatLib dependency,
+- Thirteen source-integration tests verify the direct StatLib dependency,
   canonical reachability of every recovered module, and the root-import rule.
 - Namespace-aware `#print axioms` scans covered all seven recovered public
   theorems with zero unexpected axioms; only the accepted Mathlib foundations
@@ -110,6 +123,16 @@ audit/training inputs and are no longer competing live Formalizer providers.
   `StatInference.QMD.integral_score_eq_zero_of_quadraticMeanDerivWithinAt`
   result and the pinned StatLib `QMD.integral_score_eq_zero*` API, while the
   version-mismatched AI4SLT corpus stayed outside the scope.
+- Cross-corpus declaration lineage now resolves explicit references from a
+  local declaration only into topology-declared direct dependencies. The live
+  QMD adapter binds its statement to
+  `QMD.HasQuadraticMeanDerivWithinAt` and its proof to
+  `QMD.integral_score_eq_zero_of_mem_nhds` plus the uniquely resolved
+  Hadamard-conversion method. The deterministic adapters bind to
+  `InferenceModelofMeasure` and `InferenceModelofMeasure.conditionalRisk`.
+  Exact names are preferred; a short method name is accepted only when globally
+  unique in the dependency graph. Ambiguous names, reverse downstream lookup,
+  comments, strings, and undeclared companion corpora fail closed.
 
 Build success and retrieval success are not theorem-completion evidence. Only a
 candidate elaborated in the exact active target project and accepted by Lean's
@@ -141,6 +164,13 @@ requesting `StatInference` permits pinned StatLib support, requesting StatLib
 does not pull the downstream library back in, and AI4SLT remains an independent
 port/RAG corpus until its declarations are re-elaborated in the active project.
 
+For each selected declaration, the prompt also carries bounded
+`cross_source_statement_uses` and `cross_source_proof_uses` rows with corpus id,
+qualified declaration name, and match kind. These rows contain no proof bodies
+and are labelled source-derived, non-proof evidence. This turns StatLib and
+StatInference from unrelated result piles into an inspectable dependency route
+without granting retrieval theorem authority.
+
 No theorem-family answer, Lean grammar rule, or tactic template was added.
 
 ## Remaining Work
@@ -151,3 +181,9 @@ is still a live tactic-state Formalizer loop that reaches exact source-theorem
 kernel closure on multiple unrelated statistical tasks. Reusable abstractions
 should be proposed upstream to StatLib incrementally, while task-specific book
 and paper developments stay downstream.
+
+StatLib's current contiguity proposal is not yet a released, hole-free API, so
+the verified downstream contiguity development is intentionally not rebound to
+it. After a compatible upstream API lands, migration should use a small
+orientation-checked adapter and real downstream consumers; importing a
+provisional branch or duplicating its definitions would weaken the foundation.

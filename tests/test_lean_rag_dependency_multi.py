@@ -8,11 +8,19 @@ from ai_statistician import lean_rag_dependency
 from ai_statistician.formal_source_hybrid import (
     FormalSourceDependencyHybridRetriever,
 )
+from ai_statistician.formal_source_prompt_context import (
+    _formal_source_dependency_context,
+)
 from ai_statistician.formal_source_index import (
     FormalDeclaration,
     FormalSourceHit,
 )
+from ai_statistician.formal_source_topology import (
+    fallback_formal_source_topology,
+)
 from ai_statistician.lean_rag_dependency import (
+    LEAN_RAG_CROSS_SOURCE_EVIDENCE_STATUS,
+    LEAN_RAG_CROSS_SOURCE_REFERENCE_POLICY,
     LeanRagDependencyMultiRetriever,
     LeanRagDependencyRetriever,
 )
@@ -176,6 +184,348 @@ def _write_dependency_db(path: Path, *, corpus: str) -> Path:
             ],
         )
     return path
+
+
+def _insert_dependency_declaration(
+    db_path: Path,
+    *,
+    row_id: int,
+    name: str,
+    kind: str = "def",
+    signature: str = "",
+    proof: str = ":= True",
+) -> None:
+    short_name = name.rsplit(".", 1)[-1]
+    namespace = name.rsplit(".", 1)[0] if "." in name else ""
+    row = (
+        row_id,
+        name,
+        short_name,
+        kind,
+        f"Fixture.{namespace or 'Root'}",
+        f"Fixture/{namespace.replace('.', '/') or 'Root'}.lean",
+        row_id * 10,
+        row_id * 10 + 2,
+        namespace,
+        "[]",
+        signature or f"{kind} {short_name} : Prop",
+        proof,
+        1,
+        0,
+        f"fixture-{row_id}-{short_name}",
+    )
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "INSERT INTO declarations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            row,
+        )
+        conn.execute(
+            """
+            INSERT INTO decl_fts(
+              rowid, name, short_name, kind, module, namespace, signature, proof
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                row[0],
+                row[1],
+                row[2],
+                row[3],
+                row[4],
+                row[8],
+                row[10],
+                row[11],
+            ),
+        )
+
+
+def _topology_bound_retriever(
+    db_path: Path,
+    *,
+    source_id: str,
+) -> LeanRagDependencyRetriever:
+    topology = fallback_formal_source_topology(source_id)
+    assert topology is not None
+    return LeanRagDependencyRetriever(
+        db_path,
+        source_id=source_id,
+        source_topology=topology,
+    )
+
+
+def test_cross_source_context_binds_only_declared_direct_dependency(
+    tmp_path: Path,
+) -> None:
+    active_path = _write_dependency_db(tmp_path / "active.sqlite", corpus="Active")
+    statlib_path = _write_dependency_db(tmp_path / "statlib.sqlite", corpus="Statlib")
+    companion_path = _write_dependency_db(
+        tmp_path / "companion.sqlite",
+        corpus="Companion",
+    )
+    with sqlite3.connect(active_path) as conn:
+        conn.execute(
+            "UPDATE declarations SET signature = ?, proof = ? WHERE id = 1",
+            (
+                """theorem master_error_bound
+                  (h : Canonical.FoundationAssumption) :
+                  Canonical.FoundationConclusion""",
+                """by
+                  have _ := Companion.external_proof
+                  have _ := "Canonical.string_only"
+                  -- Canonical.comment_only
+                  exact h.foundation_proof""",
+            ),
+        )
+    _insert_dependency_declaration(
+        statlib_path,
+        row_id=5,
+        name="Canonical.FoundationAssumption",
+    )
+    _insert_dependency_declaration(
+        statlib_path,
+        row_id=6,
+        name="Canonical.FoundationConclusion",
+    )
+    _insert_dependency_declaration(
+        statlib_path,
+        row_id=7,
+        name="Canonical.foundation_proof",
+        kind="theorem",
+        signature=(
+            "theorem foundation_proof : "
+            "FoundationAssumption -> FoundationConclusion"
+        ),
+        proof="by trivial",
+    )
+    _insert_dependency_declaration(
+        statlib_path,
+        row_id=8,
+        name="Canonical.string_only",
+    )
+    _insert_dependency_declaration(
+        statlib_path,
+        row_id=9,
+        name="Canonical.comment_only",
+    )
+    _insert_dependency_declaration(
+        companion_path,
+        row_id=5,
+        name="Companion.external_proof",
+        kind="theorem",
+        proof="by trivial",
+    )
+    retriever = LeanRagDependencyMultiRetriever(
+        (
+            _topology_bound_retriever(
+                active_path,
+                source_id="empirical_process_lean",
+            ),
+            _topology_bound_retriever(statlib_path, source_id="statlib"),
+            _topology_bound_retriever(
+                companion_path,
+                source_id="lean_stat_learning_theory",
+            ),
+        )
+    )
+
+    context = retriever.dependency_context(
+        "Theory.master_error_bound",
+        source_id="empirical_process_lean",
+        path="Active/Main.lean",
+    )
+
+    assert context is not None
+    assert [
+        (row.source_id, row.declaration_name, row.match_kind)
+        for row in context.cross_source_statement_uses
+    ] == [
+        ("statlib", "Canonical.FoundationAssumption", "exact_name"),
+        ("statlib", "Canonical.FoundationConclusion", "exact_name"),
+    ]
+    assert [
+        (row.source_id, row.declaration_name, row.match_kind)
+        for row in context.cross_source_proof_uses
+    ] == [
+        (
+            "statlib",
+            "Canonical.foundation_proof",
+            "globally_unique_short_name",
+        )
+    ]
+    assert context.cross_source_dependency_policy == (
+        LEAN_RAG_CROSS_SOURCE_REFERENCE_POLICY
+    )
+    assert context.cross_source_evidence_status == (
+        LEAN_RAG_CROSS_SOURCE_EVIDENCE_STATUS
+    )
+    assert "Companion.external_proof" not in {
+        row.declaration_name for row in context.cross_source_proof_uses
+    }
+
+    payload = _formal_source_dependency_context(
+        retriever,
+        "Theory.master_error_bound",
+        source_id="empirical_process_lean",
+        path="Active/Main.lean",
+        limit=8,
+    )
+    assert payload["cross_source_statement_uses"] == [
+        {
+            "source_id": "statlib",
+            "name": "Canonical.FoundationAssumption",
+            "match_kind": "exact_name",
+        },
+        {
+            "source_id": "statlib",
+            "name": "Canonical.FoundationConclusion",
+            "match_kind": "exact_name",
+        },
+    ]
+    assert payload["cross_source_proof_uses"] == [
+        {
+            "source_id": "statlib",
+            "name": "Canonical.foundation_proof",
+            "match_kind": "globally_unique_short_name",
+        }
+    ]
+    assert payload["cross_source_evidence_status"] == (
+        LEAN_RAG_CROSS_SOURCE_EVIDENCE_STATUS
+    )
+    assert "by trivial" not in str(payload)
+    assert "candidate_proof_body" not in str(payload)
+
+
+def test_cross_source_short_name_resolution_fails_closed_on_ambiguity(
+    tmp_path: Path,
+) -> None:
+    active_path = _write_dependency_db(tmp_path / "active.sqlite", corpus="Active")
+    statlib_path = _write_dependency_db(tmp_path / "statlib.sqlite", corpus="Statlib")
+    _insert_dependency_declaration(
+        statlib_path,
+        row_id=5,
+        name="First.shared_bridge",
+        kind="theorem",
+        proof="by trivial",
+    )
+    _insert_dependency_declaration(
+        statlib_path,
+        row_id=6,
+        name="Second.shared_bridge",
+        kind="theorem",
+        proof="by trivial",
+    )
+    with sqlite3.connect(active_path) as conn:
+        conn.execute(
+            "UPDATE declarations SET proof = ? WHERE id = 1",
+            ("by exact shared_bridge",),
+        )
+    retriever = LeanRagDependencyMultiRetriever(
+        (
+            _topology_bound_retriever(
+                active_path,
+                source_id="empirical_process_lean",
+            ),
+            _topology_bound_retriever(statlib_path, source_id="statlib"),
+        )
+    )
+
+    ambiguous = retriever.dependency_context(
+        "Theory.master_error_bound",
+        source_id="empirical_process_lean",
+        path="Active/Main.lean",
+    )
+    assert ambiguous is not None
+    assert ambiguous.cross_source_proof_uses == ()
+
+    with sqlite3.connect(active_path) as conn:
+        conn.execute(
+            "UPDATE declarations SET proof = ? WHERE id = 1",
+            ("by exact First.shared_bridge",),
+        )
+    qualified = retriever.dependency_context(
+        "Theory.master_error_bound",
+        source_id="empirical_process_lean",
+        path="Active/Main.lean",
+    )
+    assert qualified is not None
+    assert [
+        (row.declaration_name, row.match_kind)
+        for row in qualified.cross_source_proof_uses
+    ] == [("First.shared_bridge", "exact_name")]
+
+
+def test_cross_source_dependency_lookup_is_not_reversed(
+    tmp_path: Path,
+) -> None:
+    active_path = _write_dependency_db(tmp_path / "active.sqlite", corpus="Active")
+    statlib_path = _write_dependency_db(tmp_path / "statlib.sqlite", corpus="Statlib")
+    with sqlite3.connect(statlib_path) as conn:
+        conn.execute(
+            "UPDATE declarations SET proof = ? WHERE id = 1",
+            ("by exact Theory.Active_proof_dependency",),
+        )
+    retriever = LeanRagDependencyMultiRetriever(
+        (
+            _topology_bound_retriever(
+                active_path,
+                source_id="empirical_process_lean",
+            ),
+            _topology_bound_retriever(statlib_path, source_id="statlib"),
+        )
+    )
+
+    context = retriever.dependency_context(
+        "Theory.master_error_bound",
+        source_id="statlib",
+        path="Statlib/Main.lean",
+    )
+
+    assert context is not None
+    assert context.cross_source_statement_uses == ()
+    assert context.cross_source_proof_uses == ()
+    assert context.cross_source_dependency_policy == ""
+
+
+def test_cross_source_lookup_batches_long_declarations_without_truncation(
+    tmp_path: Path,
+) -> None:
+    active_path = _write_dependency_db(tmp_path / "active.sqlite", corpus="Active")
+    statlib_path = _write_dependency_db(tmp_path / "statlib.sqlite", corpus="Statlib")
+    fillers = "\n".join(
+        f"have filler_{index} := local_{index}"
+        for index in range(220)
+    )
+    with sqlite3.connect(active_path) as conn:
+        conn.execute(
+            "UPDATE declarations SET proof = ? WHERE id = 1",
+            (f"by\n{fillers}\nexact Canonical.late_dependency",),
+        )
+    _insert_dependency_declaration(
+        statlib_path,
+        row_id=5,
+        name="Canonical.late_dependency",
+        kind="theorem",
+        proof="by trivial",
+    )
+    retriever = LeanRagDependencyMultiRetriever(
+        (
+            _topology_bound_retriever(
+                active_path,
+                source_id="empirical_process_lean",
+            ),
+            _topology_bound_retriever(statlib_path, source_id="statlib"),
+        )
+    )
+
+    context = retriever.dependency_context(
+        "Theory.master_error_bound",
+        source_id="empirical_process_lean",
+        path="Active/Main.lean",
+    )
+
+    assert context is not None
+    assert [
+        row.declaration_name for row in context.cross_source_proof_uses
+    ] == ["Canonical.late_dependency"]
 
 
 def test_multi_retriever_routes_dependency_context_to_requested_corpus(
