@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import math
 from copy import deepcopy
@@ -20,7 +21,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 
 
-GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 11
+GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 12
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -154,6 +155,7 @@ def generated_code_semantic_review_finding_id(
         "repair_scope": str(
             finding.get("repair_scope", "") or ""
         ).strip(),
+        "artifact_delta": deepcopy(finding.get("artifact_delta", {})),
         "evidence_refs": [
             str(value).strip()
             for value in finding.get("evidence_refs", []) or []
@@ -234,6 +236,7 @@ def generated_code_semantic_review_authority_contract(
         authority_ref: str,
         *,
         authority_kind: str,
+        artifact_role: str,
         locator: str,
         allowed_repair_scopes: Sequence[str],
     ) -> None:
@@ -246,6 +249,7 @@ def generated_code_semantic_review_authority_contract(
             {
                 "authority_ref": ref,
                 "authority_kind": authority_kind,
+                "artifact_role": artifact_role,
                 "locator": locator,
                 "allowed_repair_scopes": [
                     scope
@@ -262,6 +266,7 @@ def generated_code_semantic_review_authority_contract(
         add(
             f"prior_finding:{finding_id}",
             authority_kind="active_prior_finding",
+            artifact_role="generated_source_artifact",
             locator=(
                 "/inherited_repair_obligations/"
                 "active_prior_finding_ledger"
@@ -272,6 +277,21 @@ def generated_code_semantic_review_authority_contract(
     responsibility = review_material.get("source_responsibility_contract", {})
     if not isinstance(responsibility, Mapping):
         responsibility = {}
+    canonical_contract = review_material.get(
+        "architect_frozen_evidence_contract",
+        {},
+    )
+    canonical_requirement_rows = (
+        canonical_contract.get("empirical_metric_requirements", []) or []
+        if isinstance(canonical_contract, Mapping)
+        else []
+    )
+    canonical_requirement_index = {
+        str(row.get("requirement_id", "") or "").strip(): index
+        for index, row in enumerate(canonical_requirement_rows)
+        if isinstance(row, Mapping)
+        and str(row.get("requirement_id", "") or "").strip()
+    }
     assigned_rows = responsibility.get(
         "assigned_empirical_metric_requirements",
         [],
@@ -283,9 +303,10 @@ def generated_code_semantic_review_authority_contract(
         add(
             f"requirement:{requirement_id}" if requirement_id else "",
             authority_kind="assigned_frozen_requirement",
+            artifact_role="metric_protocol_candidate",
             locator=(
-                "/source_responsibility_contract/"
-                f"assigned_empirical_metric_requirements/{index}"
+                "/empirical_metric_requirements/"
+                + str(canonical_requirement_index.get(requirement_id, index))
             ),
             allowed_repair_scopes=(
                 "source_code",
@@ -322,6 +343,7 @@ def generated_code_semantic_review_authority_contract(
             add(
                 f"{authority_kind}:{target_id}" if target_id else "",
                 authority_kind=authority_kind,
+                artifact_role="generated_source_artifact",
                 locator=f"/coding_agent_proposal_packet/{collection_name}/{index}",
                 allowed_repair_scopes=("source_code",),
             )
@@ -335,6 +357,7 @@ def generated_code_semantic_review_authority_contract(
                     else ""
                 ),
                 authority_kind="estimator_interface_contract",
+                artifact_role="source_theory_packet",
                 locator=str(
                     (
                         row.get("estimator_interface_contract_authority", {})
@@ -352,6 +375,38 @@ def generated_code_semantic_review_authority_contract(
 
     alignment = proposal.get("theory_trace_alignment_contract", {})
     if isinstance(alignment, Mapping):
+        theory_packet = review_material.get("theory_packet", {})
+        theory_packet = (
+            theory_packet if isinstance(theory_packet, Mapping) else {}
+        )
+        theory_review_projection = theory_packet.get(
+            "theory_review_projection",
+            {},
+        )
+        theory_review_projection = (
+            theory_review_projection
+            if isinstance(theory_review_projection, Mapping)
+            else {}
+        )
+        fallback_alignment_locators = {
+            "supported_derivation_steps": (
+                "/theory_derivation_packet/derivation_steps"
+                if isinstance(
+                    theory_packet.get("theory_derivation_packet", {}),
+                    Mapping,
+                )
+                and theory_packet.get("theory_derivation_packet", {}).get(
+                    "derivation_steps"
+                )
+                else "/derivation_steps"
+            ),
+            "supported_equation_steps": (
+                "/theory_derivation_packet/equation_chain"
+            ),
+            "supported_formalization_targets": (
+                "/theory_derivation_packet/formalization_handoff"
+            ),
+        }
         for field in (
             "supported_derivation_steps",
             "supported_equation_steps",
@@ -368,9 +423,11 @@ def generated_code_semantic_review_authority_contract(
                 "theory_alignment:"
                 + stable_hash({field: values})[:20],
                 authority_kind="proposal_consumed_theory_alignment",
+                artifact_role="source_theory_packet",
                 locator=(
-                    "/coding_agent_proposal_packet/"
-                    f"theory_trace_alignment_contract/{field}"
+                    f"/theory_review_projection/{field}"
+                    if field in theory_review_projection
+                    else fallback_alignment_locators[field]
                 ),
                 allowed_repair_scopes=(
                     "source_code",
@@ -381,6 +438,27 @@ def generated_code_semantic_review_authority_contract(
     contract = {
         "artifact_kind": "GeneratedCodeSemanticReviewAuthorityContract",
         "authority_rows": rows,
+        "authority_kind_interpretation": {
+            "active_prior_finding": (
+                "Preserves an unresolved finding identity; the fresh artifact still "
+                "must supply exact current evidence."
+            ),
+            "assigned_frozen_requirement": (
+                "Authorizes review of the assigned measurement protocol only."
+            ),
+            "implementation_target": (
+                "Authorizes review of an explicit current-source implementation claim."
+            ),
+            "estimator_interface_contract": (
+                "Authorizes comparison of declared request and response semantics "
+                "with exact generated code."
+            ),
+            "proposal_consumed_theory_alignment": (
+                "Authorizes contradiction and binding review for the exact cited "
+                "theory anchors. Theory premises do not by themselves require a "
+                "finite-data estimator to test or prove those premises at runtime."
+            ),
+        },
         "allowed_blocking_authority_refs": [
             row["authority_ref"] for row in rows
         ],
@@ -392,6 +470,7 @@ def generated_code_semantic_review_authority_contract(
         ],
         "sibling_requirements_cannot_block_current_artifact": True,
         "broad_question_text_cannot_create_a_repair_obligation": True,
+        "theory_premises_are_not_automatic_runtime_validation_obligations": True,
         "proof_evidence_status": (
             "GENERATED_CODE_REVIEW_AUTHORITY_CONTRACT_NOT_PROOF_EVIDENCE"
         ),
@@ -781,6 +860,115 @@ def _repair_scope_defect_artifact_errors(
     ]
 
 
+def _artifact_delta_errors(
+    *,
+    row: Mapping[str, Any],
+    row_label: str,
+    review_material: Mapping[str, Any] | None,
+) -> list[str]:
+    """Validate a model-authored counterfactual without selecting semantics."""
+
+    delta = row.get("artifact_delta", {})
+    if not isinstance(delta, Mapping):
+        return [f"{row_label} artifact_delta must be an object"]
+    repair_scope = str(row.get("repair_scope", "") or "").strip()
+    if repair_scope == "none":
+        return []
+    errors: list[str] = []
+    obligation_ref = str(delta.get("obligation_ref", "") or "").strip()
+    obligation_kind = str(delta.get("obligation_kind", "") or "").strip()
+    current_role = str(
+        delta.get("current_artifact_role", "") or ""
+    ).strip()
+    current_locator = _normalize_evidence_locator(
+        delta.get("current_artifact_locator", "")
+    )
+    for field in (
+        "current_behavior",
+        "required_behavior",
+        "observable_change",
+    ):
+        if not str(delta.get(field, "") or "").strip():
+            errors.append(f"{row_label} artifact_delta missing {field}")
+    if delta.get("before_after_semantically_equivalent") is not False:
+        errors.append(
+            f"{row_label} cannot authorize repair when its before/after "
+            "behaviors are semantically equivalent"
+        )
+    authority_refs = {
+        str(value).strip()
+        for value in row.get("authority_refs", []) or []
+        if str(value).strip()
+    }
+    if not obligation_ref or obligation_ref not in authority_refs:
+        errors.append(
+            f"{row_label} artifact_delta obligation_ref must select one cited "
+            "authority_ref"
+        )
+    citations = [
+        dict(citation)
+        for citation in row.get("evidence_citations", []) or []
+        if isinstance(citation, Mapping)
+    ]
+    if not any(
+        str(citation.get("artifact_role", "") or "").strip() == current_role
+        and _normalize_evidence_locator(citation.get("locator", ""))
+        == current_locator
+        for citation in citations
+    ):
+        errors.append(
+            f"{row_label} artifact_delta current artifact must be an exact cited "
+            "locator"
+        )
+    if review_material is None:
+        return errors
+    authority_contract = generated_code_semantic_review_authority_contract(
+        review_material
+    )
+    authority_rows = {
+        str(authority.get("authority_ref", "") or "").strip(): authority
+        for authority in authority_contract.get("authority_rows", []) or []
+        if isinstance(authority, Mapping)
+        and str(authority.get("authority_ref", "") or "").strip()
+    }
+    authority = authority_rows.get(obligation_ref)
+    if authority is None:
+        errors.append(f"{row_label} artifact_delta selects unknown authority")
+        return errors
+    if obligation_kind != str(authority.get("authority_kind", "") or ""):
+        errors.append(
+            f"{row_label} artifact_delta obligation_kind does not match its "
+            "runtime authority row"
+        )
+    if obligation_kind != "active_prior_finding":
+        authority_role = str(
+            authority.get("artifact_role", "") or ""
+        ).strip()
+        authority_locator = _generated_code_semantic_review_effective_locator(
+            artifact_role=authority_role,
+            locator=authority.get("locator", ""),
+        )
+        if not any(
+            str(citation.get("artifact_role", "") or "").strip()
+            == authority_role
+            and _generated_code_semantic_review_effective_locator(
+                artifact_role=authority_role,
+                locator=citation.get("locator", ""),
+            )
+            == authority_locator
+            for citation in citations
+        ):
+            errors.append(
+                f"{row_label} must cite the exact artifact locator selected by "
+                "artifact_delta obligation_ref: obligation_ref={obligation_ref!r}, "
+                f"required_citation={authority_role}#{authority_locator}. If that "
+                "exact authority does not support the claimed behavior change, "
+                "remove the finding or make it advisory instead of substituting an "
+                "unrelated citation"
+            )
+    return errors
+
+
 def _generated_code_semantic_review_repair_plan(
     *,
     repair_scopes: list[str],
@@ -954,6 +1142,64 @@ def generated_code_semantic_review_prompt_projection(
         if isinstance(row, Mapping)
         and str(row.get("requirement_id", "") or "")
     }
+    responsibility_contract = review_material.get(
+        "source_responsibility_contract",
+        {},
+    )
+    if (
+        isinstance(canonical_contract, Mapping)
+        and isinstance(responsibility_contract, Mapping)
+        and "assigned_requirement_ids" in responsibility_contract
+    ):
+        assigned_requirement_ids = {
+            str(value).strip()
+            for value in responsibility_contract.get(
+                "assigned_requirement_ids",
+                [],
+            )
+            or []
+            if str(value).strip()
+        }
+        owner_scoped_contract_fields = {
+            "capability_eval_requires_typed_metric_contracts",
+            "empirical_metric_protocol_phase",
+            "empirical_metric_requirement_set_id",
+            "evaluation_mode",
+            "formal_required_for_final",
+            "formal_verification_policy",
+            "generated_metric_contract_policy",
+            "generated_metric_requirement_authority_policy",
+            "metric_protocol_execution_authorized",
+            "recommended_research_path",
+            "research_evaluation_requires_typed_metric_contracts",
+        }
+        projected_contract = {
+            key: deepcopy(value)
+            for key, value in canonical_contract.items()
+            if key in owner_scoped_contract_fields
+        }
+        projected_contract["empirical_metric_requirements"] = [
+            deepcopy(dict(row))
+            for row in canonical_requirement_rows
+            if isinstance(row, Mapping)
+            and str(row.get("requirement_id", "") or "").strip()
+            in assigned_requirement_ids
+        ]
+        projected_contract["owner_scoped_prompt_projection"] = {
+            "assigned_requirement_ids": sorted(assigned_requirement_ids),
+            "canonical_requirement_count": len(canonical_requirement_rows),
+            "visible_requirement_count": len(
+                projected_contract["empirical_metric_requirements"]
+            ),
+            "canonical_contract_fingerprint": stable_hash(canonical_contract),
+            "sibling_requirements_withheld_from_reviewer": True,
+            "boundary": (
+                "Only requirements assigned to the current generated-code author "
+                "are visible here. Sibling requirements remain immutable in the "
+                "canonical artifact and are evaluated by their owning subsystem."
+            ),
+        }
+        projected["architect_frozen_evidence_contract"] = projected_contract
     theory_packet = review_material.get("theory_packet", {})
     theory_packet = (
         theory_packet if isinstance(theory_packet, Mapping) else {}
@@ -972,6 +1218,24 @@ def generated_code_semantic_review_prompt_projection(
         for row in proposal_packet.get("implementation_targets", []) or []
         if isinstance(row, Mapping)
     ]
+    source_subsystem = str(
+        review_material.get("source_subsystem", "")
+        or (
+            responsibility_contract.get("runtime_source_subsystem", "")
+            if isinstance(responsibility_contract, Mapping)
+            else ""
+        )
+        or ""
+    ).strip()
+    if source_subsystem == "AlgorithmEngineer":
+        projected_theory_packet = dict(theory_packet)
+        projected_theory_packet.pop("question", None)
+        projected_theory_packet.pop("problem_card", None)
+        projected["theory_packet"] = projected_theory_packet
+        projected_proposal_packet = dict(proposal_packet)
+        for field in ("question", "model", "model_tier", "source_agent"):
+            projected_proposal_packet.pop(field, None)
+        projected["coding_agent_proposal_packet"] = projected_proposal_packet
 
     def project_artifact(
         raw_artifact: Mapping[str, Any],
@@ -1078,6 +1342,45 @@ def generated_code_semantic_review_prompt_projection(
                 artifact["source_row"][
                     "metric_contract_evaluation_prompt_ref"
                 ] = "runtime_metric_gate_projection"
+            retained_source_row_fields = {
+                "artifact_id",
+                "bound_estimator_code_hashes",
+                "dependencies",
+                "estimator_binding_errors",
+                "estimator_id",
+                "estimator_invocation_counts",
+                "estimator_runtime_errors",
+                "execution_attempted",
+                "execution_smoke_passed",
+                "language",
+                "llm_algorithm_engineer_target_prompt_ref",
+                "mechanical_estimator_invocation_verified",
+                "metric_contract_evaluation",
+                "metric_contract_evaluation_prompt_ref",
+                "metric_contract_prompt_refs",
+                "metric_contracts",
+                "metric_gate_errors",
+                "metric_gate_policy_mode",
+                "metric_gate_targets",
+                "metric_requirement_set_id",
+                "result_parse_error",
+                "returncode",
+                "runtime_errors",
+                "runtime_replicates",
+                "runtime_seed",
+                "safety_errors",
+                "script_hash",
+                "simulation_id",
+                "smoke_passed",
+                "spec",
+                "spec_prompt_ref",
+                "stderr_summary",
+            }
+            artifact["source_row"] = {
+                key: value
+                for key, value in artifact["source_row"].items()
+                if key in retained_source_row_fields
+            }
         result = artifact.get("exact_result", {})
         try:
             serialized_result = json.dumps(
@@ -1225,6 +1528,42 @@ def generated_code_semantic_review_prompt_projection(
             projected_source_summary["proposal_contract_prompt_refs"] = (
                 proposal_contract_prompt_refs
             )
+        if source_subsystem == "AlgorithmEngineer":
+            owner_scoped_source_summary_fields = {
+                "artifact_kind",
+                "confirmatory_empirical_evidence_eligible",
+                "generated_code_semantic_review_pending",
+                "generated_code_semantic_reviewer_available",
+                "llm_algorithm_engineer_proposal_id",
+                "manifest_id",
+                "n_executed",
+                "n_generated_code_executed",
+                "n_generated_code_execution_attempted",
+                "n_generated_code_execution_failed",
+                "n_live_generated_code_executed",
+                "n_live_generated_code_execution_attempted",
+                "n_live_generated_code_execution_failed",
+                "n_live_generated_code_metric_gate_failed",
+                "n_live_unsafe_generated_code_rejected",
+                "n_metric_gate_failed",
+                "n_passed",
+                "n_typed_metric_contracts_declared",
+                "n_typed_metric_contracts_evaluated",
+                "n_typed_metric_contracts_failed",
+                "n_typed_metric_contracts_passed",
+                "n_unsafe_generated_code_rejected",
+                "proposal_contract_prompt_refs",
+                "promotion_ready",
+                "runtime_architect_control",
+                "theory_packet_id",
+                "theory_trace_consumption_contract",
+                "typed_metric_contract_proof_evidence_status",
+            }
+            projected_source_summary = {
+                key: value
+                for key, value in projected_source_summary.items()
+                if key in owner_scoped_source_summary_fields
+            }
         projected["source_manifest_summary"] = projected_source_summary
 
     responsibility = review_material.get("source_responsibility_contract", {})
@@ -2412,6 +2751,379 @@ def _generated_code_semantic_review_metric_gate_projection(
     return projection
 
 
+def _generated_code_semantic_review_dimension_authority_contract(
+    review_material: Mapping[str, Any],
+) -> dict[str, dict[str, Any]]:
+    """Define owner-scoped review questions without deciding their answers."""
+
+    responsibility = review_material.get("source_responsibility_contract", {})
+    responsibility = (
+        responsibility if isinstance(responsibility, Mapping) else {}
+    )
+    source_subsystem = str(
+        review_material.get("source_subsystem", "")
+        or responsibility.get("runtime_source_subsystem", "")
+        or ""
+    ).strip()
+    assigned_ids = [
+        str(value).strip()
+        for value in responsibility.get("assigned_requirement_ids", []) or []
+        if str(value).strip()
+    ]
+    algorithm_scope = source_subsystem == "AlgorithmEngineer"
+    shared_boundary = {
+        "current_source_subsystem": source_subsystem,
+        "assigned_requirement_ids": assigned_ids,
+        "sibling_requirements_may_block": False,
+        "system_question_coverage_owner": str(
+            responsibility.get("system_coverage_owner", "CriticEvaluator")
+            or "CriticEvaluator"
+        ),
+    }
+    return {
+        "question_alignment": {
+            **shared_boundary,
+            "review_question": (
+                "Does this artifact implement its explicit proposal and assigned "
+                "role without contradicting the scoped research objective?"
+            ),
+            "must_not_require": (
+                "System-wide question coverage or work assigned only to a sibling "
+                "generated-code author."
+            ),
+        },
+        "theory_assumption_alignment": {
+            **shared_boundary,
+            "review_question": (
+                "Does the exact implementation contradict, silently replace, or "
+                "mis-bind a theory assumption that its proposal consumes?"
+            ),
+            "must_not_require": (
+                "Empirical testing of assumptions that the supplied DGP guarantees "
+                "by construction, unless that test is an assigned requirement or "
+                "an explicit current-source claim."
+            ),
+            "premise_boundary": (
+                "A theorem assumption conditions the estimator's guarantee; it is "
+                "not automatically a runtime-validation postcondition. Require a "
+                "source check only when an assigned protocol, interface precondition, "
+                "or explicit implementation target requires that observable behavior."
+            ),
+        },
+        "frozen_measurement_protocol_alignment": {
+            **shared_boundary,
+            "review_question": (
+                "Does this artifact implement every frozen metric requirement "
+                "assigned to its author without changing the protocol after results?"
+            ),
+            "not_applicable_when": (
+                "No confirmatory requirement is assigned to this artifact; in that "
+                "case PASS means it does not invent or claim a confirmatory gate."
+            ),
+        },
+        "execution_argument_alignment": {
+            **shared_boundary,
+            "review_question": (
+                "Do exact runtime arguments, request fields, dependency bindings, "
+                "and response meanings match the current interface contract?"
+            ),
+            "structured_observations": "interface_binding_work_orders",
+            "observation_boundary": (
+                "Parser inventories report exact syntax-level observations only. "
+                "The reviewer must inspect aliases, derivations, control flow, and "
+                "meaning before deciding PASS, FAIL, or UNCERTAIN."
+            ),
+        },
+        "experiment_non_vacuity_and_identifiability": {
+            **shared_boundary,
+            "review_question": (
+                "Does the current execution exercise the artifact's actual claimed "
+                "computation on nontrivial inputs rather than a constant, fixture, "
+                "or mislabeled quantity?"
+            ),
+            "algorithm_smoke_test_boundary": (
+                "For AlgorithmEngineer this dimension reviews the estimator smoke "
+                "test only; population sweeps and confirmatory identifiability "
+                "diagnostics belong to SimulationEvaluator unless explicitly assigned."
+                if algorithm_scope
+                else "Assigned simulation design and identifiability requirements apply."
+            ),
+        },
+        "metric_semantics_alignment": {
+            **shared_boundary,
+            "review_question": (
+                "Do returned values mean what the current artifact claims, and do "
+                "assigned metric paths measure their frozen quantities?"
+            ),
+            "must_not_require": (
+                "Metrics, sweeps, or diagnostics owned only by a sibling artifact."
+            ),
+        },
+    }
+
+
+def _python_generated_source_interface_inventory(
+    source: str,
+) -> dict[str, Any]:
+    """Expose exact Python interface observations without judging semantics."""
+
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError) as exc:
+        return {
+            "language": "python",
+            "parsed": False,
+            "parse_error": f"{type(exc).__name__}: {exc}",
+            "functions": [],
+        }
+    functions: list[dict[str, Any]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        parameter_names = [argument.arg for argument in node.args.args]
+        mapping_accesses: dict[str, set[str]] = {
+            name: set() for name in parameter_names
+        }
+        returned_literal_fields: set[str] = set()
+        called_mapping_literal_fields: dict[str, set[str]] = {}
+        for child in ast.walk(node):
+            if isinstance(child, ast.Subscript) and isinstance(
+                child.value,
+                ast.Name,
+            ):
+                key_node = child.slice
+                if (
+                    child.value.id in mapping_accesses
+                    and isinstance(key_node, ast.Constant)
+                    and isinstance(key_node.value, str)
+                ):
+                    mapping_accesses[child.value.id].add(key_node.value)
+            if (
+                isinstance(child, ast.Call)
+                and isinstance(child.func, ast.Attribute)
+                and isinstance(child.func.value, ast.Name)
+                and child.func.value.id in mapping_accesses
+                and child.func.attr == "get"
+                and child.args
+                and isinstance(child.args[0], ast.Constant)
+                and isinstance(child.args[0].value, str)
+            ):
+                mapping_accesses[child.func.value.id].add(child.args[0].value)
+            if isinstance(child, ast.Return) and isinstance(child.value, ast.Dict):
+                returned_literal_fields.update(
+                    str(key.value)
+                    for key in child.value.keys
+                    if isinstance(key, ast.Constant)
+                    and isinstance(key.value, str)
+                )
+            if (
+                isinstance(child, ast.Call)
+                and isinstance(child.func, ast.Name)
+                and child.args
+                and isinstance(child.args[0], ast.Dict)
+            ):
+                called_mapping_literal_fields.setdefault(
+                    child.func.id,
+                    set(),
+                ).update(
+                    str(key.value)
+                    for key in child.args[0].keys
+                    if isinstance(key, ast.Constant)
+                    and isinstance(key.value, str)
+                )
+        functions.append(
+            {
+                "function_name": node.name,
+                "parameter_names": parameter_names,
+                "mapping_key_accesses_by_parameter": {
+                    name: sorted(values)
+                    for name, values in mapping_accesses.items()
+                    if values
+                },
+                "returned_literal_fields": sorted(returned_literal_fields),
+                "called_mapping_literal_fields": {
+                    name: sorted(values)
+                    for name, values in sorted(
+                        called_mapping_literal_fields.items()
+                    )
+                },
+            }
+        )
+    return {
+        "language": "python",
+        "parsed": True,
+        "parse_error": "",
+        "functions": sorted(functions, key=lambda row: row["function_name"]),
+    }
+
+
+def _generated_code_semantic_review_interface_work_orders(
+    review_material: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Join theory-owned interfaces to parser observations for model review."""
+
+    proposal = review_material.get("coding_agent_proposal_packet", {})
+    proposal = proposal if isinstance(proposal, Mapping) else {}
+    targets = {
+        str(row.get("estimator_id", "") or "").strip(): row
+        for row in proposal.get("implementation_targets", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("estimator_id", "") or "").strip()
+    }
+    authority_rows_by_ref = {
+        str(row.get("authority_ref", "") or "").strip(): row
+        for row in generated_code_semantic_review_authority_contract(
+            review_material
+        ).get("authority_rows", [])
+        if isinstance(row, Mapping)
+        and str(row.get("authority_ref", "") or "").strip()
+    }
+    work_orders: list[dict[str, Any]] = []
+    for index, artifact in enumerate(
+        review_material.get("exact_executed_artifacts", []) or []
+    ):
+        if not isinstance(artifact, Mapping):
+            continue
+        source_row = artifact.get("source_row", {})
+        source_row = source_row if isinstance(source_row, Mapping) else {}
+        estimator_id = str(
+            source_row.get("estimator_id", "")
+            or artifact.get("artifact_id", "")
+            or ""
+        ).strip()
+        target = targets.get(estimator_id, {})
+        interface = (
+            target.get("estimator_interface_contract", {})
+            if isinstance(target, Mapping)
+            else {}
+        )
+        interface = interface if isinstance(interface, Mapping) else {}
+        expected_request_fields = [
+            {
+                "name": str(row.get("name", "") or ""),
+                "meaning": str(row.get("meaning", "") or ""),
+                "binding": str(row.get("binding", "") or ""),
+            }
+            for row in interface.get("request_fields", []) or []
+            if isinstance(row, Mapping)
+            and str(row.get("name", "") or "").strip()
+        ]
+        expected_response_fields = [
+            {
+                "name": str(row.get("name", "") or ""),
+                "meaning": str(row.get("meaning", "") or ""),
+                "normalization": str(row.get("normalization", "") or ""),
+                "sample_size_order": str(
+                    row.get("sample_size_order", "") or ""
+                ),
+            }
+            for row in interface.get("response_fields", []) or []
+            if isinstance(row, Mapping)
+            and str(row.get("name", "") or "").strip()
+        ]
+        source = str(artifact.get("exact_source_code", "") or "")
+        language = str(source_row.get("language", "") or "").strip().lower()
+        parser_inventory = (
+            _python_generated_source_interface_inventory(source)
+            if source and language in {"", "python"}
+            else {
+                "language": language or "unknown",
+                "parsed": False,
+                "parse_error": "no structured parser inventory for this language",
+                "functions": [],
+            }
+        )
+        run_estimator = next(
+            (
+                row
+                for row in parser_inventory.get("functions", [])
+                if isinstance(row, Mapping)
+                and row.get("function_name") == "run_estimator"
+            ),
+            {},
+        )
+        mapping_accesses = run_estimator.get(
+            "mapping_key_accesses_by_parameter",
+            {},
+        )
+        observed_request_fields = sorted(
+            {
+                str(field)
+                for fields in (
+                    mapping_accesses.values()
+                    if isinstance(mapping_accesses, Mapping)
+                    else []
+                )
+                for field in fields
+            }
+        )
+        observed_response_fields = sorted(
+            str(field)
+            for field in run_estimator.get("returned_literal_fields", []) or []
+        )
+        expected_request_names = [
+            row["name"] for row in expected_request_fields
+        ]
+        expected_response_names = [
+            row["name"] for row in expected_response_fields
+        ]
+        interface_id = str(
+            target.get("estimator_interface_contract_id", "")
+            if isinstance(target, Mapping)
+            else ""
+        ).strip()
+        interface_authority_ref = (
+            f"estimator_interface_contract:{interface_id}"
+            if interface_id
+            else ""
+        )
+        interface_authority_row = authority_rows_by_ref.get(
+            interface_authority_ref,
+            {},
+        )
+        work_orders.append(
+            {
+                "artifact_index": index,
+                "artifact_id": str(artifact.get("artifact_id", "") or ""),
+                "estimator_id": estimator_id,
+                "interface_contract_id": interface_id,
+                "interface_authority_ref": interface_authority_ref,
+                "expected_interface_evidence_citation": {
+                    "artifact_role": str(
+                        interface_authority_row.get("artifact_role", "") or ""
+                    ),
+                    "locator": str(
+                        interface_authority_row.get("locator", "") or ""
+                    ),
+                },
+                "expected_request_fields": expected_request_fields,
+                "expected_response_fields": expected_response_fields,
+                "parser_inventory": parser_inventory,
+                "observed_run_estimator_request_field_names": (
+                    observed_request_fields
+                ),
+                "expected_request_field_names_not_observed_literally": sorted(
+                    set(expected_request_names) - set(observed_request_fields)
+                ),
+                "observed_run_estimator_returned_literal_field_names": (
+                    observed_response_fields
+                ),
+                "expected_response_field_names_not_observed_literally": sorted(
+                    set(expected_response_names) - set(observed_response_fields)
+                ),
+                "name_comparison_boundary": (
+                    "Literal-name presence is a parser observation, not a semantic "
+                    "verdict. The reviewer must inspect aliases, derivations, and "
+                    "exact source before deciding PASS, FAIL, or UNCERTAIN."
+                ),
+                "exact_source_locator": (
+                    f"/exact_executed_artifacts/{index}/exact_source_code"
+                ),
+            }
+        )
+    return work_orders
+
+
 def build_generated_code_semantic_review_prompt(
     *,
     question: OpenResearchQuestion,
@@ -2426,13 +3138,35 @@ def build_generated_code_semantic_review_prompt(
     prompt_review_material["review_authority_contract"] = (
         generated_code_semantic_review_authority_contract(review_material)
     )
+    source_responsibility = review_material.get(
+        "source_responsibility_contract",
+        {},
+    )
+    source_responsibility = (
+        source_responsibility
+        if isinstance(source_responsibility, Mapping)
+        else {}
+    )
+    source_subsystem = str(
+        review_material.get("source_subsystem", "")
+        or source_responsibility.get("runtime_source_subsystem", "")
+        or ""
+    ).strip()
+    question_context = {
+        "id": question.id,
+        "title": question.title,
+        "tags": list(question.tags),
+        "authority": (
+            "Research context only. It cannot create a per-artifact repair "
+            "obligation outside source_responsibility_contract."
+        ),
+    }
+    if source_subsystem != "AlgorithmEngineer":
+        question_context["description"] = question.description
+    else:
+        question_context["description_withheld_from_owner_scoped_review"] = True
     payload = {
-        "question": {
-            "id": question.id,
-            "title": question.title,
-            "description": question.description,
-            "tags": list(question.tags),
-        },
+        "question": question_context,
         "review_material": prompt_review_material,
         "confirmatory_empirical_evidence_eligible": (
             confirmatory_empirical_evidence_eligible
@@ -2442,8 +3176,18 @@ def build_generated_code_semantic_review_prompt(
                 review_material
             )
         ),
+        "interface_binding_work_orders": (
+            _generated_code_semantic_review_interface_work_orders(
+                review_material
+            )
+        ),
         "dimension_review_order": list(
             GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
+        ),
+        "dimension_authority_contract": (
+            _generated_code_semantic_review_dimension_authority_contract(
+                review_material
+            )
         ),
         "required_output_contract": GENERATED_CODE_SEMANTIC_REVIEW_OUTPUT_CONTRACT,
         "decision_closure_contract": {
@@ -2565,7 +3309,23 @@ def build_generated_code_semantic_review_prompt(
         "repair_scope. Broad question wording, advisory future work, a "
         "sibling-only requirement, or an unregistered expectation cannot create a "
         "repair obligation. Use an empty prior_finding_id and empty authority_refs only "
-        "for non-actionable advisory findings. "
+        "for non-actionable advisory findings. Apply review_authority_contract."
+        "authority_kind_interpretation before selecting an obligation_ref. In "
+        "particular, a theorem premise conditions a guarantee but does not require "
+        "finite-data code to diagnose independence, continuity, identifiability, or "
+        "another population property unless an assigned protocol, interface "
+        "precondition, or explicit implementation target requires that observable "
+        "runtime behavior. "
+        "For every actionable finding, complete artifact_delta as a compact "
+        "counterfactual: select one cited obligation_ref, copy its authority_kind, "
+        "identify an exact cited locator in the defective artifact, state current "
+        "and required behavior, and state the observable behavior change. Compare "
+        "the before and after behaviors explicitly. If they are algebraically, "
+        "computationally, or semantically equivalent, set "
+        "before_after_semantically_equivalent=true and make the finding advisory "
+        "with repair_scope=none; an equivalent rewrite cannot authorize another "
+        "generation. The independent owner router rechecks this delta and may reject "
+        "it without inventing a replacement formula. "
         "Treat "
         "runtime_metric_gate_projection as the authority for already-computed gate "
         "outcomes: never describe a row with passed=true as outside its runtime "
@@ -2604,7 +3364,14 @@ def build_generated_code_semantic_review_prompt(
         "is not enough. Reject experiments that cannot identify the requested claim, "
         "silently change the estimand or assumptions, manufacture expected metrics, "
         "ignore the actual runtime arguments, or satisfy a metric name while measuring "
-        "a different quantity. Treat estimator_interface_contract as immutable "
+        "a different quantity. Use interface_binding_work_orders as compact parser "
+        "observations for execution_argument_alignment. A listed missing literal "
+        "name is a reason to inspect the exact source for aliases or derivations, "
+        "not an automatic failure; do not assert that a field is consumed or returned "
+        "when the exact parser inventory and source show otherwise. Cite the "
+        "generated-source locator for current syntax and the supplied interface-"
+        "authority citation for the expected contract. Treat "
+        "estimator_interface_contract as immutable "
         "TheoryDeveloper semantic authority transported by AgentRuntime, not a "
         "coding-agent field that can be rewritten during repair. For AlgorithmEngineer, "
         "compare every declared request/response meaning, binding, normalization, and "
@@ -2755,6 +3522,27 @@ GENERATED_CODE_SEMANTIC_REVIEW_OUTPUT_CONTRACT: dict[str, Any] = {
             "authority_refs": [
                 "exact ref from review_authority_contract"
             ],
+            "artifact_delta": {
+                "obligation_ref": (
+                    "one exact cited authority_ref, or empty for advisory"
+                ),
+                "obligation_kind": (
+                    "exact authority_kind, or advisory_only"
+                ),
+                "current_artifact_role": (
+                    "source_theory_packet|metric_protocol_candidate|"
+                    "upstream_generated_dependency|generated_source_artifact"
+                ),
+                "current_artifact_locator": (
+                    "/exact cited path in the artifact that must change"
+                ),
+                "current_behavior": "what the current artifact does",
+                "required_behavior": "what the cited obligation requires",
+                "observable_change": (
+                    "how a fresh artifact would behave differently"
+                ),
+                "before_after_semantically_equivalent": False,
+            },
             "evidence_citations": [
                 {
                     "artifact_role": (
@@ -2780,6 +3568,35 @@ _MODEL_EVIDENCE_CITATION_SCHEMA: dict[str, Any] = {
             "enum": list(GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS),
         },
         "locator": {"type": "string", "minLength": 1},
+    },
+}
+
+
+_MODEL_ARTIFACT_DELTA_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "obligation_ref",
+        "obligation_kind",
+        "current_artifact_role",
+        "current_artifact_locator",
+        "current_behavior",
+        "required_behavior",
+        "observable_change",
+        "before_after_semantically_equivalent",
+    ],
+    "properties": {
+        "obligation_ref": {"type": "string"},
+        "obligation_kind": {"type": "string"},
+        "current_artifact_role": {
+            "type": "string",
+            "enum": list(GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS),
+        },
+        "current_artifact_locator": {"type": "string"},
+        "current_behavior": {"type": "string"},
+        "required_behavior": {"type": "string"},
+        "observable_change": {"type": "string"},
+        "before_after_semantically_equivalent": {"type": "boolean"},
     },
 }
 
@@ -2874,6 +3691,7 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
                     "repair_scope",
                     "prior_finding_id",
                     "authority_refs",
+                    "artifact_delta",
                     "evidence_citations",
                 ],
                 "properties": {
@@ -2903,6 +3721,7 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
                         "type": "array",
                         "items": {"type": "string", "minLength": 1},
                     },
+                    "artifact_delta": _MODEL_ARTIFACT_DELTA_SCHEMA,
                     "evidence_citations": {
                         "type": "array",
                         "minItems": 1,
@@ -2932,6 +3751,13 @@ def generated_code_semantic_review_json_schema(
     authority_refs = list(
         authority_contract["allowed_blocking_authority_refs"]
     )
+    authority_kinds = sorted(
+        {
+            str(row.get("authority_kind", "") or "").strip()
+            for row in authority_contract["authority_rows"]
+            if str(row.get("authority_kind", "") or "").strip()
+        }
+    )
     prior_schema = schema["properties"]["prior_finding_reviews"]
     prior_schema["minItems"] = len(prior_ids)
     prior_schema["maxItems"] = len(prior_ids)
@@ -2949,6 +3775,12 @@ def generated_code_semantic_review_json_schema(
         )
     else:
         finding_properties["authority_refs"]["maxItems"] = 0
+    delta_properties = finding_properties["artifact_delta"]["properties"]
+    delta_properties["obligation_ref"]["enum"] = ["", *authority_refs]
+    delta_properties["obligation_kind"]["enum"] = [
+        "advisory_only",
+        *authority_kinds,
+    ]
     return schema
 
 
@@ -3382,6 +4214,14 @@ def validate_generated_code_semantic_review_packet(
                 _repair_scope_defect_artifact_errors(
                     row=row,
                     row_label=f"semantic review finding {finding_index}",
+                )
+            )
+        if schema_version >= 12:
+            errors.extend(
+                _artifact_delta_errors(
+                    row=row,
+                    row_label=f"semantic review finding {finding_index}",
+                    review_material=review_material,
                 )
             )
         if schema_version >= 10 and review_material is not None:

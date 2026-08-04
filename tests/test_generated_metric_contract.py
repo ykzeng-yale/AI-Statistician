@@ -258,6 +258,52 @@ def test_boolean_truth_encoding_drops_redundant_field_authorities() -> None:
     assert requirement["gate_field_authorities"] == []
 
 
+def test_boolean_truth_authority_error_requests_empty_array_not_placeholder() -> None:
+    requirement = materialize_generated_metric_gate_field_authorities(
+        _requirement(
+            requirement_id="architect:boolean-predicate",
+            metric_semantics="whether a generic invariant holds",
+            metric_value_kind="boolean",
+            measurement_protocol="return one boolean invariant check",
+            operator="==",
+            threshold=1,
+            tolerance=0,
+            aggregation="identity",
+            minimum_pass_count=None,
+            source_anchors=["question#/description"],
+            acceptance_authority_kind="evaluation_mandated",
+            gate_field_authorities=[],
+        )
+    )
+    requirement["gate_field_authorities"] = [
+        {
+            "authority_kind": "evaluation_mandated",
+            "source_anchors": ["question#/description"],
+            "rationale": "Invalid placeholder row.",
+        }
+    ]
+
+    errors = validate_generated_metric_requirements(
+        [requirement],
+        require_acceptance_authority=True,
+        acceptance_authority_catalog=[
+            {
+                "anchor_id": "question#/description",
+                "authority_kind": "evaluation_mandated",
+                "content": "Require the generic invariant.",
+                "explicit_numeric_values": [],
+            }
+        ],
+        require_gate_field_authorities=True,
+    )
+
+    assert any(
+        "gate_field_authorities must be the empty array []" in error
+        and "must not contain placeholder rows" in error
+        for error in errors
+    )
+
+
 def test_metric_acceptance_authority_catalog_exposes_exact_current_artifact_leaves() -> None:
     catalog = generated_metric_acceptance_authority_catalog(
         question={

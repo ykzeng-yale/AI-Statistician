@@ -214,9 +214,21 @@ def run_semantic_revision_tool_loop(
                 tool_input,
                 base_payload=frozen_base,
             )
+            before, _ = candidate_payload()
+            existing_value = _artifact_value_at_path(
+                before,
+                section=section,
+                relative_path=relative_path,
+            )
+            replacement = tool_input.get("replacement")
+            _validate_replacement_shape(
+                existing_value,
+                replacement,
+                full_path=[section, *relative_path],
+            )
             try:
                 replacement_json = json.dumps(
-                    tool_input.get("replacement"),
+                    replacement,
                     separators=(",", ":"),
                     ensure_ascii=False,
                     allow_nan=False,
@@ -230,7 +242,6 @@ def run_semantic_revision_tool_loop(
                 "relative_path": relative_path,
                 "replacement_json": replacement_json,
             }
-            before, _ = candidate_payload()
             candidate_updates = [*state["updates"], update]
             after, applied_paths = candidate_payload(candidate_updates)
             changed = (
@@ -246,6 +257,7 @@ def run_semantic_revision_tool_loop(
                     "full_path": [section, *relative_path],
                     "successful_updates": len(state["updates"]),
                     "maximum_updates": max_updates,
+                    "remaining_updates": max_updates - len(state["updates"]),
                     "candidate_fingerprint": (
                         typed_semantic_patch_payload_fingerprint(after)
                     ),
@@ -253,6 +265,75 @@ def run_semantic_revision_tool_loop(
                 },
                 state_changed=changed,
                 observation_key="replace:" + stable_hash([update, changed]),
+            )
+        if call.name == "append_artifact_list_item":
+            if set(tool_input) != {"section", "relative_path", "item"}:
+                raise ClientToolInputError(
+                    "append input requires section, relative_path, and item"
+                )
+            if len(state["updates"]) >= max_updates:
+                raise ClientToolInputError(
+                    "semantic revision update budget is exhausted; validate and submit "
+                    "the current candidate or revise an earlier edit"
+                )
+            section, relative_path = _validated_relative_path(
+                tool_input,
+                base_payload=frozen_base,
+            )
+            before, _ = candidate_payload()
+            existing_value = _artifact_value_at_path(
+                before,
+                section=section,
+                relative_path=relative_path,
+            )
+            if not isinstance(existing_value, list):
+                raise ClientToolInputError(
+                    "append_artifact_list_item requires an existing array path; "
+                    f"full_path={[section, *relative_path]!r} resolves to "
+                    f"{_json_value_kind(existing_value)}"
+                )
+            item = deepcopy(tool_input.get("item"))
+            _validate_append_item_shape(
+                existing_value,
+                item,
+                full_path=[section, *relative_path],
+            )
+            appended = [*deepcopy(existing_value), item]
+            try:
+                replacement_json = json.dumps(
+                    appended,
+                    separators=(",", ":"),
+                    ensure_ascii=False,
+                    allow_nan=False,
+                )
+            except (TypeError, ValueError) as exc:
+                raise ClientToolInputError(
+                    "item must be one finite native JSON value"
+                ) from exc
+            update = {
+                "section": section,
+                "relative_path": relative_path,
+                "replacement_json": replacement_json,
+            }
+            candidate_updates = [*state["updates"], update]
+            after, applied_paths = candidate_payload(candidate_updates)
+            state["updates"].append(update)
+            return ClientToolExecutionResult(
+                content={
+                    "ok": True,
+                    "applied": True,
+                    "full_path": [section, *relative_path],
+                    "appended_index": len(existing_value),
+                    "successful_updates": len(state["updates"]),
+                    "maximum_updates": max_updates,
+                    "remaining_updates": max_updates - len(state["updates"]),
+                    "candidate_fingerprint": (
+                        typed_semantic_patch_payload_fingerprint(after)
+                    ),
+                    "applied_paths": applied_paths[-1:],
+                },
+                state_changed=True,
+                observation_key="append:" + stable_hash(update),
             )
         if call.name == "submit_revision":
             if tool_input:
@@ -517,7 +598,8 @@ def _semantic_revision_tools(
                 name="replace_artifact_value",
                 description=(
                     "Replace one existing section-relative artifact value with a "
-                    "native JSON value."
+                    "native JSON value of the same structural kind. Use the append "
+                    "tool when adding a row to an existing list."
                 ),
                 input_schema={
                     "type": "object",
@@ -526,6 +608,22 @@ def _semantic_revision_tools(
                     "properties": {
                         **deepcopy(path_properties),
                         "replacement": {},
+                    },
+                },
+            ),
+            ClientToolDefinition(
+                name="append_artifact_list_item",
+                description=(
+                    "Append one model-authored native JSON item to an existing "
+                    "section-relative list while preserving the parent artifact."
+                ),
+                input_schema={
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["section", "relative_path", "item"],
+                    "properties": {
+                        **deepcopy(path_properties),
+                        "item": {},
                     },
                 },
             ),
@@ -570,6 +668,122 @@ def _validated_relative_path(
             raise ClientToolInputError("relative_path has an empty key")
         path.append(component)
     return section, path
+
+
+def _artifact_value_at_path(
+    payload: Mapping[str, Any],
+    *,
+    section: str,
+    relative_path: Sequence[str | int],
+) -> Any:
+    current: Any = payload[section]
+    traversed: list[str | int] = [section]
+    for component in relative_path:
+        if isinstance(component, int):
+            if not isinstance(current, list) or component >= len(current):
+                raise ClientToolInputError(
+                    f"full_path={traversed + [component]!r} does not resolve to an "
+                    "existing array item"
+                )
+            current = current[component]
+        else:
+            if not isinstance(current, Mapping) or component not in current:
+                available = (
+                    sorted(str(key) for key in current)
+                    if isinstance(current, Mapping)
+                    else []
+                )
+                raise ClientToolInputError(
+                    f"full_path={traversed + [component]!r} does not resolve to an "
+                    f"existing object value; available_keys={available!r}"
+                )
+            current = current[component]
+        traversed.append(component)
+    return current
+
+
+def _json_value_kind(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, (int, float)):
+        return "number"
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, list):
+        return "array"
+    if isinstance(value, Mapping):
+        return "object"
+    return type(value).__name__
+
+
+def _validate_replacement_shape(
+    existing_value: Any,
+    replacement: Any,
+    *,
+    full_path: Sequence[str | int],
+) -> None:
+    existing_kind = _json_value_kind(existing_value)
+    replacement_kind = _json_value_kind(replacement)
+    if "null" in {existing_kind, replacement_kind} or existing_kind == replacement_kind:
+        return
+    raise ClientToolInputError(
+        "replace_artifact_value cannot change the JSON structural kind at "
+        f"full_path={list(full_path)!r}: existing={existing_kind}, "
+        f"replacement={replacement_kind}. Replace it with a {existing_kind} value, "
+        "or use append_artifact_list_item on the parent array when adding a row."
+    )
+
+
+def _validate_append_item_shape(
+    existing_items: Sequence[Any],
+    item: Any,
+    *,
+    full_path: Sequence[str | int],
+) -> None:
+    observed_kinds = {
+        _json_value_kind(existing)
+        for existing in existing_items
+        if existing is not None
+    }
+    item_kind = _json_value_kind(item)
+    if len(observed_kinds) == 1 and item is not None:
+        expected_kind = next(iter(observed_kinds))
+        if item_kind != expected_kind:
+            raise ClientToolInputError(
+                "append_artifact_list_item must preserve the observed list item kind "
+                f"at full_path={list(full_path)!r}: expected={expected_kind}, "
+                f"item={item_kind}"
+            )
+    object_rows = [row for row in existing_items if isinstance(row, Mapping)]
+    if not object_rows or len(object_rows) != len(existing_items) or not isinstance(item, Mapping):
+        return
+    common_keys = set(object_rows[0])
+    for row in object_rows[1:]:
+        common_keys.intersection_update(row)
+    missing_keys = sorted(str(key) for key in common_keys if key not in item)
+    if missing_keys:
+        raise ClientToolInputError(
+            "appended object is missing fields shared by existing sibling rows at "
+            f"full_path={list(full_path)!r}: missing_keys={missing_keys!r}"
+        )
+    for key in sorted(common_keys, key=str):
+        sibling_kinds = {
+            _json_value_kind(row[key])
+            for row in object_rows
+            if row.get(key) is not None
+        }
+        if len(sibling_kinds) != 1 or item.get(key) is None:
+            continue
+        expected_kind = next(iter(sibling_kinds))
+        observed_kind = _json_value_kind(item[key])
+        if observed_kind != expected_kind:
+            raise ClientToolInputError(
+                "appended object field must preserve the observed sibling field kind "
+                f"at full_path={list(full_path) + [str(key)]!r}: "
+                f"expected={expected_kind}, item={observed_kind}"
+            )
 
 
 def _json_text(value: Any) -> str:

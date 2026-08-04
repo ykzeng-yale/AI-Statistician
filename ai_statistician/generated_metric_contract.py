@@ -1666,11 +1666,19 @@ def _generated_metric_gate_field_authority_errors(
         str(row.get("field", "") or "").strip() for row in rows
     ]
     if observed_fields != expected_fields:
+        empty_field_guidance = (
+            "; this metric declares no substantive numeric gate fields, so "
+            "gate_field_authorities must be the empty array [] and must not "
+            "contain placeholder rows"
+            if not expected_fields
+            else ""
+        )
         errors.append(
             generated_metric_numeric_authority_error(
                 f"{prefix}.gate_field_authorities must bind each declared "
                 "substantive numeric field exactly once in order: "
                 f"expected={expected_fields!r} observed={observed_fields!r}"
+                f"{empty_field_guidance}"
             )
         )
 

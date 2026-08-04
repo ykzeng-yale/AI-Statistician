@@ -2903,7 +2903,7 @@ def _theory_revision_envelope_json_schema(
             "relative_path",
             *[
                 field
-                for field in ("replacement", "replacement_json")
+                for field in ("replacement", "replacement_json", "remove")
                 if field in properties
             ],
         ]
@@ -2945,6 +2945,8 @@ def _bind_theory_revision_patch_envelope(
             update["replacement"] = raw_update["replacement"]
         if "replacement_json" in raw_update:
             update["replacement_json"] = raw_update["replacement_json"]
+        if "remove" in raw_update:
+            update["remove"] = raw_update["remove"]
         updates.append(update)
     return {
         "base_payload_fingerprint": base_fingerprint,
@@ -3264,9 +3266,11 @@ def _build_targeted_theory_revision_tool_prompt(
         "workflow": [
             "record_feedback_decision for every required finding index",
             "replace_artifact_value for the smallest complete dependent values",
+            "append_artifact_list_item when the revision requires one new row in an existing list",
             "submit_revision as the final tool call; failed validation returns observations for another turn",
         ],
-        "existing_paths_only": True,
+        "replace_paths_must_exist": True,
+        "append_target_must_be_an_existing_list": True,
         "maximum_updates": THEORY_REVISION_PATCH_MAX_UPDATES,
     }
     payload["revision_instructions"] = [
@@ -3277,7 +3281,7 @@ def _build_targeted_theory_revision_tool_prompt(
         "Reviewer prose is diagnostic evidence and candidate alternatives, not an answer key.",
         "Record exactly one current executable resolution for every required decision key and keep rejected alternatives out of executable branches.",
         "Propagate each selected behavior through the smallest complete set of dependent formulas, algorithms, inputs, outputs, assumptions, diagnostics, simulations, and theorem risks.",
-        "Use replace_artifact_value with a native JSON replacement; do not JSON-escape an object or array into a string.",
+        "Use replace_artifact_value with a same-kind native JSON replacement; use append_artifact_list_item to add one model-authored row to an existing list. Do not encode an object or array as a JSON string.",
         "Do not invent paths, code execution, simulation results, source matches, Lean diagnostics, or proof evidence.",
         "Call submit_revision last; if validation fails, use its exact observations to make another model-chosen edit in this same conversation.",
         "Independent review after this loop still decides whether the mathematical revision is accepted.",

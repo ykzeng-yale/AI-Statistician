@@ -30,6 +30,7 @@ from ai_statistician.generated_code_semantic_reviewer_llm import (
     validate_generated_code_semantic_review_packet,
     _generated_code_semantic_review_missing_citation_diagnostics,
     _generated_code_semantic_review_row_cited_values,
+    _python_generated_source_interface_inventory,
 )
 from ai_statistician.generated_code_semantic_review_replan import (
     GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY,
@@ -508,6 +509,19 @@ def _review_response(
                 "upstream_theory": "source_theory_packet",
             }[repair_scope]
         ]
+        current_artifact_role = {
+            "source_code": "generated_source_artifact",
+            "upstream_metric_contract": "metric_protocol_candidate",
+            "upstream_theory": "source_theory_packet",
+        }[repair_scope]
+        current_artifact_locator = next(
+            (
+                evidence_ref.split("#", 1)[1]
+                for evidence_ref in resolved_finding_evidence_refs
+                if evidence_ref.startswith(f"{current_artifact_role}#")
+            ),
+            "/",
+        )
         findings = [
             {
                 "severity": "high",
@@ -536,10 +550,70 @@ def _review_response(
                         ),
                     }[repair_scope]
                 ],
-                "evidence_citations": _model_evidence_citations(
-                    evidence_refs=resolved_finding_evidence_refs,
-                    artifact_citations=resolved_finding_artifact_citations,
-                ),
+                "artifact_delta": {
+                    "obligation_ref": {
+                        "source_code": (
+                            "implementation_target:generated-estimator"
+                        ),
+                        "upstream_metric_contract": (
+                            "requirement:frozen:algorithm-error"
+                        ),
+                        "upstream_theory": (
+                            "theory_alignment:"
+                            + stable_hash(
+                                {
+                                    "supported_derivation_steps": [
+                                        "theory:test:step:1"
+                                    ]
+                                }
+                            )[:20]
+                        ),
+                    }[repair_scope],
+                    "obligation_kind": {
+                        "source_code": "implementation_target",
+                        "upstream_metric_contract": (
+                            "assigned_frozen_requirement"
+                        ),
+                        "upstream_theory": (
+                            "proposal_consumed_theory_alignment"
+                        ),
+                    }[repair_scope],
+                    "current_artifact_role": current_artifact_role,
+                    "current_artifact_locator": current_artifact_locator,
+                    "current_behavior": (
+                        "The current artifact computes a different quantity."
+                    ),
+                    "required_behavior": (
+                        "The cited obligation requires the declared quantity."
+                    ),
+                    "observable_change": (
+                        "The returned value follows the cited quantity definition."
+                    ),
+                    "before_after_semantically_equivalent": False,
+                },
+                "evidence_citations": [
+                    *_model_evidence_citations(
+                        evidence_refs=resolved_finding_evidence_refs,
+                        artifact_citations=resolved_finding_artifact_citations,
+                    ),
+                    {
+                        "source_code": {
+                            "artifact_role": "generated_source_artifact",
+                            "locator": (
+                                "/coding_agent_proposal_packet/"
+                                "implementation_targets/0"
+                            ),
+                        },
+                        "upstream_metric_contract": {
+                            "artifact_role": "metric_protocol_candidate",
+                            "locator": "/empirical_metric_requirements/0",
+                        },
+                        "upstream_theory": {
+                            "artifact_role": "source_theory_packet",
+                            "locator": "/derivation_steps",
+                        },
+                    }[repair_scope],
+                ],
             }
         ]
         instructions = ["Regenerate code that computes the frozen protocol quantity."]
@@ -643,6 +717,7 @@ def _repair_ownership_router(
                             repair_scope != "upstream_theory"
                         ),
                         "ownership_certainty": "resolved",
+                        "finding_actionability": "actionable_exact_delta",
                         "rationale": "Static fixture binds the defect to one owner.",
                     }
                 ]
@@ -682,6 +757,7 @@ def _resolved_no_change_router() -> LLMArchitectMetricRepairOwnershipRouterAgent
                         "finding_index": 0,
                         "required_artifact_changes": [],
                         "ownership_certainty": "resolved_no_change",
+                        "finding_actionability": "no_distinct_delta",
                         "rationale": (
                             "The cited runtime gate passed and the finding does "
                             "not establish an exact artifact mismatch."
@@ -1396,6 +1472,10 @@ def test_generated_code_semantic_reviewer_accepts_and_resumes_deferred_task(
             "target_subsystems": ["SimulationEngineer"],
         }
     ]
+    assert "not automatically a requirement" in responsibility[
+        "artifact_review_rule"
+    ]
+    assert "interface precondition" in responsibility["artifact_review_rule"]
     assert executions[0][
         "source_responsibility_contract_fingerprint"
     ] == stable_hash(responsibility)
@@ -1994,6 +2074,256 @@ def test_semantic_reviewer_prompt_keeps_sibling_metrics_out_of_artifact_gate() -
     assert "Numerical stability" in prompt
 
 
+def test_algorithm_review_prompt_projects_only_assigned_metric_authority() -> None:
+    prompt = build_generated_code_semantic_review_prompt(
+        question=OpenResearchQuestion(
+            id="owner-scoped-review",
+            title="Review one generated estimator",
+            description="system-wide-description-must-not-gate-this-estimator",
+        ),
+        review_material={
+            "source_subsystem": "AlgorithmEngineer",
+            "source_responsibility_contract": {
+                "runtime_source_subsystem": "AlgorithmEngineer",
+                "assigned_requirement_ids": ["algorithm:assigned"],
+                "assigned_empirical_metric_requirements": [
+                    {
+                        "requirement_id": "algorithm:assigned",
+                        "measurement_protocol": "assigned-protocol-marker",
+                    }
+                ],
+                "sibling_only_requirement_refs": [
+                    {
+                        "requirement_id": "simulation:sibling",
+                        "target_subsystems": ["SimulationEngineer"],
+                    }
+                ],
+                "system_coverage_owner": "CriticEvaluator",
+            },
+            "architect_frozen_evidence_contract": {
+                "evaluation_mode": "capability_eval",
+                "empirical_metric_requirements": [
+                    {
+                        "requirement_id": "algorithm:assigned",
+                        "measurement_protocol": "assigned-protocol-marker",
+                    },
+                    {
+                        "requirement_id": "simulation:sibling",
+                        "measurement_protocol": "sibling-secret-protocol-marker",
+                    },
+                ],
+            },
+        },
+    )
+    payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+    projected_contract = payload["review_material"][
+        "architect_frozen_evidence_contract"
+    ]
+
+    assert [
+        row["requirement_id"]
+        for row in projected_contract["empirical_metric_requirements"]
+    ] == ["algorithm:assigned"]
+    assert "assigned-protocol-marker" in prompt
+    assert "sibling-secret-protocol-marker" not in prompt
+    assert "system-wide-description-must-not-gate-this-estimator" not in prompt
+    dimension_contract = payload["dimension_authority_contract"]
+    assert dimension_contract["question_alignment"][
+        "sibling_requirements_may_block"
+    ] is False
+    assert "SimulationEvaluator" in dimension_contract[
+        "experiment_non_vacuity_and_identifiability"
+    ]["algorithm_smoke_test_boundary"]
+
+
+def test_python_interface_inventory_reports_syntax_without_semantic_verdict() -> None:
+    inventory = _python_generated_source_interface_inventory(
+        """
+def run_estimator(request):
+    observations = request["observations"]
+    seed = request.get("seed", 0)
+    return {"estimate": sum(observations) + seed}
+
+def run_sandbox(seed, replicates):
+    return run_estimator({"observations": [1.0], "seed": seed})
+"""
+    )
+
+    assert inventory["parsed"] is True
+    functions = {row["function_name"]: row for row in inventory["functions"]}
+    assert functions["run_estimator"]["mapping_key_accesses_by_parameter"] == {
+        "request": ["observations", "seed"]
+    }
+    assert functions["run_estimator"]["returned_literal_fields"] == ["estimate"]
+    assert functions["run_sandbox"]["called_mapping_literal_fields"] == {
+        "run_estimator": ["observations", "seed"]
+    }
+
+
+def test_review_prompt_exposes_generic_interface_binding_work_order() -> None:
+    interface_contract = {
+        "request_fields": [
+            {
+                "name": "observations",
+                "meaning": "Observed sample.",
+                "binding": "Supplied by the runtime.",
+            },
+            {
+                "name": "frozen_value",
+                "meaning": "Theory-frozen scalar.",
+                "binding": "Supplied by the runtime.",
+            },
+        ],
+        "response_fields": [
+            {
+                "name": "estimate",
+                "meaning": "Point estimate.",
+                "normalization": "none",
+                "sample_size_order": "scalar",
+            },
+            {
+                "name": "uncertainty",
+                "meaning": "Reported uncertainty.",
+                "normalization": "none",
+                "sample_size_order": "scalar",
+            },
+        ],
+    }
+    prompt = build_generated_code_semantic_review_prompt(
+        question=_question(),
+        review_material={
+            "source_subsystem": "AlgorithmEngineer",
+            "source_responsibility_contract": {
+                "runtime_source_subsystem": "AlgorithmEngineer",
+                "assigned_requirement_ids": [],
+                "assigned_empirical_metric_requirements": [],
+            },
+            "theory_packet": {
+                "estimator_specs": [
+                    {"estimator_interface_contract": interface_contract}
+                ]
+            },
+            "coding_agent_proposal_packet": {
+                "implementation_targets": [
+                    {
+                        "estimator_id": "generic-estimator",
+                        "estimator_interface_contract_id": "interface:generic",
+                        "estimator_interface_contract_authority": {
+                            "source_estimator_ref": (
+                                "theory#/estimator_specs/0/"
+                                "estimator_interface_contract"
+                            )
+                        },
+                        "estimator_interface_contract": interface_contract,
+                    }
+                ]
+            },
+            "exact_executed_artifacts": [
+                {
+                    "artifact_id": "generic-estimator",
+                    "source_row": {
+                        "estimator_id": "generic-estimator",
+                        "language": "python",
+                    },
+                    "exact_source_code": (
+                        "def run_estimator(request):\n"
+                        "    observed = request['observations']\n"
+                        "    return {'estimate': sum(observed)}\n"
+                    ),
+                }
+            ],
+        },
+    )
+    payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+    work_order = payload["interface_binding_work_orders"][0]
+
+    assert work_order["observed_run_estimator_request_field_names"] == [
+        "observations"
+    ]
+    assert work_order[
+        "expected_request_field_names_not_observed_literally"
+    ] == ["frozen_value"]
+    assert work_order[
+        "expected_response_field_names_not_observed_literally"
+    ] == ["uncertainty"]
+    assert work_order["expected_interface_evidence_citation"] == {
+        "artifact_role": "source_theory_packet",
+        "locator": "/estimator_specs/0/estimator_interface_contract",
+    }
+    assert "not a semantic verdict" in work_order["name_comparison_boundary"]
+    assert payload["dimension_authority_contract"][
+        "execution_argument_alignment"
+    ]["structured_observations"] == "interface_binding_work_orders"
+    authority_contract = payload["review_material"][
+        "review_authority_contract"
+    ]
+    assert authority_contract[
+        "theory_premises_are_not_automatic_runtime_validation_obligations"
+    ] is True
+    assert "do not by themselves require" in authority_contract[
+        "authority_kind_interpretation"
+    ]["proposal_consumed_theory_alignment"]
+    assert "not automatically a runtime-validation postcondition" in payload[
+        "dimension_authority_contract"
+    ]["theory_assumption_alignment"]["premise_boundary"]
+
+
+def test_actionable_review_requires_a_distinct_authority_bound_delta(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        accept=False,
+        repair_scope="source_code",
+    )
+    result = subsystem.run(task, blackboard)
+    packet = next(
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
+    )
+    materialization = next(
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewMaterialization"
+    )
+    review_material = materialization["review_material"]
+
+    equivalent = json.loads(json.dumps(packet))
+    equivalent["findings"][0]["artifact_delta"][
+        "before_after_semantically_equivalent"
+    ] = True
+    assert any(
+        "semantically equivalent" in error
+        for error in validate_generated_code_semantic_review_packet(
+            equivalent,
+            review_material=review_material,
+        )
+    )
+
+    uncited_authority = json.loads(json.dumps(packet))
+    uncited_authority["findings"][0]["evidence_citations"] = [
+        {
+            "artifact_role": "generated_source_artifact",
+            "locator": "/exact_source_code",
+        }
+    ]
+    uncited_authority["findings"][0]["evidence_refs"] = [
+        "generated_source_artifact#/exact_source_code"
+    ]
+    uncited_authority["findings"][0]["artifact_citations"] = [
+        "generated_source_artifact"
+    ]
+    authority_errors = validate_generated_code_semantic_review_packet(
+        uncited_authority,
+        review_material=review_material,
+    )
+    assert any("exact artifact locator selected" in error for error in authority_errors)
+    assert any("required_citation=" in error for error in authority_errors)
+    assert any("make it advisory" in error for error in authority_errors)
+
+
 def test_semantic_reviewer_prompt_surfaces_runtime_metric_gate_outcomes() -> None:
     review_material = {
         "exact_executed_artifacts": [
@@ -2138,11 +2468,31 @@ def test_all_pass_actionable_finding_requires_model_repair_not_normalization(
             "summary": "The diagnostic name could be more explicit.",
             "required_change": "Use a more descriptive diagnostic name later.",
             "repair_scope": "source_code",
+            "prior_finding_id": "",
+            "authority_refs": [
+                "implementation_target:generated-estimator"
+            ],
+            "artifact_delta": {
+                "obligation_ref": "implementation_target:generated-estimator",
+                "obligation_kind": "implementation_target",
+                "current_artifact_role": "generated_source_artifact",
+                "current_artifact_locator": "/exact_source_code",
+                "current_behavior": "The current diagnostic uses a short name.",
+                "required_behavior": "The proposal requires the same computation.",
+                "observable_change": "Only the diagnostic label would change.",
+                "before_after_semantically_equivalent": False,
+            },
             "evidence_citations": [
                 {
                     "artifact_role": "generated_source_artifact",
                     "locator": "/exact_source_code",
-                }
+                },
+                {
+                    "artifact_role": "generated_source_artifact",
+                    "locator": (
+                        "/coding_agent_proposal_packet/implementation_targets/0"
+                    ),
+                },
             ],
         }
     ]
@@ -2243,7 +2593,7 @@ def test_schema_v10_derives_runtime_owned_dimensions_and_typed_citations(
         for artifact in result.produced_artifacts.values()
         if artifact.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
     )
-    assert review_packet["schema_version"] == 11
+    assert review_packet["schema_version"] == 12
     assert validate_generated_code_semantic_review_packet(review_packet) == []
     first_dimension = review_packet["dimension_reviews"][0]
     assert first_dimension["dimension"] == (
@@ -2568,6 +2918,12 @@ def test_schema_v9_closes_or_preserves_inherited_finding_identity() -> None:
     unresolved_response["findings"][0]["authority_refs"] = [
         f"prior_finding:{prior_finding_id}"
     ]
+    unresolved_response["findings"][0]["artifact_delta"].update(
+        {
+            "obligation_ref": f"prior_finding:{prior_finding_id}",
+            "obligation_kind": "active_prior_finding",
+        }
+    )
     unresolved = LLMGeneratedCodeSemanticReviewerAgent(
         provider=StaticJSONGeneratorBackend(unresolved_response),
         config=GeneratedCodeSemanticReviewerConfig(
@@ -3100,11 +3456,34 @@ def test_semantic_repair_exposes_unclosed_decision_without_selecting_owner(
                 "repair_scope": "none",
                 "prior_finding_id": "",
                 "authority_refs": [],
+                "artifact_delta": {
+                    "obligation_ref": (
+                        "implementation_target:generated-estimator"
+                    ),
+                    "obligation_kind": "implementation_target",
+                    "current_artifact_role": "generated_source_artifact",
+                    "current_artifact_locator": (
+                        "/exact_executed_artifacts/0/exact_result"
+                    ),
+                    "current_behavior": "The current judgment is unresolved.",
+                    "required_behavior": "No repair owner is yet established.",
+                    "observable_change": (
+                        "A repaired artifact would implement the cited target."
+                    ),
+                    "before_after_semantically_equivalent": False,
+                },
                 "evidence_citations": [
-                    {
-                        "artifact_role": "generated_source_artifact",
-                        "locator": "/exact_executed_artifacts/0/exact_result",
-                    }
+                        {
+                            "artifact_role": "generated_source_artifact",
+                            "locator": "/exact_executed_artifacts/0/exact_result",
+                        },
+                        {
+                            "artifact_role": "generated_source_artifact",
+                            "locator": (
+                                "/coding_agent_proposal_packet/"
+                                "implementation_targets/0"
+                            ),
+                        }
                 ],
             }
         ],
@@ -3214,7 +3593,15 @@ def test_semantic_repair_supplies_exact_metric_gate_artifact_citation(
         {
             "artifact_role": "generated_source_artifact",
             "locator": "/runtime_metric_gate_projection/0",
-        }
+        },
+        {
+            "artifact_role": "generated_source_artifact",
+            "locator": "/exact_source_code",
+        },
+        {
+            "artifact_role": "generated_source_artifact",
+            "locator": "/coding_agent_proposal_packet/implementation_targets/0",
+        },
     ]
 
     class MetricGateCitationPatchBackend:
@@ -3312,7 +3699,15 @@ def test_semantic_repair_supplies_exact_metric_gate_artifact_citation(
         == "GeneratedCodeSemanticReviewPacket"
     )
     assert review_packet["findings"][0]["evidence_citations"] == [
-        gate["evidence_citation"]
+        gate["evidence_citation"],
+        {
+            "artifact_role": "generated_source_artifact",
+            "locator": "/exact_source_code",
+        },
+        {
+            "artifact_role": "generated_source_artifact",
+            "locator": "/coding_agent_proposal_packet/implementation_targets/0",
+        },
     ]
 
 
@@ -3579,17 +3974,38 @@ def test_mixed_semantic_assessments_route_upstream_owner_before_source(
             "required_change": "Revise the theory packet before final acceptance.",
             "repair_scope": "upstream_theory",
             "prior_finding_id": "",
-            "authority_refs": [
-                "theory_alignment:"
+                "authority_refs": [
+                    "theory_alignment:"
                 + stable_hash(
                     {
                         "supported_derivation_steps": [
                             "theory:test:step:1"
                         ]
                     }
-                )[:20]
-            ],
-            "evidence_citations": [
+                    )[:20]
+                ],
+                "artifact_delta": {
+                    "obligation_ref": (
+                        "theory_alignment:"
+                        + stable_hash(
+                            {
+                                "supported_derivation_steps": [
+                                    "theory:test:step:1"
+                                ]
+                            }
+                        )[:20]
+                    ),
+                    "obligation_kind": (
+                        "proposal_consumed_theory_alignment"
+                    ),
+                    "current_artifact_role": "source_theory_packet",
+                    "current_artifact_locator": "/derivation_steps",
+                    "current_behavior": "The current premise is incomplete.",
+                    "required_behavior": "The consumed theory trace must be complete.",
+                    "observable_change": "A revised premise closes the cited gap.",
+                    "before_after_semantically_equivalent": False,
+                },
+                "evidence_citations": [
                 {
                         "artifact_role": "source_theory_packet",
                         "locator": "/derivation_steps",
@@ -4463,8 +4879,11 @@ def test_runtime_repairs_coupled_source_and_theory_finding_at_source_first(
                                 {"artifact_role": "generated_source_artifact"},
                                 {"artifact_role": "source_theory_packet"},
                             ],
-                            "source_theory_can_remain_unchanged": False,
-                            "ownership_certainty": "resolved",
+                                "source_theory_can_remain_unchanged": False,
+                                "ownership_certainty": "resolved",
+                                "finding_actionability": (
+                                    "actionable_exact_delta"
+                                ),
                             "rationale": (
                                 "The same observed mismatch supports a concrete "
                                 "source defect and an upstream hypothesis."
@@ -4571,17 +4990,38 @@ def test_runtime_defers_separate_theory_finding_behind_required_source_repair(
             "required_change": "Reassess the exact source-theory premise.",
             "repair_scope": "upstream_theory",
             "prior_finding_id": "",
-            "authority_refs": [
-                "theory_alignment:"
+                "authority_refs": [
+                    "theory_alignment:"
                 + stable_hash(
                     {
                         "supported_derivation_steps": [
                             "theory:test:step:1"
                         ]
                     }
-                )[:20]
-            ],
-            "evidence_citations": [
+                    )[:20]
+                ],
+                "artifact_delta": {
+                    "obligation_ref": (
+                        "theory_alignment:"
+                        + stable_hash(
+                            {
+                                "supported_derivation_steps": [
+                                    "theory:test:step:1"
+                                ]
+                            }
+                        )[:20]
+                    ),
+                    "obligation_kind": (
+                        "proposal_consumed_theory_alignment"
+                    ),
+                    "current_artifact_role": "source_theory_packet",
+                    "current_artifact_locator": "/derivation_steps",
+                    "current_behavior": "The premise needs reassessment.",
+                    "required_behavior": "The consumed theory trace must be complete.",
+                    "observable_change": "A revised premise changes the theory packet.",
+                    "before_after_semantically_equivalent": False,
+                },
+                "evidence_citations": [
                 {
                     "artifact_role": "source_theory_packet",
                     "locator": "/derivation_steps",
@@ -4612,7 +5052,10 @@ def test_runtime_defers_separate_theory_finding_behind_required_source_repair(
                             "required_artifact_changes": [
                                 {"artifact_role": "generated_source_artifact"}
                             ],
-                            "ownership_certainty": "resolved",
+                                "ownership_certainty": "resolved",
+                                "finding_actionability": (
+                                    "actionable_exact_delta"
+                                ),
                             "rationale": (
                                 "The generated measurement path must change."
                             ),
@@ -4622,7 +5065,10 @@ def test_runtime_defers_separate_theory_finding_behind_required_source_repair(
                             "required_artifact_changes": [
                                 {"artifact_role": "source_theory_packet"}
                             ],
-                            "ownership_certainty": "resolved",
+                                "ownership_certainty": "resolved",
+                                "finding_actionability": (
+                                    "actionable_exact_delta"
+                                ),
                             "rationale": (
                                 "A distinct mathematical premise must be reassessed."
                             ),
@@ -4705,6 +5151,7 @@ def test_postexecution_unresolved_ownership_stops_same_lineage(
                             "required_artifact_changes": [],
                             "source_theory_can_remain_unchanged": False,
                             "ownership_certainty": "unresolved",
+                            "finding_actionability": "insufficient_evidence",
                             "rationale": (
                                 "The available typed artifacts do not identify "
                                 "which immutable owner introduced the defect."
@@ -4764,22 +5211,47 @@ def test_postexecution_mixed_ownership_routes_one_bounded_source_repair(
             ),
             "repair_scope": "upstream_theory",
             "prior_finding_id": "",
-            "authority_refs": [
-                "theory_alignment:"
+                "authority_refs": [
+                    "theory_alignment:"
                 + stable_hash(
                     {
                         "supported_derivation_steps": [
                             "theory:test:step:1"
                         ]
                     }
-                )[:20]
-            ],
-            "evidence_citations": [
-                {
-                    "artifact_role": "source_theory_packet",
-                    "locator": "/derivation_steps/0",
-                }
-            ],
+                    )[:20]
+                ],
+                "artifact_delta": {
+                    "obligation_ref": (
+                        "theory_alignment:"
+                        + stable_hash(
+                            {
+                                "supported_derivation_steps": [
+                                    "theory:test:step:1"
+                                ]
+                            }
+                        )[:20]
+                    ),
+                    "obligation_kind": (
+                        "proposal_consumed_theory_alignment"
+                    ),
+                    "current_artifact_role": "source_theory_packet",
+                    "current_artifact_locator": "/derivation_steps/0",
+                    "current_behavior": "The premise remains ambiguous.",
+                    "required_behavior": "The consumed theory trace must be complete.",
+                    "observable_change": "A revised premise resolves the ambiguity.",
+                    "before_after_semantically_equivalent": False,
+                },
+                    "evidence_citations": [
+                    {
+                        "artifact_role": "source_theory_packet",
+                        "locator": "/derivation_steps/0",
+                    },
+                    {
+                        "artifact_role": "source_theory_packet",
+                        "locator": "/derivation_steps",
+                    }
+                ],
         }
     )
     response["repair_instructions"].append(
@@ -4809,7 +5281,10 @@ def test_postexecution_mixed_ownership_routes_one_bounded_source_repair(
                                 }
                             ],
                             "source_theory_can_remain_unchanged": True,
-                            "ownership_certainty": "resolved",
+                                "ownership_certainty": "resolved",
+                                "finding_actionability": (
+                                    "actionable_exact_delta"
+                                ),
                             "rationale": (
                                 "The exact current source owns the concrete defect."
                             ),
@@ -4818,7 +5293,8 @@ def test_postexecution_mixed_ownership_routes_one_bounded_source_repair(
                             "finding_index": 1,
                             "required_artifact_changes": [],
                             "source_theory_can_remain_unchanged": False,
-                            "ownership_certainty": "unresolved",
+                                "ownership_certainty": "unresolved",
+                                "finding_actionability": "insufficient_evidence",
                             "rationale": (
                                 "Fresh execution after source repair is required "
                                 "before assigning the remaining theory hypothesis."

@@ -116,7 +116,7 @@ class FormalizerConfig:
     provider_name: str = "anthropic"
     max_repair_attempts: int = 1
     use_client_tool_lean_candidate_repair: bool = True
-    client_tool_lean_candidate_max_turns: int = 6
+    client_tool_lean_candidate_max_turns: int = 10
     client_tool_lean_candidate_max_source_updates: int = 3
     client_tool_lean_candidate_max_searches: int = 3
     client_tool_lean_candidate_max_checks: int = 3
@@ -641,6 +641,11 @@ def _build_lean_candidate_revision_tool_prompt(
             "Call submit_compiled_source only after check_lean_source passes for the "
             "current source."
         ),
+        "tool_workflow": (
+            "Use targeted searches, then edit and compile. Preserve enough turn budget "
+            "to check every changed source. When ready, check_lean_source followed by "
+            "submit_compiled_source may be called in the same turn, in that order."
+        ),
         "question": {
             "id": question.id,
             "title": question.title,
@@ -672,8 +677,9 @@ def _build_lean_candidate_revision_tool_prompt(
             ),
         },
         "current_lean_source": initial_source,
-        "runtime_feedback": _compact_formalizer_environment_feedback(
-            environment_feedback
+        "runtime_feedback": _compact_lean_candidate_revision_feedback(
+            environment_feedback,
+            candidate_id=candidate_id,
         ),
         "proof_construction_strategy": (
             formalizer_proof_construction_strategy_contract()
@@ -8060,6 +8066,201 @@ def _formalizer_local_lean_observation_contract(
     }
 
 
+def _compact_formalizer_recovery_checkpoint(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    payload = _compact_mapping(
+        value,
+        keys=(
+            "schema_version",
+            "artifact_kind",
+            "candidate_id",
+            "candidate_lean_declaration",
+            "parent_source_hash",
+            "current_source_hash",
+            "source_updates",
+            "searches",
+            "checks",
+            "turns",
+            "tool_calls",
+            "transcript_fingerprint",
+            "provider",
+            "model",
+            "model_tier",
+            "final_runtime_check_performed",
+            "runtime_selected_lean_code",
+            "model_owned_lean_code",
+            "kernel_verified",
+            "proof_evidence_status",
+        ),
+    )
+    current_source = value.get("current_source")
+    if isinstance(current_source, str) and current_source.strip():
+        payload["current_source"] = current_source[:20000]
+    last_check = value.get("last_check", {})
+    if isinstance(last_check, Mapping):
+        payload["last_check"] = _compact_mapping(
+            last_check,
+            keys=(
+                "source_hash",
+                "compiled",
+                "precheck_errors",
+                "blocking_precheck_errors",
+                "local_lean_attempted",
+                "local_lean_source_compiled",
+                "local_lean_exit_status",
+                "local_lean_stdout",
+                "local_lean_stderr",
+                "candidate_identity_lean_checked",
+                "candidate_identity_lean_verified",
+                "candidate_identity_lean_stdout",
+                "candidate_identity_lean_stderr",
+                "checker_error",
+            ),
+        )
+    return {
+        key: child
+        for key, child in payload.items()
+        if child not in (None, "", [], {})
+    }
+
+
+def _compact_lean_candidate_revision_feedback(
+    feedback: Mapping[str, Any],
+    *,
+    candidate_id: str,
+) -> dict[str, Any]:
+    """Keep exact target and diagnostics; live search supplies the large RAG context."""
+
+    if not isinstance(feedback, Mapping):
+        return {}
+    input_summary = (
+        feedback.get("input_summary", {})
+        if isinstance(feedback.get("input_summary", {}), Mapping)
+        else {}
+    )
+    repair_context = (
+        feedback.get("proofengineer_repair_context", {})
+        or input_summary.get("proofengineer_repair_context", {})
+    )
+    repair_context = repair_context if isinstance(repair_context, Mapping) else {}
+    compact_repair_context = _compact_mapping(
+        repair_context,
+        keys=(
+            "context_kind",
+            "repair_scope",
+            "target_lean_declaration",
+            "target_theorem_name",
+            "target_theorem_statement",
+            "target_theorem_statement_hash",
+            "target_theorem_statement_hash_algorithm",
+            "source_theorem_target_identity_status",
+            "formalizer_candidate_semantic_review_status",
+            "formalizer_candidate_semantic_review_execution_id",
+            "formalizer_candidate_semantic_review_packet_id",
+            "formalizer_candidate_semantic_review_packet_hash",
+            "formalizer_candidate_semantic_review_candidate_source_hash",
+            "formalizer_candidate_semantic_review_target_statement_hash",
+            "formalizer_candidate_semantic_review_target_statement_hash_algorithm",
+            "repair_target_identity_contract",
+            "semantic_alignment_constraints",
+            "semantic_alignment_blockers",
+            "compiler_feedback",
+            "prior_exact_candidate_feedback",
+            "formal_environment_placeholder_symbols",
+            "formal_environment_typeclass_blockers",
+            "unknown_identifiers",
+            "proof_search_result_use",
+            "proof_evidence_status",
+        ),
+    )
+    review = compact_semantic_review_feedback(
+        feedback,
+        expected_feedback_type="formal_target_semantic_review_feedback",
+        max_rows=4,
+        max_text_chars=1200,
+    )
+    review.pop("reviewed_source_artifacts", None)
+    diagnostics = _compact_formalizer_candidate_diagnostics(
+        feedback.get("candidate_diagnostics", [])
+        or input_summary.get("candidate_diagnostics", [])
+    )
+    matching_diagnostics = [
+        dict(row)
+        for row in diagnostics
+        if not candidate_id
+        or str(row.get("candidate_id", "") or "") in {"", candidate_id}
+    ][:2]
+    for row in matching_diagnostics:
+        for duplicate_key in (
+            "lean_source_excerpt",
+            "artifact_path",
+            "local_lean_command",
+            "local_lean_project",
+        ):
+            row.pop(duplicate_key, None)
+    local_contract = _formalizer_local_lean_observation_contract(
+        feedback,
+        input_summary=input_summary,
+    )
+    compact_local_contract = _compact_mapping(
+        local_contract,
+        keys=(
+            "failure_classification",
+            "candidate_id",
+            "candidate_lean_declaration",
+            "source_hash",
+            "precheck_errors",
+            "blocking_precheck_errors",
+            "compiler_feedback",
+            "diagnostics",
+            "unknown_identifiers",
+            "unverified_required_imports",
+            "local_lean_attempted",
+            "local_lean_source_compiled",
+            "local_lean_exit_status",
+            "local_lean_stdout",
+            "local_lean_stderr",
+            "candidate_identity_lean_checked",
+            "candidate_identity_lean_verified",
+            "candidate_identity_lean_stdout",
+            "candidate_identity_lean_stderr",
+            "proof_evidence_status",
+        ),
+    )
+    recovery_checkpoint = (
+        feedback.get("formalizer_recovery_checkpoint", {})
+        or input_summary.get("formalizer_recovery_checkpoint", {})
+    )
+    payload = {
+        "feedback_type": str(feedback.get("feedback_type", "") or "")[:200],
+        "failure_classification": str(
+            feedback.get("failure_classification", "") or ""
+        )[:200],
+        "validation_errors": [
+            str(error)[:1200]
+            for error in list(feedback.get("validation_errors", []) or [])[:8]
+        ],
+        "formal_target_semantic_review": review,
+        "proofengineer_repair_context": compact_repair_context,
+        "candidate_diagnostics": matching_diagnostics,
+        "local_lean_repair_contract": compact_local_contract,
+        "formalizer_recovery_checkpoint": (
+            _compact_formalizer_recovery_checkpoint(recovery_checkpoint)
+        ),
+        "context_policy": (
+            "The current source is supplied separately. Large proof-state traces, prior "
+            "RAG payloads, and rerun candidate inventories stay in runtime artifacts; "
+            "use search_formal_environment for just-in-time active-project signatures."
+        ),
+    }
+    return {
+        key: child
+        for key, child in payload.items()
+        if child not in (None, "", [], {})
+    }
+
+
 def _compact_formalizer_environment_feedback(
     feedback: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -8158,6 +8359,12 @@ def _compact_formalizer_environment_feedback(
         "proofengineer_repair_context": _compact_proofengineer_context_for_prompt(
             feedback.get("proofengineer_repair_context", {})
             or input_summary.get("proofengineer_repair_context", {})
+        ),
+        "formalizer_recovery_checkpoint": (
+            _compact_formalizer_recovery_checkpoint(
+                feedback.get("formalizer_recovery_checkpoint", {})
+                or input_summary.get("formalizer_recovery_checkpoint", {})
+            )
         ),
         "failure_classification": _compact_value(
             feedback.get("failure_classification", "")

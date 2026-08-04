@@ -25,7 +25,7 @@ from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator
 from .research_schema import OpenResearchQuestion
 
 
-ARCHITECT_METRIC_REPAIR_OWNERSHIP_SCHEMA_VERSION = 5
+ARCHITECT_METRIC_REPAIR_OWNERSHIP_SCHEMA_VERSION = 6
 ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_PREEXECUTION = (
     "pre_execution_metric_protocol"
 )
@@ -60,6 +60,12 @@ ARCHITECT_METRIC_REPAIR_OWNERSHIP_CERTAINTIES = (
     "resolved",
     "resolved_no_change",
     "unresolved",
+)
+ARCHITECT_METRIC_REPAIR_FINDING_ACTIONABILITY = (
+    "actionable_exact_delta",
+    "no_distinct_delta",
+    "outside_source_responsibility",
+    "insufficient_evidence",
 )
 ARCHITECT_METRIC_REPAIR_OWNERSHIP_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_METRIC_REPAIR_OWNERSHIP_NOT_PROOF_EVIDENCE"
@@ -433,6 +439,7 @@ def _architect_metric_repair_ownership_repair_context(
                     "finding_index",
                     "required_artifact_changes",
                     "ownership_certainty",
+                    "finding_actionability",
                 )
                 if key in row
             }
@@ -458,6 +465,11 @@ def _architect_metric_repair_ownership_repair_context(
             (
                 "Use ownership_certainty=unresolved with no targets when the supplied "
                 "eligible artifacts cannot support a unique owner."
+            ),
+            (
+                "For post-execution findings, a resolved target requires "
+                "finding_actionability=actionable_exact_delta; equivalent, sibling-"
+                "owned, or unsupported deltas cannot select a repair target."
             ),
         ],
     }
@@ -971,7 +983,9 @@ def build_architect_metric_repair_ownership_prompt(
         "routing_phase": routing_phase,
         "artifact_roles": _ownership_artifact_role_descriptions(routing_phase),
         "required_output_contract": (
-            ARCHITECT_METRIC_REPAIR_OWNERSHIP_OUTPUT_CONTRACT
+            _architect_metric_repair_ownership_output_contract(
+                routing_phase
+            )
         ),
         "boundary": ARCHITECT_METRIC_REPAIR_OWNERSHIP_BOUNDARY,
     }
@@ -1035,6 +1049,14 @@ def build_architect_metric_repair_ownership_prompt(
         "and explain why in the rationale. This disposition cannot accept a lineage "
         "by itself; it is ignored only when another concrete repair forces fresh "
         "generation and independent re-review. "
+        "For each finding, independently inspect its artifact_delta. Return "
+        "finding_actionability=actionable_exact_delta only when the cited current "
+        "behavior, cited obligation, and observable change are distinct and within "
+        "the current source responsibility. Use no_distinct_delta when the proposed "
+        "before and after behaviors are equivalent, outside_source_responsibility "
+        "when the work belongs only to a sibling artifact, and insufficient_evidence "
+        "when the supplied exact values cannot decide. Do not derive or propose a "
+        "new formula in the rationale. "
     )
     return (
         "Route every semantic-review finding to the artifact or artifacts that must "
@@ -1099,6 +1121,18 @@ ARCHITECT_METRIC_REPAIR_OWNERSHIP_OUTPUT_CONTRACT: dict[str, Any] = {
         }
     ]
 }
+
+
+def _architect_metric_repair_ownership_output_contract(
+    routing_phase: str,
+) -> dict[str, Any]:
+    contract = deepcopy(ARCHITECT_METRIC_REPAIR_OWNERSHIP_OUTPUT_CONTRACT)
+    if routing_phase == ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_POSTEXECUTION:
+        contract["decisions"][0]["finding_actionability"] = (
+            "actionable_exact_delta|no_distinct_delta|"
+            "outside_source_responsibility|insufficient_evidence"
+        )
+    return contract
 
 
 _ARTIFACT_CHANGE_SCHEMA: dict[str, Any] = {
@@ -1171,6 +1205,12 @@ def architect_metric_repair_ownership_json_schema(
         ),
         "unresolved",
     ]
+    if routing_phase == ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_POSTEXECUTION:
+        decision_schema["required"].append("finding_actionability")
+        decision_schema["properties"]["finding_actionability"] = {
+            "type": "string",
+            "enum": list(ARCHITECT_METRIC_REPAIR_FINDING_ACTIONABILITY),
+        }
     return schema
 
 
@@ -1431,6 +1471,9 @@ def _apply_repair_ownership_routes(
         finding["repair_ownership_certainty"] = str(
             decision.get("ownership_certainty", "") or ""
         )
+        finding["repair_ownership_finding_actionability"] = str(
+            decision.get("finding_actionability", "") or ""
+        )
         finding["repair_ownership_rationale"] = str(
             decision.get("rationale", "") or ""
         )
@@ -1445,6 +1488,10 @@ def validate_architect_metric_repair_ownership_packet(
     packet: Mapping[str, Any],
 ) -> list[str]:
     errors: list[str] = []
+    try:
+        schema_version = int(packet.get("schema_version", 0) or 0)
+    except (TypeError, ValueError):
+        schema_version = 0
     routing_phase = str(packet.get("routing_phase", "") or "").strip()
     if routing_phase not in ARCHITECT_METRIC_REPAIR_ROUTING_PHASES:
         errors.append("repair ownership router has invalid routing phase")
@@ -1519,6 +1566,9 @@ def validate_architect_metric_repair_ownership_packet(
         indices.append(finding_index)
         changes = decision.get("required_artifact_changes", [])
         certainty = str(decision.get("ownership_certainty", "") or "")
+        finding_actionability = str(
+            decision.get("finding_actionability", "") or ""
+        ).strip()
         if not isinstance(changes, list) or (
             certainty == "resolved" and not changes
         ):
@@ -1562,6 +1612,38 @@ def validate_architect_metric_repair_ownership_packet(
             errors.append(
                 f"repair ownership decision {finding_index} has invalid certainty"
             )
+        if expected_execution_observed and schema_version >= 6:
+            if finding_actionability not in (
+                ARCHITECT_METRIC_REPAIR_FINDING_ACTIONABILITY
+            ):
+                errors.append(
+                    f"repair ownership decision {finding_index} has invalid "
+                    "finding actionability"
+                )
+            if (
+                certainty == "resolved"
+                and finding_actionability != "actionable_exact_delta"
+            ):
+                errors.append(
+                    f"repair ownership decision {finding_index} cannot select a "
+                    "repair target without an actionable exact delta"
+                )
+            if certainty == "resolved_no_change" and finding_actionability not in {
+                "no_distinct_delta",
+                "outside_source_responsibility",
+            }:
+                errors.append(
+                    f"repair ownership decision {finding_index} has inconsistent "
+                    "no-change actionability"
+                )
+            if (
+                certainty == "unresolved"
+                and finding_actionability != "insufficient_evidence"
+            ):
+                errors.append(
+                    f"repair ownership decision {finding_index} has inconsistent "
+                    "unresolved actionability"
+                )
         if not isinstance(
             decision.get("source_theory_can_remain_unchanged"),
             bool,
@@ -1676,6 +1758,13 @@ def _normalize_architect_metric_repair_ownership_packet(
             "ownership_certainty": certainty,
             "rationale": deepcopy(row.get("rationale", "")),
         }
+        if (
+            routing_phase
+            == ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_POSTEXECUTION
+        ):
+            decision["finding_actionability"] = deepcopy(
+                row.get("finding_actionability", "")
+            )
         if requested_certainty != certainty:
             decision["model_requested_ownership_certainty"] = (
                 requested_certainty
@@ -1788,6 +1877,12 @@ def _unresolved_architect_metric_repair_ownership_packet(
                 "execution."
             ),
             "derived_repair_scope": ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED,
+            **(
+                {"finding_actionability": "insufficient_evidence"}
+                if routing_phase
+                == ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_POSTEXECUTION
+                else {}
+            ),
         }
         for finding_index, _finding in enumerate(findings)
     ]

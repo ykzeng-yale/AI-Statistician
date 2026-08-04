@@ -62,6 +62,8 @@ from .research_schema import OpenResearchQuestion
 
 
 ARCHITECT_METRIC_REQUIREMENT_AUTHORING_SCHEMA_VERSION = 3
+_METRIC_AUTHORING_LARGE_PROMPT_CHARS = 60_000
+_METRIC_AUTHORING_LARGE_RESPONSE_TOKENS = 8_000
 FROZEN_METRIC_PROTOCOL_REBINDING_MUTABLE_FIELDS = frozenset(
     {
         "source_anchors",
@@ -490,6 +492,146 @@ class ArchitectMetricContractAuthoringConfig:
     provider_name: str = "anthropic"
     max_repair_attempts: int = 2
     metric_semantic_reviewer_max_revisions: int = 2
+
+
+def _compact_metric_authoring_prompt_payload(
+    value: Mapping[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Remove duplicated trees while preserving every authority leaf verbatim."""
+
+    payload = deepcopy(dict(value))
+    original_chars = len(
+        json.dumps(
+            payload,
+            separators=(",", ":"),
+            default=str,
+            ensure_ascii=False,
+        )
+    )
+    if original_chars <= _METRIC_AUTHORING_LARGE_PROMPT_CHARS:
+        return payload, {
+            "applied": False,
+            "original_chars": original_chars,
+            "projected_chars": original_chars,
+            "authority_catalog_rows": len(
+                payload.get("acceptance_authority_catalog", []) or []
+            ),
+        }
+
+    raw_catalog = payload.get("acceptance_authority_catalog", [])
+    catalog_rows = [
+        [
+            str(row.get("anchor_id", "") or ""),
+            str(row.get("authority_kind", "") or ""),
+            deepcopy(row.get("content")),
+            deepcopy(row.get("explicit_numeric_values", [])),
+        ]
+        for row in raw_catalog
+        if isinstance(row, Mapping)
+    ]
+    payload["acceptance_authority_catalog"] = {
+        "transport": "lossless_columnar_authority_leaves_v1",
+        "columns": [
+            "anchor_id",
+            "authority_kind",
+            "content",
+            "explicit_numeric_values",
+        ],
+        "rows": catalog_rows,
+        "row_count": len(catalog_rows),
+        "citation_rule": (
+            "source_anchors must copy exact anchor_id cells from these rows"
+        ),
+    }
+
+    raw_theory = payload.get("theory_developer_protocol_material", {})
+    theory = dict(raw_theory) if isinstance(raw_theory, Mapping) else {}
+    semantic_material = theory.get("theory_semantic_material", {})
+    semantic_material = (
+        dict(semantic_material)
+        if isinstance(semantic_material, Mapping)
+        else {}
+    )
+    payload["theory_developer_protocol_material"] = {
+        field: deepcopy(theory.get(field))
+        for field in (
+            "artifact_kind",
+            "source_theory_packet_id",
+            "source_theory_packet_hash",
+            "execution_results_available",
+            "proof_evidence_status",
+            "boundary",
+        )
+        if field in theory
+    }
+    payload["theory_developer_protocol_material"].update(
+        {
+            "semantic_transport": (
+                "authority-bearing leaves are preserved in the columnar catalog"
+            ),
+            "non_authority_review_context": {
+                field: deepcopy(semantic_material.get(field))
+                for field in (
+                    "critic_findings",
+                    "proof_evidence_boundary",
+                )
+                if semantic_material.get(field) not in (None, "", [], {})
+            },
+        }
+    )
+
+    requirement_schema = payload.get("requirement_schema", {})
+    required_fields = (
+        sorted(str(field) for field in requirement_schema)
+        if isinstance(requirement_schema, Mapping)
+        else []
+    )
+    payload["requirement_schema"] = {
+        "transport": "provider_native_structured_output_schema",
+        "required_fields": required_fields,
+        "runtime_validator_unchanged": True,
+    }
+    required_target_subsystems = list(
+        dict.fromkeys(
+            str(target)
+            for row in payload.get("required_target_rows", []) or []
+            if isinstance(row, Mapping)
+            for target in row.get("target_subsystems", []) or []
+            if str(target).strip()
+        )
+    )
+    payload["required_target_rows"] = [
+        {
+            "target_subsystems": (
+                required_target_subsystems
+                or list(GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS)
+            ),
+            "at_least_one_required_row_per_target": True,
+        }
+    ]
+    payload["prompt_projection"] = {
+        "transport": "large_metric_authoring_context_v1",
+        "duplicated_theory_tree_omitted": True,
+        "authority_leaf_content_lossless": True,
+        "provider_output_schema_bound_out_of_band": True,
+        "original_chars": original_chars,
+        "projected_chars": 0,
+    }
+    projected_chars = len(
+        json.dumps(
+            payload,
+            separators=(",", ":"),
+            default=str,
+            ensure_ascii=False,
+        )
+    )
+    payload["prompt_projection"]["projected_chars"] = projected_chars
+    return payload, {
+        "applied": True,
+        "original_chars": original_chars,
+        "projected_chars": projected_chars,
+        "authority_catalog_rows": len(catalog_rows),
+    }
 
 
 def _confirmatory_metric_requirement_rows(
@@ -1994,19 +2136,39 @@ def author_reviewed_architect_metric_requirements(
                     )
                 ),
             }
+        (
+            model_prompt_payload,
+            prompt_projection,
+        ) = _compact_metric_authoring_prompt_payload(
+            candidate_prompt_payload
+        )
+        request_user_prompt = json.dumps(
+            model_prompt_payload,
+            separators=(",", ":"),
+            default=str,
+            ensure_ascii=False,
+        )
+        request_max_tokens = min(
+            _METRIC_AUTHORING_LARGE_RESPONSE_TOKENS,
+            max(
+                1,
+                int(config.max_tokens),
+                (
+                    _METRIC_AUTHORING_LARGE_RESPONSE_TOKENS
+                    if prompt_projection["applied"]
+                    else 1
+                ),
+            ),
+        )
         request = GeneratorRequest(
             system_prompt=(
                 "You are the ArchitectMetricContractPlanner inside the AI Statistician. "
                 "Author domain-appropriate, executable empirical gates before either "
                 "coding agent sees the task. Return JSON only."
             ),
-            user_prompt=json.dumps(
-                candidate_prompt_payload,
-                separators=(",", ":"),
-                default=str,
-            ),
+            user_prompt=request_user_prompt,
             model=request_model,
-            max_tokens=min(max(1, int(config.max_tokens)), 8000),
+            max_tokens=request_max_tokens,
             temperature=0.0,
             schema=response_schema,
             metadata={
@@ -2016,6 +2178,10 @@ def author_reviewed_architect_metric_requirements(
                 "model_tier": config.model_tier,
                 "resolved_model": request_model,
                 "provider_structured_output": True,
+                "user_prompt_chars": len(request_user_prompt),
+                "metric_authoring_prompt_projection": dict(
+                    prompt_projection
+                ),
                 "semantic_review_revision_index": revision_index,
                 "semantic_review_feedback_packet_id": str(
                     prior_review_packet.get("packet_id", "") or ""

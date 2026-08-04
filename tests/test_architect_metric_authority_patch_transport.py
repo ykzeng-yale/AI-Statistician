@@ -11,6 +11,7 @@ from ai_statistician.architect_metric_authority_patch_transport import (
     metric_gate_authority_resolution_decisions,
 )
 from ai_statistician.architect_metric_contract_authoring import (
+    _compact_metric_authoring_prompt_payload,
     _metric_authoring_repair_context,
 )
 from ai_statistician.generated_metric_contract import (
@@ -42,6 +43,67 @@ CATALOG = [
         "explicit_numeric_values": [0.05],
     },
 ]
+
+
+def test_large_metric_authoring_prompt_uses_lossless_columnar_authority_context() -> None:
+    catalog = [
+        {
+            "anchor_id": f"theory#/theorem_cards/{index}/conclusion",
+            "authority_kind": "theory_derived",
+            "content": f"claim-{index}: " + ("bounded semantic content " * 12),
+            "explicit_numeric_values": [index / 100],
+        }
+        for index in range(180)
+    ]
+    payload = {
+        "task": "Author a metric contract.",
+        "question": {"id": "generic", "description": "Evaluate the method."},
+        "theory_developer_protocol_material": {
+            "artifact_kind": "RuntimeTheoryInformedMetricProtocolMaterial",
+            "source_theory_packet_id": "theory:generic",
+            "source_theory_packet_hash": "hash:generic",
+            "execution_results_available": False,
+            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+            "theory_semantic_material": {
+                "theorem_cards": [
+                    {"conclusion": row["content"]} for row in catalog
+                ],
+                "critic_findings": [{"finding": "Audit the finite interface."}],
+            },
+        },
+        "acceptance_authority_catalog": catalog,
+        "requirement_schema": {
+            "requirement_id": "string",
+            "target_subsystems": ["SimulationEngineer"],
+        },
+        "required_target_rows": [
+            {"target_subsystems": ["SimulationEngineer"]}
+        ],
+        "hard_requirements": ["Preserve exact source authority."],
+    }
+
+    compacted, evidence = _compact_metric_authoring_prompt_payload(payload)
+
+    assert evidence["applied"] is True
+    assert evidence["projected_chars"] < evidence["original_chars"]
+    projected_catalog = compacted["acceptance_authority_catalog"]
+    assert projected_catalog["transport"] == (
+        "lossless_columnar_authority_leaves_v1"
+    )
+    assert projected_catalog["row_count"] == len(catalog)
+    assert [
+        dict(zip(projected_catalog["columns"], row, strict=True))
+        for row in projected_catalog["rows"]
+    ] == catalog
+    compact_theory = compacted["theory_developer_protocol_material"]
+    assert compact_theory["source_theory_packet_id"] == "theory:generic"
+    assert "theory_semantic_material" not in compact_theory
+    assert compact_theory["non_authority_review_context"][
+        "critic_findings"
+    ] == [{"finding": "Audit the finite interface."}]
+    assert compacted["requirement_schema"]["transport"] == (
+        "provider_native_structured_output_schema"
+    )
 
 
 def _requirement(

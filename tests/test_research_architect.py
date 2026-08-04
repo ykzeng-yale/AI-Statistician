@@ -1160,10 +1160,11 @@ def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -
     ]
     assert all(
         set(variant["required"])
-        in (
-            {"section", "relative_path", "replacement"},
-            {"section", "relative_path", "replacement_json"},
-        )
+            in (
+                {"section", "relative_path", "replacement"},
+                {"section", "relative_path", "replacement_json"},
+                {"section", "relative_path", "remove"},
+            )
         for variant in update_variants
     )
     assert all(
@@ -1328,6 +1329,7 @@ def test_theory_revision_native_client_tools_preserve_model_owned_semantics() ->
     assert set(tools) == {
         "record_feedback_decision",
         "replace_artifact_value",
+        "append_artifact_list_item",
         "submit_revision",
     }
     assert tools["replace_artifact_value"].input_schema["properties"][
@@ -1339,6 +1341,9 @@ def test_theory_revision_native_client_tools_preserve_model_owned_semantics() ->
     assert "decision_key" not in tools[
         "record_feedback_decision"
     ].input_schema["properties"]
+    assert tools["append_artifact_list_item"].input_schema["properties"][
+        "item"
+    ] == {}
     assert (
         first_request.messages[0]["content"].count("replacement_json")
         == 0
@@ -1389,6 +1394,99 @@ def test_theory_revision_native_client_tools_preserve_model_owned_semantics() ->
     ] == "native_client_tools"
     assert packet["theory_generation_phases"][0]["client_tool_turns"] == 2
     assert packet["theory_generation_phases"][0]["client_tool_calls"] == 3
+
+
+def test_theory_revision_native_client_tools_append_model_authored_lemma() -> None:
+    parent = _serious_sample_response()
+    parent["estimator_specs"][0]["inputs"] = ["observations"]
+    parent["estimator_specs"][0]["outputs"] = ["estimate"]
+    question = OpenResearchQuestion(
+        id="native_tool_append",
+        title="Native client-tool list append",
+        description="Add a model-authored structural lemma without replacing a scalar.",
+    )
+    context = _metric_theory_revision_context(question=question, parent=parent)
+    revised_assumptions = [
+        *parent["problem_card"]["assumptions"],
+        "bounded outcomes",
+    ]
+    appended_lemma = {
+        "id": "bounded_outcome_moment_control",
+        "statement": "Bounded outcomes imply the finite moment used by the guarantee.",
+        "depends_on": ["identify_ate"],
+        "used_by": ["aipw_asymptotic_normality"],
+        "formalization_difficulty": "medium",
+    }
+    decision = _bounded_outcome_feedback_decisions()[
+        "metric_protocol_finding:bounded-outcome"
+    ]
+    provider = ScriptedTheoryToolBackend(
+        tool_responses=[
+            _tool_turn_response(
+                ClientToolCall(
+                    "toolu-decision",
+                    "record_feedback_decision",
+                    {"finding_index": 0, **decision},
+                ),
+                ClientToolCall(
+                    "toolu-assumptions",
+                    "replace_artifact_value",
+                    {
+                        "section": "problem_card",
+                        "relative_path": ["assumptions"],
+                        "replacement": revised_assumptions,
+                    },
+                ),
+                ClientToolCall(
+                    "toolu-append-lemma",
+                    "append_artifact_list_item",
+                    {
+                        "section": "lemma_cards",
+                        "relative_path": [],
+                        "item": appended_lemma,
+                    },
+                ),
+            ),
+            _tool_turn_response(
+                ClientToolCall("toolu-submit", "submit_revision", {})
+            ),
+        ],
+        generator_responses=[
+            {
+                "interfaces": {
+                    parent["estimator_specs"][0]["id"]: parent[
+                        "estimator_specs"
+                    ][0]["estimator_interface_contract"]
+                }
+            }
+        ],
+    )
+    developer = LLMTheoryDeveloperAgent(
+        provider=provider,
+        config=ResearchArchitectConfig(
+            provider_name="anthropic",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            serious_model_tier="haiku",
+        ),
+    )
+
+    packet = developer.derive(question, architect_context=context)
+
+    assert packet["ok"] is True
+    assert packet["lemma_cards"] == [*parent["lemma_cards"], appended_lemma]
+    assert packet["theory_revision_transport"]["applied_paths"] == [
+        ["problem_card", "assumptions"],
+        ["lemma_cards"],
+    ]
+    append_result = json.loads(
+        provider.tool_requests[1].messages[-1]["content"][2]["content"]
+    )
+    assert append_result["appended_index"] == 1
+    assert append_result["remaining_updates"] == (
+        append_result["maximum_updates"] - 2
+    )
 
 
 def test_theory_revision_hands_off_valid_candidate_at_turn_budget() -> None:
@@ -1552,6 +1650,17 @@ def test_theory_revision_client_tool_error_returns_to_same_model_context() -> No
                         "replacement": "invalid sibling nesting",
                     },
                 ),
+                ClientToolCall(
+                    "toolu-type-change",
+                    "replace_artifact_value",
+                    {
+                        "section": "theory_derivation_packet",
+                        "relative_path": ["derivation_steps", 0, "claim"],
+                        "replacement": {
+                            "id": "model_tried_to_add_a_row_in_a_scalar_slot"
+                        },
+                    },
+                ),
             ),
             _tool_turn_response(
                 ClientToolCall(
@@ -1604,6 +1713,14 @@ def test_theory_revision_client_tool_error_returns_to_same_model_context() -> No
     assert "full_path=['theory_derivation_packet', 'theorem_cards'" in (
         invalid_result["content"]
     )
+    type_result = next(
+        block
+        for block in feedback_blocks
+        if block["tool_use_id"] == "toolu-type-change"
+    )
+    assert type_result["is_error"] is True
+    assert "existing=string, replacement=object" in type_result["content"]
+    assert "append_artifact_list_item" in type_result["content"]
     assert packet["theory_revision_transport"]["path_normalizations"] == []
     assert packet["theory_revision_transport"]["applied_paths"] == [
         ["problem_card", "assumptions"]

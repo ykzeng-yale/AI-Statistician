@@ -334,6 +334,7 @@ def test_postexecution_router_replaces_result_driven_reviewer_instruction() -> N
                         ],
                         "source_theory_can_remain_unchanged": False,
                         "ownership_certainty": "resolved",
+                        "finding_actionability": "actionable_exact_delta",
                         "rationale": "This first target lacks artifact evidence.",
                     }
                 ]
@@ -349,6 +350,7 @@ def test_postexecution_router_replaces_result_driven_reviewer_instruction() -> N
                         ],
                         "source_theory_can_remain_unchanged": True,
                         "ownership_certainty": "resolved",
+                        "finding_actionability": "actionable_exact_delta",
                         "rationale": (
                             "The protocol and theory are coherent; exact source "
                             "behavior does not implement the required measurement."
@@ -692,6 +694,7 @@ def test_postexecution_ambiguous_dependency_owner_remains_unresolved() -> None:
                         {"artifact_role": "generated_source_artifact"},
                     ],
                     "ownership_certainty": "unresolved",
+                    "finding_actionability": "insufficient_evidence",
                     "rationale": (
                         "The available diagnostic cannot isolate the immutable "
                         "dependency from its current consumer."
@@ -842,6 +845,7 @@ def test_postexecution_router_canonicalizes_targeted_no_change_as_repair() -> No
                     ],
                     "source_theory_can_remain_unchanged": False,
                     "ownership_certainty": "resolved_no_change",
+                    "finding_actionability": "actionable_exact_delta",
                     "rationale": (
                         "The cited generated source must change and theory remains "
                         "sufficient."
@@ -1088,3 +1092,24 @@ def test_repair_ownership_schema_transforms_for_anthropic() -> None:
     decision = transformed["properties"]["decisions"]["items"]
     assert decision["properties"]["finding_index"]["type"] == "integer"
     assert "source_theory_can_remain_unchanged" not in decision["properties"]
+
+
+def test_postexecution_router_must_classify_finding_actionability() -> None:
+    from ai_statistician.architect_metric_repair_ownership_router_llm import (
+        architect_metric_repair_ownership_json_schema,
+    )
+
+    schema = architect_metric_repair_ownership_json_schema(
+        ARCHITECT_METRIC_REPAIR_ROUTING_PHASE_POSTEXECUTION
+    )
+    decision_schema = schema["properties"]["decisions"]["items"]
+
+    assert "finding_actionability" in decision_schema["required"]
+    assert set(
+        decision_schema["properties"]["finding_actionability"]["enum"]
+    ) == {
+        "actionable_exact_delta",
+        "no_distinct_delta",
+        "outside_source_responsibility",
+        "insufficient_evidence",
+    }

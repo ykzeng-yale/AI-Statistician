@@ -126,6 +126,15 @@ _TYPED_SEMANTIC_PATCH_SCHEMA: dict[str, Any] = {
                             "replacement_json": {"type": "string"},
                         },
                     },
+                    {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["path", "remove"],
+                        "properties": {
+                            "path": _TYPED_SEMANTIC_PATCH_PATH_SCHEMA,
+                            "remove": {"type": "boolean", "const": True},
+                        },
+                    },
                 ]
             },
         },
@@ -770,6 +779,10 @@ def _typed_semantic_patch_prompt(
                         "removing, or reordering rows"
                     ),
                 },
+                {
+                    "path": ["top_level_array", 2],
+                    "remove": True,
+                },
             ],
             "maximum_updates": max_updates,
         },
@@ -793,7 +806,8 @@ def _typed_semantic_patch_prompt(
                 "Array-index paths may replace existing elements only. Never use "
                 "an index equal to the current array length. To add, remove, or "
                 "reorder rows, target the containing array field and provide the "
-                "complete replacement array with replacement_json."
+                "complete replacement array with replacement_json. For one existing "
+                "array item, prefer remove=true at its exact index."
             ),
             (
                 "Use replacement directly only for a string, number, boolean, or "
@@ -803,7 +817,12 @@ def _typed_semantic_patch_prompt(
                 "Use replacement_json for every object or array, including arrays "
                 "of strings, and make "
                 "that string decode as exactly one valid JSON value. Include exactly "
-                "one of replacement or replacement_json in each update."
+                "one of replacement, replacement_json, or remove in each update."
+            ),
+            (
+                "Use remove=true only on an existing array-item path. Runtime removes "
+                "exactly that model-selected item and then reruns the unchanged "
+                "packet validator."
             ),
             (
                 "When several fields in one object must change, replace the "
@@ -915,12 +934,22 @@ def _apply_typed_semantic_patch(
         )
         has_direct_replacement = "replacement" in raw_update
         has_json_replacement = "replacement_json" in raw_update
-        if has_direct_replacement == has_json_replacement:
+        has_remove = "remove" in raw_update
+        if sum(
+            (has_direct_replacement, has_json_replacement, has_remove)
+        ) != 1:
             raise ValueError(
                 f"typed semantic patch update {update_index} must contain exactly "
-                "one of replacement or replacement_json"
+                "one of replacement, replacement_json, or remove"
             )
-        if has_direct_replacement:
+        if has_remove:
+            if raw_update.get("remove") is not True:
+                raise ValueError(
+                    f"typed semantic patch update {update_index} remove must be true"
+                )
+            _remove_typed_patch_path(patched, path=normalized_path)
+            replacement = None
+        elif has_direct_replacement:
             replacement = raw_update.get("replacement")
             if not _is_typed_semantic_patch_direct_replacement(replacement):
                 raise ValueError(
@@ -942,12 +971,13 @@ def _apply_typed_semantic_patch(
                     f"typed semantic patch update {update_index} replacement_json "
                     f"is invalid: {exc}"
                 ) from exc
-        _replace_typed_patch_path(
-            patched,
-            path=normalized_path,
-            replacement=replacement,
-            allow_new_object_keys=allow_new_object_keys,
-        )
+        if not has_remove:
+            _replace_typed_patch_path(
+                patched,
+                path=normalized_path,
+                replacement=replacement,
+                allow_new_object_keys=allow_new_object_keys,
+            )
         applied_paths.append(normalized_path)
         if stripped_prefixes:
             path_normalizations.append(
@@ -1074,6 +1104,56 @@ def _replace_typed_patch_path(
         parent[final_component] = replacement
         return
     raise ValueError("typed semantic patch replacement parent is a scalar")
+
+
+def _remove_typed_patch_path(
+    payload: dict[str, Any],
+    *,
+    path: list[str | int],
+) -> None:
+    parent: Any = payload
+    for depth, component in enumerate(path[:-1]):
+        if isinstance(parent, dict):
+            if not isinstance(component, str) or component not in parent:
+                available_keys = sorted(str(key) for key in parent)[:16]
+                raise ValueError(
+                    "typed semantic patch remove path does not resolve at component "
+                    f"{depth}: {component!r}; full_path={path!r}; "
+                    f"available_keys={available_keys!r}"
+                )
+            parent = parent[component]
+        elif isinstance(parent, list):
+            if (
+                not isinstance(component, int)
+                or isinstance(component, bool)
+                or component >= len(parent)
+            ):
+                raise ValueError(
+                    "typed semantic patch remove array path does not resolve at "
+                    f"component {depth}: {component!r}; full_path={path!r}; "
+                    f"array_length={len(parent)}"
+                )
+            parent = parent[component]
+        else:
+            raise ValueError(
+                "typed semantic patch remove path traverses a scalar at component "
+                f"{depth}: {component!r}; full_path={path!r}"
+            )
+
+    final_component = path[-1]
+    if not isinstance(parent, list):
+        raise ValueError(
+            "typed semantic patch remove requires an existing array-item path"
+        )
+    if (
+        not isinstance(final_component, int)
+        or isinstance(final_component, bool)
+        or final_component >= len(parent)
+    ):
+        raise ValueError(
+            "typed semantic patch remove requires an existing array index"
+        )
+    parent.pop(final_component)
 
 
 def _stable_payload_fingerprint(payload: Mapping[str, Any]) -> str:

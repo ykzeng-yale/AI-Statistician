@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Sequence
 
 from .client_tool_loop import (
     ClientToolExecutionResult,
@@ -358,6 +358,25 @@ def run_lean_candidate_revision_tool_loop(
     }
     tools = _lean_candidate_revision_tools()
 
+    def check_current_source() -> dict[str, Any]:
+        if state["checks"] >= max_checks:
+            raise ClientToolInputError(
+                "local Lean check budget is exhausted; submit only if the current "
+                "source already has a successful bound check"
+            )
+        raw_result = check_candidate(str(state["source"]))
+        if not isinstance(raw_result, Mapping):
+            raise ClientToolInputError("Lean checker returned a non-object result")
+        check_result = deepcopy(dict(raw_result))
+        observed_hash = str(check_result.get("source_hash", "") or "")
+        if observed_hash != state["source_hash"]:
+            raise ClientToolInputError(
+                "Lean checker result is not bound to the current source hash"
+            )
+        state["checks"] += 1
+        state["last_check"] = check_result
+        return check_result
+
     def execute_tool(call, context):
         del context
         tool_input = dict(call.input)
@@ -367,7 +386,10 @@ def run_lean_candidate_revision_tool_loop(
                     "replace_lean_source requires exactly lean_source"
                 )
             if state["source_updates"] >= max_source_updates:
-                raise ClientToolInputError("Lean source-update budget is exhausted")
+                raise ClientToolInputError(
+                    "Lean source-update budget is exhausted; check and submit the "
+                    "current source or stop this bounded attempt"
+                )
             source = tool_input.get("lean_source")
             if not isinstance(source, str) or not source.strip():
                 raise ClientToolInputError("lean_source must be a nonempty string")
@@ -389,6 +411,9 @@ def run_lean_candidate_revision_tool_loop(
                     "source_hash": source_hash,
                     "source_updates": state["source_updates"],
                     "maximum_source_updates": max_source_updates,
+                    "remaining_source_updates": (
+                        max_source_updates - state["source_updates"]
+                    ),
                 },
                 state_changed=changed,
                 observation_key="source:" + source_hash,
@@ -400,7 +425,10 @@ def run_lean_candidate_revision_tool_loop(
                     "search_formal_environment accepts query and optional max_results"
                 )
             if state["searches"] >= max_searches:
-                raise ClientToolInputError("formal-environment search budget is exhausted")
+                raise ClientToolInputError(
+                    "formal-environment search budget is exhausted; use the returned "
+                    "signatures to edit, check, and submit the current source"
+                )
             query = tool_input.get("query")
             if not isinstance(query, str) or not query.strip():
                 raise ClientToolInputError("search query must be a nonempty string")
@@ -416,6 +444,7 @@ def run_lean_candidate_revision_tool_loop(
                 "results": deepcopy(results),
                 "searches": state["searches"],
                 "maximum_searches": max_searches,
+                "remaining_searches": max_searches - state["searches"],
                 "proof_evidence_status": "FORMAL_SOURCE_SEARCH_NOT_PROOF_EVIDENCE",
             }
             return ClientToolExecutionResult(
@@ -432,25 +461,14 @@ def run_lean_candidate_revision_tool_loop(
         if call.name == "check_lean_source":
             if tool_input:
                 raise ClientToolInputError("check_lean_source takes an empty object")
-            if state["checks"] >= max_checks:
-                raise ClientToolInputError("local Lean check budget is exhausted")
-            raw_result = check_candidate(str(state["source"]))
-            if not isinstance(raw_result, Mapping):
-                raise ClientToolInputError("Lean checker returned a non-object result")
-            check_result = deepcopy(dict(raw_result))
-            observed_hash = str(check_result.get("source_hash", "") or "")
-            if observed_hash != state["source_hash"]:
-                raise ClientToolInputError(
-                    "Lean checker result is not bound to the current source hash"
-                )
-            state["checks"] += 1
-            state["last_check"] = check_result
+            check_result = check_current_source()
             compiled = bool(check_result.get("compiled", False))
             content = {
                 **check_result,
                 "ok": compiled,
                 "checks": state["checks"],
                 "maximum_checks": max_checks,
+                "remaining_checks": max_checks - state["checks"],
                 "proof_evidence_status": (
                     "LOCAL_LEAN_OBSERVATION_REQUIRES_RUNTIME_PROMOTION_GATE"
                 ),
@@ -536,20 +554,91 @@ def run_lean_candidate_revision_tool_loop(
             max_no_progress_turns=max_no_progress_turns,
         )
     except ClientToolLoopError as exc:
+        final_runtime_check_performed = False
+        last_check = state["last_check"]
+        current_check_bound = bool(
+            str(last_check.get("source_hash", "") or "") == state["source_hash"]
+        )
+        current_check_passed = bool(
+            current_check_bound and last_check.get("compiled", False)
+        )
+        if (
+            exc.reason == "global client-tool turn budget exhausted"
+            and not current_check_bound
+            and state["checks"] < max_checks
+        ):
+            final_runtime_check_performed = True
+            try:
+                last_check = check_current_source()
+            except Exception as final_check_exc:  # pragma: no cover - defensive tool path
+                state["checks"] += 1
+                last_check = {
+                    "source_hash": state["source_hash"],
+                    "compiled": False,
+                    "checker_error": type(final_check_exc).__name__,
+                }
+                state["last_check"] = last_check
+            current_check_passed = bool(
+                str(last_check.get("source_hash", "") or "") == state["source_hash"]
+                and last_check.get("compiled", False)
+            )
+        if (
+            exc.reason == "global client-tool turn budget exhausted"
+            and current_check_passed
+        ):
+            return _lean_candidate_revision_success_result(
+                source=str(state["source"]),
+                check_result=last_check,
+                state=state,
+                candidate_id=candidate_id,
+                candidate_lean_declaration=candidate_lean_declaration,
+                parent_source_hash=parent_source_hash,
+                tools=tools,
+                max_turns=max_turns,
+                max_tool_calls=max_tool_calls,
+                max_no_progress_turns=max_no_progress_turns,
+                turns=exc.turns,
+                tool_calls=exc.tool_calls,
+                runtime_executed_tool_calls=exc.runtime_executed_tool_calls,
+                runtime_verifier_checks=(1 if final_runtime_check_performed else 0),
+                provider=exc.provider,
+                model=exc.model or model,
+                model_tier=model_tier,
+                provider_usage=exc.provider_usage,
+                response_metadata=exc.final_response_metadata,
+                history=exc.history,
+                transcript_fingerprint=exc.transcript_fingerprint,
+                handoff_mode="turn_budget_runtime_validated_candidate",
+                model_explicit_submit=False,
+                budget_exhausted=True,
+            )
         raise PacketValidationError(
             validation_label="LLM Formalizer Lean candidate client-tool repair",
             attempts=exc.turns,
             errors=[exc.reason],
             history=[deepcopy(dict(row)) for row in exc.history],
             recovery_checkpoint={
+                "schema_version": 1,
+                "artifact_kind": "LeanCandidateRevisionRecoveryCheckpoint",
                 "candidate_id": candidate_id,
                 "candidate_lean_declaration": candidate_lean_declaration,
                 "parent_source_hash": parent_source_hash,
                 "current_source_hash": state["source_hash"],
+                "current_source": state["source"],
                 "source_updates": state["source_updates"],
                 "searches": state["searches"],
                 "checks": state["checks"],
                 "last_check": deepcopy(state["last_check"]),
+                "turns": exc.turns,
+                "tool_calls": exc.tool_calls,
+                "transcript_fingerprint": exc.transcript_fingerprint,
+                "provider": exc.provider,
+                "model": exc.model or model,
+                "model_tier": model_tier,
+                "final_runtime_check_performed": final_runtime_check_performed,
+                "runtime_selected_lean_code": False,
+                "model_owned_lean_code": True,
+                "kernel_verified": False,
                 "proof_evidence_status": "CLIENT_TOOL_REPAIR_CHECKPOINT_NOT_PROOF_EVIDENCE",
             },
         ) from exc
@@ -572,6 +661,62 @@ def run_lean_candidate_revision_tool_loop(
             history=[deepcopy(dict(row)) for row in loop.history],
         )
 
+    return _lean_candidate_revision_success_result(
+        source=source,
+        check_result=check_result,
+        state=state,
+        candidate_id=candidate_id,
+        candidate_lean_declaration=candidate_lean_declaration,
+        parent_source_hash=parent_source_hash,
+        tools=tools,
+        max_turns=max_turns,
+        max_tool_calls=max_tool_calls,
+        max_no_progress_turns=max_no_progress_turns,
+        turns=loop.turns,
+        tool_calls=loop.tool_calls,
+        runtime_executed_tool_calls=loop.runtime_executed_tool_calls,
+        runtime_verifier_checks=0,
+        provider=loop.provider,
+        model=loop.model,
+        model_tier=model_tier,
+        provider_usage=loop.provider_usage,
+        response_metadata=loop.final_response_metadata,
+        history=loop.history,
+        transcript_fingerprint=loop.transcript_fingerprint,
+        handoff_mode="model_submit",
+        model_explicit_submit=True,
+        budget_exhausted=False,
+    )
+
+
+def _lean_candidate_revision_success_result(
+    *,
+    source: str,
+    check_result: Mapping[str, Any],
+    state: Mapping[str, Any],
+    candidate_id: str,
+    candidate_lean_declaration: str,
+    parent_source_hash: str,
+    tools: tuple[ClientToolDefinition, ...],
+    max_turns: int,
+    max_tool_calls: int,
+    max_no_progress_turns: int,
+    turns: int,
+    tool_calls: int,
+    runtime_executed_tool_calls: int,
+    runtime_verifier_checks: int,
+    provider: str,
+    model: str,
+    model_tier: str,
+    provider_usage: Mapping[str, int],
+    response_metadata: Mapping[str, Any],
+    history: Sequence[Mapping[str, Any]],
+    transcript_fingerprint: str,
+    handoff_mode: str,
+    model_explicit_submit: bool,
+    budget_exhausted: bool,
+) -> LeanCandidateRevisionToolLoopResult:
+    source_hash = stable_hash(source)
     evidence = {
         "schema_version": 1,
         "artifact_kind": "LeanCandidateRevisionClientToolLoop",
@@ -581,9 +726,10 @@ def run_lean_candidate_revision_tool_loop(
         "parent_source_hash": parent_source_hash,
         "submitted_source_hash": source_hash,
         "source_changed": source_hash != parent_source_hash,
-        "turns": loop.turns,
-        "tool_calls": loop.tool_calls,
-        "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
+        "turns": turns,
+        "tool_calls": tool_calls,
+        "runtime_executed_tool_calls": runtime_executed_tool_calls,
+        "runtime_verifier_checks": runtime_verifier_checks,
         "max_turns": max_turns,
         "max_tool_calls": max_tool_calls,
         "max_no_progress_turns": max_no_progress_turns,
@@ -592,14 +738,22 @@ def run_lean_candidate_revision_tool_loop(
         "formal_environment_searches": state["searches"],
         "local_lean_checks": state["checks"],
         "latest_check_compiled": True,
-        "provider": loop.provider,
-        "model": loop.model,
+        "provider": provider,
+        "model": model,
         "model_tier": model_tier,
-        "provider_usage": dict(loop.provider_usage),
-        "history": [deepcopy(dict(row)) for row in loop.history],
-        "transcript_fingerprint": loop.transcript_fingerprint,
-        "tools_executed_by_runtime": True,
-        "tools_executed_by_backend": False,
+        "provider_usage": dict(provider_usage),
+        "history": [deepcopy(dict(row)) for row in history],
+        "transcript_fingerprint": transcript_fingerprint,
+        "handoff_mode": handoff_mode,
+        "model_explicit_submit": model_explicit_submit,
+        "budget_exhausted": budget_exhausted,
+        "local_candidate_validation_passed": True,
+        "tools_executed_by_runtime": bool(
+            runtime_executed_tool_calls or runtime_verifier_checks
+        ),
+        "tools_executed_by_backend": bool(
+            response_metadata.get("tools_executed_by_backend", False)
+        ),
         "runtime_selected_lean_code": False,
         "model_owned_lean_code": True,
         "independent_semantic_review_required": True,

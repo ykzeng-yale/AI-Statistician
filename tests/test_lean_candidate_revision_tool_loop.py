@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.agent_runtime import AgentTask, BlackboardState
 from ai_statistician.lean_candidate_revision_tool_loop import (
@@ -247,6 +249,229 @@ def test_lean_candidate_tool_loop_stops_repeated_identical_checks() -> None:
         raise AssertionError("repeated identical Lean checks did not stop")
 
 
+def test_lean_candidate_tool_loop_checks_latest_edit_at_turn_budget() -> None:
+    initial = "theorem target : True := by exact True.intro\n"
+    repaired = "theorem target : True := by\n  exact True.intro\n"
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(ClientToolCall("check-initial", "check_lean_source", {})),
+            _response(
+                ClientToolCall(
+                    "edit-final",
+                    "replace_lean_source",
+                    {"lean_source": repaired},
+                )
+            ),
+        ]
+    )
+    checked_sources: list[str] = []
+
+    def check(source: str):
+        checked_sources.append(source)
+        return {
+            "source_hash": stable_hash(source),
+            "compiled": source == repaired,
+            "local_lean_stderr": "" if source == repaired else "initial failure",
+        }
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Repair this target.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=2,
+        max_source_updates=1,
+        max_searches=1,
+        max_checks=2,
+        max_no_progress_turns=2,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="target",
+        initial_source=initial,
+        check_candidate=check,
+        search_formal_environment=lambda query, k: [],
+    )
+
+    assert result.lean_source == repaired
+    assert checked_sources == [initial, repaired]
+    assert result.evidence["handoff_mode"] == (
+        "turn_budget_runtime_validated_candidate"
+    )
+    assert result.evidence["model_explicit_submit"] is False
+    assert result.evidence["budget_exhausted"] is True
+    assert result.evidence["runtime_verifier_checks"] == 1
+    assert result.evidence["local_lean_checks"] == 2
+    assert result.evidence["kernel_verified"] is False
+
+
+def test_lean_candidate_tool_loop_preserves_uncompiled_latest_edit_checkpoint() -> None:
+    initial = "theorem target : True := by exact True.intro\n"
+    latest = "theorem target : False := by exact False.elim (by contradiction)\n"
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "edit-final",
+                    "replace_lean_source",
+                    {"lean_source": latest},
+                )
+            )
+        ]
+    )
+
+    try:
+        run_lean_candidate_revision_tool_loop(
+            provider=backend,
+            system_prompt="Use tools.",
+            user_prompt="Repair this target.",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            temperature=0.0,
+            max_tokens=1200,
+            max_turns=1,
+            max_source_updates=1,
+            max_searches=1,
+            max_checks=1,
+            max_no_progress_turns=1,
+            candidate_id="target-candidate",
+            candidate_lean_declaration="target",
+            initial_source=initial,
+            check_candidate=lambda source: {
+                "source_hash": stable_hash(source),
+                "compiled": False,
+                "local_lean_stderr": "type mismatch",
+            },
+            search_formal_environment=lambda query, k: [],
+        )
+    except PacketValidationError as exc:
+        checkpoint = exc.recovery_checkpoint
+        assert checkpoint is not None
+        assert checkpoint["artifact_kind"] == (
+            "LeanCandidateRevisionRecoveryCheckpoint"
+        )
+        assert checkpoint["current_source"] == latest
+        assert checkpoint["current_source_hash"] == stable_hash(latest)
+        assert checkpoint["last_check"]["local_lean_stderr"] == "type mismatch"
+        assert checkpoint["final_runtime_check_performed"] is True
+        assert checkpoint["model_owned_lean_code"] is True
+        assert checkpoint["kernel_verified"] is False
+    else:
+        raise AssertionError("uncompiled final source was not checkpointed")
+
+
+def test_lean_candidate_prompt_uses_just_in_time_compact_context() -> None:
+    prompt = formalizer_module._build_lean_candidate_revision_tool_prompt(
+        question=OpenResearchQuestion(
+            id="compact-context",
+            title="Compact Lean context",
+            description="Keep exact target context and retrieve signatures on demand.",
+        ),
+        parent_packet={"packet_id": "formalizer_proposal:compact"},
+        candidate_id="target-candidate",
+        candidate_source_field="formal_targets",
+        candidate_lean_declaration="target",
+        initial_source="theorem target : True := by\n  exact True.intro\n",
+        environment_feedback={
+            "feedback_type": "formal_target_semantic_review_feedback",
+            "overall_verdict": "ACCEPT",
+            "candidate_id": "target-candidate",
+            "proofengineer_repair_context": {
+                "target_lean_declaration": "target",
+                "target_theorem_statement": "theorem target : True",
+                "target_theorem_statement_hash": "target-hash",
+                "formalizer_candidate_semantic_review_status": (
+                    "INDEPENDENT_SEMANTIC_REVIEW_ACCEPTED_NOT_PROOF_EVIDENCE"
+                ),
+                "proof_state_trace_rag": {"hits": ["x" * 30000]},
+                "candidate_rerun_specs": ["y" * 30000],
+                "formal_source_grounding_hits": [{"hits": ["z" * 30000]}],
+            },
+            "reviewed_source_artifacts": [
+                {"exact_source_code": "duplicate" * 5000}
+            ],
+            "candidate_diagnostics": [
+                {
+                    "candidate_id": "target-candidate",
+                    "source_hash": "candidate-hash",
+                    "lean_source_excerpt": "duplicate" * 5000,
+                    "local_lean_stderr_excerpt": "type mismatch",
+                }
+            ],
+        },
+    )
+
+    payload = json.loads(prompt)
+    feedback = payload["runtime_feedback"]
+    repair = feedback["proofengineer_repair_context"]
+    assert repair["target_theorem_statement"] == "theorem target : True"
+    assert "proof_state_trace_rag" not in repair
+    assert "candidate_rerun_specs" not in repair
+    assert "formal_source_grounding_hits" not in repair
+    assert "reviewed_source_artifacts" not in feedback["formal_target_semantic_review"]
+    assert "lean_source_excerpt" not in feedback["candidate_diagnostics"][0]
+    assert len(prompt) < 12000
+
+
+def test_formalizer_validation_failure_routes_model_source_checkpoint() -> None:
+    latest = "theorem target : True := by\n  exact True.intro\n"
+    checkpoint = {
+        "schema_version": 1,
+        "artifact_kind": "LeanCandidateRevisionRecoveryCheckpoint",
+        "candidate_id": "target-candidate",
+        "candidate_lean_declaration": "target",
+        "parent_source_hash": "parent-hash",
+        "current_source_hash": stable_hash(latest),
+        "current_source": latest,
+        "last_check": {
+            "source_hash": stable_hash(latest),
+            "compiled": False,
+            "local_lean_stderr": "type mismatch",
+        },
+        "model_owned_lean_code": True,
+        "runtime_selected_lean_code": False,
+        "kernel_verified": False,
+        "proof_evidence_status": (
+            "CLIENT_TOOL_REPAIR_CHECKPOINT_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    question = OpenResearchQuestion(
+        id="checkpoint-routing",
+        title="Route model source checkpoint",
+        description="Preserve the latest model candidate across bounded repair tasks.",
+    )
+    result = runtime_module._formalizer_packet_validation_failure_result(
+        task=AgentTask(
+            task_id="formalize:checkpoint-routing",
+            owner_subsystem="FormalizationEvaluator",
+            objective="Continue the bounded model repair.",
+            inputs={"environment_feedback": {}},
+        ),
+        question=question,
+        theory_packet_id="theory:checkpoint",
+        simulation_manifest_id="simulation:checkpoint",
+        algorithm_sandbox_manifest_id="algorithm:checkpoint",
+        proof_bank_runtime_memory_summary={},
+        exc=PacketValidationError(
+            validation_label="LLM Formalizer Lean candidate client-tool repair",
+            attempts=2,
+            errors=["global client-tool turn budget exhausted"],
+            history=[],
+            recovery_checkpoint=checkpoint,
+        ),
+    )
+
+    assert result.next_task is not None
+    routed = result.next_task.inputs["environment_feedback"][
+        "formalizer_recovery_checkpoint"
+    ]
+    assert routed == checkpoint
+    failure = next(iter(result.produced_artifacts.values()))
+    assert failure["formalizer_recovery_checkpoint"]["current_source"] == latest
+    assert failure["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
+
+
 def test_runtime_client_tool_repair_requires_independent_target_acceptance(
     tmp_path,
     monkeypatch,
@@ -450,6 +675,51 @@ def test_runtime_client_tool_repair_requires_independent_target_acceptance(
     assert evidence["parent_materialization_manifest_id"] == materialization_id
     assert evidence["parent_formalizer_packet_id"] == parent_packet_id
     assert evidence["model"] == DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_proofengineer_formal_source_grounding_hit_groups",
+        lambda *args, **kwargs: [
+            {
+                "query": "target declaration",
+                "query_role": "model_selected_lean_repair_query",
+                "hits": [
+                    {
+                        "source_id": "active-project",
+                        "path": "/tmp/Target.lean",
+                        "line": 7,
+                        "name": "Target.support",
+                        "signature": "Target.support (h : True) : True",
+                        "documentation": "large provenance " * 5000,
+                    }
+                ],
+            }
+        ],
+    )
+    compact_agent = FakeAgent()
+    compact_result = runtime_module._runtime_formalizer_lean_candidate_client_tool_repair(
+        proposal_agent=compact_agent,
+        question=question,
+        task=task,
+        blackboard=blackboard,
+        theory_packet={},
+        environment_feedback=feedback,
+        proof_bank_runtime_memory_summary={},
+        formal_source_retriever=object(),
+        lean_candidate_root=tmp_path / "candidates",
+        lean_candidate_local_lean=True,
+        lean_candidate_lean_project=tmp_path,
+        lean_candidate_lean_timeout=5,
+    )
+    assert compact_result is not None
+    assert compact_agent.search_result["retrieval_status"] == (
+        "prompt_safe_signature_hits"
+    )
+    assert compact_agent.search_result["hits"][0]["signature"] == (
+        "Target.support (h : True) : True"
+    )
+    assert "documentation" not in compact_agent.search_result["hits"][0]
+    assert len(json.dumps(compact_agent.search_result)) < 5600
 
     rejected = runtime_module._runtime_formalizer_lean_candidate_client_tool_repair(
         proposal_agent=agent,

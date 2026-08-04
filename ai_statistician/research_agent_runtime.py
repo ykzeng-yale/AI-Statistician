@@ -294,6 +294,7 @@ from .model_backend import (
 )
 from .formal_source_index import FormalSourceHit, FormalSourceRetriever
 from .formal_source_prompt_context import (
+    compact_formal_source_grounding_hits_for_prompt,
     formal_source_context_for_hit,
     formalizer_feedback_with_task_bound_formal_source_queries,
     prompt_safe_formal_source_provenance,
@@ -13574,10 +13575,13 @@ def _runtime_generated_code_semantic_review_source_responsibility_contract(
         "sibling_only_requirement_refs": sibling_only_refs,
         "artifact_review_rule": (
             "Judge this artifact against its assigned empirical requirements, "
-            "its source proposal's explicit implementation claims, the supplied "
-            "theory assumptions, and the exact executed behavior. Do not require "
-            "one artifact to implement requirements assigned only to a sibling "
-            "generated-code author."
+            "its source proposal's explicit implementation claims, exact bindings "
+            "to supplied theory premises, and the exact executed behavior. A theory "
+            "premise is not automatically a requirement for finite-data code to "
+            "test or prove that premise at runtime. Require an observable check only "
+            "when an assigned protocol, interface precondition, or explicit source "
+            "claim owns it. Do not require one artifact to implement requirements "
+            "assigned only to a sibling generated-code author."
         ),
         "system_coverage_owner": "CriticEvaluator",
         "system_coverage_rule": (
@@ -28434,6 +28438,11 @@ def _formalizer_packet_validation_failure_result(
         if isinstance(exc.last_invalid_packet, Mapping)
         else {}
     )
+    formalizer_recovery_checkpoint = (
+        deepcopy(dict(exc.recovery_checkpoint))
+        if isinstance(exc.recovery_checkpoint, Mapping)
+        else {}
+    )
     failure_id = (
         "formalizer_validation_failure:"
         + stable_hash(
@@ -28443,6 +28452,7 @@ def _formalizer_packet_validation_failure_result(
                 validation_errors,
                 exc.history,
                 last_invalid_packet,
+                formalizer_recovery_checkpoint,
             ]
         )[:20]
     )
@@ -28808,6 +28818,7 @@ def _formalizer_packet_validation_failure_result(
         "local_lean_repair_contract": active_local_lean_repair_contract,
         "candidate_diagnostics": active_candidate_diagnostics,
         "proofengineer_repair_context": active_proofengineer_repair_context,
+        "formalizer_recovery_checkpoint": formalizer_recovery_checkpoint,
         "formal_blocker_resource_requests": active_formal_blocker_resource_requests,
         "candidate_reroute_options": active_candidate_reroute_options,
     }
@@ -35046,7 +35057,18 @@ def _runtime_formalizer_lean_candidate_client_tool_repair(
             k=k,
             max_groups=1,
         )
-        return groups[0] if groups else {"query": query, "hits": []}
+        compact_groups = compact_formal_source_grounding_hits_for_prompt(groups)
+        if not compact_groups:
+            return {
+                "query": query,
+                "hits": [],
+                "retrieval_status": "no_prompt_safe_formal_source_hits",
+            }
+        return {
+            "query": query,
+            **compact_groups[0],
+            "retrieval_status": "prompt_safe_signature_hits",
+        }
 
     revised_packet, loop_evidence = (
         proposal_agent.repair_lean_candidate_with_client_tools(

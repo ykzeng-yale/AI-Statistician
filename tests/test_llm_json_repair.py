@@ -1146,7 +1146,7 @@ def test_semantic_patch_focuses_validator_named_rows_at_original_indices() -> No
                 "replacement": "valid",
                 "replacement_json": json.dumps("valid"),
             },
-            "exactly one of replacement or replacement_json",
+            "exactly one of replacement, replacement_json, or remove",
         ),
     ],
 )
@@ -1224,6 +1224,45 @@ def test_typed_semantic_patch_allows_any_existing_payload_depth() -> None:
         "maxItems" not in variant["properties"]["path"]
         for variant in update_variants
     )
+
+
+def test_typed_semantic_patch_removes_exact_model_selected_array_item() -> None:
+    patched, applied_paths, normalizations = _apply_typed_semantic_patch(
+        base_payload={"rows": [{"id": "keep"}, {"id": "remove"}]},
+        expected_base_fingerprint="base-fingerprint",
+        patch_envelope={
+            "base_payload_fingerprint": "base-fingerprint",
+            "updates": [
+                {
+                    "path": ["rows", 1],
+                    "remove": True,
+                }
+            ],
+        },
+        max_updates=4,
+    )
+
+    assert patched == {"rows": [{"id": "keep"}]}
+    assert applied_paths == [["rows", 1]]
+    assert normalizations == []
+
+
+def test_typed_semantic_patch_remove_rejects_object_field_deletion() -> None:
+    with pytest.raises(ValueError, match="existing array-item path"):
+        _apply_typed_semantic_patch(
+            base_payload={"status": "invalid"},
+            expected_base_fingerprint="base-fingerprint",
+            patch_envelope={
+                "base_payload_fingerprint": "base-fingerprint",
+                "updates": [
+                    {
+                        "path": ["status"],
+                        "remove": True,
+                    }
+                ],
+            },
+            max_updates=4,
+        )
 
 
 def test_semantic_patch_does_not_strip_a_real_wrapper_named_payload_field() -> None:
