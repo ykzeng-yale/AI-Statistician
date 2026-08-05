@@ -1211,6 +1211,7 @@ def _normalize_packet(
         if str(row.get("finding_id", "") or "").strip()
         and str(row.get("finding_id", "") or "") not in prior_active_ids
     ]
+    progress_made = bool(resolved_prior_ids or new_finding_ids)
     body["cumulative_finding_ledger"] = cumulative_finding_ledger
     body["cumulative_finding_ledger_fingerprint"] = (
         metric_protocol_finding_ledger_fingerprint(cumulative_finding_ledger)
@@ -1227,8 +1228,8 @@ def _normalize_packet(
             if finding_id in active_finding_ids
         ],
         "new_finding_ids": new_finding_ids,
-        "progress_made": bool(resolved_prior_ids),
-        "stalled": bool(prior_active_ids and not resolved_prior_ids),
+        "progress_made": progress_made,
+        "stalled": bool(prior_active_ids and not progress_made),
     }
     return {
         "schema_version": ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION,

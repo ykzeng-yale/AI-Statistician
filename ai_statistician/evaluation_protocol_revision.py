@@ -660,12 +660,19 @@ def architect_preexecution_metric_protocol_rejection_result(
         if isinstance(prior_finding_resolution_summary, Mapping)
         else {}
     )
+    prior_finding_progress_made = bool(
+        prior_finding_resolution_summary.get("progress_made", False)
+    )
+    if not prior_finding_progress_made:
+        prior_finding_progress_made = bool(
+            prior_finding_resolution_summary.get("new_finding_ids", [])
+        )
     preflight_revision_progressed = bool(
         not theory_execution_preflight_rejected
         or not prior_finding_resolution_summary.get(
             "prior_active_finding_ids", []
         )
-        or prior_finding_resolution_summary.get("progress_made") is True
+        or prior_finding_progress_made
     )
     route_upstream_theory = bool(
         recommended_repair_scope

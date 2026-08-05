@@ -1047,3 +1047,103 @@ def test_preflight_stops_when_a_revision_closes_no_prior_finding() -> None:
     manifest = next(iter(result.produced_artifacts.values()))
     assert manifest["preflight_revision_stalled"] is True
     assert manifest["upstream_theory_revision_routed"] is False
+
+
+def test_preflight_continues_when_new_findings_arrive() -> None:
+    rejected_packet, _backend = _review(accept=False)
+    prior_finding_id = rejected_packet["active_unresolved_finding_ids"][0]
+    new_finding_id = "theory:newly_discovered_support_gap"
+    history = [
+        {
+            "revision_index": 1,
+            "review_stage": "theory_execution_preflight",
+            "source_theory_packet_id": "theory_derivation:generic-revision",
+            "source_theory_packet_hash": "revised-theory-hash",
+            "semantic_review_packet_id": rejected_packet["packet_id"],
+            "semantic_review_packet_hash": stable_hash(rejected_packet),
+            "overall_verdict": "REVISE",
+            "recommended_repair_scope": "upstream_theory",
+            "dimension_reviews": rejected_packet["dimension_reviews"],
+            "estimator_execution_checks": rejected_packet[
+                "estimator_execution_checks"
+            ],
+            "findings": [
+                {
+                    "severity": "medium",
+                    "category": "support_coverage_gap",
+                    "summary": (
+                        "Need explicit support conditions for right-censoring under "
+                        "resource bounds."
+                    ),
+                    "required_change": (
+                        "Document finite-horizon behavior as a separate branch."
+                    ),
+                    "evidence_refs": ["theory.estimator_specs"],
+                    "finding_id": prior_finding_id,
+                },
+                {
+                    "severity": "low",
+                    "category": "proof_lemma_dependency",
+                    "summary": (
+                        "Need a finite-outcome support lemma for the new branch."
+                    ),
+                    "required_change": (
+                        "Add a lemma chain for finite-outcome transport."
+                    ),
+                    "evidence_refs": ["theory.estimator_specs"],
+                    "finding_id": new_finding_id,
+                },
+            ],
+            "repair_instructions": rejected_packet["repair_instructions"],
+            "cumulative_finding_ledger": rejected_packet[
+                "cumulative_finding_ledger"
+            ],
+            "active_unresolved_finding_ids": [
+                prior_finding_id,
+                new_finding_id,
+            ],
+            "prior_finding_resolution_summary": {
+                "prior_active_finding_ids": [prior_finding_id],
+                "resolved_prior_finding_ids": [],
+                "still_unresolved_prior_finding_ids": [prior_finding_id],
+                "new_finding_ids": [new_finding_id],
+                "progress_made": True,
+                "stalled": False,
+            },
+        }
+    ]
+
+    result = architect_preexecution_metric_protocol_rejection_result(
+        task=AgentTask(
+            task_id="architect:generic-preflight-new-finding",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Continue revision after reviewer broadens findings.",
+        ),
+        question=_question(),
+        semantic_review_history=history,
+        architect_context={
+            "theory_packet_id": "theory_derivation:generic-revision",
+            "architect_metric_protocol_gate": {
+                "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+                "source_theory_packet_id": (
+                    "theory_derivation:generic-revision"
+                ),
+                "upstream_theory_revision_count": 1,
+                "execution_authorized": False,
+            },
+        },
+        max_upstream_theory_revisions=2,
+    )
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    assert result.failure_classification == (
+        "architect_metric_protocol_upstream_theory_revision_requested"
+    )
+    assert result.next_task.inputs["environment_feedback"]["trigger"] == (
+        "THEORY_EXECUTION_PREFLIGHT_REQUIRES_UPSTREAM_THEORY_REVISION"
+    )
+    manifest = next(iter(result.produced_artifacts.values()))
+    assert manifest["preflight_revision_stalled"] is False
+    assert manifest["upstream_theory_revision_routed"] is True
