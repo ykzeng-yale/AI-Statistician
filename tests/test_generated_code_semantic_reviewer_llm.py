@@ -2319,9 +2319,105 @@ def test_actionable_review_requires_a_distinct_authority_bound_delta(
         uncited_authority,
         review_material=review_material,
     )
-    assert any("exact artifact locator selected" in error for error in authority_errors)
-    assert any("required_citation=" in error for error in authority_errors)
+    assert any("artifact scope selected" in error for error in authority_errors)
+    assert any(
+        "obligation_ref='implementation_target:generated-estimator'" in error
+        for error in authority_errors
+    )
+    assert not any("{obligation_ref!r}" in error for error in authority_errors)
+    assert any("required_authority_scope=" in error for error in authority_errors)
     assert any("make it advisory" in error for error in authority_errors)
+
+    precise_authority = json.loads(json.dumps(packet))
+    for citation in precise_authority["findings"][0]["evidence_citations"]:
+        if citation["locator"] == (
+            "/coding_agent_proposal_packet/implementation_targets/0"
+        ):
+            citation["locator"] += "/estimator_id"
+    precise_authority_errors = validate_generated_code_semantic_review_packet(
+        precise_authority,
+        review_material=review_material,
+    )
+    assert not any(
+        "artifact scope selected" in error
+        for error in precise_authority_errors
+    )
+
+    mismatched_current_artifact = json.loads(json.dumps(packet))
+    mismatched_current_artifact["findings"][0]["evidence_citations"] = [
+        citation
+        for citation in mismatched_current_artifact["findings"][0][
+            "evidence_citations"
+        ]
+        if citation
+        != {
+            "artifact_role": "generated_source_artifact",
+            "locator": "/exact_source_code",
+        }
+    ]
+    mismatched_current_errors = validate_generated_code_semantic_review_packet(
+        mismatched_current_artifact,
+        review_material=review_material,
+    )
+    assert any(
+        "required_current_citation="
+        "generated_source_artifact#/exact_source_code" in error
+        for error in mismatched_current_errors
+    )
+    assert any(
+        "revise both the model-authored current artifact locator and its citation"
+        in error
+        for error in mismatched_current_errors
+    )
+
+
+def test_actionable_review_accepts_precise_descendant_authority_citation(
+    tmp_path: Path,
+) -> None:
+    response = _review_response(
+        accept=False,
+        repair_scope="upstream_metric_contract",
+    )
+    finding = response["findings"][0]
+    for citation in finding["evidence_citations"]:
+        if citation["locator"] == "/empirical_metric_requirements/0":
+            citation["locator"] = (
+                "/architect_frozen_evidence_contract/"
+                "empirical_metric_requirements/0/measurement_protocol"
+            )
+    reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=StaticJSONGeneratorBackend(response),
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="static",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            max_repair_attempts=0,
+        ),
+    )
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        accept=False,
+        repair_scope="upstream_metric_contract",
+    )
+    subsystem.reviewer = reviewer
+
+    result = subsystem.run(task, blackboard)
+
+    packet = next(
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
+    )
+    materialization = next(
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewMaterialization"
+    )
+    assert validate_generated_code_semantic_review_packet(
+        packet,
+        review_material=materialization["review_material"],
+    ) == []
 
 
 def test_semantic_reviewer_prompt_surfaces_runtime_metric_gate_outcomes() -> None:

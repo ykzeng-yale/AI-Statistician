@@ -918,7 +918,10 @@ def _artifact_delta_errors(
     ):
         errors.append(
             f"{row_label} artifact_delta current artifact must be an exact cited "
-            "locator"
+            f"locator: required_current_citation={current_role}#{current_locator}. "
+            "Either preserve that citation or revise both the model-authored "
+            "current artifact locator and its citation to the same exact current "
+            "artifact value"
         )
     if review_material is None:
         return errors
@@ -951,18 +954,23 @@ def _artifact_delta_errors(
         if not any(
             str(citation.get("artifact_role", "") or "").strip()
             == authority_role
-            and _generated_code_semantic_review_effective_locator(
-                artifact_role=authority_role,
-                locator=citation.get("locator", ""),
+            and _generated_code_semantic_review_locator_within_authority(
+                candidate_locator=(
+                    _generated_code_semantic_review_effective_locator(
+                        artifact_role=authority_role,
+                        locator=citation.get("locator", ""),
+                    )
+                ),
+                authority_locator=authority_locator,
             )
-            == authority_locator
             for citation in citations
         ):
             errors.append(
-                f"{row_label} must cite the exact artifact locator selected by "
-                "artifact_delta obligation_ref: obligation_ref={obligation_ref!r}, "
-                f"required_citation={authority_role}#{authority_locator}. If that "
-                "exact authority does not support the claimed behavior change, "
+                f"{row_label} must cite the artifact scope selected by "
+                f"artifact_delta obligation_ref: obligation_ref={obligation_ref!r}, "
+                f"required_authority_scope={authority_role}#{authority_locator}. "
+                "A citation may select that node or a resolving descendant within "
+                "it. If that authority does not support the claimed behavior change, "
                 "remove the finding or make it advisory instead of substituting an "
                 "unrelated citation"
             )
@@ -1690,6 +1698,22 @@ def _generated_code_semantic_review_effective_locator(
         if effective_locator.startswith(prefix + "/"):
             return effective_locator[len(prefix):]
     return effective_locator
+
+
+def _generated_code_semantic_review_locator_within_authority(
+    *,
+    candidate_locator: Any,
+    authority_locator: Any,
+) -> bool:
+    """Accept an authority node or a more precise descendant of that node."""
+
+    candidate = _normalize_evidence_locator(candidate_locator)
+    authority = _normalize_evidence_locator(authority_locator)
+    if candidate == authority:
+        return True
+    if authority == "/":
+        return candidate.startswith("/")
+    return candidate.startswith(authority.rstrip("/") + "/")
 
 
 def _generated_code_semantic_review_row_cited_values(

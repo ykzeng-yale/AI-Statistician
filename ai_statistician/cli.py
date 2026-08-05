@@ -14535,6 +14535,17 @@ def _apply_research_agent_runtime_capability_eval_preset(
             FULL_LIVE_MIN_AGENT_RUNTIME_ITERATIONS,
             int(getattr(args, "max_iterations", 0) or 0),
         )
+        args.architect_metric_protocol_max_upstream_theory_revisions = max(
+            2,
+            int(
+                getattr(
+                    args,
+                    "architect_metric_protocol_max_upstream_theory_revisions",
+                    0,
+                )
+                or 0
+            ),
+        )
         args.min_task_families = max(
             2,
             int(getattr(args, "min_task_families", 0) or 0),

@@ -113,6 +113,17 @@ ARCHITECT_REUSABLE_VALIDATED_PLAN_FIELDS = (
 ARCHITECT_VALIDATED_PLAN_REUSE_METADATA_KIND = (
     "ArchitectValidatedPlanReuseMetadata"
 )
+ARCHITECT_REUSE_RUNTIME_METRIC_LIFECYCLE_FIELDS = frozenset(
+    {
+        "empirical_metric_requirements",
+        "empirical_metric_requirement_set_id",
+        "empirical_metric_protocol_phase",
+        "metric_protocol_execution_authorized",
+        "empirical_metric_requirements_preexecution_review",
+        "empirical_metric_requirements_frozen_from_prior_architect_plan",
+        "empirical_metric_requirements_frozen_from_metric_planner",
+    }
+)
 
 
 def _research_evaluation_contract_flag(
@@ -421,10 +432,7 @@ def architect_validated_plan_reuse_metadata(
     *,
     question_id: str,
 ) -> dict[str, Any]:
-    plan_projection = {
-        field: deepcopy(packet.get(field))
-        for field in ARCHITECT_REUSABLE_VALIDATED_PLAN_FIELDS
-    }
+    plan_projection = _architect_reusable_validated_plan_projection(packet)
     return {
         "artifact_kind": ARCHITECT_VALIDATED_PLAN_REUSE_METADATA_KIND,
         "question_id": question_id,
@@ -490,10 +498,7 @@ def _architect_packet_from_validated_plan_reuse(
         )
     ):
         return None
-    plan_projection = {
-        field: deepcopy(prior_plan.get(field))
-        for field in ARCHITECT_REUSABLE_VALIDATED_PLAN_FIELDS
-    }
+    plan_projection = _architect_reusable_validated_plan_projection(prior_plan)
     if (
         any(value in (None, "", [], {}) for value in plan_projection.values())
         or stable_hash(plan_projection)
@@ -579,6 +584,24 @@ def _architect_packet_from_validated_plan_reuse(
     if validate_architect_coordinator_packet(packet):
         return None
     return packet
+
+
+def _architect_reusable_validated_plan_projection(
+    plan: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Fingerprint research semantics without runtime-owned metric lifecycle state."""
+
+    projection = {
+        field: deepcopy(plan.get(field))
+        for field in ARCHITECT_REUSABLE_VALIDATED_PLAN_FIELDS
+    }
+    contract = projection.get("evidence_contract", {})
+    if isinstance(contract, Mapping):
+        stable_contract = deepcopy(dict(contract))
+        for field in ARCHITECT_REUSE_RUNTIME_METRIC_LIFECYCLE_FIELDS:
+            stable_contract.pop(field, None)
+        projection["evidence_contract"] = stable_contract
+    return projection
 
 
 def _architect_metric_authoring_deferred_for_active_replan(

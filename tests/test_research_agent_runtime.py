@@ -14789,7 +14789,7 @@ def test_critic_packet_validation_failure_fail_closes_and_preserves_exact_semant
     )
 
 
-def test_critic_feedback_routes_mathlib_olean_failure_as_import_request() -> None:
+def test_critic_feedback_preserves_mathlib_olean_failure_for_model_repair() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
 
     feedback = runtime_module._critic_repair_feedback(
@@ -14823,21 +14823,17 @@ def test_critic_feedback_routes_mathlib_olean_failure_as_import_request() -> Non
         agenda=[],
     )
 
-    assert feedback["local_lean_repair_contract"]["diagnostic_classes"] == [
-        "lean_import_environment_missing"
-    ]
-    import_request = next(
-        row
-        for row in feedback["formal_blocker_resource_requests"]
-        if row["blocker_kind"] == "lean_unavailable_import"
+    repair_contract = feedback["local_lean_repair_contract"]
+    assert repair_contract["artifact_kind"] == "FormalizerToolObservationEnvelope"
+    assert repair_contract["diagnostic_classes"] == []
+    assert repair_contract["diagnostic_classes_source"] == "not_provided"
+    assert repair_contract["model_owned_next_action"] is True
+    assert repair_contract["runtime_selected_repair"] is False
+    assert (
+        "Mathlib.olean' of module Mathlib does not exist"
+        in repair_contract["observations"][0]["local_lean_stdout_excerpt"]
     )
-    assert import_request["source"] == "critic_local_lean_formalization_feedback"
-    assert import_request["unavailable_import"] == "Mathlib"
-    assert import_request["target_ids"] == ["split_conformal_finite_sample_coverage"]
-    assert "Mathlib Lean import" in import_request["formal_source_queries"]
-    assert import_request["proof_evidence_status"] == (
-        "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
-    )
+    assert "formal_blocker_resource_requests" not in feedback
 
 
 def test_critic_feedback_carries_source_theorem_proof_body_adapter_feedback() -> None:
@@ -23696,6 +23692,9 @@ def test_live_architect_reuses_validated_plan_after_metric_review(
             question_id=question.id,
         )
     )
+    context["architect_runtime_plan"]["evidence_contract"][
+        "empirical_metric_protocol_phase"
+    ] = "theory_informed_authoring_required"
     theory_material = context["architect_metric_protocol_theory_material"]
     requirements = initial_response["evidence_contract"][
         "empirical_metric_requirements"
@@ -25710,6 +25709,11 @@ def _source_code_revise_semantic_review_payload(
     *,
     authority_ref: str,
 ) -> dict[str, object]:
+    authority_collection = (
+        "simulation_targets"
+        if authority_ref.startswith("simulation_target:")
+        else "implementation_targets"
+    )
     return {
         "prior_finding_reviews": [],
         "dimension_reviews": [
@@ -25745,14 +25749,36 @@ def _source_code_revise_semantic_review_payload(
                 "repair_scope": "source_code",
                 "prior_finding_id": "",
                 "authority_refs": [authority_ref],
+                "artifact_delta": {
+                    "obligation_ref": authority_ref,
+                    "obligation_kind": authority_ref.split(":", 1)[0],
+                    "current_artifact_role": "generated_source_artifact",
+                    "current_artifact_locator": (
+                        "/exact_executed_artifacts/0/exact_result"
+                    ),
+                    "current_behavior": (
+                        "The executed generated predicate returns false."
+                    ),
+                    "required_behavior": (
+                        "The selected source target requires the declared "
+                        "predicate implementation."
+                    ),
+                    "observable_change": (
+                        "A fresh execution returns the target predicate result."
+                    ),
+                    "before_after_semantically_equivalent": False,
+                },
                 "evidence_citations": [
                     {
                         "artifact_role": "generated_source_artifact",
                         "locator": "/exact_executed_artifacts/0/exact_result",
                     },
                     {
-                        "artifact_role": "source_theory_packet",
-                        "locator": "/theorem_cards",
+                        "artifact_role": "generated_source_artifact",
+                        "locator": (
+                            "/coding_agent_proposal_packet/"
+                            f"{authority_collection}/0"
+                        ),
                     },
                 ],
             }
@@ -29335,7 +29361,9 @@ def test_promotion_generation_prompt_and_invalid_response_preserve_retry_lineage
     assert result.next_task.inputs[
         "source_theorem_promotion_generation_request_id"
     ] == request["request_id"]
-    assert "exact requested targets" in result.next_task.objective
+    assert "exact request" in result.next_task.objective
+    assert "rejected packet" in result.next_task.objective
+    assert "validator observations" in result.next_task.objective
 
 
 def test_architect_coordinator_elaborates_required_capability_worker_graph() -> None:
@@ -35354,14 +35382,17 @@ def test_formalization_validator_failure_does_not_infer_domain_shape_from_sorry(
     feedback = result.next_task.inputs["environment_feedback"]
     assert feedback.get("target_shape_contract", {}) == {}
     assert feedback.get("target_drift_repair_contract", {}) == {}
-    assert feedback["next_action_reference_contract"]["contract_kind"] == (
-        "next_action_references_must_be_materialized"
+    assert "next_action_reference_contract" not in feedback
+    assert "validation_repair_directives" not in feedback
+    validation_messages = feedback["formalizer_validation_feedback"][
+        "validation_error_messages"
+    ]
+    assert any("Lean sorry placeholder" in row for row in validation_messages)
+    assert any(
+        "source_to_bridge_premise_derivation_candidates" in row
+        for row in validation_messages
     )
-    assert feedback["next_action_reference_contract"]["failed_reference"] == (
-        "source_to_bridge_premise_derivation_candidates"
-    )
-    assert "no-sorry Lean proof" in feedback["required_repair"]
-    assert "Do not mention source_to_bridge_premise_derivation_candidates" in feedback[
+    assert "AgentRuntime does not choose mathematical or Lean repairs" in feedback[
         "required_repair"
     ]
     artifact = next(iter(result.produced_artifacts.values()))
@@ -35382,13 +35413,15 @@ def test_formalization_validator_failure_does_not_infer_domain_shape_from_sorry(
         proof_bank_runtime_memory_summary={},
         environment_feedback=feedback,
     )
-    assert "Mandatory proof-hole packet repair" in prompt
+    assert "contains Lean sorry placeholder" in prompt
+    assert "source_to_bridge_premise_derivation_candidates" in prompt
+    assert "AgentRuntime does not prescribe field-specific" in prompt
+    assert "Mandatory proof-hole packet repair" not in prompt
     assert "Mandatory coverage-theorem proof-hole reroute" not in prompt
     assert "probability_or_measure_coverage_claim" not in prompt
-    assert "Mandatory executable-work-item repair" in prompt
-    assert "remove every next_actions instruction" in prompt
-    assert "Mandatory next_action_reference_contract repair" in prompt
-    assert "Repeated next_action_reference_contract failure" in prompt
+    assert "Mandatory executable-work-item repair" not in prompt
+    assert "Mandatory next_action_reference_contract repair" not in prompt
+    assert "Repeated next_action_reference_contract failure" not in prompt
     assert "target_shape_contract" not in prompt
 
 
@@ -38248,8 +38281,8 @@ def test_repeated_packet_validation_blocks_without_impossible_gap_planner_bridge
     assert escalation["terminal_disposition"] == (
         "BLOCKED_NO_VALID_FORMALIZER_PACKET"
     )
-    assert escalation["formalization_gap_planner_bridge_available"] is False
-    assert artifact["internal_json_repair_counted_as_lineage_retry"] is False
+    assert "formalization_gap_planner_bridge_available" not in escalation
+    assert artifact["internal_json_repair_attempts"] == 1
     learning_tasks = {
         row["learning_task"] for row in artifact["learning_rows"]
     }
@@ -38291,7 +38324,6 @@ def test_internal_typed_role_repair_preserves_outer_runtime_retry() -> None:
     assert result.next_task.task_id.startswith("formalize-repair:")
     feedback = result.next_task.inputs["environment_feedback"]
     assert feedback["internal_json_repair_attempts"] == 1
-    assert feedback["internal_json_repair_counted_as_lineage_retry"] is False
     assert feedback["formalizer_packet_repair_retry_depth"] == 0
     assert feedback["packet_validation_escalation"] == {}
 
@@ -39339,7 +39371,7 @@ def test_formalizer_prompt_escalates_repeated_invalid_lean_candidates() -> None:
     assert "Repeated Lean-candidate compiler repair" not in prompt
 
 
-def test_repeated_lean_parser_failure_feedback_adds_compiler_grounded_blocker() -> None:
+def test_repeated_lean_parser_failure_preserves_model_owned_tool_observation() -> None:
     manifest = {
         "manifest_id": "formalizer_lean_candidate_materialization_manifest:syntax",
         "n_candidate_sources": 1,
@@ -39389,26 +39421,24 @@ def test_repeated_lean_parser_failure_feedback_adds_compiler_grounded_blocker() 
     _enrich_repeated_formalizer_lean_candidate_feedback(feedback)
 
     contract = feedback["local_lean_repair_contract"]
-    assert contract["repeated_syntax_failure"] is True
-    assert "verbatim compiler/LSP diagnostics" in contract[
-        "repeated_syntax_failure_rule"
+    assert contract["artifact_kind"] == "FormalizerToolObservationEnvelope"
+    assert contract["runtime_selected_repair"] is False
+    assert "unexpected token" in contract["observations"][0][
+        "local_lean_stdout_excerpt"
     ]
+    assert "repeated_syntax_failure" not in contract
+    assert "repeated_syntax_failure_rule" not in contract
     assert "ascii_identifier_rule" not in contract
-    assert "Repeated parser/syntax failure escalation" in feedback[
+    repeated = feedback["repeated_formalizer_lean_candidate_observation"]
+    assert repeated["parent_observation_id"] == contract["observation_id"]
+    assert repeated["retry_depth"] == 1
+    assert repeated["model_owned_next_action"] is True
+    assert repeated["runtime_selected_repair"] is False
+    assert "AgentRuntime does not select the repair" in feedback[
         "required_repair"
     ]
-    assert any(
-        "exact compiler/LSP diagnostics" in option
-        for option in feedback["candidate_reroute_options"]
-    )
-    blocker_requests = feedback["formal_blocker_resource_requests"]
-    assert any(
-        row["blocker_kind"] == "lean_repeated_parser_or_syntax_failure"
-        for row in blocker_requests
-    )
-    assert blocker_requests[0]["proof_evidence_status"] == (
-        "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
-    )
+    assert "candidate_reroute_options" not in feedback
+    assert "formal_blocker_resource_requests" not in feedback
 
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     prompt = build_formalizer_prompt(
@@ -39424,7 +39454,7 @@ def test_repeated_lean_parser_failure_feedback_adds_compiler_grounded_blocker() 
     )
 
     assert "unexpected token" in prompt
-    assert "lean_repeated_parser_or_syntax_failure" in prompt
+    assert "lean_repeated_parser_or_syntax_failure" not in prompt
     assert "Type*" in prompt
     assert "AgentRuntime supplies no Python-authored Lean grammar" in prompt
     assert "Mandatory compiler-feedback repair" not in prompt
@@ -66459,24 +66489,14 @@ def test_exact_semantic_structural_reformulation_memory_becomes_pf_bv_followup()
     ]["response_validation_feedback"]["unverified_required_imports"] == [
         "Mathlib.Data.Int.Order"
     ]
-    assert "you must emit at least one pseudo_formal_proof_packets" in prompt
+    assert "You must emit pseudo_formal_proof_packets" in prompt
     assert "Mathlib.Data.Int.Order" in prompt
     assert "response_validation_feedback" in prompt
     assert "unverified_required_imports" in prompt
     assert "hard-negative rejected imports" in prompt
     assert "do not reuse them as Lean candidate required_imports" in prompt
     assert "PF/BV work-order constraint" in prompt
-    assert "lean_feasibility=needs_semantic_definition" in prompt
-    assert "lean_feasibility=needs_rag" in prompt
-    assert "semantic_primitive_requirements" in prompt
-    assert "Generic needs_review/not_run blocks alone" in prompt
-    assert "\"kind\":\"theory_trace\"" in prompt
-    assert "anchor names only in prose" in prompt
-    assert "block_verification.rollout_count must be an integer >= 1" in prompt
-    assert "top-level conclusion field" in prompt
-    assert "not_run, unknown, or failed" in prompt
-    assert "Use needs_review only as a faithfulness_status value" in prompt
-    assert "needs_review/failed/pending" not in prompt
+    assert "Choose the decomposition and field values from the provider schema" in prompt
     assert (
         "source_theorem_exact_semantic_definition_structural_reformulation"
         in prompt
@@ -103844,6 +103864,7 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     assert args.openprover_hlm is True
     assert args.openprover_root == "/tmp/source-controlled-openprover"
     assert args.max_iterations == 24
+    assert args.architect_metric_protocol_max_upstream_theory_revisions == 2
     assert args.min_task_families == 2
     assert args.formal_verification_policy == "required"
     assert args.theory_model_tier == "haiku"
@@ -109680,7 +109701,7 @@ def test_whole_proof_validation_failure_stays_with_proofengineer() -> None:
     assert result.next_task.inputs["environment_feedback"][
         "proofengineer_repair_context"
     ]["target_theorem_statement"] == context["target_theorem_statement"]
-    assert "whole-proof ProofEngineer loop" in result.rationale
+    assert "without a runtime-authored repair" in result.rationale
 
 
 def test_external_proof_search_artifact_survives_followup_packet_validation_failure(
