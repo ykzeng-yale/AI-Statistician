@@ -1720,6 +1720,16 @@ def review_architect_theory_execution_preflight(
         required_prior_finding_ids = list(
             material.get("active_prior_finding_ids", []) or []
         )
+        raw_prior_finding_reviews = (
+            invalid_payload.get("prior_finding_reviews", [])
+            if isinstance(invalid_payload, Mapping)
+            else []
+        )
+        raw_prior_finding_review_count = (
+            len(raw_prior_finding_reviews)
+            if isinstance(raw_prior_finding_reviews, list)
+            else 0
+        )
         prior_finding_paths = [
             {
                 "finding_id": str(finding_id),
@@ -1731,6 +1741,7 @@ def review_architect_theory_execution_preflight(
                 ],
             }
             for index, finding_id in enumerate(required_prior_finding_ids)
+            if index < raw_prior_finding_review_count
         ]
         raw_findings = (
             invalid_payload.get("findings", [])
@@ -1762,6 +1773,15 @@ def review_architect_theory_execution_preflight(
             },
             "estimator_execution_check_patch_paths": estimator_paths,
             "prior_finding_review_patch_paths": prior_finding_paths,
+            "prior_finding_reviews_array_path": ["prior_finding_reviews"],
+            "prior_finding_review_transport_slots": [
+                {
+                    "output_index": index,
+                    "finding_id": str(finding_id),
+                    "base_row_exists": index < raw_prior_finding_review_count,
+                }
+                for index, finding_id in enumerate(required_prior_finding_ids)
+            ],
             "current_finding_patch_paths": current_finding_paths,
             "required_dimensions": list(
                 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
@@ -1807,6 +1827,12 @@ def review_architect_theory_execution_preflight(
                     "prior row. AgentRuntime binds the ordered slot to both canonical "
                     "prior_finding_id and finding_id; never copy either identity into "
                     "any output row."
+                ),
+                (
+                    "When the raw prior_finding_reviews array does not contain every "
+                    "prior_finding_review_transport_slots row, replace the complete "
+                    "array at prior_finding_reviews_array_path in one update. Do not "
+                    "target a row index whose base_row_exists is false."
                 ),
                 (
                     "Treat source_interface_inventories as exact source facts. Do not "

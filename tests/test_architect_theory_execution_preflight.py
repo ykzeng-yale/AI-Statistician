@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 
 import pytest
 
@@ -940,6 +941,119 @@ def test_preflight_repairs_missing_ordered_prior_continuation() -> None:
     assert packet["runtime_prior_finding_identity_bindings"][0][
         "runtime_selected_semantics"
     ] is False
+    assert packet["llm_json_repair_attempts"] == 1
+
+
+def test_preflight_repairs_missing_ordered_prior_row_by_replacing_array() -> None:
+    rejected, _backend = _review(accept=False)
+    prior_ledger = rejected["cumulative_finding_ledger"]
+    second_prior = deepcopy(prior_ledger[0])
+    second_prior["finding_id"] = "metric_protocol_finding:second"
+    second_prior["finding"] = {
+        **second_prior["finding"],
+        "finding_id": second_prior["finding_id"],
+        "summary": "A second declared executable outcome remains unspecified.",
+    }
+    prior_ledger = [*prior_ledger, second_prior]
+    prior_finding_ids = [row["finding_id"] for row in prior_ledger]
+    resolved_rows = [
+        {
+            "status": "RESOLVED_BY_CURRENT_THEORY",
+            "rationale": "The current theory now declares this executable outcome.",
+            "evidence_refs": ["theory.estimator_specs"],
+            "current_finding": None,
+        }
+        for _finding_id in prior_finding_ids
+    ]
+    initial_payload = _payload(accept=True)
+    initial_payload["prior_finding_reviews"] = resolved_rows[:1]
+
+    class MissingPriorRowBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+            self.repair_context = {}
+
+        def generate(self, request):
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                payload = initial_payload
+            else:
+                repair_payload = json.loads(request.user_prompt.split("\n\n", 1)[1])
+                self.repair_context = repair_payload["subsystem_repair_context"]
+                payload = {
+                    "base_payload_fingerprint": repair_payload[
+                        "base_payload_fingerprint"
+                    ],
+                    "updates": [
+                        {
+                            "path": self.repair_context[
+                                "prior_finding_reviews_array_path"
+                            ],
+                            "replacement_json": json.dumps(resolved_rows),
+                        }
+                    ],
+                }
+            return GeneratorResponse(
+                text=json.dumps(payload),
+                provider="anthropic",
+                model=request.model,
+                metadata={
+                    "provider_structured_output_requested": True,
+                    "provider_structured_output_applied": True,
+                },
+            )
+
+    backend = MissingPriorRowBackend()
+    packet = review_architect_theory_execution_preflight(
+        provider=backend,
+        question=_question(),
+        theory_protocol_material=_theory_material(),
+        upstream_research_contract={
+            "formal_targets": [],
+            "simulation_targets": ["evaluate the declared risk"],
+        },
+        model=TEST_HAIKU_MODEL,
+        model_tier="haiku",
+        max_tokens=7000,
+        temperature=0.0,
+        provider_name="anthropic",
+        max_repair_attempts=1,
+        prior_finding_ledger=prior_ledger,
+    )
+
+    assert len(backend.requests) == 2
+    assert backend.repair_context["prior_finding_review_patch_paths"] == [
+        {
+            "finding_id": prior_finding_ids[0],
+            "path": ["prior_finding_reviews", 0],
+            "current_finding_path": [
+                "prior_finding_reviews",
+                0,
+                "current_finding",
+            ],
+        }
+    ]
+    assert backend.repair_context["prior_finding_reviews_array_path"] == [
+        "prior_finding_reviews"
+    ]
+    assert backend.repair_context["prior_finding_review_transport_slots"] == [
+        {
+            "output_index": 0,
+            "finding_id": prior_finding_ids[0],
+            "base_row_exists": True,
+        },
+        {
+            "output_index": 1,
+            "finding_id": prior_finding_ids[1],
+            "base_row_exists": False,
+        },
+    ]
+    assert [
+        row["finding_id"] for row in packet["prior_finding_reviews"]
+    ] == prior_finding_ids
+    assert packet["overall_verdict"] == "ACCEPT"
     assert packet["llm_json_repair_attempts"] == 1
 
 

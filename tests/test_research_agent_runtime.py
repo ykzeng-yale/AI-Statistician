@@ -98,6 +98,8 @@ from ai_statistician.architect_coordinator_llm import (
 )
 from ai_statistician.architect_metric_contract_authoring import (
     _confirmatory_metric_requirement_rows,
+    _materialize_metric_authoring_model_requirement,
+    _metric_authoring_model_requirement_schema,
     _metric_semantic_review_response_identity_history_rows,
 )
 from ai_statistician.architect_research_path_policy_eval import (
@@ -1645,7 +1647,7 @@ def test_theory_interface_failure_routes_validated_core_checkpoint() -> None:
     ] is True
 
 
-def test_research_eval_metric_portfolio_omits_nonrequired_telemetry() -> None:
+def test_metric_acceptance_portfolio_omits_nonrequired_telemetry() -> None:
     rows = [
         {"requirement_id": "acceptance_gate", "required": True},
         {"requirement_id": "optional_diagnostic", "required": False},
@@ -1653,7 +1655,6 @@ def test_research_eval_metric_portfolio_omits_nonrequired_telemetry() -> None:
 
     kept, omitted = _confirmatory_metric_requirement_rows(
         rows,
-        evaluation_mode="research_eval",
     )
 
     assert kept == [{"requirement_id": "acceptance_gate", "required": True}]
@@ -1665,10 +1666,125 @@ def test_research_eval_metric_portfolio_omits_nonrequired_telemetry() -> None:
             ),
         }
     ]
-    assert _confirmatory_metric_requirement_rows(
-        rows,
-        evaluation_mode="capability_eval",
-    ) == (rows, [])
+def test_metric_authoring_compact_gate_fields_expand_to_evaluator_abi() -> None:
+    anchor_id = "theory#/theorem_cards/0/conclusion"
+    schema = _metric_authoring_model_requirement_schema(
+        authority_anchor_ids=[anchor_id]
+    )
+    assert {
+        "predicate_authority",
+        "gate_fields",
+    } <= set(schema["required"])
+    for duplicated_field in (
+        "threshold",
+        "lower",
+        "upper",
+        "tolerance",
+        "acceptance_authority_kind",
+        "gate_field_authorities",
+        "required",
+        "target_subsystems",
+    ):
+        assert duplicated_field not in schema["properties"]
+
+    requirement, errors = _materialize_metric_authoring_model_requirement(
+        {
+            "requirement_id": "generic:simulation:gate",
+            "metric_semantics": "absolute finite-sample error",
+            "metric_value_kind": "numeric",
+            "measurement_protocol": "return one error per replicate",
+            "operator": "<=",
+            "aggregation": "mean",
+            "predicate_authority": {
+                "authority_kind": "theory_derived",
+                "source_anchors": [anchor_id],
+                "rationale": "The source defines the error predicate.",
+            },
+            "gate_fields": [
+                {
+                    "field": "threshold",
+                    "value": 0.25,
+                    "authority_kind": "architect_preregistered_design",
+                    "source_anchors": [anchor_id],
+                    "rationale": (
+                        "The pre-execution decision scale is fixed before runs."
+                    ),
+                }
+            ],
+        },
+        requirement_index=0,
+    )
+
+    assert errors == []
+    assert requirement["target_subsystems"] == ["SimulationEngineer"]
+    assert requirement["required"] is True
+    assert requirement["threshold"] == 0.25
+    assert requirement["lower"] is None
+    assert requirement["upper"] is None
+    assert requirement["tolerance"] == 0.0
+    assert requirement["acceptance_authority_kind"] == (
+        "architect_preregistered_design"
+    )
+    assert requirement["gate_field_authorities"] == [
+        {
+            "field": "threshold",
+            "authority_kind": "architect_preregistered_design",
+            "source_anchors": [anchor_id],
+            "rationale": (
+                "The pre-execution decision scale is fixed before runs."
+            ),
+        }
+    ]
+
+    boolean_requirement, boolean_errors = (
+        _materialize_metric_authoring_model_requirement(
+            {
+                "requirement_id": "generic:simulation:boolean-gate",
+                "metric_semantics": "the returned sample is finite",
+                "metric_value_kind": "boolean",
+                "measurement_protocol": "return true exactly when all values are finite",
+                "operator": "==",
+                "aggregation": "all",
+                "predicate_authority": {
+                    "authority_kind": "theory_derived",
+                    "source_anchors": [anchor_id],
+                    "rationale": "The source requires a finite-valued estimator.",
+                },
+                "gate_fields": [],
+            },
+            requirement_index=1,
+        )
+    )
+    assert boolean_errors == []
+    assert boolean_requirement["threshold"] == 1
+    assert boolean_requirement["tolerance"] == 0.0
+    assert boolean_requirement["gate_field_authorities"] == []
+
+
+def test_metric_authoring_compact_gate_fields_reject_missing_between_bounds() -> None:
+    anchor_id = "question#/description"
+    _requirement, errors = _materialize_metric_authoring_model_requirement(
+        {
+            "requirement_id": "generic:diagnostic-shaped-row",
+            "metric_semantics": "record one diagnostic scalar",
+            "metric_value_kind": "numeric",
+            "measurement_protocol": "record the scalar without a derived cutoff",
+            "operator": "between",
+            "aggregation": "mean",
+            "predicate_authority": {
+                "authority_kind": "architect_preregistered_design",
+                "source_anchors": [anchor_id],
+                "rationale": "The scalar is useful context.",
+            },
+            "gate_fields": [],
+        },
+        requirement_index=0,
+    )
+
+    assert any(
+        "expected=['lower', 'upper'] observed=[]" in error
+        for error in errors
+    )
 
 
 def test_theory_developer_routes_protocol_preflight_before_generated_code() -> None:
@@ -26763,18 +26879,25 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert "required_runtime_replicates" not in requirement_item_schema[
         "properties"
     ]
-    assert {
-        "acceptance_authority_kind",
-        "acceptance_authority_rationale",
-        "gate_field_authorities",
-    } <= set(requirement_item_schema["required"])
+    assert {"predicate_authority", "gate_fields"} <= set(
+        requirement_item_schema["required"]
+    )
+    assert "acceptance_authority_kind" not in requirement_item_schema[
+        "properties"
+    ]
+    assert "gate_field_authorities" not in requirement_item_schema[
+        "properties"
+    ]
     assert "gate_field_authority_mode" not in requirement_item_schema[
         "required"
     ]
     assert set(
-        requirement_item_schema["properties"]["source_anchors"]["items"][
-            "enum"
-        ]
+        requirement_item_schema["properties"]["predicate_authority"]
+        ["properties"]["source_anchors"]["items"]["enum"]
+    ) == authority_anchor_ids
+    assert set(
+        requirement_item_schema["properties"]["gate_fields"]["items"]
+        ["properties"]["source_anchors"]["items"]["enum"]
     ) == authority_anchor_ids
     assert theory_material["source_theory_packet_id"] == (
         "theory_derivation:structured"
@@ -26807,7 +26930,7 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert "threshold or bounds describe when one measurement passes" in (
         hard_requirements
     )
-    assert "operator == and threshold 1" in hard_requirements
+    assert "runtime binds threshold 1" in hard_requirements
     assert "must exactly match explicit_numeric_values" in hard_requirements
     assert "architect_preregistered_design" in hard_requirements
     assert "must not be copied into or misrepresented as theory" in (
@@ -26819,7 +26942,7 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     )
     assert "explicit uncertainty-scale calculation" in hard_requirements
     assert "at runtime_owned_replicates" in hard_requirements
-    assert "diagnostic_only or omit it" in hard_requirements
+    assert "omit it from this acceptance portfolio" in hard_requirements
     assert "Free-form citations" in hard_requirements
     assert "does not specify a minimum power" in hard_requirements
     assert "Audit mathematical feasibility before freezing each row" in (

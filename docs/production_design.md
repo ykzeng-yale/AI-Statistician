@@ -85,18 +85,23 @@ The canonical product loop is deliberately small:
 
 1. TheoryDeveloper derives the estimand, estimator/test/procedure, assumptions,
    equation chain, theorem claims, and DGP implications.
-2. AlgorithmEngineer turns that theory artifact into executable Python or R;
+2. A lightweight independent execution-admissibility reviewer uses a bounded
+   task-scoped statistical-source/RAG tool loop to check the estimand, DGP,
+   identifiability, executable observation semantics, and declared scope. A
+   blocking mathematical objection must be source-grounded and can be rebutted;
+   this is not theorem peer review and does not freeze confirmatory metrics.
+3. AlgorithmEngineer turns that theory artifact into executable Python or R;
    sandbox execution and an independent semantic reviewer accept implementation
    fidelity, not finite-sample statistical performance.
-3. Architect freezes the smallest sufficient confirmatory experiment protocol
+4. Architect freezes the smallest sufficient confirmatory experiment protocol
    after the algorithm artifact exists but before confirmatory results exist.
-4. SimulationEngineer designs DGPs and stress tests around the accepted algorithm
+5. SimulationEngineer designs DGPs and stress tests around the accepted algorithm
    artifact; fresh execution and independent review route defects to the code,
    theory, DGP, or protocol owner.
-5. Formalizer/ProofEngineer and formal RAG progress in parallel under claim-level
+6. Formalizer/ProofEngineer and formal RAG progress in parallel under claim-level
    required/optional/advisory policy. Only Lean/AXLE/kernel evidence proves a
    theorem, and an open formal gap does not stop unrelated research work.
-6. AgentRuntime owns typed transport, execution, hashes, budgets, permissions,
+7. AgentRuntime owns typed transport, execution, hashes, budgets, permissions,
    scheduling, and evidence labels. It does not own statistical formulas,
    expected answers, task-family thresholds, Lean grammar, or tactics.
 
@@ -169,6 +174,7 @@ AgentRuntime / Blackboard
   -> Retrieval / source-grounding subsystems
   -> ProblemFormalizer subsystem
   -> TheoryDeveloper subsystem
+  -> TheoryExecutionPreflightReviewer with task-scoped source/RAG tools
   -> AlgorithmEngineer
   -> GeneratedCodeSemanticReviewer over exact estimator source + smoke execution
   -> ArchitectMetricContractPlanner (Sonnet, confirmatory experiment proposal)

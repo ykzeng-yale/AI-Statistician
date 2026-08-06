@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Mapping
@@ -28,9 +29,13 @@ from .architect_metric_semantic_reviewer_llm import (
 from .fingerprint import stable_hash
 from .generated_metric_contract import (
     GENERATED_METRIC_ACCEPTANCE_AUTHORITY_KINDS,
+    GENERATED_METRIC_ACCEPTANCE_GATING_AUTHORITY_KINDS,
+    GENERATED_METRIC_CONTRACT_AGGREGATIONS,
+    GENERATED_METRIC_CONTRACT_OPERATORS,
     GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS,
     GENERATED_METRIC_REQUIREMENT_BOUNDARY,
     GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS,
+    GENERATED_METRIC_VALUE_KINDS,
     generated_metric_acceptance_authority_catalog,
     generated_metric_evaluation_semantics_contract,
     generated_metric_numeric_authority_repair_matrix,
@@ -61,7 +66,7 @@ from .metric_protocol_finding_ledger import (
 from .research_schema import OpenResearchQuestion
 
 
-ARCHITECT_METRIC_REQUIREMENT_AUTHORING_SCHEMA_VERSION = 3
+ARCHITECT_METRIC_REQUIREMENT_AUTHORING_SCHEMA_VERSION = 4
 _METRIC_AUTHORING_LARGE_PROMPT_CHARS = 60_000
 _METRIC_AUTHORING_LARGE_RESPONSE_TOKENS = 8_000
 FROZEN_METRIC_PROTOCOL_REBINDING_MUTABLE_FIELDS = frozenset(
@@ -494,6 +499,281 @@ class ArchitectMetricContractAuthoringConfig:
     metric_semantic_reviewer_max_revisions: int = 2
 
 
+def _metric_authoring_model_authority_schema(
+    *,
+    authority_anchor_ids: list[str],
+    include_value: bool,
+) -> dict[str, Any]:
+    required = ["authority_kind", "source_anchors", "rationale"]
+    properties: dict[str, Any] = {
+        "authority_kind": {
+            "type": "string",
+            "enum": list(
+                GENERATED_METRIC_ACCEPTANCE_GATING_AUTHORITY_KINDS
+            ),
+        },
+        "source_anchors": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": True,
+            "items": {
+                "type": "string",
+                "enum": list(authority_anchor_ids),
+            },
+        },
+        "rationale": {"type": "string", "minLength": 1},
+    }
+    if include_value:
+        required.insert(0, "value")
+        properties = {"value": {"type": "number"}, **properties}
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": required,
+        "properties": properties,
+    }
+
+
+def _metric_authoring_model_requirement_schema(
+    *,
+    authority_anchor_ids: list[str],
+) -> dict[str, Any]:
+    """Return the compact model ACI; final evaluator fields are runtime mirrors."""
+
+    predicate_authority = _metric_authoring_model_authority_schema(
+        authority_anchor_ids=authority_anchor_ids,
+        include_value=False,
+    )
+    gate_authority = _metric_authoring_model_authority_schema(
+        authority_anchor_ids=authority_anchor_ids,
+        include_value=True,
+    )
+    gate_authority["required"] = ["field", *gate_authority["required"]]
+    gate_authority["properties"] = {
+        "field": {
+            "type": "string",
+            "enum": list(GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS),
+        },
+        **gate_authority["properties"],
+    }
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "requirement_id",
+            "metric_semantics",
+            "metric_value_kind",
+            "measurement_protocol",
+            "operator",
+            "aggregation",
+            "predicate_authority",
+            "gate_fields",
+        ],
+        "properties": {
+            "requirement_id": {"type": "string", "minLength": 1},
+            "metric_semantics": {"type": "string", "minLength": 1},
+            "metric_value_kind": {
+                "type": "string",
+                "enum": list(GENERATED_METRIC_VALUE_KINDS),
+            },
+            "measurement_protocol": {"type": "string", "minLength": 1},
+            "operator": {
+                "type": "string",
+                "enum": list(GENERATED_METRIC_CONTRACT_OPERATORS),
+            },
+            "aggregation": {
+                "type": "string",
+                "enum": list(GENERATED_METRIC_CONTRACT_AGGREGATIONS),
+            },
+            "predicate_authority": predicate_authority,
+            "gate_fields": {
+                "type": "array",
+                "maxItems": len(GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS),
+                "items": gate_authority,
+                "description": (
+                    "Each active substantive number appears exactly once together "
+                    "with the model-selected authority that owns it."
+                ),
+            },
+        },
+    }
+
+
+def _metric_authoring_model_requirement_prompt_schema() -> dict[str, Any]:
+    return {
+        "requirement_id": "stable unique acceptance-gate id",
+        "metric_semantics": "one independently compared returned quantity",
+        "metric_value_kind": "numeric|boolean",
+        "measurement_protocol": "exact pre-execution measurement procedure",
+        "operator": "<=|<|>=|>|==|between",
+        "aggregation": (
+            "identity|mean|min|max|all|any|at_least_count|at_least_fraction"
+        ),
+        "predicate_authority": {
+            "authority_kind": (
+                "theory_derived|theory_parameter_instantiation|"
+                "evaluation_mandated|architect_preregistered_design"
+            ),
+            "source_anchors": ["exact acceptance_authority_catalog anchor_id"],
+            "rationale": "why the cited source authorizes this predicate",
+        },
+        "gate_fields": [
+            {
+                "field": (
+                    "threshold|lower|upper|tolerance|minimum_pass_count|"
+                    "minimum_pass_fraction"
+                ),
+                "value": "the substantive numeric value, stated exactly once",
+                "authority_kind": (
+                    "theory_derived|theory_parameter_instantiation|"
+                    "evaluation_mandated|architect_preregistered_design"
+                ),
+                "source_anchors": [
+                    "exact acceptance_authority_catalog anchor_id"
+                ],
+                "rationale": "field-specific pre-execution justification",
+            }
+        ],
+    }
+
+
+def _materialize_metric_authoring_model_requirement(
+    value: Mapping[str, Any],
+    *,
+    requirement_index: int,
+) -> tuple[dict[str, Any], list[str]]:
+    """Expand one compact model row without selecting any model-owned semantics."""
+
+    row = dict(value)
+    prefix = f"empirical_metric_requirements[{requirement_index}]"
+    errors: list[str] = []
+    predicate_authority = row.get("predicate_authority", {})
+    if not isinstance(predicate_authority, Mapping):
+        predicate_authority = {}
+        errors.append(f"{prefix}.predicate_authority must be an object")
+    predicate_anchors = [
+        str(anchor).strip()
+        for anchor in predicate_authority.get("source_anchors", []) or []
+        if str(anchor).strip()
+    ]
+    gate_rows = row.get("gate_fields", [])
+    if not isinstance(gate_rows, list):
+        gate_rows = []
+        errors.append(f"{prefix}.gate_fields must be an array")
+
+    requirement: dict[str, Any] = {
+        "requirement_id": str(row.get("requirement_id", "") or "").strip(),
+        "target_subsystems": ["SimulationEngineer"],
+        "metric_semantics": str(row.get("metric_semantics", "") or "").strip(),
+        "metric_value_kind": str(
+            row.get("metric_value_kind", "") or ""
+        ).strip(),
+        "measurement_protocol": str(
+            row.get("measurement_protocol", "") or ""
+        ).strip(),
+        "operator": str(row.get("operator", "") or "").strip(),
+        "threshold": None,
+        "lower": None,
+        "upper": None,
+        "tolerance": 0.0,
+        "aggregation": str(row.get("aggregation", "") or "").strip(),
+        "minimum_pass_count": None,
+        "minimum_pass_fraction": None,
+        "required": True,
+        "source_anchors": list(dict.fromkeys(predicate_anchors)),
+        "acceptance_authority_kind": str(
+            predicate_authority.get("authority_kind", "") or ""
+        ).strip(),
+        "acceptance_authority_rationale": str(
+            predicate_authority.get("rationale", "") or ""
+        ).strip(),
+        "gate_field_authorities": [],
+        "boundary": GENERATED_METRIC_REQUIREMENT_BOUNDARY,
+    }
+    if requirement["metric_value_kind"] == "boolean":
+        requirement["threshold"] = 1
+
+    observed_fields: list[str] = []
+    field_rationales: list[tuple[str, str]] = []
+    for gate_index, raw_gate in enumerate(gate_rows):
+        gate_prefix = f"{prefix}.gate_fields[{gate_index}]"
+        if not isinstance(raw_gate, Mapping):
+            errors.append(f"{gate_prefix} must be an object")
+            continue
+        gate = dict(raw_gate)
+        field = str(gate.get("field", "") or "").strip()
+        if field not in GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS:
+            errors.append(
+                f"{gate_prefix}.field must be one of "
+                + ", ".join(GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS)
+            )
+            continue
+        if field in observed_fields:
+            errors.append(f"{prefix}.gate_fields contains duplicate field {field}")
+            continue
+        observed_fields.append(field)
+        numeric_value = gate.get("value")
+        if (
+            isinstance(numeric_value, bool)
+            or not isinstance(numeric_value, (int, float))
+            or not math.isfinite(float(numeric_value))
+        ):
+            errors.append(f"{gate_prefix}.value must be a finite number")
+            continue
+        requirement[field] = numeric_value
+        gate_anchors = [
+            str(anchor).strip()
+            for anchor in gate.get("source_anchors", []) or []
+            if str(anchor).strip()
+        ]
+        rationale = str(gate.get("rationale", "") or "").strip()
+        requirement["gate_field_authorities"].append(
+            {
+                "field": field,
+                "authority_kind": str(
+                    gate.get("authority_kind", "") or ""
+                ).strip(),
+                "source_anchors": gate_anchors,
+                "rationale": rationale,
+            }
+        )
+        requirement["source_anchors"] = list(
+            dict.fromkeys([*requirement["source_anchors"], *gate_anchors])
+        )
+        if rationale:
+            field_rationales.append((field, rationale))
+
+    expected_fields: list[str]
+    if requirement["metric_value_kind"] == "boolean":
+        expected_fields = []
+        if requirement["operator"] != "==":
+            errors.append(f"{prefix}.boolean metric requires operator ==")
+    elif requirement["operator"] == "between":
+        expected_fields = ["lower", "upper"]
+    else:
+        expected_fields = ["threshold"]
+    if "tolerance" in observed_fields:
+        expected_fields.append("tolerance")
+    if requirement["aggregation"] == "at_least_count":
+        expected_fields.append("minimum_pass_count")
+    elif requirement["aggregation"] == "at_least_fraction":
+        expected_fields.append("minimum_pass_fraction")
+    if observed_fields != expected_fields:
+        errors.append(
+            f"{prefix}.gate_fields must occur exactly once in evaluator order: "
+            f"expected={expected_fields!r} observed={observed_fields!r}"
+        )
+    if field_rationales:
+        predicate_rationale = requirement["acceptance_authority_rationale"]
+        requirement["acceptance_authority_rationale"] = "; ".join(
+            [
+                *([f"predicate: {predicate_rationale}"] if predicate_rationale else []),
+                *(f"{field}: {rationale}" for field, rationale in field_rationales),
+            ]
+        )
+    return materialize_generated_metric_gate_field_authorities(requirement), errors
+
+
 def _compact_metric_authoring_prompt_payload(
     value: Mapping[str, Any],
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -636,16 +916,12 @@ def _compact_metric_authoring_prompt_payload(
 
 def _confirmatory_metric_requirement_rows(
     requirements: Any,
-    *,
-    evaluation_mode: str,
 ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
     rows = [
         dict(row)
         for row in requirements or []
         if isinstance(row, Mapping)
     ]
-    if str(evaluation_mode or "").strip() != "research_eval":
-        return rows, []
     kept: list[dict[str, Any]] = []
     omitted: list[dict[str, str]] = []
     for row in rows:
@@ -1230,10 +1506,7 @@ def author_reviewed_architect_metric_requirements(
     runtime_replicates = int(
         runtime_contract.get("generated_sandbox_runtime_replicates", 0) or 0
     )
-    evaluation_mode = str(
-        runtime_contract.get("evaluation_mode", "") or ""
-    ).strip()
-    confirmatory_required_rows_only = evaluation_mode == "research_eval"
+    confirmatory_required_rows_only = True
     question_material = {
         "id": question.id,
         "title": question.title,
@@ -1598,6 +1871,12 @@ def author_reviewed_architect_metric_requirements(
             "required": frozen_required_fields,
             "properties": frozen_properties,
         }
+    else:
+        response_requirement_schema = (
+            _metric_authoring_model_requirement_schema(
+                authority_anchor_ids=acceptance_authority_anchor_ids,
+            )
+        )
     response_schema = {
         "type": "object",
         "additionalProperties": False,
@@ -1620,15 +1899,25 @@ def author_reviewed_architect_metric_requirements(
                 "maxItems": frozen_row_count,
             }
         )
-    requirement_prompt_schema = generated_metric_requirement_prompt_schema()
+    requirement_prompt_schema = (
+        generated_metric_requirement_prompt_schema()
+        if frozen_rebinding
+        else _metric_authoring_model_requirement_prompt_schema()
+    )
     requirement_prompt_schema.pop("required_runtime_replicates", None)
-    required_target_rows = []
-    for target in GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS:
-        target_schema = generated_metric_requirement_prompt_schema(
-            target_subsystem=target
-        )
-        target_schema.pop("required_runtime_replicates", None)
-        required_target_rows.append(target_schema)
+    required_target_rows = (
+        []
+        if frozen_rebinding
+        else [
+            {
+                "target_subsystems": list(
+                    GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
+                ),
+                "runtime_bound": True,
+                "at_least_one_required_acceptance_gate": True,
+            }
+        ]
+    )
     prompt_payload = {
         "task": (
             "Rebind the exact frozen empirical acceptance requirements to the "
@@ -1645,6 +1934,18 @@ def author_reviewed_architect_metric_requirements(
         "runtime_owned_replicates": runtime_replicates,
         "confirmatory_required_rows_only": confirmatory_required_rows_only,
         "runtime_owned_field_bindings": {
+            "target_subsystems": {
+                "source": "generated_metric_target_namespace",
+                "value": list(GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS),
+                "model_authored": False,
+                "binding_stage": "before_hash_validation_and_review",
+            },
+            "required": {
+                "source": "confirmatory_acceptance_portfolio",
+                "value": True,
+                "model_authored": False,
+                "binding_stage": "before_hash_validation_and_review",
+            },
             "required_runtime_replicates": {
                 "source": (
                     "runtime_contract.generated_sandbox_runtime_replicates"
@@ -1664,6 +1965,13 @@ def author_reviewed_architect_metric_requirements(
             "gate_field_authority_mode": {
                 "source": "runtime_field_authority_abi",
                 "model_authored": False,
+                "binding_stage": "before_hash_validation_and_review",
+            },
+            "flat_gate_values_and_authorities": {
+                "source": "model_gate_fields",
+                "model_authored_once": True,
+                "runtime_expands_evaluator_abi": True,
+                "runtime_selected_semantics": False,
                 "binding_stage": "before_hash_validation_and_review",
             },
             "source_anchors": {
@@ -1698,11 +2006,10 @@ def author_reviewed_architect_metric_requirements(
             ),
             *(
                 [
-                    "This research-eval packet is an acceptance portfolio, not a "
-                    "telemetry catalog. Return only required=true rows that can "
-                    "change the final empirical decision. Omit diagnostic_only and "
-                    "required=false rows; SimulationEngineer may still report those "
-                    "measurements as non-gating telemetry."
+                    "This packet is an acceptance portfolio, not a telemetry catalog. "
+                    "Every returned row is runtime-bound required=true and must be "
+                    "able to change the final empirical decision. Omit diagnostics; "
+                    "SimulationEngineer may still report them as non-gating telemetry."
                 ]
                 if confirmatory_required_rows_only
                 else []
@@ -1737,9 +2044,11 @@ def author_reviewed_architect_metric_requirements(
                 "minimum_pass_fraction describes how many comparisons must pass."
             ),
             (
-                "Emit exactly one gate_field_authorities entry for every active "
-                "substantive threshold, lower/upper bound, nonzero tolerance, or "
-                "quorum. A theory_derived or evaluation_mandated entry must exactly "
+                "In gate_fields, state every active substantive threshold, lower/upper "
+                "bound, nonzero tolerance, or quorum value exactly once together "
+                "with its authority_kind, source_anchors, and rationale. Runtime "
+                "expands those selections into the flat evaluator ABI. A "
+                "theory_derived or evaluation_mandated entry must exactly "
                 "match explicit_numeric_values on its own cited node. A "
                 "theory_parameter_instantiation entry must use the exact cited "
                 "evaluation-design value. An architect_preregistered_design entry "
@@ -1749,9 +2058,9 @@ def author_reviewed_architect_metric_requirements(
             (
                 "Numeric acceptance authority is field-level. Do not use one field's "
                 "source authority to launder another field. AgentRuntime computes the "
-                "row-level acceptance_authority_kind as a conservative roll-up from "
-                "gate_field_authorities, preserving every field binding in the frozen "
-                "requirement hash."
+                "flat numeric fields, gate_field_authorities, and row-level "
+                "acceptance_authority_kind from gate_fields without choosing or "
+                "changing model-authored semantics."
             ),
             (
                 "Every source_anchors entry must copy one exact anchor_id from "
@@ -1796,10 +2105,9 @@ def author_reviewed_architect_metric_requirements(
                 "For every architect_preregistered_design gate applied to a "
                 "stochastic finite-replicate estimate, include an explicit "
                 "uncertainty-scale calculation at runtime_owned_replicates in "
-                "acceptance_authority_rationale and compare the proposed pass region "
+                "the relevant gate_fields rationale and compare the proposed pass region "
                 "or quorum with that scale. If no defensible pre-execution "
-                "calculation supports a decision-relevant gate, make the row "
-                "diagnostic_only or omit it."
+                "calculation supports a decision-relevant gate, omit the row."
             ),
             (
                 "An architect_preregistered_design gate is frozen before generated "
@@ -1810,9 +2118,8 @@ def author_reviewed_architect_metric_requirements(
             ),
             (
                 "When a useful measurement has no authority-backed acceptance cutoff, "
-                "emit it only as required=false with "
-                "acceptance_authority_kind=diagnostic_only, or omit it. Never turn an "
-                "unsupported expectation into a theory-backed required gate. Use an "
+                "omit it from this acceptance portfolio. Never turn an unsupported "
+                "expectation into a theory-backed required gate. Use an "
                 "architect_preregistered_design gate only when a statistically "
                 "defensible pre-execution acceptance decision is actually needed."
             ),
@@ -1842,9 +2149,10 @@ def author_reviewed_architect_metric_requirements(
                 "and at-most versus at-least counts."
             ),
             (
-                "Require raw measurements whenever they exist. Use bool/0/1 with "
-                "metric_value_kind=boolean with operator == and threshold 1, "
-                "tolerance 0, "
+                "Require raw measurements whenever they exist. For an intrinsically "
+                "boolean predicate, use metric_value_kind=boolean with operator == "
+                "and an empty gate_fields array; runtime binds threshold 1 and "
+                "tolerance 0 as the boolean representation, "
                 "and null bounds only for an intrinsically boolean predicate. The "
                 "1 is the runtime-owned representation of true, not a substantive "
                 "numeric cutoff; source anchors must still authorize the predicate "
@@ -1857,7 +2165,12 @@ def author_reviewed_architect_metric_requirements(
                 "validation, and independent review. Describe the measurement "
                 "semantics without copying infrastructure-owned fields."
             ),
-            "Use null for comparison or quorum fields that do not apply to the selected operator or aggregation.",
+            (
+                "gate_fields must contain exactly the active fields in evaluator "
+                "order: threshold for a non-between numeric operator; lower then "
+                "upper for between; optional nonzero tolerance next; and the selected "
+                "quorum field last. Do not emit null placeholders or zero tolerance."
+            ),
             "Define measurable returned quantities, not prose-only success claims or task-specific runtime code.",
             "These rows are empirical controls and never theorem proof evidence.",
         ],
@@ -2205,23 +2518,40 @@ def author_reviewed_architect_metric_requirements(
             )
             if frozen_rebinding:
                 return payload
-            materialized_rows = [
-                materialize_generated_metric_gate_field_authorities(row)
-                for row in payload.get(
-                    "empirical_metric_requirements", []
-                )
-                if isinstance(row, Mapping)
-            ]
+            materialized_rows: list[dict[str, Any]] = []
+            model_aci_errors: list[str] = []
+            for requirement_index, row in enumerate(
+                payload.get("empirical_metric_requirements", []) or []
+            ):
+                if not isinstance(row, Mapping):
+                    model_aci_errors.append(
+                        f"empirical_metric_requirements[{requirement_index}] "
+                        "must be an object"
+                    )
+                    continue
+                if "gate_fields" in row or "predicate_authority" in row:
+                    materialized, row_errors = (
+                        _materialize_metric_authoring_model_requirement(
+                            row,
+                            requirement_index=requirement_index,
+                        )
+                    )
+                    materialized_rows.append(materialized)
+                    model_aci_errors.extend(row_errors)
+                else:
+                    materialized_rows.append(
+                        materialize_generated_metric_gate_field_authorities(row)
+                    )
             (
                 payload["empirical_metric_requirements"],
                 omitted_nonrequired_rows,
             ) = _confirmatory_metric_requirement_rows(
                 materialized_rows,
-                evaluation_mode=evaluation_mode,
             )
             payload["_runtime_omitted_nonrequired_requirements"] = (
                 omitted_nonrequired_rows
             )
+            payload["_runtime_model_aci_errors"] = model_aci_errors
             return payload
 
         def build_packet(
@@ -2236,6 +2566,11 @@ def author_reviewed_architect_metric_requirements(
                     "_runtime_omitted_nonrequired_requirements", []
                 )
                 if isinstance(row, Mapping)
+            ]
+            model_aci_errors = [
+                str(error)
+                for error in payload.get("_runtime_model_aci_errors", []) or []
+                if str(error).strip()
             ]
             frozen_binding_errors: list[str] = []
             if frozen_rebinding:
@@ -2275,7 +2610,6 @@ def author_reviewed_architect_metric_requirements(
                     newly_omitted_nonrequired_rows,
                 ) = _confirmatory_metric_requirement_rows(
                     requirement_rows,
-                    evaluation_mode=evaluation_mode,
                 )
                 omitted_nonrequired_rows.extend(
                     newly_omitted_nonrequired_rows
@@ -2335,6 +2669,24 @@ def author_reviewed_architect_metric_requirements(
                     active_finding_ledger_fingerprint
                 ),
                 "runtime_owned_requirement_bindings": {
+                    "target_subsystems": {
+                        "source": "generated_metric_target_namespace",
+                        "value": list(
+                            GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
+                        ),
+                        "model_authored": False,
+                        "binding_stage": (
+                            "before_hash_validation_and_review"
+                        ),
+                    },
+                    "required": {
+                        "source": "confirmatory_acceptance_portfolio",
+                        "value": True,
+                        "model_authored": False,
+                        "binding_stage": (
+                            "before_hash_validation_and_review"
+                        ),
+                    },
                     "required_runtime_replicates": {
                         "source": (
                             "runtime_contract."
@@ -2363,6 +2715,15 @@ def author_reviewed_architect_metric_requirements(
                             "before_hash_validation_and_review"
                         ),
                     },
+                    "flat_gate_values_and_authorities": {
+                        "source": "model_gate_fields",
+                        "model_authored_once": True,
+                        "runtime_expands_evaluator_abi": True,
+                        "runtime_selected_semantics": False,
+                        "binding_stage": (
+                            "before_hash_validation_and_review"
+                        ),
+                    },
                     "source_anchors": {
                         "source": (
                             "model_semantic_context_plus_"
@@ -2378,6 +2739,12 @@ def author_reviewed_architect_metric_requirements(
                 "confirmatory_required_rows_only": (
                     confirmatory_required_rows_only
                 ),
+                "model_requirement_transport": (
+                    "compact_gate_fields_v1"
+                    if not frozen_rebinding
+                    else "frozen_authority_rebinding"
+                ),
+                "model_requirement_transport_errors": model_aci_errors,
                 "omitted_nonrequired_requirements": (
                     omitted_nonrequired_rows
                 ),
@@ -2419,6 +2786,14 @@ def author_reviewed_architect_metric_requirements(
                 )
                 if str(error).strip()
             ]
+            errors.extend(
+                str(error)
+                for error in packet.get(
+                    "model_requirement_transport_errors", []
+                )
+                or []
+                if str(error).strip()
+            )
             errors.extend(
                 validate_generated_metric_requirements(
                     packet.get("empirical_metric_requirements", []),

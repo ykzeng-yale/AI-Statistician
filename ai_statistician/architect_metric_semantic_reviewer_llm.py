@@ -252,10 +252,9 @@ def _architect_metric_theory_scope_check_contract(
         "required_check_type": ARCHITECT_METRIC_THEORY_SCOPE_CHECK_TYPE,
         "rows": rows,
         "coverage_policy": (
-            "Emit exactly one theory_scope_consistency claim check for every "
-            "listed requirement_id and cite every listed source anchor. When "
-            "theory_authority_fields is nonempty, audit every listed field even "
-            "when the conservative row-level authority roll-up is Architect-owned."
+            "Emit one theory_scope_consistency check per listed requirement_id. "
+            "Runtime binds immutable source anchors by slot; audit their full scope "
+            "and every theory_authority_fields entry."
         ),
     }
 
@@ -1863,10 +1862,9 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
         "or attainability calculation. Diagnostic-only rows cannot authorize success."
     ),
     (
-        "When theory_scope_check_contract is required, emit exactly one compact "
-        "theory_scope_checks entry per listed requirement_id, cite every listed "
-        "source anchor, compare full parameter, quantifier, and regime scope, and test "
-        "a non-degenerate admissible case when the stated scope is nontrivial."
+        "Emit one theory_scope_checks row per required slot; runtime binds its "
+        "sources. Compare parameter, quantifier, and regime scope and test one "
+        "non-degenerate admissible case when relevant."
     ),
     (
         "For cross-requirement coverage, map every explicit question objective and "
@@ -2424,18 +2422,12 @@ _THEORY_SCOPE_CHECK_SCHEMA: dict[str, Any] = {
         "recomputation",
         "result",
         "verdict",
-        "evidence_refs",
     ],
     "properties": {
         "claim_ref": {"type": "string", "minLength": 1},
         "recomputation": {"type": "string", "minLength": 1},
         "result": {"type": "string", "minLength": 1},
         "verdict": {"type": "string", "enum": ["PASS", "FAIL"]},
-        "evidence_refs": {
-            "type": "array",
-            "minItems": 1,
-            "items": {"type": "string", "minLength": 1},
-        },
     },
 }
 
@@ -2675,14 +2667,6 @@ def architect_metric_semantic_review_json_schema(
         requirement_ids = [
             str(row["requirement_id"]) for row in theory_scope_rows
         ]
-        source_anchors = list(
-            dict.fromkeys(
-                str(value).strip()
-                for row in theory_scope_rows
-                for value in row.get("source_anchors", []) or []
-                if str(value).strip()
-            )
-        )
         scope_check_schema = deepcopy(_THEORY_SCOPE_CHECK_SCHEMA)
         scope_check_schema["required"] = [
             "requirement_id",
@@ -2695,12 +2679,6 @@ def architect_metric_semantic_review_json_schema(
             },
             **scope_check_schema["properties"],
         }
-        if source_anchors:
-            evidence_schema = scope_check_schema["properties"][
-                "evidence_refs"
-            ]
-            evidence_schema["uniqueItems"] = True
-            evidence_schema["items"]["enum"] = source_anchors
         schema["required"].append("theory_scope_checks")
         schema["properties"]["theory_scope_checks"] = {
             "type": "array",
@@ -3735,12 +3713,12 @@ def validate_architect_metric_semantic_review_packet(
             for value in matching_checks[0].get("evidence_refs", []) or []
             if str(value).strip()
         }
-        missing_anchors = sorted(required_anchors - cited_anchors)
-        if missing_anchors:
+        if cited_anchors != required_anchors:
             errors.append(
-                "theory_scope_consistency claim check for requirement_id "
-                f"{requirement_id} must cite every source anchor; "
-                f"missing={json.dumps(missing_anchors)}"
+                "theory_scope_consistency runtime source-anchor binding mismatch "
+                f"for requirement_id {requirement_id}; "
+                f"expected={json.dumps(sorted(required_anchors))} "
+                f"observed={json.dumps(sorted(cited_anchors))}"
             )
     unexpected_theory_scope_requirement_ids = sorted(
         requirement_id
@@ -4031,11 +4009,30 @@ def _normalize_architect_metric_semantic_review_packet(
         ]
     else:
         theory_scope_items = []
+    theory_scope_rows_by_requirement_id = {
+        str(row.get("requirement_id", "") or "").strip(): dict(row)
+        for row in _architect_metric_theory_scope_rows(review_material)
+    }
     theory_scope_claim_checks = [
         {
             **dict(raw_check),
             "requirement_id": str(requirement_id),
             "check_type": ARCHITECT_METRIC_THEORY_SCOPE_CHECK_TYPE,
+            "evidence_refs": list(
+                dict.fromkeys(
+                    str(value).strip()
+                    for value in theory_scope_rows_by_requirement_id.get(
+                        str(requirement_id).strip(),
+                        {},
+                    ).get("source_anchors", [])
+                    or []
+                    if str(value).strip()
+                )
+            ),
+            "source_anchor_binding": (
+                "runtime_requirement_slot_binding"
+            ),
+            "runtime_selected_semantics": False,
         }
         for requirement_id, raw_check in theory_scope_items
         if str(requirement_id).strip() and isinstance(raw_check, Mapping)

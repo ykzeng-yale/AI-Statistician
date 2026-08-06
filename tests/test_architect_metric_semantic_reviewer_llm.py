@@ -451,7 +451,6 @@ def test_metric_reviewer_six_gate_prompt_and_scope_schema_stay_compact() -> None
         "recomputation",
         "result",
         "verdict",
-        "evidence_refs",
     }
     assert scope_properties["requirement_id"]["enum"] == [
         f"generic_gate_{index}" for index in range(6)
@@ -722,39 +721,15 @@ def test_theory_bound_metric_review_requires_scope_consistency_check() -> None:
         in str(wrong_type_exc.value)
     )
 
-    missing_anchor_payload = _review_payload(accept=True)
-    missing_anchor_payload["theory_scope_checks"] = {
-        "generic_gate": {
-            "claim_ref": "theory:generic-gate",
-            "recomputation": "Compare the stated and checked parameter scopes.",
-            "result": "The checked scope is narrower.",
-            "verdict": "FAIL",
-            "evidence_refs": ["theory:generic-gate"],
-        }
-    }
-    with pytest.raises(PacketValidationError) as missing_anchor_exc:
-        _review(
-            accept=True,
-            payload=missing_anchor_payload,
-            material=material,
-        )
-    assert "must cite every source anchor" in str(missing_anchor_exc.value)
-    assert "theory:generic-sanity" in str(missing_anchor_exc.value)
-
     payload = _review_payload(accept=True)
-    payload["theory_scope_checks"] = [
-        {
-            "requirement_id": "generic_gate",
+    payload["theory_scope_checks"] = {
+        "generic_gate": {
             "claim_ref": "theory:generic-gate",
             "recomputation": "Compare the stated and checked parameter scopes.",
             "result": "The checked scope covers the stated scope.",
             "verdict": "PASS",
-            "evidence_refs": [
-                "theory:generic-gate",
-                "theory:generic-sanity",
-            ],
         }
-    ]
+    }
     packet, backend, _ = _review(
         accept=True,
         payload=payload,
@@ -763,7 +738,25 @@ def test_theory_bound_metric_review_requires_scope_consistency_check() -> None:
 
     assert packet["theory_scope_check_required"] is True
     assert packet["source_theory_packet_id"] == "theory:scope-check"
+    scope_check = next(
+        row
+        for row in packet["claim_checks"]
+        if row["check_type"] == "theory_scope_consistency"
+    )
+    assert scope_check["evidence_refs"] == [
+        "theory:generic-gate",
+        "theory:generic-sanity",
+    ]
+    assert scope_check["source_anchor_binding"] == (
+        "runtime_requirement_slot_binding"
+    )
+    assert scope_check["runtime_selected_semantics"] is False
     assert validate_architect_metric_semantic_review_packet(packet) == []
+    scope_check["evidence_refs"] = ["theory:generic-gate"]
+    assert any(
+        "runtime source-anchor binding mismatch" in error
+        for error in validate_architect_metric_semantic_review_packet(packet)
+    )
     scope_schema = backend.requests[0].schema["properties"][
         "theory_scope_checks"
     ]["items"]
@@ -773,7 +766,6 @@ def test_theory_bound_metric_review_requires_scope_consistency_check() -> None:
         "recomputation",
         "result",
         "verdict",
-        "evidence_refs",
     }
     assert backend.requests[0].metadata["review_theory_scope_check_count"] == 1
 
@@ -2462,12 +2454,9 @@ def test_metric_review_schema_transforms_for_anthropic_structured_output() -> No
     assert transformed_scope_schema["items"]["properties"]["requirement_id"][
         "enum"
     ] == ["gate:one"]
-    assert transformed_scope_schema["items"]["properties"]["evidence_refs"][
-        "items"
-    ]["enum"] == ["theory:gate-one"]
-    assert transformed_scope_schema["items"]["properties"]["evidence_refs"][
-        "minItems"
-    ] == 1
+    assert "evidence_refs" not in transformed_scope_schema["items"][
+        "properties"
+    ]
     assert transformed["properties"]["claim_checks"]["items"]["properties"][
         "requirement_id"
     ]["enum"] == ["gate:one"]
