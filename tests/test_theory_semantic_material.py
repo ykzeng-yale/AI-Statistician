@@ -46,6 +46,10 @@ def test_theory_semantic_material_is_consumer_neutral_and_nonproof() -> None:
 
 def test_metric_protocol_wrapper_keeps_legacy_consumer_identity() -> None:
     packet = _theory_packet()
+    retrieval_context = {
+        "knowledge_cards": [{"id": "card:generic", "summary": "source"}],
+        "boundary": "Retrieval context is not proof evidence.",
+    }
 
     generic = build_theory_semantic_material(
         theory_packet=packet,
@@ -54,7 +58,9 @@ def test_metric_protocol_wrapper_keeps_legacy_consumer_identity() -> None:
     metric = build_theory_informed_metric_protocol_material(
         theory_packet=packet,
         theory_packet_id=packet["packet_id"],
+        retrieval_context=retrieval_context,
     )
+    retrieval_context["knowledge_cards"][0]["summary"] = "mutated"
 
     assert metric["artifact_kind"] == (
         "RuntimeTheoryInformedMetricProtocolMaterial"
@@ -68,6 +74,9 @@ def test_metric_protocol_wrapper_keeps_legacy_consumer_identity() -> None:
     assert metric["theory_semantic_material"] == generic[
         "theory_semantic_material"
     ]
+    assert metric["retrieval_context"]["knowledge_cards"][0]["summary"] == (
+        "source"
+    )
 
 
 def test_theory_revision_binding_accepts_generic_material_only_as_nonproof() -> None:

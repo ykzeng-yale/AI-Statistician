@@ -1,13 +1,32 @@
 from __future__ import annotations
 
 import json
+import re
 from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence
 
+from .client_tool_loop import (
+    ClientToolExecutionContext,
+    ClientToolExecutionResult,
+    ClientToolInputError,
+    ClientToolLoopError,
+    run_bounded_client_tool_loop,
+)
 from .fingerprint import stable_hash
-from .llm_json_repair import extract_json_object, generate_validated_json_packet
-from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
+from .llm_json_repair import (
+    PacketValidationError,
+    extract_json_object,
+    generate_validated_json_packet,
+)
+from .model_backend import (
+    ClientToolCall,
+    ClientToolDefinition,
+    ClientToolTurnRequest,
+    GeneratorBackend,
+    GeneratorRequest,
+    resolve_generator_model,
+)
 from .metric_protocol_finding_ledger import (
     METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
     METRIC_PROTOCOL_FINDING_UNRESOLVED,
@@ -53,6 +72,12 @@ _ESTIMATOR_DECLARATION_REQUIREMENTS = (
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE"
 )
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT = (
+    "client_tool_source_query_v1"
+)
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES = 3
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 5
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_NO_PROGRESS_TURNS = 2
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_BOUNDARY = (
     "This independent pre-execution review can reject a TheoryDeveloper handoff "
     "that is mathematically inconsistent or cannot be represented by a finite "
@@ -414,6 +439,12 @@ def build_architect_theory_execution_preflight_material(
         anchor_catalog
     )[:20]
     active_prior_findings = _active_prior_finding_rows(prior_finding_ledger)
+    retrieval_context = theory_protocol_material.get("retrieval_context", {})
+    retrieval_context = (
+        deepcopy(dict(retrieval_context))
+        if isinstance(retrieval_context, Mapping)
+        else {}
+    )
     prior_revision_indices = [
         int(row.get("latest_seen_revision_index", 0) or 0)
         for row in prior_finding_ledger
@@ -448,6 +479,7 @@ def build_architect_theory_execution_preflight_material(
         "anchor_catalog_id": anchor_catalog_id,
         "anchor_catalog": anchor_catalog,
         "anchor_catalog_fingerprint": stable_hash(anchor_catalog),
+        "retrieval_context": retrieval_context,
         "proof_evidence_status": ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE,
         "boundary": ARCHITECT_THEORY_EXECUTION_PREFLIGHT_BOUNDARY,
     }
@@ -771,8 +803,17 @@ def build_architect_theory_execution_preflight_prompt(
     source_material = {
         key: value
         for key, value in material.items()
-        if key != "prior_finding_ledger"
+        if key not in {"prior_finding_ledger", "retrieval_context"}
     }
+    retrieval_context = material.get("retrieval_context", {})
+    retrieval_context = (
+        retrieval_context if isinstance(retrieval_context, Mapping) else {}
+    )
+    formal_source_groups = [
+        row
+        for row in retrieval_context.get("formal_source_hits", []) or []
+        if isinstance(row, Mapping)
+    ]
     payload = {
         "task": (
             "Decide whether this theory handoff is mathematically coherent and "
@@ -811,6 +852,22 @@ def build_architect_theory_execution_preflight_prompt(
             ],
         },
         "source_material": source_material,
+        "retrieval_source_inventory": {
+            "knowledge_cards": len(
+                retrieval_context.get("knowledge_cards", []) or []
+            ),
+            "paper_sources": len(
+                retrieval_context.get("paper_sources", []) or []
+            ),
+            "formal_source_hit_groups": len(formal_source_groups),
+            "formal_source_hits": sum(
+                len(row.get("hits", []) or []) for row in formal_source_groups
+            ),
+            "access_policy": (
+                "Use search_preflight_sources in client-tool mode. Retrieval rows "
+                "are context, not proof or automatic semantic authority."
+            ),
+        },
         "verdict_policy": (
             "Do not return an overall verdict. AgentRuntime derives it from the "
             "complete dimension, estimator, and finding rows."
@@ -821,6 +878,363 @@ def build_architect_theory_execution_preflight_prompt(
         separators=(",", ":"),
         default=str,
     )
+
+
+def _architect_theory_execution_preflight_submit_schema(
+    material: Mapping[str, Any],
+) -> dict[str, Any]:
+    schema = architect_theory_execution_preflight_json_schema(material)
+    finding_schema = schema["$defs"]["finding"]
+    finding_schema["properties"]["source_evidence_refs"] = {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 6,
+        "items": {"type": "string", "minLength": 1, "maxLength": 120},
+        "description": (
+            "IDs of exact hits returned by search_preflight_sources that support "
+            "this blocking finding. Theory anchor evidence_refs remain separately "
+            "required."
+        ),
+    }
+    finding_schema["required"].append("source_evidence_refs")
+    return schema
+
+
+def _preflight_source_tokens(value: Any) -> set[str]:
+    return {
+        token.lower()
+        for token in re.findall(r"[A-Za-z][A-Za-z0-9_']{1,}", str(value))
+    }
+
+
+def _preflight_source_row(
+    *,
+    source_kind: str,
+    source_identity: str,
+    title: str,
+    location: str,
+    content: Any,
+    provenance: Any = None,
+) -> dict[str, Any]:
+    row = {
+        "source_kind": str(source_kind),
+        "source_identity": str(source_identity),
+        "title": str(title)[:240],
+        "location": str(location)[:500],
+        "content": _compact_value(
+            content,
+            max_depth=4,
+            list_limit=6,
+            text_limit=420,
+        ),
+        "provenance": _compact_value(
+            provenance or {},
+            max_depth=3,
+            list_limit=6,
+            text_limit=300,
+        ),
+    }
+    row["source_hit_id"] = "preflight_source_hit:" + stable_hash(row)[:20]
+    return row
+
+
+def _object_mapping(value: Any) -> dict[str, Any]:
+    if isinstance(value, Mapping):
+        return dict(value)
+    raw = getattr(value, "__dict__", None)
+    return dict(raw) if isinstance(raw, Mapping) else {}
+
+
+def _formal_source_hit_row(value: Any) -> dict[str, Any] | None:
+    hit = _object_mapping(value)
+    declaration = _object_mapping(hit.get("declaration", {}))
+    if not declaration:
+        declaration = hit
+    name = str(
+        declaration.get("name", "")
+        or hit.get("name", "")
+        or hit.get("declaration_name", "")
+    ).strip()
+    signature = str(
+        declaration.get("signature", "")
+        or hit.get("signature", "")
+        or hit.get("statement", "")
+    ).strip()
+    path = str(declaration.get("path", "") or hit.get("path", "")).strip()
+    line = declaration.get("line", hit.get("line", ""))
+    source_id = str(
+        declaration.get("source_id", "")
+        or hit.get("source_id", "")
+        or hit.get("provider", "")
+        or "formal_library"
+    ).strip()
+    if not (name or signature or path):
+        return None
+    identity = ":".join(
+        value
+        for value in (source_id, path, str(line or ""), name)
+        if value
+    )
+    return _preflight_source_row(
+        source_kind="formal_library_declaration",
+        source_identity=identity or stable_hash(hit),
+        title=name or path or source_id,
+        location=(f"{path}:{line}" if path and line else path),
+        content={
+            "kind": declaration.get("kind", hit.get("kind", "")),
+            "namespace": declaration.get(
+                "namespace", hit.get("namespace", "")
+            ),
+            "signature": signature,
+            "reference": declaration.get(
+                "reference", hit.get("reference", "")
+            ),
+            "matched_terms": list(hit.get("matched_terms", []) or []),
+            "score": hit.get("score", 0.0),
+        },
+        provenance=hit.get("provenance", {}),
+    )
+
+
+def _preflight_source_catalog(material: Mapping[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for anchor in material.get("anchor_catalog", []) or []:
+        if not isinstance(anchor, Mapping):
+            continue
+        anchor_id = str(anchor.get("anchor_id", "") or "").strip()
+        if not anchor_id:
+            continue
+        rows.append(
+            _preflight_source_row(
+                source_kind="theory_anchor",
+                source_identity=anchor_id,
+                title=str(anchor.get("artifact_role", "") or anchor_id),
+                location=anchor_id,
+                content=anchor.get("content"),
+                provenance={
+                    "source_theory_packet_id": material.get(
+                        "source_theory_packet_id", ""
+                    ),
+                    "source_theory_packet_hash": material.get(
+                        "source_theory_packet_hash", ""
+                    ),
+                },
+            )
+        )
+
+    retrieval = material.get("retrieval_context", {})
+    retrieval = retrieval if isinstance(retrieval, Mapping) else {}
+    for source_kind, key in (
+        ("retrieval_knowledge_card", "knowledge_cards"),
+        ("retrieval_paper_source", "paper_sources"),
+    ):
+        for index, value in enumerate(retrieval.get(key, []) or []):
+            if not isinstance(value, Mapping):
+                continue
+            identity = str(
+                value.get("id", "")
+                or value.get("source_id", "")
+                or value.get("paper_id", "")
+                or stable_hash(value)
+            )
+            rows.append(
+                _preflight_source_row(
+                    source_kind=source_kind,
+                    source_identity=identity,
+                    title=str(
+                        value.get("title", "")
+                        or value.get("name", "")
+                        or f"{key}[{index}]"
+                    ),
+                    location=str(
+                        value.get("source", "")
+                        or value.get("url", "")
+                        or value.get("path", "")
+                    ),
+                    content=value,
+                    provenance=value.get("provenance", {}),
+                )
+            )
+    for group in retrieval.get("formal_source_hits", []) or []:
+        if not isinstance(group, Mapping):
+            continue
+        for value in group.get("hits", []) or []:
+            row = _formal_source_hit_row(value)
+            if row is not None:
+                rows.append(row)
+    return rows
+
+
+def _search_preflight_sources(
+    *,
+    material: Mapping[str, Any],
+    source_retriever: Any,
+    query: str,
+    source_scope: str,
+    k: int,
+) -> dict[str, Any]:
+    query_tokens = _preflight_source_tokens(query)
+    if not query_tokens:
+        raise ClientToolInputError(
+            "query must contain at least one searchable word"
+        )
+    allowed_kinds = {
+        "theory": {"theory_anchor"},
+        "retrieval_memory": {
+            "retrieval_knowledge_card",
+            "retrieval_paper_source",
+            "formal_library_declaration",
+        },
+        "formal_library": {"formal_library_declaration"},
+        "all": {
+            "theory_anchor",
+            "retrieval_knowledge_card",
+            "retrieval_paper_source",
+            "formal_library_declaration",
+        },
+    }[source_scope]
+    ranked: list[tuple[float, dict[str, Any]]] = []
+    for row in _preflight_source_catalog(material):
+        if row["source_kind"] not in allowed_kinds:
+            continue
+        row_text = json.dumps(row, default=str, ensure_ascii=False)
+        row_tokens = _preflight_source_tokens(row_text)
+        overlap = query_tokens.intersection(row_tokens)
+        if not overlap:
+            continue
+        phrase_bonus = 2.0 if query.lower() in row_text.lower() else 0.0
+        ranked.append((float(len(overlap)) + phrase_bonus, row))
+
+    provider_errors: list[dict[str, str]] = []
+    if source_scope in {"formal_library", "all"} and source_retriever is not None:
+        search = getattr(source_retriever, "search", None)
+        if callable(search):
+            try:
+                for hit in search(query, k=k) or []:
+                    row = _formal_source_hit_row(hit)
+                    if row is not None:
+                        try:
+                            score = float(_object_mapping(hit).get("score", 0.0))
+                        except (TypeError, ValueError):
+                            score = 0.0
+                        ranked.append((100.0 + score, row))
+            except Exception as exc:  # provider isolation belongs at the tool edge
+                provider_errors.append(
+                    {
+                        "provider": str(
+                            getattr(source_retriever, "source", "formal_source")
+                        ),
+                        "error_type": type(exc).__name__,
+                        "detail_withheld": "true",
+                    }
+                )
+
+    deduplicated: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for score, row in sorted(
+        ranked,
+        key=lambda item: (-item[0], item[1]["source_hit_id"]),
+    ):
+        hit_id = str(row["source_hit_id"])
+        if hit_id in seen:
+            continue
+        seen.add(hit_id)
+        deduplicated.append({**row, "retrieval_score": score})
+        if len(deduplicated) >= k:
+            break
+    observation_core = {
+        "query": query,
+        "source_scope": source_scope,
+        "hits": deduplicated,
+        "provider_errors": provider_errors,
+    }
+    return {
+        "observation_id": (
+            "preflight_source_observation:"
+            + stable_hash(observation_core)[:20]
+        ),
+        **observation_core,
+        "boundary": (
+            "These are runtime-returned source candidates. The reviewing model owns "
+            "the semantic judgment; retrieval is not proof or automatic support."
+        ),
+    }
+
+
+def _preflight_source_grounding_errors(packet: Mapping[str, Any]) -> list[str]:
+    if packet.get("source_grounding_required") is not True:
+        return []
+    errors: list[str] = []
+    if packet.get("source_grounding_transport") != (
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT
+    ):
+        errors.append("preflight source-grounding transport mismatch")
+    observations = [
+        dict(row)
+        for row in packet.get("preflight_source_observations", []) or []
+        if isinstance(row, Mapping)
+    ]
+    if not observations:
+        errors.append("preflight source grounding requires a source observation")
+    hit_ids: set[str] = set()
+    for observation in observations:
+        core = {
+            key: observation.get(key)
+            for key in ("query", "source_scope", "hits", "provider_errors")
+        }
+        expected_id = "preflight_source_observation:" + stable_hash(core)[:20]
+        if observation.get("observation_id") != expected_id:
+            errors.append("preflight source observation identity mismatch")
+        for hit in observation.get("hits", []) or []:
+            if isinstance(hit, Mapping):
+                hit_id = str(hit.get("source_hit_id", "") or "").strip()
+                hit_identity_material = {
+                    key: value
+                    for key, value in hit.items()
+                    if key not in {"source_hit_id", "retrieval_score"}
+                }
+                expected_hit_id = (
+                    "preflight_source_hit:"
+                    + stable_hash(hit_identity_material)[:20]
+                )
+                if hit_id != expected_hit_id:
+                    errors.append("preflight source hit identity mismatch")
+                if hit_id:
+                    hit_ids.add(hit_id)
+    findings = [
+        row
+        for row in packet.get("findings", []) or []
+        if isinstance(row, Mapping)
+    ]
+    expected_bindings: list[dict[str, Any]] = []
+    for finding in findings:
+        refs = [
+            str(value).strip()
+            for value in finding.get("source_evidence_refs", []) or []
+            if str(value).strip()
+        ]
+        if not refs or any(ref not in hit_ids for ref in refs):
+            errors.append(
+                "every preflight finding must cite runtime-returned source hit ids"
+            )
+        expected_bindings.append(
+            {
+                "finding_id": str(finding.get("finding_id", "") or ""),
+                "source_evidence_refs": refs,
+                "runtime_verified_source_refs": bool(
+                    refs and all(ref in hit_ids for ref in refs)
+                ),
+                "runtime_selected_semantics": False,
+            }
+        )
+    if packet.get("source_grounding_bindings", []) != expected_bindings:
+        errors.append("preflight source-grounding bindings mismatch")
+    expected_fingerprint = stable_hash(observations) if observations else ""
+    if str(packet.get("preflight_source_observations_fingerprint", "") or "") != (
+        expected_fingerprint
+    ):
+        errors.append("preflight source observation fingerprint mismatch")
+    return errors
 
 
 def _derived_verdict(packet: Mapping[str, Any]) -> str:
@@ -1004,8 +1418,24 @@ def _normalize_packet(
     model_tier: str,
     provider_name: str,
     raw_response: str,
+    source_grounding: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     body = dict(payload)
+    grounding = deepcopy(dict(source_grounding or {}))
+    if grounding:
+        body.update(grounding)
+    else:
+        body.update(
+            {
+                "source_grounding_required": False,
+                "source_grounding_transport": (
+                    "legacy_structured_output_without_client_tools"
+                ),
+                "preflight_source_observations": [],
+                "preflight_source_observations_fingerprint": "",
+                "runtime_selected_review_semantics": False,
+            }
+        )
     raw_dimension_reviews = _ordered_review_slot_rows(
         body.get("dimension_reviews", {}),
         expected_count=len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS),
@@ -1143,6 +1573,19 @@ def _normalize_packet(
             )[0]
         normalized_findings.append(finding)
     body["findings"] = normalized_findings
+    body["source_grounding_bindings"] = [
+        {
+            "finding_id": str(finding.get("finding_id", "") or ""),
+            "source_evidence_refs": [
+                str(value).strip()
+                for value in finding.get("source_evidence_refs", []) or []
+                if str(value).strip()
+            ],
+            "runtime_verified_source_refs": True,
+            "runtime_selected_semantics": False,
+        }
+        for finding in normalized_findings
+    ] if body.get("source_grounding_required") is True else []
     body["runtime_prior_finding_identity_bindings"] = (
         prior_finding_identity_bindings
     )
@@ -1497,14 +1940,14 @@ def validate_architect_theory_execution_preflight_packet(
             "canonical_finding_id": finding_id,
             "model_continuation_fingerprint": stable_hash(
                 {
-                    field: row.get(field)
-                    for field in (
-                        "severity",
-                        "category",
-                        "summary",
-                        "required_change",
-                        "evidence_refs",
-                    )
+                    key: value
+                    for key, value in row.items()
+                    if key
+                    not in {
+                        "finding_id",
+                        "prior_finding_id",
+                        "repair_scope",
+                    }
                 }
             ),
             "identity_source": "prior_finding_reviews_ordered_index",
@@ -1613,6 +2056,7 @@ def validate_architect_theory_execution_preflight_packet(
         errors.append(
             "theory execution preflight finding ledger fingerprint mismatch"
         )
+    errors.extend(_preflight_source_grounding_errors(packet))
     return sorted(set(errors))
 
 
@@ -1628,6 +2072,337 @@ use observed results, invent task-family rules, or claim proof evidence.
 """
 
 
+def _review_architect_theory_execution_preflight_with_source_tools(
+    *,
+    provider: GeneratorBackend,
+    question: OpenResearchQuestion,
+    material: Mapping[str, Any],
+    source_retriever: Any,
+    request_model: str,
+    model_tier: str,
+    provider_name: str,
+    max_tokens: int,
+    temperature: float,
+    review_output_token_cap: int,
+) -> dict[str, Any]:
+    submit_schema = _architect_theory_execution_preflight_submit_schema(
+        material
+    )
+    tools = (
+        ClientToolDefinition(
+            name="search_preflight_sources",
+            description=(
+                "Search the current theory anchors, task-bound retrieval memory, "
+                "and configured formal libraries. Write the query yourself. Use "
+                "returned source_hit_id values to ground every blocking finding."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["query", "source_scope", "k"],
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 500,
+                    },
+                    "source_scope": {
+                        "type": "string",
+                        "enum": [
+                            "theory",
+                            "retrieval_memory",
+                            "formal_library",
+                            "all",
+                        ],
+                    },
+                    "k": {"type": "integer", "minimum": 1, "maximum": 8},
+                },
+            },
+        ),
+        ClientToolDefinition(
+            name="submit_theory_preflight_review",
+            description=(
+                "Submit the complete preflight review after source search. Every "
+                "finding, including a continued prior finding, must cite one or "
+                "more exact source_hit_id values returned in this loop."
+            ),
+            input_schema=submit_schema,
+            terminal=True,
+        ),
+    )
+    prompt = build_architect_theory_execution_preflight_prompt(material)
+    tool_prompt = (
+        prompt.split("\n\n", 1)[-1]
+        + "\n\nUse search_preflight_sources before submitting. You own each "
+        "statistical judgment and each search query. Runtime retrieval ranking, "
+        "source identity checks, and packet validation do not choose semantics. "
+        "Call submit_theory_preflight_review with the full typed review; do not "
+        "answer in prose."
+    )
+    state: dict[str, Any] = {
+        "searches": 0,
+        "observations": [],
+        "observation_ids": set(),
+    }
+
+    def source_grounding_payload(**loop_metadata: Any) -> dict[str, Any]:
+        observations = deepcopy(list(state["observations"]))
+        return {
+            "source_grounding_required": True,
+            "source_grounding_transport": (
+                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT
+            ),
+            "preflight_source_observations": observations,
+            "preflight_source_observations_fingerprint": stable_hash(
+                observations
+            ),
+            "preflight_source_search_count": int(state["searches"]),
+            "preflight_source_search_budget": (
+                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
+            ),
+            "runtime_selected_review_semantics": False,
+            **loop_metadata,
+        }
+
+    def normalize_submission(
+        payload: Mapping[str, Any],
+        *,
+        source_grounding: Mapping[str, Any],
+        response_model: str,
+        response_provider: str,
+    ) -> dict[str, Any]:
+        return _normalize_packet(
+            payload,
+            question=question,
+            material=material,
+            model=response_model or request_model,
+            model_tier=model_tier,
+            provider_name=provider_name or response_provider,
+            raw_response=json.dumps(
+                payload,
+                sort_keys=True,
+                separators=(",", ":"),
+                default=str,
+            ),
+            source_grounding=source_grounding,
+        )
+
+    def execute_tool(
+        call: ClientToolCall,
+        _context: ClientToolExecutionContext,
+    ) -> ClientToolExecutionResult:
+        tool_input = dict(call.input)
+        if call.name == "search_preflight_sources":
+            if state["searches"] >= (
+                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
+            ):
+                raise ClientToolInputError(
+                    "preflight source-search budget exhausted"
+                )
+            query = str(tool_input.get("query", "") or "").strip()
+            source_scope = str(
+                tool_input.get("source_scope", "") or ""
+            ).strip()
+            try:
+                k = int(tool_input.get("k", 0) or 0)
+            except (TypeError, ValueError) as exc:
+                raise ClientToolInputError("k must be an integer") from exc
+            if not 3 <= len(query) <= 500:
+                raise ClientToolInputError(
+                    "query length must be between 3 and 500 characters"
+                )
+            if source_scope not in {
+                "theory",
+                "retrieval_memory",
+                "formal_library",
+                "all",
+            }:
+                raise ClientToolInputError("source_scope is invalid")
+            if not 1 <= k <= 8:
+                raise ClientToolInputError("k must be between 1 and 8")
+            observation = _search_preflight_sources(
+                material=material,
+                source_retriever=source_retriever,
+                query=query,
+                source_scope=source_scope,
+                k=k,
+            )
+            state["searches"] += 1
+            observation_id = str(observation["observation_id"])
+            if observation_id not in state["observation_ids"]:
+                state["observation_ids"].add(observation_id)
+                state["observations"].append(observation)
+            return ClientToolExecutionResult(
+                content={
+                    "ok": True,
+                    **observation,
+                    "remaining_searches": (
+                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
+                        - state["searches"]
+                    ),
+                },
+                state_changed=True,
+                observation_key=observation_id,
+            )
+
+        if call.name == "submit_theory_preflight_review":
+            if state["searches"] < 1:
+                raise ClientToolInputError(
+                    "search_preflight_sources must run before submission"
+                )
+            source_grounding = source_grounding_payload()
+            packet = normalize_submission(
+                tool_input,
+                source_grounding=source_grounding,
+                response_model=request_model,
+                response_provider=provider_name,
+            )
+            errors = validate_architect_theory_execution_preflight_packet(
+                packet,
+                material=material,
+            )
+            if errors:
+                raise ClientToolInputError("; ".join(errors[:12]))
+            return ClientToolExecutionResult(
+                content={
+                    "ok": True,
+                    "submitted": True,
+                    "overall_verdict": packet.get("overall_verdict", ""),
+                    "packet_fingerprint": stable_hash(packet),
+                    "source_grounding_verified": True,
+                    "proof_evidence_status": (
+                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE
+                    ),
+                },
+                terminal=True,
+                terminal_payload={"review_payload": tool_input},
+                observation_key="preflight-submitted:" + stable_hash(packet),
+            )
+        raise ClientToolInputError("unsupported preflight client tool")
+
+    request = ClientToolTurnRequest(
+        system_prompt=(
+            ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT
+            + "\nThis live review is source-query grounded. Search before deciding; "
+            "do not cite a source you did not receive from the client tool."
+        ),
+        messages=({"role": "user", "content": tool_prompt},),
+        tools=tools,
+        model=request_model,
+        max_tokens=min(max(1, int(max_tokens)), review_output_token_cap),
+        temperature=temperature,
+        tool_choice="any",
+        disable_parallel_tool_use=True,
+        metadata={
+            "subsystem": "ArchitectMetricSemanticReviewer",
+            "agent": "LLMArchitectMetricSemanticReviewerAgent",
+            "review_stage": "theory_execution_preflight",
+            "provider_name": provider_name,
+            "model_tier": model_tier,
+            "resolved_model": request_model,
+            "client_tool_transport": True,
+            "review_input_fingerprint": stable_hash(material),
+            "review_protocol_version": (
+                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION
+            ),
+            "source_grounding_transport": (
+                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT
+            ),
+        },
+    )
+    max_tool_calls = (
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
+        + ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS
+    )
+    try:
+        loop = run_bounded_client_tool_loop(
+            backend=provider,
+            request=request,
+            execute_tool=execute_tool,
+            max_turns=ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS,
+            max_tool_calls=max_tool_calls,
+            max_no_progress_turns=(
+                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_NO_PROGRESS_TURNS
+            ),
+        )
+    except ClientToolLoopError as exc:
+        raise PacketValidationError(
+            validation_label=(
+                "Architect theory-to-execution source-grounded preflight review"
+            ),
+            attempts=exc.turns,
+            errors=[exc.reason],
+            history=[deepcopy(dict(row)) for row in exc.history],
+            recovery_checkpoint={
+                "artifact_kind": (
+                    "ArchitectTheoryExecutionPreflightSourceToolCheckpoint"
+                ),
+                "question_id": question.id,
+                **source_grounding_payload(
+                    client_tool_loop_turns=exc.turns,
+                    client_tool_loop_tool_calls=exc.tool_calls,
+                    client_tool_loop_runtime_executed_tool_calls=(
+                        exc.runtime_executed_tool_calls
+                    ),
+                    client_tool_loop_transcript_fingerprint=(
+                        exc.transcript_fingerprint
+                    ),
+                ),
+                "proof_evidence_status": (
+                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE
+                ),
+            },
+        ) from exc
+
+    terminal = dict(loop.terminal_payload)
+    review_payload = terminal.get("review_payload", {})
+    if not isinstance(review_payload, Mapping):
+        raise PacketValidationError(
+            validation_label=(
+                "Architect theory-to-execution source-grounded preflight review"
+            ),
+            attempts=loop.turns,
+            errors=["terminal submission did not contain a review payload"],
+            history=[deepcopy(dict(row)) for row in loop.history],
+        )
+    packet = normalize_submission(
+        review_payload,
+        source_grounding=source_grounding_payload(
+            client_tool_loop_turns=loop.turns,
+            client_tool_loop_tool_calls=loop.tool_calls,
+            client_tool_loop_runtime_executed_tool_calls=(
+                loop.runtime_executed_tool_calls
+            ),
+            client_tool_loop_transcript_fingerprint=(
+                loop.transcript_fingerprint
+            ),
+            client_tool_loop_provider_usage=dict(loop.provider_usage),
+            client_tool_loop_response_metadata=dict(
+                loop.final_response_metadata
+            ),
+            client_tool_loop_history=[
+                deepcopy(dict(row)) for row in loop.history
+            ],
+        ),
+        response_model=loop.model,
+        response_provider=loop.provider,
+    )
+    errors = validate_architect_theory_execution_preflight_packet(
+        packet,
+        material=material,
+    )
+    if errors:
+        raise PacketValidationError(
+            validation_label=(
+                "Architect theory-to-execution source-grounded preflight review"
+            ),
+            attempts=loop.turns,
+            errors=errors,
+            history=[deepcopy(dict(row)) for row in loop.history],
+        )
+    return packet
+
+
 def review_architect_theory_execution_preflight(
     *,
     provider: GeneratorBackend,
@@ -1641,6 +2416,7 @@ def review_architect_theory_execution_preflight(
     provider_name: str,
     max_repair_attempts: int,
     prior_finding_ledger: Sequence[Mapping[str, Any]] = (),
+    source_retriever: Any = None,
 ) -> dict[str, Any]:
     material = build_architect_theory_execution_preflight_material(
         question=question,
@@ -1665,6 +2441,19 @@ def review_architect_theory_execution_preflight(
         + 1200 * max(0, review_estimator_count - 1)
         + 900 * review_prior_finding_count,
     )
+    if callable(getattr(provider, "generate_client_tool_turn", None)):
+        return _review_architect_theory_execution_preflight_with_source_tools(
+            provider=provider,
+            question=question,
+            material=material,
+            source_retriever=source_retriever,
+            request_model=request_model,
+            model_tier=model_tier,
+            provider_name=provider_name,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            review_output_token_cap=review_output_token_cap,
+        )
     request = GeneratorRequest(
         system_prompt=ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT,
         user_prompt=prompt,

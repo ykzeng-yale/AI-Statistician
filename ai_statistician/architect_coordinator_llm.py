@@ -226,6 +226,7 @@ class LLMArchitectCoordinatorAgent:
         metric_repair_ownership_router: (
             LLMArchitectMetricRepairOwnershipRouterAgent | None
         ) = None,
+        preflight_source_retriever: Any = None,
     ) -> None:
         self.provider = provider
         self.config = config
@@ -244,6 +245,7 @@ class LLMArchitectCoordinatorAgent:
                         temperature=0.0,
                         provider_name=config.provider_name,
                     ),
+                    source_retriever=preflight_source_retriever,
                 )
             )
         self.metric_repair_ownership_router = metric_repair_ownership_router

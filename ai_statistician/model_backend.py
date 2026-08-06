@@ -662,6 +662,7 @@ class ClientToolTurnRequest:
     max_tokens: int = 4096
     temperature: float = 0.0
     tool_choice: str = "any"
+    disable_parallel_tool_use: bool = False
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
 
@@ -1111,6 +1112,9 @@ class AnthropicGeneratorBackend:
             timeout=timeout_s,
             max_retries=0,
         )
+        tool_choice: dict[str, Any] = {"type": request.tool_choice}
+        if request.disable_parallel_tool_use:
+            tool_choice["disable_parallel_tool_use"] = True
         request_kwargs: dict[str, Any] = {
             "model": request.model,
             "max_tokens": request.max_tokens,
@@ -1125,7 +1129,7 @@ class AnthropicGeneratorBackend:
                 }
                 for tool in request.tools
             ],
-            "tool_choice": {"type": request.tool_choice},
+            "tool_choice": tool_choice,
         }
         with self._capability_lock:
             cached_unsupported_parameters = set(
@@ -1192,6 +1196,9 @@ class AnthropicGeneratorBackend:
                 "tools_executed_by_backend": False,
                 "client_tool_names": tool_names,
                 "n_client_tool_calls": len(tool_calls),
+                "disable_parallel_tool_use": bool(
+                    request.disable_parallel_tool_use
+                ),
                 "timeout_seconds": timeout_s,
                 "retry_count": retry_count,
                 "provider_capability_fallback_count": capability_fallback_count,

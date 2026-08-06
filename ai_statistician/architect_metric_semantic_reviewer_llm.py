@@ -1688,9 +1688,11 @@ class LLMArchitectMetricSemanticReviewerAgent:
         config: ArchitectMetricSemanticReviewerConfig = (
             ArchitectMetricSemanticReviewerConfig()
         ),
+        source_retriever: Any = None,
     ) -> None:
         self.provider = provider
         self.config = config
+        self.source_retriever = source_retriever
 
     def review_theory_execution_preflight(
         self,
@@ -1714,6 +1716,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
             provider_name=self.config.provider_name,
             max_repair_attempts=self.config.max_repair_attempts,
             prior_finding_ledger=prior_finding_ledger,
+            source_retriever=self.source_retriever,
         )
 
     def review(

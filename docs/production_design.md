@@ -105,6 +105,32 @@ The canonical product loop is deliberately small:
    scheduling, and evidence labels. It does not own statistical formulas,
    expected answers, task-family thresholds, Lean grammar, or tactics.
 
+The execution-admissibility reviewer implements step 2 through the shared
+provider-neutral client-tool loop, not through a second scheduler or a Python
+semantic rule engine. In a live invocation the model writes each query, searches
+the exact current theory anchors, task-bound retrieval memory, and configured
+Statlib/StatInference/formal-source retriever, observes bounded hits, and then
+submits the complete review. Every blocking finding must cite exact hit IDs from
+that invocation as well as the theory anchors it inspected. Runtime checks only
+tool budgets, source identity and hash lineage, citation existence, immutable
+finding identity, and the existing review schema; retrieved text is not proof and
+runtime never decides whether it supports the model's claim. Live tool-loop
+failure is fail-closed. Static/replay generators keep an explicitly ungrounded
+compatibility transport so deterministic regression fixtures do not pretend to
+be live source use.
+
+Search and final submission are sequentially dependent, so this one loop enables
+the Anthropic `disable_parallel_tool_use` request hint. The generic transport
+defaults it off, preserving parallel tool use for independent calls such as Lean
+environment inspection and compilation. This matches Anthropic's documented
+[parallel tool-use contract](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/implement-tool-use)
+while preventing a model from spending the complete search
+budget in one parallel turn. Exact-Haiku V251 over immutable V249 survival
+material used three model-authored queries and one submission in four turns,
+with zero failed calls, then returned a validator-clean ACCEPT packet. That is
+component calibration of the harness, not integrated research success,
+statistical acceptance, or theorem evidence.
+
 TheoryDeveloper owns one immutable Python/R estimator ABI per proposed
 procedure: request fields state their replicate lifecycle, while response fields
 state their meaning, normalization, sample-size order, and theory derivation

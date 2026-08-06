@@ -31,6 +31,7 @@ def build_theory_informed_metric_protocol_material(
     *,
     theory_packet: Mapping[str, Any],
     theory_packet_id: str,
+    retrieval_context: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Preserve theory semantics for protocol authoring without execution data."""
 
@@ -40,6 +41,7 @@ def build_theory_informed_metric_protocol_material(
             theory_packet=theory_packet,
             theory_packet_id=theory_packet_id,
         ),
+        "retrieval_context": deepcopy(dict(retrieval_context or {})),
         "proof_evidence_status": (
             LEGACY_METRIC_THEORY_MATERIAL_NOT_PROOF_EVIDENCE
         ),

@@ -8417,6 +8417,11 @@ def _architect_context_with_rehydrated_metric_protocol_theory_material(
             theory_material = build_theory_informed_metric_protocol_material(
                 theory_packet=theory_packet,
                 theory_packet_id=theory_packet_id,
+                retrieval_context=(
+                    context.get("retrieval_context", {})
+                    if isinstance(context.get("retrieval_context", {}), Mapping)
+                    else {}
+                ),
             )
         elif str(
             theory_material.get("source_theory_packet_id", "") or ""
@@ -12169,6 +12174,11 @@ class TheoryDeveloperRuntimeSubsystem:
             prior_theory_material = build_theory_informed_metric_protocol_material(
                 theory_packet=parent_theory_packet,
                 theory_packet_id=parent_theory_packet_id,
+                retrieval_context=(
+                    context.get("retrieval_context", {})
+                    if isinstance(context.get("retrieval_context", {}), Mapping)
+                    else {}
+                ),
             )
             context["metric_protocol_prior_theory_material"] = prior_theory_material
             revision_binding = build_theory_developer_revision_binding(
@@ -12449,6 +12459,11 @@ class TheoryDeveloperRuntimeSubsystem:
         current_theory_material = build_theory_informed_metric_protocol_material(
             theory_packet=packet,
             theory_packet_id=packet_id,
+            retrieval_context=(
+                context.get("retrieval_context", {})
+                if isinstance(context.get("retrieval_context", {}), Mapping)
+                else {}
+            ),
         )
         context = _architect_context_with_bound_metric_protocol_theory_material(
             architect_context=context,
@@ -16695,6 +16710,11 @@ def _runtime_simulation_metric_protocol_guard(
         build_theory_informed_metric_protocol_material(
             theory_packet=theory_packet,
             theory_packet_id=theory_packet_id,
+            retrieval_context=(
+                context.get("retrieval_context", {})
+                if isinstance(context.get("retrieval_context", {}), Mapping)
+                else {}
+            ),
         )
     )
     prior_gate = context.get("architect_metric_protocol_gate", {})

@@ -5245,7 +5245,12 @@ def _build_formal_target_semantic_reviewer_agent_from_args(
     )
 
 
-def _build_architect_coordinator_agent_from_args(args: argparse.Namespace, *, default_model: str):
+def _build_architect_coordinator_agent_from_args(
+    args: argparse.Namespace,
+    *,
+    default_model: str,
+    formal_source_retriever: Any = None,
+):
     provider_choice = getattr(args, "architect_coordinator_provider", "none")
     if provider_choice == "none":
         return None
@@ -5269,6 +5274,7 @@ def _build_architect_coordinator_agent_from_args(args: argparse.Namespace, *, de
     )
     return LLMArchitectCoordinatorAgent(
         provider=provider,
+        preflight_source_retriever=formal_source_retriever,
         config=ArchitectCoordinatorConfig(
             model=model,
             model_tier=model_tier,
@@ -11999,7 +12005,18 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             max_repair_attempts=args.theory_max_repair_attempts,
         ),
     )
-    architect_coordinator = _build_architect_coordinator_agent_from_args(args, default_model=model)
+    try:
+        formal_source_retriever = _formal_source_retriever_from_runtime_args(args)
+    except ValueError as exc:
+        print("\nAI Statistician Agent Runtime rejected Lean provider config")
+        print("=" * 72)
+        print(f"- {exc}")
+        return 2
+    architect_coordinator = _build_architect_coordinator_agent_from_args(
+        args,
+        default_model=model,
+        formal_source_retriever=formal_source_retriever,
+    )
     algorithm_engineer = _build_algorithm_engineer_agent_from_args(args, default_model=model)
     simulation_engineer = _build_simulation_engineer_agent_from_args(args, default_model=model)
     formalizer = _build_formalizer_agent_from_args(args, default_model=model)
@@ -12017,7 +12034,6 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
         )
     )
     try:
-        formal_source_retriever = _formal_source_retriever_from_runtime_args(args)
         proof_search_provider = _proof_search_provider_from_runtime_args(
             args,
             generator_backend=(

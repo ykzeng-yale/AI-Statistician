@@ -21,13 +21,18 @@ from ai_statistician.architect_theory_execution_preflight import (
     validate_architect_theory_execution_preflight_packet,
 )
 from ai_statistician.fingerprint import stable_hash
+from ai_statistician.llm_json_repair import PacketValidationError
 from ai_statistician.evaluation_protocol_revision import (
     architect_preexecution_metric_protocol_rejection_result,
 )
 from ai_statistician.metric_protocol_stage import (
     METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED,
 )
-from ai_statistician.model_backend import GeneratorResponse
+from ai_statistician.model_backend import (
+    ClientToolCall,
+    ClientToolTurnResponse,
+    GeneratorResponse,
+)
 from ai_statistician.research_schema import OpenResearchQuestion
 
 
@@ -91,6 +96,103 @@ class _SequencedBackend:
                 "provider_structured_output_requested": True,
                 "provider_structured_output_applied": True,
             },
+        )
+
+
+def _tool_response(*calls: ClientToolCall) -> ClientToolTurnResponse:
+    return ClientToolTurnResponse(
+        content_blocks=tuple(
+            {
+                "type": "tool_use",
+                "id": call.call_id,
+                "name": call.name,
+                "input": dict(call.input),
+            }
+            for call in calls
+        ),
+        tool_calls=tuple(calls),
+        text="",
+        provider="anthropic",
+        model=TEST_HAIKU_MODEL,
+        metadata={
+            "client_tool_transport": True,
+            "tools_executed_by_backend": False,
+            "provider_stop_reason": "tool_use",
+            "provider_usage": {"input_tokens": 19, "output_tokens": 7},
+        },
+    )
+
+
+class _PreflightToolBackend:
+    provider_name = "anthropic"
+
+    def __init__(
+        self,
+        *,
+        accept: bool,
+        submit_before_search: bool = False,
+        submit_unknown_ref_once: bool = False,
+        source_scope: str = "theory",
+    ) -> None:
+        self.accept = accept
+        self.submit_before_search = submit_before_search
+        self.submit_unknown_ref_once = submit_unknown_ref_once
+        self.source_scope = source_scope
+        self.requests = []
+        self.hit_id = ""
+
+    def _submission(self, *, source_ref: str) -> dict[str, object]:
+        payload = _payload(accept=self.accept)
+        for finding in payload["findings"]:
+            finding["source_evidence_refs"] = [source_ref]
+        return payload
+
+    def generate_client_tool_turn(self, request):
+        self.requests.append(request)
+        turn = len(self.requests)
+        if turn == 1 and self.submit_before_search:
+            return _tool_response(
+                ClientToolCall(
+                    "submit-too-early",
+                    "submit_theory_preflight_review",
+                    self._submission(source_ref="not-yet-observed"),
+                )
+            )
+        if turn == 1 or (turn == 2 and self.submit_before_search):
+            return _tool_response(
+                ClientToolCall(
+                    "search-1",
+                    "search_preflight_sources",
+                    {
+                        "query": "finite input censored outcome",
+                        "source_scope": self.source_scope,
+                        "k": 4,
+                    },
+                )
+            )
+        result_blocks = request.messages[-1]["content"]
+        result = json.loads(result_blocks[0]["content"])
+        if result.get("hits"):
+            self.hit_id = result["hits"][0]["source_hit_id"]
+        if self.submit_unknown_ref_once and not any(
+            row.get("is_error")
+            for row in request.messages[-1].get("content", [])
+            if isinstance(row, dict)
+        ):
+            self.submit_unknown_ref_once = False
+            return _tool_response(
+                ClientToolCall(
+                    "submit-unknown-ref",
+                    "submit_theory_preflight_review",
+                    self._submission(source_ref="preflight_source_hit:unknown"),
+                )
+            )
+        return _tool_response(
+            ClientToolCall(
+                f"submit-{turn}",
+                "submit_theory_preflight_review",
+                self._submission(source_ref=self.hit_id),
+            )
         )
 
 
@@ -305,6 +407,155 @@ def _review(*, accept: bool):
         max_repair_attempts=0,
     )
     return packet, backend
+
+
+def _tool_review(backend, *, source_retriever=None):
+    return review_architect_theory_execution_preflight(
+        provider=backend,
+        question=_question(),
+        theory_protocol_material=_theory_material(),
+        upstream_research_contract={
+            "formal_targets": [],
+            "simulation_targets": ["evaluate the declared risk"],
+        },
+        model=TEST_HAIKU_MODEL,
+        model_tier="haiku",
+        max_tokens=7000,
+        temperature=0.0,
+        provider_name="anthropic",
+        max_repair_attempts=0,
+        source_retriever=source_retriever,
+    )
+
+
+def test_preflight_client_tool_loop_searches_before_grounded_submission() -> None:
+    backend = _PreflightToolBackend(accept=False)
+
+    packet = _tool_review(backend)
+
+    assert packet["overall_verdict"] == "REVISE"
+    assert packet["source_grounding_required"] is True
+    assert packet["source_grounding_transport"] == "client_tool_source_query_v1"
+    assert packet["preflight_source_search_count"] == 1
+    assert packet["client_tool_loop_turns"] == 2
+    assert packet["client_tool_loop_tool_calls"] == 2
+    assert packet["client_tool_loop_runtime_executed_tool_calls"] == 2
+    assert packet["runtime_selected_review_semantics"] is False
+    assert packet["findings"][0]["source_evidence_refs"] == [backend.hit_id]
+    assert packet["source_grounding_bindings"] == [
+        {
+            "finding_id": packet["findings"][0]["finding_id"],
+            "source_evidence_refs": [backend.hit_id],
+            "runtime_verified_source_refs": True,
+            "runtime_selected_semantics": False,
+        }
+    ]
+    assert backend.requests[0].model == TEST_HAIKU_MODEL
+    assert [tool.name for tool in backend.requests[0].tools] == [
+        "search_preflight_sources",
+        "submit_theory_preflight_review",
+    ]
+    assert backend.requests[0].metadata["model_tier"] == "haiku"
+    assert backend.requests[0].disable_parallel_tool_use is True
+
+
+def test_preflight_client_tool_loop_can_query_configured_formal_retriever() -> None:
+    class FormalRetriever:
+        source = "configured_formal_source"
+
+        def __init__(self) -> None:
+            self.queries = []
+
+        def search(self, query, *, k):
+            self.queries.append((query, k))
+            return [
+                {
+                    "source_id": "statlib",
+                    "path": "Statlib/Survival.lean",
+                    "line": 17,
+                    "kind": "theorem",
+                    "name": "Statlib.example",
+                    "signature": "example_statement",
+                    "score": 2.5,
+                }
+            ]
+
+    retriever = FormalRetriever()
+    backend = _PreflightToolBackend(
+        accept=False,
+        source_scope="formal_library",
+    )
+
+    packet = _tool_review(backend, source_retriever=retriever)
+
+    assert retriever.queries == [("finite input censored outcome", 4)]
+    hit = packet["preflight_source_observations"][0]["hits"][0]
+    assert hit["source_kind"] == "formal_library_declaration"
+    assert hit["source_identity"].startswith("statlib:")
+    assert packet["findings"][0]["source_evidence_refs"] == [
+        hit["source_hit_id"]
+    ]
+
+
+def test_preflight_client_tool_loop_returns_unknown_ref_error_for_model_repair() -> None:
+    backend = _PreflightToolBackend(
+        accept=False,
+        submit_unknown_ref_once=True,
+    )
+
+    packet = _tool_review(backend)
+
+    assert len(backend.requests) == 3
+    assert packet["findings"][0]["source_evidence_refs"] == [backend.hit_id]
+    failed_submit = packet["client_tool_loop_history"][1]["tool_calls"][0]
+    assert failed_submit["name"] == "submit_theory_preflight_review"
+    assert failed_submit["is_error"] is True
+    assert "runtime-returned source hit ids" in failed_submit["result_excerpt"]
+
+
+def test_preflight_client_tool_loop_rejects_submit_before_search() -> None:
+    backend = _PreflightToolBackend(
+        accept=False,
+        submit_before_search=True,
+    )
+
+    packet = _tool_review(backend)
+
+    assert len(backend.requests) == 3
+    first_submit = packet["client_tool_loop_history"][0]["tool_calls"][0]
+    assert first_submit["is_error"] is True
+    assert "must run before submission" in first_submit["result_excerpt"]
+    assert packet["preflight_source_search_count"] == 1
+
+
+def test_preflight_client_tool_loop_failure_is_fail_closed() -> None:
+    class NoToolBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            return _tool_response()
+
+    backend = NoToolBackend()
+
+    with pytest.raises(PacketValidationError) as exc_info:
+        _tool_review(backend)
+
+    assert len(backend.requests) == 3
+    assert "repeated turns without a client tool call" in str(exc_info.value)
+
+
+def test_preflight_static_transport_is_explicitly_ungrounded() -> None:
+    packet, _backend = _review(accept=True)
+
+    assert packet["source_grounding_required"] is False
+    assert packet["source_grounding_transport"] == (
+        "legacy_structured_output_without_client_tools"
+    )
+    assert packet["source_grounding_bindings"] == []
 
 
 def test_preflight_is_compact_generic_and_haiku_pinned() -> None:

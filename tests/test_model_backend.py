@@ -182,6 +182,7 @@ def test_anthropic_generator_backend_transports_client_tool_turn(
         ),
         model="claude-haiku-4-5-20251001",
         max_tokens=256,
+        disable_parallel_tool_use=True,
         metadata={"model_tier": "haiku"},
     )
 
@@ -200,7 +201,10 @@ def test_anthropic_generator_backend_transports_client_tool_turn(
             "input_schema": request.tools[0].input_schema,
         }
     ]
-    assert kwargs["tool_choice"] == {"type": "any"}
+    assert kwargs["tool_choice"] == {
+        "type": "any",
+        "disable_parallel_tool_use": True,
+    }
     assert "output_config" not in kwargs
     assert response.text == "I will inspect it."
     assert response.tool_calls[0].call_id == "toolu_123"
@@ -211,6 +215,7 @@ def test_anthropic_generator_backend_transports_client_tool_turn(
     assert response.metadata["client_tool_transport"] is True
     assert response.metadata["generator_only"] is True
     assert response.metadata["tools_executed_by_backend"] is False
+    assert response.metadata["disable_parallel_tool_use"] is True
     assert response.metadata["provider_stop_reason"] == "tool_use"
 
 
