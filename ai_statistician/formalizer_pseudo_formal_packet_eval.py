@@ -8,7 +8,6 @@ from typing import Any, Mapping
 from .formalizer_llm import (
     FormalizerConfig,
     LLMFormalizerProofEngineerAgent,
-    _formalizer_repair_context,
     _validate_required_pseudo_formalization_packet,
     validate_formalizer_packet,
 )
@@ -159,13 +158,6 @@ def write_formalizer_pseudo_formal_packet_eval_failure_manifest(
         and isinstance(exc.last_invalid_packet, Mapping)
         else {}
     )
-    repair_context = _formalizer_repair_context(
-        errors=errors,
-        question=_pseudo_formal_packet_eval_question(),
-        theory_packet=_pseudo_formal_packet_eval_theory_packet(),
-        environment_feedback=_pseudo_formal_packet_eval_feedback(),
-        proof_bank_runtime_memory_summary={},
-    )
     validation_feedback = formalizer_validation_feedback_envelope(
         errors,
         validation_label=(
@@ -196,7 +188,6 @@ def write_formalizer_pseudo_formal_packet_eval_failure_manifest(
         "failure_type": type(exc).__name__,
         "errors": errors,
         "llm_json_repair_history": history,
-        "pseudo_formal_failure_repair_context": repair_context,
         "formalizer_validation_feedback": validation_feedback,
         "pseudo_formal_failure_required_target_lanes": required_target_lanes,
         "model_owned_repair_required": True,

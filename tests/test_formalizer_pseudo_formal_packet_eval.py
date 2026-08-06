@@ -9,7 +9,6 @@ import ai_statistician.formalizer_llm as formalizer_module
 from ai_statistician.cli import main
 from ai_statistician.formalizer_llm import (
     FORMALIZER_OUTPUT_CONTRACT,
-    _formalizer_repair_context,
     _validate_required_pseudo_formalization_packet,
     build_formalizer_prompt,
 )
@@ -51,144 +50,6 @@ def test_formalizer_output_contract_bridge_examples_are_domain_neutral() -> None
     assert "source_to_bridge_premise_derivation_candidates" not in (
         FORMALIZER_OUTPUT_CONTRACT
     )
-
-
-def test_formalizer_generic_repair_keeps_failed_targets_without_role_recipe() -> None:
-    invalid_packet = {
-        "formal_targets": [
-            {
-                "id": "source_gap",
-                "formal_target_role": "SOURCE_THEOREM_FORMAL_GAP",
-                "lean_statement_sketch": "theorem accidental_candidate : True := by trivial",
-                "candidate_lean_declaration": "accidental_candidate",
-                "expected_status": "FORMAL_GAP",
-                "source_theorem_target_provenance": {},
-            }
-        ],
-        "gap_taxonomy": [],
-        "next_actions": [],
-    }
-    context = _formalizer_repair_context(
-        errors=[
-            "formal target source_gap with formal_target_role="
-            "SOURCE_THEOREM_FORMAL_GAP must keep Lean source empty"
-        ],
-        theorem_goals=[
-            {
-                "id": "goal:source",
-                "target_lean_declaration": "source_theorem_target",
-            }
-        ],
-        invalid_packet=invalid_packet,
-    )
-
-    assert context["context_reason"] == "unchanged_validator_rejected_model_packet"
-    assert context["rejected_packet_fingerprint"] == formalizer_module.stable_hash(
-        invalid_packet
-    )
-    assert context["rejected_packet_excerpt"]["formal_targets"] == (
-        invalid_packet["formal_targets"]
-    )
-    assert context["source_target_binding_options"][0][
-        "target_lean_declaration"
-    ] == "source_theorem_target"
-    assert context["runtime_selected_semantics"] is False
-    assert context["formalizer_validation_feedback"][
-        "rejected_packet_projection"
-    ]["formal_targets"] == invalid_packet["formal_targets"]
-    assert "formal_target_role_contract" not in context
-    assert "repair_prompt_priority_instructions" not in context
-
-
-def test_formalizer_generic_repair_exposes_theory_card_source_bindings() -> None:
-    context = _formalizer_repair_context(
-        errors=[
-            "formal target FT1 with formal_target_role=SOURCE_THEOREM_CANDIDATE "
-            "must bind source_theorem_target_provenance.target_lean_declaration",
-            "formal target FT2 with formal_target_role=SOURCE_THEOREM_FORMAL_GAP "
-            "must preserve a target_lean_declaration or source_theorem_goal_id",
-        ],
-        theory_packet={
-            "theorem_cards": [
-                {
-                    "id": "THM1",
-                    "name": "Human-readable theorem title",
-                    "informal_statement": "The exact source theorem statement.",
-                    "conclusion": "exact conclusion",
-                }
-            ],
-            "theory_derivation_packet": {
-                "theorem_cards": [
-                    {
-                        "id": "THM1",
-                        "name": "Human-readable theorem title",
-                        "informal_statement": (
-                            "The exact source theorem statement."
-                        ),
-                        "conclusion": "exact conclusion",
-                    }
-                ]
-            },
-            "formalization_requests": [
-                {
-                    "id": "FR1",
-                    "target": "THM1",
-                    "lean_stub": "theorem exact_target : True",
-                    "lean4_sketch": "theorem exact_target : True := by trivial",
-                    "open_obligations": ["kernel check required"],
-                }
-            ],
-        },
-        theorem_goals=[],
-        invalid_packet={
-            "formal_targets": [
-                {
-                    "id": "FT1",
-                    "formal_target_role": "SOURCE_THEOREM_CANDIDATE",
-                    "candidate_lean_declaration": "exact_target",
-                    "lean_statement_sketch": "theorem exact_target : True := by trivial",
-                    "expected_status": "NEEDS_KERNEL_CHECK",
-                    "source_theorem_target_provenance": {},
-                },
-                {
-                    "id": "FT2",
-                    "formal_target_role": "SOURCE_THEOREM_FORMAL_GAP",
-                    "lean_statement_sketch": "",
-                    "candidate_lean_declaration": "",
-                    "expected_status": "FORMAL_GAP",
-                    "source_theorem_target_provenance": {},
-                },
-            ]
-        },
-    )
-
-    assert context["source_target_identity_available"] is True
-    assert context["source_target_binding_options"] == [
-        {
-            "source_kind": "theorem_card",
-            "source_path": "theory_packet.theorem_cards[0]",
-            "source_theorem_goal_id": "THM1",
-            "target_lean_declaration": "",
-            "semantic_statement": "The exact source theorem statement.",
-        }
-    ]
-    assert context["formalization_request_context"] == [
-        {
-            "id": "FR1",
-            "target": "THM1",
-            "lean_stub": "theorem exact_target : True",
-            "lean4_sketch": "theorem exact_target : True := by trivial",
-            "open_obligations": ["kernel check required"],
-        }
-    ]
-    assert context["response_schema_authority"] == (
-        "current Formalizer provider JSON schema"
-    )
-    assert context["validation_authority"] == (
-        "unchanged local Formalizer validators"
-    )
-    assert context["runtime_selected_semantics"] is False
-    assert "repair_prompt_priority_instructions" not in context
 
 
 def _write_static_formalizer_response(path: Path) -> None:
@@ -533,19 +394,6 @@ def test_formalizer_prompt_exposes_component_failure_without_repair_seed() -> No
     assert "pseudo_formalization_required_copy_fragment" not in payload
     assert "pseudo_formalization_component_gate_failure_repair_seed" not in payload
 
-    repair_context = _formalizer_repair_context(
-        errors=validation_errors,
-        question=question,
-        theory_packet=_pseudo_formal_packet_eval_theory_packet(),
-        environment_feedback={},
-        proof_bank_runtime_memory_summary=proof_memory_summary,
-    )
-    assert repair_context["formalizer_validation_feedback"][
-        "validation_error_messages"
-    ] == repair_context["detected_validation_errors"]
-    assert repair_context["repair_protocol"]["runtime_selected_semantics"] is False
-    assert "pseudo_formal_required_repair_blueprint" not in repair_context
-    assert "validation_repair_policy" not in repair_context
 def test_required_pf_validation_does_not_enforce_prior_component_copy() -> None:
     component_seed = {
         "schema_version": 1,
@@ -1048,9 +896,7 @@ def test_formalizer_pseudo_formal_packet_eval_failure_manifest_exports_feedback(
     assert "pseudo_formal_failure_concrete_lane_routable_repair_seed" not in manifest
     assert "pseudo_formal_failure_validator_ready_copy_contract" not in manifest
     assert "pseudo_formal_failure_copy_contract_summary" not in manifest
-    assert "pseudo_formal_required_repair_blueprint" not in manifest[
-        "pseudo_formal_failure_repair_context"
-    ]
+    assert "pseudo_formal_failure_repair_context" not in manifest
     assert manifest["nonproof_boundary_preserved"] is True
     assert manifest["raw_model_output_written"] is False
     assert manifest["source_theorem_kernel_verified"] is False

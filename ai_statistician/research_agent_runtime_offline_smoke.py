@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 import shutil
 from pathlib import Path
@@ -248,7 +249,7 @@ def _architect_response() -> dict[str, Any]:
 
 
 def _theory_response() -> dict[str, Any]:
-    return {
+    response = {
         "schema_version": 1,
         "artifact_kind": "TheoryDerivationPacket",
         "packet_id": "theory_derivation:offline_smoke",
@@ -427,20 +428,7 @@ def _theory_response() -> dict[str, Any]:
                             "meaning": "unscaled deterministic probe mean",
                             "normalization": "finite average over runtime replicates",
                             "sample_size_order": "not sample-size indexed",
-                            "sample_size_rate": {
-                                "scale": "not_indexed",
-                                "index_symbol": "n",
-                                "polynomial_exponent": 0.0,
-                                "log_exponent": 0.0,
-                                "contributions": [
-                                    {
-                                        "quantity": "runtime-only probe mean",
-                                        "polynomial_exponent": 0.0,
-                                        "log_exponent": 0.0,
-                                        "justification_ref": "generated_probe_interface",
-                                    }
-                                ],
-                            },
+                            "sample_size_rate": {"scale": "not_indexed"},
                             "derivation_ref": "generated_probe_interface",
                         },
                         {
@@ -448,20 +436,7 @@ def _theory_response() -> dict[str, Any]:
                             "meaning": "unscaled root mean squared probe value",
                             "normalization": "finite root mean square over replicates",
                             "sample_size_order": "not sample-size indexed",
-                            "sample_size_rate": {
-                                "scale": "not_indexed",
-                                "index_symbol": "n",
-                                "polynomial_exponent": 0.0,
-                                "log_exponent": 0.0,
-                                "contributions": [
-                                    {
-                                        "quantity": "runtime-only root mean square",
-                                        "polynomial_exponent": 0.0,
-                                        "log_exponent": 0.0,
-                                        "justification_ref": "generated_probe_interface",
-                                    }
-                                ],
-                            },
+                            "sample_size_rate": {"scale": "not_indexed"},
                             "derivation_ref": "generated_probe_interface",
                         },
                         {
@@ -469,20 +444,7 @@ def _theory_response() -> dict[str, Any]:
                             "meaning": "consumed runtime replicate count",
                             "normalization": "unscaled integer runtime diagnostic",
                             "sample_size_order": "not sample-size indexed",
-                            "sample_size_rate": {
-                                "scale": "not_indexed",
-                                "index_symbol": "n",
-                                "polynomial_exponent": 0.0,
-                                "log_exponent": 0.0,
-                                "contributions": [
-                                    {
-                                        "quantity": "runtime replicate count",
-                                        "polynomial_exponent": 0.0,
-                                        "log_exponent": 0.0,
-                                        "justification_ref": "generated_probe_interface",
-                                    }
-                                ],
-                            },
+                            "sample_size_rate": {"scale": "not_indexed"},
                             "derivation_ref": "generated_probe_interface",
                         },
                     ],
@@ -555,6 +517,11 @@ def _theory_response() -> dict[str, Any]:
             }
         ],
     }
+    response["interfaces"] = {
+        str(row["id"]): deepcopy(row["estimator_interface_contract"])
+        for row in response["estimator_specs"]
+    }
+    return response
 
 
 def _algorithm_response() -> dict[str, Any]:

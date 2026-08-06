@@ -26,10 +26,7 @@ def estimator_interface_contract_id(value: Mapping[str, Any]) -> str:
     return "estimator_interface_contract:" + stable_hash(dict(value))[:20]
 
 
-def sample_size_rate_json_schema(
-    *,
-    include_derived_aggregates: bool = True,
-) -> dict[str, Any]:
+def sample_size_rate_json_schema() -> dict[str, Any]:
     contribution_schema = {
         "type": "array",
         "minItems": 1,
@@ -65,17 +62,19 @@ def sample_size_rate_json_schema(
         "index_symbol": {"type": "string", "minLength": 1},
         "contributions": contribution_schema,
     }
-    indexed_required = ["scale", "index_symbol", "contributions"]
-    if include_derived_aggregates:
-        indexed_properties.update(
-            {
-                "polynomial_exponent": {"type": "number"},
-                "log_exponent": {"type": "number"},
-            }
-        )
-        indexed_required.extend(
-            ["polynomial_exponent", "log_exponent"]
-        )
+    indexed_properties.update(
+        {
+            "polynomial_exponent": {"type": "number"},
+            "log_exponent": {"type": "number"},
+        }
+    )
+    indexed_required = [
+        "scale",
+        "index_symbol",
+        "polynomial_exponent",
+        "log_exponent",
+        "contributions",
+    ]
     return {
         "anyOf": [
             {
@@ -102,7 +101,6 @@ def sample_size_rate_json_schema(
 def estimator_interface_contract_json_schema(
     *,
     require_typed_rate: bool = False,
-    include_derived_rate_aggregates: bool = True,
 ) -> dict[str, Any]:
     response_required = [
         "name",
@@ -147,11 +145,7 @@ def estimator_interface_contract_json_schema(
                         "meaning": {"type": "string", "minLength": 1},
                         "normalization": {"type": "string", "minLength": 1},
                         "sample_size_order": {"type": "string", "minLength": 1},
-                        "sample_size_rate": sample_size_rate_json_schema(
-                            include_derived_aggregates=(
-                                include_derived_rate_aggregates
-                            )
-                        ),
+                        "sample_size_rate": sample_size_rate_json_schema(),
                         "derivation_ref": {"type": "string", "minLength": 1},
                     },
                 },
@@ -312,7 +306,6 @@ def sample_size_rate_errors(
     ):
         errors.append(f"{label} {scale} scale must have zero exponents")
     contributions = value.get("contributions")
-    contribution_exponents: list[tuple[float, float]] = []
     if not isinstance(contributions, list) or not contributions:
         errors.append(f"{label} contributions must be a nonempty list")
         contributions = []
@@ -342,7 +335,6 @@ def sample_size_rate_errors(
                 f"justification_ref {justification_ref}; choose exactly one "
                 f"allowed reference id from: {allowed_preview}"
             )
-        row_exponents: list[float] = []
         for field in ("polynomial_exponent", "log_exponent"):
             raw = contribution.get(field)
             if (
@@ -354,30 +346,6 @@ def sample_size_rate_errors(
                     f"{label} contribution {index} {field} must be a finite number"
                 )
                 break
-            row_exponents.append(float(raw))
-        if len(row_exponents) == 2:
-            contribution_exponents.append((row_exponents[0], row_exponents[1]))
-    if len(exponents) == 2 and contribution_exponents:
-        claimed = (
-            exponents["polynomial_exponent"],
-            exponents["log_exponent"],
-        )
-        computed = (
-            sum(row[0] for row in contribution_exponents),
-            sum(row[1] for row in contribution_exponents),
-        )
-        if any(
-            abs(observed - expected) > 1e-9
-            for observed, expected in zip(claimed, computed, strict=True)
-        ):
-            errors.append(
-                f"{label} exponents must equal the sum of signed contributions; "
-                "claimed "
-                f"polynomial_exponent={claimed[0]:g}, "
-                f"log_exponent={claimed[1]:g}; computed from contributions "
-                f"polynomial_exponent={computed[0]:g}, "
-                f"log_exponent={computed[1]:g}"
-            )
     return errors
 
 
@@ -405,52 +373,9 @@ def normalize_theory_estimator_interface_contracts(body: dict[str, Any]) -> None
 def normalize_estimator_interface_contract(
     contract: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Canonicalize redundant rate aggregates without inventing semantics."""
+    """Copy a model-authored contract without changing its mathematics."""
 
-    exact_contract = deepcopy(dict(contract))
-    response_fields = exact_contract.get("response_fields")
-    if not isinstance(response_fields, list):
-        return exact_contract
-    normalized_fields: list[Any] = []
-    for raw_field in response_fields:
-        if not isinstance(raw_field, Mapping):
-            normalized_fields.append(raw_field)
-            continue
-        field = deepcopy(dict(raw_field))
-        rate = field.get("sample_size_rate")
-        if not isinstance(rate, Mapping):
-            normalized_fields.append(field)
-            continue
-        normalized_rate = deepcopy(dict(rate))
-        if str(normalized_rate.get("scale", "") or "").strip() == "not_indexed":
-            field["sample_size_rate"] = {"scale": "not_indexed"}
-            normalized_fields.append(field)
-            continue
-        contributions = normalized_rate.get("contributions")
-        if isinstance(contributions, list) and contributions:
-            polynomial_terms: list[float] = []
-            log_terms: list[float] = []
-            for contribution in contributions:
-                if not isinstance(contribution, Mapping):
-                    break
-                polynomial = contribution.get("polynomial_exponent")
-                logarithmic = contribution.get("log_exponent")
-                if any(
-                    isinstance(value, bool)
-                    or not isinstance(value, (int, float))
-                    or not math.isfinite(float(value))
-                    for value in (polynomial, logarithmic)
-                ):
-                    break
-                polynomial_terms.append(float(polynomial))
-                log_terms.append(float(logarithmic))
-            else:
-                normalized_rate["polynomial_exponent"] = sum(polynomial_terms)
-                normalized_rate["log_exponent"] = sum(log_terms)
-        field["sample_size_rate"] = normalized_rate
-        normalized_fields.append(field)
-    exact_contract["response_fields"] = normalized_fields
-    return exact_contract
+    return deepcopy(dict(contract))
 
 
 def theory_estimator_interface_contracts(

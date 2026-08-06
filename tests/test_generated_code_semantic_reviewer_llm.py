@@ -26,7 +26,6 @@ from ai_statistician.generated_code_semantic_reviewer_llm import (
     generated_code_semantic_review_repair_scopes,
     validate_generated_code_semantic_review_packet,
     _generated_code_semantic_review_finding_budget,
-    _generated_code_semantic_review_missing_citation_diagnostics,
     _generated_code_semantic_review_row_cited_values,
     _python_generated_source_interface_inventory,
 )
@@ -2429,7 +2428,7 @@ def test_all_pass_actionable_finding_routes_without_duplicate_dimension_verdict(
     assert len(review_packet["active_unresolved_finding_ids"]) == 1
 
 
-def test_schema_v13_derives_runtime_owned_dimensions_and_typed_citations(
+def test_schema_v14_binds_decisions_to_complete_review_material(
     tmp_path: Path,
 ) -> None:
     subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accept=True)
@@ -2441,46 +2440,24 @@ def test_schema_v13_derives_runtime_owned_dimensions_and_typed_citations(
         for artifact in result.produced_artifacts.values()
         if artifact.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
     )
-    assert review_packet["schema_version"] == 13
+    materialization = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewMaterialization"
+    )
+    assert review_packet["schema_version"] == 14
     assert validate_generated_code_semantic_review_packet(review_packet) == []
     first_dimension = review_packet["dimension_reviews"][0]
     assert first_dimension["dimension"] == (
         GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS[0]
     )
-    assert first_dimension["evidence_citations"] == [
-        {
-            "artifact_role": "generated_source_artifact",
-            "locator": "/exact_executed_artifacts/0/exact_source_code",
-        }
-    ]
-    assert first_dimension["evidence_refs"] == [
-        (
-            "generated_source_artifact#"
-            "/exact_executed_artifacts/0/exact_source_code"
-        )
-    ]
-    assert first_dimension["artifact_citations"] == [
-        "generated_source_artifact"
-    ]
-
-    tampered = json.loads(json.dumps(review_packet))
-    tampered["dimension_reviews"][0]["evidence_refs"] = [
-        "exact_result:metric"
-    ]
-    assert any(
-        "evidence_refs must be runtime-derived" in error
-        for error in validate_generated_code_semantic_review_packet(tampered)
+    assert "evidence_citations" not in first_dimension
+    assert "evidence_refs" not in first_dimension
+    assert "artifact_citations" not in first_dimension
+    assert review_packet["review_input_fingerprint"] == stable_hash(
+        materialization["review_material"]
     )
-
-    replay_v6 = json.loads(json.dumps(review_packet))
-    replay_v6["schema_version"] = 6
-    assert validate_generated_code_semantic_review_packet(replay_v6) == []
-
-    replay_v5 = json.loads(json.dumps(replay_v6))
-    replay_v5["schema_version"] = 5
-    for row in replay_v5["dimension_reviews"]:
-        row.pop("evidence_citations")
-    assert validate_generated_code_semantic_review_packet(replay_v5) == []
 
 
 def test_review_authority_is_task_bound_and_repair_scope_specific() -> None:
@@ -2829,12 +2806,12 @@ def test_schema_v9_closes_or_preserves_inherited_finding_identity() -> None:
         "RESOLVED_BY_CURRENT_ARTIFACT"
     )
 
-    missing_evidence_response = json.loads(json.dumps(resolved_response))
-    missing_evidence_response["prior_finding_reviews"][0][
+    legacy_citation_response = json.loads(json.dumps(resolved_response))
+    legacy_citation_response["prior_finding_reviews"][0][
         "evidence_citations"
     ][0]["locator"] = "/exact_executed_artifacts/0/missing_field"
-    missing_evidence = LLMGeneratedCodeSemanticReviewerAgent(
-        provider=StaticJSONGeneratorBackend(missing_evidence_response),
+    legacy_citation = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=StaticJSONGeneratorBackend(legacy_citation_response),
         config=GeneratedCodeSemanticReviewerConfig(
             provider_name="static",
             model=LIVE_EVALUATION_CLAUDE_MODEL,
@@ -2846,17 +2823,15 @@ def test_schema_v9_closes_or_preserves_inherited_finding_identity() -> None:
         review_material=material,
         trusted_lineage=lineage,
     )
-    prior_row = missing_evidence["prior_finding_reviews"][0]
-    assert prior_row["model_requested_evidence_citations"][0][
-        "locator"
-    ].endswith("/missing_field")
+    prior_row = legacy_citation["prior_finding_reviews"][0]
+    assert "model_requested_evidence_citations" not in prior_row
     assert prior_row["evidence_citations"] == [
         {
             "artifact_role": "generated_source_artifact",
             "locator": "/exact_executed_artifacts/0/exact_source_code",
         }
     ]
-    assert missing_evidence["prior_finding_identity_bindings"][0][
+    assert legacy_citation["prior_finding_identity_bindings"][0][
         "runtime_selected_semantics"
     ] is False
 
@@ -2880,7 +2855,7 @@ def test_schema_excludes_prior_authority_from_new_finding_slots() -> None:
     }
 
 
-def test_schema_v7_normalizes_model_locator_format(
+def test_schema_v14_strips_redundant_dimension_citations(
     tmp_path: Path,
 ) -> None:
     response = _review_response(accept=True)
@@ -2907,9 +2882,7 @@ def test_schema_v7_normalizes_model_locator_format(
         if artifact.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
     )
     first_dimension = review_packet["dimension_reviews"][0]
-    assert first_dimension["evidence_citations"][0]["locator"] == (
-        "/exact_executed_artifacts/0/exact_source_code"
-    )
+    assert "evidence_citations" not in first_dimension
     assert validate_generated_code_semantic_review_packet(review_packet) == []
 
 
@@ -2960,7 +2933,7 @@ def test_runtime_derives_finding_citations_from_model_selected_refs(
     ]
 
 
-def test_schema_v7_rejects_legacy_duplicate_fields_as_model_input(
+def test_schema_v14_strips_legacy_duplicate_dimension_fields(
     tmp_path: Path,
 ) -> None:
     response = _review_response(accept=True)
@@ -2986,26 +2959,16 @@ def test_schema_v7_rejects_legacy_duplicate_fields_as_model_input(
 
     result = subsystem.run(task, blackboard)
 
-    assert result.status == "BLOCKED"
-    assert result.failure_classification == (
-        "generated_code_semantic_review_packet_invalid"
-    )
-    assert any(
-        "missing typed evidence_citations"
-        in error
-        for error in result.observations[0].payload["validation_errors"]
-    )
-    failure = next(
+    assert result.status == "REROUTE"
+    packet = next(
         artifact
         for artifact in result.produced_artifacts.values()
         if artifact.get("artifact_kind")
-        == "RuntimeGeneratedCodeSemanticReviewValidationFailure"
+        == "GeneratedCodeSemanticReviewPacket"
     )
-    assert failure["last_invalid_packet_available"] is True
-    assert failure["last_invalid_packet_fingerprint"]
-    assert failure["last_invalid_review_projection"]["dimension_reviews"]
-    assert failure["semantic_review_acceptance_authorized"] is False
-    assert result.observations[0].payload["failure_id"] == failure["failure_id"]
+    first_dimension = packet["dimension_reviews"][0]
+    assert "evidence_refs" not in first_dimension
+    assert "artifact_citations" not in first_dimension
 
 
 def test_runtime_persists_full_generated_review_validation_replay_lineage(
@@ -3445,23 +3408,21 @@ def test_full_packet_regeneration_exposes_unclosed_decision_without_selecting_ow
     assert backend.requests[1].metadata["json_repair_mode"] == (
         "full_packet_regeneration"
     )
-    repair_context = backend.repair_payload["subsystem_repair_context"]
-    closure = repair_context["decision_closure_state"]
-    assert closure["runtime_derived_verdict"] == "REVISE"
-    assert closure["decision_closed"] is False
-    assert closure["runtime_selected_repair_scope"] is False
-    assert closure["actionable_finding_indices"] == []
-    assert closure["high_or_critical_advisory_finding_indices"] == [0]
-    assert closure["nonpass_dimensions"][0]["dimension"] == (
-        "metric_semantics_alignment"
+    assert "subsystem_repair_context" not in backend.repair_payload
+    assert backend.repair_payload["original_request"] == (
+        backend.requests[0].user_prompt
     )
+    assert json.loads(
+        backend.repair_payload["previous_candidate"]
+    ) == response
+    assert backend.repair_payload["local_validation_errors"]
     assert any(
         "Rewrite the full JSON object from scratch" in instruction
-        for instruction in backend.repair_payload["repair_instructions"]
+        for instruction in backend.repair_payload["regeneration_requirements"]
     )
     assert not any(
         "Close the decision in one evidence-based direction" in instruction
-        for instruction in backend.repair_payload["repair_instructions"]
+        for instruction in backend.repair_payload["regeneration_requirements"]
     )
     review_packet = next(
         artifact
@@ -3522,7 +3483,7 @@ def test_actionable_finding_drives_revision_without_duplicate_dimension_verdict(
     assert current_citation in packet["findings"][0]["evidence_citations"]
 
 
-def test_schema_v10_rejects_prompt_only_dimension_citation(
+def test_schema_v14_ignores_prompt_only_dimension_citation(
     tmp_path: Path,
 ) -> None:
     subsystem, task, blackboard, _ = _runtime_fixture(
@@ -3549,91 +3510,13 @@ def test_schema_v10_rejects_prompt_only_dimension_citation(
 
     result = subsystem.run(task, blackboard)
 
-    assert result.status == "BLOCKED"
-    validation_errors = result.observations[0].payload[
-        "validation_errors"
-    ]
-    assert (
-        "semantic review dimension question_alignment cites a missing "
-        "current artifact value"
-        in validation_errors
+    assert result.status == "REVISE"
+    packet = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
     )
-
-
-def test_missing_dimension_citation_diagnostic_prioritizes_exact_gate() -> None:
-    review_material = {
-        "exact_executed_artifacts": [
-            {
-                "artifact_id": "simulation:one",
-                "source_row": {
-                    "metric_contracts": [
-                        {
-                            "contract_id": "metric-contract:one",
-                            "requirement_id": "requirement:one",
-                            "operator": "<=",
-                            "threshold": 1.0,
-                            "required": True,
-                        }
-                    ],
-                    "metric_contract_evaluation": {
-                        "evaluations": [
-                            {
-                                "contract_id": "metric-contract:one",
-                                "requirement_id": "requirement:one",
-                                "artifact_id": "simulation:one",
-                                "aggregate_value": 2.0,
-                                "operator": "<=",
-                                "required": True,
-                                "passed": False,
-                                "errors": ["frozen gate failed"],
-                            }
-                        ]
-                    },
-                },
-            }
-        ]
-    }
-    payload = {
-        "dimension_reviews": [
-            {},
-            {},
-            {
-                "evidence_citations": [
-                    {
-                        "artifact_role": "generated_source_artifact",
-                        "locator": "/runtime_metric_gate_projection/0",
-                    }
-                ]
-            }
-        ],
-        "findings": [],
-        "prior_finding_reviews": [],
-    }
-
-    diagnostics = _generated_code_semantic_review_missing_citation_diagnostics(
-        review_material=review_material,
-        model_payload=payload,
-    )
-
-    assert len(diagnostics) == 1
-    diagnostic = diagnostics[0]
-    assert diagnostic["row_kind"] == "dimension_review"
-    assert diagnostic["model_payload_citation_path"] == [
-        "dimension_reviews",
-        2,
-        "evidence_citations",
-        0,
-    ]
-    candidate = diagnostic["candidate_current_artifact_citations"][0]
-    assert candidate["evidence_citation"] == {
-        "artifact_role": "generated_source_artifact",
-        "locator": (
-            "/exact_executed_artifacts/0/source_row/"
-            "metric_contract_evaluation/evaluations/0"
-        ),
-    }
-    assert candidate["runtime_gate_value"]["aggregate_value"] == 2.0
-    assert candidate["runtime_gate_value"]["passed"] is False
+    assert "evidence_citations" not in packet["dimension_reviews"][0]
 
 
 def test_full_packet_regeneration_exposes_exact_severity_enum(
@@ -3696,19 +3579,18 @@ def test_full_packet_regeneration_exposes_exact_severity_enum(
         request.metadata["json_repair_mode"] == "full_packet_regeneration"
         for request in backend.requests[1:]
     )
-    closure = backend.repair_payloads[-1]["subsystem_repair_context"][
-        "decision_closure_state"
-    ]
-    assert closure["allowed_finding_severities"] == list(
-        GENERATED_CODE_SEMANTIC_REVIEW_FINDING_SEVERITIES
+    assert all(
+        request.schema == backend.requests[0].schema
+        for request in backend.requests[1:]
     )
-    assert closure["invalid_severity_finding_indices"] == [0]
-    assert closure["findings"][0]["severity"] == "important"
-    assert closure["findings"][0]["model_payload_severity_path"] == [
-        "findings",
-        0,
-        "severity",
+    assert "subsystem_repair_context" not in backend.repair_payloads[-1]
+    assert "important" in backend.repair_payloads[-1][
+        "previous_candidate"
     ]
+    assert any(
+        "severity" in error
+        for error in backend.repair_payloads[-1]["local_validation_errors"]
+    )
 
 
 def test_mixed_semantic_assessments_follow_reviewer_scopes(
@@ -3861,47 +3743,24 @@ def test_semantic_reviewer_schema_supports_anthropic_structured_output() -> None
     dimension_review_schema = transformed["properties"][
         "dimension_reviews"
     ]
-    assert dimension_review_schema["type"] == "array"
-    expected_dimension_count = len(
+    assert dimension_review_schema["type"] == "object"
+    assert dimension_review_schema["additionalProperties"] is False
+    assert set(dimension_review_schema["required"]) == set(
         GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
     )
-    if "minItems" in dimension_review_schema:
-        assert dimension_review_schema["minItems"] == expected_dimension_count
-        assert dimension_review_schema["maxItems"] == expected_dimension_count
-    else:
-        assert dimension_review_schema["description"] == (
-            f"{{maxItems: {expected_dimension_count}, "
-            f"minItems: {expected_dimension_count}}}"
-        )
-    assert dimension_review_schema["items"] == {
-        "$ref": "#/$defs/dimension_review"
-    }
+    assert set(dimension_review_schema["properties"]) == set(
+        GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
+    )
+    assert all(
+        row == {"$ref": "#/$defs/dimension_review"}
+        for row in dimension_review_schema["properties"].values()
+    )
     dimension_definition = transformed["$defs"]["dimension_review"]
     finding_definition = transformed["$defs"]["finding"]
-    dimension_evidence_schema = dimension_definition["properties"][
-        "evidence_citations"
-    ]
-    assert dimension_evidence_schema["minItems"] == 1
-    evidence_definition = transformed["$defs"]["evidence_citation"]
-    assert set(evidence_definition["properties"]["artifact_role"]["enum"]) == set(
-        GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS
-    )
-    source_dimension_evidence_schema = (
-        GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA["$defs"]
-        ["dimension_review"]["properties"]
-        ["evidence_citations"]
-    )
-    assert source_dimension_evidence_schema["items"] == {
-        "$ref": "#/$defs/evidence_citation"
-    }
-    transformed_locator_schema = transformed["$defs"][
-        "evidence_citation"
-    ]["properties"]["locator"]
-    assert (
-        transformed_locator_schema.get("minLength") == 1
-        or transformed_locator_schema.get("description") == "{minLength: 1}"
-    )
+    assert set(dimension_definition["required"]) == {"status", "rationale"}
+    assert "evidence_citation" not in transformed["$defs"]
     assert "evidence_refs" not in dimension_definition["properties"]
+    assert "evidence_citations" not in dimension_definition["properties"]
     assert "evidence_citations" not in finding_definition["properties"]
     assert "artifact_citations" not in finding_definition["properties"]
     assert "authority_refs" not in finding_definition["properties"]
@@ -3912,7 +3771,6 @@ def test_semantic_reviewer_schema_supports_anthropic_structured_output() -> None
         "prior_finding_reviews",
         "dimension_reviews",
         "findings",
-        "repair_instructions",
     }
     assert "overall_verdict" not in transformed["properties"]
     assert "reviewed_source_assessment" not in transformed["properties"]

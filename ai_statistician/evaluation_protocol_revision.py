@@ -90,9 +90,22 @@ def metric_protocol_upstream_theory_revision_feedback_errors(
         errors.append("feedback must keep generated execution unauthorized")
 
     findings = feedback.get("findings", [])
-    if not isinstance(findings, list) or not findings:
-        errors.append("feedback requires at least one owned upstream finding")
-    else:
+    failed_response_identity_checks = feedback.get(
+        "failed_response_identity_checks", []
+    )
+    failed_response_identity_checks = (
+        failed_response_identity_checks
+        if isinstance(failed_response_identity_checks, list)
+        else []
+    )
+    if not isinstance(findings, list):
+        errors.append("feedback findings must be an array")
+        findings = []
+    if not findings and not failed_response_identity_checks:
+        errors.append(
+            "feedback requires an owned upstream finding or a failed model audit"
+        )
+    if findings:
         for index, finding in enumerate(findings):
             if not isinstance(finding, Mapping):
                 errors.append(f"feedback finding {index} is not an object")
@@ -103,6 +116,19 @@ def metric_protocol_upstream_theory_revision_feedback_errors(
                 )
             if not str(finding.get("required_change", "") or "").strip():
                 errors.append(f"feedback finding {index} missing required_change")
+    for index, check in enumerate(failed_response_identity_checks):
+        if not isinstance(check, Mapping):
+            errors.append(f"feedback response audit {index} is not an object")
+            continue
+        if str(check.get("verdict", "") or "").strip().upper() != "FAIL":
+            errors.append(f"feedback response audit {index} is not failed")
+        conflicts = check.get("unresolved_conflicts", [])
+        if not isinstance(conflicts, list) or not any(
+            str(value).strip() for value in conflicts
+        ):
+            errors.append(
+                f"feedback response audit {index} has no exact unresolved conflict"
+            )
 
     try:
         revision_count = int(
@@ -701,8 +727,13 @@ def architect_preexecution_metric_protocol_rejection_result(
         recommended_repair_scope
         == ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
         and upstream_theory_revision_count < max_theory_revisions
-        and preflight_revision_progressed
     )
+    failed_response_identity_checks = [
+        dict(row)
+        for row in final_review.get("response_identity_checks", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("verdict", "") or "").strip().upper() == "FAIL"
+    ]
     source_theory_packet_id = str(
         final_review.get("source_theory_packet_id", "")
         or metric_gate.get("source_theory_packet_id", "")
@@ -763,6 +794,7 @@ def architect_preexecution_metric_protocol_rejection_result(
             for row in final_review.get("findings", []) or []
             if isinstance(row, Mapping)
         ],
+        "failed_response_identity_checks": failed_response_identity_checks,
         "final_repair_instructions": [
             str(value)
             for value in final_review.get("repair_instructions", []) or []
@@ -832,13 +864,28 @@ def architect_preexecution_metric_protocol_rejection_result(
             ]
         upstream_repair_instructions = list(
             dict.fromkeys(
-                str(row.get("required_change", "") or "").strip()
-                for row in upstream_findings
-                if str(row.get("required_change", "") or "").strip()
+                [
+                    *[
+                        str(row.get("required_change", "") or "").strip()
+                        for row in upstream_findings
+                        if str(row.get("required_change", "") or "").strip()
+                    ],
+                    *[
+                        str(value).strip()
+                        for row in failed_response_identity_checks
+                        for value in row.get("unresolved_conflicts", []) or []
+                        if str(value).strip()
+                    ],
+                ]
             )
         )
         feedback_id = "metric_protocol_upstream_theory_feedback:" + stable_hash(
-            [manifest_id, next_revision_count, upstream_findings]
+            [
+                manifest_id,
+                next_revision_count,
+                upstream_findings,
+                failed_response_identity_checks,
+            ]
         )[:20]
         feedback = {
             "schema_version": EVALUATION_PROTOCOL_REVISION_SCHEMA_VERSION,
@@ -871,6 +918,7 @@ def architect_preexecution_metric_protocol_rejection_result(
                 if isinstance(row, Mapping)
             ],
             "findings": upstream_findings,
+            "failed_response_identity_checks": failed_response_identity_checks,
             "cumulative_finding_ledger": [
                 dict(row)
                 for row in final_review.get(
@@ -891,13 +939,16 @@ def architect_preexecution_metric_protocol_rejection_result(
                 prior_finding_resolution_summary
             ),
             "repair_instructions": upstream_repair_instructions,
-            "high_priority_agenda": upstream_findings,
+            "high_priority_agenda": [
+                *upstream_findings,
+                *failed_response_identity_checks,
+            ],
             "required_revision": (
-                "Revise the TheoryDeveloper packet itself so its estimand, "
+                "Regenerate the complete TheoryDeveloper packet so its estimand, "
                 "procedure, estimator, DGP, assumptions, derivation, and "
                 "feasibility claims are internally consistent and sufficiently "
-                "specified for independent metric authoring. Do not patch the "
-                "rejected metric rows or invent observed results."
+                "specified for independent metric authoring. Use the exact reviewer "
+                "feedback; do not patch the old packet or invent observed results."
             ),
             "acceptance_gate": (
                 "A fresh structured TheoryDeveloper packet addresses every routed "

@@ -15275,7 +15275,7 @@ def test_llm_route_planner_auto_uses_sonnet_for_light_route_interactive_precondi
     ] == 1
 
 
-def test_llm_route_planner_escalates_failed_haiku_repair_to_sonnet() -> None:
+def test_llm_route_planner_keeps_haiku_for_full_regeneration() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_haiku_sonnet_repair"
     )
@@ -15320,53 +15320,47 @@ def test_llm_route_planner_escalates_failed_haiku_repair_to_sonnet() -> None:
 
     assert payload["all_ok"]
     assert payload["by_request_model_tier"] == {"haiku": 1}
-    assert payload["n_generated_responses_model_tier_escalated"] == 1
-    assert payload["n_generated_responses_haiku_to_sonnet_escalated"] == 1
-    assert payload["n_repair_attempt_ledger_model_tier_escalations"] == 1
-    assert payload["n_rows_with_model_tier_escalation"] == 1
+    assert payload["n_generated_responses_model_tier_escalated"] == 0
+    assert payload["n_generated_responses_haiku_to_sonnet_escalated"] == 0
+    assert payload["n_repair_attempt_ledger_model_tier_escalations"] == 0
+    assert payload["n_rows_with_model_tier_escalation"] == 0
     assert payload["n_request_model_tier_decision_auto_haiku_bounded"] == 1
     assert len(requests) == 2
     assert requests[0].model == "claude-haiku-4-5-20251001"
     assert requests[0].metadata["model_tier"] == "haiku"
     assert requests[0].metadata["model_tier_escalated"] is False
-    assert requests[1].model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
+    assert requests[1].model == "claude-haiku-4-5-20251001"
     assert requests[1].metadata["requested_model_tier"] == "haiku"
-    assert requests[1].metadata["model_tier"] == "sonnet"
-    assert requests[1].metadata["model_tier_escalated"] is True
+    assert requests[1].metadata["model_tier"] == "haiku"
+    assert requests[1].metadata["model_tier_escalated"] is False
     row = payload["rows"][0]
-    assert row["model"] == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
-    assert row["model_tier"] == "sonnet"
+    assert row["model"] == "claude-haiku-4-5-20251001"
+    assert row["model_tier"] == "haiku"
     assert row["generator_metadata"]["requested_model_tier"] == "haiku"
-    assert row["generator_metadata"]["effective_model_tier"] == "sonnet"
-    assert row["generator_metadata"]["model_tier_escalated"] is True
+    assert row["generator_metadata"]["effective_model_tier"] == "haiku"
+    assert row["generator_metadata"]["model_tier_escalated"] is False
     assert row["model_tier_decision_evidence"]["selected_model_tier"] == "haiku"
-    assert row["model_tier_decision_evidence"]["effective_model_tier"] == "sonnet"
-    assert row["model_tier_decision_evidence"]["model_tier_escalated"] is True
-    assert "auto escalated Claude Haiku repair attempt to Sonnet" in row[
-        "model_selection_rationale"
-    ]
+    assert row["model_tier_decision_evidence"]["effective_model_tier"] == "haiku"
+    assert row["model_tier_decision_evidence"]["model_tier_escalated"] is False
     tier_ledger_row = payload["model_tier_decision_ledger"][0]
     assert tier_ledger_row["operator_requested_model_tier"] == "auto"
     assert tier_ledger_row["selected_model_tier"] == "haiku"
-    assert tier_ledger_row["effective_model_tier"] == "sonnet"
+    assert tier_ledger_row["effective_model_tier"] == "haiku"
     assert tier_ledger_row["request_model"] == "claude-haiku-4-5-20251001"
-    assert tier_ledger_row["effective_model"] == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
-    assert tier_ledger_row["model_tier_escalated"] is True
-    assert "Haiku repair attempt to Sonnet" in tier_ledger_row[
-        "model_tier_escalation_reason"
-    ]
-    assert payload["n_model_tier_decision_ledger_rows_with_escalation"] == 1
+    assert tier_ledger_row["effective_model"] == "claude-haiku-4-5-20251001"
+    assert tier_ledger_row["model_tier_escalated"] is False
+    assert payload["n_model_tier_decision_ledger_rows_with_escalation"] == 0
     assert row["repair_error_history"][0]["model_tier"] == "haiku"
-    assert row["repair_error_history"][0]["next_repair_model_tier"] == "sonnet"
+    assert row["repair_error_history"][0]["next_repair_model_tier"] == "haiku"
     repair_ledger_row = row["repair_attempt_ledger"][0]
     assert repair_ledger_row["requested_model_tier"] == "haiku"
-    assert repair_ledger_row["model_tier"] == "sonnet"
+    assert repair_ledger_row["model_tier"] == "haiku"
     assert repair_ledger_row["failed_attempt_model_tier"] == "haiku"
-    assert repair_ledger_row["next_repair_model_tier"] == "sonnet"
-    assert repair_ledger_row["model_tier_escalated"] is True
+    assert repair_ledger_row["next_repair_model_tier"] == "haiku"
+    assert repair_ledger_row["model_tier_escalated"] is False
     seed_metadata = payload["standalone_seed"]["routes"][0]["replan_metadata"]
-    assert seed_metadata["llm_route_planner_model"] == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
-    assert seed_metadata["llm_route_planner_model_tier"] == "sonnet"
+    assert seed_metadata["llm_route_planner_model"] == "claude-haiku-4-5-20251001"
+    assert seed_metadata["llm_route_planner_model_tier"] == "haiku"
 
 
 def test_llm_route_planner_auto_uses_sonnet_for_seed_route_risk_markers() -> None:
@@ -16111,9 +16105,9 @@ def test_llm_route_planner_repairs_invalid_provider_response_with_local_validato
     assert len(requests) == 2
     assert requests[0].metadata["repair_attempt"] == 0
     assert requests[1].metadata["repair_attempt"] == 1
-    assert "Repair your previous formalization-gap planner response" in requests[1].user_prompt
-    assert "repair_guidance_rows" in requests[1].user_prompt
-    assert "proof_boundary_violation" in requests[1].user_prompt
+    assert "Regenerate one complete formalization-gap planner response" in requests[1].user_prompt
+    assert "repair_guidance_rows" not in requests[1].user_prompt
+    assert "runtime does not prescribe any edit or solution strategy" in requests[1].user_prompt
     assert "kernel_verified" in requests[1].user_prompt
     raw_response = payload["request_packets"][0]
     assert raw_response["model_tier"] == "sonnet"
@@ -16123,9 +16117,7 @@ def test_llm_route_planner_repairs_invalid_provider_response_with_local_validato
     assert row["repair_error_history"]
     assert row["repair_error_history"][0]["next_repair_attempt"] == 1
     assert row["repair_error_history"][0]["repair_prompt_fingerprint"]
-    assert "proof_boundary_violation" in row["repair_error_history"][0][
-        "repair_guidance_categories"
-    ]
+    assert not row["repair_error_history"][0]["repair_guidance_categories"]
     assert row["repair_error_history"][0]["repair_guidance_fingerprint"]
     assert any("kernel_verified" in " ".join(item["errors"]) for item in row["repair_error_history"])
     assert row["repair_attempt_ledger"] == payload["repair_attempt_ledger"]
@@ -16144,9 +16136,7 @@ def test_llm_route_planner_repairs_invalid_provider_response_with_local_validato
     assert repair_ledger_row["repair_prompt_fingerprint"] == (
         row["repair_error_history"][0]["repair_prompt_fingerprint"]
     )
-    assert "proof_boundary_violation" in repair_ledger_row[
-        "repair_guidance_categories"
-    ]
+    assert not repair_ledger_row["repair_guidance_categories"]
     assert repair_ledger_row["repair_guidance_fingerprint"] == (
         row["repair_error_history"][0]["repair_guidance_fingerprint"]
     )
@@ -16160,7 +16150,7 @@ def test_llm_route_planner_repairs_invalid_provider_response_with_local_validato
     drifted_guidance_row = deepcopy(row)
     drifted_guidance_row["repair_attempt_ledger"][0][
         "repair_guidance_categories"
-    ] = []
+    ] = ["runtime-authored-fix"]
     assert (
         "repair_attempt_ledger[0].repair_guidance_categories must match "
         "repair_error_history"
@@ -16242,7 +16232,7 @@ def test_llm_route_planner_preserves_exhausted_repair_attempt_ledger() -> None:
     assert row["repair_attempt_ledger"][0]["next_repair_attempt"] == 1
     assert row["repair_attempt_ledger"][1]["next_repair_attempt"] == ""
     assert all(
-        "proof_boundary_violation" in item["repair_guidance_categories"]
+        not item["repair_guidance_categories"]
         for item in row["repair_attempt_ledger"]
     )
     assert any("kernel_verified" in error for error in row["generation_errors"])

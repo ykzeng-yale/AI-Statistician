@@ -886,7 +886,7 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     ) == []
 
 
-def test_preflight_full_regeneration_focuses_invalid_dimension() -> None:
+def test_preflight_full_regeneration_returns_raw_validation_feedback() -> None:
     initial_payload = _payload(accept=False)
     primitive_index = ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS.index(
         "primitive_mathematical_consistency"
@@ -912,16 +912,15 @@ def test_preflight_full_regeneration_focuses_invalid_dimension() -> None:
         max_repair_attempts=1,
     )
 
-    context = backend.repair_payload["subsystem_repair_context"]
-    assert "dimension_review_patch_paths" not in context
-    assert context["required_dimensions"][primitive_index] == (
-        "primitive_mathematical_consistency"
-    )
+    assert "subsystem_repair_context" not in backend.repair_payload
     assert any(
         "unknown evidence refs" in error
-        for error in context["local_validation_errors"]
+        for error in backend.repair_payload["local_validation_errors"]
     )
-    assert "unknown.anchor" in backend.repair_payload["invalid_response_excerpt"]
+    assert backend.repair_payload["original_request"] == (
+        backend.requests[0].user_prompt
+    )
+    assert "unknown.anchor" in backend.repair_payload["previous_candidate"]
     assert packet["overall_verdict"] == "REVISE"
     assert packet["llm_json_repair_history"][1]["repair_mode"] == (
         "full_packet_regeneration"
@@ -1367,7 +1366,7 @@ def test_preflight_repairs_missing_ordered_prior_continuation() -> None:
 
         def __init__(self) -> None:
             self.requests = []
-            self.repair_context = {}
+            self.retry_payload = {}
 
         def generate(self, request):
             self.requests.append(request)
@@ -1375,7 +1374,7 @@ def test_preflight_repairs_missing_ordered_prior_continuation() -> None:
                 payload = initial_payload
             else:
                 repair_payload = json.loads(request.user_prompt.split("\n\n", 1)[1])
-                self.repair_context = repair_payload["subsystem_repair_context"]
+                self.retry_payload = repair_payload
                 payload = deepcopy(initial_payload)
                 payload["prior_finding_reviews"][0]["current_finding"] = (
                     continuation
@@ -1409,10 +1408,9 @@ def test_preflight_repairs_missing_ordered_prior_continuation() -> None:
     )
 
     assert len(backend.requests) == 2
-    assert backend.repair_context["required_prior_finding_ids"] == [
-        prior_finding_id
-    ]
-    assert "prior_finding_review_patch_paths" not in backend.repair_context
+    assert "subsystem_repair_context" not in backend.retry_payload
+    assert prior_finding_id in backend.retry_payload["original_request"]
+    assert backend.retry_payload["previous_candidate"]
     assert packet["findings"][0]["prior_finding_id"] == prior_finding_id
     assert packet["findings"][0]["finding_id"] == prior_finding_id
     assert packet["runtime_prior_finding_identity_bindings"][0][
@@ -1450,7 +1448,7 @@ def test_preflight_repairs_missing_ordered_prior_row_by_replacing_array() -> Non
 
         def __init__(self) -> None:
             self.requests = []
-            self.repair_context = {}
+            self.retry_payload = {}
 
         def generate(self, request):
             self.requests.append(request)
@@ -1458,7 +1456,7 @@ def test_preflight_repairs_missing_ordered_prior_row_by_replacing_array() -> Non
                 payload = initial_payload
             else:
                 repair_payload = json.loads(request.user_prompt.split("\n\n", 1)[1])
-                self.repair_context = repair_payload["subsystem_repair_context"]
+                self.retry_payload = repair_payload
                 payload = deepcopy(initial_payload)
                 payload["prior_finding_reviews"] = deepcopy(resolved_rows)
             return GeneratorResponse(
@@ -1490,10 +1488,11 @@ def test_preflight_repairs_missing_ordered_prior_row_by_replacing_array() -> Non
     )
 
     assert len(backend.requests) == 2
-    assert backend.repair_context["required_prior_finding_ids"] == (
-        prior_finding_ids
+    assert "subsystem_repair_context" not in backend.retry_payload
+    assert all(
+        finding_id in backend.retry_payload["original_request"]
+        for finding_id in prior_finding_ids
     )
-    assert "prior_finding_reviews_array_path" not in backend.repair_context
     assert [
         row["finding_id"] for row in packet["prior_finding_reviews"]
     ] == prior_finding_ids
@@ -1589,7 +1588,7 @@ def test_rejected_preflight_skips_metric_author_and_execution_lineage() -> None:
     )
 
 
-def test_preflight_stops_when_a_revision_closes_no_prior_finding() -> None:
+def test_preflight_uses_remaining_global_budget_when_no_prior_finding_closes() -> None:
     rejected_packet, _backend = _review(accept=False)
     finding_id = rejected_packet["active_unresolved_finding_ids"][0]
     history = [
@@ -1645,14 +1644,15 @@ def test_preflight_stops_when_a_revision_closes_no_prior_finding() -> None:
         max_upstream_theory_revisions=2,
     )
 
-    assert result.status == "BLOCKED"
-    assert result.next_task is None
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "TheoryDeveloper"
     assert result.failure_classification == (
-        "architect_theory_execution_preflight_stalled"
+        "architect_metric_protocol_upstream_theory_revision_requested"
     )
     manifest = next(iter(result.produced_artifacts.values()))
     assert manifest["preflight_revision_stalled"] is True
-    assert manifest["upstream_theory_revision_routed"] is False
+    assert manifest["upstream_theory_revision_routed"] is True
 
 
 def test_preflight_new_findings_do_not_mask_unresolved_prior_lineage() -> None:
@@ -1741,12 +1741,13 @@ def test_preflight_new_findings_do_not_mask_unresolved_prior_lineage() -> None:
         max_upstream_theory_revisions=2,
     )
 
-    assert result.status == "BLOCKED"
-    assert result.next_task is None
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "TheoryDeveloper"
     assert result.failure_classification == (
-        "architect_theory_execution_preflight_stalled"
+        "architect_metric_protocol_upstream_theory_revision_requested"
     )
     manifest = next(iter(result.produced_artifacts.values()))
     assert manifest["preflight_revision_progressed"] is False
     assert manifest["preflight_revision_stalled"] is True
-    assert manifest["upstream_theory_revision_routed"] is False
+    assert manifest["upstream_theory_revision_routed"] is True

@@ -531,9 +531,16 @@ def architect_metric_semantic_recommended_repair_scope(
     *,
     verdict: str,
     findings: Any,
+    response_identity_checks: Any = (),
 ) -> str:
     if str(verdict or "").strip().upper() == "ACCEPT":
         return "none"
+    if any(
+        isinstance(row, Mapping)
+        and str(row.get("verdict", "") or "").strip().upper() == "FAIL"
+        for row in response_identity_checks or []
+    ):
+        return ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
     scopes = {
         str(row.get("repair_scope", "") or "").strip()
         for row in findings
@@ -549,6 +556,7 @@ def _architect_metric_semantic_review_derived_verdict(
     dimension_reviews: Any,
     findings: Any,
     prior_finding_reviews: Any,
+    response_identity_checks: Any = (),
 ) -> str:
     dimension_rows = [
         row for row in dimension_reviews or [] if isinstance(row, Mapping)
@@ -593,6 +601,12 @@ def _architect_metric_semantic_review_derived_verdict(
         and str(row.get("status", "") or "").strip().upper()
         == METRIC_PROTOCOL_FINDING_UNRESOLVED
     )
+    failed_response_identity_checks = sum(
+        1
+        for row in response_identity_checks or []
+        if isinstance(row, Mapping)
+        and str(row.get("verdict", "") or "").strip().upper() == "FAIL"
+    )
     return (
         "ACCEPT"
         if (
@@ -600,6 +614,7 @@ def _architect_metric_semantic_review_derived_verdict(
             or advisory_uncertainty_only
         )
         and unresolved_prior_findings == 0
+        and failed_response_identity_checks == 0
         else "REVISE"
     )
 
@@ -1344,77 +1359,6 @@ def _bind_resolved_prior_finding_status_evidence(
     return bound_reviews
 
 
-def _architect_metric_rejected_review_consistency_state(
-    invalid_packet: Mapping[str, Any] | None,
-) -> dict[str, Any]:
-    packet = invalid_packet if isinstance(invalid_packet, Mapping) else {}
-    failed_claim_checks = [
-        {
-            "claim_check_index": index,
-            "requirement_id": str(
-                row.get("requirement_id", "") or ""
-            ).strip(),
-            "claim_ref": str(row.get("claim_ref", "") or "").strip(),
-            "check_type": str(row.get("check_type", "") or "").strip(),
-            "normalization_and_unit_audit": str(
-                row.get("normalization_and_unit_audit", "") or ""
-            ).strip(),
-            "normalization_reconstruction": deepcopy(
-                row.get("normalization_reconstruction", {})
-            ),
-            "sample_size_order_derivation": deepcopy(
-                row.get("sample_size_order_derivation", {})
-            ),
-            "result": str(row.get("result", "") or "").strip(),
-            "evidence_refs": [
-                str(value).strip()
-                for value in row.get("evidence_refs", []) or []
-                if str(value).strip()
-            ],
-        }
-        for index, row in enumerate(packet.get("claim_checks", []) or [])
-        if isinstance(row, Mapping)
-        and str(row.get("verdict", "") or "").strip().upper() == "FAIL"
-    ]
-    dimension_statuses = [
-        {
-            "dimension_index": index,
-            "dimension": str(row.get("dimension", "") or "").strip(),
-            "status": str(row.get("status", "") or "").strip().upper(),
-        }
-        for index, row in enumerate(packet.get("dimension_reviews", []) or [])
-        if isinstance(row, Mapping)
-    ]
-    high_finding_indices = [
-        index
-        for index, row in enumerate(packet.get("findings", []) or [])
-        if isinstance(row, Mapping)
-        and str(row.get("severity", "") or "").strip().lower()
-        in {"high", "critical"}
-    ]
-    return {
-        "failed_claim_checks": failed_claim_checks,
-        "dimension_statuses": dimension_statuses,
-        "high_or_critical_finding_indices": high_finding_indices,
-        "consistency_contract": [
-            (
-                "Every retained FAIL claim check requires at least one relevant "
-                "FAIL dimension and one high or critical typed finding."
-            ),
-            (
-                "If a recomputation shows the claim check was mistaken, repair its "
-                "calculation, result, and verdict together; never retain a FAIL while "
-                "marking every dimension PASS."
-            ),
-            (
-                "The reviewer must resolve mathematical contradictions from the "
-                "supplied current artifacts; the runtime does not choose which "
-                "claim, dimension, or finding is semantically correct."
-            ),
-        ],
-    }
-
-
 def _complete_unresolved_prior_finding_lineage(
     *,
     findings: Sequence[Mapping[str, Any]],
@@ -1525,92 +1469,6 @@ def _complete_unresolved_prior_finding_lineage(
         carried_ids,
         list(dict.fromkeys(evidence_bound_ids)),
     )
-
-
-def _architect_metric_semantic_review_repair_context(
-    review_material: Mapping[str, Any],
-    *,
-    invalid_packet: Mapping[str, Any] | None = None,
-    errors: Sequence[Any] = (),
-) -> dict[str, Any]:
-    active_ledger = _active_prior_finding_ledger(review_material)
-    active_ids = _active_prior_finding_ids(review_material)
-    candidate_requirements = [
-        dict(row)
-        for row in review_material.get("empirical_metric_requirements", []) or []
-        if isinstance(row, Mapping)
-    ]
-    rejected_review = (
-        {
-            key: deepcopy(value)
-            for key, value in invalid_packet.items()
-            if key
-            in {
-                "prior_finding_reviews",
-                "claim_checks",
-                "response_identity_checks",
-                "dimension_reviews",
-                "findings",
-                "overall_verdict",
-                "repair_instructions",
-            }
-        }
-        if isinstance(invalid_packet, Mapping)
-        else {}
-    )
-    return {
-        "expected_prior_finding_ids": active_ids,
-        "active_prior_finding_ledger": active_ledger,
-        "active_prior_finding_current_evidence": (
-            _active_prior_finding_current_evidence(review_material)
-        ),
-        "prior_finding_citation_options": (
-            _architect_metric_prior_finding_citation_options(review_material)
-        ),
-        "rejected_review_consistency_state": (
-            _architect_metric_rejected_review_consistency_state(
-                invalid_packet
-            )
-        ),
-        "local_validation_errors": [
-            str(error) for error in errors if str(error).strip()
-        ],
-        "review_input_fingerprint": stable_hash(review_material),
-        "current_candidate": {
-            "empirical_metric_requirements": candidate_requirements,
-            "empirical_metric_requirements_fingerprint": stable_hash(
-                candidate_requirements
-            ),
-            "runtime_owned_replicates": review_material.get(
-                "runtime_owned_replicates"
-            ),
-            "pre_execution_invariants": list(
-                review_material.get("pre_execution_invariants", []) or []
-            ),
-            "execution_results_available": review_material.get(
-                "execution_results_available"
-            ),
-        },
-        "metric_evaluation_semantics": deepcopy(
-            review_material.get("metric_evaluation_semantics", {})
-        ),
-        "acceptance_authority_catalog_id": str(
-            review_material.get("acceptance_authority_catalog_id", "") or ""
-        ),
-        "acceptance_authority_catalog": deepcopy(
-            review_material.get("acceptance_authority_catalog", [])
-        ),
-        "runtime_contract_authority": deepcopy(
-            review_material.get("runtime_contract_authority", {})
-        ),
-        "runtime_evaluator_certificate": deepcopy(
-            review_material.get("runtime_evaluator_certificate", {})
-        ),
-        "metric_claim_check_contract": (
-            _architect_metric_claim_check_contract(review_material)
-        ),
-        "rejected_review_packet": rejected_review,
-    }
 
 
 class LLMArchitectMetricSemanticReviewerAgent:
@@ -1740,13 +1598,6 @@ class LLMArchitectMetricSemanticReviewerAgent:
             validate_packet=validate_architect_metric_semantic_review_packet,
             validation_label="Architect metric semantic review packet",
             max_repair_attempts=self.config.max_repair_attempts,
-            repair_context_builder=lambda **_kwargs: (
-                _architect_metric_semantic_review_repair_context(
-                    review_material,
-                    invalid_packet=_kwargs.get("invalid_packet"),
-                    errors=_kwargs.get("errors", []),
-                )
-            ),
         )
 
 ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 6
@@ -3828,29 +3679,11 @@ def validate_architect_metric_semantic_review_packet(
                 "a failed foundational identity check requires "
                 "mathematical_and_numeric_internal_consistency=FAIL"
             )
-    if failed_response_identity_claim_checks:
-        if high_findings == 0:
-            errors.append(
-                "a failed response identity audit requires a high or critical "
-                "typed finding"
-            )
-        math_dimension_statuses = [
-            str(row.get("status", "") or "").strip().upper()
-            for row in dimension_rows
-            if isinstance(row, Mapping)
-            and str(row.get("dimension", "") or "").strip()
-            == "mathematical_and_numeric_internal_consistency"
-        ]
-        if math_dimension_statuses != ["FAIL"]:
-            errors.append(
-                "a failed response identity audit requires "
-                "mathematical_and_numeric_internal_consistency=FAIL"
-            )
-
     expected_verdict = _architect_metric_semantic_review_derived_verdict(
         dimension_reviews=dimension_rows,
         findings=findings,
         prior_finding_reviews=prior_finding_reviews,
+        response_identity_checks=response_identity_checks,
     )
     verdict = str(packet.get("overall_verdict", "") or "").strip().upper()
     if verdict != expected_verdict:
@@ -3865,7 +3698,12 @@ def validate_architect_metric_semantic_review_packet(
         or not any(str(value or "").strip() for value in repair_instructions)
     ):
         errors.append("REVISE Architect metric review requires repair_instructions")
-    if verdict == "REVISE" and not findings and unresolved_prior_findings == 0:
+    if (
+        verdict == "REVISE"
+        and not findings
+        and unresolved_prior_findings == 0
+        and failed_response_identity_claim_checks == 0
+    ):
         errors.append(
             "REVISE Architect metric review requires typed findings or an "
             "unresolved prior finding"
@@ -3880,6 +3718,7 @@ def validate_architect_metric_semantic_review_packet(
                 if isinstance(row, Mapping)
             ],
         ],
+        response_identity_checks=response_identity_checks,
     )
     if packet.get("recommended_repair_scope") != expected_repair_scope:
         errors.append(
@@ -4233,16 +4072,40 @@ def _normalize_architect_metric_semantic_review_packet(
     body["model_requested_overall_verdict"] = str(
         body.pop("overall_verdict", "") or ""
     ).strip().upper()
+    failed_response_identity_checks = [
+        dict(row)
+        for row in body.get("response_identity_checks", []) or []
+        if isinstance(row, Mapping)
+        and str(row.get("verdict", "") or "").strip().upper() == "FAIL"
+    ]
+    audit_feedback = list(
+        dict.fromkeys(
+            str(value).strip()
+            for row in failed_response_identity_checks
+            for value in row.get("unresolved_conflicts", []) or []
+            if str(value).strip()
+        )
+    )
+    model_repair_instructions = [
+        str(value).strip()
+        for value in body.get("repair_instructions", []) or []
+        if str(value).strip()
+    ]
+    body["repair_instructions"] = list(
+        dict.fromkeys([*model_repair_instructions, *audit_feedback])
+    )
     verdict = _architect_metric_semantic_review_derived_verdict(
         dimension_reviews=body.get("dimension_reviews", []),
         findings=findings,
         prior_finding_reviews=prior_finding_reviews,
+        response_identity_checks=body.get("response_identity_checks", []),
     )
     body["overall_verdict"] = verdict
     body["recommended_repair_scope"] = (
         architect_metric_semantic_recommended_repair_scope(
             verdict=verdict,
             findings=[*findings, *unresolved_prior_findings],
+            response_identity_checks=body.get("response_identity_checks", []),
         )
     )
     body["expected_prior_finding_ids"] = _active_prior_finding_ids(

@@ -519,6 +519,7 @@ _OPERATOR_DOTENV_FILENAMES = (
 FULL_LIVE_MIN_AGENT_RUNTIME_ITERATIONS = 24
 RESEARCH_EVAL_MIN_AGENT_RUNTIME_ITERATIONS = 24
 MINIMAL_LIVE_FORMALIZER_LEAN_REPAIR_YIELD_AFTER_ATTEMPTS = 3
+LIVE_EVALUATION_MIN_ARCHITECT_MAX_TOKENS = 8000
 LIVE_EVALUATION_MIN_METRIC_REVIEWER_MAX_TOKENS = 16000
 SERIOUS_THEORY_MIN_LLM_TIMEOUT_SECONDS = (
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS * 2.0
@@ -11216,7 +11217,16 @@ async def _research_loop(args: argparse.Namespace) -> int:
         ),
         lean_rag_db_path=Path(args.lean_rag_db) if args.lean_rag_db else None,
         repair_handlers=repair_handlers,
-        enable_default_theory_developer=not getattr(args, "disable_default_theory_developer", False),
+        enable_default_theory_developer=getattr(
+            args,
+            "enable_legacy_deterministic_theory_baseline",
+            False,
+        ),
+        enable_default_algorithm_engineer=getattr(
+            args,
+            "enable_legacy_deterministic_algorithm_baseline",
+            False,
+        ),
         config=LoopConfig(
             max_rounds=args.max_rounds,
             n_runs=args.runs,
@@ -13965,7 +13975,7 @@ def _apply_research_agent_runtime_research_eval_profile(
     args.formal_verification_policy = "advisory"
     args.recommended_research_path = "simulation_first"
     args.architect_max_tokens = max(
-        8000,
+        LIVE_EVALUATION_MIN_ARCHITECT_MAX_TOKENS,
         int(getattr(args, "architect_max_tokens", 0) or 0),
     )
     args.serious_theory_model_tier = LIVE_EVALUATION_CLAUDE_MODEL_TIER
@@ -14180,6 +14190,10 @@ def _apply_research_agent_runtime_capability_eval_preset(
             MINIMAL_LIVE_FORMALIZER_LEAN_REPAIR_YIELD_AFTER_ATTEMPTS
         )
     if preset == "full-live":
+        args.architect_max_tokens = max(
+            LIVE_EVALUATION_MIN_ARCHITECT_MAX_TOKENS,
+            int(getattr(args, "architect_max_tokens", 0) or 0),
+        )
         args.architect_metric_semantic_reviewer_max_tokens = max(
             LIVE_EVALUATION_MIN_METRIC_REVIEWER_MAX_TOKENS,
             int(
@@ -21018,9 +21032,20 @@ def build_parser() -> argparse.ArgumentParser:
     research_loop.add_argument("--llm-theory-max-tokens", type=int, default=9000)
     research_loop.add_argument("--llm-theory-temperature", type=float, default=0.2)
     research_loop.add_argument(
-        "--disable-default-theory-developer",
+        "--enable-legacy-deterministic-theory-baseline",
         action="store_true",
-        help="disable the conservative DefaultTheoryDeveloper fallback",
+        help=(
+            "explicitly enable the hand-authored DefaultTheoryDeveloper calibration "
+            "baseline; never used as a production fallback"
+        ),
+    )
+    research_loop.add_argument(
+        "--enable-legacy-deterministic-algorithm-baseline",
+        action="store_true",
+        help=(
+            "explicitly enable the hand-authored DefaultAlgorithmEngineer calibration "
+            "baseline; never used as a production fallback"
+        ),
     )
     research_loop.add_argument(
         "--formal-source-backend",

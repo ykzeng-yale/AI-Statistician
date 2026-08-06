@@ -184,8 +184,9 @@ def generated_code_execution_contract_errors(draft: Mapping[str, Any]) -> list[s
         draft.get("execution_profile"),
         language=language,
     )
+    raw_dependencies = draft.get("dependencies", [])
     dependencies = normalized_scientific_dependencies(
-        draft.get("dependencies", []),
+        raw_dependencies,
         language=language,
     )
     errors: list[str] = []
@@ -195,6 +196,13 @@ def generated_code_execution_contract_errors(draft: Mapping[str, Any]) -> list[s
         errors.append("generated code execution_profile must be stdlib or scientific_wasm")
     if language == "r" and profile != SCIENTIFIC_WASM_SANDBOX_PROFILE:
         errors.append("generated R code requires execution_profile scientific_wasm")
+    if "dependencies" in draft and (
+        not isinstance(raw_dependencies, Sequence)
+        or isinstance(raw_dependencies, (str, bytes))
+    ):
+        errors.append("generated code dependencies must be an array")
+    if profile == SCIENTIFIC_WASM_SANDBOX_PROFILE and "dependencies" not in draft:
+        errors.append("scientific_wasm generated code must declare dependencies as an array")
     if profile == STDLIB_SANDBOX_PROFILE and dependencies:
         errors.append("stdlib generated code cannot declare scientific dependencies")
     allowed_dependencies = (

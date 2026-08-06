@@ -428,12 +428,6 @@ class LLMArchitectCoordinatorAgent:
                 )
             return packet
 
-        def build_repair_context(**_kwargs: Any) -> dict[str, Any]:
-            return _architect_packet_repair_context(
-                architect_context=effective_architect_context,
-                runtime_config=runtime_config,
-            )
-
         with agent_runtime_substage(
             "architect_plan_generation",
             metadata={
@@ -450,7 +444,6 @@ class LLMArchitectCoordinatorAgent:
                 validate_packet=validate_architect_coordinator_packet,
                 validation_label="LLM ArchitectCoordinator packet",
                 max_repair_attempts=self.config.max_repair_attempts,
-                repair_context_builder=build_repair_context,
             )
 
 
@@ -2092,81 +2085,6 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
         },
     },
 }
-
-
-def _architect_packet_repair_context(
-    *,
-    architect_context: Mapping[str, Any],
-    runtime_config: Mapping[str, Any],
-) -> dict[str, Any]:
-    runtime_contract = _architect_runtime_owned_evidence_contract(
-        architect_context=architect_context,
-        runtime_config=runtime_config,
-    )
-    return {
-        "required_top_level_fields": list(
-            ARCHITECT_COORDINATOR_JSON_SCHEMA["required"]
-        ),
-        "required_nested_fields": {
-            "problem_analysis": [
-                "theorem_family",
-                "statistical_objects",
-                "likely_analogy_classes",
-                "key_obstacles",
-                "missing_information",
-            ],
-            "stat_knowledge_bank_plan": [
-                "source_families_to_collect",
-                "assumption_dimensions",
-                "proof_skeletons_to_track",
-                "failed_attempt_memory_policy",
-            ],
-            "evidence_contract": list(
-                ARCHITECT_COORDINATOR_OUTPUT_CONTRACT["evidence_contract"]
-            ),
-        },
-        "required_array_item_shapes": {
-            "literature_fair_comparison_plan": (
-                ARCHITECT_COORDINATOR_OUTPUT_CONTRACT[
-                    "literature_fair_comparison_plan"
-                ][0]
-            ),
-            "subsystem_execution_plan": (
-                ARCHITECT_COORDINATOR_OUTPUT_CONTRACT[
-                    "subsystem_execution_plan"
-                ][0]
-            ),
-            "evidence_gates": ARCHITECT_COORDINATOR_OUTPUT_CONTRACT[
-                "evidence_gates"
-            ][0],
-            "risk_register": ARCHITECT_COORDINATOR_OUTPUT_CONTRACT[
-                "risk_register"
-            ][0],
-            "next_actions": ARCHITECT_COORDINATOR_OUTPUT_CONTRACT[
-                "next_actions"
-            ][0],
-        },
-        "runtime_owned_evidence_contract": runtime_contract,
-        "required_subsystems": list(
-            _required_architect_plan_subsystems(runtime_contract)
-        ),
-        "empirical_metric_requirement_schema": (
-            generated_metric_requirement_prompt_schema()
-        ),
-        "empirical_metric_requirement_target_namespace": (
-            generated_metric_requirement_target_namespace_contract()
-        ),
-        "empirical_metric_requirement_target_examples": [
-            generated_metric_requirement_prompt_schema(target_subsystem=target)
-            for target in GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS
-        ],
-        "metric_evaluation_semantics": (
-            generated_metric_evaluation_semantics_contract()
-        ),
-        "formal_target_authoring_contract": (
-            ARCHITECT_FORMAL_TARGET_AUTHORING_CONTRACT
-        ),
-    }
 
 
 def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str]:

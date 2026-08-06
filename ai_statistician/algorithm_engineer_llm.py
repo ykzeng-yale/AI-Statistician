@@ -37,8 +37,6 @@ from .scientific_sandbox import (
     generated_code_execution_contract_errors,
     generated_python_syntax_errors,
     normalized_generated_code_language,
-    normalized_generated_code_profile,
-    normalized_scientific_dependencies,
     scientific_sandbox_contract,
 )
 from .theory_derivation_trace import (
@@ -170,18 +168,6 @@ class LLMAlgorithmEngineerAgent:
                 )
             return sorted(set(errors))
 
-        def build_repair_context(**_kwargs: Any) -> dict[str, Any]:
-            return {
-                "canonical_implementation_gap_ids": (
-                    _canonical_implementation_gap_ids(implementation_gaps)
-                ),
-                "metric_contracts_required": False,
-                "generated_code_execution_profiles": scientific_sandbox_contract()[
-                    "profiles"
-                ],
-                "boundary": ALGORITHM_ENGINEER_BOUNDARY,
-            }
-
         return generate_validated_json_packet(
             provider=self.provider,
             request=request,
@@ -190,7 +176,6 @@ class LLMAlgorithmEngineerAgent:
             validate_packet=validate_packet,
             validation_label="LLM AlgorithmEngineer packet",
             max_repair_attempts=self.config.max_repair_attempts,
-            repair_context_builder=build_repair_context,
         )
 
 
@@ -236,7 +221,7 @@ def build_algorithm_engineer_prompt(
         "runtime_environment_feedback": runtime_environment_feedback,
         "registered_runtime_templates": registered_algorithm_template_prompt_rows(),
         "generated_code_sandbox_contract": {
-            "status": "optional fallback when no registered template matches",
+            "status": "primary model-authored implementation path",
             "entrypoint": "run_sandbox",
             "function_signature": "def run_sandbox(seed: int, replicates: int) -> dict",
             "r_function_signature": "run_sandbox <- function(seed, replicates)",
@@ -247,7 +232,10 @@ def build_algorithm_engineer_prompt(
             "r_estimator_function_signature": (
                 "run_estimator <- function(request)"
             ),
-            "default": "leave sandbox_code_drafts empty when a registered template matches",
+            "default": (
+                "generate complete sandbox source for each novel implementation gap; "
+                "registered templates are retrieved baselines, not repair fallbacks"
+            ),
             "execution_contract": scientific_sandbox_contract(),
             "runtime_policy": (
                 "AgentRuntime will statically inspect and execute safe drafts only "
@@ -307,8 +295,9 @@ def build_algorithm_engineer_prompt(
         )
         if requires_generated_code
         else (
-            "Prefer registered runtime templates over sandbox_code_drafts; leave "
-            "sandbox_code_drafts empty whenever a template matches. "
+            "Use model-authored complete sandbox source for novel implementation gaps. "
+            "Treat registered runtime templates only as retrieved examples or exact "
+            "reusable baselines, never as a fallback after a generated candidate fails. "
         )
     )
     feedback_regeneration_instruction = (
@@ -337,9 +326,9 @@ def build_algorithm_engineer_prompt(
         "Populate theory_trace_alignment with exact referenced_derivation_steps, "
         "referenced_equation_steps, referenced_assumptions, and referenced_formalization_targets "
         "from the supplied trace anchors. "
-        "If runtime_environment_feedback reports rejected or failed sandbox code, repair that concrete "
-        "draft or switch to a supported registered-template/adapter plan; do not repeat the same unsafe "
-        "or non-executable code. "
+        "If runtime_environment_feedback reports rejected or failed sandbox code, regenerate the complete "
+        "model-authored draft from the supplied source and exact observations; do not repeat the same unsafe "
+        "or non-executable code and do not substitute a template as a hidden repair. "
         "For sandbox_code_drafts, obey the selected profile in "
         "generated_code_sandbox_contract. The stdlib profile permits only its "
         "listed pure-Python subset. The scientific_wasm profile permits only "
@@ -347,8 +336,8 @@ def build_algorithm_engineer_prompt(
         "file/network/subprocess/host-bridge/reflection access. Prefer mature "
         "package APIs for numerical and statistical machinery. If the requested "
         "prototype cannot run under either profile, omit the draft and report the "
-        "actual missing runtime capability. For this compact packet, do not include "
-        "sandbox_code_drafts unless registered_template_hint is none for every implementation target.\n\n"
+        "actual missing runtime capability. A registered template hint never authorizes "
+        "AgentRuntime to edit or replace model-authored source.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str)
     )
 
@@ -1260,22 +1249,9 @@ def _normalize_algorithm_packet(
     metric_requirement_authority_policy: str = "",
 ) -> dict[str, Any]:
     body = dict(payload)
-    _normalize_algorithm_implementation_targets(
-        body,
-        implementation_gaps=implementation_gaps,
-        requires_generated_code=requires_generated_code,
-    )
     _normalize_algorithm_estimator_interface_contracts(
         body,
         theory_packet=theory_packet,
-    )
-    _normalize_algorithm_sandbox_code_drafts(
-        body,
-        implementation_gaps=implementation_gaps,
-    )
-    _normalize_algorithm_metric_contract_artifact_ids(
-        body,
-        implementation_gaps=implementation_gaps,
     )
     raw_metric_contracts = body.get("metric_contracts", [])
     metric_contract_values = (
@@ -1362,67 +1338,6 @@ def _normalize_algorithm_packet(
     }
 
 
-def _normalize_algorithm_sandbox_code_drafts(
-    body: dict[str, Any],
-    *,
-    implementation_gaps: list[Mapping[str, Any]],
-) -> None:
-    """Normalize harmless sandbox draft metadata before validation.
-
-    The runtime still executes only Python drafts that pass the static sandbox
-    guard. This normalization prevents live generators from burning repair
-    loops on metadata variants such as ``Python``/``python3`` or an omitted
-    estimator id when the task has exactly one implementation target.
-    """
-
-    raw_drafts = body.get("sandbox_code_drafts", [])
-    if not isinstance(raw_drafts, list):
-        return
-    canonical_gap_id = _single_algorithm_gap_estimator_id(implementation_gaps)
-    default_estimator_id = _single_algorithm_estimator_id(
-        body.get("implementation_targets", []),
-        implementation_gaps=implementation_gaps,
-    )
-    mapping_draft_count = sum(isinstance(row, Mapping) for row in raw_drafts)
-    normalized_drafts: list[Any] = []
-    for row in raw_drafts:
-        if not isinstance(row, Mapping):
-            normalized_drafts.append(row)
-            continue
-        normalized = dict(row)
-        if not str(normalized.get("estimator_id", "") or "").strip():
-            alias = _algorithm_estimator_id_alias(normalized)
-            if alias:
-                normalized["estimator_id"] = alias
-        language = normalized_generated_code_language(normalized.get("language"))
-        normalized["language"] = language
-        normalized["execution_profile"] = normalized_generated_code_profile(
-            normalized.get("execution_profile"),
-            language=language,
-        )
-        normalized["dependencies"] = list(
-            normalized_scientific_dependencies(
-                normalized.get("dependencies", []),
-                language=language,
-            )
-        )
-        if (
-            default_estimator_id
-            and not str(normalized.get("estimator_id", "") or "").strip()
-        ):
-            normalized["estimator_id"] = default_estimator_id
-        if canonical_gap_id and mapping_draft_count == 1:
-            _bind_algorithm_estimator_id_to_gap(
-                normalized,
-                canonical_gap_id=canonical_gap_id,
-            )
-        entrypoint = str(normalized.get("entrypoint", "") or "").strip()
-        if _is_run_sandbox_signature_entrypoint(entrypoint):
-            normalized["entrypoint"] = "run_sandbox"
-        normalized_drafts.append(normalized)
-    body["sandbox_code_drafts"] = normalized_drafts
-
-
 def _normalize_algorithm_estimator_interface_contracts(
     body: dict[str, Any],
     *,
@@ -1490,159 +1405,6 @@ def _estimator_interface_contract_errors(
         label=label,
         required=required,
     )
-
-
-def _normalize_algorithm_metric_contract_artifact_ids(
-    body: dict[str, Any],
-    *,
-    implementation_gaps: list[Mapping[str, Any]],
-) -> None:
-    raw_contracts = body.get("metric_contracts", [])
-    if not isinstance(raw_contracts, list):
-        return
-    canonical_gap_id = _single_algorithm_gap_estimator_id(implementation_gaps)
-    if not canonical_gap_id:
-        return
-    normalized_contracts: list[Any] = []
-    for row in raw_contracts:
-        if not isinstance(row, Mapping):
-            normalized_contracts.append(row)
-            continue
-        normalized = dict(row)
-        source_artifact_id = str(
-            normalized.get("artifact_id", "") or ""
-        ).strip()
-        if source_artifact_id != canonical_gap_id:
-            normalized["artifact_id"] = canonical_gap_id
-            normalized["artifact_id_binding"] = {
-                "source_artifact_id": source_artifact_id,
-                "canonical_artifact_id": canonical_gap_id,
-                "binding_strategy": "single_gap_task_contract",
-            }
-        normalized_contracts.append(normalized)
-    body["metric_contracts"] = normalized_contracts
-
-
-def _normalize_algorithm_implementation_targets(
-    body: dict[str, Any],
-    *,
-    implementation_gaps: list[Mapping[str, Any]],
-    requires_generated_code: bool,
-) -> None:
-    raw_targets = body.get("implementation_targets", [])
-    if not isinstance(raw_targets, list):
-        return
-    raw_drafts = body.get("sandbox_code_drafts", [])
-    draft_rows = raw_drafts if isinstance(raw_drafts, list) else []
-    has_code_draft = any(
-        isinstance(row, Mapping) and str(row.get("code", "") or "").strip()
-        for row in draft_rows
-    )
-    canonical_gap_id = _single_algorithm_gap_estimator_id(implementation_gaps)
-    default_estimator_id = _single_algorithm_estimator_id(
-        raw_targets,
-        implementation_gaps=implementation_gaps,
-    )
-    mapping_target_count = sum(isinstance(row, Mapping) for row in raw_targets)
-    normalized_targets: list[Any] = []
-    for row in raw_targets:
-        if not isinstance(row, Mapping):
-            normalized_targets.append(row)
-            continue
-        normalized = dict(row)
-        if not str(normalized.get("estimator_id", "") or "").strip():
-            alias = _algorithm_estimator_id_alias(normalized)
-            if alias:
-                normalized["estimator_id"] = alias
-            elif default_estimator_id:
-                normalized["estimator_id"] = default_estimator_id
-        if canonical_gap_id and mapping_target_count == 1:
-            _bind_algorithm_estimator_id_to_gap(
-                normalized,
-                canonical_gap_id=canonical_gap_id,
-            )
-        if requires_generated_code and has_code_draft:
-            normalized["registered_template_hint"] = "none"
-        normalized_targets.append(normalized)
-    body["implementation_targets"] = normalized_targets
-
-
-def _algorithm_estimator_id_alias(row: Mapping[str, Any]) -> str:
-    for key in (
-        "estimator_id",
-        "estimator",
-        "target_estimator_id",
-        "implementation_target_id",
-        "id",
-    ):
-        value = str(row.get(key, "") or "").strip()
-        if value:
-            return value
-    return ""
-
-
-def _single_algorithm_gap_estimator_id(
-    implementation_gaps: list[Mapping[str, Any]],
-) -> str:
-    ids = {
-        str(row.get("estimator_id", row.get("id", "")) or "").strip()
-        for row in implementation_gaps
-        if isinstance(row, Mapping)
-        and str(row.get("estimator_id", row.get("id", "")) or "").strip()
-    }
-    return next(iter(ids)) if len(ids) == 1 else ""
-
-
-def _bind_algorithm_estimator_id_to_gap(
-    row: dict[str, Any],
-    *,
-    canonical_gap_id: str,
-) -> None:
-    """Bind one unambiguous generated target to the Architect-owned gap key."""
-
-    source_id = str(row.get("estimator_id", "") or "").strip()
-    row["estimator_id"] = canonical_gap_id
-    if source_id and source_id != canonical_gap_id:
-        row["estimator_id_binding"] = {
-            "source_estimator_id": source_id,
-            "canonical_estimator_id": canonical_gap_id,
-            "binding_strategy": "single_gap_task_contract",
-            "boundary": (
-                "This is task-artifact identity normalization only; it does not "
-                "change generated code or provide execution/proof evidence."
-            ),
-        }
-
-
-def _is_run_sandbox_signature_entrypoint(entrypoint: str) -> bool:
-    compact = entrypoint.strip().replace(" ", "")
-    return bool(
-        compact
-        and (
-            compact == "run_sandbox"
-            or compact.startswith("run_sandbox(")
-            or compact.startswith("defrun_sandbox(")
-        )
-    )
-
-
-def _single_algorithm_estimator_id(
-    implementation_targets: Any,
-    *,
-    implementation_gaps: list[Mapping[str, Any]],
-) -> str:
-    ids: set[str] = set()
-    for row in implementation_targets or []:
-        if isinstance(row, Mapping):
-            estimator_id = str(row.get("estimator_id", "") or "").strip()
-            if estimator_id:
-                ids.add(estimator_id)
-    for row in implementation_gaps:
-        if isinstance(row, Mapping):
-            estimator_id = str(row.get("estimator_id", row.get("id", "")) or "").strip()
-            if estimator_id:
-                ids.add(estimator_id)
-    return next(iter(ids)) if len(ids) == 1 else ""
 
 
 def _extract_json_object(text: str) -> dict[str, Any]:

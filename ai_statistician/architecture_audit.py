@@ -111,10 +111,13 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
         ),
         ArchitectureComponent(
             component="algorithm_engineer",
-            status="ACHIEVED",
+            status="PARTIAL",
             evidence=(
                 "vetted research algorithm registry is executed by ResearchSimulator",
-                f"{DefaultAlgorithmEngineer.__module__}.{DefaultAlgorithmEngineer.__name__}",
+                (
+                    f"{DefaultAlgorithmEngineer.__module__}.{DefaultAlgorithmEngineer.__name__} "
+                    "exists only as an explicit legacy calibration baseline"
+                ),
             ),
             limitation="The legacy lab remains registry-backed; live generated-code capability is evaluated separately by AgentRuntime in an isolated scientific sandbox.",
             target_delta="Use complete-source regeneration from exact execution feedback, with immutable artifact lineage and no runtime-authored edit recipes.",
@@ -145,18 +148,17 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
                 "registered repair_handlers can execute live proof/theory/algorithm/simulator repair actions and request reruns",
                 "live repair handler outputs are checked against per-trigger repair contracts before reruns are allowed",
                 "DefaultProofEngineer verifies existing proof-bank bridges for FORMAL_GAP actions before emitting repair artifacts",
-                "DefaultTheoryDeveloper converts simulation theory/procedure failures into scoped revision artifacts",
-                "DefaultAlgorithmEngineer converts numerical/implementation failures into scoped repair artifacts",
-                "algorithm repair artifacts can be promoted, sandbox-readiness checked, converted into non-mutating applied sandbox artifacts, replayed against current vetted simulator reruns, and evaluated as deterministic isolated patch before/after comparisons",
+                "DefaultTheoryDeveloper and DefaultAlgorithmEngineer are disabled by default and available only as explicit legacy calibration baselines",
+                "algorithm candidates can be sandbox-readiness checked, replayed from exact source against vetted simulator reruns, and compared through immutable before/after artifact lineage without runtime-authored source edits",
                 "DefaultProofEngineer repairs registered FAILED_PROOF_OBLIGATION items with bounded whole-proof search when a kernel-verified candidate is found",
                 "AIStatisticalTheoryLab accepts theory_revisions overlays and applies them before retrieval/proof/simulation",
             ),
             limitation=(
-                "The loop executes safe built-in routes, can call registered live repair handlers, and has a narrow "
-                "default proof-bank bridge handler plus scoped default theory-revision proposal handler; free-form "
-                "theory repair, new proof search, and production code mutation still require stronger agents."
+                "The loop can call registered model-driven handlers. Deterministic theory and algorithm handlers "
+                "are opt-in legacy calibration baselines, not fallbacks; free-form theory development, new proof "
+                "search, and production code generation still require stronger agents."
             ),
-            target_delta="Register default LLM TheoryDeveloper, proof-search ProofEngineer, and isolated code-patching AlgorithmEngineer repair handlers.",
+            target_delta="Register model-driven TheoryDeveloper, proof-search ProofEngineer, and complete-source-regenerating AlgorithmEngineer handlers.",
         ),
     ]
 
@@ -179,15 +181,15 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
             trigger="THEORY_OR_PROCEDURE_ISSUE",
             owner_agent="theory_developer",
             action="revise_estimator_or_theorem_acceptance_rule",
-            live_execution_status="EXECUTABLE_SCOPED_THEORY_REVISION_PROPOSAL",
-            evidence="ResearchLoopCoordinator invokes DefaultTheoryDeveloper or a registered handler for THEORY_OR_PROCEDURE_ISSUE",
+            live_execution_status="REQUIRES_REGISTERED_MODEL_HANDLER_OR_EXPLICIT_LEGACY_BASELINE",
+            evidence="ResearchLoopCoordinator invokes a registered model handler; DefaultTheoryDeveloper is available only by explicit legacy-baseline opt-in",
         ),
         FeedbackRoute(
             trigger="IMPLEMENTATION_OR_NUMERICAL_ISSUE",
             owner_agent="algorithm_engineer",
             action="repair_algorithm_implementation_or_numerical_stability",
-            live_execution_status="EXECUTABLE_SCOPED_ALGORITHM_REPAIR_PROPOSAL",
-            evidence="ResearchLoopCoordinator invokes DefaultAlgorithmEngineer or a registered handler for IMPLEMENTATION_OR_NUMERICAL_ISSUE",
+            live_execution_status="REQUIRES_REGISTERED_MODEL_HANDLER_OR_EXPLICIT_LEGACY_BASELINE",
+            evidence="ResearchLoopCoordinator invokes a registered model handler; DefaultAlgorithmEngineer is available only by explicit legacy-baseline opt-in",
         ),
         FeedbackRoute(
             trigger="ENVIRONMENT_OR_DGP_ISSUE",
@@ -228,8 +230,8 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
         {
             "requirement": "Simulator feedback actively revises algorithm or theory in the same run",
             "status": "PARTIAL",
-            "current_evidence": "ResearchLoopCoordinator executes MC precision reruns, invokes DefaultTheoryDeveloper for scoped theory-revision proposals, applies contract-valid theory revision overlays to the next lab round, invokes DefaultAlgorithmEngineer for scoped repair artifacts, and can promote/sandbox/apply/rerun/evaluate deterministic isolated algorithm repair plans.",
-            "missing": "Default trained TheoryDeveloper that can invent and justify new estimator families, plus AlgorithmEngineer execution that promotes reviewed isolated patches into production commits.",
+            "current_evidence": "ResearchLoopCoordinator executes MC precision reruns and registered model handlers; deterministic theory/algorithm handlers are disabled by default legacy calibration baselines. AgentRuntime executes complete-source model regeneration against exact sandbox feedback without runtime-authored source edits.",
+            "missing": "A trained TheoryDeveloper that can invent and justify new estimator families, plus a complete-source AlgorithmEngineer loop that promotes independently reviewed candidates into production commits.",
         },
         {
             "requirement": "Formal proof feedback actively revises assumptions/theorem statements/proof search",

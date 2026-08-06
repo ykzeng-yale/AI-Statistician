@@ -921,97 +921,6 @@ def _confirmatory_metric_requirement_rows(
     return kept, omitted
 
 
-def _compact_independent_semantic_review_repair(
-    value: Mapping[str, Any] | None,
-) -> dict[str, Any]:
-    if not isinstance(value, Mapping):
-        return {}
-    keep_fields = (
-        "revision_index",
-        "semantic_review_packet_id",
-        "findings",
-        "repair_instructions",
-        "active_prior_finding_ledger",
-        "required_prior_finding_ids",
-        "active_prior_finding_ledger_fingerprint",
-        "cross_theory_revision_context",
-        "revision_policy",
-    )
-    return {
-        field: value[field]
-        for field in keep_fields
-        if value.get(field) not in (None, "", [], {})
-    }
-
-
-def _metric_authoring_repair_context(
-    *,
-    invalid_packet: Mapping[str, Any] | None,
-    errors: Any,
-    runtime_replicates: int,
-    acceptance_authority_catalog_id: str,
-    acceptance_authority_catalog: list[dict[str, Any]],
-    required_target_rows: list[dict[str, Any]],
-    independent_semantic_review_repair: Mapping[str, Any] | None,
-    frozen_requirement_rebinding: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    del errors
-    context = {
-        "repair_mode": "full_packet_regeneration",
-        "invalid_packet_fingerprint": (
-            stable_hash(invalid_packet)
-            if isinstance(invalid_packet, Mapping)
-            else ""
-        ),
-        "runtime_owned_replicates": runtime_replicates,
-        "acceptance_authority_catalog_id": acceptance_authority_catalog_id,
-        "acceptance_authority_catalog": [
-            dict(row) for row in acceptance_authority_catalog
-        ],
-        "target_namespace": (
-            generated_metric_requirement_target_namespace_contract()
-        ),
-        "requirement_schema": generated_metric_requirement_prompt_schema(),
-        "required_target_rows": required_target_rows,
-        "independent_semantic_review_repair": (
-            _compact_independent_semantic_review_repair(
-                independent_semantic_review_repair
-            )
-        ),
-    }
-    if isinstance(frozen_requirement_rebinding, Mapping) and (
-        frozen_requirement_rebinding
-    ):
-        frozen_mutable_fields = (
-            _frozen_metric_protocol_rebinding_mutable_fields(
-                frozen_requirement_rebinding.get(
-                    "source_requirement_rows", []
-                )
-            )
-        )
-        frozen_output_fields = {
-            "requirement_id",
-            *frozen_mutable_fields,
-        }
-        context["frozen_metric_protocol_theory_rebinding"] = dict(
-            frozen_requirement_rebinding
-        )
-        context["allowed_output_fields"] = sorted(
-            frozen_output_fields
-        )
-        context["required_target_rows"] = []
-    if isinstance(frozen_requirement_rebinding, Mapping) and (
-        frozen_requirement_rebinding
-    ):
-        context["requirement_schema"] = {
-            "type": "authority_binding_only",
-            "required_fields": sorted(frozen_output_fields),
-            "runtime_reconstructs_immutable_gate_fields": True,
-        }
-        context["required_target_rows"] = []
-    return context
-
-
 def build_architect_upstream_research_contract(
     runtime_contract: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -2609,36 +2518,6 @@ def author_reviewed_architect_metric_requirements(
                 validate_packet=validate_packet,
                 validation_label="LLM Architect metric-requirement packet",
                 max_repair_attempts=config.max_repair_attempts,
-                repair_context_builder=lambda **kwargs: (
-                    _metric_authoring_repair_context(
-                        invalid_packet=(
-                            kwargs.get("invalid_packet")
-                            if isinstance(
-                                kwargs.get("invalid_packet"), Mapping
-                            )
-                            else None
-                        ),
-                        errors=kwargs.get("errors", []),
-                        runtime_replicates=runtime_replicates,
-                        acceptance_authority_catalog_id=(
-                            acceptance_authority_catalog_id
-                        ),
-                        acceptance_authority_catalog=(
-                            acceptance_authority_catalog
-                        ),
-                        required_target_rows=prompt_payload[
-                            "required_target_rows"
-                        ],
-                        independent_semantic_review_repair=(
-                            candidate_prompt_payload.get(
-                                "independent_semantic_review_repair", {}
-                            )
-                        ),
-                        frozen_requirement_rebinding=(
-                            frozen_rebinding
-                        ),
-                    )
-                ),
             )
         authoring_packet_hash = stable_hash(authoring_packet)
         review_material = {

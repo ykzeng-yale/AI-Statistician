@@ -1752,7 +1752,7 @@ def test_formal_source_prompt_payload_omits_full_candidate_proof_body() -> None:
 
 def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     contract = formalizer_proof_construction_strategy_contract()
-    assert contract["schema_version"] == 14
+    assert contract["schema_version"] == 15
     assert "exact Lean target" in contract["specification"]
     assert "faithful mathematical statement" in contract["specification"]
     assert "qualified local signatures" in contract["specification"]
@@ -1771,9 +1771,10 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
         "decomposition"
     ]
     assert "Preserve verified ancestors" in contract["decomposition"]
-    assert "Fix Lean errors one-by-one" in contract["feedback_loop"]
-    assert "failed candidate" in contract["feedback_loop"]
-    assert "unchanged attempt" in contract["feedback_loop"]
+    assert "complete current Lean source" in contract["feedback_loop"]
+    assert "change the proof decomposition" in contract["feedback_loop"]
+    assert "complete next source" in contract["feedback_loop"]
+    assert "runtime never edits Lean" in contract["feedback_loop"]
     assert "lowest reusable mathematical layer" in contract["library_design"]
     assert "source-local namespace/module organization" in contract[
         "library_design"
@@ -1807,8 +1808,8 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
     assert "proof_construction_strategy_contract" in prompt
     assert "dependency-ordered frontier" in prompt.lower()
     assert "one semantic obligation per node" in prompt
-    assert "unchanged attempt" in prompt
-    assert "Fix Lean errors one-by-one" in prompt
+    assert "complete next source" in prompt
+    assert "runtime never edits Lean" in prompt
     assert "stable semantic names" in prompt
     assert "Reuse exact visible declarations first" in prompt
     assert "current-active-frontier" in prompt

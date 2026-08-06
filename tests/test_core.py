@@ -22091,6 +22091,9 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["has_live_revision_loop"])
         self.assertTrue(payload["has_registered_live_repair_handler_interface"])
         self.assertTrue(payload["all_release_scaffold_components_present"])
+        default_loop = ResearchLoopCoordinator()
+        self.assertFalse(default_loop.enable_default_theory_developer)
+        self.assertFalse(default_loop.enable_default_algorithm_engineer)
 
         statuses = {row["component"]: row["status"] for row in payload["components"]}
         self.assertEqual(statuses["feedback_router"], "ACHIEVED")
@@ -22103,7 +22106,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(route_by_trigger["THEORY_OR_PROCEDURE_ISSUE"]["owner_agent"], "theory_developer")
         self.assertEqual(
             route_by_trigger["THEORY_OR_PROCEDURE_ISSUE"]["live_execution_status"],
-            "EXECUTABLE_SCOPED_THEORY_REVISION_PROPOSAL",
+            "REQUIRES_REGISTERED_MODEL_HANDLER_OR_EXPLICIT_LEGACY_BASELINE",
         )
         self.assertEqual(
             route_by_trigger["IMPLEMENTATION_OR_NUMERICAL_ISSUE"]["owner_agent"],
@@ -22111,7 +22114,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertEqual(
             route_by_trigger["IMPLEMENTATION_OR_NUMERICAL_ISSUE"]["live_execution_status"],
-            "EXECUTABLE_SCOPED_ALGORITHM_REPAIR_PROPOSAL",
+            "REQUIRES_REGISTERED_MODEL_HANDLER_OR_EXPLICIT_LEGACY_BASELINE",
         )
         self.assertTrue(any("DefaultAlgorithmEngineer" in item for item in live_loop["evidence"]))
         self.assertEqual(
@@ -22295,7 +22298,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             return FakeLab(reports.pop(0))
 
         result = asyncio.run(
-            ResearchLoopCoordinator(n_runs=25, seed=11, lab_factory=factory).iterate(
+            ResearchLoopCoordinator(
+                n_runs=25,
+                seed=11,
+                lab_factory=factory,
+                enable_default_theory_developer=True,
+            ).iterate(
                 question,
                 max_rounds=2,
             )
@@ -22625,7 +22633,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 return report
 
         result = asyncio.run(
-            ResearchLoopCoordinator(n_runs=25, seed=16, lab_factory=lambda _n, _s: FakeLab()).iterate(
+            ResearchLoopCoordinator(
+                n_runs=25,
+                seed=16,
+                lab_factory=lambda _n, _s: FakeLab(),
+                enable_default_algorithm_engineer=True,
+            ).iterate(
                 question,
                 max_rounds=2,
             )

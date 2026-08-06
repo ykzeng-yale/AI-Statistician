@@ -57,6 +57,20 @@ def test_generated_code_contract_keeps_stdlib_default_and_requires_r_wasm() -> N
     )
 
 
+def test_generated_code_contract_rejects_string_dependencies_before_execution() -> None:
+    errors = generated_code_execution_contract_errors(
+        {
+            "language": "python",
+            "execution_profile": "scientific_wasm",
+            "dependencies": "numpy, scipy",
+            "entrypoint": "run_sandbox",
+            "code": "def run_sandbox(seed, replicates):\n    return {'n': replicates}",
+        }
+    )
+
+    assert "generated code dependencies must be an array" in errors
+
+
 def test_generated_code_schema_makes_profile_dependency_choice_structural() -> None:
     schema = generated_code_draft_json_schema(
         artifact_properties={"artifact_id": {"type": "string"}},
@@ -374,6 +388,33 @@ def test_runtime_dispatch_preserves_existing_metric_and_evidence_path(
     assert rejected["executor_profile"] == "host_process"
     assert rejected_call.inputs["execution_profile"] == "host_process"
     assert rejected["execution_attempted"] is False
+
+
+def test_runtime_does_not_normalize_invalid_dependency_shape_before_validation(
+    tmp_path: Path,
+) -> None:
+    rejected, tool_call = runtime_module._run_generated_code_sandbox(
+        sandbox_dir=tmp_path,
+        estimator_id="invalid-dependency-shape",
+        spec={"id": "invalid-dependency-shape"},
+        code_draft={
+            "language": "python",
+            "execution_profile": "scientific_wasm",
+            "dependencies": "numpy, scipy",
+            "entrypoint": "run_sandbox",
+            "code": "def run_sandbox(seed, replicates):\n    return {'n': replicates}\n",
+        },
+        n_runs=8,
+        seed=11,
+        timeout_s=5,
+    )
+
+    assert rejected["prototype_status"] == "REJECTED_UNSAFE_GENERATED_CODE"
+    assert "generated code dependencies must be an array" in rejected[
+        "safety_errors"
+    ]
+    assert rejected["execution_attempted"] is False
+    assert tool_call.exit_status == "rejected"
 
 
 def test_runtime_simulation_dispatch_records_mechanical_estimator_reuse(

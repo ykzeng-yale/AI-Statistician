@@ -180,7 +180,6 @@ def _compact_attempt(row: Mapping[str, Any]) -> dict[str, Any]:
             "repair_mode",
             "errors",
             "raw_response_fingerprint",
-            "patched_paths",
             "response_metadata",
         )
         if key in row

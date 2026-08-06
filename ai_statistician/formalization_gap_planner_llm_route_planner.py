@@ -12261,21 +12261,16 @@ def _generate_responses(
                     last_response = candidate
                     break
                 unique_validation_errors = tuple(sorted(set(validation_errors)))
-                repair_guidance_rows = _repair_guidance_rows(
-                    unique_validation_errors
-                )
                 repair_entry: dict[str, object] = {
                     "attempt": attempt,
                     "model": request_model,
                     "model_tier": current_model_tier,
                     "requested_model_tier": requested_model_tier,
                     "errors": unique_validation_errors[:12],
-                    "repair_guidance_categories": _repair_guidance_categories(
-                        repair_guidance_rows
-                    ),
-                    "repair_guidance_fingerprint": stable_hash(
-                        repair_guidance_rows
-                    ),
+                    # Compatibility fields remain empty. The runtime forwards raw
+                    # validator output and never maps an error string to a fix.
+                    "repair_guidance_categories": (),
+                    "repair_guidance_fingerprint": stable_hash(()),
                 }
                 if attempt >= repair_budget:
                     repair_history.append(repair_entry)
@@ -12285,35 +12280,19 @@ def _generate_responses(
                         "generation_errors": unique_validation_errors,
                     }
                     break
-                user_prompt = _repair_user_prompt(
+                user_prompt = _regeneration_user_prompt(
                     original_user_prompt=str(prompt.get("user", "")),
                     previous_response_text=generated.text,
                     validation_errors=validation_errors,
                     attempt=attempt + 1,
-                    repair_guidance_rows=repair_guidance_rows,
-                )
-                next_model_tier, next_tier_reason = _next_repair_model_tier(
-                    generator_backend,
-                    packet,
-                    explicit_model=model,
-                    current_model_tier=current_model_tier,
                 )
                 repair_entry["next_repair_attempt"] = attempt + 1
-                repair_entry["next_repair_model_tier"] = next_model_tier
+                repair_entry["next_repair_model_tier"] = current_model_tier
                 repair_entry["repair_prompt_fingerprint"] = stable_hash(user_prompt)
-                if next_model_tier != current_model_tier:
-                    repair_entry["model_tier_escalation"] = (
-                        f"{current_model_tier}_to_{next_model_tier}"
-                    )
-                    repair_entry["model_tier_escalation_reason"] = next_tier_reason
-                    model_tier_escalated = True
-                    model_tier_escalation_reason = next_tier_reason
-                current_model_tier = next_model_tier
                 repair_history.append(repair_entry)
             except Exception as exc:
                 exception_text = f"{type(exc).__name__}: {exc}"
                 provider_error = "provider exception: " + exception_text
-                repair_guidance_rows = _repair_guidance_rows([provider_error])
                 repair_history.append(
                     {
                         "attempt": attempt,
@@ -12321,12 +12300,8 @@ def _generate_responses(
                         "model_tier": current_model_tier,
                         "requested_model_tier": requested_model_tier,
                         "errors": (provider_error,),
-                        "repair_guidance_categories": _repair_guidance_categories(
-                            repair_guidance_rows
-                        ),
-                        "repair_guidance_fingerprint": stable_hash(
-                            repair_guidance_rows
-                        ),
+                        "repair_guidance_categories": (),
+                        "repair_guidance_fingerprint": stable_hash(()),
                         "next_repair_attempt": "",
                         "next_repair_model_tier": "",
                         "repair_prompt_fingerprint": "",
@@ -12403,32 +12378,6 @@ def _generator_model_for_generation_attempt(
     )
 
 
-def _next_repair_model_tier(
-    generator_backend: GeneratorBackend,
-    packet: Mapping[str, Any],
-    *,
-    explicit_model: str,
-    current_model_tier: str,
-) -> tuple[str, str]:
-    provider_name = str(getattr(generator_backend, "provider_name", ""))
-    requested_tier = str(packet.get("model_tier", "") or "").strip().lower()
-    current_tier = str(current_model_tier or "").strip().lower()
-    if (
-        provider_name == "anthropic"
-        and not explicit_model
-        and requested_tier == "haiku"
-        and current_tier == "haiku"
-    ):
-        return (
-            "sonnet",
-            (
-                "auto escalated Claude Haiku repair attempt to Sonnet after "
-                "local response validation failed"
-            ),
-        )
-    return current_tier, ""
-
-
 def _generator_metadata_with_model_tier(
     metadata: object,
     *,
@@ -12460,191 +12409,32 @@ def _jsonable_mapping(value: object) -> dict[str, object]:
     return dict(decoded) if isinstance(decoded, Mapping) else {}
 
 
-def _repair_guidance_rows(
-    validation_errors: Iterable[object],
-) -> tuple[dict[str, object], ...]:
-    rows: list[dict[str, object]] = []
-    for error in sorted(set(str(item) for item in validation_errors if str(item)))[
-        :20
-    ]:
-        category, focus, required_action, contract_fields = (
-            _repair_guidance_for_error(error)
-        )
-        rows.append(
-            {
-                "repair_guidance_row_id": (
-                    "formalization_gap_planner_llm_route_planner_repair_guidance:"
-                    + stable_hash([error, category, contract_fields])[:20]
-                ),
-                "error": error,
-                "error_category": category,
-                "repair_focus": focus,
-                "required_action": required_action,
-                "contract_fields": list(contract_fields),
-                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
-                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
-            }
-        )
-    return tuple(rows)
-
-
-def _repair_guidance_categories(
-    repair_guidance_rows: Iterable[Mapping[str, object]],
-) -> tuple[str, ...]:
-    return tuple(
-        sorted(
-            {
-                str(row.get("error_category", "")).strip()
-                for row in repair_guidance_rows
-                if str(row.get("error_category", "")).strip()
-            }
-        )
-    )
-
-
-def _repair_guidance_for_error(
-    error: str,
-) -> tuple[str, str, str, tuple[str, ...]]:
-    normalized = error.lower()
-    if "provider exception" in normalized:
-        return (
-            "provider_exception",
-            "provider call failed before a valid planner response was available",
-            "retry only if the provider failure is transient; otherwise record a provider-failure row",
-            ("provider_name", "generator_metadata", "generation_errors"),
-        )
-    if "kernel_verified" in normalized or "proof_evidence_boundary" in normalized:
-        return (
-            "proof_boundary_violation",
-            "response asserted proof evidence beyond planner authority",
-            "remove kernel proof claims and state that the route is not theorem proof evidence",
-            ("kernel_verified", "proof_evidence_boundary"),
-        )
-    if "residual" in normalized:
-        return (
-            "residual_repair_grounding",
-            "prover residual interpretation is incomplete or ungrounded",
-            "interpret every residual goal with a source-backed repair, search request, or formal gap boundary",
-            ("residual_interpretations", "search_requests", "formal_gap_boundary"),
-        )
-    if (
-        "minimal_delta" in normalized
-        or "primitive_cost" in normalized
-        or "route_cost" in normalized
-        or "and_or_cost_graph" in normalized
-        or "coverage_bucket" in normalized
-        or "cost_policy" in normalized
-    ):
-        return (
-            "minimal_delta_accounting",
-            "minimal-delta cost witness or AND/OR route graph is invalid",
-            "recompute primitive costs, route options, selected route cost, and minimality rationale from the request cost policy",
-            ("minimal_delta_plan", "primitive_costs", "and_or_cost_graph"),
-        )
-    if (
-        "formal_declaration" in normalized
-        or "candidate_declaration" in normalized
-        or "formal_library" in normalized
-        or "formal_realization" in normalized
-        or "lean_realization" in normalized
-        or "lean-only legacy" in normalized
-    ):
-        return (
-            "formal_library_grounding",
-            "formal realization or declaration reuse is not grounded in available library context",
-            "use only available formal declaration rows or emit a formal-library search request",
-            (
-                "formal_realization_dag_nodes",
-                "formal_declaration_hits",
-                "search_requests",
-            ),
-        )
-    if (
-        "source_ref" in normalized
-        or "source_refs" in normalized
-        or "source_snippet" in normalized
-        or "source_search" in normalized
-        or "source_search_status" in normalized
-        or "source-backed" in normalized
-        or "source backed" in normalized
-    ):
-        return (
-            "source_grounding",
-            "informal mathematical claim lacks admissible source evidence",
-            "cite only available source refs/snippets or emit a literature search request",
-            (
-                "informal_knowledge_dag_nodes",
-                "standalone_route.primitives",
-                "source_refs",
-                "source_snippets",
-                "search_requests",
-            ),
-        )
-    if "search_requests" in normalized or "planner_next_actions" in normalized:
-        return (
-            "bounded_followup_contract",
-            "follow-up work item is missing required bounded-action fields",
-            "emit supported literature/formal-library/proof-state/route-revision actions with query, reason, owner, and target primitives",
-            ("search_requests", "planner_next_actions"),
-        )
-    if "alignment" in normalized:
-        return (
-            "route_alignment",
-            "informal and formal DAG nodes are not connected by valid alignment edges",
-            "add route_alignment_edges that reference existing informal/formal node ids and explain the alignment",
-            (
-                "informal_knowledge_dag_nodes",
-                "formal_realization_dag_nodes",
-                "route_alignment_edges",
-            ),
-        )
-    if "target_prover" in normalized or "theorem identity" in normalized:
-        return (
-            "target_contract",
-            "response drifted from the requested theorem or target prover family",
-            "preserve theorem identity and target_prover_family while adding only explicit side-condition notes",
-            ("target_prover_family", "standalone_route.theorem_statement"),
-        )
-    return (
-        "schema_contract",
-        "response violates the published planner response schema",
-        "repair the JSON shape and required fields without inventing evidence",
-        ("response_payload",),
-    )
-
-
-def _repair_user_prompt(
+def _regeneration_user_prompt(
     *,
     original_user_prompt: str,
     previous_response_text: str,
     validation_errors: list[str],
     attempt: int,
-    repair_guidance_rows: tuple[dict[str, object], ...] | None = None,
 ) -> str:
-    guidance_rows = (
-        repair_guidance_rows
-        if repair_guidance_rows is not None
-        else _repair_guidance_rows(validation_errors)
-    )
     payload = {
         "task": (
-            "Repair your previous formalization-gap planner response. Return "
-            "only one JSON object that satisfies the required output contract."
+            "Regenerate one complete formalization-gap planner response. Return "
+            "only one JSON object that satisfies the unchanged output contract."
         ),
-        "repair_attempt": attempt,
+        "regeneration_attempt": attempt,
         "local_validation_errors": sorted(set(validation_errors))[:20],
-        "repair_guidance_rows": list(guidance_rows),
-        "previous_response_text_excerpt": previous_response_text[:5000],
+        "previous_candidate": previous_response_text,
         "original_request": _extract_json_object_or_text(original_user_prompt),
         "hard_requirements": [
             "Return only JSON.",
-            "Use repair_guidance_rows as prioritized local validator feedback; fix the named contract fields instead of deleting evidence or changing the theorem.",
+            "Use the exact validator errors as observations; the runtime does not prescribe any edit or solution strategy.",
+            "Generate the complete replacement object rather than a patch.",
             "Do not claim kernel verification or theorem proof evidence.",
             "Use only source_refs and candidate_declarations/candidate_declaration_rows available in the original request context.",
             "Prefer candidate_declaration_rows so target_prover_family provenance is preserved.",
             "If evidence is missing, emit search_requests instead of inventing facts.",
             "When the original request has resource_request_queue_rows, align search_requests and planner_next_actions to queued resource_request_id/resource_id values.",
-            "When the original request has resource_request_playbooks, keep repaired search_requests and planner_next_actions aligned to those playbook operator prompts and acceptance checklists.",
+            "When the original request has resource_request_playbooks, keep regenerated search_requests and planner_next_actions aligned to those playbook operator prompts and acceptance checklists.",
             "Include a complete minimal_delta_plan with selected_primitives, primitive_costs, and and_or_cost_graph.",
             "If a selected primitive needs wrapper, bridge, source-port, definition, or new-theory work, list an actionable compact string in the matching minimal_delta_plan bucket; a bare primitive name is not enough and action witness objects are too verbose.",
         ],
@@ -12656,7 +12446,7 @@ def _extract_json_object_or_text(text: str) -> object:
     try:
         return _extract_json_object(text)
     except Exception:
-        return text[:12000]
+        return text
 
 
 def llm_route_planner_response_payload_schema(

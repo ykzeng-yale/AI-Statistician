@@ -13,7 +13,6 @@ from ai_statistician.architect_metric_semantic_reviewer_llm import (
     ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA,
     ArchitectMetricSemanticReviewerConfig,
     LLMArchitectMetricSemanticReviewerAgent,
-    _architect_metric_semantic_review_repair_context,
     _architect_metric_theory_scope_check_contract,
     architect_metric_active_prior_finding_current_evidence,
     architect_metric_review_material_with_runtime_evaluator_certificate,
@@ -901,19 +900,6 @@ def test_metric_review_requires_primitive_identity_audit_before_coding() -> None
     assert spoofed_check["claim_ref"] == formula_ref
     assert validate_architect_metric_semantic_review_packet(spoofed_packet) == []
 
-    repair_context = _architect_metric_semantic_review_repair_context(
-        enriched_material,
-        invalid_packet=missing_payload,
-        errors=[
-            "claim_checks must include a primitive identity reconstruction for "
-            f"estimator_id generic_estimator at claim_ref {formula_ref}"
-        ],
-    )
-    assert "repair_prompt_priority_instructions" not in repair_context
-    assert "requirement_schema" not in repair_context
-    assert len(json.dumps(repair_context, separators=(",", ":"))) < 12_000
-
-
 def test_metric_review_audits_every_estimator_response_semantic_independently() -> None:
     formula_ref = "theory#/estimator_specs/0/formula"
     material = {
@@ -1083,17 +1069,34 @@ def test_metric_review_audits_every_estimator_response_semantic_independently() 
     assert "derived_polynomial_exponent" in response_required
     assert "derived_log_exponent" in response_required
     assert validate_architect_metric_semantic_review_packet(packet) == []
-    response_repair_context = _architect_metric_semantic_review_repair_context(
-        enriched,
-        invalid_packet=packet,
-        errors=["independently derived exponents disagree"],
-    )
-    assert response_repair_context["rejected_review_packet"][
-        "response_identity_checks"
-    ] == packet["response_identity_checks"]
-    assert "typed_patch_paths" not in response_repair_context[
-        "rejected_review_consistency_state"
+    failed_audit_payload = deepcopy(payload)
+    failed_audit = failed_audit_payload["response_identity_checks"][0]
+    failed_audit["derived_polynomial_exponent"] = -0.5
+    failed_audit["convention_consistent"] = False
+    failed_audit["unresolved_conflicts"] = [
+        "The independently derived O_p(n^-1/2) rate disagrees with the declared O_p(1) rate."
     ]
+    failed_audit["verdict"] = "FAIL"
+    failed_audit_payload["overall_verdict"] = "REVISE"
+    failed_audit_payload["repair_instructions"] = [
+        "Regenerate the complete upstream theory packet using this audit conflict."
+    ]
+
+    failed_audit_packet, _, _ = _review(
+        accept=False,
+        payload=failed_audit_payload,
+        material=material,
+    )
+
+    assert failed_audit_packet["overall_verdict"] == "REVISE"
+    assert failed_audit_packet["findings"] == []
+    assert all(
+        row["status"] == "PASS"
+        for row in failed_audit_packet["dimension_reviews"]
+    )
+    assert failed_audit_packet["recommended_repair_scope"] == "upstream_theory"
+    assert failed_audit_packet["response_identity_checks"][0]["verdict"] == "FAIL"
+    assert validate_architect_metric_semantic_review_packet(failed_audit_packet) == []
 
     not_indexed_material = deepcopy(material)
     not_indexed_rate = not_indexed_material[
@@ -1453,31 +1456,13 @@ def test_metric_reviewer_repair_preserves_exact_active_finding_context() -> None
     repair_payload = json.loads(
         backend.requests[1].user_prompt.split("\n\n", 1)[1]
     )
-    assert repair_payload["original_request"]["truncated"] is True
-    repair_context = repair_payload["subsystem_repair_context"]
-    assert repair_context["current_candidate"][
-        "empirical_metric_requirements"
-    ] == material["empirical_metric_requirements"]
-    assert repair_context["current_candidate"][
-        "empirical_metric_requirements_fingerprint"
-    ] == stable_hash(material["empirical_metric_requirements"])
-    assert repair_context["review_input_fingerprint"] == stable_hash(material)
-    assert repair_context["rejected_review_packet"]["overall_verdict"] == (
-        "ACCEPT"
+    assert repair_payload["original_request"] == backend.requests[0].user_prompt
+    assert "subsystem_repair_context" not in repair_payload
+    assert repair_payload["previous_candidate"]
+    assert all(
+        finding_id in repair_payload["original_request"]
+        for finding_id in expected_ids
     )
-    assert repair_context["rejected_review_consistency_state"][
-        "failed_claim_checks"
-    ][0]["claim_check_index"] == 1
-    citation_options = {
-        row["finding_id"]: row
-        for row in repair_context["prior_finding_citation_options"]
-    }
-    for finding_id in expected_ids:
-        assert citation_options[finding_id]["status_citation_contract"][
-            "RESOLVED"
-        ]["eligible_snapshot_ids"] == [
-            snapshots_by_finding_id[finding_id]
-        ]
     assert repair_payload["local_validation_errors"]
     assert backend.requests[1].metadata["json_repair_mode"] == (
         "full_packet_regeneration"
@@ -1580,7 +1565,7 @@ def test_metric_reviewer_regenerates_complete_packet_in_one_retry() -> None:
     assert validate_architect_metric_semantic_review_packet(packet) == []
 
 
-def test_metric_reviewer_focuses_invalid_finding_row_with_canonical_schema() -> None:
+def test_metric_reviewer_regenerates_invalid_finding_from_full_context() -> None:
     material = architect_metric_review_material_with_runtime_evaluator_certificate(
         {
             "review_stage": "pre_execution_metric_contract_review",
@@ -1639,33 +1624,13 @@ def test_metric_reviewer_focuses_invalid_finding_row_with_canonical_schema() -> 
         "findings[0] has invalid repair_scope",
         "findings[0] missing evidence_refs",
     ]
-    repair_context = captured_repair_request["subsystem_repair_context"]
-    assert repair_context["validation_error_focus_values"] == [
-        {
-            "path": ["findings", 0],
-            "value": invalid_payload["findings"][0],
-            "value_truncated": False,
-        }
-    ]
-    focused_schema = repair_context[
-        "validation_error_focus_schemas"
-    ][0]
-    assert focused_schema["path_pattern"] == ["findings", "<array_index>"]
-    finding_schema = focused_schema["expected_item_schema"]
-    assert finding_schema["required"] == [
-        "prior_finding_id",
-        "new_finding_rationale",
-        "severity",
-        "category",
-        "summary",
-        "required_change",
-        "repair_scope",
-        "evidence_refs",
-    ]
-    assert finding_schema["properties"]["repair_scope"]["enum"] == [
-        "metric_contract",
-        "upstream_theory",
-    ]
+    assert "subsystem_repair_context" not in captured_repair_request
+    assert json.loads(
+        captured_repair_request["previous_candidate"]
+    )["findings"][0] == invalid_payload["findings"][0]
+    assert captured_repair_request["original_request"] == (
+        backend.requests[0].user_prompt
+    )
     assert packet["findings"][0]["repair_scope"] == "metric_contract"
     assert packet["findings"][0]["evidence_refs"] == [
         "requirement:generic_gate"

@@ -2678,37 +2678,6 @@ def review_architect_theory_execution_preflight(
             raw_response=raw_text,
         )
 
-    def build_repair_context(**kwargs: Any) -> dict[str, Any]:
-        return {
-            "task": "Regenerate the complete preflight review packet.",
-            "local_validation_errors": [
-                str(value) for value in kwargs.get("errors", [])
-            ],
-            "required_dimensions": list(
-                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
-            ),
-            "required_estimator_ids": list(
-                material.get("required_estimator_ids", []) or []
-            ),
-            "active_prior_finding_ledger": list(
-                material.get("active_prior_finding_ledger", []) or []
-            ),
-            "required_prior_finding_ids": list(
-                material.get("active_prior_finding_ids", []) or []
-            ),
-            "source_interface_inventories": [
-                {"estimator_id": estimator_id, **inventory}
-                for estimator_id, inventory in _source_interface_inventories(
-                    material
-                ).items()
-            ],
-            "allowed_evidence_anchor_ids": [
-                str(row.get("anchor_id", "") or "")
-                for row in material.get("anchor_catalog", []) or []
-                if isinstance(row, Mapping)
-            ],
-        }
-
     return generate_validated_json_packet(
         provider=provider,
         request=request,
@@ -2720,5 +2689,4 @@ def review_architect_theory_execution_preflight(
         ),
         validation_label="Architect theory-to-execution preflight review packet",
         max_repair_attempts=max_repair_attempts,
-        repair_context_builder=build_repair_context,
     )

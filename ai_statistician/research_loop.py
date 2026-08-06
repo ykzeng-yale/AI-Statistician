@@ -50,7 +50,8 @@ class ResearchLoopCoordinator:
     not claim to solve arbitrary theory repair yet. Instead it executes the
     agenda routes that are currently safe to automate and records when a route
     needs a stronger TheoryDeveloper, ProofEngineer, AlgorithmEngineer, or
-    simulator-extension model.
+    simulator-extension model. Deterministic legacy handlers are opt-in
+    calibration baselines; they are never production fallbacks.
     """
 
     def __init__(
@@ -63,8 +64,8 @@ class ResearchLoopCoordinator:
         lab_factory: LabFactory | None = None,
         repair_handlers: dict[str, LiveRepairHandler] | None = None,
         enable_default_proof_engineer: bool = False,
-        enable_default_theory_developer: bool = True,
-        enable_default_algorithm_engineer: bool = True,
+        enable_default_theory_developer: bool = False,
+        enable_default_algorithm_engineer: bool = False,
     ) -> None:
         self.proof_verifier = proof_verifier
         self.formal_source_retriever = formal_source_retriever
@@ -556,7 +557,8 @@ async def run_research_loop_benchmark(
     lean_rag_db_path: Path | None = None,
     repair_handlers: dict[str, LiveRepairHandler] | None = None,
     enable_default_proof_engineer: bool = False,
-    enable_default_theory_developer: bool = True,
+    enable_default_theory_developer: bool = False,
+    enable_default_algorithm_engineer: bool = False,
     config: LoopConfig = LoopConfig(),
 ) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -573,6 +575,7 @@ async def run_research_loop_benchmark(
         repair_handlers=repair_handlers,
         enable_default_proof_engineer=enable_default_proof_engineer,
         enable_default_theory_developer=enable_default_theory_developer,
+        enable_default_algorithm_engineer=enable_default_algorithm_engineer,
     )
     results = [
         await coordinator.iterate(

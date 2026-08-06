@@ -11,7 +11,6 @@ from .generated_metric_contract import (
     GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE,
     GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED,
     GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED,
-    generated_metric_authority_context,
     generated_metric_contract_binding_json_schema,
     generated_metric_contract_prompt_schema,
     generated_metric_contract_set_id,
@@ -32,8 +31,6 @@ from .scientific_sandbox import (
     generated_code_execution_contract_errors,
     generated_python_syntax_errors,
     normalized_generated_code_language,
-    normalized_generated_code_profile,
-    normalized_scientific_dependencies,
     scientific_sandbox_contract,
 )
 from .theory_derivation_trace import (
@@ -222,19 +219,6 @@ class LLMSimulationEngineerAgent:
                 )
             return sorted(set(errors))
 
-        def build_repair_context(**_kwargs: Any) -> dict[str, Any]:
-            context = generated_metric_authority_context(
-                authoritative_metric_requirements,
-                target_subsystem="SimulationEngineer",
-                artifact_id_label=(
-                    "simulation_code_drafts[*].simulation_id from the corrected packet"
-                ),
-            )
-            context["generated_code_execution_profiles"] = (
-                scientific_sandbox_contract()["profiles"]
-            )
-            return context
-
         return generate_validated_json_packet(
             provider=self.provider,
             request=request,
@@ -243,7 +227,6 @@ class LLMSimulationEngineerAgent:
             validate_packet=validate_packet,
             validation_label="LLM SimulatorEngineer packet",
             max_repair_attempts=self.config.max_repair_attempts,
-            repair_context_builder=build_repair_context,
         )
 
 
@@ -316,7 +299,7 @@ def build_simulation_engineer_prompt(
         },
         "registered_execution_owner": "AgentRuntime ResearchSimulator.run",
         "generated_simulation_code_contract": {
-            "status": "optional custom stress-test fallback",
+            "status": "primary model-authored simulation and stress-test path",
             "entrypoint": "run_sandbox",
             "function_signature": (
                 "def run_sandbox(seed: int, replicates: int, estimators: dict) -> dict"
@@ -482,9 +465,10 @@ def build_simulation_engineer_prompt(
         "Declare only packages actually used, prefer mature package APIs, and do "
         "not use file/network/subprocess/host-bridge/reflection access. "
         + "If runtime_environment_feedback reports a rejected generated simulation "
-        "draft or metric-gate failure, repair that concrete draft or omit "
-        "simulation_code_drafts with a blocker; do not repeat the same unsafe, "
-        "non-executable, or metric-failing code.\n\n"
+        "draft or metric-gate failure, regenerate the complete source from the exact "
+        "observations or return a typed runtime blocker; AgentRuntime must not edit the "
+        "source or select a canned fix. Do not repeat the same unsafe, non-executable, "
+        "or metric-failing code.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str)
     )
 
@@ -1580,8 +1564,6 @@ def _normalize_simulation_packet(
     upstream_algorithm_handoff: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     body = dict(payload)
-    _normalize_simulation_code_draft_metadata(body)
-    _normalize_simulation_metric_contract_artifact_ids(body)
     raw_metric_contracts = body.get("metric_contracts", [])
     metric_contract_values = (
         raw_metric_contracts if isinstance(raw_metric_contracts, list) else []
@@ -1689,93 +1671,6 @@ def _normalize_simulation_packet(
         "runtime_budget": {"n_runs": n_runs, "seed": seed},
         **body,
     }
-
-
-def _normalize_simulation_code_draft_metadata(body: dict[str, Any]) -> None:
-    raw_drafts = body.get("simulation_code_drafts", [])
-    if not isinstance(raw_drafts, list):
-        return
-    normalized_drafts: list[Any] = []
-    for row in raw_drafts:
-        if not isinstance(row, Mapping):
-            normalized_drafts.append(row)
-            continue
-        normalized = dict(row)
-        language = normalized_generated_code_language(normalized.get("language"))
-        normalized["language"] = language
-        normalized["execution_profile"] = normalized_generated_code_profile(
-            normalized.get("execution_profile"),
-            language=language,
-        )
-        normalized["dependencies"] = list(
-            normalized_scientific_dependencies(
-                normalized.get("dependencies", []),
-                language=language,
-            )
-        )
-        raw_required_estimator_ids = normalized.get(
-            "required_estimator_ids", []
-        )
-        normalized["required_estimator_ids"] = list(
-            dict.fromkeys(
-                str(value).strip()
-                for value in raw_required_estimator_ids
-                if str(value).strip()
-            )
-        ) if isinstance(raw_required_estimator_ids, list) else []
-        entrypoint = str(normalized.get("entrypoint", "") or "").strip()
-        if _is_run_sandbox_signature_entrypoint(entrypoint):
-            normalized["entrypoint"] = "run_sandbox"
-        normalized_drafts.append(normalized)
-    body["simulation_code_drafts"] = normalized_drafts
-
-
-def _normalize_simulation_metric_contract_artifact_ids(
-    body: dict[str, Any],
-) -> None:
-    raw_contracts = body.get("metric_contracts", [])
-    raw_drafts = body.get("simulation_code_drafts", [])
-    if not isinstance(raw_contracts, list) or not isinstance(raw_drafts, list):
-        return
-    draft_ids = {
-        str(row.get("simulation_id", "") or "").strip()
-        for row in raw_drafts
-        if isinstance(row, Mapping)
-        and str(row.get("simulation_id", "") or "").strip()
-    }
-    if len(draft_ids) != 1:
-        return
-    canonical_simulation_id = next(iter(draft_ids))
-    normalized_contracts: list[Any] = []
-    for row in raw_contracts:
-        if not isinstance(row, Mapping):
-            normalized_contracts.append(row)
-            continue
-        normalized = dict(row)
-        source_artifact_id = str(
-            normalized.get("artifact_id", "") or ""
-        ).strip()
-        if source_artifact_id != canonical_simulation_id:
-            normalized["artifact_id"] = canonical_simulation_id
-            normalized["artifact_id_binding"] = {
-                "source_artifact_id": source_artifact_id,
-                "canonical_artifact_id": canonical_simulation_id,
-                "binding_strategy": "single_generated_simulation_task_contract",
-            }
-        normalized_contracts.append(normalized)
-    body["metric_contracts"] = normalized_contracts
-
-
-def _is_run_sandbox_signature_entrypoint(entrypoint: str) -> bool:
-    compact = entrypoint.strip().replace(" ", "")
-    return bool(
-        compact
-        and (
-            compact == "run_sandbox"
-            or compact.startswith("run_sandbox(")
-            or compact.startswith("defrun_sandbox(")
-        )
-    )
 
 
 def _extract_json_object(text: str) -> dict[str, Any]:

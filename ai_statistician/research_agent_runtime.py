@@ -12763,13 +12763,8 @@ class TheoryDeveloperRuntimeSubsystem:
             or getattr(theory_config, "provider_name", "")
             or ""
         ).strip().lower()
-        client_tool_revision_expected = bool(
+        full_packet_revision_expected = bool(
             context.get(THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY)
-            and getattr(theory_config, "use_client_tool_revision", False)
-            and theory_provider_name == "anthropic"
-            and callable(
-                getattr(theory_provider, "generate_client_tool_turn", None)
-            )
         )
         try:
             with agent_runtime_substage(
@@ -12784,10 +12779,9 @@ class TheoryDeveloperRuntimeSubsystem:
                     "validation_retry_attempt": validation_retry_attempt,
                     "provider_structured_output_expected": bool(
                         theory_provider_name == "anthropic"
-                        and not client_tool_revision_expected
                     ),
-                    "client_tool_revision_expected": (
-                        client_tool_revision_expected
+                    "full_packet_revision_expected": (
+                        full_packet_revision_expected
                     ),
                 },
             ):
@@ -20390,15 +20384,8 @@ def _algorithm_engineer_packet_validation_failure_result(
             **validation_state,
         },
         "target_behavior": (
-            "rerun AlgorithmEngineer with a locally valid packet: for capability "
-            "evaluation, produce Claude/OpenAI-generated sandbox_code_drafts and set "
-            "registered_template_hint to none for every implementation target; each "
-            "sandbox_code_drafts entrypoint field must be exactly run_sandbox and "
-            "each draft estimator_id must copy the Architect-supplied canonical "
-            "implementation-gap estimator_id exactly; define run_estimator(request) "
-            "and make run_sandbox exercise that same implementation; keep "
-            "metric_contracts empty because confirmatory evaluation belongs to "
-            "SimulationEngineer"
+            "Regenerate the complete AlgorithmEngineer packet from the unchanged "
+            "task contract, complete prior candidate, and exact validator errors."
         ),
         "acceptance_gate": (
             "AlgorithmEngineer packet passes local validation; AgentRuntime then "
@@ -20442,19 +20429,8 @@ def _algorithm_engineer_packet_validation_failure_result(
         **validation_state,
         "target_behavior": learning_row["target_behavior"],
         "required_repair": (
-            "Return a locally valid AlgorithmEngineer packet. In capability-eval "
-            "mode, include at least one safe sandbox_code_drafts entry whose "
-            "estimator_id matches an implementation target or gap, set its "
-            "entrypoint field exactly to run_sandbox, and set every "
-            "registered_template_hint to none; registered templates may only be "
-            "mentioned as baselines. Use this exact metadata shape: "
-            "implementation_targets[0].registered_template_hint=\"none\" and "
-            "sandbox_code_drafts[0]={\"estimator_id\":\"<matching id>\","
-            "\"language\":\"python-or-r\",\"entrypoint\":\"run_sandbox\",...}. "
-            "Follow the generated_algorithm_code_contract: define the generic "
-            "run_estimator(request) JSON-finite ABI and make run_sandbox exercise "
-            "that exact implementation. Keep metric_contracts empty; downstream "
-            "SimulationEngineer owns DGP-based empirical evaluation."
+            "Return one complete replacement packet that satisfies the unchanged "
+            "request and the exact validator errors. The runtime will not edit it."
         ),
         "execution_evidence_status": "ALGORITHM_ENGINEER_PACKET_VALIDATION_FAILURE_NOT_EXECUTION_EVIDENCE",
         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
@@ -105803,7 +105779,7 @@ def _algorithm_sandbox_revision_feedback(
     compact_prototypes: list[dict[str, Any]] = []
     forbidden_generated_code_calls: list[str] = []
     for row in prototypes[:5]:
-        safety_errors = list(_str_tuple(row.get("safety_errors", [])))[:5]
+        safety_errors = list(_str_tuple(row.get("safety_errors", [])))
         script_hash = _generated_sandbox_prototype_script_hash(row)
         parent_source = _generated_python_sandbox_parent_source(row)
         parent_source_hash = stable_hash(parent_source) if parent_source else ""
@@ -105833,12 +105809,12 @@ def _algorithm_sandbox_revision_feedback(
                 "returncode": row.get("returncode"),
                 "metric_gate_errors": list(
                     _str_tuple(row.get("metric_gate_errors", []))
-                )[:5],
+                ),
                 "safety_errors": safety_errors,
                 "runtime_errors": list(
                     _str_tuple(row.get("runtime_errors", []))
                 ),
-                "forbidden_generated_code_calls": row_forbidden_calls[:5],
+                "forbidden_generated_code_calls": row_forbidden_calls,
                 "metrics": _compact_generated_sandbox_metrics(
                     row.get("metrics", {})
                 ),
@@ -105861,16 +105837,12 @@ def _algorithm_sandbox_revision_feedback(
                 ),
                 "script_path": str(row.get("script_path", "") or ""),
                 "code_excerpt": _generated_python_sandbox_code_excerpt(row),
-                "stdout_summary": _generated_sandbox_diagnostic_excerpt(
-                    row.get("stdout_summary", ""), limit=1000
+                "stdout_summary": str(row.get("stdout_summary", "") or ""),
+                "stderr_summary": str(row.get("stderr_summary", "") or ""),
+                "result_parse_error": str(
+                    row.get("result_parse_error", "") or ""
                 ),
-                "stderr_summary": _generated_sandbox_diagnostic_excerpt(
-                    row.get("stderr_summary", ""), limit=1200
-                ),
-                "result_parse_error": _generated_sandbox_diagnostic_excerpt(
-                    row.get("result_parse_error", ""), limit=500
-                ),
-                "reason": str(row.get("reason", "") or "")[:500],
+                "reason": str(row.get("reason", "") or ""),
             }
         )
     feedback_type = "algorithm_sandbox_execution_feedback"
@@ -106092,6 +106064,9 @@ def _generated_python_sandbox_parent_source(
                 return path.read_text(encoding="utf-8")
         except OSError:
             pass
+    source_code = str(row.get("source_code", "") or "")
+    if source_code:
+        return source_code
     return str(row.get("code_excerpt", "") or "")
 
 
@@ -106109,7 +106084,7 @@ def _generated_simulation_revision_feedback(
     compact_prototypes: list[dict[str, Any]] = []
     forbidden_generated_code_calls: list[str] = []
     for row in prototypes[:5]:
-        safety_errors = list(_str_tuple(row.get("safety_errors", [])))[:5]
+        safety_errors = list(_str_tuple(row.get("safety_errors", [])))
         script_hash = _generated_sandbox_prototype_script_hash(row)
         parent_source = _generated_python_sandbox_parent_source(row)
         parent_source_hash = stable_hash(parent_source) if parent_source else ""
@@ -106139,14 +106114,14 @@ def _generated_simulation_revision_feedback(
                 "returncode": row.get("returncode"),
                 "metric_gate_errors": list(
                     _str_tuple(row.get("metric_gate_errors", []))
-                )[:5],
+                ),
                 "safety_errors": safety_errors,
                 "runtime_errors": list(
                     _str_tuple(row.get("runtime_errors", []))
-                )[:8],
+                ),
                 "estimator_binding_errors": list(
                     _str_tuple(row.get("estimator_binding_errors", []))
-                )[:5],
+                ),
                 "required_estimator_ids": list(
                     _str_tuple(row.get("required_estimator_ids", []))
                 ),
@@ -106155,7 +106130,7 @@ def _generated_simulation_revision_feedback(
                 ),
                 "estimator_runtime_errors": list(
                     _str_tuple(row.get("estimator_runtime_errors", []))
-                )[:5],
+                ),
                 "available_upstream_estimator_ids": list(
                     _str_tuple(
                         row.get("available_upstream_estimator_ids", [])
@@ -106176,7 +106151,7 @@ def _generated_simulation_revision_feedback(
                 "mechanical_estimator_invocation_verified": row.get(
                     "mechanical_estimator_invocation_verified"
                 ),
-                "forbidden_generated_code_calls": row_forbidden_calls[:5],
+                "forbidden_generated_code_calls": row_forbidden_calls,
                 "metrics": _compact_generated_sandbox_metrics(
                     row.get("metrics", {})
                 ),
@@ -106199,21 +106174,17 @@ def _generated_simulation_revision_feedback(
                 ),
                 "script_path": str(row.get("script_path", "") or ""),
                 "code_excerpt": _generated_python_sandbox_code_excerpt(row),
-                "stdout_summary": _generated_sandbox_diagnostic_excerpt(
-                    row.get("stdout_summary", ""), limit=1000
-                ),
-                "stderr_summary": _generated_sandbox_diagnostic_excerpt(
-                    row.get("stderr_summary", ""), limit=1200
-                ),
-                "result_parse_error": _generated_sandbox_diagnostic_excerpt(
-                    row.get("result_parse_error", ""), limit=500
+                "stdout_summary": str(row.get("stdout_summary", "") or ""),
+                "stderr_summary": str(row.get("stderr_summary", "") or ""),
+                "result_parse_error": str(
+                    row.get("result_parse_error", "") or ""
                 ),
                 "resource_limits": (
                     dict(row.get("resource_limits", {}))
                     if isinstance(row.get("resource_limits", {}), Mapping)
                     else {}
                 ),
-                "reason": str(row.get("reason", "") or "")[:500],
+                "reason": str(row.get("reason", "") or ""),
             }
         )
     feedback_type = "generated_simulation_sandbox_execution_feedback"
@@ -106628,7 +106599,7 @@ def _run_generated_code_sandbox(
     contract_errors = sorted(
         set(
             [
-                *generated_code_execution_contract_errors(normalized_draft),
+                *generated_code_execution_contract_errors(code_draft),
                 *(str(error) for error in additional_contract_errors if str(error)),
             ]
         )
@@ -106875,6 +106846,7 @@ def _run_generated_scientific_sandbox(
             mechanical_estimator_invocation_verified
         ),
         "script_hash": stable_hash(code),
+        "source_code": code,
         "request_hash": execution.request_hash if execution is not None else "",
         "code_excerpt": code[:2000],
         "runtime_seed": seed,
@@ -107038,6 +107010,7 @@ def _run_generated_python_sandbox(
             "script_path": "",
             "result_path": "",
             "script_hash": stable_hash(code),
+            "source_code": code,
             "code_excerpt": code[:2000],
             "runtime_seed": seed,
             "runtime_replicates": generated_sandbox_runtime_replicates(n_runs),
@@ -107176,6 +107149,7 @@ def _run_generated_python_sandbox(
         "runner_path": str(runner_path),
         "result_path": str(result_path),
         "script_hash": stable_hash(code),
+        "source_code": code,
         "code_excerpt": code[:2000],
         "runtime_seed": seed,
         "runtime_replicates": replicates,
@@ -107250,6 +107224,13 @@ def _generated_python_sandbox_safety_errors(code: str) -> list[str]:
     }
     allowed_modules = {"math", "statistics", "random"}
     allowed_builtin_calls = {
+        "AssertionError",
+        "Exception",
+        "KeyError",
+        "RuntimeError",
+        "TypeError",
+        "ValueError",
+        "ZeroDivisionError",
         "all",
         "any",
         "abs",
@@ -107447,6 +107428,13 @@ def _safe_import(name, globals=None, locals=None, fromlist=(), level=0):
 
 
 SAFE_BUILTINS = {
+    "AssertionError": AssertionError,
+    "Exception": Exception,
+    "KeyError": KeyError,
+    "RuntimeError": RuntimeError,
+    "TypeError": TypeError,
+    "ValueError": ValueError,
+    "ZeroDivisionError": ZeroDivisionError,
     "all": all,
     "any": any,
     "abs": abs,

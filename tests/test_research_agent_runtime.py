@@ -89,7 +89,6 @@ from ai_statistician.architect_coordinator_llm import (
     ArchitectCoordinatorConfig,
     LLMArchitectCoordinatorAgent,
     _architect_metric_authoring_deferred_for_active_replan,
-    _architect_packet_repair_context,
     _normalize_architect_packet,
     architect_capability_gap_routing_agenda,
     architect_validated_plan_reuse_metadata,
@@ -367,6 +366,7 @@ from ai_statistician.research_architect import (
     LLMTheoryDeveloperAgent,
     ResearchArchitectConfig,
     StaticArchitectLLMProvider,
+    THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT,
     build_theory_developer_prompt,
 )
 from ai_statistician.research_lab import load_open_research_questions
@@ -2262,17 +2262,24 @@ def test_theory_developer_preserves_metric_protocol_revision_lineage() -> None:
             ),
         },
     )
-    assert "serious_upstream_theory_revision" in revision_prompt
-    assert "typed revision contract" in revision_prompt
-    assert "never regenerate the full theory packet" in revision_prompt
-    assert "feedback_decision_contract" in revision_prompt
-    assert "missing theory calibration" in revision_prompt
-    assert "base_core_payload" in revision_prompt
-    assert parent_theory_packet["theory_derivation_packet"]["equation_chain"][0][
-        "step_id"
-    ] in revision_prompt
-    assert "make relative_path start inside that section" in revision_prompt
-    assert "runtime binds the immutable parent fingerprint" in revision_prompt
+    revision_payload = json.loads(revision_prompt.split("\n\n", 1)[1])
+    assert revision_payload["revision_mode"] == (
+        "complete_theory_packet_regeneration"
+    )
+    assert revision_payload["parent_core_packet"] == {
+        field: parent_theory_packet[field]
+        for field in THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
+        if field in parent_theory_packet
+    }
+    assert revision_payload["reviewer_feedback"] == feedback
+    assert revision_payload["immutable_lineage"][
+        "parent_core_payload_fingerprint"
+    ]
+    revision_instructions = " ".join(revision_payload["instructions"])
+    assert "complete replacement core theory packet" in revision_instructions
+    assert "never a patch" in revision_instructions
+    assert "relative_path" not in revision_prompt
+    assert "feedback_decision_contract" not in revision_prompt
     result = TheoryDeveloperRuntimeSubsystem(
         theory_developer=StaticTheoryDeveloper(),  # type: ignore[arg-type]
         n_runs=17,
@@ -2996,10 +3003,13 @@ def test_theory_validation_retry_preserves_metric_revision_feedback() -> None:
         question,
         architect_context=retry_context,
     )
-    assert "serious_upstream_theory_revision" in retry_prompt
-    assert "transport_recovery_instruction" in retry_prompt
-    assert "JSONDecodeError" in retry_prompt
-    assert "missing finite-sample derivation" in retry_prompt
+    retry_payload = json.loads(retry_prompt.split("\n\n", 1)[1])
+    assert retry_payload["revision_mode"] == "complete_theory_packet_regeneration"
+    assert "JSONDecodeError" in json.dumps(retry_payload["transport_feedback"])
+    assert "missing finite-sample derivation" in json.dumps(
+        retry_payload["reviewer_feedback"]
+    )
+    assert "relative_path" not in retry_prompt
 
     captured_context: dict[str, Any] = {}
 
@@ -23597,17 +23607,7 @@ def test_architect_validator_rejects_runtime_completion_policy_as_formal_target(
     )
 
 
-def test_architect_repair_contract_requires_object_shaped_array_rows() -> None:
-    runtime_config = {
-        "evaluation_mode": "capability_eval",
-        "formal_verification_policy": "required",
-        "exact_source_theorem_prover_available": True,
-    }
-
-    repair_context = _architect_packet_repair_context(
-        architect_context={},
-        runtime_config=runtime_config,
-    )
+def test_architect_schema_requires_object_shaped_array_rows() -> None:
     literature_schema = ARCHITECT_COORDINATOR_JSON_SCHEMA["properties"][
         "literature_fair_comparison_plan"
     ]
@@ -23619,10 +23619,6 @@ def test_architect_repair_contract_requires_object_shaped_array_rows() -> None:
         "likely_mismatches",
         "unsafe_transfer_risks",
     }
-    assert repair_context["required_array_item_shapes"][
-        "literature_fair_comparison_plan"
-    ]["candidate_source_family"] == "one short string"
-    assert "repair_prompt_priority_instructions" not in repair_context
     target_schema = ARCHITECT_COORDINATOR_JSON_SCHEMA["properties"][
         "evidence_contract"
     ]["properties"]["empirical_metric_requirements"]["items"]["properties"][
@@ -23664,21 +23660,6 @@ def test_architect_repair_contract_requires_object_shaped_array_rows() -> None:
     assert set(
         metric_requirement_schema["properties"]
     ) == set(metric_requirement_schema["required"])
-    assert repair_context[
-        "empirical_metric_requirement_target_namespace"
-    ]["allowed_exact_values"] == [
-        "SimulationEngineer",
-    ]
-    assert [
-        row["target_subsystems"]
-        for row in repair_context["empirical_metric_requirement_target_examples"]
-    ] == [["SimulationEngineer"]]
-    assert repair_context["formal_target_authoring_contract"][
-        "content_owner"
-    ] == "ArchitectCoordinator"
-    assert "never the comparison threshold" in repair_context[
-        "metric_evaluation_semantics"
-    ]["quorum_rule"]
 
 
 def test_live_architect_defers_metric_authoring_until_theory_is_available() -> None:
@@ -24910,108 +24891,7 @@ def test_architect_does_not_forward_mismatched_semantic_replan_feedback() -> Non
     assert routed_feedback == {}
 
 
-def test_metric_authoring_regeneration_context_preserves_full_authority_input() -> None:
-    from ai_statistician.architect_metric_contract_authoring import (
-        _metric_authoring_repair_context,
-    )
-
-    theory_anchor = "theory#/theorem_cards/0/conclusion"
-    matching_design_anchor = "theory#/simulation_ademp_spec/dgps/0"
-    irrelevant_design_anchor = "theory#/simulation_ademp_spec/dgps/1"
-    catalog = [
-        {
-            "anchor_id": theory_anchor,
-            "authority_kind": "theory_derived",
-            "content": "The target error is controlled asymptotically.",
-            "explicit_numeric_values": [],
-        },
-        {
-            "anchor_id": matching_design_anchor,
-            "authority_kind": "evaluation_design",
-            "content": "Evaluate the null at p = 0.5.",
-            "explicit_numeric_values": [0.5],
-        },
-        {
-            "anchor_id": irrelevant_design_anchor,
-            "authority_kind": "evaluation_design",
-            "content": "Evaluate an alternative at p = 0.7.",
-            "explicit_numeric_values": [0.7],
-        },
-    ]
-    requirement = {
-        "requirement_id": "null_parameter_gate",
-        "target_subsystems": ["SimulationEngineer"],
-        "metric_semantics": "absolute null-parameter deviation",
-        "measurement_protocol": "evaluate the declared null DGP",
-        "required_runtime_replicates": 17,
-        "operator": "<=",
-        "threshold": 0.5,
-        "lower": None,
-        "upper": None,
-        "tolerance": 0.0,
-        "aggregation": "mean",
-        "minimum_pass_count": None,
-        "minimum_pass_fraction": None,
-        "required": True,
-        "source_anchors": [theory_anchor],
-        "acceptance_authority_kind": "theory_parameter_instantiation",
-        "acceptance_authority_rationale": "Bind the theory to the null DGP.",
-        "gate_field_authority_mode": "field_bound_v1",
-        "gate_field_authorities": [
-            {
-                "field": "threshold",
-                "authority_kind": "theory_parameter_instantiation",
-                "source_anchors": [theory_anchor],
-                "rationale": "Bind the theory to the null DGP.",
-            }
-        ],
-        "boundary": "empirical control, not proof evidence",
-    }
-
-    context = _metric_authoring_repair_context(
-        invalid_packet={"empirical_metric_requirements": [requirement]},
-        errors=[
-            "[generated_metric_numeric_authority_missing] "
-            "empirical_metric_requirements[0].threshold=0.5 must be explicitly "
-            "present in a cited evaluation_design authority node"
-        ],
-        runtime_replicates=17,
-        acceptance_authority_catalog_id="catalog:test",
-        acceptance_authority_catalog=catalog,
-        required_target_rows=[],
-        independent_semantic_review_repair={
-            "revision_index": 1,
-            "rejected_empirical_metric_requirements": [requirement],
-            "dimension_reviews": [{"dimension": "estimand", "status": "FAIL"}],
-            "findings": [{"finding_id": "finding:test"}],
-            "required_prior_finding_ids": ["finding:test"],
-            "revision_policy": "Resolve the active finding in place.",
-        },
-    )
-
-    assert context["repair_mode"] == "full_packet_regeneration"
-    assert {
-        row["anchor_id"] for row in context["acceptance_authority_catalog"]
-    } == {theory_anchor, matching_design_anchor, irrelevant_design_anchor}
-    assert irrelevant_design_anchor in {
-        row["anchor_id"] for row in context["acceptance_authority_catalog"]
-    }
-    assert "repair_prompt_priority_instructions" not in context
-    assert context["requirement_schema"]
-    assert context["target_namespace"]
-    assert context["required_target_rows"] == []
-    assert "numeric_authority_repair_matrix" not in context
-    assert "gate_field_resolution_decisions_by_id" not in context
-    compact_review = context["independent_semantic_review_repair"]
-    assert compact_review["findings"] == [{"finding_id": "finding:test"}]
-    assert "rejected_empirical_metric_requirements" not in compact_review
-    assert "dimension_reviews" not in compact_review
-
-
 def test_metric_authoring_unmatched_gate_is_returned_to_model_without_recipe() -> None:
-    from ai_statistician.architect_metric_contract_authoring import (
-        _metric_authoring_repair_context,
-    )
     from ai_statistician.generated_metric_contract import (
         validate_generated_metric_requirements,
     )
@@ -25049,40 +24929,6 @@ def test_metric_authoring_unmatched_gate_is_returned_to_model_without_recipe() -
         ],
         "boundary": "empirical control, not proof evidence",
     }
-
-    context = _metric_authoring_repair_context(
-        invalid_packet={"empirical_metric_requirements": [requirement]},
-        errors=[
-            "[generated_metric_numeric_authority_missing] "
-            "empirical_metric_requirements[0].threshold=0.0175 must be explicitly "
-            "present in a cited theory_derived authority node"
-        ],
-        runtime_replicates=17,
-        acceptance_authority_catalog_id="catalog:unmatched",
-        acceptance_authority_catalog=[
-            {
-                "anchor_id": "theory#/theorem_cards/0/conclusion",
-                "authority_kind": "theory_derived",
-                "content": "The diagnostic is finite.",
-                "explicit_numeric_values": [],
-            }
-        ],
-        required_target_rows=[],
-        independent_semantic_review_repair={},
-    )
-
-    assert context["repair_mode"] == "full_packet_regeneration"
-    assert context["acceptance_authority_catalog"] == [
-        {
-            "anchor_id": "theory#/theorem_cards/0/conclusion",
-            "authority_kind": "theory_derived",
-            "content": "The diagnostic is finite.",
-            "explicit_numeric_values": [],
-        }
-    ]
-    assert "numeric_authority_repair_matrix" not in context
-    assert "unmatched_gate_resolution_decisions" not in context
-    assert "architect_preregistered_design_patch_contracts" not in str(context)
 
     validation_errors = validate_generated_metric_requirements(
         [requirement],
@@ -27195,10 +27041,9 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         regeneration_request.user_prompt.split("\n\n", 1)[1]
     )
     assert repair_payload["local_validation_errors"]
-    repair_context = repair_payload["subsystem_repair_context"]
-    assert repair_context["repair_mode"] == "full_packet_regeneration"
-    assert "gate_field_resolution_decisions_by_id" not in repair_context
-    assert "numeric_authority_repair_matrix" not in repair_context
+    assert "subsystem_repair_context" not in repair_payload
+    assert repair_payload["original_request"] == metric_request.user_prompt
+    assert repair_payload["previous_candidate"]
     assert regeneration_request.schema == metric_request.schema
     assert metric_prompt["metric_evaluation_semantics"]["authoring_example"][
         "threshold"
@@ -30942,7 +30787,8 @@ def test_algorithm_engineer_prompt_compacts_theory_and_simulation_context() -> N
     assert '"E1"' in prompt
     assert '"E3"' not in prompt
     assert "Return ONLY one compact JSON object" in prompt
-    assert "leave sandbox_code_drafts empty whenever a template matches" in prompt
+    assert "model-authored complete sandbox source" in prompt
+    assert "never as a fallback after a generated candidate fails" in prompt
     assert '"code_generation_plan"' not in prompt
     assert '"promotion_gate"' not in prompt
     assert len(prompt) < 22000
@@ -31155,7 +31001,7 @@ def test_algorithm_engineer_capability_eval_validator_rejects_python_syntax() ->
     assert any("generated Python draft syntax error" in error for error in errors)
 
 
-def test_algorithm_engineer_normalizes_sandbox_draft_metadata() -> None:
+def test_algorithm_engineer_preserves_model_metadata_for_validator_feedback() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     packet = _normalize_algorithm_packet(
         {
@@ -31192,9 +31038,9 @@ def test_algorithm_engineer_normalizes_sandbox_draft_metadata() -> None:
     )
 
     draft = packet["sandbox_code_drafts"][0]
-    assert draft["language"] == "python"
-    assert draft["entrypoint"] == "run_sandbox"
-    assert draft["estimator_id"] == "E1"
+    assert draft["language"] == "python3"
+    assert draft["entrypoint"] == "run_sandbox(seed: int, replicates: int) -> dict"
+    assert "estimator_id" not in draft
     target = packet["implementation_targets"][0]
     assert target["estimator_interface_contract"] == (
         _estimator_interface_contract_fixture()
@@ -31211,19 +31057,19 @@ def test_algorithm_engineer_normalizes_sandbox_draft_metadata() -> None:
     assert alignment["consumer_subsystem"] == "AlgorithmEngineer"
     assert alignment["structured_alignment_observed"] is True
     assert alignment["supported_assumptions"] == ["positivity"]
-    assert validate_algorithm_engineer_packet(packet) == []
-    assert (
-        _validate_capability_eval_generated_algorithm_packet(
-            packet,
-            implementation_gaps=[
-                {
-                    "estimator_id": "E1",
-                    "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
-                }
-            ],
-        )
-        == []
+    validation_errors = validate_algorithm_engineer_packet(packet)
+    assert "generated code entrypoint must be run_sandbox" in validation_errors
+    assert "sandbox_code_drafts entry missing estimator_id" in validation_errors
+    capability_errors = _validate_capability_eval_generated_algorithm_packet(
+        packet,
+        implementation_gaps=[
+            {
+                "estimator_id": "E1",
+                "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+            }
+        ],
     )
+    assert any("missing: E1" in error for error in capability_errors)
 
 
 def test_algorithm_engineer_rejects_downstream_estimator_semantic_redefinition() -> None:
@@ -31278,7 +31124,7 @@ def test_algorithm_engineer_rejects_downstream_estimator_semantic_redefinition()
     )
 
 
-def test_algorithm_engineer_normalizes_capability_eval_target_metadata() -> None:
+def test_algorithm_engineer_does_not_rewrite_invalid_capability_metadata() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     packet = _normalize_algorithm_packet(
         {
@@ -31329,30 +31175,33 @@ def test_algorithm_engineer_normalizes_capability_eval_target_metadata() -> None
 
     target = packet["implementation_targets"][0]
     draft = packet["sandbox_code_drafts"][0]
-    assert target["estimator_id"] == "E1"
-    assert target["registered_template_hint"] == "none"
-    assert target["estimator_interface_contract_id"].startswith(
-        "estimator_interface_contract:"
+    assert target["id"] == "E1"
+    assert "estimator_id" not in target
+    assert target["registered_template_hint"] == "split_conformal_interval"
+    assert draft["id"] == "E1"
+    assert "estimator_id" not in draft
+    assert draft["language"] == "Python 3"
+    assert draft["entrypoint"] == (
+        "def run_sandbox(seed: int, replicates: int) -> dict"
     )
-    assert draft["estimator_id"] == "E1"
-    assert draft["language"] == "python"
-    assert draft["entrypoint"] == "run_sandbox"
-    assert validate_algorithm_engineer_packet(packet) == []
-    assert (
-        _validate_capability_eval_generated_algorithm_packet(
-            packet,
-            implementation_gaps=[
-                {
-                    "estimator_id": "E1",
-                    "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
-                }
-            ],
-        )
-        == []
+    validation_errors = validate_algorithm_engineer_packet(packet)
+    assert "implementation target missing estimator_id" in validation_errors
+    assert "sandbox_code_drafts entry missing estimator_id" in validation_errors
+    assert "generated code entrypoint must be run_sandbox" in validation_errors
+    capability_errors = _validate_capability_eval_generated_algorithm_packet(
+        packet,
+        implementation_gaps=[
+            {
+                "estimator_id": "E1",
+                "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+            }
+        ],
     )
+    assert any("registered_template_hint=none" in error for error in capability_errors)
+    assert any("missing: E1" in error for error in capability_errors)
 
 
-def test_algorithm_engineer_binds_single_generated_target_to_canonical_gap_id() -> None:
+def test_algorithm_engineer_rejects_alias_instead_of_rewriting_canonical_gap_id() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     packet = _normalize_algorithm_packet(
         {
@@ -31400,22 +31249,19 @@ def test_algorithm_engineer_binds_single_generated_target_to_canonical_gap_id() 
 
     target = packet["implementation_targets"][0]
     draft = packet["sandbox_code_drafts"][0]
-    assert target["estimator_id"] == "architect_canonical_estimator"
-    assert draft["estimator_id"] == "architect_canonical_estimator"
-    assert target["estimator_id_binding"]["source_estimator_id"] == (
-        "clearer_generated_alias"
+    assert target["estimator_id"] == "clearer_generated_alias"
+    assert draft["estimator_id"] == "clearer_generated_alias"
+    assert "estimator_id_binding" not in target
+    assert "estimator_id_binding" not in draft
+    capability_errors = _validate_capability_eval_generated_algorithm_packet(
+        packet,
+        implementation_gaps=[
+            {"estimator_id": "architect_canonical_estimator"}
+        ],
     )
-    assert draft["estimator_id_binding"]["binding_strategy"] == (
-        "single_gap_task_contract"
-    )
-    assert (
-        _validate_capability_eval_generated_algorithm_packet(
-            packet,
-            implementation_gaps=[
-                {"estimator_id": "architect_canonical_estimator"}
-            ],
-        )
-        == []
+    assert any(
+        "missing: architect_canonical_estimator" in error
+        for error in capability_errors
     )
 
 
@@ -31502,7 +31348,7 @@ def test_simulation_engineer_capability_eval_validator_rejects_python_syntax() -
     assert any("generated Python draft syntax error" in error for error in errors)
 
 
-def test_simulation_engineer_normalizes_generated_code_draft_metadata() -> None:
+def test_simulation_engineer_preserves_model_metadata_for_validator_feedback() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     packet = _normalize_simulation_packet(
         {
@@ -31538,8 +31384,8 @@ def test_simulation_engineer_normalizes_generated_code_draft_metadata() -> None:
     )
 
     draft = packet["simulation_code_drafts"][0]
-    assert draft["language"] == "python"
-    assert draft["entrypoint"] == "run_sandbox"
+    assert draft["language"] == "python3"
+    assert draft["entrypoint"] == "run_sandbox(seed: int, replicates: int) -> dict"
     assert packet["backend_provider"] == "anthropic"
     contract = packet["theory_trace_consumption_contract"]
     assert contract["consumer_subsystem"] == "SimulationEngineer"
@@ -31549,7 +31395,8 @@ def test_simulation_engineer_normalizes_generated_code_draft_metadata() -> None:
     assert alignment["consumer_subsystem"] == "SimulationEngineer"
     assert alignment["structured_alignment_observed"] is True
     assert alignment["supported_equation_steps"] == ["expansion"]
-    assert validate_simulation_engineer_packet(packet) == []
+    validation_errors = validate_simulation_engineer_packet(packet)
+    assert "generated code entrypoint must be run_sandbox" in validation_errors
     assert _validate_capability_eval_generated_simulation_packet(packet) == []
 
 
@@ -48760,6 +48607,32 @@ def test_generated_algorithm_sandbox_rejects_unsafe_code(tmp_path: Path) -> None
     assert tool_call.exit_status == "rejected"
 
 
+def test_generated_algorithm_sandbox_allows_standard_exception_constructors(
+    tmp_path: Path,
+) -> None:
+    prototype, tool_call = _run_generated_python_sandbox(
+        sandbox_dir=tmp_path,
+        estimator_id="exception_validation_probe",
+        spec={"id": "exception_validation_probe"},
+        code_draft={
+            "code": (
+                "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                "    if replicates < 0:\n"
+                "        raise ValueError('replicates must be nonnegative')\n"
+                "    return {'n': int(replicates), 'sandbox_failed': False}\n"
+            )
+        },
+        n_runs=10,
+        seed=20260806,
+        timeout_s=5,
+    )
+
+    assert prototype["prototype_status"] == "EXECUTED"
+    assert prototype["smoke_passed"] is True
+    assert prototype["safety_errors"] == []
+    assert tool_call.exit_status == "0"
+
+
 def test_generated_algorithm_sandbox_rejects_file_io_and_private_attributes(
     tmp_path: Path,
 ) -> None:
@@ -50088,7 +49961,8 @@ def test_algorithm_engineer_prompt_exposes_execution_profiles_without_repair_rec
     assert "trusted split-conformal regression interval sandbox" in prompt
     assert "manual_summary_patterns" not in prompt
     assert "sum(values) / len(values)" not in prompt
-    assert "leave sandbox_code_drafts empty" in prompt
+    assert "primary model-authored implementation path" in prompt
+    assert "registered templates are retrieved baselines, not repair fallbacks" in prompt
 
 
 def test_algorithm_engineer_prompt_includes_sandbox_repair_feedback() -> None:
@@ -50152,7 +50026,11 @@ def test_algorithm_engineer_prompt_includes_sandbox_repair_feedback() -> None:
     assert '"canonical_implementation_gap_ids":["custom"]' in prompt
     assert "You own the repair strategy" in prompt
     assert "sum(values) / len(values)" not in prompt
-    assert "do not repeat the same unsafe" in prompt
+    assert (
+        "regenerate the complete model-authored draft from the supplied source and "
+        "exact observations"
+    ) in prompt
+    assert "do not substitute a template as a hidden repair" in prompt
 
 
 def test_algorithm_engineer_prompt_consumes_estimator_runtime_feedback() -> None:
@@ -51047,7 +50925,8 @@ def test_simulation_engineer_prompt_includes_generated_code_repair_feedback() ->
     assert "complete hash-bound parent_source" in prompt
     assert "You own the repair strategy" in prompt
     assert "sum(values) / len(values)" not in prompt
-    assert "do not repeat the same unsafe" in prompt
+    assert "regenerate the complete source from the exact observations" in prompt
+    assert "AgentRuntime must not edit the source or select a canned fix" in prompt
 
 
 def test_simulation_engineer_prompt_includes_metric_gate_repair_feedback() -> None:
@@ -51831,16 +51710,18 @@ def test_algorithm_engineer_capability_eval_revises_template_only_output(
     assert result.next_task.owner_subsystem == "AlgorithmEngineer"
     feedback = result.next_task.inputs["environment_feedback"]
     assert feedback["failure_classification"] == "algorithm_engineer_packet_validation_failed"
-    assert "sandbox_code_drafts" in feedback["required_repair"]
-    assert "entrypoint field exactly to run_sandbox" in feedback["required_repair"]
-    assert "estimator_id" in feedback["required_repair"]
-    assert "registered_template_hint=\"none\"" in feedback["required_repair"]
-    assert "run_estimator(request)" in feedback["required_repair"]
-    assert "metric_contracts" in feedback["required_repair"]
-    assert "Keep metric_contracts empty" in feedback["required_repair"]
-    assert "frozen Architect requirement" not in feedback["required_repair"]
-    assert "entrypoint field must be exactly run_sandbox" in feedback["target_behavior"]
-    assert "draft estimator_id" in feedback["target_behavior"]
+    assert "complete replacement packet" in feedback["required_repair"]
+    assert feedback["validation_errors"] == failure["validation_errors"]
+    assert "sandbox_code_drafts" not in feedback["required_repair"]
+    recipe_text = feedback["required_repair"] + feedback["target_behavior"]
+    for model_owned_field in (
+        "entrypoint",
+        "estimator_id",
+        "registered_template_hint",
+        "run_estimator(request)",
+        "metric_contracts",
+    ):
+        assert model_owned_field not in recipe_text
 
 
 def test_algorithm_runtime_enforces_generated_code_required_from_learning_memory(
@@ -55019,6 +54900,10 @@ def test_generated_python_sandbox_rejection_feedback_includes_code_excerpt(
     assert prototype["prototype_status"] == "REJECTED_UNSAFE_GENERATED_CODE"
     assert "values = [1, 2, 3" in prototype["code_excerpt"]
     assert any("syntax error" in error for error in prototype["safety_errors"])
+    full_stdout = "STDOUT_START\n" + ("o" * 1800) + "\nSTDOUT_END"
+    full_stderr = "TRACEBACK_START\n" + ("e" * 2600) + "\nTRACEBACK_END"
+    prototype["stdout_summary"] = full_stdout
+    prototype["stderr_summary"] = full_stderr
 
     algorithm_feedback = _algorithm_sandbox_revision_feedback(
         manifest={
@@ -55062,10 +54947,18 @@ def test_generated_python_sandbox_rejection_feedback_includes_code_excerpt(
         runtime_module.stable_hash(bad_code)
     )
     assert algorithm_feedback["prototypes"][0]["parent_source_complete"] is True
+    assert algorithm_feedback["prototypes"][0]["stdout_summary"] == full_stdout
+    assert algorithm_feedback["prototypes"][0]["stderr_summary"] == full_stderr
     assert "The model owns the repair" in algorithm_feedback["required_repair"]
     assert "values = [1, 2, 3" in simulation_feedback[
         "generated_simulation_prototypes"
     ][0]["code_excerpt"]
+    assert simulation_feedback["generated_simulation_prototypes"][0][
+        "stdout_summary"
+    ] == full_stdout
+    assert simulation_feedback["generated_simulation_prototypes"][0][
+        "stderr_summary"
+    ] == full_stderr
 
 
 def test_generated_simulation_feedback_preserves_exact_execution_repair_context(
@@ -55134,6 +55027,54 @@ def test_generated_simulation_feedback_preserves_exact_execution_repair_context(
     ]
     assert prototype["resource_limits"]["cpu_seconds"] == 61
     assert prototype["returncode"] == 0
+
+
+def test_rejected_long_generated_source_is_complete_in_model_feedback(
+    tmp_path: Path,
+) -> None:
+    parent_source = (
+        "# retained model-authored source\n"
+        + ("# long candidate context\n" * 140)
+        + "def run_sandbox(seed, replicates):\n"
+        + "    handle = open('forbidden.txt', 'w')\n"
+        + "    return {'sandbox_failed': False}\n"
+        + "# EXACT_PARENT_SOURCE_TAIL\n"
+    )
+    prototype, _ = _run_generated_python_sandbox(
+        sandbox_dir=tmp_path / "sandbox",
+        estimator_id="long_rejected_candidate",
+        spec={"id": "long_rejected_candidate"},
+        code_draft={"code": parent_source},
+        n_runs=8,
+        seed=20260806,
+        timeout_s=5,
+    )
+
+    feedback = _generated_simulation_revision_feedback(
+        manifest={
+            "manifest_id": "simulation_manifest:long_rejected_candidate",
+            "generated_simulation_sandbox_prototypes": [
+                {
+                    **prototype,
+                    "simulation_id": "long_rejected_candidate",
+                    "executor": "generated_simulation_sandbox",
+                }
+            ],
+            "n_generated_simulation_sandbox_prototypes": 1,
+            "n_generated_simulation_sandbox_executed": 0,
+            "n_generated_simulation_sandbox_passed": 0,
+            "n_generated_simulation_sandbox_metric_gate_failed": 0,
+            "n_unsafe_generated_simulation_code_rejected": 1,
+        },
+        boundary="simulation execution is not theorem proof",
+    )
+
+    row = feedback["generated_simulation_prototypes"][0]
+    assert len(parent_source) > len(prototype["code_excerpt"])
+    assert row["parent_source"] == parent_source
+    assert row["parent_source_hash"] == runtime_module.stable_hash(parent_source)
+    assert row["parent_source_complete"] is True
+    assert row["parent_source"].endswith("# EXACT_PARENT_SOURCE_TAIL\n")
 
 
 def test_generated_simulation_sandbox_rejects_degenerate_coverage_metric(
@@ -59015,7 +58956,7 @@ def _write_algorithm_repair_static_response(tmp_path: Path) -> Path:
         "packet_id": "algorithm_engineer_proposal:repair-eval-static",
         "implementation_targets": [
             {
-                "estimator_id": "generated_split_conformal_repair_probe",
+                "estimator_id": "generated_algorithm_repair_probe",
                 "adapter_strategy": "repair generated estimator execution",
                 "registered_template_hint": "none",
                 "data_contract": ["generated component eval fixture"],
@@ -59037,7 +58978,7 @@ def _write_algorithm_repair_static_response(tmp_path: Path) -> Path:
         },
         "sandbox_code_drafts": [
             {
-                "estimator_id": "generated_split_conformal_repair_probe",
+                "estimator_id": "generated_algorithm_repair_probe",
                 "language": "python",
                 "entrypoint": "run_sandbox",
                 "code": (
@@ -85013,7 +84954,7 @@ def _static_generated_code_semantic_reviewer() -> (
 
 
 def _runtime_sample_response() -> dict[str, object]:
-    return {
+    response: dict[str, object] = {
         "schema_version": 1,
         "artifact_kind": "TheoryDerivationPacket",
         "packet_id": "theory_derivation:test_fixture_structured",
@@ -85196,20 +85137,7 @@ def _runtime_sample_response() -> dict[str, object]:
                             "meaning": "unscaled deterministic probe mean",
                             "normalization": "finite average over runtime replicates",
                             "sample_size_order": "not sample-size indexed",
-                            "sample_size_rate": {
-                                "scale": "not_indexed",
-                                "index_symbol": "n",
-                                "polynomial_exponent": 0.0,
-                                "log_exponent": 0.0,
-                                "contributions": [
-                                    {
-                                        "quantity": "runtime-only probe mean",
-                                        "polynomial_exponent": 0.0,
-                                        "log_exponent": 0.0,
-                                        "justification_ref": "generated_probe_interface",
-                                    }
-                                ],
-                            },
+                            "sample_size_rate": {"scale": "not_indexed"},
                             "derivation_ref": "generated_probe_interface",
                         },
                         {
@@ -85217,20 +85145,7 @@ def _runtime_sample_response() -> dict[str, object]:
                             "meaning": "unscaled root mean squared probe value",
                             "normalization": "finite root mean square over replicates",
                             "sample_size_order": "not sample-size indexed",
-                            "sample_size_rate": {
-                                "scale": "not_indexed",
-                                "index_symbol": "n",
-                                "polynomial_exponent": 0.0,
-                                "log_exponent": 0.0,
-                                "contributions": [
-                                    {
-                                        "quantity": "runtime-only root mean square",
-                                        "polynomial_exponent": 0.0,
-                                        "log_exponent": 0.0,
-                                        "justification_ref": "generated_probe_interface",
-                                    }
-                                ],
-                            },
+                            "sample_size_rate": {"scale": "not_indexed"},
                             "derivation_ref": "generated_probe_interface",
                         },
                         {
@@ -85238,20 +85153,7 @@ def _runtime_sample_response() -> dict[str, object]:
                             "meaning": "consumed runtime replicate count",
                             "normalization": "unscaled integer runtime diagnostic",
                             "sample_size_order": "not sample-size indexed",
-                            "sample_size_rate": {
-                                "scale": "not_indexed",
-                                "index_symbol": "n",
-                                "polynomial_exponent": 0.0,
-                                "log_exponent": 0.0,
-                                "contributions": [
-                                    {
-                                        "quantity": "runtime replicate count",
-                                        "polynomial_exponent": 0.0,
-                                        "log_exponent": 0.0,
-                                        "justification_ref": "generated_probe_interface",
-                                    }
-                                ],
-                            },
+                            "sample_size_rate": {"scale": "not_indexed"},
                             "derivation_ref": "generated_probe_interface",
                         },
                     ],
@@ -85318,6 +85220,11 @@ def _runtime_sample_response() -> dict[str, object]:
             }
         ],
     }
+    response["interfaces"] = {
+        str(row["id"]): copy.deepcopy(row["estimator_interface_contract"])
+        for row in response["estimator_specs"]  # type: ignore[index]
+    }
+    return response
 
 
 def _algorithm_sample_response() -> dict[str, object]:
@@ -103812,6 +103719,7 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     assert args.openprover_hlm is True
     assert args.openprover_root == "/tmp/source-controlled-openprover"
     assert args.max_iterations == 24
+    assert args.architect_max_tokens >= 8000
     assert args.architect_metric_protocol_max_upstream_theory_revisions == 2
     assert args.min_task_families == 2
     assert args.formal_verification_policy == "required"

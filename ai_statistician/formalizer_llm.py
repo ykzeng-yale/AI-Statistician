@@ -127,7 +127,7 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
     """Context-efficient, feedback-driven policy for Lean proof construction."""
 
     return {
-        "schema_version": 14,
+        "schema_version": 15,
         "specification": (
             "Bind the exact Lean target to its faithful mathematical statement and "
             "assumptions, qualified local signatures, current lemma frontier, and "
@@ -153,9 +153,11 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
             "lemma_dependency_plan for a direct proof."
         ),
         "feedback_loop": (
-            "Fix Lean errors one-by-one from the smallest diagnostic. Every retry "
-            "binds the failed candidate and changed proof state; do not repeat an "
-            "unchanged attempt or rewrite a sound proof structure without evidence."
+            "Each iteration gives the model the complete current Lean source, exact "
+            "active goal and diagnostics, and available retrieved signatures. The model "
+            "chooses whether to make a local correction, change the proof decomposition, "
+            "or request more retrieval, then supplies the complete next source. The "
+            "runtime never edits Lean or maps diagnostics to prescribed fixes."
         ),
         "library_design": (
             "Build at the lowest reusable mathematical layer. Follow source-local "
@@ -301,16 +303,6 @@ class LLMFormalizerProofEngineerAgent:
             validate_packet=validate_packet,
             validation_label="LLM Formalizer/ProofEngineer packet",
             max_repair_attempts=self.config.max_repair_attempts,
-            repair_context_builder=lambda **kwargs: _formalizer_repair_context(
-                errors=kwargs.get("errors", []),
-                question=question,
-                theory_packet=theory_packet,
-                theorem_goals=theorem_goals,
-                invalid_packet=kwargs.get("invalid_packet"),
-                environment_feedback=environment_feedback or {},
-                proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary
-                or {},
-            ),
         )
 
     def repair_lean_candidate_with_client_tools(
@@ -691,218 +683,6 @@ def _build_lean_candidate_revision_tool_prompt(
         },
     }
     return json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
-
-
-def _formalizer_repair_context(
-    *,
-    errors: Sequence[Any],
-    question: OpenResearchQuestion | None = None,
-    theory_packet: Mapping[str, Any] | None = None,
-    theorem_goals: Sequence[Mapping[str, Any]] | None = None,
-    invalid_packet: Mapping[str, Any] | None = None,
-    environment_feedback: Mapping[str, Any] | None = None,
-    proof_bank_runtime_memory_summary: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    error_rows = list(
-        dict.fromkeys(str(error) for error in errors if str(error).strip())
-    )
-    typed_context = _formalizer_typed_packet_repair_context(
-        errors=error_rows,
-        theory_packet=theory_packet or {},
-        theorem_goals=theorem_goals or (),
-        invalid_packet=invalid_packet,
-    )
-    return {
-        **typed_context,
-        "context_kind": "formalizer_environment_feedback_repair",
-        "context_reason": "unchanged_validator_rejected_model_packet",
-        "formalizer_validation_feedback": (
-            formalizer_validation_feedback_envelope(
-                error_rows,
-                invalid_packet=invalid_packet,
-            )
-        ),
-        "runtime_environment_observations": (
-            _compact_formalizer_environment_feedback(environment_feedback or {})
-        ),
-        "proof_memory_observations": (
-            _compact_proof_bank_runtime_memory_summary(
-                proof_bank_runtime_memory_summary or {}
-            )
-        ),
-        "repair_protocol": {
-            "decision_owner": "Formalizer/ProofEngineer LLM",
-            "runtime_selected_semantics": False,
-            "preserve_question_id": question.id if question is not None else "",
-            "preserve_unmentioned_payload_fields": True,
-            "same_response_schema": True,
-            "same_local_validators": True,
-            "allow_typed_blocker_when_candidate_is_not_justified": True,
-            "compiler_or_validator_feedback_is_not_proof": True,
-            "kernel_verification_required_for_proof": True,
-        },
-    }
-
-
-def _formalizer_typed_packet_repair_context(
-    *,
-    errors: Sequence[str],
-    theory_packet: Mapping[str, Any],
-    theorem_goals: Sequence[Mapping[str, Any]],
-    invalid_packet: Mapping[str, Any] | None,
-) -> dict[str, Any]:
-    rejected_packet = dict(invalid_packet) if isinstance(invalid_packet, Mapping) else {}
-    rejected_targets = [
-        deepcopy(dict(row))
-        for row in rejected_packet.get("formal_targets", []) or []
-        if isinstance(row, Mapping)
-    ][:3]
-    source_target_binding_options: list[dict[str, Any]] = []
-    seen_binding_options: set[str] = set()
-
-    def add_source_identity(
-        raw_goal: Mapping[str, Any],
-        *,
-        source_kind: str,
-        source_path: str,
-    ) -> None:
-        source_theorem_goal_id = next(
-            (
-                str(raw_goal.get(key, "") or "").strip()
-                for key in ("goal_id", "theorem_id", "target_id", "id")
-                if str(raw_goal.get(key, "") or "").strip()
-            ),
-            "",
-        )
-        declaration_keys = (
-            ("target_lean_declaration", "lean_declaration", "name")
-            if source_kind == "theorem_goal"
-            else ("target_lean_declaration", "lean_declaration")
-        )
-        target_lean_declaration = next(
-            (
-                str(raw_goal.get(key, "") or "").strip()
-                for key in declaration_keys
-                if str(raw_goal.get(key, "") or "").strip()
-            ),
-            "",
-        )
-        if source_theorem_goal_id or target_lean_declaration:
-            binding_option = {
-                "source_kind": source_kind,
-                "source_path": source_path,
-                "source_theorem_goal_id": source_theorem_goal_id,
-                "target_lean_declaration": target_lean_declaration,
-                "semantic_statement": next(
-                    (
-                        deepcopy(raw_goal[key])
-                        for key in (
-                            "statement",
-                            "informal_statement",
-                            "claim",
-                            "conclusion",
-                        )
-                        if raw_goal.get(key) not in (None, "", [], {})
-                    ),
-                    "",
-                ),
-            }
-            binding_fingerprint = stable_hash(
-                {
-                    key: value
-                    for key, value in binding_option.items()
-                    if key != "source_path"
-                }
-            )
-            if binding_fingerprint not in seen_binding_options:
-                seen_binding_options.add(binding_fingerprint)
-                source_target_binding_options.append(binding_option)
-
-    for index, raw_goal in enumerate(
-        theorem_goals[:FORMALIZER_MAX_THEOREM_GOALS]
-    ):
-        if not isinstance(raw_goal, Mapping):
-            continue
-        add_source_identity(
-            raw_goal,
-            source_kind="theorem_goal",
-            source_path=f"theorem_goals[{index}]",
-        )
-
-    derivation_packet = theory_packet.get("theory_derivation_packet", {})
-    if not isinstance(derivation_packet, Mapping):
-        derivation_packet = {}
-    theorem_card_sources = (
-        ("theory_packet.theorem_cards", theory_packet.get("theorem_cards", [])),
-        (
-            "theory_packet.theory_derivation_packet.theorem_cards",
-            derivation_packet.get("theorem_cards", []),
-        ),
-    )
-    for source_path, raw_cards in theorem_card_sources:
-        if not isinstance(raw_cards, (list, tuple)):
-            continue
-        for index, raw_card in enumerate(raw_cards[:FORMALIZER_MAX_THEOREM_GOALS]):
-            if not isinstance(raw_card, Mapping):
-                continue
-            add_source_identity(
-                raw_card,
-                source_kind="theorem_card",
-                source_path=f"{source_path}[{index}]",
-            )
-
-    formalization_request_context: list[dict[str, Any]] = []
-    for raw_request in theory_packet.get("formalization_requests", []) or []:
-        if not isinstance(raw_request, Mapping):
-            continue
-        request_row = {
-            key: deepcopy(raw_request[key])
-            for key in (
-                "id",
-                "target",
-                "target_theorem_card",
-                "claim",
-                "statement",
-                "lean_stub",
-                "lean4_sketch",
-                "open_obligations",
-            )
-            if raw_request.get(key) not in (None, "", [], {})
-        }
-        if request_row:
-            formalization_request_context.append(request_row)
-        if len(formalization_request_context) >= FORMALIZER_MAX_THEOREM_GOALS:
-            break
-    return {
-        "context_kind": "formalizer_validation_repair_context",
-        "context_reason": "typed_packet_contract_repair",
-        "detected_validation_errors": [str(error) for error in errors[:8]],
-        "rejected_packet_fingerprint": (
-            stable_hash(rejected_packet) if rejected_packet else ""
-        ),
-        "rejected_packet_excerpt": {
-            "formal_targets": rejected_targets,
-            "theory_trace_alignment": deepcopy(
-                rejected_packet.get("theory_trace_alignment", {})
-            ),
-            "gap_taxonomy": [
-                deepcopy(dict(row))
-                for row in rejected_packet.get("gap_taxonomy", []) or []
-                if isinstance(row, Mapping)
-            ][:3],
-            "next_actions": [
-                deepcopy(dict(row))
-                for row in rejected_packet.get("next_actions", []) or []
-                if isinstance(row, Mapping)
-            ][:3],
-        },
-        "source_target_binding_options": source_target_binding_options,
-        "source_target_identity_available": bool(source_target_binding_options),
-        "formalization_request_context": formalization_request_context,
-        "response_schema_authority": "current Formalizer provider JSON schema",
-        "validation_authority": "unchanged local Formalizer validators",
-        "runtime_selected_semantics": False,
-    }
 
 
 def _task_bound_formal_target_contract(

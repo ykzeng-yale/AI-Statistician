@@ -22,10 +22,7 @@ from ai_statistician.cli import (
     build_parser,
     main,
 )
-from ai_statistician.llm_json_repair import (
-    PacketValidationError,
-    typed_semantic_patch_payload_fingerprint,
-)
+from ai_statistician.llm_json_repair import PacketValidationError
 from ai_statistician.estimator_interface_contract import (
     ESTIMATOR_REQUEST_BINDINGS,
     estimator_interface_contract_id,
@@ -34,7 +31,6 @@ from ai_statistician.estimator_interface_contract import (
     theory_estimator_interface_contracts,
 )
 from ai_statistician.model_backend import (
-    ClientToolCall,
     ClientToolTurnRequest,
     ClientToolTurnResponse,
     DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
@@ -137,33 +133,6 @@ class ScriptedTheoryToolBackend:
                 "provider_stop_reason": "end_turn",
             },
         )
-
-
-def _tool_turn_response(
-    *calls: ClientToolCall,
-) -> ClientToolTurnResponse:
-    return ClientToolTurnResponse(
-        content_blocks=tuple(
-            {
-                "type": "tool_use",
-                "id": call.call_id,
-                "name": call.name,
-                "input": dict(call.input),
-            }
-            for call in calls
-        ),
-        tool_calls=tuple(calls),
-        text="",
-        provider="anthropic",
-        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
-        metadata={
-            "client_tool_transport": True,
-            "tools_executed_by_backend": False,
-            "provider_stop_reason": "tool_use",
-            "request_model_tier": "haiku",
-            "provider_reported_model_tier": "haiku",
-        },
-    )
 
 
 class ProviderWithoutIdentity:
@@ -494,24 +463,6 @@ def _metric_theory_revision_context(
     }
 
 
-def _bounded_outcome_feedback_decisions() -> dict[str, object]:
-    return {
-        "metric_protocol_finding:bounded-outcome": {
-            "selected_resolution": (
-                "Require bounded outcomes in the admitted DGP and propagate "
-                "that premise through its guarantee-bearing dependents."
-            ),
-            "rationale": (
-                "The reviewed finite-sample guarantee uses boundedness and "
-                "cannot leave the premise implicit."
-            ),
-            "rejected_alternatives": [
-                "Leave bounded outcomes implicit in downstream code."
-            ],
-        }
-    }
-
-
 def test_research_architect_records_llm_theory_packet_and_evidence_ledger() -> None:
     out_dir = Path("runs/test_research_architect")
     shutil.rmtree(out_dir, ignore_errors=True)
@@ -681,7 +632,7 @@ def test_theory_validation_accepts_existing_lemma_as_interface_justification() -
     assert not any("unresolved justification_ref" in row for row in errors)
 
 
-def test_theory_validation_rejects_inconsistent_signed_rate_sum() -> None:
+def test_theory_validation_does_not_invent_rate_composition_rule() -> None:
     packet = _sample_response()
     estimator = dict(packet["estimator_specs"][0])
     contract = dict(estimator["estimator_interface_contract"])
@@ -700,19 +651,10 @@ def test_theory_validation_rejects_inconsistent_signed_rate_sum() -> None:
 
     errors = validate_theory_packet(packet)
 
-    mismatch = next(
-        error
-        for error in errors
-        if "exponents must equal the sum of signed contributions" in error
-    )
-    assert "claimed polynomial_exponent=-1, log_exponent=0" in mismatch
-    assert (
-        "computed from contributions polynomial_exponent=0, log_exponent=0"
-        in mismatch
-    )
+    assert not any("sum of signed contributions" in error for error in errors)
 
 
-def test_interface_normalization_derives_only_redundant_rate_aggregates() -> None:
+def test_interface_normalization_preserves_model_authored_rate() -> None:
     contract = json.loads(
         json.dumps(
             _sample_response()["estimator_specs"][0][
@@ -741,8 +683,8 @@ def test_interface_normalization_derives_only_redundant_rate_aggregates() -> Non
     normalized = normalize_estimator_interface_contract(contract)
     normalized_rate = normalized["response_fields"][0]["sample_size_rate"]
 
-    assert normalized_rate["polynomial_exponent"] == 0.0
-    assert normalized_rate["log_exponent"] == 0.5
+    assert normalized_rate["polynomial_exponent"] == 99.0
+    assert normalized_rate["log_exponent"] == -99.0
     assert normalized_rate["contributions"] == rate["contributions"]
 
 
@@ -778,12 +720,12 @@ def test_not_indexed_interface_rate_has_no_synthetic_exponents() -> None:
         )
     )
     normalized = normalize_estimator_interface_contract(contract)
-    assert normalized["response_fields"][0]["sample_size_rate"] == {
-        "scale": "not_indexed"
-    }
+    assert normalized["response_fields"][0]["sample_size_rate"] == (
+        contract["response_fields"][0]["sample_size_rate"]
+    )
 
 
-def test_theory_interface_boundary_canonicalizes_legacy_not_indexed_rate() -> None:
+def test_theory_interface_boundary_does_not_silently_repair_legacy_rate() -> None:
     packet = _sample_response()
     contract = packet["estimator_specs"][0]["estimator_interface_contract"]
     contract["response_fields"][0]["sample_size_rate"] = {
@@ -797,9 +739,9 @@ def test_theory_interface_boundary_canonicalizes_legacy_not_indexed_rate() -> No
     rows = theory_estimator_interface_contracts(packet)
     canonical = rows["crossfit_aipw"]["contract"]
 
-    assert canonical["response_fields"][0]["sample_size_rate"] == {
-        "scale": "not_indexed"
-    }
+    assert canonical["response_fields"][0]["sample_size_rate"] == (
+        contract["response_fields"][0]["sample_size_rate"]
+    )
     assert rows["crossfit_aipw"]["contract_id"] == (
         estimator_interface_contract_id(canonical)
     )
@@ -1010,8 +952,12 @@ def test_theory_developer_authors_interfaces_after_freezing_core_theory() -> Non
     indexed_rate_schema = response_schema["items"]["properties"][
         "sample_size_rate"
     ]["anyOf"][1]
-    assert "polynomial_exponent" not in indexed_rate_schema["properties"]
-    assert "log_exponent" not in indexed_rate_schema["properties"]
+    assert "polynomial_exponent" in indexed_rate_schema["properties"]
+    assert "log_exponent" in indexed_rate_schema["properties"]
+    assert {
+        "polynomial_exponent",
+        "log_exponent",
+    }.issubset(indexed_rate_schema["required"])
     estimator = packet["estimator_specs"][0]
     assert estimator["estimator_interface_contract"] == expected_contract
     assert estimator["estimator_interface_contract_id"] == (
@@ -1066,51 +1012,31 @@ def test_interface_authoring_cannot_replace_frozen_outputs_with_status_rows() ->
     )
 
 
-def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -> None:
+
+def test_theory_revision_regenerates_complete_packet_with_raw_feedback() -> None:
     parent = _serious_sample_response()
     parent["estimator_specs"][0]["inputs"] = ["observations"]
     parent["estimator_specs"][0]["outputs"] = ["estimate"]
     question = OpenResearchQuestion(
-        id="targeted_revision",
-        title="Targeted theory revision",
-        description="Repair one upstream theory defect without regenerating valid work.",
+        id="full_revision",
+        title="Full theory revision",
+        description="Regenerate one coherent theory packet from reviewer feedback.",
     )
-    context = _metric_theory_revision_context(
-        question=question,
-        parent=parent,
-    )
+    context = _metric_theory_revision_context(question=question, parent=parent)
     revision_inputs = build_theory_developer_revision_inputs(
         context,
         question=question,
     )
-    base_fingerprint = revision_inputs["base_core_payload_fingerprint"]
-    invalid_patch = {
-        "feedback_decisions": _bounded_outcome_feedback_decisions(),
-        "updates": [
-            {
-                "section": "theory_derivation_packet",
-                "relative_path": ["theorem_cards", 0, "informal_statement"],
-                "replacement_json": json.dumps(
-                    "A top-level sibling cannot be addressed inside this section."
-                ),
-            }
-        ],
-    }
+    revised_core = json.loads(
+        json.dumps(revision_inputs["base_core_payload"])
+    )
     revised_assumptions = [
-        *parent["problem_card"]["assumptions"],
+        *revised_core["problem_card"]["assumptions"],
         "bounded outcomes",
     ]
-    valid_patch = {
-        "base_payload_fingerprint": "model-value-is-not-authoritative",
-        "feedback_decisions": _bounded_outcome_feedback_decisions(),
-        "updates": [
-            {
-                "section": "problem_card",
-                "relative_path": ["assumptions"],
-                "replacement_json": json.dumps(revised_assumptions),
-            }
-        ],
-    }
+    revised_core["problem_card"]["assumptions"] = revised_assumptions
+    invalid_core = json.loads(json.dumps(revised_core))
+    invalid_core["problem_card"].pop("estimand")
     estimator = parent["estimator_specs"][0]
     interface_response = {
         "interfaces": {
@@ -1118,7 +1044,7 @@ def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -
         }
     }
     provider = SequentialGeneratorBackend(
-        [invalid_patch, valid_patch, interface_response]
+        [invalid_core, revised_core, interface_response]
     )
     developer = LLMTheoryDeveloperAgent(
         provider=provider,
@@ -1136,169 +1062,84 @@ def test_theory_revision_uses_lineage_bound_delta_and_retries_against_parent() -
 
     assert packet["ok"] is True
     assert packet["problem_card"]["assumptions"] == revised_assumptions
-    assert packet["theorem_cards"] == parent["theorem_cards"]
-    assert packet["theory_derivation_packet"]["self_critique"] == parent[
-        "theory_derivation_packet"
-    ]["self_critique"]
     assert len(provider.requests) == 3
-    assert [request.model for request in provider.requests] == [
-        DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
-        DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
-        DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
-    ]
     first_request, retry_request, interface_request = provider.requests
-    assert first_request.metadata["theory_developer_phase"] == (
-        "targeted_core_revision"
+    assert first_request.metadata["theory_developer_phase"] == "full_core_revision"
+    assert first_request.metadata["revision_generation_mode"] == "complete_packet"
+    assert set(first_request.schema["properties"]) == set(
+        revision_inputs["base_core_payload"]
     )
-    assert first_request.max_tokens <= 8000
-    assert set(first_request.schema["properties"]) == {
-        "feedback_decisions",
-        "updates",
-    }
-    update_variants = first_request.schema["properties"]["updates"]["items"][
-        "anyOf"
-    ]
-    assert all(
-        set(variant["required"])
-            in (
-                {"section", "relative_path", "replacement"},
-                {"section", "relative_path", "replacement_json"},
-                {"section", "relative_path", "remove"},
-            )
-        for variant in update_variants
-    )
-    assert all(
-        variant["properties"]["section"]["enum"]
-        == sorted(revision_inputs["base_core_payload"])
-        for variant in update_variants
-    )
-    decision_schema = first_request.schema["properties"][
-        "feedback_decisions"
-    ]["properties"]["metric_protocol_finding:bounded-outcome"]
-    assert "affected_top_level_sections" not in decision_schema["properties"]
-    assert "never regenerate the full theory packet" in first_request.user_prompt
-    assert "preserved byte-for-structure" in first_request.user_prompt
-    assert '"existing_paths_only":true' in first_request.user_prompt
-    assert '"valid_sections"' in first_request.user_prompt
-    assert "runtime binds the immutable parent fingerprint" in (
-        first_request.user_prompt
-    )
-    revision_prompt = json.loads(first_request.user_prompt.split("\n\n", 1)[1])
-    decision_contract = revision_prompt["feedback_decision_contract"]
-    assert decision_contract["n_routed_findings"] == 1
-    assert decision_contract["active_finding_ids"] == [
-        "metric_protocol_finding:bounded-outcome"
-    ]
-    assert decision_contract["required_decision_keys"] == [
-        "metric_protocol_finding:bounded-outcome"
-    ]
-    assert decision_contract[
-        "one_current_executable_resolution_per_finding"
-    ] is True
-    assert decision_contract[
-        "reviewer_alternatives_are_candidates_not_a_runtime_branch"
-    ] is True
-    assert first_request.metadata["n_feedback_decisions_required"] == 1
-    assert "original immutable base" in retry_request.user_prompt
+    assert "updates" not in first_request.schema["properties"]
+    prompt = json.loads(first_request.user_prompt.split("\n\n", 1)[1])
+    assert prompt["revision_mode"] == "complete_theory_packet_regeneration"
+    assert prompt["parent_core_packet"] == revision_inputs["base_core_payload"]
+    assert prompt["reviewer_feedback"] == context["environment_feedback"]
+    assert "never a patch" in " ".join(prompt["instructions"])
     retry_prompt = json.loads(retry_request.user_prompt.split("\n\n", 1)[1])
     assert any(
-        "full_path=['theory_derivation_packet', 'theorem_cards', 0, "
-        "'informal_statement']" in error
-        and "available_keys=['assumption_ledger'" in error
-        for error in retry_prompt["local_validation_errors"]
+        "estimand" in error for error in retry_prompt["local_validation_errors"]
     )
-    assert retry_request.metadata["json_repair_attempt"] == 1
+    assert retry_prompt["original_request"] == first_request.user_prompt
+    assert json.loads(retry_prompt["previous_candidate"]) == invalid_core
+    assert "subsystem_repair_context" not in retry_prompt
+    assert retry_request.metadata["json_repair_mode"] == "full_packet_regeneration"
     assert interface_request.metadata["theory_developer_phase"] == (
         "estimator_interface_authoring"
     )
-    interface_prompt = json.loads(interface_request.user_prompt.split("\n\n", 1)[1])
-    frozen_estimator = interface_prompt["frozen_core_theory"][
-        "estimator_specs"
-    ][0]
-    assert frozen_estimator["inputs"] == estimator["inputs"]
-    assert frozen_estimator["outputs"] == estimator["outputs"]
-    assert interface_prompt["frozen_core_theory"][
-        "active_revision_obligations"
-    ][0]["finding_id"] == "metric_protocol_finding:bounded-outcome"
-    assert interface_prompt["frozen_core_theory"][
-        "active_revision_obligations"
-    ][0]["selected_resolution"].startswith("Require bounded outcomes")
     transport = packet["theory_revision_transport"]
+    assert transport["artifact_kind"] == (
+        "TheoryDeveloperFullPacketRevisionTransport"
+    )
+    assert transport["regeneration_mode"] == "complete_packet"
     assert transport["source_theory_packet_id"] == (
         "theory_derivation:targeted-revision-parent"
     )
     assert transport["feedback_id"] == (
         "metric-protocol-theory-feedback:targeted"
     )
-    assert transport["base_core_payload_fingerprint"] == base_fingerprint
-    assert transport["applied_paths"] == [["problem_card", "assumptions"]]
-    assert transport["active_unresolved_finding_ids"] == [
+    assert transport["parent_core_payload_fingerprint"] == (
+        revision_inputs["base_core_payload_fingerprint"]
+    )
+    assert transport["revision_obligations"][0]["finding_id"] == (
         "metric_protocol_finding:bounded-outcome"
-    ]
-    assert transport["revision_obligations"][0]["required_change"] == (
-        "Revise the theory semantics and direct dependents."
     )
-    assert transport["feedback_decisions"] == (
-        _bounded_outcome_feedback_decisions()
-    )
-    assert transport["applied_top_level_sections"] == ["problem_card"]
+    assert "applied_paths" not in transport
+    assert "feedback_decisions" not in transport
     assert transport["kernel_verified"] is False
 
 
-def test_theory_revision_native_client_tools_preserve_model_owned_semantics() -> None:
+def test_theory_revision_does_not_invoke_client_edit_tools() -> None:
     parent = _serious_sample_response()
-    parent["estimator_specs"][0]["inputs"] = ["observations"]
-    parent["estimator_specs"][0]["outputs"] = ["estimate"]
     question = OpenResearchQuestion(
-        id="native_tool_revision",
-        title="Native client-tool theory revision",
-        description="Revise a parent through runtime-executed client tools.",
+        id="no_revision_tools",
+        title="No revision tools",
+        description="Use model-owned full packet regeneration.",
     )
     context = _metric_theory_revision_context(question=question, parent=parent)
-    revised_assumptions = [
-        *parent["problem_card"]["assumptions"],
-        "bounded outcomes",
-    ]
-    decision = _bounded_outcome_feedback_decisions()[
-        "metric_protocol_finding:bounded-outcome"
-    ]
+    revision_inputs = build_theory_developer_revision_inputs(
+        context,
+        question=question,
+    )
+    revised_core = json.loads(json.dumps(revision_inputs["base_core_payload"]))
+    revised_core["lemma_cards"].append(
+        {
+            "id": "bounded_outcome_moment_control",
+            "statement": "Bounded outcomes imply the required finite moment.",
+            "depends_on": ["identify_ate"],
+            "used_by": ["aipw_asymptotic_normality"],
+            "formalization_difficulty": "medium",
+        }
+    )
+    estimator = parent["estimator_specs"][0]
     provider = ScriptedTheoryToolBackend(
-        tool_responses=[
-            _tool_turn_response(
-                ClientToolCall(
-                    "toolu-decision",
-                    "record_feedback_decision",
-                    {
-                        "finding_index": 0,
-                        **decision,
-                    },
-                ),
-                ClientToolCall(
-                    "toolu-replace",
-                    "replace_artifact_value",
-                    {
-                        "section": "problem_card",
-                        "relative_path": ["assumptions"],
-                        "replacement": revised_assumptions,
-                    },
-                ),
-            ),
-            _tool_turn_response(
-                ClientToolCall(
-                    "toolu-submit",
-                    "submit_revision",
-                    {},
-                )
-            ),
-        ],
+        tool_responses=[],
         generator_responses=[
+            revised_core,
             {
                 "interfaces": {
-                    parent["estimator_specs"][0]["id"]: parent[
-                        "estimator_specs"
-                    ][0]["estimator_interface_contract"]
+                    estimator["id"]: estimator["estimator_interface_contract"]
                 }
-            }
+            },
         ],
     )
     developer = LLMTheoryDeveloperAgent(
@@ -1309,422 +1150,24 @@ def test_theory_revision_native_client_tools_preserve_model_owned_semantics() ->
             model_tier="haiku",
             serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
             serious_model_tier="haiku",
+            max_repair_attempts=0,
         ),
     )
 
     packet = developer.derive(question, architect_context=context)
 
     assert packet["ok"] is True
-    assert packet["problem_card"]["assumptions"] == revised_assumptions
-    assert packet["theorem_cards"] == parent["theorem_cards"]
-    assert len(provider.tool_requests) == 2
-    assert len(provider.generator_requests) == 1
+    assert packet["lemma_cards"][-1]["id"] == (
+        "bounded_outcome_moment_control"
+    )
+    assert provider.tool_requests == []
+    assert len(provider.generator_requests) == 2
     assert provider.generator_requests[0].metadata[
         "theory_developer_phase"
-    ] == "estimator_interface_authoring"
-    first_request = provider.tool_requests[0]
-    assert first_request.model == DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL
-    assert first_request.tool_choice == "any"
-    tools = {tool.name: tool for tool in first_request.tools}
-    assert set(tools) == {
-        "record_feedback_decision",
-        "replace_artifact_value",
-        "append_artifact_list_item",
-        "submit_revision",
-    }
-    assert tools["replace_artifact_value"].input_schema["properties"][
-        "replacement"
-    ] == {}
-    assert tools["record_feedback_decision"].input_schema["properties"][
-        "finding_index"
-    ]["enum"] == [0]
-    assert "decision_key" not in tools[
-        "record_feedback_decision"
-    ].input_schema["properties"]
-    assert tools["append_artifact_list_item"].input_schema["properties"][
-        "item"
-    ] == {}
-    assert (
-        first_request.messages[0]["content"].count("replacement_json")
-        == 0
+    ] == "full_core_revision"
+    assert packet["theory_revision_transport"]["regeneration_mode"] == (
+        "complete_packet"
     )
-    tool_prompt = json.loads(
-        first_request.messages[0]["content"].split("\n\n", 1)[1]
-    )
-    assert tool_prompt["feedback_decision_contract"][
-        "required_finding_indices"
-    ] == [0]
-    assert "routed_findings_by_decision_key" not in tool_prompt
-    assert tool_prompt["routed_findings"][0]["finding_index"] == 0
-    assert "finding_id" not in tool_prompt["routed_findings"][0]["finding"]
-    second_request = provider.tool_requests[1]
-    assert second_request.messages[-1]["role"] == "user"
-    assert all(
-        block["type"] == "tool_result"
-        for block in second_request.messages[-1]["content"]
-    )
-    transport = packet["theory_revision_transport"]
-    assert transport["base_core_payload_fingerprint"] == (
-        build_theory_developer_revision_inputs(
-            context,
-            question=question,
-        )["base_core_payload_fingerprint"]
-    )
-    assert transport["applied_paths"] == [["problem_card", "assumptions"]]
-    loop = transport["client_tool_loop"]
-    assert loop["transport"] == "native_client_tools"
-    assert loop["turns"] == 2
-    assert loop["tool_calls"] == 3
-    assert loop["runtime_executed_tool_calls"] == 3
-    assert loop["explicit_submit_locally_valid"] is True
-    assert loop["local_candidate_validation_passed"] is True
-    assert loop["model_explicit_submit"] is True
-    assert loop["budget_exhausted"] is False
-    assert loop["handoff_mode"] == "model_submit"
-    assert loop["tools_executed_by_runtime"] is True
-    assert loop["tools_executed_by_backend"] is False
-    assert loop["identity_binding"] == (
-        "finding_index_to_runtime_decision_key"
-    )
-    assert loop["runtime_selected_semantics"] is False
-    assert loop["independent_acceptance_required"] is True
-    assert loop["kernel_verified"] is False
-    assert packet["theory_generation_phases"][0][
-        "client_tool_transport"
-    ] == "native_client_tools"
-    assert packet["theory_generation_phases"][0]["client_tool_turns"] == 2
-    assert packet["theory_generation_phases"][0]["client_tool_calls"] == 3
-
-
-def test_theory_revision_native_client_tools_append_model_authored_lemma() -> None:
-    parent = _serious_sample_response()
-    parent["estimator_specs"][0]["inputs"] = ["observations"]
-    parent["estimator_specs"][0]["outputs"] = ["estimate"]
-    question = OpenResearchQuestion(
-        id="native_tool_append",
-        title="Native client-tool list append",
-        description="Add a model-authored structural lemma without replacing a scalar.",
-    )
-    context = _metric_theory_revision_context(question=question, parent=parent)
-    revised_assumptions = [
-        *parent["problem_card"]["assumptions"],
-        "bounded outcomes",
-    ]
-    appended_lemma = {
-        "id": "bounded_outcome_moment_control",
-        "statement": "Bounded outcomes imply the finite moment used by the guarantee.",
-        "depends_on": ["identify_ate"],
-        "used_by": ["aipw_asymptotic_normality"],
-        "formalization_difficulty": "medium",
-    }
-    decision = _bounded_outcome_feedback_decisions()[
-        "metric_protocol_finding:bounded-outcome"
-    ]
-    provider = ScriptedTheoryToolBackend(
-        tool_responses=[
-            _tool_turn_response(
-                ClientToolCall(
-                    "toolu-decision",
-                    "record_feedback_decision",
-                    {"finding_index": 0, **decision},
-                ),
-                ClientToolCall(
-                    "toolu-assumptions",
-                    "replace_artifact_value",
-                    {
-                        "section": "problem_card",
-                        "relative_path": ["assumptions"],
-                        "replacement": revised_assumptions,
-                    },
-                ),
-                ClientToolCall(
-                    "toolu-append-lemma",
-                    "append_artifact_list_item",
-                    {
-                        "section": "lemma_cards",
-                        "relative_path": [],
-                        "item": appended_lemma,
-                    },
-                ),
-            ),
-            _tool_turn_response(
-                ClientToolCall("toolu-submit", "submit_revision", {})
-            ),
-        ],
-        generator_responses=[
-            {
-                "interfaces": {
-                    parent["estimator_specs"][0]["id"]: parent[
-                        "estimator_specs"
-                    ][0]["estimator_interface_contract"]
-                }
-            }
-        ],
-    )
-    developer = LLMTheoryDeveloperAgent(
-        provider=provider,
-        config=ResearchArchitectConfig(
-            provider_name="anthropic",
-            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
-            model_tier="haiku",
-            serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
-            serious_model_tier="haiku",
-        ),
-    )
-
-    packet = developer.derive(question, architect_context=context)
-
-    assert packet["ok"] is True
-    assert packet["lemma_cards"] == [*parent["lemma_cards"], appended_lemma]
-    assert packet["theory_revision_transport"]["applied_paths"] == [
-        ["problem_card", "assumptions"],
-        ["lemma_cards"],
-    ]
-    append_result = json.loads(
-        provider.tool_requests[1].messages[-1]["content"][2]["content"]
-    )
-    assert append_result["appended_index"] == 1
-    assert append_result["remaining_updates"] == (
-        append_result["maximum_updates"] - 2
-    )
-
-
-def test_theory_revision_hands_off_valid_candidate_at_turn_budget() -> None:
-    parent = _serious_sample_response()
-    parent["estimator_specs"][0]["inputs"] = ["observations"]
-    parent["estimator_specs"][0]["outputs"] = ["estimate"]
-    question = OpenResearchQuestion(
-        id="native_tool_budget_handoff",
-        title="Bounded client-tool candidate handoff",
-        description="Keep a locally valid candidate when explicit submit is omitted.",
-    )
-    context = _metric_theory_revision_context(question=question, parent=parent)
-    decision = _bounded_outcome_feedback_decisions()[
-        "metric_protocol_finding:bounded-outcome"
-    ]
-    revised_assumptions = [
-        *parent["problem_card"]["assumptions"],
-        "bounded outcomes",
-    ]
-    revised_required = [
-        *parent["estimator_specs"][0]["required_assumptions"],
-        "bounded outcomes",
-    ]
-    revised_risks = [
-        *parent["theorem_cards"][0]["semantic_risks"],
-        "verify the bounded-outcome condition",
-    ]
-    revised_claim = (
-        parent["theory_derivation_packet"]["derivation_steps"][0]["claim"]
-        + " under bounded outcomes"
-    )
-    provider = ScriptedTheoryToolBackend(
-        tool_responses=[
-            _tool_turn_response(
-                ClientToolCall(
-                    "toolu-decision",
-                    "record_feedback_decision",
-                    {"finding_index": 0, **decision},
-                )
-            ),
-            _tool_turn_response(
-                ClientToolCall(
-                    "toolu-assumptions",
-                    "replace_artifact_value",
-                    {
-                        "section": "problem_card",
-                        "relative_path": ["assumptions"],
-                        "replacement": revised_assumptions,
-                    },
-                )
-            ),
-            _tool_turn_response(
-                ClientToolCall(
-                    "toolu-required",
-                    "replace_artifact_value",
-                    {
-                        "section": "estimator_specs",
-                        "relative_path": [0, "required_assumptions"],
-                        "replacement": revised_required,
-                    },
-                )
-            ),
-            _tool_turn_response(
-                ClientToolCall(
-                    "toolu-risks",
-                    "replace_artifact_value",
-                    {
-                        "section": "theorem_cards",
-                        "relative_path": [0, "semantic_risks"],
-                        "replacement": revised_risks,
-                    },
-                )
-            ),
-            _tool_turn_response(
-                ClientToolCall(
-                    "toolu-claim",
-                    "replace_artifact_value",
-                    {
-                        "section": "theory_derivation_packet",
-                        "relative_path": ["derivation_steps", 0, "claim"],
-                        "replacement": revised_claim,
-                    },
-                )
-            ),
-        ],
-        generator_responses=[
-            {
-                "interfaces": {
-                    parent["estimator_specs"][0]["id"]: parent[
-                        "estimator_specs"
-                    ][0]["estimator_interface_contract"]
-                }
-            }
-        ],
-    )
-    developer = LLMTheoryDeveloperAgent(
-        provider=provider,
-        config=ResearchArchitectConfig(
-            provider_name="anthropic",
-            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
-            model_tier="haiku",
-            serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
-            serious_model_tier="haiku",
-        ),
-    )
-
-    packet = developer.derive(question, architect_context=context)
-
-    assert packet["ok"] is True
-    assert packet["problem_card"]["assumptions"] == revised_assumptions
-    loop = packet["theory_revision_transport"]["client_tool_loop"]
-    assert loop["turns"] == 5
-    assert loop["model_explicit_submit"] is False
-    assert loop["explicit_submit_locally_valid"] is False
-    assert loop["budget_exhausted"] is True
-    assert loop["local_candidate_validation_passed"] is True
-    assert loop["handoff_mode"] == "turn_budget_validated_candidate"
-    assert loop["independent_acceptance_required"] is True
-    assert len(provider.tool_requests) == 5
-    assert len(provider.generator_requests) == 1
-
-
-def test_theory_revision_client_tool_error_returns_to_same_model_context() -> None:
-    parent = _serious_sample_response()
-    parent["estimator_specs"][0]["inputs"] = ["observations"]
-    parent["estimator_specs"][0]["outputs"] = ["estimate"]
-    question = OpenResearchQuestion(
-        id="native_tool_feedback",
-        title="Native client-tool feedback",
-        description="Return exact invalid-path feedback to the same model context.",
-    )
-    context = _metric_theory_revision_context(question=question, parent=parent)
-    revised_assumptions = [
-        *parent["problem_card"]["assumptions"],
-        "bounded outcomes",
-    ]
-    decision = _bounded_outcome_feedback_decisions()[
-        "metric_protocol_finding:bounded-outcome"
-    ]
-    provider = ScriptedTheoryToolBackend(
-        tool_responses=[
-            _tool_turn_response(
-                ClientToolCall(
-                    "toolu-decision",
-                    "record_feedback_decision",
-                    {
-                        "finding_index": 0,
-                        **decision,
-                    },
-                ),
-                ClientToolCall(
-                    "toolu-invalid",
-                    "replace_artifact_value",
-                    {
-                        "section": "theory_derivation_packet",
-                        "relative_path": [
-                            "theorem_cards",
-                            0,
-                            "informal_statement",
-                        ],
-                        "replacement": "invalid sibling nesting",
-                    },
-                ),
-                ClientToolCall(
-                    "toolu-type-change",
-                    "replace_artifact_value",
-                    {
-                        "section": "theory_derivation_packet",
-                        "relative_path": ["derivation_steps", 0, "claim"],
-                        "replacement": {
-                            "id": "model_tried_to_add_a_row_in_a_scalar_slot"
-                        },
-                    },
-                ),
-            ),
-            _tool_turn_response(
-                ClientToolCall(
-                    "toolu-valid",
-                    "replace_artifact_value",
-                    {
-                        "section": "problem_card",
-                        "relative_path": ["assumptions"],
-                        "replacement": revised_assumptions,
-                    },
-                ),
-                ClientToolCall(
-                    "toolu-submit",
-                    "submit_revision",
-                    {},
-                ),
-            ),
-        ],
-        generator_responses=[
-            {
-                "interfaces": {
-                    parent["estimator_specs"][0]["id"]: parent[
-                        "estimator_specs"
-                    ][0]["estimator_interface_contract"]
-                }
-            }
-        ],
-    )
-    developer = LLMTheoryDeveloperAgent(
-        provider=provider,
-        config=ResearchArchitectConfig(
-            provider_name="anthropic",
-            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
-            model_tier="haiku",
-            serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
-            serious_model_tier="haiku",
-        ),
-    )
-
-    packet = developer.derive(question, architect_context=context)
-
-    assert packet["ok"] is True
-    feedback_blocks = provider.tool_requests[1].messages[-1]["content"]
-    invalid_result = next(
-        block
-        for block in feedback_blocks
-        if block["tool_use_id"] == "toolu-invalid"
-    )
-    assert invalid_result["is_error"] is True
-    assert "full_path=['theory_derivation_packet', 'theorem_cards'" in (
-        invalid_result["content"]
-    )
-    type_result = next(
-        block
-        for block in feedback_blocks
-        if block["tool_use_id"] == "toolu-type-change"
-    )
-    assert type_result["is_error"] is True
-    assert "existing=string, replacement=object" in type_result["content"]
-    assert "append_artifact_list_item" in type_result["content"]
-    assert packet["theory_revision_transport"]["path_normalizations"] == []
-    assert packet["theory_revision_transport"]["applied_paths"] == [
-        ["problem_card", "assumptions"]
-    ]
 
 
 def test_postexecution_theory_revision_uses_current_parent_bound_feedback() -> None:
@@ -1803,12 +1246,18 @@ def test_postexecution_theory_revision_uses_current_parent_bound_feedback() -> N
         "psi = E[m_1(X)-m_0(X)]"
     )
     prompt = build_theory_developer_prompt(question, architect_context=context)
-    assert "serious_upstream_theory_revision" in prompt
+    assert "complete_theory_packet_regeneration" in prompt
     assert "generated_code_semantic_review_postexecution" in prompt
     assert "theory_derivation:stale-preflight-parent" not in prompt
-    assert "feedback_decision_contract" in prompt
-    assert "one_current_executable_resolution_per_finding" in prompt
-    assert "reviewer alternatives are candidates" in prompt
+    prompt_payload = json.loads(prompt.split("\n\n", 1)[1])
+    assert prompt_payload["revision_mode"] == (
+        "complete_theory_packet_regeneration"
+    )
+    assert prompt_payload["parent_core_packet"] == (
+        revision_inputs["base_core_payload"]
+    )
+    assert prompt_payload["reviewer_feedback"] == revision_inputs["feedback"]
+    assert "never a patch" in " ".join(prompt_payload["instructions"])
 
     tampered_context = json.loads(json.dumps(context))
     tampered_context[THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY][
@@ -1833,18 +1282,11 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
         context,
         question=question,
     )
-    core_patch = {
-        "feedback_decisions": _bounded_outcome_feedback_decisions(),
-        "updates": [
-            {
-                "section": "problem_card",
-                "relative_path": ["assumptions"],
-                "replacement_json": json.dumps(
-                    [*parent["problem_card"]["assumptions"], "bounded outcomes"]
-                ),
-            }
-        ],
-    }
+    revised_core = json.loads(json.dumps(revision_inputs["base_core_payload"]))
+    revised_core["problem_card"]["assumptions"] = [
+        *revised_core["problem_card"]["assumptions"],
+        "bounded outcomes",
+    ]
     estimator = parent["estimator_specs"][0]
     expected_contract = json.loads(
         json.dumps(estimator["estimator_interface_contract"])
@@ -1862,7 +1304,7 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
         "still-invalid"
     )
     first_provider = SequentialGeneratorBackend(
-        [core_patch, invalid_interface, still_invalid_interface]
+        [revised_core, invalid_interface, still_invalid_interface]
     )
     first_developer = LLMTheoryDeveloperAgent(
         provider=first_provider,
@@ -1881,14 +1323,14 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
 
     checkpoint = exc_info.value.recovery_checkpoint
     assert checkpoint is not None
-    assert checkpoint["completed_phase"] == "targeted_core_revision"
+    assert checkpoint["completed_phase"] == "full_core_revision"
     assert checkpoint["failed_phase"] == "estimator_interface_authoring"
     assert checkpoint["kernel_verified"] is False
     assert [
         request.metadata["theory_developer_phase"]
         for request in first_provider.requests
     ] == [
-        "targeted_core_revision",
+        "full_core_revision",
         "estimator_interface_authoring",
         "estimator_interface_authoring",
     ]
@@ -1900,14 +1342,29 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
     repair_payload = json.loads(
         first_provider.requests[2].user_prompt.split("\n\n", 1)[1]
     )
-    repair_errors = repair_payload["subsystem_repair_context"][
-        "last_validation_errors"
-    ]
+    repair_errors = repair_payload["local_validation_errors"]
     assert any(
         f'interfaces["{estimator["id"]}"]' in error
         for error in repair_errors
     )
     assert all("interfaces[0]" not in error for error in repair_errors)
+    assert "subsystem_repair_context" not in repair_payload
+    original_interface_payload = json.loads(
+        repair_payload["original_request"].split("\n\n", 1)[1]
+    )
+    assert original_interface_payload["frozen_core_theory"]["problem_card"] == {
+        field: revised_core["problem_card"][field]
+        for field in (
+            "observed_data",
+            "dgp",
+            "estimand",
+            "assumptions",
+            "asymptotic_regime",
+        )
+    }
+    assert json.loads(repair_payload["previous_candidate"]) == (
+        invalid_interface
+    )
 
     retry_context = dict(context)
     retry_context["theory_developer_source_environment_feedback"] = dict(
@@ -1942,7 +1399,7 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
         "estimator_interface_authoring"
     )
     assert packet["theory_generation_phases"][0]["phase"] == (
-        "targeted_core_revision"
+        "full_core_revision"
     )
     assert packet["theory_revision_transport"]["feedback_id"] == (
         context["environment_feedback"]["feedback_id"]
@@ -2015,7 +1472,9 @@ def test_theory_developer_uses_shared_full_packet_regeneration(
     assert packet == {"ok": True}
     assert "semantic_patch_repair" not in captured
     assert "allow_progress_repair_extension" not in captured
-    assert captured["repair_context_builder"] is not None
+    assert "repair_context_builder" not in captured
+    assert "retry_prompt_builder" not in captured
+    assert captured["max_repair_attempts"] == 2
 
 
 def test_theory_developer_truncation_recovery_is_serious_and_bounded() -> None:

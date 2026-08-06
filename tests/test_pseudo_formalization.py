@@ -1821,7 +1821,7 @@ def test_formalizer_repair_loop_requires_pf_packet_for_proof_body_blocker() -> N
     assert validate_formalizer_packet(packet) == []
 
 
-def test_formalizer_repair_prompt_includes_pf_bv_blueprint_for_invalid_packet() -> None:
+def test_formalizer_retry_uses_full_candidate_and_raw_validator_feedback() -> None:
     first_response = _minimal_formalizer_response(include_pseudo_formal=True)
     first_block = first_response["pseudo_formal_proof_packets"][0]["blocks"][0]
     first_block.pop("conclusion")
@@ -1868,28 +1868,20 @@ def test_formalizer_repair_prompt_includes_pf_bv_blueprint_for_invalid_packet() 
     assert packet["llm_json_repair_attempts"] == 1
     assert packet["llm_json_repair_history"][0]["ok"] is False
     repair_payload = json.loads(backend.requests[1].user_prompt.split("\n\n", 1)[1])
-    repair_context = repair_payload["subsystem_repair_context"]
-    top_level_repair_instructions = " ".join(repair_payload["repair_instructions"])
-    feedback = repair_context["formalizer_validation_feedback"]
-    assert repair_context["context_reason"] == (
-        "unchanged_validator_rejected_model_packet"
+    regeneration_requirements = " ".join(
+        repair_payload["regeneration_requirements"]
     )
+    assert "subsystem_repair_context" not in repair_payload
     assert any(
         "missing conclusion" in error
-        for error in feedback["validation_error_messages"]
+        for error in repair_payload["local_validation_errors"]
     )
-    assert feedback["rejected_packet_projection"][
-        "pseudo_formal_proof_packets"
-    ]
-    assert feedback["repair_authority"]["runtime_selected_semantics"] is False
-    assert repair_context["repair_protocol"]["decision_owner"] == (
-        "Formalizer/ProofEngineer LLM"
-    )
-    assert "pseudo_formal_required_repair_blueprint" not in repair_context
-    assert "validation_repair_policy" not in repair_context
-    assert "pseudo_formal_issue_specific_repair_actions" not in repair_context
-    assert "concrete_lane_routable_repair_seed" not in top_level_repair_instructions
-    assert "copy_ready_response_fragment" not in top_level_repair_instructions
+    assert json.loads(repair_payload["previous_candidate"]) == first_response
+    assert "pseudo_formalization_contract" in repair_payload["original_request"]
+    assert "Rewrite the full JSON object from scratch" in regeneration_requirements
+    assert "do not emit a patch" in regeneration_requirements
+    assert "concrete_lane_routable_repair_seed" not in regeneration_requirements
+    assert "copy_ready_response_fragment" not in regeneration_requirements
     assert _validate_required_pseudo_formalization_packet(
         packet,
         environment_feedback=_pf_required_feedback(),
@@ -2270,44 +2262,11 @@ class _SequenceStaticGeneratorBackend:
         self.requests.append(request)
         response_index = min(self._index, len(self._responses) - 1)
         configured_response = self._responses[response_index]
-        if (
-            isinstance(configured_response, Mapping)
-            and request.metadata.get("json_repair_mode") == "typed_semantic_patch"
-        ):
-            prompt_payload = json.loads(request.user_prompt.split("\n\n", 1)[1])
-            prior_response = self._responses[max(0, response_index - 1)]
-            assert isinstance(prior_response, Mapping)
-            updates = []
-            for key in sorted(set(prior_response) | set(configured_response)):
-                if prior_response.get(key) == configured_response.get(key):
-                    continue
-                assert key in configured_response
-                updates.append(
-                    {
-                        "path": [key],
-                        "replacement_json": json.dumps(
-                            configured_response[key],
-                            sort_keys=True,
-                            default=str,
-                        ),
-                    }
-                )
-            assert updates
-            response = json.dumps(
-                {
-                    "base_payload_fingerprint": prompt_payload[
-                        "base_payload_fingerprint"
-                    ],
-                    "updates": updates,
-                },
-                indent=2,
-            )
-        else:
-            response = (
-                json.dumps(configured_response, indent=2, default=str)
-                if isinstance(configured_response, Mapping)
-                else str(configured_response)
-            )
+        response = (
+            json.dumps(configured_response, indent=2, default=str)
+            if isinstance(configured_response, Mapping)
+            else str(configured_response)
+        )
         self._index += 1
         return GeneratorResponse(
             text=response,
