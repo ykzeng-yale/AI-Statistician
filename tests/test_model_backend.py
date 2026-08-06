@@ -350,8 +350,22 @@ def test_anthropic_generator_backend_applies_opted_in_structured_output(
     ]
 
 
+@pytest.mark.parametrize(
+    "structured_output_error",
+    [
+        (
+            "The compiled grammar is too large, which would cause performance "
+            "issues. Simplify your tool schemas or reduce the number of strict tools."
+        ),
+        (
+            "Schema is too complex for compilation. Try reducing the number of "
+            "tools or simplifying tool schemas."
+        ),
+    ],
+)
 def test_anthropic_generator_backend_falls_back_from_oversized_strict_schema(
     monkeypatch: pytest.MonkeyPatch,
+    structured_output_error: str,
 ) -> None:
     calls: list[dict[str, object]] = []
 
@@ -362,11 +376,7 @@ def test_anthropic_generator_backend_falls_back_from_oversized_strict_schema(
         def create(self, **kwargs):
             calls.append(dict(kwargs))
             if "output_config" in kwargs:
-                raise BadRequestError(
-                    "The compiled grammar is too large, which would cause "
-                    "performance issues. Simplify your tool schemas or reduce "
-                    "the number of strict tools."
-                )
+                raise BadRequestError(structured_output_error)
             return SimpleNamespace(
                 content=[SimpleNamespace(text='{"ok": true}')],
                 model="claude-sonnet-4-6",

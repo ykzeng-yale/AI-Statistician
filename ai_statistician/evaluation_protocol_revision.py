@@ -660,18 +660,20 @@ def architect_preexecution_metric_protocol_rejection_result(
         if isinstance(prior_finding_resolution_summary, Mapping)
         else {}
     )
-    prior_finding_progress_made = bool(
-        prior_finding_resolution_summary.get("progress_made", False)
+    prior_active_finding_ids = list(
+        prior_finding_resolution_summary.get("prior_active_finding_ids", [])
+        or []
     )
-    if not prior_finding_progress_made:
+    prior_finding_progress_made = bool(
+        prior_finding_resolution_summary.get("resolved_prior_finding_ids", [])
+    )
+    if not prior_active_finding_ids:
         prior_finding_progress_made = bool(
-            prior_finding_resolution_summary.get("new_finding_ids", [])
+            prior_finding_resolution_summary.get("progress_made", False)
         )
     preflight_revision_progressed = bool(
         not theory_execution_preflight_rejected
-        or not prior_finding_resolution_summary.get(
-            "prior_active_finding_ids", []
-        )
+        or not prior_active_finding_ids
         or prior_finding_progress_made
     )
     route_upstream_theory = bool(

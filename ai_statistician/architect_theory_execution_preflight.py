@@ -20,7 +20,7 @@ from .research_schema import OpenResearchQuestion
 
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 6
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 6
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 7
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
     "primitive_mathematical_consistency",
@@ -573,37 +573,22 @@ def architect_theory_execution_preflight_json_schema(
         },
     }
 
-    def ordered_slot_schema(
-        *,
-        count: int,
-        definition: str,
-        description: str,
-    ) -> dict[str, Any]:
-        slots = [f"slot_{index}" for index in range(count)]
-        return {
-            "type": "object",
-            "additionalProperties": False,
-            "required": slots,
-            "description": description,
-            "properties": {
-                slot: {"$ref": f"#/$defs/{definition}"}
-                for slot in slots
-            },
-        }
-
     schema = {
         "type": "object",
         "additionalProperties": False,
         "required": required_fields,
         "properties": {
-            "prior_finding_reviews": ordered_slot_schema(
-                count=len(active_prior_finding_ids),
-                definition="prior_finding_review",
-                description=(
-                    "One review per active prior finding in ordered_review_slots. "
-                    "AgentRuntime binds the slot identity."
+            "prior_finding_reviews": {
+                "type": "array",
+                "minItems": len(active_prior_finding_ids),
+                "maxItems": len(active_prior_finding_ids),
+                "description": (
+                    "One review per active prior finding in ordered_review_slots "
+                    "order. AgentRuntime binds each array position to its canonical "
+                    "finding identity."
                 ),
-            ),
+                "items": {"$ref": "#/$defs/prior_finding_review"},
+            },
             "dimension_reviews": {
                 "type": "array",
                 "minItems": len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS),
@@ -817,7 +802,7 @@ def build_architect_theory_execution_preflight_prompt(
             ],
             "prior_finding_reviews": [
                 {
-                    "output_slot": f"slot_{index}",
+                    "output_index": index,
                     "finding_id": str(finding_id),
                 }
                 for index, finding_id in enumerate(
@@ -1090,7 +1075,7 @@ def _normalize_packet(
                     "prior_finding_id": finding_id,
                     "canonical_finding_id": finding_id,
                     "model_continuation_fingerprint": stable_hash(continuation),
-                    "identity_source": "prior_finding_reviews_ordered_slot",
+                    "identity_source": "prior_finding_reviews_ordered_index",
                     "runtime_selected_semantics": False,
                 }
             )
@@ -1211,7 +1196,10 @@ def _normalize_packet(
         if str(row.get("finding_id", "") or "").strip()
         and str(row.get("finding_id", "") or "") not in prior_active_ids
     ]
-    progress_made = bool(resolved_prior_ids or new_finding_ids)
+    progress_made = bool(
+        resolved_prior_ids
+        or (not prior_active_ids and new_finding_ids)
+    )
     body["cumulative_finding_ledger"] = cumulative_finding_ledger
     body["cumulative_finding_ledger_fingerprint"] = (
         metric_protocol_finding_ledger_fingerprint(cumulative_finding_ledger)
@@ -1519,7 +1507,7 @@ def validate_architect_theory_execution_preflight_packet(
                     )
                 }
             ),
-            "identity_source": "prior_finding_reviews_ordered_slot",
+            "identity_source": "prior_finding_reviews_ordered_index",
             "runtime_selected_semantics": False,
         }
         for transport_index, finding_id in enumerate(expected_prior_finding_ids)
@@ -1735,10 +1723,10 @@ def review_architect_theory_execution_preflight(
         prior_finding_paths = [
             {
                 "finding_id": str(finding_id),
-                "path": ["prior_finding_reviews", f"slot_{index}"],
+                "path": ["prior_finding_reviews", index],
                 "current_finding_path": [
                     "prior_finding_reviews",
-                    f"slot_{index}",
+                    index,
                     "current_finding",
                 ],
             }

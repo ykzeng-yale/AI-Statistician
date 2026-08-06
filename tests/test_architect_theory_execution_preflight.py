@@ -13,6 +13,7 @@ from ai_statistician.architect_metric_contract_authoring import (
 from ai_statistician.architect_theory_execution_preflight import (
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL,
+    architect_theory_execution_preflight_json_schema,
     build_architect_theory_execution_preflight_material,
     build_architect_theory_execution_preflight_prompt,
     review_architect_theory_execution_preflight,
@@ -410,7 +411,7 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     ) == []
 
 
-def test_preflight_patch_paths_follow_raw_ordered_slot_transport() -> None:
+def test_preflight_patch_paths_follow_raw_ordered_index_transport() -> None:
     initial_payload = _payload(accept=False)
     primitive_index = ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS.index(
         "primitive_mathematical_consistency"
@@ -456,6 +457,38 @@ def test_preflight_patch_paths_follow_raw_ordered_slot_transport() -> None:
             "evidence_refs",
         ]
     ]
+
+
+def test_preflight_prior_finding_schema_does_not_expand_per_finding() -> None:
+    base_material = {
+        "anchor_catalog": [
+            {"anchor_id": "theory.estimator_specs"},
+            {"anchor_id": "theory.theorem_cards"},
+        ],
+        "required_estimator_ids": ["generic_stream_method"],
+    }
+    one_schema = architect_theory_execution_preflight_json_schema(
+        {**base_material, "active_prior_finding_ids": ["finding:0"]}
+    )
+    six_schema = architect_theory_execution_preflight_json_schema(
+        {
+            **base_material,
+            "active_prior_finding_ids": [
+                f"finding:{index}" for index in range(6)
+            ],
+        }
+    )
+
+    prior_schema = six_schema["properties"]["prior_finding_reviews"]
+    assert prior_schema["type"] == "array"
+    assert prior_schema["minItems"] == 6
+    assert prior_schema["maxItems"] == 6
+    assert prior_schema["items"] == {
+        "$ref": "#/$defs/prior_finding_review"
+    }
+    assert len(json.dumps(six_schema, separators=(",", ":"))) == len(
+        json.dumps(one_schema, separators=(",", ":"))
+    )
 
 
 def test_preflight_cannot_accept_an_unestablished_procedure_identity() -> None:
@@ -664,8 +697,8 @@ def test_preflight_closes_prior_findings_by_stable_identity() -> None:
     assert rejected["findings"][0]["finding_id"] == prior_finding_ids[0]
 
     accepted_payload = _payload(accept=True)
-    accepted_payload["prior_finding_reviews"] = {
-        "slot_0": {
+    accepted_payload["prior_finding_reviews"] = [
+        {
             "status": "RESOLVED_BY_CURRENT_THEORY",
             "rationale": (
                 "The current estimator interface now exposes the bounded outcome."
@@ -673,7 +706,7 @@ def test_preflight_closes_prior_findings_by_stable_identity() -> None:
             "evidence_refs": ["theory.estimator_specs"],
             "current_finding": None,
         }
-    }
+    ]
     backend = _Backend(accepted_payload)
     accepted = review_architect_theory_execution_preflight(
         provider=backend,
@@ -695,9 +728,10 @@ def test_preflight_closes_prior_findings_by_stable_identity() -> None:
     prior_review_schema = backend.requests[0].schema["properties"][
         "prior_finding_reviews"
     ]
-    assert prior_review_schema["type"] == "object"
-    assert prior_review_schema["required"] == ["slot_0"]
-    assert prior_review_schema["properties"]["slot_0"] == {
+    assert prior_review_schema["type"] == "array"
+    assert prior_review_schema["minItems"] == 1
+    assert prior_review_schema["maxItems"] == 1
+    assert prior_review_schema["items"] == {
         "$ref": "#/$defs/prior_finding_review"
     }
     prior_review_definition = backend.requests[0].schema["$defs"][
@@ -726,7 +760,7 @@ def test_preflight_closes_prior_findings_by_stable_identity() -> None:
     )
 
 
-def test_preflight_binds_unresolved_prior_finding_from_ordered_slot() -> None:
+def test_preflight_binds_unresolved_prior_finding_from_ordered_index() -> None:
     rejected, _backend = _review(accept=False)
     prior_ledger = rejected["cumulative_finding_ledger"]
     prior_finding_id = rejected["active_unresolved_finding_ids"][0]
@@ -735,14 +769,23 @@ def test_preflight_binds_unresolved_prior_finding_from_ordered_slot() -> None:
     continuation["summary"] = (
         "The revised finite interface still omits one declared outcome."
     )
-    initial_payload["prior_finding_reviews"] = {
-        "slot_0": {
+    initial_payload["findings"] = [
+        {
+            "severity": "medium",
+            "category": "new_finite_branch_gap",
+            "summary": "A separate finite branch also needs an explicit outcome.",
+            "required_change": "Declare the finite outcome for that branch.",
+            "evidence_refs": ["theory.estimator_specs"],
+        }
+    ]
+    initial_payload["prior_finding_reviews"] = [
+        {
             "status": "UNRESOLVED",
             "rationale": "The revised source still leaves the finite branch undefined.",
             "evidence_refs": ["theory.estimator_specs"],
             "current_finding": continuation,
         }
-    }
+    ]
     backend = _Backend(initial_payload)
     packet = review_architect_theory_execution_preflight(
         provider=backend,
@@ -767,7 +810,7 @@ def test_preflight_binds_unresolved_prior_finding_from_ordered_slot() -> None:
     assert "finding_id" not in finding_schema["properties"]
     prior_schema = backend.requests[0].schema["properties"][
         "prior_finding_reviews"
-    ]["properties"]["slot_0"]
+    ]["items"]
     assert prior_schema == {"$ref": "#/$defs/prior_finding_review"}
     assert "current_finding" in backend.requests[0].schema["$defs"][
         "prior_finding_review"
@@ -775,19 +818,25 @@ def test_preflight_binds_unresolved_prior_finding_from_ordered_slot() -> None:
     assert packet["findings"][0]["prior_finding_id"] == prior_finding_id
     assert packet["findings"][0]["finding_id"] == prior_finding_id
     assert packet["findings"][0]["summary"] == continuation["summary"]
+    assert packet["findings"][1].get("prior_finding_id", "") == ""
     assert packet["runtime_prior_finding_identity_bindings"] == [
         {
             "transport_index": 0,
             "prior_finding_id": prior_finding_id,
             "canonical_finding_id": prior_finding_id,
             "model_continuation_fingerprint": stable_hash(continuation),
-            "identity_source": "prior_finding_reviews_ordered_slot",
+            "identity_source": "prior_finding_reviews_ordered_index",
             "runtime_selected_semantics": False,
         }
     ]
     assert packet["prior_finding_resolution_summary"][
         "still_unresolved_prior_finding_ids"
     ] == [prior_finding_id]
+    assert packet["prior_finding_resolution_summary"]["new_finding_ids"] == [
+        packet["findings"][1]["finding_id"]
+    ]
+    assert packet["prior_finding_resolution_summary"]["progress_made"] is False
+    assert packet["prior_finding_resolution_summary"]["stalled"] is True
     assert validate_architect_theory_execution_preflight_packet(
         packet,
         material=build_architect_theory_execution_preflight_material(
@@ -808,14 +857,14 @@ def test_preflight_repairs_missing_ordered_prior_continuation() -> None:
     prior_finding_id = rejected["active_unresolved_finding_ids"][0]
     initial_payload = _payload(accept=False)
     continuation = initial_payload["findings"].pop()
-    initial_payload["prior_finding_reviews"] = {
-        "slot_0": {
+    initial_payload["prior_finding_reviews"] = [
+        {
             "status": "UNRESOLVED",
             "rationale": "The finite source branch remains undefined.",
             "evidence_refs": ["theory.estimator_specs"],
             "current_finding": None,
         }
-    }
+    ]
 
     class MissingContinuationBackend:
         provider_name = "anthropic"
@@ -878,10 +927,10 @@ def test_preflight_repairs_missing_ordered_prior_continuation() -> None:
     assert backend.repair_context["prior_finding_review_patch_paths"] == [
         {
             "finding_id": prior_finding_id,
-            "path": ["prior_finding_reviews", "slot_0"],
+            "path": ["prior_finding_reviews", 0],
             "current_finding_path": [
                 "prior_finding_reviews",
-                "slot_0",
+                0,
                 "current_finding",
             ],
         }
@@ -1049,7 +1098,7 @@ def test_preflight_stops_when_a_revision_closes_no_prior_finding() -> None:
     assert manifest["upstream_theory_revision_routed"] is False
 
 
-def test_preflight_continues_when_new_findings_arrive() -> None:
+def test_preflight_new_findings_do_not_mask_unresolved_prior_lineage() -> None:
     rejected_packet, _backend = _review(accept=False)
     prior_finding_id = rejected_packet["active_unresolved_finding_ids"][0]
     new_finding_id = "theory:newly_discovered_support_gap"
@@ -1135,15 +1184,12 @@ def test_preflight_continues_when_new_findings_arrive() -> None:
         max_upstream_theory_revisions=2,
     )
 
-    assert result.status == "REROUTE"
-    assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
     assert result.failure_classification == (
-        "architect_metric_protocol_upstream_theory_revision_requested"
-    )
-    assert result.next_task.inputs["environment_feedback"]["trigger"] == (
-        "THEORY_EXECUTION_PREFLIGHT_REQUIRES_UPSTREAM_THEORY_REVISION"
+        "architect_theory_execution_preflight_stalled"
     )
     manifest = next(iter(result.produced_artifacts.values()))
-    assert manifest["preflight_revision_stalled"] is False
-    assert manifest["upstream_theory_revision_routed"] is True
+    assert manifest["preflight_revision_progressed"] is False
+    assert manifest["preflight_revision_stalled"] is True
+    assert manifest["upstream_theory_revision_routed"] is False

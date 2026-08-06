@@ -2552,7 +2552,7 @@ def test_reviewer_derives_aggregate_decisions_from_findings(
     assert review_packet["model_requested_overall_verdict"] == ""
 
 
-def test_all_pass_actionable_finding_requires_model_repair_not_normalization(
+def test_all_pass_actionable_finding_routes_without_duplicate_dimension_verdict(
     tmp_path: Path,
 ) -> None:
     _, task, blackboard, _ = _runtime_fixture(tmp_path, accept=True)
@@ -2596,39 +2596,21 @@ def test_all_pass_actionable_finding_requires_model_repair_not_normalization(
         "Use a more descriptive diagnostic name later."
     ]
 
-    class AdvisoryScopePatchBackend:
+    class RecordingBackend:
         provider_name = "anthropic"
 
         def __init__(self) -> None:
             self.requests: list[GeneratorRequest] = []
-            self.repair_payload: dict[str, object] = {}
 
         def generate(self, request: GeneratorRequest) -> GeneratorResponse:
             self.requests.append(request)
-            if len(self.requests) == 1:
-                payload = response
-            else:
-                self.repair_payload = json.loads(
-                    request.user_prompt.split("\n\n", 1)[1]
-                )
-                payload = {
-                    "base_payload_fingerprint": self.repair_payload[
-                        "base_payload_fingerprint"
-                    ],
-                    "updates": [
-                        {
-                            "path": ["findings", 0, "repair_scope"],
-                            "replacement": "none",
-                        }
-                    ],
-                }
             return GeneratorResponse(
-                text=json.dumps(payload),
+                text=json.dumps(response),
                 provider=self.provider_name,
                 model=request.model,
             )
 
-    backend = AdvisoryScopePatchBackend()
+    backend = RecordingBackend()
     subsystem = GeneratedCodeSemanticReviewerRuntimeSubsystem(
         reviewer=LLMGeneratedCodeSemanticReviewerAgent(
             provider=backend,
@@ -2644,40 +2626,25 @@ def test_all_pass_actionable_finding_requires_model_repair_not_normalization(
 
     result = subsystem.run(task, blackboard)
 
-    assert result.status == "REROUTE"
-    assert len(backend.requests) == 2
-    assert backend.requests[1].metadata["json_repair_mode"] == (
-        "typed_semantic_patch"
-    )
-    assert any(
-        "actionable semantic-review findings require at least one relevant "
-        "dimension"
-        in error
-        for error in backend.repair_payload["local_validation_errors"]
-    )
-    closure = backend.repair_payload["subsystem_repair_context"][
-        "decision_closure_state"
-    ]
-    assert closure["accept_with_actionable_finding_indices"] == [0]
-    assert closure["decision_closed"] is False
+    assert result.status == "REVISE", result.observations
+    assert len(backend.requests) == 1
     review_packet = next(
         artifact
         for artifact in result.produced_artifacts.values()
         if artifact.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
     )
-    assert review_packet["overall_verdict"] == "ACCEPT"
-    assert review_packet["repair_scope"] == "none"
-    assert review_packet["repair_scopes"] == ["none"]
-    assert review_packet["reviewed_source_assessment"] == "ALIGNED"
-    assert review_packet["findings"][0]["repair_scope"] == "none"
+    assert review_packet["overall_verdict"] == "REVISE"
+    assert review_packet["repair_scope"] == "source_code"
+    assert review_packet["repair_scopes"] == ["source_code"]
+    assert review_packet["reviewed_source_assessment"] == "SOURCE_REPAIR_REQUIRED"
+    assert review_packet["findings"][0]["repair_scope"] == "source_code"
     assert review_packet["findings"][0][
         "model_requested_repair_scope"
-    ] == "none"
-    assert review_packet["active_unresolved_finding_ids"] == []
-    assert review_packet["cumulative_finding_ledger"] == []
+    ] == "source_code"
+    assert len(review_packet["active_unresolved_finding_ids"]) == 1
 
 
-def test_schema_v10_derives_runtime_owned_dimensions_and_typed_citations(
+def test_schema_v13_derives_runtime_owned_dimensions_and_typed_citations(
     tmp_path: Path,
 ) -> None:
     subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accept=True)
@@ -2689,7 +2656,7 @@ def test_schema_v10_derives_runtime_owned_dimensions_and_typed_citations(
         for artifact in result.produced_artifacts.values()
         if artifact.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
     )
-    assert review_packet["schema_version"] == 12
+    assert review_packet["schema_version"] == 13
     assert validate_generated_code_semantic_review_packet(review_packet) == []
     first_dimension = review_packet["dimension_reviews"][0]
     assert first_dimension["dimension"] == (
@@ -2840,12 +2807,14 @@ def test_review_authority_is_task_bound_and_repair_scope_specific() -> None:
     schema = generated_code_semantic_review_json_schema(material)
     prior_schema = schema["properties"]["prior_finding_reviews"]
     assert prior_schema["minItems"] == prior_schema["maxItems"] == 1
-    assert prior_schema["items"]["properties"]["finding_id"]["enum"] == [
+    assert schema["$defs"]["prior_finding_review"]["properties"][
+        "finding_id"
+    ]["enum"] == [
         prior_finding_id
     ]
-    assert "requirement:metric:simulation-only" not in schema["properties"][
-        "findings"
-    ]["items"]["properties"]["authority_refs"]["items"]["enum"]
+    assert "requirement:metric:simulation-only" not in schema["$defs"][
+        "artifact_delta"
+    ]["properties"]["obligation_ref"]["enum"]
 
 
 def test_schema_v9_rejects_authority_for_the_wrong_repair_scope(
@@ -3122,15 +3091,14 @@ def test_schema_v7_normalizes_model_locator_format(
     assert validate_generated_code_semantic_review_packet(review_packet) == []
 
 
-def test_actionable_finding_must_cite_the_artifact_it_would_repair(
+def test_runtime_derives_finding_citations_from_model_selected_refs(
     tmp_path: Path,
 ) -> None:
     response = _review_response(accept=False, repair_scope="source_code")
     response["findings"][0]["evidence_citations"] = [
-        {
-            "artifact_role": "source_theory_packet",
-            "locator": "/theory_derivation_packet/derivation_steps/0",
-        }
+        citation
+        for citation in response["findings"][0]["evidence_citations"]
+        if citation["artifact_role"] != "generated_source_artifact"
     ]
     reviewer = LLMGeneratedCodeSemanticReviewerAgent(
         provider=StaticJSONGeneratorBackend(response),
@@ -3146,13 +3114,28 @@ def test_actionable_finding_must_cite_the_artifact_it_would_repair(
 
     result = subsystem.run(task, blackboard)
 
-    assert result.status == "BLOCKED"
-    assert any(
-        "repair_scope=source_code must cite the defective artifact role: "
-        "generated_source_artifact"
-        in error
-        for error in result.observations[0].payload["validation_errors"]
+    assert result.status == "REVISE", result.observations[0].payload[
+        "validation_errors"
+    ]
+    packet = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
     )
+    assert packet["findings"][0]["evidence_citations"] == [
+        {
+            "artifact_role": "generated_source_artifact",
+            "locator": packet["findings"][0]["artifact_delta"][
+                "current_artifact_locator"
+            ],
+        },
+        {
+            "artifact_role": "generated_source_artifact",
+            "locator": (
+                "/coding_agent_proposal_packet/implementation_targets/0"
+            ),
+        },
+    ]
 
 
 def test_schema_v7_rejects_legacy_duplicate_fields_as_model_input(
@@ -3676,179 +3659,53 @@ def test_semantic_repair_exposes_unclosed_decision_without_selecting_owner(
     assert review_packet["findings"][0]["repair_scope"] == "source_code"
 
 
-def test_semantic_repair_supplies_exact_metric_gate_artifact_citation(
+def test_actionable_finding_drives_revision_without_duplicate_dimension_verdict(
     tmp_path: Path,
 ) -> None:
     subsystem, task, blackboard, _ = _runtime_fixture(
         tmp_path,
         accept=False,
-        metric_failed=True,
+        repair_scope="source_code",
     )
     response = _review_response(accept=False, repair_scope="source_code")
-    response["findings"][0]["evidence_citations"] = [
-        {
-            "artifact_role": "generated_source_artifact",
-            "locator": "/runtime_metric_gate_projection/0",
-        },
-        {
-            "artifact_role": "generated_source_artifact",
-            "locator": "/exact_source_code",
-        },
-        {
-            "artifact_role": "generated_source_artifact",
-            "locator": "/coding_agent_proposal_packet/implementation_targets/0",
-        },
-    ]
-
-    class MetricGateCitationPatchBackend:
-        provider_name = "anthropic"
-
-        def __init__(self) -> None:
-            self.requests: list[GeneratorRequest] = []
-            self.repair_payload: dict[str, object] = {}
-
-        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
-            self.requests.append(request)
-            if len(self.requests) == 1:
-                payload = response
-            else:
-                self.repair_payload = json.loads(
-                    request.user_prompt.split("\n\n", 1)[1]
-                )
-                repair_context = self.repair_payload[
-                    "subsystem_repair_context"
-                ]
-                diagnostic = repair_context[
-                    "missing_current_artifact_citation_diagnostics"
-                ][0]
-                citation = diagnostic[
-                    "candidate_current_artifact_citations"
-                ][0]["evidence_citation"]
-                payload = {
-                    "base_payload_fingerprint": self.repair_payload[
-                        "base_payload_fingerprint"
-                    ],
-                    "updates": [
-                        {
-                            "path": diagnostic[
-                                "model_payload_citation_path"
-                            ],
-                            "replacement_json": json.dumps(citation),
-                        }
-                    ],
-                }
-            return GeneratorResponse(
-                text=json.dumps(payload),
-                provider=self.provider_name,
-                model=request.model,
-            )
-
-    backend = MetricGateCitationPatchBackend()
+    for row in response["dimension_reviews"]:
+        row["status"] = "PASS"
+    finding = response["findings"][0]
+    finding["severity"] = "medium"
+    obligation_ref = finding["artifact_delta"]["obligation_ref"]
+    obligation_kind = finding["artifact_delta"].pop("obligation_kind")
+    current_citation = {
+        "artifact_role": finding["artifact_delta"]["current_artifact_role"],
+        "locator": finding["artifact_delta"]["current_artifact_locator"],
+    }
+    finding.pop("authority_refs")
+    finding.pop("evidence_citations")
     subsystem.reviewer = LLMGeneratedCodeSemanticReviewerAgent(
-        provider=backend,
+        provider=StaticJSONGeneratorBackend(response),
         config=GeneratedCodeSemanticReviewerConfig(
-            provider_name="anthropic",
+            provider_name="static",
             model=LIVE_EVALUATION_CLAUDE_MODEL,
             model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
-            max_repair_attempts=1,
+            max_repair_attempts=0,
         ),
     )
 
     result = subsystem.run(task, blackboard)
 
     assert result.status == "REVISE", result.observations
-    repair_context = backend.repair_payload["subsystem_repair_context"]
-    diagnostic = repair_context[
-        "missing_current_artifact_citation_diagnostics"
-    ][0]
-    assert diagnostic["row_kind"] == "actionable_finding"
-    assert diagnostic["model_payload_citation_path"] == [
-        "findings",
-        0,
-        "evidence_citations",
-        0,
-    ]
-    assert diagnostic["model_payload_locator_path"] == [
-        "findings",
-        0,
-        "evidence_citations",
-        0,
-        "locator",
-    ]
-    assert diagnostic["invalid_locator"] == "/runtime_metric_gate_projection/0"
-    gate = repair_context["runtime_metric_gate_projection"][0]
-    assert gate["evidence_citation"] == {
-        "artifact_role": "generated_source_artifact",
-        "locator": (
-            "/exact_executed_artifacts/0/source_row/"
-            "metric_contract_evaluation/evaluations/0"
-        ),
-    }
-    assert any(
-        "model_payload_citation_path" in instruction
-        for instruction in backend.repair_payload["repair_instructions"]
-    )
-    review_packet = next(
+    packet = next(
         artifact
         for artifact in result.produced_artifacts.values()
         if artifact.get("artifact_kind")
         == "GeneratedCodeSemanticReviewPacket"
     )
-    assert review_packet["findings"][0]["evidence_citations"] == [
-        gate["evidence_citation"],
-        {
-            "artifact_role": "generated_source_artifact",
-            "locator": "/exact_source_code",
-        },
-        {
-            "artifact_role": "generated_source_artifact",
-            "locator": "/coding_agent_proposal_packet/implementation_targets/0",
-        },
-    ]
-
-
-def test_missing_citation_diagnostic_reports_nearest_current_artifact_node() -> None:
-    review_material = {
-        "exact_executed_artifacts": [
-            {
-                "artifact_id": "algorithm:one",
-                "exact_source_code": "def estimate(values): return 0.0",
-                "exact_result": {"estimate": 0.0},
-            }
-        ]
-    }
-    payload = {
-        "prior_finding_reviews": [],
-        "findings": [
-            {
-                "repair_scope": "source_code",
-                "evidence_citations": [
-                    {
-                        "artifact_role": "generated_source_artifact",
-                        "locator": "/exact_executed_artifacts/0/missing_field",
-                    }
-                ],
-            }
-        ],
-    }
-
-    diagnostics = _generated_code_semantic_review_missing_citation_diagnostics(
-        review_material=review_material,
-        model_payload=payload,
+    assert packet["overall_verdict"] == "REVISE"
+    assert packet["repair_scope"] == "source_code"
+    assert packet["findings"][0]["authority_refs"] == [obligation_ref]
+    assert packet["findings"][0]["artifact_delta"]["obligation_kind"] == (
+        obligation_kind
     )
-
-    assert len(diagnostics) == 1
-    diagnostic = diagnostics[0]
-    assert diagnostic["failed_component"] == "missing_field"
-    assert diagnostic["nearest_existing_locator"] == "/exact_executed_artifacts/0"
-    assert (
-        "/exact_executed_artifacts/0/exact_source_code"
-        in diagnostic["available_child_locators"]
-    )
-    assert (
-        "/exact_executed_artifacts/0/exact_result"
-        in diagnostic["available_child_locators"]
-    )
+    assert current_citation in packet["findings"][0]["evidence_citations"]
 
 
 def test_schema_v10_rejects_prompt_only_dimension_citation(
@@ -3923,8 +3780,10 @@ def test_missing_dimension_citation_diagnostic_prioritizes_exact_gate() -> None:
         ]
     }
     payload = {
-        "dimension_reviews": {
-            "frozen_measurement_protocol_alignment": {
+        "dimension_reviews": [
+            {},
+            {},
+            {
                 "evidence_citations": [
                     {
                         "artifact_role": "generated_source_artifact",
@@ -3932,7 +3791,7 @@ def test_missing_dimension_citation_diagnostic_prioritizes_exact_gate() -> None:
                     }
                 ]
             }
-        },
+        ],
         "findings": [],
         "prior_finding_reviews": [],
     }
@@ -3947,7 +3806,7 @@ def test_missing_dimension_citation_diagnostic_prioritizes_exact_gate() -> None:
     assert diagnostic["row_kind"] == "dimension_review"
     assert diagnostic["model_payload_citation_path"] == [
         "dimension_reviews",
-        "frozen_measurement_protocol_alignment",
+        2,
         "evidence_citations",
         0,
     ]
@@ -4164,7 +4023,7 @@ def test_mixed_semantic_assessments_route_upstream_owner_before_source(
     result = subsystem.run(task, blackboard)
 
     assert result.status == "REROUTE"
-    assert len(backend.requests) == 2
+    assert len(backend.requests) == 1
     assert all(
         request.metadata["provider_structured_output"] is True
         for request in backend.requests
@@ -4173,22 +4032,6 @@ def test_mixed_semantic_assessments_route_upstream_owner_before_source(
         backend.requests[0].user_prompt
     )
     assert backend.requests[0].metadata["review_material_json_chars"] > 0
-    assert backend.requests[1].metadata["json_repair_mode"] == (
-        "typed_semantic_patch"
-    )
-    assert backend.requests[1].max_tokens == backend.requests[0].max_tokens
-    repair_payload = json.loads(
-        backend.requests[1].user_prompt.split("\n\n", 1)[1]
-    )
-    assert any(
-        "This is a confirmatory review" in instruction
-        and "finding repair_scope=source_code" in instruction
-        for instruction in repair_payload["repair_instructions"]
-    )
-    assert any(
-        "reviewer hypothesis needed by this packet schema" in instruction
-        for instruction in repair_payload["repair_instructions"]
-    )
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "ArchitectCoordinator"
     feedback = result.next_task.inputs["environment_feedback"]
@@ -4234,70 +4077,48 @@ def test_semantic_reviewer_schema_supports_anthropic_structured_output() -> None
     )
 
     assert transformed["additionalProperties"] is False
-    assert transformed["properties"]["findings"]["items"][
-        "additionalProperties"
-    ] is False
+    assert transformed["$defs"]["finding"]["additionalProperties"] is False
     dimension_review_schema = transformed["properties"][
         "dimension_reviews"
     ]
-    assert dimension_review_schema["type"] == "object"
-    assert dimension_review_schema["additionalProperties"] is False
-    assert set(dimension_review_schema["required"]) == set(
+    assert dimension_review_schema["type"] == "array"
+    assert dimension_review_schema["minItems"] == len(
         GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
     )
-    assert set(dimension_review_schema["properties"]) == set(
+    assert dimension_review_schema["maxItems"] == len(
         GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
     )
-    dimension_evidence_schema = dimension_review_schema["properties"][
-        GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS[0]
-    ]["properties"]["evidence_citations"]
-    finding_evidence_schema = transformed["properties"]["findings"]["items"][
-        "properties"
-    ]["evidence_citations"]
+    assert dimension_review_schema["items"] == {
+        "$ref": "#/$defs/dimension_review"
+    }
+    dimension_definition = transformed["$defs"]["dimension_review"]
+    finding_definition = transformed["$defs"]["finding"]
+    dimension_evidence_schema = dimension_definition["properties"][
+        "evidence_citations"
+    ]
     assert dimension_evidence_schema["minItems"] == 1
-    assert finding_evidence_schema["minItems"] == 1
-    assert set(
-        dimension_evidence_schema["items"]["properties"]["artifact_role"][
-            "enum"
-        ]
-    ) == set(
-        GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS
-    )
-    assert set(
-        finding_evidence_schema["items"]["properties"]["artifact_role"][
-            "enum"
-        ]
-    ) == set(
+    evidence_definition = transformed["$defs"]["evidence_citation"]
+    assert set(evidence_definition["properties"]["artifact_role"]["enum"]) == set(
         GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS
     )
     source_dimension_evidence_schema = (
-        GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA["properties"]
-        ["dimension_reviews"]["properties"]
-        [GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS[0]]["properties"]
+        GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA["$defs"]
+        ["dimension_review"]["properties"]
         ["evidence_citations"]
     )
-    source_finding_evidence_schema = (
-        GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA["properties"]["findings"]
-        ["items"]["properties"]["evidence_citations"]
-    )
-    assert (
-        source_dimension_evidence_schema["items"]["properties"]["locator"][
-            "minLength"
-        ]
-        == 1
-    )
-    assert (
-        source_finding_evidence_schema["items"]["properties"]["locator"][
-            "minLength"
-        ]
-        == 1
-    )
-    assert "evidence_refs" not in dimension_review_schema["properties"][
-        GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS[0]
+    assert source_dimension_evidence_schema["items"] == {
+        "$ref": "#/$defs/evidence_citation"
+    }
+    assert transformed["$defs"]["evidence_citation"]["properties"][
+        "locator"
+    ]["minLength"] == 1
+    assert "evidence_refs" not in dimension_definition["properties"]
+    assert "evidence_citations" not in finding_definition["properties"]
+    assert "artifact_citations" not in finding_definition["properties"]
+    assert "authority_refs" not in finding_definition["properties"]
+    assert "obligation_kind" not in transformed["$defs"][
+        "artifact_delta"
     ]["properties"]
-    assert "artifact_citations" not in transformed["properties"][
-        "findings"
-    ]["items"]["properties"]
     assert set(transformed["required"]) == {
         "prior_finding_reviews",
         "dimension_reviews",
@@ -4903,7 +4724,7 @@ def test_post_result_metric_protocol_revision_starts_versioned_fresh_candidate(
     assert "runtime_generated_code_semantic_review_replan" not in fresh_context
 
 
-def test_runtime_uses_router_scope_instead_of_reviewer_scope(
+def test_runtime_rejects_router_scope_not_supported_by_finding_delta(
     tmp_path: Path,
 ) -> None:
     subsystem, task, blackboard, _ = _runtime_fixture(
@@ -4925,16 +4746,10 @@ def test_runtime_uses_router_scope_instead_of_reviewer_scope(
 
     result = subsystem.run(task, blackboard)
 
-    assert result.status == "REVISE"
-    assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "AlgorithmEngineer"
-    feedback = result.next_task.inputs["environment_feedback"]
-    assert feedback["semantic_reviewer_repair_scope"] == (
-        "upstream_metric_contract"
-    )
-    assert feedback["repair_scope"] == "source_code"
-    assert feedback["repair_ownership_packet_id"].startswith(
-        "metric_repair_ownership:"
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
+    assert result.failure_classification == (
+        "generated_code_repair_ownership_unresolved"
     )
     execution = next(
         row
@@ -4945,127 +4760,7 @@ def test_runtime_uses_router_scope_instead_of_reviewer_scope(
     assert execution["repair_routing_authority"] == (
         "ArchitectMetricRepairOwnershipRouter"
     )
-    assert execution["repair_ownership_resolved"] is True
-
-
-def test_runtime_repairs_coupled_source_and_theory_finding_at_source_first(
-    tmp_path: Path,
-) -> None:
-    subsystem, task, blackboard, _ = _runtime_fixture(
-        tmp_path,
-        accept=False,
-        repair_scope="upstream_theory",
-        finding_evidence_refs=[
-            "source_theory_packet#/derivation_steps",
-            "generated_source_artifact#/exact_source_code",
-        ],
-        finding_artifact_citations=[
-            "source_theory_packet",
-            "generated_source_artifact",
-        ],
-    )
-    subsystem.repair_ownership_router = (
-        LLMArchitectMetricRepairOwnershipRouterAgent(
-            provider=StaticJSONGeneratorBackend(
-                {
-                    "decisions": [
-                        {
-                            "finding_index": 0,
-                            "required_artifact_changes": [
-                                {"artifact_role": "generated_source_artifact"},
-                                {"artifact_role": "source_theory_packet"},
-                            ],
-                                "source_theory_can_remain_unchanged": False,
-                                "ownership_certainty": "resolved",
-                                "finding_actionability": (
-                                    "actionable_exact_delta"
-                                ),
-                            "rationale": (
-                                "The same observed mismatch supports a concrete "
-                                "source defect and an upstream hypothesis."
-                            ),
-                        }
-                    ]
-                }
-            ),
-            config=ArchitectMetricRepairOwnershipRouterConfig(
-                provider_name="static",
-                model=LIVE_EVALUATION_CLAUDE_MODEL,
-                model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
-                max_repair_attempts=0,
-            ),
-        )
-    )
-
-    result = subsystem.run(task, blackboard)
-
-    assert result.status == "REVISE"
-    assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "AlgorithmEngineer"
-    feedback = result.next_task.inputs["environment_feedback"]
-    assert feedback["repair_scope"] == "source_code"
-    assert feedback["repair_scopes"] == ["source_code", "upstream_theory"]
-    assert "Reinspect generated_source_artifact" in feedback[
-        "repair_instructions"
-    ][0]
-    assert "source_theory_packet" not in feedback["repair_instructions"][0]
-    ownership = next(
-        row
-        for row in result.produced_artifacts.values()
-        if row.get("artifact_kind") == "ArchitectMetricRepairOwnershipPacket"
-    )
-    assert ownership["recommended_repair_scope"] == "source_code"
-    assert ownership["decisions"][0]["derived_repair_scope"] == "source_code"
-    first_context = result.next_task.inputs["architect_context"]
-    pending = first_context[
-        "runtime_generated_code_semantic_review_pending_repair_plan"
-    ]
-    assert pending["pending_repair_scopes"] == ["upstream_theory"]
-    assert pending["pending_findings"][0]["repair_scope"] == "upstream_theory"
-    assert pending["pending_findings"][0][
-        "runtime_deferred_repair_target"
-    ] is True
-
-    work_order = blackboard.artifacts[str(task.inputs["work_order_id"])]
-    work_order["pending_repair_plan"] = pending
-    work_order["review_revision_count"] = 1
-    for task_field in ("repair_task", "deferred_next_task"):
-        task_payload = dict(work_order[task_field])
-        task_inputs = dict(task_payload["inputs"])
-        task_inputs["architect_context"] = first_context
-        task_payload["inputs"] = task_inputs
-        work_order[task_field] = task_payload
-    second = subsystem.run(
-        AgentTask(
-            task_id="semantic-review:coupled-after-source-repair",
-            owner_subsystem=task.owner_subsystem,
-            objective=task.objective,
-            inputs={
-                **task.inputs,
-                "architect_context": first_context,
-                "work_order_hash": stable_hash(work_order),
-            },
-        ),
-        blackboard,
-    )
-
-    assert second.status == "REROUTE"
-    assert second.next_task is not None
-    assert second.next_task.owner_subsystem == "ArchitectCoordinator"
-    assert second.failure_classification == (
-        "generated_code_semantic_review_upstream_theory_repair_"
-        "escalated_to_architect"
-    )
-    second_execution = next(
-        row
-        for row in second.produced_artifacts.values()
-        if row.get("artifact_kind")
-        == "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
-    )
-    assert second_execution["repair_scope"] == "upstream_theory"
-    assert second_execution["semantic_review_lineage_budget"][
-        "selected_action"
-    ] == "architect_replan"
+    assert execution["repair_ownership_resolved"] is False
 
 
 def test_runtime_defers_separate_theory_finding_behind_required_source_repair(

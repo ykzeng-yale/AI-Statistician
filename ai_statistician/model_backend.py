@@ -742,9 +742,15 @@ def _anthropic_structured_output_grammar_too_large(exc: Exception) -> bool:
     """Recognize Anthropic's deterministic strict-schema size rejection."""
 
     error_text = str(exc).lower()
-    return (
-        "compiled grammar is too large" in error_text
-        and "simplify your tool schemas" in error_text
+    return bool(
+        (
+            "compiled grammar is too large" in error_text
+            and "simplify your tool schemas" in error_text
+        )
+        or (
+            "schema is too complex for compilation" in error_text
+            and "tool schemas" in error_text
+        )
     )
 
 
