@@ -38,8 +38,8 @@ from .metric_protocol_finding_ledger import (
 from .research_schema import OpenResearchQuestion
 
 
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 6
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 7
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 7
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 10
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS = (
     "question_estimand_dgp_and_regime_alignment",
     "primitive_mathematical_consistency",
@@ -73,7 +73,7 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT = (
-    "client_tool_source_query_v1"
+    "client_tool_source_query_v3"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES = 3
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 5
@@ -644,46 +644,28 @@ def architect_theory_execution_preflight_json_schema(
                     "type": "object",
                     "additionalProperties": False,
                     "required": [
-                        "ideal_procedure_semantics",
-                        "procedure_identity_recomputation",
-                        "selection_conditioning_or_operator_audit",
+                        "audit_rationale",
                         "procedure_identity_declared_valid",
-                        "theorem_hypothesis_measure_audit",
                         "theorem_applications_declared_valid",
-                        "executable_observation_semantics",
                         "ideal_to_executable_mapping_declared",
-                        "termination_or_censoring_analysis",
                         "total_or_typed_bounded_outcome_declared",
-                        "guarantee_transport_analysis",
                         "guarantee_transport_argument_declared",
                         "boundary_or_counterexample",
                         "status",
                         "evidence_refs",
                     ],
                     "properties": {
-                        "ideal_procedure_semantics": {
+                        "audit_rationale": {
                             "type": "string",
                             "minLength": 1,
-                            "maxLength": 280,
-                            "description": "State only the ideal procedure declared by the source.",
-                        },
-                        "procedure_identity_recomputation": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 420,
+                            "maxLength": 720,
                             "description": (
-                                "Reconstruct the central invariant or guarantee-carrying "
-                                "identity from the primitive DGP. Do not restate source prose."
-                            ),
-                        },
-                        "selection_conditioning_or_operator_audit": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 420,
-                            "description": (
-                                "Audit data-dependent selection, conditioning, stopping, "
-                                "optimization, extrema, and nonlinear operators. State why "
-                                "the claimed property survives, or give the failure."
+                                "Compactly audit the source-declared procedure identity; "
+                                "adaptive choices or operators; invoked theorem hypotheses "
+                                "under the conclusion law; executable mapping and total or "
+                                "typed bounded outcomes; and guarantee transport. Recompute "
+                                "rather than restating source prose. Put each blocking defect "
+                                "in findings instead of duplicating it here."
                             ),
                         },
                         "procedure_identity_declared_valid": {
@@ -694,30 +676,11 @@ def architect_theory_execution_preflight_json_schema(
                                 "or operator; reviewer prose cannot fill a missing argument."
                             ),
                         },
-                        "theorem_hypothesis_measure_audit": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 420,
-                            "description": (
-                                "For every theorem used to carry a guarantee, name its "
-                                "conclusion law or measure and audit each hypothesis under "
-                                "that same law. Say NOT_APPLICABLE only when no theorem is used."
-                            ),
-                        },
                         "theorem_applications_declared_valid": {
                             "type": "boolean",
                             "description": (
                                 "True only when the source establishes every invoked "
                                 "theorem hypothesis under the law governing its conclusion."
-                            ),
-                        },
-                        "executable_observation_semantics": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 280,
-                            "description": (
-                                "State only executable behavior explicitly declared by "
-                                "the source. Say MISSING when absent; never insert a repair."
                             ),
                         },
                         "ideal_to_executable_mapping_declared": {
@@ -727,26 +690,12 @@ def architect_theory_execution_preflight_json_schema(
                                 "outcome to an executable observation."
                             ),
                         },
-                        "termination_or_censoring_analysis": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 280,
-                            "description": (
-                                "Audit source-declared totality or bounded outcomes. Put "
-                                "proposed timeout or censoring behavior only in findings."
-                            ),
-                        },
                         "total_or_typed_bounded_outcome_declared": {
                             "type": "boolean",
                             "description": (
                                 "True only when the source establishes total return or "
                                 "declares timeout, truncation, or censoring as a typed outcome."
                             ),
-                        },
-                        "guarantee_transport_analysis": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 280,
                         },
                         "guarantee_transport_argument_declared": {
                             "type": "boolean",
@@ -758,7 +707,11 @@ def architect_theory_execution_preflight_json_schema(
                         "boundary_or_counterexample": {
                             "type": "string",
                             "minLength": 1,
-                            "maxLength": 280,
+                            "maxLength": 360,
+                            "description": (
+                                "Give one source-scoped boundary check or counterexample. "
+                                "Do not add an out-of-scope robustness requirement."
+                            ),
                         },
                         "status": {
                             "type": "string",
@@ -892,8 +845,9 @@ def _architect_theory_execution_preflight_submit_schema(
         "maxItems": 6,
         "items": {"type": "string", "minLength": 1, "maxLength": 120},
         "description": (
-            "IDs of exact hits returned by search_preflight_sources that support "
-            "this blocking finding. Theory anchor evidence_refs remain separately "
+            "Short source_ref handles returned by search_preflight_sources that "
+            "support this blocking finding. Runtime resolves them to immutable "
+            "source_hit_id values. Theory anchor evidence_refs remain separately "
             "required."
         ),
     }
@@ -1073,6 +1027,9 @@ def _search_preflight_sources(
     query: str,
     source_scope: str,
     k: int,
+    search_index: int,
+    exclude_hit_ids: set[str] | None = None,
+    prior_source_refs: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     query_tokens = _preflight_source_tokens(query)
     if not query_tokens:
@@ -1094,7 +1051,8 @@ def _search_preflight_sources(
             "formal_library_declaration",
         },
     }[source_scope]
-    ranked: list[tuple[float, dict[str, Any]]] = []
+    contextual_ranked: list[tuple[float, dict[str, Any]]] = []
+    formal_ranked: list[tuple[float, dict[str, Any]]] = []
     for row in _preflight_source_catalog(material):
         if row["source_kind"] not in allowed_kinds:
             continue
@@ -1104,6 +1062,11 @@ def _search_preflight_sources(
         if not overlap:
             continue
         phrase_bonus = 2.0 if query.lower() in row_text.lower() else 0.0
+        ranked = (
+            formal_ranked
+            if row["source_kind"] == "formal_library_declaration"
+            else contextual_ranked
+        )
         ranked.append((float(len(overlap)) + phrase_bonus, row))
 
     provider_errors: list[dict[str, str]] = []
@@ -1118,7 +1081,7 @@ def _search_preflight_sources(
                             score = float(_object_mapping(hit).get("score", 0.0))
                         except (TypeError, ValueError):
                             score = 0.0
-                        ranked.append((100.0 + score, row))
+                        formal_ranked.append((score, row))
             except Exception as exc:  # provider isolation belongs at the tool edge
                 provider_errors.append(
                     {
@@ -1130,24 +1093,83 @@ def _search_preflight_sources(
                     }
                 )
 
-    deduplicated: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for score, row in sorted(
-        ranked,
-        key=lambda item: (-item[0], item[1]["source_hit_id"]),
-    ):
-        hit_id = str(row["source_hit_id"])
-        if hit_id in seen:
-            continue
-        seen.add(hit_id)
-        deduplicated.append({**row, "retrieval_score": score})
-        if len(deduplicated) >= k:
-            break
+    def deduplicate_ranked(
+        rows: list[tuple[float, dict[str, Any]]],
+        *,
+        channel: str,
+    ) -> list[dict[str, Any]]:
+        deduplicated: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for score, row in sorted(
+            rows,
+            key=lambda item: (-item[0], item[1]["source_hit_id"]),
+        ):
+            hit_id = str(row["source_hit_id"])
+            if hit_id in seen:
+                continue
+            seen.add(hit_id)
+            deduplicated.append(
+                {
+                    **row,
+                    "retrieval_channel": channel,
+                    "retrieval_rank_within_channel": len(deduplicated) + 1,
+                    "retrieval_score": score,
+                }
+            )
+        return deduplicated
+
+    contextual = deduplicate_ranked(
+        contextual_ranked,
+        channel="theory_and_retrieval_context",
+    )
+    formal = deduplicate_ranked(
+        formal_ranked,
+        channel="formal_library",
+    )
+    if source_scope == "formal_library":
+        fused = formal
+    elif source_scope == "theory":
+        fused = contextual
+    else:
+        fused = []
+        for rank in range(max(len(contextual), len(formal))):
+            if rank < len(contextual):
+                fused.append(contextual[rank])
+            if rank < len(formal):
+                fused.append(formal[rank])
+    excluded = set(exclude_hit_ids or set())
+    source_refs = dict(prior_source_refs or {})
+    duplicate_source_refs_reused = list(
+        dict.fromkeys(
+            source_refs.get(str(row.get("source_hit_id", "") or ""), "")
+            for row in fused
+            if str(row.get("source_hit_id", "") or "") in excluded
+            and source_refs.get(str(row.get("source_hit_id", "") or ""), "")
+        )
+    )[:12]
+    unseen_fused = [
+        row
+        for row in fused
+        if str(row.get("source_hit_id", "") or "") not in excluded
+    ]
+    hits = [
+        {
+            **row,
+            "source_ref": f"S{search_index}H{index + 1}",
+        }
+        for index, row in enumerate(unseen_fused[:k])
+    ]
     observation_core = {
         "query": query,
         "source_scope": source_scope,
-        "hits": deduplicated,
+        "hits": hits,
+        "duplicate_source_refs_reused": duplicate_source_refs_reused,
         "provider_errors": provider_errors,
+        "retrieval_fusion": (
+            "round_robin_context_then_formal_v2_cross_turn_deduplicated"
+            if source_scope in {"retrieval_memory", "all"}
+            else "single_channel_rank_v1"
+        ),
     }
     return {
         "observation_id": (
@@ -1178,10 +1200,18 @@ def _preflight_source_grounding_errors(packet: Mapping[str, Any]) -> list[str]:
     if not observations:
         errors.append("preflight source grounding requires a source observation")
     hit_ids: set[str] = set()
+    source_refs: dict[str, str] = {}
     for observation in observations:
         core = {
             key: observation.get(key)
-            for key in ("query", "source_scope", "hits", "provider_errors")
+            for key in (
+                "query",
+                "source_scope",
+                "hits",
+                "duplicate_source_refs_reused",
+                "provider_errors",
+                "retrieval_fusion",
+            )
         }
         expected_id = "preflight_source_observation:" + stable_hash(core)[:20]
         if observation.get("observation_id") != expected_id:
@@ -1192,7 +1222,14 @@ def _preflight_source_grounding_errors(packet: Mapping[str, Any]) -> list[str]:
                 hit_identity_material = {
                     key: value
                     for key, value in hit.items()
-                    if key not in {"source_hit_id", "retrieval_score"}
+                    if key
+                    not in {
+                        "source_hit_id",
+                        "source_ref",
+                        "retrieval_score",
+                        "retrieval_channel",
+                        "retrieval_rank_within_channel",
+                    }
                 }
                 expected_hit_id = (
                     "preflight_source_hit:"
@@ -1202,6 +1239,13 @@ def _preflight_source_grounding_errors(packet: Mapping[str, Any]) -> list[str]:
                     errors.append("preflight source hit identity mismatch")
                 if hit_id:
                     hit_ids.add(hit_id)
+                source_ref = str(hit.get("source_ref", "") or "").strip()
+                if not re.fullmatch(r"S[1-9][0-9]*H[1-9][0-9]*", source_ref):
+                    errors.append("preflight source hit has invalid source_ref")
+                elif source_ref in source_refs:
+                    errors.append("preflight source_ref must be unique")
+                else:
+                    source_refs[source_ref] = hit_id
     findings = [
         row
         for row in packet.get("findings", []) or []
@@ -1214,9 +1258,21 @@ def _preflight_source_grounding_errors(packet: Mapping[str, Any]) -> list[str]:
             for value in finding.get("source_evidence_refs", []) or []
             if str(value).strip()
         ]
-        if not refs or any(ref not in hit_ids for ref in refs):
+        invalid_refs = [ref for ref in refs if ref not in hit_ids]
+        if not refs or invalid_refs:
             errors.append(
-                "every preflight finding must cite runtime-returned source hit ids"
+                "every preflight finding must cite runtime-returned source refs"
+                + (
+                    "; invalid refs: " + ", ".join(invalid_refs[:6])
+                    if invalid_refs
+                    else ""
+                )
+                + (
+                    "; available handles: "
+                    + ", ".join(sorted(source_refs)[:12])
+                    if source_refs
+                    else ""
+                )
             )
         expected_bindings.append(
             {
@@ -1236,6 +1292,37 @@ def _preflight_source_grounding_errors(packet: Mapping[str, Any]) -> list[str]:
     ):
         errors.append("preflight source observation fingerprint mismatch")
     return errors
+
+
+def _canonical_preflight_source_refs(
+    values: Any,
+    *,
+    source_grounding: Mapping[str, Any],
+) -> list[str]:
+    ref_to_hit: dict[str, str] = {}
+    for observation in source_grounding.get(
+        "preflight_source_observations", []
+    ) or []:
+        if not isinstance(observation, Mapping):
+            continue
+        for hit in observation.get("hits", []) or []:
+            if not isinstance(hit, Mapping):
+                continue
+            hit_id = str(hit.get("source_hit_id", "") or "").strip()
+            source_ref = str(hit.get("source_ref", "") or "").strip()
+            if hit_id:
+                ref_to_hit[hit_id] = hit_id
+            if source_ref and hit_id:
+                ref_to_hit[source_ref] = hit_id
+    canonical: list[str] = []
+    for value in values or []:
+        ref = str(value).strip()
+        if not ref:
+            continue
+        resolved = ref_to_hit.get(ref, ref)
+        if resolved not in canonical:
+            canonical.append(resolved)
+    return canonical
 
 
 def _derived_verdict(packet: Mapping[str, Any]) -> str:
@@ -1467,7 +1554,6 @@ def _normalize_packet(
         expected_count=len(active_prior_finding_ids),
     )
     prior_finding_continuations: list[dict[str, Any]] = []
-    prior_finding_identity_bindings: list[dict[str, Any]] = []
     normalized_prior_reviews: list[dict[str, Any]] = []
     for transport_index, raw_finding_id in enumerate(
         active_prior_finding_ids
@@ -1498,16 +1584,6 @@ def _normalize_packet(
                     "prior_finding_id": finding_id,
                     "finding_id": finding_id,
                     "repair_scope": "upstream_theory",
-                }
-            )
-            prior_finding_identity_bindings.append(
-                {
-                    "transport_index": transport_index,
-                    "prior_finding_id": finding_id,
-                    "canonical_finding_id": finding_id,
-                    "model_continuation_fingerprint": stable_hash(continuation),
-                    "identity_source": "prior_finding_reviews_ordered_index",
-                    "runtime_selected_semantics": False,
                 }
             )
     body["prior_finding_reviews"] = normalized_prior_reviews
@@ -1574,6 +1650,14 @@ def _normalize_packet(
             )[0]
         normalized_findings.append(finding)
     body["findings"] = normalized_findings
+    if body.get("source_grounding_required") is True:
+        for finding in normalized_findings:
+            finding["source_evidence_refs"] = (
+                _canonical_preflight_source_refs(
+                    finding.get("source_evidence_refs", []),
+                    source_grounding=grounding,
+                )
+            )
     body["source_grounding_bindings"] = [
         {
             "finding_id": str(finding.get("finding_id", "") or ""),
@@ -1587,9 +1671,30 @@ def _normalize_packet(
         }
         for finding in normalized_findings
     ] if body.get("source_grounding_required") is True else []
-    body["runtime_prior_finding_identity_bindings"] = (
-        prior_finding_identity_bindings
-    )
+    body["runtime_prior_finding_identity_bindings"] = [
+        {
+            "transport_index": transport_index,
+            "prior_finding_id": finding_id,
+            "canonical_finding_id": finding_id,
+            "model_continuation_fingerprint": stable_hash(
+                {
+                    key: value
+                    for key, value in row.items()
+                    if key
+                    not in {
+                        "finding_id",
+                        "prior_finding_id",
+                        "repair_scope",
+                    }
+                }
+            ),
+            "identity_source": "prior_finding_reviews_ordered_index",
+            "runtime_selected_semantics": False,
+        }
+        for transport_index, finding_id in enumerate(active_prior_finding_ids)
+        for row in normalized_findings
+        if str(row.get("prior_finding_id", "") or "").strip() == finding_id
+    ]
     body["repair_instructions"] = _derived_repair_instructions(body)
     body["derived_consistency_warnings"] = _derived_consistency_warnings(body)
     body["overall_verdict"] = _derived_verdict(body)
@@ -2094,8 +2199,9 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             name="search_preflight_sources",
             description=(
                 "Search the current theory anchors, task-bound retrieval memory, "
-                "and configured formal libraries. Write the query yourself. Use "
-                "returned source_hit_id values to ground every blocking finding."
+                "and configured formal libraries. Write the query yourself. Cite "
+                "the short returned source_ref handles in blocking findings; the "
+                "runtime resolves them to immutable source_hit_id values."
             ),
             input_schema={
                 "type": "object",
@@ -2125,7 +2231,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             description=(
                 "Submit the complete preflight review after source search. Every "
                 "finding, including a continued prior finding, must cite one or "
-                "more exact source_hit_id values returned in this loop."
+                "more short source_ref handles returned in this loop."
             ),
             input_schema=submit_schema,
             terminal=True,
@@ -2134,7 +2240,8 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     prompt = build_architect_theory_execution_preflight_prompt(material)
     tool_prompt = (
         prompt.split("\n\n", 1)[-1]
-        + "\n\nUse search_preflight_sources before submitting. You own each "
+        + "\n\nUse search_preflight_sources before submitting. Cite its short "
+        "source_ref handles; runtime binds them to exact source identities. You own each "
         "statistical judgment and each search query. Runtime retrieval ranking, "
         "source identity checks, and packet validation do not choose semantics. "
         "Call submit_theory_preflight_review with the full typed review; do not "
@@ -2144,6 +2251,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "searches": 0,
         "observations": [],
         "observation_ids": set(),
+        "source_ref_by_hit_id": {},
     }
 
     def source_grounding_payload(**loop_metadata: Any) -> dict[str, Any]:
@@ -2227,8 +2335,18 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 query=query,
                 source_scope=source_scope,
                 k=k,
+                search_index=int(state["searches"]) + 1,
+                exclude_hit_ids=set(state["source_ref_by_hit_id"]),
+                prior_source_refs=state["source_ref_by_hit_id"],
             )
             state["searches"] += 1
+            for hit in observation.get("hits", []) or []:
+                if not isinstance(hit, Mapping):
+                    continue
+                hit_id = str(hit.get("source_hit_id", "") or "").strip()
+                source_ref = str(hit.get("source_ref", "") or "").strip()
+                if hit_id and source_ref:
+                    state["source_ref_by_hit_id"][hit_id] = source_ref
             observation_id = str(observation["observation_id"])
             if observation_id not in state["observation_ids"]:
                 state["observation_ids"].add(observation_id)
@@ -2315,6 +2433,17 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
         + ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS
     )
+
+    def select_preflight_tools(
+        _turn_index: int,
+        available_tools: tuple[ClientToolDefinition, ...],
+    ) -> tuple[ClientToolDefinition, ...]:
+        if int(state["searches"]) < (
+            ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
+        ):
+            return available_tools
+        return tuple(tool for tool in available_tools if tool.terminal)
+
     try:
         loop = run_bounded_client_tool_loop(
             backend=provider,
@@ -2328,6 +2457,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             max_terminal_recovery_turns=(
                 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TERMINAL_RECOVERY_TURNS
             ),
+            select_tools=select_preflight_tools,
         )
     except ClientToolLoopError as exc:
         raise PacketValidationError(

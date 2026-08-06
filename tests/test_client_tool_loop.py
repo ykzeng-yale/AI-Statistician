@@ -213,7 +213,7 @@ def test_bounded_client_tool_loop_does_not_accept_early_terminal_call() -> None:
         )
 
     first_turn = backend.requests[0]
-    assert first_turn.tool_choice == "any"
+    assert first_turn.tool_choice == "submit"
     assert [tool.name for tool in first_turn.tools] == ["submit"]
     assert first_turn.disable_parallel_tool_use is True
     assert executed_tools == []
@@ -251,7 +251,59 @@ def test_bounded_client_tool_loop_reserves_final_turn_for_submission() -> None:
         "submit",
     ]
     assert [tool.name for tool in backend.requests[1].tools] == ["submit"]
+    assert backend.requests[1].tool_choice == "submit"
     assert backend.requests[1].disable_parallel_tool_use is True
+    assert backend.requests[1].metadata[
+        "client_tool_loop_terminal_only_turn"
+    ] is True
+
+
+def test_bounded_client_tool_loop_can_hide_exhausted_tools() -> None:
+    backend = ScriptedToolTurnBackend(
+        [
+            _response(ClientToolCall("call-edit", "edit", {"value": 2})),
+            _response(ClientToolCall("call-submit", "submit", {})),
+        ]
+    )
+    state = {"edited": False}
+
+    def execute(call, context):
+        if call.name == "edit":
+            state["edited"] = True
+            return ClientToolExecutionResult(
+                content={"ok": True},
+                state_changed=True,
+                observation_key="edited",
+            )
+        return ClientToolExecutionResult(
+            content={"ok": True},
+            terminal=True,
+            terminal_payload={"submitted": True},
+            observation_key="submitted",
+        )
+
+    result = run_bounded_client_tool_loop(
+        backend=backend,
+        request=_request(),
+        execute_tool=execute,
+        max_turns=4,
+        max_tool_calls=3,
+        max_no_progress_turns=1,
+        select_tools=lambda _turn, tools: (
+            tuple(tool for tool in tools if tool.terminal)
+            if state["edited"]
+            else tools
+        ),
+    )
+
+    assert result.terminal_payload == {"submitted": True}
+    assert [tool.name for tool in backend.requests[0].tools] == [
+        "edit",
+        "check",
+        "submit",
+    ]
+    assert [tool.name for tool in backend.requests[1].tools] == ["submit"]
+    assert backend.requests[1].tool_choice == "submit"
     assert backend.requests[1].metadata[
         "client_tool_loop_terminal_only_turn"
     ] is True
@@ -299,6 +351,7 @@ def test_bounded_client_tool_loop_allows_one_rejected_terminal_recovery() -> Non
     assert result.turns == 3
     assert terminal_attempts == 2
     assert [tool.name for tool in backend.requests[2].tools] == ["submit"]
+    assert backend.requests[2].tool_choice == "submit"
     assert backend.requests[2].metadata[
         "client_tool_loop_max_terminal_recovery_turns"
     ] == 1

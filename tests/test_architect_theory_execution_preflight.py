@@ -130,21 +130,30 @@ class _PreflightToolBackend:
         self,
         *,
         accept: bool,
+        payload: dict[str, object] | None = None,
         submit_before_search: bool = False,
         submit_unknown_ref_once: bool = False,
         source_scope: str = "theory",
     ) -> None:
         self.accept = accept
+        self.payload = deepcopy(payload) if payload is not None else None
         self.submit_before_search = submit_before_search
         self.submit_unknown_ref_once = submit_unknown_ref_once
         self.source_scope = source_scope
         self.requests = []
         self.hit_id = ""
+        self.source_ref = ""
 
     def _submission(self, *, source_ref: str) -> dict[str, object]:
-        payload = _payload(accept=self.accept)
+        payload = deepcopy(self.payload) if self.payload is not None else _payload(
+            accept=self.accept
+        )
         for finding in payload["findings"]:
             finding["source_evidence_refs"] = [source_ref]
+        for review in payload.get("prior_finding_reviews", []) or []:
+            current_finding = review.get("current_finding")
+            if isinstance(current_finding, dict):
+                current_finding["source_evidence_refs"] = [source_ref]
         return payload
 
     def generate_client_tool_turn(self, request):
@@ -174,6 +183,7 @@ class _PreflightToolBackend:
         result = json.loads(result_blocks[0]["content"])
         if result.get("hits"):
             self.hit_id = result["hits"][0]["source_hit_id"]
+            self.source_ref = result["hits"][0]["source_ref"]
         if self.submit_unknown_ref_once and not any(
             row.get("is_error")
             for row in request.messages[-1].get("content", [])
@@ -184,14 +194,14 @@ class _PreflightToolBackend:
                 ClientToolCall(
                     "submit-unknown-ref",
                     "submit_theory_preflight_review",
-                    self._submission(source_ref="preflight_source_hit:unknown"),
+                    self._submission(source_ref="S99H99"),
                 )
             )
         return _tool_response(
             ClientToolCall(
                 f"submit-{turn}",
                 "submit_theory_preflight_review",
-                self._submission(source_ref=self.hit_id),
+                self._submission(source_ref=self.source_ref),
             )
         )
 
@@ -317,43 +327,18 @@ def _payload(*, accept: bool) -> dict[str, object]:
         ],
         "estimator_execution_checks": [
             {
-                "ideal_procedure_semantics": "The ideal method reads until an event.",
-                "procedure_identity_recomputation": (
+                "audit_rationale": (
                     "The first-event identity is reconstructed on event and no-event "
-                    "finite-support branches."
+                    "finite-support branches; the adapted stopping rule, theorem use, "
+                    "typed finite outcome, and guarantee transport all match the source."
                     if accept
-                    else "The source merely asserts eventual occurrence."
-                ),
-                "selection_conditioning_or_operator_audit": (
-                    "The stopping rule is adapted and the finite resource boundary "
-                    "is represented by a separate censored outcome."
-                    if accept
-                    else "Stopping at a finite resource bound is not represented."
+                    else "The source merely asserts eventual occurrence and does not "
+                    "connect the stopped finite observation to the claimed ideal risk."
                 ),
                 "procedure_identity_declared_valid": accept,
-                "theorem_hypothesis_measure_audit": (
-                    "The accepted fixture uses no external theorem: NOT_APPLICABLE."
-                    if accept
-                    else "The source does not establish the invoked theorem hypotheses."
-                ),
                 "theorem_applications_declared_valid": accept,
-                "executable_observation_semantics": (
-                    "A finite input exposes either the event or an explicit censored outcome."
-                    if accept
-                    else "The finite input has no output when the event is absent."
-                ),
                 "ideal_to_executable_mapping_declared": accept,
-                "termination_or_censoring_analysis": (
-                    "The interface explicitly returns a typed censored outcome."
-                    if accept
-                    else "No total return or typed censoring behavior is defined."
-                ),
                 "total_or_typed_bounded_outcome_declared": accept,
-                "guarantee_transport_analysis": (
-                    "The changed estimand and transport argument are explicit."
-                    if accept
-                    else "No argument connects the finite observation to the ideal risk."
-                ),
                 "guarantee_transport_argument_declared": accept,
                 "boundary_or_counterexample": (
                     "The no-event finite input returns the censored outcome."
@@ -409,7 +394,7 @@ def _review(*, accept: bool):
     return packet, backend
 
 
-def _tool_review(backend, *, source_retriever=None):
+def _tool_review(backend, *, source_retriever=None, prior_finding_ledger=()):
     return review_architect_theory_execution_preflight(
         provider=backend,
         question=_question(),
@@ -425,6 +410,7 @@ def _tool_review(backend, *, source_retriever=None):
         provider_name="anthropic",
         max_repair_attempts=0,
         source_retriever=source_retriever,
+        prior_finding_ledger=prior_finding_ledger,
     )
 
 
@@ -435,7 +421,7 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
 
     assert packet["overall_verdict"] == "REVISE"
     assert packet["source_grounding_required"] is True
-    assert packet["source_grounding_transport"] == "client_tool_source_query_v1"
+    assert packet["source_grounding_transport"] == "client_tool_source_query_v3"
     assert packet["preflight_source_search_count"] == 1
     assert packet["client_tool_loop_turns"] == 2
     assert packet["client_tool_loop_tool_calls"] == 2
@@ -457,6 +443,42 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
     ]
     assert backend.requests[0].metadata["model_tier"] == "haiku"
     assert backend.requests[0].disable_parallel_tool_use is True
+    first_result = json.loads(
+        backend.requests[1].messages[-1]["content"][0]["content"]
+    )
+    assert first_result["hits"][0]["source_ref"] == "S1H1"
+
+
+def test_preflight_canonicalizes_prior_finding_source_ref_before_binding() -> None:
+    rejected, _backend = _review(accept=False)
+    prior_ledger = rejected["cumulative_finding_ledger"]
+    prior_finding_id = rejected["active_unresolved_finding_ids"][0]
+    payload = _payload(accept=False)
+    continuation = payload["findings"].pop()
+    payload["prior_finding_reviews"] = [
+        {
+            "status": "UNRESOLVED",
+            "rationale": "The revised source still leaves the finite branch undefined.",
+            "evidence_refs": ["theory.estimator_specs"],
+            "current_finding": continuation,
+        }
+    ]
+    backend = _PreflightToolBackend(accept=False, payload=payload)
+
+    packet = _tool_review(backend, prior_finding_ledger=prior_ledger)
+
+    continued = packet["findings"][0]
+    assert continued["finding_id"] == prior_finding_id
+    assert continued["source_evidence_refs"] == [backend.hit_id]
+    assert packet["runtime_prior_finding_identity_bindings"][0][
+        "model_continuation_fingerprint"
+    ] == stable_hash(
+        {
+            key: value
+            for key, value in continued.items()
+            if key not in {"finding_id", "prior_finding_id", "repair_scope"}
+        }
+    )
 
 
 def test_preflight_client_tool_loop_can_query_configured_formal_retriever() -> None:
@@ -497,6 +519,87 @@ def test_preflight_client_tool_loop_can_query_configured_formal_retriever() -> N
     ]
 
 
+def test_preflight_all_scope_preserves_context_and_formal_channels() -> None:
+    class FormalRetriever:
+        source = "configured_formal_source"
+
+        def search(self, query, *, k):
+            return [
+                {
+                    "source_id": "statlib",
+                    "path": "Statlib/Generic.lean",
+                    "line": 17,
+                    "kind": "theorem",
+                    "name": "Statlib.generic",
+                    "signature": "finite input censored outcome",
+                    "score": 9999.0,
+                }
+            ]
+
+    backend = _PreflightToolBackend(
+        accept=False,
+        source_scope="all",
+    )
+
+    packet = _tool_review(backend, source_retriever=FormalRetriever())
+
+    hits = packet["preflight_source_observations"][0]["hits"]
+    assert {hit["retrieval_channel"] for hit in hits} == {
+        "theory_and_retrieval_context",
+        "formal_library",
+    }
+    assert hits[0]["retrieval_channel"] == "theory_and_retrieval_context"
+    assert [hit["source_ref"] for hit in hits] == [
+        f"S1H{index + 1}" for index in range(len(hits))
+    ]
+    assert packet["findings"][0]["source_evidence_refs"] == [
+        hits[0]["source_hit_id"]
+    ]
+
+
+def test_preflight_source_search_deduplicates_hits_across_turns() -> None:
+    class RepeatedSearchBackend(_PreflightToolBackend):
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            turn = len(self.requests)
+            if turn <= 2:
+                if turn == 2:
+                    first_result = json.loads(
+                        request.messages[-1]["content"][0]["content"]
+                    )
+                    self.source_ref = first_result["hits"][0]["source_ref"]
+                    self.hit_id = first_result["hits"][0]["source_hit_id"]
+                return _tool_response(
+                    ClientToolCall(
+                        f"search-{turn}",
+                        "search_preflight_sources",
+                        {
+                            "query": "finite input censored outcome",
+                            "source_scope": "theory",
+                            "k": 4,
+                        },
+                    )
+                )
+            return _tool_response(
+                ClientToolCall(
+                    "submit-after-repeat",
+                    "submit_theory_preflight_review",
+                    self._submission(source_ref=self.source_ref),
+                )
+            )
+
+    packet = _tool_review(RepeatedSearchBackend(accept=False))
+
+    first, second = packet["preflight_source_observations"]
+    first_ids = {row["source_hit_id"] for row in first["hits"]}
+    second_ids = {row["source_hit_id"] for row in second["hits"]}
+    assert first_ids.isdisjoint(second_ids)
+    assert set(second["duplicate_source_refs_reused"]).issubset(
+        {row["source_ref"] for row in first["hits"]}
+    )
+    assert second["duplicate_source_refs_reused"]
+
+
 def test_preflight_client_tool_loop_returns_unknown_ref_error_for_model_repair() -> None:
     backend = _PreflightToolBackend(
         accept=False,
@@ -510,7 +613,8 @@ def test_preflight_client_tool_loop_returns_unknown_ref_error_for_model_repair()
     failed_submit = packet["client_tool_loop_history"][1]["tool_calls"][0]
     assert failed_submit["name"] == "submit_theory_preflight_review"
     assert failed_submit["is_error"] is True
-    assert "runtime-returned source hit ids" in failed_submit["result_excerpt"]
+    assert "runtime-returned source refs" in failed_submit["result_excerpt"]
+    assert "available handles: S1H1" in failed_submit["result_excerpt"]
 
 
 def test_preflight_recovers_from_rejected_final_submission() -> None:
@@ -524,7 +628,8 @@ def test_preflight_recovers_from_rejected_final_submission() -> None:
                     result = json.loads(block["content"])
                     if result.get("hits"):
                         self.hit_id = result["hits"][0]["source_hit_id"]
-            if turn <= 4:
+                        self.source_ref = result["hits"][0]["source_ref"]
+            if turn <= 3:
                 return _tool_response(
                     ClientToolCall(
                         f"search-{turn}",
@@ -537,7 +642,7 @@ def test_preflight_recovers_from_rejected_final_submission() -> None:
                     )
                 )
             source_ref = (
-                "preflight_source_hit:unknown" if turn == 5 else self.hit_id
+                "S99H99" if turn == 4 else self.source_ref
             )
             return _tool_response(
                 ClientToolCall(
@@ -551,19 +656,19 @@ def test_preflight_recovers_from_rejected_final_submission() -> None:
 
     packet = _tool_review(backend)
 
-    assert len(backend.requests) == 6
+    assert len(backend.requests) == 5
+    assert [tool.name for tool in backend.requests[3].tools] == [
+        "submit_theory_preflight_review"
+    ]
     assert [tool.name for tool in backend.requests[4].tools] == [
         "submit_theory_preflight_review"
     ]
-    assert [tool.name for tool in backend.requests[5].tools] == [
-        "submit_theory_preflight_review"
-    ]
-    assert backend.requests[5].metadata[
+    assert backend.requests[4].metadata[
         "client_tool_loop_max_terminal_recovery_turns"
     ] == 1
-    failed_submit = packet["client_tool_loop_history"][4]["tool_calls"][0]
+    failed_submit = packet["client_tool_loop_history"][3]["tool_calls"][0]
     assert failed_submit["is_error"] is True
-    assert packet["client_tool_loop_turns"] == 6
+    assert packet["client_tool_loop_turns"] == 5
 
 
 def test_preflight_client_tool_loop_rejects_submit_before_search() -> None:
@@ -796,6 +901,33 @@ def test_preflight_prior_finding_schema_does_not_expand_per_finding() -> None:
     )
 
 
+def test_preflight_estimator_transport_is_compact_and_semantically_owned() -> None:
+    schema = architect_theory_execution_preflight_json_schema(
+        {
+            "anchor_catalog": [{"anchor_id": "theory.estimator_specs"}],
+            "required_estimator_ids": ["estimator_0", "estimator_1"],
+            "active_prior_finding_ids": [],
+        }
+    )
+    estimator_schema = schema["$defs"]["estimator_execution_check"]
+
+    assert estimator_schema["required"] == [
+        "audit_rationale",
+        "procedure_identity_declared_valid",
+        "theorem_applications_declared_valid",
+        "ideal_to_executable_mapping_declared",
+        "total_or_typed_bounded_outcome_declared",
+        "guarantee_transport_argument_declared",
+        "boundary_or_counterexample",
+        "status",
+        "evidence_refs",
+    ]
+    assert set(estimator_schema["properties"]) == set(
+        estimator_schema["required"]
+    )
+    assert estimator_schema["properties"]["audit_rationale"]["maxLength"] == 720
+
+
 def test_preflight_cannot_accept_an_unestablished_procedure_identity() -> None:
     packet, _backend = _review(accept=True)
     material = build_architect_theory_execution_preflight_material(
@@ -913,7 +1045,7 @@ def test_preflight_downgrades_inconsistent_estimator_pass_without_retry() -> Non
         "theorem_applications_declared_valid"
     ] = False
     payload["estimator_execution_checks"][0][
-        "theorem_hypothesis_measure_audit"
+        "audit_rationale"
     ] = "The source does not establish every invoked theorem hypothesis."
     payload["findings"] = [
         {

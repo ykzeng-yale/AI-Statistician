@@ -95,6 +95,10 @@ ClientToolExecutor = Callable[
     [ClientToolCall, ClientToolExecutionContext],
     ClientToolExecutionResult,
 ]
+ClientToolSelector = Callable[
+    [int, tuple[ClientToolDefinition, ...]],
+    tuple[ClientToolDefinition, ...],
+]
 
 
 def run_bounded_client_tool_loop(
@@ -106,6 +110,7 @@ def run_bounded_client_tool_loop(
     max_tool_calls: int,
     max_no_progress_turns: int,
     max_terminal_recovery_turns: int = 0,
+    select_tools: ClientToolSelector | None = None,
 ) -> ClientToolLoopResult:
     """Run model -> client tool -> observation turns under caller-owned bounds."""
 
@@ -163,7 +168,26 @@ def run_bounded_client_tool_loop(
         terminal_only_turn = bool(
             terminal_tools and turn_index >= max_turns - 1
         )
-        turn_tools = terminal_tools if terminal_only_turn else request.tools
+        if terminal_only_turn:
+            turn_tools = terminal_tools
+        elif select_tools is None:
+            turn_tools = request.tools
+        else:
+            turn_tools = tuple(select_tools(turn_index, request.tools))
+            selected_names = [tool.name for tool in turn_tools]
+            if (
+                not selected_names
+                or len(set(selected_names)) != len(selected_names)
+                or any(name not in tool_definitions for name in selected_names)
+            ):
+                raise ValueError(
+                    "client-tool selector must return a nonempty subset of "
+                    "the request tools"
+                )
+            turn_tools = tuple(
+                tool_definitions[name] for name in selected_names
+            )
+            terminal_only_turn = all(tool.terminal for tool in turn_tools)
         turn_allowed_tools = {tool.name for tool in turn_tools}
         with agent_runtime_substage(
             "client_tool_model_turn",
@@ -184,6 +208,11 @@ def run_bounded_client_tool_loop(
                     request,
                     messages=tuple(messages),
                     tools=turn_tools,
+                    tool_choice=(
+                        turn_tools[0].name
+                        if terminal_only_turn and len(turn_tools) == 1
+                        else request.tool_choice
+                    ),
                     disable_parallel_tool_use=(
                         True
                         if terminal_only_turn

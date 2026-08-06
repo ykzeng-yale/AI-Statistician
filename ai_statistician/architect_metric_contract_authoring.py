@@ -47,6 +47,9 @@ from .generated_metric_contract import (
     materialize_generated_metric_gate_field_authorities,
     validate_generated_metric_requirements,
 )
+from .implementation_metric_handoff import (
+    accepted_implementation_interface_handoff_errors,
+)
 from .llm_json_repair import (
     PacketValidationError,
     SEMANTIC_PATCH_PROGRESS_POLICY_STRICT_RESIDUAL_SET,
@@ -1378,6 +1381,271 @@ def _metric_authoring_repair_context(
     return context
 
 
+def build_architect_upstream_research_contract(
+    runtime_contract: Mapping[str, Any],
+) -> dict[str, Any]:
+    def upstream_target_rows(field: str) -> list[Any]:
+        value = runtime_contract.get(field, [])
+        values = value if isinstance(value, (list, tuple)) else [value]
+        return [
+            deepcopy(row)
+            for row in values
+            if row not in (None, "", [], {})
+        ]
+
+    contract = {
+        "formal_targets": upstream_target_rows("formal_targets"),
+        "simulation_targets": upstream_target_rows("simulation_targets"),
+        "source": "architect_runtime_plan.evidence_contract",
+        "proof_evidence_status": (
+            "ARCHITECT_UPSTREAM_RESEARCH_CONTRACT_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": (
+            "These Architect-authored targets define the requested research scope "
+            "for independent alignment review. They are proposals, not theorem "
+            "proof, implementation, or simulation evidence."
+        ),
+    }
+    contract["contract_fingerprint"] = stable_hash(contract)
+    return contract
+
+
+def _theory_protocol_material_errors(
+    theory_material: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    if theory_material.get("artifact_kind") != (
+        "RuntimeTheoryInformedMetricProtocolMaterial"
+    ):
+        errors.append("theory protocol material kind mismatch")
+    if theory_material.get("execution_results_available") is not False:
+        errors.append("theory protocol material must be pre-execution")
+    if not str(
+        theory_material.get("source_theory_packet_id", "") or ""
+    ).strip():
+        errors.append("theory protocol material missing source theory packet")
+    semantic_material = theory_material.get("theory_semantic_material", {})
+    if not isinstance(semantic_material, Mapping) or not semantic_material:
+        errors.append("theory protocol material missing semantic handoff")
+    return errors
+
+
+def review_architect_theory_execution_preflight(
+    *,
+    semantic_reviewer: LLMArchitectMetricSemanticReviewerAgent | None,
+    question: OpenResearchQuestion,
+    runtime_contract: Mapping[str, Any],
+    theory_protocol_material: Mapping[str, Any],
+    prior_rejection_context: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Run only the independent source-grounded theory/executability gate."""
+
+    if semantic_reviewer is None:
+        raise ValueError(
+            "theory execution preflight requires an independent semantic reviewer"
+        )
+    theory_material = dict(theory_protocol_material)
+    material_errors = _theory_protocol_material_errors(theory_material)
+    if material_errors:
+        raise ValueError("; ".join(material_errors))
+    prior_rejection = (
+        dict(prior_rejection_context)
+        if isinstance(prior_rejection_context, Mapping)
+        else {}
+    )
+    prior_finding_ledger: list[dict[str, Any]] = []
+    if (
+        str(prior_rejection.get("current_source_theory_packet_id", "") or "")
+        == str(theory_material.get("source_theory_packet_id", "") or "")
+        and str(
+            prior_rejection.get("current_source_theory_packet_hash", "") or ""
+        )
+        == str(theory_material.get("source_theory_packet_hash", "") or "")
+    ):
+        prior_finding_ledger = [
+            dict(row)
+            for row in prior_rejection.get("cumulative_finding_ledger", []) or []
+            if isinstance(row, Mapping)
+        ]
+        if not prior_finding_ledger:
+            prior_finding_ledger = (
+                metric_protocol_finding_ledger_from_review_history(
+                    question_id=question.id,
+                    semantic_review_history=prior_rejection.get(
+                        "semantic_review_history", []
+                    ),
+                )
+            )
+    preflight = getattr(
+        semantic_reviewer,
+        "review_theory_execution_preflight",
+        None,
+    )
+    if not callable(preflight):
+        raise ValueError(
+            "semantic reviewer does not support theory execution preflight"
+        )
+    with agent_runtime_substage(
+        "architect_theory_execution_preflight",
+        metadata={
+            "model_tier": str(
+                getattr(
+                    getattr(semantic_reviewer, "config", None),
+                    "model_tier",
+                    "",
+                )
+                or ""
+            ),
+            "source_theory_packet_id": str(
+                theory_material.get("source_theory_packet_id", "") or ""
+            ),
+            "execution_results_available": False,
+            "full_metric_authoring_deferred": True,
+        },
+    ):
+        packet = preflight(
+            question=question,
+            theory_protocol_material=theory_material,
+            upstream_research_contract=(
+                build_architect_upstream_research_contract(runtime_contract)
+            ),
+            prior_finding_ledger=prior_finding_ledger,
+        )
+    if packet.get("overall_verdict") == "ACCEPT":
+        return dict(packet)
+
+    packet_hash = stable_hash(packet)
+    raise ArchitectMetricSemanticReviewRejected(
+        question_id=question.id,
+        semantic_review_history=[
+            {
+                "revision_index": 0,
+                "review_stage": "theory_execution_preflight",
+                "authoring_packet_id": "",
+                "authoring_packet_hash": "",
+                "empirical_metric_requirement_set_id": "",
+                "source_theory_packet_id": str(
+                    theory_material.get("source_theory_packet_id", "") or ""
+                ),
+                "source_theory_packet_hash": str(
+                    theory_material.get("source_theory_packet_hash", "") or ""
+                ),
+                "semantic_review_packet_id": str(
+                    packet.get("packet_id", "") or ""
+                ),
+                "semantic_review_packet_hash": packet_hash,
+                "semantic_review_model": str(packet.get("model", "") or ""),
+                "semantic_review_model_tier": str(
+                    packet.get("model_tier", "") or ""
+                ),
+                "independent_agent": bool(packet.get("independent_agent")),
+                "independent_invocation": bool(
+                    packet.get("independent_invocation")
+                ),
+                "overall_verdict": "REVISE",
+                "semantic_reviewer_recommended_repair_scope": (
+                    ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
+                ),
+                "recommended_repair_scope": (
+                    ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
+                ),
+                "dimension_reviews": [
+                    dict(row)
+                    for row in packet.get("dimension_reviews", []) or []
+                    if isinstance(row, Mapping)
+                ],
+                "estimator_execution_checks": [
+                    dict(row)
+                    for row in packet.get("estimator_execution_checks", []) or []
+                    if isinstance(row, Mapping)
+                ],
+                "prior_finding_reviews": [
+                    dict(row)
+                    for row in packet.get("prior_finding_reviews", []) or []
+                    if isinstance(row, Mapping)
+                ],
+                "cumulative_finding_ledger": [
+                    dict(row)
+                    for row in packet.get("cumulative_finding_ledger", []) or []
+                    if isinstance(row, Mapping)
+                ],
+                "cumulative_finding_ledger_fingerprint": str(
+                    packet.get("cumulative_finding_ledger_fingerprint", "") or ""
+                ),
+                "active_unresolved_finding_ids": [
+                    str(value)
+                    for value in packet.get("active_unresolved_finding_ids", []) or []
+                    if str(value).strip()
+                ],
+                "prior_finding_resolution_summary": deepcopy(
+                    packet.get("prior_finding_resolution_summary", {})
+                ),
+                "theory_execution_preflight_packet": deepcopy(packet),
+                "findings": [
+                    dict(row)
+                    for row in packet.get("findings", []) or []
+                    if isinstance(row, Mapping)
+                ],
+                "repair_instructions": [
+                    str(value)
+                    for value in packet.get("repair_instructions", []) or []
+                    if str(value).strip()
+                ],
+                "execution_authorized": False,
+                "proof_evidence_status": str(
+                    packet.get("proof_evidence_status", "") or ""
+                ),
+            }
+        ],
+        source_theory_packet_id=str(
+            theory_material.get("source_theory_packet_id", "") or ""
+        ),
+        source_theory_packet_hash=str(
+            theory_material.get("source_theory_packet_hash", "") or ""
+        ),
+    )
+
+
+def _accepted_theory_preflight_packet(
+    context: Mapping[str, Any] | None,
+    *,
+    theory_material: Mapping[str, Any],
+) -> dict[str, Any]:
+    accepted = dict(context) if isinstance(context, Mapping) else {}
+    packet = accepted.get("theory_execution_preflight_packet", {})
+    packet = dict(packet) if isinstance(packet, Mapping) else {}
+    if not accepted:
+        return {}
+    acceptance_identity_payload = dict(accepted)
+    acceptance_identity_payload.pop("acceptance_id", None)
+    expected_acceptance_id = (
+        "architect_theory_execution_preflight_acceptance:"
+        + stable_hash(acceptance_identity_payload)[:20]
+    )
+    valid = bool(
+        accepted.get("artifact_kind")
+        == "RuntimeArchitectTheoryExecutionPreflightAcceptance"
+        and str(accepted.get("acceptance_id", "") or "")
+        == expected_acceptance_id
+        and accepted.get("execution_results_observed") is False
+        and accepted.get("full_metric_authoring_completed") is False
+        and str(accepted.get("source_theory_packet_id", "") or "")
+        == str(theory_material.get("source_theory_packet_id", "") or "")
+        and str(accepted.get("source_theory_packet_hash", "") or "")
+        == str(theory_material.get("source_theory_packet_hash", "") or "")
+        and packet.get("overall_verdict") == "ACCEPT"
+        and str(accepted.get("preflight_packet_id", "") or "")
+        == str(packet.get("packet_id", "") or "")
+        and str(accepted.get("preflight_packet_hash", "") or "")
+        == stable_hash(packet)
+    )
+    if not valid:
+        raise ValueError(
+            "accepted theory preflight context is missing, stale, or hash-inconsistent"
+        )
+    return packet
+
+
 def author_reviewed_architect_metric_requirements(
     *,
     provider: GeneratorBackend,
@@ -1393,6 +1661,8 @@ def author_reviewed_architect_metric_requirements(
     prior_rejection_context: Mapping[str, Any] | None = None,
     fresh_candidate_revision_context: Mapping[str, Any] | None = None,
     frozen_requirement_rebinding_context: Mapping[str, Any] | None = None,
+    accepted_theory_preflight_context: Mapping[str, Any] | None = None,
+    accepted_implementation_interface_context: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     if (
         runtime_contract.get("capability_eval_requires_typed_metric_contracts")
@@ -1418,22 +1688,30 @@ def author_reviewed_architect_metric_requirements(
         if isinstance(theory_protocol_material, Mapping)
         else {}
     )
-    if (
-        theory_material.get("artifact_kind")
-        != "RuntimeTheoryInformedMetricProtocolMaterial"
-        or theory_material.get("execution_results_available") is not False
-        or not str(
-            theory_material.get("source_theory_packet_id", "") or ""
-        ).strip()
-        or not isinstance(
-            theory_material.get("theory_semantic_material"), Mapping
-        )
-        or not theory_material.get("theory_semantic_material")
-    ):
+    theory_material_errors = _theory_protocol_material_errors(theory_material)
+    if theory_material_errors:
         raise ValueError(
             "theory-informed metric authoring requires a structured, pre-execution "
-            "TheoryDeveloper semantic handoff"
+            "TheoryDeveloper semantic handoff: "
+            + "; ".join(theory_material_errors)
         )
+    implementation_interface = (
+        dict(accepted_implementation_interface_context)
+        if isinstance(accepted_implementation_interface_context, Mapping)
+        else {}
+    )
+    if implementation_interface:
+        implementation_errors = (
+            accepted_implementation_interface_handoff_errors(
+                implementation_interface,
+                question_id=question.id,
+                theory_packet_id=str(
+                    theory_material.get("source_theory_packet_id", "") or ""
+                ),
+            )
+        )
+        if implementation_errors:
+            raise ValueError("; ".join(implementation_errors))
     fresh_revision = (
         dict(fresh_candidate_revision_context)
         if isinstance(fresh_candidate_revision_context, Mapping)
@@ -1524,230 +1802,23 @@ def author_reviewed_architect_metric_requirements(
         "description": question.description,
         "tags": list(question.tags),
     }
-    def upstream_target_rows(field: str) -> list[Any]:
-        value = runtime_contract.get(field, [])
-        values = value if isinstance(value, (list, tuple)) else [value]
-        return [
-            deepcopy(row)
-            for row in values
-            if row not in (None, "", [], {})
-        ]
-
-    upstream_research_contract = {
-        "formal_targets": upstream_target_rows("formal_targets"),
-        "simulation_targets": upstream_target_rows("simulation_targets"),
-        "source": "architect_runtime_plan.evidence_contract",
-        "proof_evidence_status": (
-            "ARCHITECT_UPSTREAM_RESEARCH_CONTRACT_NOT_PROOF_EVIDENCE"
-        ),
-        "boundary": (
-            "These Architect-authored targets define the requested research scope "
-            "for independent alignment review. They are proposals, not theorem "
-            "proof, implementation, or simulation evidence."
-        ),
-    }
-    upstream_research_contract["contract_fingerprint"] = stable_hash(
-        upstream_research_contract
+    upstream_research_contract = build_architect_upstream_research_contract(
+        runtime_contract
     )
-    theory_execution_preflight_packet: dict[str, Any] = {}
-    prior_rejection = (
-        dict(prior_rejection_context)
-        if isinstance(prior_rejection_context, Mapping)
-        else {}
-    )
-    prior_preflight_finding_ledger: list[dict[str, Any]] = []
-    if (
-        str(prior_rejection.get("current_source_theory_packet_id", "") or "")
-        == str(theory_material.get("source_theory_packet_id", "") or "")
-        and str(
-            prior_rejection.get("current_source_theory_packet_hash", "") or ""
+    theory_execution_preflight_packet = (
+        _accepted_theory_preflight_packet(
+            accepted_theory_preflight_context,
+            theory_material=theory_material,
         )
-        == str(theory_material.get("source_theory_packet_hash", "") or "")
-    ):
-        prior_preflight_finding_ledger = [
-            dict(row)
-            for row in prior_rejection.get("cumulative_finding_ledger", []) or []
-            if isinstance(row, Mapping)
-        ]
-        if not prior_preflight_finding_ledger:
-            prior_preflight_finding_ledger = (
-                metric_protocol_finding_ledger_from_review_history(
-                    question_id=question.id,
-                    semantic_review_history=prior_rejection.get(
-                        "semantic_review_history", []
-                    ),
-                )
-            )
-    theory_execution_preflight = getattr(
-        semantic_reviewer,
-        "review_theory_execution_preflight",
-        None,
+        if accepted_theory_preflight_context
+        else review_architect_theory_execution_preflight(
+            semantic_reviewer=semantic_reviewer,
+            question=question,
+            runtime_contract=runtime_contract,
+            theory_protocol_material=theory_material,
+            prior_rejection_context=prior_rejection_context,
+        )
     )
-    if callable(theory_execution_preflight):
-        with agent_runtime_substage(
-            "architect_theory_execution_preflight",
-            metadata={
-                "model_tier": str(
-                    getattr(
-                        getattr(semantic_reviewer, "config", None),
-                        "model_tier",
-                        "",
-                    )
-                    or ""
-                ),
-                "source_theory_packet_id": str(
-                    theory_material.get("source_theory_packet_id", "") or ""
-                ),
-                "execution_results_available": False,
-            },
-        ):
-            theory_execution_preflight_packet = theory_execution_preflight(
-                question=question,
-                theory_protocol_material=theory_material,
-                upstream_research_contract=upstream_research_contract,
-                prior_finding_ledger=prior_preflight_finding_ledger,
-            )
-        if theory_execution_preflight_packet.get("overall_verdict") != "ACCEPT":
-            preflight_packet_hash = stable_hash(
-                theory_execution_preflight_packet
-            )
-            raise ArchitectMetricSemanticReviewRejected(
-                question_id=question.id,
-                semantic_review_history=[
-                    {
-                        "revision_index": 0,
-                        "review_stage": "theory_execution_preflight",
-                        "authoring_packet_id": "",
-                        "authoring_packet_hash": "",
-                        "empirical_metric_requirement_set_id": "",
-                        "source_theory_packet_id": str(
-                            theory_material.get("source_theory_packet_id", "")
-                            or ""
-                        ),
-                        "source_theory_packet_hash": str(
-                            theory_material.get("source_theory_packet_hash", "")
-                            or ""
-                        ),
-                        "semantic_review_packet_id": str(
-                            theory_execution_preflight_packet.get(
-                                "packet_id", ""
-                            )
-                            or ""
-                        ),
-                        "semantic_review_packet_hash": preflight_packet_hash,
-                        "semantic_review_model": str(
-                            theory_execution_preflight_packet.get("model", "")
-                            or ""
-                        ),
-                        "semantic_review_model_tier": str(
-                            theory_execution_preflight_packet.get(
-                                "model_tier", ""
-                            )
-                            or ""
-                        ),
-                        "independent_agent": bool(
-                            theory_execution_preflight_packet.get(
-                                "independent_agent"
-                            )
-                        ),
-                        "independent_invocation": bool(
-                            theory_execution_preflight_packet.get(
-                                "independent_invocation"
-                            )
-                        ),
-                        "overall_verdict": "REVISE",
-                        "semantic_reviewer_recommended_repair_scope": (
-                            ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
-                        ),
-                        "recommended_repair_scope": (
-                            ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_UPSTREAM_THEORY
-                        ),
-                        "dimension_reviews": [
-                            dict(row)
-                            for row in theory_execution_preflight_packet.get(
-                                "dimension_reviews", []
-                            )
-                            or []
-                            if isinstance(row, Mapping)
-                        ],
-                        "estimator_execution_checks": [
-                            dict(row)
-                            for row in theory_execution_preflight_packet.get(
-                                "estimator_execution_checks", []
-                            )
-                            or []
-                            if isinstance(row, Mapping)
-                        ],
-                        "prior_finding_reviews": [
-                            dict(row)
-                            for row in theory_execution_preflight_packet.get(
-                                "prior_finding_reviews", []
-                            )
-                            or []
-                            if isinstance(row, Mapping)
-                        ],
-                        "cumulative_finding_ledger": [
-                            dict(row)
-                            for row in theory_execution_preflight_packet.get(
-                                "cumulative_finding_ledger", []
-                            )
-                            or []
-                            if isinstance(row, Mapping)
-                        ],
-                        "cumulative_finding_ledger_fingerprint": str(
-                            theory_execution_preflight_packet.get(
-                                "cumulative_finding_ledger_fingerprint", ""
-                            )
-                            or ""
-                        ),
-                        "active_unresolved_finding_ids": [
-                            str(value)
-                            for value in theory_execution_preflight_packet.get(
-                                "active_unresolved_finding_ids", []
-                            )
-                            or []
-                            if str(value).strip()
-                        ],
-                        "prior_finding_resolution_summary": deepcopy(
-                            theory_execution_preflight_packet.get(
-                                "prior_finding_resolution_summary", {}
-                            )
-                        ),
-                        "theory_execution_preflight_packet": deepcopy(
-                            theory_execution_preflight_packet
-                        ),
-                        "findings": [
-                            dict(row)
-                            for row in theory_execution_preflight_packet.get(
-                                "findings", []
-                            )
-                            or []
-                            if isinstance(row, Mapping)
-                        ],
-                        "repair_instructions": [
-                            str(value)
-                            for value in theory_execution_preflight_packet.get(
-                                "repair_instructions", []
-                            )
-                            or []
-                            if str(value).strip()
-                        ],
-                        "execution_authorized": False,
-                        "proof_evidence_status": str(
-                            theory_execution_preflight_packet.get(
-                                "proof_evidence_status", ""
-                            )
-                            or ""
-                        ),
-                    }
-                ],
-                source_theory_packet_id=str(
-                    theory_material.get("source_theory_packet_id", "") or ""
-                ),
-                source_theory_packet_hash=str(
-                    theory_material.get("source_theory_packet_hash", "") or ""
-                ),
-            )
     acceptance_authority_catalog = generated_metric_acceptance_authority_catalog(
         question=question_material,
         runtime_contract=runtime_contract,
@@ -1940,6 +2011,9 @@ def author_reviewed_architect_metric_requirements(
         "question": question_material,
         "upstream_research_contract": upstream_research_contract,
         "theory_developer_protocol_material": theory_material,
+        "accepted_implementation_interface_handoff": (
+            implementation_interface
+        ),
         "acceptance_authority_catalog_id": acceptance_authority_catalog_id,
         "acceptance_authority_catalog": acceptance_authority_catalog,
         "runtime_owned_replicates": runtime_replicates,
@@ -2121,11 +2195,20 @@ def author_reviewed_architect_metric_requirements(
                 "calculation supports a decision-relevant gate, omit the row."
             ),
             (
-                "An architect_preregistered_design gate is frozen before generated "
-                "code or simulation, remains empirical-control evidence only, and "
-                "must pass independent semantic review. Never describe it as a "
-                "theorem guarantee, derive it from observed results, or retune it "
-                "against its own confirmatory execution."
+                "An architect_preregistered_design gate is frozen after independent "
+                "review accepts the implementation interface but before confirmatory "
+                "simulation. The metric author receives no source text or execution "
+                "result. The gate remains empirical-control evidence only and must "
+                "pass independent semantic review. Never describe it as a theorem "
+                "guarantee, derive it from observed results, or retune it against its "
+                "own confirmatory execution."
+            ),
+            (
+                "accepted_implementation_interface_handoff is an invocation and "
+                "output ABI only. Use it to bind confirmatory measurements to the "
+                "accepted implementation identity. It is not authority for a metric "
+                "threshold, tolerance, bound, quorum, estimand, DGP, or statistical "
+                "guarantee. Do not infer missing source or smoke-test values from it."
             ),
             (
                 "When a useful measurement has no authority-backed acceptance cutoff, "
@@ -2639,6 +2722,7 @@ def author_reviewed_architect_metric_requirements(
                             requirement_rows,
                             revision_index,
                             parent_packet_id,
+                            implementation_interface.get("handoff_id", ""),
                         ]
                     )[:20]
                 ),
@@ -2660,6 +2744,15 @@ def author_reviewed_architect_metric_requirements(
                 "theory_execution_preflight_packet": deepcopy(
                     theory_execution_preflight_packet
                 ),
+                "accepted_implementation_interface_handoff_id": str(
+                    implementation_interface.get("handoff_id", "") or ""
+                ),
+                "accepted_implementation_interface_handoff_hash": (
+                    stable_hash(implementation_interface)
+                    if implementation_interface
+                    else ""
+                ),
+                "accepted_implementation_execution_results_observed": False,
                 "acceptance_authority_catalog_id": (
                     acceptance_authority_catalog_id
                 ),
@@ -2797,6 +2890,31 @@ def author_reviewed_architect_metric_requirements(
                 )
                 if str(error).strip()
             ]
+            if implementation_interface:
+                if str(
+                    packet.get(
+                        "accepted_implementation_interface_handoff_id", ""
+                    )
+                    or ""
+                ) != str(implementation_interface.get("handoff_id", "") or ""):
+                    errors.append(
+                        "accepted implementation interface handoff identity mismatch"
+                    )
+                if str(
+                    packet.get(
+                        "accepted_implementation_interface_handoff_hash", ""
+                    )
+                    or ""
+                ) != stable_hash(implementation_interface):
+                    errors.append(
+                        "accepted implementation interface handoff hash mismatch"
+                    )
+                if packet.get(
+                    "accepted_implementation_execution_results_observed"
+                ) is not False:
+                    errors.append(
+                        "metric authoring cannot observe implementation execution results"
+                    )
             errors.extend(
                 str(error)
                 for error in packet.get(
@@ -2938,6 +3056,9 @@ def author_reviewed_architect_metric_requirements(
             },
             "theory_developer_protocol_material": theory_material,
             "upstream_research_contract": upstream_research_contract,
+            "accepted_implementation_interface_handoff": (
+                implementation_interface
+            ),
             "fresh_candidate_revision_context": fresh_revision,
             "frozen_metric_protocol_theory_rebinding": frozen_rebinding,
             "active_prior_finding_ledger": active_finding_ledger,

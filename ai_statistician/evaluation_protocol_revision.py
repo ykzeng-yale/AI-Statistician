@@ -397,10 +397,12 @@ def architect_metric_semantic_review_validation_failure_result(
     question: OpenResearchQuestion,
     architect_context: Mapping[str, Any],
     exc: PacketValidationError,
+    review_stage: str = "metric_semantic_review",
 ) -> AgentStepResult:
     """Preserve an exhausted reviewer packet as typed control-plane evidence."""
 
     context = invalidate_metric_protocol_authorization(architect_context)
+    theory_preflight = review_stage == "theory_execution_preflight"
     validation_errors = [str(error) for error in exc.errors if str(error)]
     authoring_packet_value = getattr(exc, "authoring_packet", None)
     authoring_packet = (
@@ -483,7 +485,11 @@ def architect_metric_semantic_review_validation_failure_result(
         if key in last_invalid_packet
     }
     failure_id = (
-        "architect_metric_semantic_review_validation_failure:"
+        (
+            "architect_theory_execution_preflight_validation_failure:"
+            if theory_preflight
+            else "architect_metric_semantic_review_validation_failure:"
+        )
         + stable_hash(
             [
                 question.id,
@@ -499,17 +505,26 @@ def architect_metric_semantic_review_validation_failure_result(
         )[:20]
     )
     boundary = (
-        "This artifact records an independently generated pre-execution metric "
-        "review packet that remained structurally invalid after bounded repair. "
-        "Its locally validated author candidate is preserved for deterministic "
-        "review replay when exact lineage is available, but remains unauthorized. "
-        "The invalid review is feedback for the reviewer interface and is not "
-        "execution, statistical acceptance, or theorem proof evidence."
+        "This artifact records an independently generated theory/executability "
+        "preflight packet that remained structurally invalid after bounded client-"
+        "tool feedback. It authorizes neither implementation nor confirmatory "
+        "simulation and is not statistical acceptance or theorem proof evidence."
+        if theory_preflight
+        else (
+            "This artifact records an independently generated pre-execution metric "
+            "review packet that remained structurally invalid after bounded repair. "
+            "Its locally validated author candidate is preserved for deterministic "
+            "review replay when exact lineage is available, but remains unauthorized. "
+            "The invalid review is feedback for the reviewer interface and is not "
+            "execution, statistical acceptance, or theorem proof evidence."
+        )
     )
     artifact = {
         "schema_version": EVALUATION_PROTOCOL_REVISION_SCHEMA_VERSION,
         "artifact_kind": (
-            "RuntimeArchitectMetricSemanticReviewValidationFailure"
+            "RuntimeArchitectTheoryExecutionPreflightValidationFailure"
+            if theory_preflight
+            else "RuntimeArchitectMetricSemanticReviewValidationFailure"
         ),
         "failure_id": failure_id,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -543,12 +558,15 @@ def architect_metric_semantic_review_validation_failure_result(
         ),
         "last_invalid_review_projection": review_projection,
         "metric_protocol_execution_authorized": False,
+        "implementation_authorized": False,
         "runtime_architect_control": {
             "metric_protocol_execution_authorized": False,
             "architect_context_fingerprint": stable_hash(context),
         },
         "proof_evidence_status": (
-            "ARCHITECT_METRIC_SEMANTIC_REVIEW_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
+            "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
+            if theory_preflight
+            else "ARCHITECT_METRIC_SEMANTIC_REVIEW_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
         ),
         "boundary": boundary,
     }
@@ -560,7 +578,11 @@ def architect_metric_semantic_review_validation_failure_result(
         evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
         task_id=task.task_id,
         artifact_id=failure_id,
-        evidence_type="architect_metric_semantic_review_validation_failure",
+        evidence_type=(
+            "architect_theory_execution_preflight_validation_failure"
+            if theory_preflight
+            else "architect_metric_semantic_review_validation_failure"
+        ),
         status="PREEXECUTION_REVIEW_PACKET_INVALID_NOT_EVIDENCE",
         boundary=boundary,
         payload={
@@ -570,21 +592,30 @@ def architect_metric_semantic_review_validation_failure_result(
             "authoring_packet_hash": observed_authoring_packet_hash,
             "authoring_packet_persisted": authoring_packet_persisted,
             "metric_protocol_execution_authorized": False,
+            "implementation_authorized": False,
             "kernel_verified": False,
         },
     )
     return AgentStepResult(
         status="BLOCKED",
         rationale=(
-            "The independent metric reviewer exhausted bounded packet repair; "
-            "its exact validation lineage was preserved without authorizing "
-            "generated execution."
+            "The independent theory/executability preflight exhausted bounded "
+            "client-tool repair; its exact lineage was preserved without "
+            "authorizing implementation or simulation."
+            if theory_preflight
+            else (
+                "The independent metric reviewer exhausted bounded packet repair; "
+                "its exact validation lineage was preserved without authorizing "
+                "generated execution."
+            )
         ),
         produced_artifacts=produced_artifacts,
         observations=(
             EnvironmentObservation(
                 observation_type=(
-                    "architect_metric_semantic_review_packet_invalid"
+                    "architect_theory_execution_preflight_packet_invalid"
+                    if theory_preflight
+                    else "architect_metric_semantic_review_packet_invalid"
                 ),
                 summary="; ".join(validation_errors)[:500],
                 payload={
@@ -595,6 +626,7 @@ def architect_metric_semantic_review_validation_failure_result(
                     "authoring_packet_hash": observed_authoring_packet_hash,
                     "authoring_packet_persisted": authoring_packet_persisted,
                     "metric_protocol_execution_authorized": False,
+                    "implementation_authorized": False,
                     "proof_evidence_status": artifact[
                         "proof_evidence_status"
                     ],
@@ -604,7 +636,9 @@ def architect_metric_semantic_review_validation_failure_result(
         evidence_entries=(evidence,),
         next_task=None,
         failure_classification=(
-            "architect_metric_semantic_review_packet_validation_failed"
+            "architect_theory_execution_preflight_packet_validation_failed"
+            if theory_preflight
+            else "architect_metric_semantic_review_packet_validation_failed"
         ),
     )
 

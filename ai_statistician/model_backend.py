@@ -1091,8 +1091,12 @@ class AnthropicGeneratorBackend:
             tool_names
         ):
             raise ValueError("client-tool names must be nonempty and unique")
-        if request.tool_choice not in {"auto", "any"}:
-            raise ValueError("client-tool choice must be auto or any")
+        if request.tool_choice not in {"auto", "any"} and (
+            request.tool_choice not in tool_names
+        ):
+            raise ValueError(
+                "client-tool choice must be auto, any, or one supplied tool name"
+            )
         ceiling_violation = live_anthropic_model_ceiling_violation(
             request.model,
             requested_model_tier=str(
@@ -1112,7 +1116,11 @@ class AnthropicGeneratorBackend:
             timeout=timeout_s,
             max_retries=0,
         )
-        tool_choice: dict[str, Any] = {"type": request.tool_choice}
+        tool_choice: dict[str, Any] = (
+            {"type": request.tool_choice}
+            if request.tool_choice in {"auto", "any"}
+            else {"type": "tool", "name": request.tool_choice}
+        )
         if request.disable_parallel_tool_use:
             tool_choice["disable_parallel_tool_use"] = True
         request_kwargs: dict[str, Any] = {

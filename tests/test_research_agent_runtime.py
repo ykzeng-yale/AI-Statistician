@@ -26389,29 +26389,16 @@ def _accepted_theory_execution_preflight_payload(request) -> dict[str, object]:
         ],
         "estimator_execution_checks": [
             {
-                "ideal_procedure_semantics": "The source defines one ideal method.",
-                "procedure_identity_recomputation": (
-                    "The finite-support identity is reconstructed from the fixture DGP."
-                ),
-                "selection_conditioning_or_operator_audit": (
-                    "The fixture has no adaptive selection or unbounded operator."
+                "audit_rationale": (
+                    "The finite-support identity is reconstructed from the fixture DGP; "
+                    "there is no adaptive selection or unbounded operator, no external "
+                    "theorem is invoked, and the total finite interface returns the same "
+                    "declared object without changing its guarantee."
                 ),
                 "procedure_identity_declared_valid": True,
-                "theorem_hypothesis_measure_audit": (
-                    "The fixture uses no external theorem: NOT_APPLICABLE."
-                ),
                 "theorem_applications_declared_valid": True,
-                "executable_observation_semantics": (
-                    "The finite interface returns the same declared object."
-                ),
                 "ideal_to_executable_mapping_declared": True,
-                "termination_or_censoring_analysis": (
-                    "The fixture method is total on every admitted finite input."
-                ),
                 "total_or_typed_bounded_outcome_declared": True,
-                "guarantee_transport_analysis": (
-                    "No approximation changes the fixture estimand or guarantee."
-                ),
                 "guarantee_transport_argument_declared": True,
                 "boundary_or_counterexample": (
                     "The smallest admitted finite input has a defined output."
@@ -26470,6 +26457,369 @@ def _preflight_ready_theory_informed_metric_context_fixture() -> dict[str, objec
             "execution_authorized": False,
         },
     }
+
+
+def test_preflight_then_reviewed_implementation_releases_result_blind_metric_authoring(
+    tmp_path: Path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="domain_neutral_metric_order",
+        title="Domain-neutral candidate method",
+        description=(
+            "Develop and assess an executable candidate without naming a method."
+        ),
+        tags=("domain-neutral",),
+    )
+    theory_packet = _targetable_theory_packet_fixture(
+        "theory_derivation:domain-neutral-metric-order"
+    )
+    interface_contract = _estimator_interface_contract_fixture()
+    theory_packet["estimator_specs"][0]["estimator_interface_contract"] = (
+        interface_contract
+    )
+    theory_packet["estimator_specs"][0]["estimator_interface_contract_id"] = (
+        "estimator_interface_contract:"
+        + runtime_module.stable_hash(interface_contract)[:20]
+    )
+    theory_packet_id = str(theory_packet["packet_id"])
+    theory_material = build_theory_informed_metric_protocol_material(
+        theory_packet=theory_packet,
+        theory_packet_id=theory_packet_id,
+    )
+    context = {
+        "theory_packet_id": theory_packet_id,
+        "architect_metric_protocol_theory_material": theory_material,
+        "architect_metric_protocol_gate": {
+            "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+            "source_theory_packet_id": theory_packet_id,
+            "required_disposition": (
+                "THEORY_EXECUTION_PREFLIGHT_ACCEPTED_BEFORE_IMPLEMENTATION"
+            ),
+            "execution_authorized": False,
+        },
+        "architect_runtime_plan": {
+            "evidence_contract": {
+                "capability_eval_requires_generated_algorithm_code": True,
+                "capability_eval_requires_typed_metric_contracts": True,
+                "empirical_metric_requirements": [],
+            }
+        },
+        "runtime_requested_evidence_contract": {
+            "capability_eval_requires_generated_algorithm_code": True,
+            "capability_eval_requires_typed_metric_contracts": True,
+        },
+    }
+    preflight_packet = {
+        "packet_id": "architect_theory_execution_preflight:domain-neutral",
+        "source_theory_packet_id": theory_packet_id,
+        "source_theory_packet_hash": runtime_module.stable_hash(theory_packet),
+        "model": LIVE_EVALUATION_CLAUDE_MODEL,
+        "model_tier": LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        "independent_agent": True,
+        "independent_invocation": True,
+        "overall_verdict": "ACCEPT",
+        "dimension_reviews": [],
+        "estimator_execution_checks": [],
+        "findings": [],
+        "repair_instructions": [],
+        "proof_evidence_status": (
+            "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+    class PreflightOnlyCoordinator:
+        def review_theory_execution_preflight(self, **_kwargs):
+            return copy.deepcopy(preflight_packet)
+
+        def propose(self, **_kwargs):
+            raise AssertionError("full metric authoring must remain deferred")
+
+    blackboard = BlackboardState(
+        project_id="domain-neutral-metric-order",
+        artifacts={theory_packet_id: theory_packet},
+    )
+    preflight_result = ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=PreflightOnlyCoordinator(),  # type: ignore[arg-type]
+        runtime_config=ResearchAgentRuntimeConfig(n_runs=9, seed=41),
+    ).run(
+        AgentTask(
+            task_id="architect-preflight:domain-neutral",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Review theory executability before implementation.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": context,
+                "runtime_architect_operation": (
+                    runtime_module.RUNTIME_ARCHITECT_OPERATION_THEORY_PREFLIGHT
+                ),
+            },
+        ),
+        blackboard,
+    )
+
+    assert preflight_result.status == "REROUTE"
+    assert preflight_result.next_task is not None
+    assert preflight_result.next_task.owner_subsystem == "AlgorithmEngineer"
+    assert preflight_result.next_task.inputs[
+        "implementation_before_metric_freeze"
+    ] is True
+    assert preflight_result.next_task.inputs["simulation_manifest_id"] == ""
+    deferred_payload = preflight_result.next_task.inputs[
+        "deferred_metric_protocol_task"
+    ]
+    assert deferred_payload["owner_subsystem"] == "ArchitectCoordinator"
+    assert deferred_payload["inputs"]["runtime_architect_operation"] == (
+        runtime_module.RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
+    )
+
+    source_sentinel = "SOURCE_SENTINEL_PRE_METRIC_731"
+    result_sentinel = "RESULT_SENTINEL_PRE_METRIC_947"
+
+    class ExploratoryAlgorithmEngineer:
+        def propose(self, **_kwargs):
+            return {
+                "artifact_kind": "AlgorithmEngineerProposalPacket",
+                "packet_id": "algorithm_engineer_proposal:domain-neutral",
+                "source_agent": "LLMAlgorithmEngineerAgent",
+                "model": LIVE_EVALUATION_CLAUDE_MODEL,
+                "model_tier": LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+                "implementation_targets": [
+                    {
+                        "estimator_id": "candidate",
+                        "registered_template_hint": "none",
+                        "estimator_interface_contract": (
+                            _estimator_interface_contract_fixture()
+                        ),
+                            "estimator_interface_contract_id": (
+                                "estimator_interface_contract:"
+                                + runtime_module.stable_hash(
+                                    _estimator_interface_contract_fixture()
+                                )[:20]
+                            ),
+                            "estimator_interface_contract_authority": {
+                                "owner_agent": "TheoryDeveloper",
+                                "source_theory_packet_id": theory_packet_id,
+                                "source_theory_packet_hash": (
+                                    runtime_module.stable_hash(theory_packet)
+                                ),
+                                "source_estimator_ref": (
+                                    "theory#/estimator_specs/0/"
+                                    "estimator_interface_contract"
+                                ),
+                                "transport_status": "EXACT_MODEL_COPY",
+                            },
+                    }
+                ],
+                "sandbox_code_drafts": [
+                    {
+                        "estimator_id": "candidate",
+                        "language": "python",
+                        "entrypoint": "run_sandbox",
+                        "code": (
+                            "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                            f"    source_marker = '{source_sentinel}'\n"
+                            f"    result_marker = '{result_sentinel}'\n"
+                            "    return {\n"
+                            "        'sandbox_failed': False,\n"
+                            "        'estimate': (int(seed) % 11) / 10.0,\n"
+                            "        'replicates': int(replicates),\n"
+                            "        'source_marker': source_marker,\n"
+                            "        'result_marker': result_marker,\n"
+                            "    }\n"
+                        ),
+                    }
+                ],
+            }
+
+    algorithm_result = AlgorithmEngineerRuntimeSubsystem(
+        out_dir=tmp_path / "pre-metric-algorithm",
+        n_runs=9,
+        seed=41,
+        proposal_agent=ExploratoryAlgorithmEngineer(),  # type: ignore[arg-type]
+        semantic_reviewer_available=True,
+        semantic_review_max_revisions=1,
+    ).run(preflight_result.next_task, blackboard)
+
+    assert algorithm_result.status == "REROUTE"
+    assert algorithm_result.next_task is not None
+    assert algorithm_result.next_task.owner_subsystem == (
+        "GeneratedCodeSemanticReviewer"
+    )
+    algorithm_manifest = next(
+        artifact
+        for artifact in algorithm_result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeAlgorithmSandboxManifest"
+    )
+    assert algorithm_manifest["simulation_manifest_id"] == ""
+    assert algorithm_manifest["implementation_before_metric_freeze"] is True
+    assert algorithm_manifest["empirical_evaluation_phase"] == (
+        EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+    )
+    assert algorithm_manifest["n_typed_metric_contracts_declared"] == 0
+    assert algorithm_manifest["n_typed_metric_contracts_evaluated"] == 0
+    assert algorithm_manifest["confirmatory_empirical_evidence_eligible"] is False
+    work_order = next(
+        artifact
+        for artifact in algorithm_result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewWorkOrder"
+    )
+    assert work_order["review_accepted_next_task"]["owner_subsystem"] == (
+        "ArchitectCoordinator"
+    )
+
+    blackboard.artifacts.update(algorithm_result.produced_artifacts)
+    reviewer_result = runtime_module.GeneratedCodeSemanticReviewerRuntimeSubsystem(
+        reviewer=_static_generated_code_semantic_reviewer(),
+        max_revisions=1,
+    ).run(algorithm_result.next_task, blackboard)
+
+    assert reviewer_result.status == "REROUTE", reviewer_result.rationale
+    assert reviewer_result.next_task is not None
+    assert reviewer_result.next_task.owner_subsystem == "ArchitectCoordinator"
+    next_context = reviewer_result.next_task.inputs["architect_context"]
+    assert next_context["algorithm_sandbox_manifest_id"] == (
+        algorithm_manifest["manifest_id"]
+    )
+    interface_handoff = next_context[
+        "accepted_implementation_interface_handoff"
+    ]
+    serialized_interface = json.dumps(interface_handoff, sort_keys=True)
+    assert source_sentinel not in serialized_interface
+    assert result_sentinel not in serialized_interface
+    assert "exact_source_code" not in serialized_interface
+    assert "exact_smoke_result" not in serialized_interface
+
+    blackboard.artifacts.update(reviewer_result.produced_artifacts)
+    proposal_context, rebuilt_interface, errors = (
+        runtime_module._architect_post_implementation_metric_context(
+            question=question,
+            architect_context=next_context,
+            blackboard=blackboard,
+        )
+    )
+    assert errors == []
+    assert rebuilt_interface == interface_handoff
+    serialized_prompt_context = json.dumps(proposal_context, sort_keys=True)
+    assert source_sentinel not in serialized_prompt_context
+    assert result_sentinel not in serialized_prompt_context
+    assert "upstream_algorithm_handoff" not in proposal_context
+    assert proposal_context["runtime_architect_operation"] == (
+        runtime_module.RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
+    )
+
+
+def test_pre_metric_implementation_does_not_release_without_independent_reviewer(
+    tmp_path: Path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="domain_neutral_missing_reviewer",
+        title="Domain-neutral candidate",
+        description="Exercise the implementation-only execution boundary.",
+        tags=("domain-neutral",),
+    )
+    theory_packet = _targetable_theory_packet_fixture(
+        "theory_derivation:domain-neutral-missing-reviewer"
+    )
+    theory_packet_id = str(theory_packet["packet_id"])
+    context = {
+        "theory_packet_id": theory_packet_id,
+        "architect_metric_protocol_gate": {
+            "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+            "source_theory_packet_id": theory_packet_id,
+            "algorithm_execution_authorized": True,
+            "confirmatory_simulation_authorized": False,
+            "preflight_acceptance_id": "preflight-acceptance:1",
+            "execution_authorized": False,
+        },
+    }
+    deferred_task = AgentTask(
+        task_id="architect-metric-after-implementation:no-reviewer",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Author metrics only after independent implementation review.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": context,
+            "runtime_architect_operation": (
+                runtime_module.RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
+            ),
+        },
+    )
+
+    class ExecutableAlgorithmEngineer:
+        def propose(self, **_kwargs):
+            return {
+                "packet_id": "algorithm_engineer_proposal:no-reviewer",
+                "implementation_targets": [
+                    {"estimator_id": "candidate", "registered_template_hint": "none"}
+                ],
+                "sandbox_code_drafts": [
+                    {
+                        "estimator_id": "candidate",
+                        "language": "python",
+                        "entrypoint": "run_sandbox",
+                        "code": (
+                            "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                            "    return {'sandbox_failed': False, "
+                            "'estimate': 0.0, 'replicates': int(replicates)}\n"
+                        ),
+                    }
+                ],
+            }
+
+    result = AlgorithmEngineerRuntimeSubsystem(
+        out_dir=tmp_path / "missing-reviewer",
+        n_runs=7,
+        seed=13,
+        proposal_agent=ExecutableAlgorithmEngineer(),  # type: ignore[arg-type]
+        semantic_reviewer_available=False,
+    ).run(
+        AgentTask(
+            task_id="algorithm-before-metric:no-reviewer",
+            owner_subsystem="AlgorithmEngineer",
+            objective="Execute the theory-bound implementation.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "theory_packet_id": theory_packet_id,
+                "simulation_manifest_id": "",
+                "implementation_gaps": [
+                    {
+                        "estimator_id": "candidate",
+                        "status": "REQUIRES_ALGORITHM_ENGINEER_ADAPTER",
+                        "reason": "A fresh implementation is required.",
+                    }
+                ],
+                "architect_context": context,
+                "empirical_evaluation_phase": (
+                    EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+                ),
+                "implementation_before_metric_freeze": True,
+                "deferred_metric_protocol_task": asdict(deferred_task),
+            },
+        ),
+        BlackboardState(
+            project_id="domain-neutral-missing-reviewer",
+            artifacts={theory_packet_id: theory_packet},
+        ),
+    )
+
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
+    assert result.failure_classification == (
+        "pre_metric_implementation_semantic_reviewer_unavailable"
+    )
+    manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeAlgorithmSandboxManifest"
+    )
+    assert manifest["n_generated_code_executed"] == 1
+    assert manifest["confirmatory_empirical_evidence_eligible"] is False
+    assert all(
+        artifact.get("artifact_kind")
+        != "RuntimeGeneratedCodeSemanticReviewWorkOrder"
+        for artifact in result.produced_artifacts.values()
+    )
 
 
 def test_live_architect_preauthors_metric_contract_with_structured_substage() -> None:
@@ -27583,6 +27933,56 @@ def test_architect_metric_reviewer_packet_failure_is_typed_not_subsystem_excepti
     )
 
 
+def test_theory_preflight_packet_failure_has_distinct_typed_lineage() -> None:
+    from ai_statistician.evaluation_protocol_revision import (
+        architect_metric_semantic_review_validation_failure_result,
+    )
+
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[0]
+    result = architect_metric_semantic_review_validation_failure_result(
+        task=AgentTask(
+            task_id="architect-theory-preflight:invalid-review",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Review theory executability before implementation.",
+            inputs={},
+        ),
+        question=question,
+        architect_context=_theory_informed_metric_context_fixture(),
+        exc=PacketValidationError(
+            validation_label=(
+                "Architect theory-to-execution source-grounded preflight review"
+            ),
+            attempts=3,
+            errors=["global client-tool turn budget exhausted"],
+            history=[
+                {
+                    "turn_index": 2,
+                    "model": "claude-haiku-4-5-20251001",
+                    "provider": "anthropic",
+                    "ok": False,
+                }
+            ],
+        ),
+        review_stage="theory_execution_preflight",
+    )
+
+    assert result.status == "BLOCKED"
+    assert result.failure_classification == (
+        "architect_theory_execution_preflight_packet_validation_failed"
+    )
+    failure = next(iter(result.produced_artifacts.values()))
+    assert failure["artifact_kind"] == (
+        "RuntimeArchitectTheoryExecutionPreflightValidationFailure"
+    )
+    assert failure["implementation_authorized"] is False
+    assert failure["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
+    assert result.observations[0].observation_type == (
+        "architect_theory_execution_preflight_packet_invalid"
+    )
+
+
 def test_metric_reviewer_failure_persists_only_unreviewed_replay_candidate(
     monkeypatch,
 ) -> None:
@@ -27639,6 +28039,30 @@ def test_metric_reviewer_failure_persists_only_unreviewed_replay_candidate(
     theory_material = _theory_informed_metric_context_fixture()[
         "architect_metric_protocol_theory_material"
     ]
+    accepted_preflight_packet = {
+        "packet_id": "architect_theory_execution_preflight:validated",
+        "overall_verdict": "ACCEPT",
+    }
+    accepted_preflight = {
+        "artifact_kind": (
+            "RuntimeArchitectTheoryExecutionPreflightAcceptance"
+        ),
+        "source_theory_packet_id": theory_material[
+            "source_theory_packet_id"
+        ],
+        "source_theory_packet_hash": theory_material[
+            "source_theory_packet_hash"
+        ],
+        "preflight_packet_id": accepted_preflight_packet["packet_id"],
+        "preflight_packet_hash": stable_hash(accepted_preflight_packet),
+        "theory_execution_preflight_packet": accepted_preflight_packet,
+        "execution_results_observed": False,
+        "full_metric_authoring_completed": False,
+    }
+    accepted_preflight["acceptance_id"] = (
+        "architect_theory_execution_preflight_acceptance:"
+        + stable_hash(accepted_preflight)[:20]
+    )
     with pytest.raises(
         authoring_module.ArchitectMetricSemanticReviewPacketValidationError
     ) as exc_info:
@@ -27662,6 +28086,7 @@ def test_metric_reviewer_failure_persists_only_unreviewed_replay_candidate(
                 "generated_sandbox_runtime_replicates": 17,
             },
             theory_protocol_material=theory_material,
+            accepted_theory_preflight_context=accepted_preflight,
         )
 
     exc = exc_info.value

@@ -20,6 +20,7 @@ from .architect_metric_semantic_reviewer_llm import (
 from .architect_metric_contract_authoring import (
     ArchitectMetricContractAuthoringConfig,
     author_reviewed_architect_metric_requirements,
+    review_architect_theory_execution_preflight,
 )
 from .fingerprint import stable_hash
 from .generated_metric_contract import (
@@ -270,6 +271,39 @@ class LLMArchitectCoordinatorAgent:
                 )
             )
 
+    def review_theory_execution_preflight(
+        self,
+        *,
+        question: OpenResearchQuestion,
+        architect_context: Mapping[str, Any],
+        runtime_config: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Run the independent pre-code gate without authoring metrics."""
+
+        return review_architect_theory_execution_preflight(
+            semantic_reviewer=self.metric_semantic_reviewer,
+            question=question,
+            runtime_contract=_architect_runtime_owned_evidence_contract(
+                architect_context=architect_context,
+                runtime_config=runtime_config,
+            ),
+            theory_protocol_material=(
+                theory_informed_metric_protocol_material(architect_context)
+            ),
+            prior_rejection_context=(
+                architect_context.get(
+                    "architect_metric_protocol_prior_rejection", {}
+                )
+                if isinstance(
+                    architect_context.get(
+                        "architect_metric_protocol_prior_rejection", {}
+                    ),
+                    Mapping,
+                )
+                else {}
+            ),
+        )
+
     def propose(
         self,
         *,
@@ -337,6 +371,30 @@ class LLMArchitectCoordinatorAgent:
                     _architect_frozen_metric_protocol_rebinding_context(
                         architect_context
                     )
+                ),
+                accepted_theory_preflight_context=(
+                    architect_context.get(
+                        "architect_theory_execution_preflight_acceptance", {}
+                    )
+                    if isinstance(
+                        architect_context.get(
+                            "architect_theory_execution_preflight_acceptance", {}
+                        ),
+                        Mapping,
+                    )
+                    else {}
+                ),
+                accepted_implementation_interface_context=(
+                    architect_context.get(
+                        "accepted_implementation_interface_handoff", {}
+                    )
+                    if isinstance(
+                        architect_context.get(
+                            "accepted_implementation_interface_handoff", {}
+                        ),
+                        Mapping,
+                    )
+                    else {}
                 ),
             )
         effective_architect_context = (

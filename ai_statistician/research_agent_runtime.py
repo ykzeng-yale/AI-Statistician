@@ -149,6 +149,12 @@ from .metric_protocol_stage import (
     build_theory_informed_metric_protocol_material,
     reviewed_metric_protocol_authority_matches_theory,
 )
+from .implementation_metric_handoff import (
+    ACCEPTED_IMPLEMENTATION_INTERFACE_HANDOFF_BOUNDARY,
+    ACCEPTED_IMPLEMENTATION_INTERFACE_HANDOFF_NOT_EVIDENCE,
+    accepted_implementation_interface_handoff_errors,
+    build_accepted_implementation_interface_handoff,
+)
 from .research_evaluation import build_research_evaluation_summary
 from .formal_target_semantic_reviewer_llm import (
     FORMAL_TARGET_SEMANTIC_REVIEW_BOUNDARY,
@@ -529,6 +535,12 @@ from .verifier import ProofVerifier
 
 
 RUNTIME_SCHEMA_VERSION = 1
+RUNTIME_ARCHITECT_OPERATION_THEORY_PREFLIGHT = (
+    "theory_execution_preflight_then_algorithm"
+)
+RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC = (
+    "implementation_accepted_metric_authoring"
+)
 RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS = 45000
 FORMALIZER_PACKET_MAX_SAME_LINEAGE_REPAIR_RETRIES = 1
 EXACT_SEMANTIC_AUTHORING_PROMPT_HANDOFF_COUNT_KEYS = (
@@ -7766,6 +7778,352 @@ def _run_runtime_source_theorem_formal_environment_bridge_stack_from_promotion_b
     )
 
 
+def _runtime_architect_operation(task: AgentTask) -> str:
+    return str(task.inputs.get("runtime_architect_operation", "") or "").strip()
+
+
+def _architect_theory_preflight_accepted_result(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+    preflight_packet: Mapping[str, Any],
+    runtime_config: ResearchAgentRuntimeConfig,
+    blackboard: BlackboardState,
+) -> AgentStepResult:
+    context = dict(architect_context)
+    theory_material = context.get(
+        "architect_metric_protocol_theory_material", {}
+    )
+    theory_material = (
+        dict(theory_material) if isinstance(theory_material, Mapping) else {}
+    )
+    theory_packet_id = str(
+        theory_material.get("source_theory_packet_id", "") or ""
+    )
+    theory_packet_hash = str(
+        theory_material.get("source_theory_packet_hash", "") or ""
+    )
+    theory_packet = blackboard.artifacts.get(theory_packet_id, {})
+    errors: list[str] = []
+    if preflight_packet.get("overall_verdict") != "ACCEPT":
+        errors.append("theory execution preflight was not accepted")
+    if str(preflight_packet.get("source_theory_packet_id", "") or "") != (
+        theory_packet_id
+    ):
+        errors.append("theory execution preflight theory identity mismatch")
+    if str(preflight_packet.get("source_theory_packet_hash", "") or "") != (
+        theory_packet_hash
+    ):
+        errors.append("theory execution preflight theory hash mismatch")
+    if not isinstance(theory_packet, Mapping) or stable_hash(theory_packet) != (
+        theory_packet_hash
+    ):
+        errors.append("theory execution preflight source packet is unavailable")
+    if errors:
+        return AgentStepResult(
+            status="BLOCKED",
+            rationale=(
+                "ArchitectCoordinator rejected a stale or non-accepted theory "
+                "preflight before implementation execution."
+            ),
+            observations=(
+                EnvironmentObservation(
+                    observation_type="architect_theory_preflight_acceptance_rejected",
+                    summary="; ".join(errors)[:500],
+                    payload={
+                        "validation_errors": errors,
+                        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                    },
+                ),
+            ),
+            failure_classification="architect_theory_preflight_acceptance_invalid",
+        )
+
+    preflight_packet_id = str(preflight_packet.get("packet_id", "") or "")
+    preflight_packet_hash = stable_hash(preflight_packet)
+    acceptance = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": (
+            "RuntimeArchitectTheoryExecutionPreflightAcceptance"
+        ),
+        "question_id": question.id,
+        "source_task_id": task.task_id,
+        "source_theory_packet_id": theory_packet_id,
+        "source_theory_packet_hash": theory_packet_hash,
+        "preflight_packet_id": preflight_packet_id,
+        "preflight_packet_hash": preflight_packet_hash,
+        "theory_execution_preflight_packet": dict(preflight_packet),
+        "execution_results_observed": False,
+        "full_metric_authoring_completed": False,
+        "algorithm_execution_authorized": True,
+        "confirmatory_simulation_authorized": False,
+        "runtime_selected_semantics": False,
+        "proof_evidence_status": (
+            "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_ACCEPTANCE_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": (
+            "Independent source-grounded preflight accepted the current theory "
+            "for exploratory implementation. It does not freeze empirical metrics, "
+            "authorize confirmatory simulation, accept statistical performance, or "
+            "prove a theorem."
+        ),
+    }
+    acceptance_id = (
+        "architect_theory_execution_preflight_acceptance:"
+        + stable_hash(acceptance)[:20]
+    )
+    acceptance["acceptance_id"] = acceptance_id
+    context["architect_theory_execution_preflight_acceptance"] = acceptance
+    context["empirical_evaluation_phase"] = (
+        EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+    )
+    context["architect_metric_protocol_gate"] = {
+        "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+        "source_theory_packet_id": theory_packet_id,
+        "source_theory_packet_hash": theory_packet_hash,
+        "required_disposition": (
+            "IMPLEMENTATION_ACCEPTED_BEFORE_METRIC_AUTHORING"
+        ),
+        "execution_authorized": False,
+        "algorithm_execution_authorized": True,
+        "confirmatory_simulation_authorized": False,
+        "consumed": False,
+        "preflight_acceptance_id": acceptance_id,
+        "preflight_acceptance_hash": stable_hash(acceptance),
+        "proof_evidence_status": (
+            "ARCHITECT_METRIC_PROTOCOL_GATE_NOT_PROOF_EVIDENCE"
+        ),
+        "boundary": (
+            "Only exploratory AlgorithmEngineer execution is authorized. Full metric "
+            "authoring remains deferred until independent implementation review "
+            "accepts a hash-bound executable interface."
+        ),
+    }
+    requires_generated_algorithm = bool(
+        _architect_runtime_plan(context)
+        .get("evidence_contract", {})
+        .get("capability_eval_requires_generated_algorithm_code")
+        is True
+    )
+    implementation_gaps = _implementation_gaps(
+        theory_packet,
+        [],
+        require_generated_adapter=requires_generated_algorithm,
+    )
+    if not implementation_gaps:
+        return AgentStepResult(
+            status="BLOCKED",
+            rationale=(
+                "Accepted theory preflight produced no explicit implementation "
+                "target for AlgorithmEngineer."
+            ),
+            produced_artifacts={
+                preflight_packet_id: dict(preflight_packet),
+                acceptance_id: acceptance,
+            },
+            failure_classification="architect_preflight_implementation_target_missing",
+        )
+    context["implementation_gaps"] = implementation_gaps
+    deferred_metric_task = AgentTask(
+        task_id=(
+            f"architect-metric-after-implementation:{question.id}:"
+            f"{stable_hash([task.task_id, acceptance_id])[:8]}"
+        ),
+        owner_subsystem="ArchitectCoordinator",
+        objective=(
+            "Author and independently review the smallest confirmatory simulation "
+            "metric portfolio after implementation acceptance, without observing "
+            "implementation smoke-test results."
+        ),
+        inputs={
+            "question": _question_to_payload(question),
+            "architect_context": context,
+            "runtime_architect_operation": (
+                RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
+            ),
+        },
+        allowed_tools=("model_backend", "blackboard", "evidence_ledger"),
+        expected_artifacts=(
+            "architect_coordinator_proposal",
+            "architect_metric_requirement_authoring",
+            "architect_metric_semantic_review",
+        ),
+        acceptance_gate=(
+            "accepted implementation interface is result-free and the theory-bound "
+            "confirmatory simulation protocol receives independent ACCEPT"
+        ),
+        stop_condition=(
+            "metric protocol is accepted and routed to confirmatory simulation, or "
+            "typed review feedback preserves exact lineage"
+        ),
+    )
+    algorithm_task = AgentTask(
+        task_id=(
+            f"algorithm-before-metric:{question.id}:"
+            f"{stable_hash([task.task_id, acceptance_id, implementation_gaps])[:8]}"
+        ),
+        owner_subsystem="AlgorithmEngineer",
+        objective=(
+            "Generate and execute the theory-bound estimator implementation before "
+            "confirmatory metrics are frozen; expose exact source and smoke feedback "
+            "to an independent semantic reviewer."
+        ),
+        inputs={
+            "question": _question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "simulation_manifest_id": "",
+            "implementation_gaps": implementation_gaps,
+            "architect_context": context,
+            "empirical_evaluation_phase": (
+                EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+            ),
+            "implementation_before_metric_freeze": True,
+            "deferred_metric_protocol_task": asdict(deferred_metric_task),
+            "n_runs": runtime_config.n_runs,
+            "seed": _architect_candidate_seed(
+                architect_context=context,
+                default_seed=runtime_config.seed,
+            ),
+        },
+        allowed_tools=("model_backend", "python", "filesystem_sandbox"),
+        expected_artifacts=_architect_expected_artifacts(
+            context,
+            "AlgorithmEngineer",
+            ("algorithm_sandbox_manifest",),
+        ),
+        acceptance_gate=(
+            "generated implementation executes and receives independent semantic "
+            "ACCEPT before the deferred metric-authoring task can resume"
+        ),
+        stop_condition=(
+            "implementation review accepts the exact executable interface or routes "
+            "a bounded source/theory repair"
+        ),
+    )
+    evidence = EvidenceLedgerEntry(
+        evidence_id=(
+            "evidence:" + stable_hash([task.task_id, acceptance_id])[:20]
+        ),
+        task_id=task.task_id,
+        artifact_id=acceptance_id,
+        evidence_type="architect_theory_execution_preflight_acceptance",
+        status="IMPLEMENTATION_ONLY_AUTHORIZED",
+        boundary=str(acceptance["boundary"]),
+        payload={
+            "source_theory_packet_id": theory_packet_id,
+            "preflight_packet_id": preflight_packet_id,
+            "algorithm_execution_authorized": True,
+            "confirmatory_simulation_authorized": False,
+            "proof_evidence_status": acceptance["proof_evidence_status"],
+        },
+    )
+    return AgentStepResult(
+        status="REROUTE",
+        rationale=(
+            "Independent theory preflight accepted. AgentRuntime is routing to "
+            "AlgorithmEngineer and deferring full metric authoring until independent "
+            "implementation review accepts the exact executable interface."
+        ),
+        produced_artifacts={
+            preflight_packet_id: dict(preflight_packet),
+            acceptance_id: acceptance,
+        },
+        observations=(
+            EnvironmentObservation(
+                observation_type="architect_theory_preflight_accepted",
+                summary=(
+                    "preflight accepted; implementation authorized; metrics and "
+                    "confirmatory simulation remain deferred"
+                ),
+                payload={
+                    "acceptance_id": acceptance_id,
+                    "preflight_packet_id": preflight_packet_id,
+                    "next_owner_subsystem": "AlgorithmEngineer",
+                    "deferred_owner_subsystem": "ArchitectCoordinator",
+                    "execution_results_observed": False,
+                    "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                },
+            ),
+        ),
+        evidence_entries=(evidence,),
+        next_task=algorithm_task,
+    )
+
+
+_METRIC_AUTHORING_CONTEXT_FIELDS = frozenset(
+    {
+        "theory_packet_id",
+        "previous_theory_packet_id",
+        "retrieval_context",
+        "retrieval_memory_manifest_id",
+        "architect_runtime_plan",
+        "runtime_requested_evidence_contract",
+        "runtime_evaluation_mode",
+        "architect_metric_protocol_theory_material",
+        "architect_metric_protocol_gate",
+        "architect_theory_execution_preflight_acceptance",
+        "architect_metric_protocol_prior_rejection",
+        "architect_metric_protocol_fresh_candidate_revision",
+        "runtime_evaluation_protocol_revision_cycle",
+        "implementation_gaps",
+    }
+)
+
+
+def _architect_post_implementation_metric_context(
+    *,
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+    blackboard: BlackboardState,
+) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
+    context = dict(architect_context)
+    theory_packet_id = _architect_context_theory_packet_id(context)
+    algorithm_manifest_id = _architect_context_algorithm_sandbox_manifest_id(
+        context
+    )
+    raw_handoff = context.get("upstream_algorithm_handoff", {})
+    validated_handoff = _runtime_validated_algorithm_handoff(
+        architect_context=context,
+        blackboard=blackboard,
+        question_id=question.id,
+        theory_packet_id=theory_packet_id,
+        algorithm_sandbox_manifest_id=algorithm_manifest_id,
+        upstream_algorithm_handoff=(
+            raw_handoff if isinstance(raw_handoff, Mapping) else {}
+        ),
+    )
+    errors: list[str] = []
+    if not validated_handoff:
+        errors.append(
+            "post-implementation metric authoring requires a validated accepted "
+            "AlgorithmEngineer handoff"
+        )
+        return {}, {}, errors
+    interface_handoff = build_accepted_implementation_interface_handoff(
+        validated_handoff
+    )
+    errors.extend(
+        accepted_implementation_interface_handoff_errors(
+            interface_handoff,
+            question_id=question.id,
+            theory_packet_id=theory_packet_id,
+        )
+    )
+    proposal_context = {
+        key: deepcopy(context[key])
+        for key in _METRIC_AUTHORING_CONTEXT_FIELDS
+        if key in context
+    }
+    proposal_context["accepted_implementation_interface_handoff"] = (
+        interface_handoff
+    )
+    proposal_context["runtime_architect_operation"] = (
+        RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
+    )
+    return proposal_context, interface_handoff, errors
+
+
 class ArchitectCoordinatorRuntimeSubsystem:
     name = "ArchitectCoordinator"
 
@@ -7807,6 +8165,76 @@ class ArchitectCoordinatorRuntimeSubsystem:
                     "evidence and does not imply that any theorem gap is closed."
                 ),
             }
+        architect_operation = _runtime_architect_operation(task)
+        if architect_operation == RUNTIME_ARCHITECT_OPERATION_THEORY_PREFLIGHT:
+            context = (
+                _architect_context_with_rehydrated_metric_protocol_theory_material(
+                    architect_context=context,
+                    blackboard=blackboard,
+                )
+            )
+            runtime_config_payload = asdict(self.runtime_config)
+            runtime_config_payload["exact_source_theorem_prover_available"] = (
+                self.exact_source_theorem_prover_available
+            )
+            try:
+                preflight_packet = (
+                    self.coordinator.review_theory_execution_preflight(
+                        question=question,
+                        architect_context=context,
+                        runtime_config=runtime_config_payload,
+                    )
+                )
+            except ArchitectMetricSemanticReviewRejected as exc:
+                return architect_preexecution_metric_protocol_rejection_result(
+                    task=task,
+                    question=question,
+                    semantic_review_history=exc.semantic_review_history,
+                    architect_context=context,
+                    max_upstream_theory_revisions=(
+                        self.runtime_config.metric_protocol_max_upstream_theory_revisions
+                    ),
+                )
+            except PacketValidationError as exc:
+                return architect_metric_semantic_review_validation_failure_result(
+                    task=task,
+                    question=question,
+                    architect_context=context,
+                    exc=exc,
+                    review_stage="theory_execution_preflight",
+                )
+            except ValueError as exc:
+                return AgentStepResult(
+                    status="BLOCKED",
+                    rationale=(
+                        "ArchitectCoordinator rejected an unavailable or invalid "
+                        "theory preflight contract before implementation."
+                    ),
+                    observations=(
+                        EnvironmentObservation(
+                            observation_type=(
+                                "architect_theory_preflight_contract_rejected"
+                            ),
+                            summary=str(exc)[:500],
+                            payload={
+                                "model_call_authorized": False,
+                                "implementation_authorized": False,
+                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                            },
+                        ),
+                    ),
+                    failure_classification=(
+                        "architect_theory_preflight_contract_invalid"
+                    ),
+                )
+            return _architect_theory_preflight_accepted_result(
+                task=task,
+                question=question,
+                architect_context=context,
+                preflight_packet=preflight_packet,
+                runtime_config=self.runtime_config,
+                blackboard=blackboard,
+            )
         protocol_revision_result = (
             _architect_post_result_metric_protocol_revision_result(
                 task=task,
@@ -7839,10 +8267,79 @@ class ArchitectCoordinatorRuntimeSubsystem:
         runtime_config_payload["exact_source_theorem_prover_available"] = (
             self.exact_source_theorem_prover_available
         )
+        proposal_context = context
+        if (
+            architect_operation
+            == RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
+        ):
+            (
+                proposal_context,
+                implementation_interface_handoff,
+                implementation_context_errors,
+            ) = _architect_post_implementation_metric_context(
+                question=question,
+                architect_context=context,
+                blackboard=blackboard,
+            )
+            if implementation_context_errors:
+                return AgentStepResult(
+                    status="BLOCKED",
+                    rationale=(
+                        "ArchitectCoordinator rejected post-implementation metric "
+                        "authoring before any model call because accepted code "
+                        "lineage was missing or inconsistent."
+                    ),
+                    observations=(
+                        EnvironmentObservation(
+                            observation_type=(
+                                "post_implementation_metric_authoring_input_rejected"
+                            ),
+                            summary="; ".join(
+                                implementation_context_errors
+                            )[:500],
+                            payload={
+                                "validation_errors": (
+                                    implementation_context_errors
+                                ),
+                                "model_call_authorized": False,
+                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                            },
+                        ),
+                    ),
+                    failure_classification=(
+                        "post_implementation_metric_authoring_lineage_invalid"
+                    ),
+                )
+            context["accepted_implementation_interface_handoff"] = (
+                implementation_interface_handoff
+            )
+            context["algorithm_sandbox_manifest_id"] = str(
+                implementation_interface_handoff.get(
+                    "algorithm_sandbox_manifest_id", ""
+                )
+                or ""
+            )
+            metric_gate = context.get("architect_metric_protocol_gate", {})
+            if isinstance(metric_gate, Mapping):
+                metric_gate = dict(metric_gate)
+                metric_gate["required_disposition"] = (
+                    "PREEXECUTION_REVIEW_ACCEPTED"
+                )
+                metric_gate["implementation_interface_handoff_id"] = str(
+                    implementation_interface_handoff.get("handoff_id", "")
+                    or ""
+                )
+                metric_gate["implementation_interface_handoff_hash"] = (
+                    stable_hash(implementation_interface_handoff)
+                )
+                context["architect_metric_protocol_gate"] = metric_gate
+                proposal_context["architect_metric_protocol_gate"] = dict(
+                    metric_gate
+                )
         try:
             packet = self.coordinator.propose(
                 question=question,
-                architect_context=context,
+                architect_context=proposal_context,
                 runtime_config=runtime_config_payload,
             )
         except ArchitectMetricSemanticReviewRejected as exc:
@@ -7882,6 +8379,34 @@ class ArchitectCoordinatorRuntimeSubsystem:
                     exc=exc,
                 )
             raise
+        except ValueError as exc:
+            if (
+                architect_operation
+                != RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
+            ):
+                raise
+            return AgentStepResult(
+                status="BLOCKED",
+                rationale=(
+                    "Post-implementation metric authoring rejected a stale or "
+                    "incomplete result-blind contract before execution."
+                ),
+                observations=(
+                    EnvironmentObservation(
+                        observation_type=(
+                            "post_implementation_metric_authoring_contract_rejected"
+                        ),
+                        summary=str(exc)[:500],
+                        payload={
+                            "confirmatory_simulation_authorized": False,
+                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                        },
+                    ),
+                ),
+                failure_classification=(
+                    "post_implementation_metric_authoring_contract_invalid"
+                ),
+            )
         packet_id = str(packet["packet_id"])
         context["architect_coordinator_proposal_id"] = packet_id
         capability_gap_routing_agenda = architect_capability_gap_routing_agenda(
@@ -12536,17 +13061,22 @@ class TheoryDeveloperRuntimeSubsystem:
                 "rejection_manifest_ids": rejection_manifest_ids,
                 "upstream_theory_revision_count": upstream_theory_revision_count,
                 "max_upstream_theory_revisions": max_upstream_theory_revisions,
-                "required_disposition": "PREEXECUTION_REVIEW_ACCEPTED",
+                "required_disposition": (
+                    "THEORY_EXECUTION_PREFLIGHT_ACCEPTED_BEFORE_IMPLEMENTATION"
+                ),
                 "execution_authorized": False,
+                "algorithm_execution_authorized": False,
+                "confirmatory_simulation_authorized": False,
                 "consumed": False,
                 "proof_evidence_status": (
                     "ARCHITECT_METRIC_PROTOCOL_GATE_NOT_PROOF_EVIDENCE"
                 ),
                 "boundary": (
-                    "Theory is available, but AlgorithmEngineer and confirmatory "
-                    "simulation remain blocked until the estimand, DGP, identifiability, "
-                    "and empirical protocol pass independent pre-execution review. "
-                    "No generated result can relax that protocol."
+                    "Theory is available, but implementation remains blocked until "
+                    "the estimand, DGP, identifiability, and executability pass "
+                    "independent source-grounded preflight. Full confirmatory metric "
+                    "authoring remains deferred until independent implementation "
+                    "review accepts a hash-bound interface."
                 ),
             }
             metric_protocol_task = AgentTask(
@@ -12556,26 +13086,29 @@ class TheoryDeveloperRuntimeSubsystem:
                 ),
                 owner_subsystem="ArchitectCoordinator",
                 objective=(
-                    "Author and independently review a theory-informed empirical "
-                    "metric protocol before confirmatory generated execution."
+                    "Independently review the theory, DGP, estimand, identifiability, "
+                    "and finite executability before generated implementation and "
+                    "deferred metric protocol authoring."
                 ),
                 inputs={
                     "question": _question_to_payload(question),
                     "architect_context": context,
+                    "runtime_architect_operation": (
+                        RUNTIME_ARCHITECT_OPERATION_THEORY_PREFLIGHT
+                    ),
                 },
                 allowed_tools=("model_backend", "blackboard", "evidence_ledger"),
                 expected_artifacts=(
-                    "architect_coordinator_proposal",
-                    "architect_metric_requirement_authoring",
-                    "architect_metric_semantic_review",
+                    "architect_theory_execution_preflight",
+                    "architect_theory_execution_preflight_acceptance",
                 ),
                 acceptance_gate=(
-                    "theory-bound metric requirements receive an independent ACCEPT "
-                    "certificate before execution is authorized"
+                    "source-grounded theory preflight receives independent ACCEPT; "
+                    "only exploratory implementation is then authorized"
                 ),
                 stop_condition=(
-                    "reviewed protocol is accepted and routed to simulation, or a "
-                    "typed pre-execution rejection preserves the full review lineage"
+                    "preflight is accepted and routed to AlgorithmEngineer, or a "
+                    "typed theory revision preserves the full review lineage"
                 ),
             )
             next_task = metric_protocol_task
@@ -12585,8 +13118,9 @@ class TheoryDeveloperRuntimeSubsystem:
             status="REROUTE",
             rationale=(
                 "LLM TheoryDeveloper produced a proposal; runtime is routing it to "
-                "independent estimand/DGP/identifiability and metric-protocol review "
-                "before any AlgorithmEngineer or confirmatory simulation execution."
+                "independent source-grounded theory/executability preflight before "
+                "AlgorithmEngineer; full metric authoring remains deferred until "
+                "independent implementation acceptance."
                 if requires_metric_protocol_gate
                 else (
                     "LLM TheoryDeveloper revised the theory packet; runtime is "
@@ -16062,6 +16596,76 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             if algorithm_handoff:
                 next_inputs["upstream_algorithm_handoff"] = algorithm_handoff
                 next_context["upstream_algorithm_handoff"] = algorithm_handoff
+                next_inputs["algorithm_sandbox_manifest_id"] = str(
+                    algorithm_handoff["algorithm_sandbox_manifest_id"]
+                )
+                next_context["algorithm_sandbox_manifest_id"] = str(
+                    algorithm_handoff["algorithm_sandbox_manifest_id"]
+                )
+                accepted_task_operation = str(
+                    deferred_task.inputs.get("runtime_architect_operation", "")
+                    or ""
+                )
+                if (
+                    deferred_task.owner_subsystem == "ArchitectCoordinator"
+                    and accepted_task_operation
+                    == RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
+                ):
+                    implementation_interface_handoff = (
+                        build_accepted_implementation_interface_handoff(
+                            algorithm_handoff
+                        )
+                    )
+                    implementation_interface_errors = (
+                        accepted_implementation_interface_handoff_errors(
+                            implementation_interface_handoff,
+                            question_id=question.id,
+                            theory_packet_id=str(
+                                work_order.get("theory_packet_id", "") or ""
+                            ),
+                        )
+                    )
+                    if implementation_interface_errors:
+                        return AgentStepResult(
+                            status="BLOCKED",
+                            rationale=(
+                                "The accepted implementation could not be projected "
+                                "into a result-blind metric-authoring interface."
+                            ),
+                            produced_artifacts=produced_artifacts,
+                            observations=(
+                                EnvironmentObservation(
+                                    observation_type=(
+                                        "accepted_implementation_interface_rejected"
+                                    ),
+                                    summary="; ".join(
+                                        implementation_interface_errors
+                                    )[:500],
+                                    payload={
+                                        "validation_errors": (
+                                            implementation_interface_errors
+                                        ),
+                                        "deferred_metric_authoring_released": False,
+                                        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                                    },
+                                ),
+                            ),
+                            failure_classification=(
+                                "accepted_implementation_interface_invalid"
+                            ),
+                        )
+                    interface_handoff_id = str(
+                        implementation_interface_handoff["handoff_id"]
+                    )
+                    produced_artifacts[interface_handoff_id] = (
+                        implementation_interface_handoff
+                    )
+                    next_inputs[
+                        "accepted_implementation_interface_handoff"
+                    ] = implementation_interface_handoff
+                    next_context[
+                        "accepted_implementation_interface_handoff"
+                    ] = implementation_interface_handoff
             next_inputs["architect_context"] = next_context
             next_task = replace(
                 deferred_task,
@@ -18505,6 +19109,75 @@ class AlgorithmEngineerRuntimeSubsystem:
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
         context = dict(task.inputs.get("architect_context", {}) or {})
+        implementation_before_metric_freeze = bool(
+            task.inputs.get("implementation_before_metric_freeze") is True
+        )
+        deferred_metric_protocol_payload = task.inputs.get(
+            "deferred_metric_protocol_task", {}
+        )
+        pre_metric_contract_errors: list[str] = []
+        if implementation_before_metric_freeze:
+            if str(task.inputs.get("empirical_evaluation_phase", "") or "") != (
+                EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+            ):
+                pre_metric_contract_errors.append(
+                    "pre-metric implementation must be exploratory"
+                )
+            if not isinstance(deferred_metric_protocol_payload, Mapping):
+                pre_metric_contract_errors.append(
+                    "pre-metric implementation requires a deferred Architect task"
+                )
+                deferred_metric_protocol_payload = {}
+            if str(
+                deferred_metric_protocol_payload.get("owner_subsystem", "") or ""
+            ) != "ArchitectCoordinator":
+                pre_metric_contract_errors.append(
+                    "pre-metric deferred task must be owned by ArchitectCoordinator"
+                )
+            deferred_inputs = deferred_metric_protocol_payload.get("inputs", {})
+            if not isinstance(deferred_inputs, Mapping) or str(
+                deferred_inputs.get("runtime_architect_operation", "") or ""
+            ) != RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC:
+                pre_metric_contract_errors.append(
+                    "pre-metric deferred task must request post-implementation "
+                    "metric authoring"
+                )
+            metric_gate = context.get("architect_metric_protocol_gate", {})
+            if not (
+                isinstance(metric_gate, Mapping)
+                and metric_gate.get("algorithm_execution_authorized") is True
+                and metric_gate.get("confirmatory_simulation_authorized") is False
+                and str(metric_gate.get("preflight_acceptance_id", "") or "")
+            ):
+                pre_metric_contract_errors.append(
+                    "pre-metric implementation requires a preflight-bound "
+                    "implementation-only gate"
+                )
+        if pre_metric_contract_errors:
+            return AgentStepResult(
+                status="BLOCKED",
+                rationale=(
+                    "AlgorithmEngineer rejected an ambiguous pre-metric execution "
+                    "request before any model or sandbox call."
+                ),
+                observations=(
+                    EnvironmentObservation(
+                        observation_type=(
+                            "algorithm_pre_metric_execution_contract_rejected"
+                        ),
+                        summary="; ".join(pre_metric_contract_errors)[:500],
+                        payload={
+                            "validation_errors": pre_metric_contract_errors,
+                            "model_call_authorized": False,
+                            "execution_authorized": False,
+                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                        },
+                    ),
+                ),
+                failure_classification=(
+                    "algorithm_pre_metric_execution_contract_invalid"
+                ),
+            )
         environment_feedback: Mapping[str, Any] = (
             task.inputs.get("environment_feedback", {})
             if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
@@ -18534,21 +19207,22 @@ class AlgorithmEngineerRuntimeSubsystem:
         )
         simulation_manifest_id = str(task.inputs.get("simulation_manifest_id", ""))
         simulation_manifest = blackboard.artifacts.get(simulation_manifest_id, {})
-        missing_simulation_result = (
-            _runtime_missing_simulation_handoff_result_if_needed(
-                source_subsystem="AlgorithmEngineer",
-                task=task,
-                question=question,
-                context=context,
-                simulation_manifest_id=simulation_manifest_id,
-                simulation_manifest=simulation_manifest,
-                theory_packet_id=packet_id,
-                n_runs=task.inputs.get("n_runs", self.n_runs),
-                seed=task.inputs.get("seed", self.seed),
+        if not implementation_before_metric_freeze:
+            missing_simulation_result = (
+                _runtime_missing_simulation_handoff_result_if_needed(
+                    source_subsystem="AlgorithmEngineer",
+                    task=task,
+                    question=question,
+                    context=context,
+                    simulation_manifest_id=simulation_manifest_id,
+                    simulation_manifest=simulation_manifest,
+                    theory_packet_id=packet_id,
+                    n_runs=task.inputs.get("n_runs", self.n_runs),
+                    seed=task.inputs.get("seed", self.seed),
+                )
             )
-        )
-        if missing_simulation_result is not None:
-            return missing_simulation_result
+            if missing_simulation_result is not None:
+                return missing_simulation_result
         implementation_gaps = [
             row for row in task.inputs.get("implementation_gaps", []) or [] if isinstance(row, Mapping)
         ]
@@ -18819,6 +19493,26 @@ class AlgorithmEngineerRuntimeSubsystem:
             "question": _question_to_payload(question),
             "theory_packet_id": packet_id,
             "simulation_manifest_id": simulation_manifest_id,
+            "empirical_evaluation_phase": str(
+                task.inputs.get("empirical_evaluation_phase", "") or ""
+            ),
+            "implementation_before_metric_freeze": (
+                implementation_before_metric_freeze
+            ),
+            "full_metric_authoring_completed": bool(
+                not implementation_before_metric_freeze
+                and isinstance(
+                    algorithm_control.get("evidence_contract", {}), Mapping
+                )
+                and algorithm_control.get("evidence_contract", {}).get(
+                    "empirical_metric_protocol_phase"
+                )
+                == METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED
+                and algorithm_control.get("evidence_contract", {}).get(
+                    "metric_protocol_execution_authorized"
+                )
+                is True
+            ),
             "runtime_architect_control": algorithm_control,
             "theory_trace_consumption_contract": runtime_theory_trace_contract,
             "llm_algorithm_engineer_proposal_id": (
@@ -18948,9 +19642,6 @@ class AlgorithmEngineerRuntimeSubsystem:
             },
         )
         produced_artifacts[manifest_id] = manifest
-        deferred_metric_protocol_payload = task.inputs.get(
-            "deferred_metric_protocol_task", {}
-        )
         has_deferred_metric_protocol = bool(
             isinstance(deferred_metric_protocol_payload, Mapping)
             and deferred_metric_protocol_payload
@@ -19167,6 +19858,16 @@ class AlgorithmEngineerRuntimeSubsystem:
                         "environment_feedback": feedback,
                         **(
                             {
+                                "empirical_evaluation_phase": (
+                                    EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+                                ),
+                                "implementation_before_metric_freeze": True,
+                            }
+                            if implementation_before_metric_freeze
+                            else {}
+                        ),
+                        **(
+                            {
                                 "deferred_metric_protocol_task": dict(
                                     deferred_metric_protocol_payload
                                 )
@@ -19235,6 +19936,39 @@ class AlgorithmEngineerRuntimeSubsystem:
                 architect_context=effective_context,
             )
         semantic_review_evidence: EvidenceLedgerEntry | None = None
+        if implementation_before_metric_freeze and not self.semantic_reviewer_available:
+            observations.append(
+                EnvironmentObservation(
+                    observation_type=(
+                        "algorithm_pre_metric_semantic_reviewer_unavailable"
+                    ),
+                    summary=(
+                        "implementation recorded but deferred metric authoring "
+                        "remains blocked without an independent semantic reviewer"
+                    ),
+                    payload={
+                        "manifest_id": manifest_id,
+                        "deferred_metric_authoring_released": False,
+                        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                    },
+                )
+            )
+            return AgentStepResult(
+                status="BLOCKED",
+                rationale=(
+                    "Pre-metric implementation cannot release confirmatory metric "
+                    "authoring without independent semantic review."
+                ),
+                produced_artifacts=produced_artifacts,
+                observations=tuple(observations),
+                tool_calls=tuple(tool_calls),
+                evidence_entries=tuple(
+                    row for row in (proposal_evidence, evidence) if row is not None
+                ),
+                failure_classification=(
+                    "pre_metric_implementation_semantic_reviewer_unavailable"
+                ),
+            )
         if self.semantic_reviewer_available:
             semantic_review_dispatch = _runtime_generated_code_semantic_review_dispatch(
                 task=task,
@@ -19262,6 +19996,41 @@ class AlgorithmEngineerRuntimeSubsystem:
                 observations.append(semantic_review_dispatch["observation"])
                 semantic_review_evidence = semantic_review_dispatch["evidence"]
                 next_task = semantic_review_dispatch["next_task"]
+            elif implementation_before_metric_freeze and not revision_required:
+                observations.append(
+                    EnvironmentObservation(
+                        observation_type=(
+                            "algorithm_pre_metric_semantic_review_not_dispatchable"
+                        ),
+                        summary=(
+                            "no exact successful generated artifact was eligible "
+                            "for independent semantic review"
+                        ),
+                        payload={
+                            "manifest_id": manifest_id,
+                            "deferred_metric_authoring_released": False,
+                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                        },
+                    )
+                )
+                return AgentStepResult(
+                    status="BLOCKED",
+                    rationale=(
+                        "Pre-metric implementation did not produce an exact artifact "
+                        "that could be independently reviewed."
+                    ),
+                    produced_artifacts=produced_artifacts,
+                    observations=tuple(observations),
+                    tool_calls=tuple(tool_calls),
+                    evidence_entries=tuple(
+                        row
+                        for row in (proposal_evidence, evidence)
+                        if row is not None
+                    ),
+                    failure_classification=(
+                        "pre_metric_implementation_review_not_dispatchable"
+                    ),
+                )
         observations.append(
             EnvironmentObservation(
                 observation_type="algorithm_sandbox_result",

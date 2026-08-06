@@ -182,6 +182,7 @@ def test_anthropic_generator_backend_transports_client_tool_turn(
         ),
         model="claude-haiku-4-5-20251001",
         max_tokens=256,
+        tool_choice="inspect_artifact",
         disable_parallel_tool_use=True,
         metadata={"model_tier": "haiku"},
     )
@@ -202,7 +203,8 @@ def test_anthropic_generator_backend_transports_client_tool_turn(
         }
     ]
     assert kwargs["tool_choice"] == {
-        "type": "any",
+        "type": "tool",
+        "name": "inspect_artifact",
         "disable_parallel_tool_use": True,
     }
     assert "output_config" not in kwargs
