@@ -742,30 +742,22 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
         "source_component_gate"
     ] == "formalizer_pseudo_formal_packet_component_gate"
     assert repair_packet["repair_status"] == "FORMAL_ENVIRONMENT_REPAIR_REQUIRED"
-    assert any("search Mathlib/StatInference" in row for row in repair_packet["proofengineer_action_plan"])
-    declaration_hints = repair_packet["formal_environment_declaration_hints"]
-    assert {hint["symbol"] for hint in declaration_hints} == {"Exchangeable", "orderStat"}
-    assert {
-        hint["placeholder_policy_id"] for hint in declaration_hints
-    } == {
-        "split_conformal_coverage.exchangeable",
-        "split_conformal_coverage.order_statistic_threshold",
-    }
-    assert any(
-        "semantic primitive" in hint["signature_probe_fallback"]
-        for hint in declaration_hints
-    )
-    statement_hints = repair_packet["statement_repair_hints"]
-    assert statement_hints[0]["blocker"] == "HSub ℕ ℝ ENNReal"
-    assert statement_hints[0]["policy_rule_id"] == (
-        "split_conformal_ennreal_lower_bound_from_real_alpha"
-    )
-    assert "ENNReal.ofReal (1 - alpha)" in statement_hints[0]["repair_hint"]
+    assert repair_packet["model_owns_candidate_and_repair_strategy"] is True
+    assert repair_packet["runtime_supplies_observations_only"] is True
+    assert "proofengineer_action_plan" not in repair_packet
+    assert "formal_environment_declaration_hints" not in repair_packet
+    assert "statement_repair_hints" not in repair_packet
+    assert repair_packet["candidate_source_complete"] is True
+    assert repair_packet["candidate_source"]
+    assert repair_packet["candidate_source_hash"]
     signature_probe_plan = repair_packet["lean_signature_probe_plan"]
     assert signature_probe_plan["probe_kind"] == "statement_typecheck_not_proof"
     assert signature_probe_plan["proof_evidence_status"] == (
         "SIGNATURE_PROBE_PLAN_NOT_PROOF_EVIDENCE"
     )
+    assert signature_probe_plan["tool_observation_only"] is True
+    assert "allowed_edits" not in signature_probe_plan
+    assert "forbidden_edits" not in signature_probe_plan
     assert repair_packet["proof_evidence_status"] == "REPAIR_PACKET_NOT_PROOF_EVIDENCE"
     probe_manifest = json.loads(
         Path(str(manifest["signature_probe_manifest"])).read_text(encoding="utf-8")
@@ -1012,7 +1004,7 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert export_manifest["proof_body_execution_queue_proof_evidence_status"] == (
         "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTION_QUEUE_NOT_PROOF_EVIDENCE"
     )
-    assert "statement_repair_hints" in learning_row["input_summary"]
+    assert "statement_repair_hints" not in learning_row["input_summary"]
     assert learning_row["proof_evidence_status"] == (
         "FORMAL_ENVIRONMENT_REPAIR_LEARNING_NOT_PROOF_EVIDENCE"
     )
@@ -1824,7 +1816,7 @@ def test_signature_probe_materializes_work_order_lean_statement_sketch(
     assert probe_row["proof_evidence_status"] == "SIGNATURE_PROBE_NOT_PROOF_EVIDENCE"
 
 
-def test_signature_probe_tracks_generated_source_primitives_as_open_environment(
+def test_signature_probe_preserves_source_without_policy_symbol_inference(
     tmp_path: Path,
 ) -> None:
     candidate_artifact = tmp_path / "split_conformal_coverage_lower.lean"
@@ -1883,18 +1875,18 @@ def test_signature_probe_tracks_generated_source_primitives_as_open_environment(
         ),
     )
 
-    assert manifest["n_missing_formal_symbols"] == 3
+    assert manifest["n_missing_formal_symbols"] == 0
     assert manifest["n_signature_probe_rows"] == 1
     assert manifest["n_signature_probes_reached_proof_body"] == 1
     assert manifest["n_proof_body_execution_queue_rows"] == 1
     repair_packet = json.loads(
         Path(str(manifest["repair_packets_jsonl"])).read_text(encoding="utf-8")
     )
-    assert repair_packet["missing_formal_symbols"] == [
-        "MeasureProbability",
-        "Exchangeable",
-        "orderStatistic",
-    ]
+    assert repair_packet["missing_formal_symbols"] == []
+    assert repair_packet["candidate_source"] == candidate_artifact.read_text(
+        encoding="utf-8"
+    )
+    assert repair_packet["candidate_source_complete"] is True
     probe_manifest = json.loads(
         Path(str(manifest["signature_probe_manifest"])).read_text(encoding="utf-8")
     )
@@ -1922,11 +1914,7 @@ def test_signature_probe_tracks_generated_source_primitives_as_open_environment(
     execution_row = execution_queue_manifest["rows"][0]
     assert execution_row["already_repaired_environment"][
         "missing_formal_symbols"
-    ] == [
-        "MeasureProbability",
-        "Exchangeable",
-        "orderStatistic",
-    ]
+    ] == []
     assert execution_row["proof_evidence_status"] == (
         "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTION_QUEUE_NOT_PROOF_EVIDENCE"
     )

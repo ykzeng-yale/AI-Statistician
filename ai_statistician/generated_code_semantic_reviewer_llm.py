@@ -224,6 +224,24 @@ def _generated_code_semantic_review_active_prior_findings(
     return active
 
 
+def _generated_code_semantic_review_finding_budget(
+    review_material: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    active_prior_count = (
+        len(_generated_code_semantic_review_active_prior_findings(review_material))
+        if isinstance(review_material, Mapping)
+        else 0
+    )
+    return {
+        "max_new_findings": GENERATED_CODE_SEMANTIC_REVIEW_MAX_FINDINGS,
+        "active_prior_finding_count": active_prior_count,
+        "max_normalized_findings": (
+            active_prior_count + GENERATED_CODE_SEMANTIC_REVIEW_MAX_FINDINGS
+        ),
+        "prior_continuations_consume_new_finding_budget": False,
+    }
+
+
 def generated_code_semantic_review_authority_contract(
     review_material: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -2379,19 +2397,6 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                     else None
                 )
             )
-            phase_repair_instruction = (
-                "This is a confirmatory review, even when the current source's "
-                "least-authority projection has no metric rows assigned to that "
-                "source. Use finding repair_scope=source_code for an implementation "
-                "defect, upstream_metric_contract only when source changes cannot "
-                "satisfy the frozen protocol, and upstream_theory only for a missing "
-                "or contradictory theory premise."
-                if confirmatory_empirical_evidence_eligible
-                else "This is an exploratory review with no frozen confirmatory "
-                "protocol. Do not use upstream_metric_contract or invent an "
-                "acceptance threshold; scope findings only to source_code or "
-                "upstream_theory when the supplied evidence supports them."
-            )
             missing_citation_diagnostics = (
                 _generated_code_semantic_review_missing_citation_diagnostics(
                     review_material=review_material,
@@ -2410,112 +2415,6 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                     trusted_lineage.get("source_subsystem", "") or ""
                 ),
                 "local_validation_errors": list(kwargs.get("errors", []) or []),
-                "repair_prompt_priority_instructions": [
-                    phase_repair_instruction,
-                    (
-                        "Repair every unresolved citation at its exact "
-                        "missing_current_artifact_citation_diagnostics[]."
-                        "model_payload_citation_path. Choose an exact current-"
-                        "artifact candidate only when its value semantically "
-                        "supports that row; do not patch the row's summary, "
-                        "rationale, severity, or repair scope instead."
-                    ),
-                    (
-                        "Each finding repair_scope is a reviewer hypothesis needed by "
-                        "this packet schema, not final ownership authority. The "
-                        "independent artifact-owner router decides which immutable "
-                        "artifact changes; AgentRuntime derives aggregate routing from "
-                        "that decision."
-                    ),
-                    (
-                        "Every required repair must have at least one specific finding "
-                        "with the correct repair_scope and typed evidence. "
-                        "Preserve unrelated valid findings and remove or rescope only "
-                        "rows contradicted by the supplied evidence."
-                    ),
-                    (
-                        "Close the decision in one evidence-based direction. If no "
-                        "mandatory defect remains, every required dimension must be "
-                        "PASS and every finding must be advisory. If a mandatory "
-                        "defect remains, give at least one concrete finding an "
-                        "actionable repair_scope with a matching obligation_ref and "
-                        "artifact_delta. A dimension "
-                        "row need not duplicate that finding. "
-                        "Do not change a judgment merely to pass validation; runtime "
-                        "will not select a repair scope for you."
-                    ),
-                    (
-                        "If you change an actionable finding to repair_scope=none, "
-                        "also make its severity, summary, required_change, and cited "
-                        "gate outcome consistent with an advisory finding. Do not "
-                        "repair only the scope label while preserving a contradictory "
-                        "mandatory claim."
-                    ),
-                    (
-                        "Each finding severity must be exactly one of "
-                        "decision_closure_state.allowed_finding_severities. Repair "
-                        "every index in invalid_severity_finding_indices at its exact "
-                        "model_payload_severity_path, choosing the level from the "
-                        "current evidence rather than translating it mechanically."
-                    ),
-                    (
-                        "Before marking a dimension PASS, compare every quantitative "
-                        "and logical statement in its rationale against the exact "
-                        "cited values, operators, runtime arguments, and assumptions. "
-                        "A rationale that states a violation or unresolved "
-                        "contradiction cannot support PASS."
-                    ),
-                    (
-                        "Preserve typed evidence_citations on every dimension and "
-                        "prior-finding review. Each citation has one artifact_role "
-                        "enum and one non-empty locator. For a new finding, select "
-                        "only artifact_delta's current locator and obligation_ref; "
-                        "runtime derives the typed citations, evidence_refs, and "
-                        "artifact_citations."
-                    ),
-                    (
-                        "For every actionable finding, select the defective artifact "
-                        "once in artifact_delta and one obligation_ref from the "
-                        "review_authority_contract. Runtime binds obligation_kind, "
-                        "authority_refs, and their exact citations."
-                    ),
-                    (
-                        "Preserve the fixed length and order of the "
-                        "dimension_reviews array. Do not author dimension IDs; "
-                        "AgentRuntime binds each position to a canonical review row."
-                    ),
-                    (
-                        "Use source_code only for the reviewed source subsystem and "
-                        "use upstream_metric_contract or upstream_theory only for the "
-                        "corresponding Architect-owned artifact defect."
-                    ),
-                    (
-                        "Review only the fresh source and current artifacts. "
-                        "AgentRuntime, not this repair response, carries any "
-                        "identity-bound pending upstream obligation until its owning "
-                        "artifact hash changes."
-                    ),
-                    (
-                        "Preserve the exact prior_finding_reviews ordered-slot "
-                        "coverage. For UNRESOLVED, repair current_finding inside the "
-                        "same slot; for RESOLVED_BY_CURRENT_ARTIFACT, set it to null. "
-                        "Do not copy a prior ID, repair_scope, or prior-finding "
-                        "authority: AgentRuntime binds those immutable fields by "
-                        "position. Top-level findings are new findings and must select "
-                        "an explicit current obligation_ref rather than broad question "
-                        "text or a sibling-only requirement."
-                    ),
-                    (
-                        "When a validation error names 'semantic review new "
-                        "finding N', patch exactly the path listed at "
-                        "model_payload_new_finding_patch_paths[N]. Do not add the "
-                        "number of runtime-bound prior continuations to N."
-                    ),
-                    (
-                        "Keep all trusted lineage, evidence boundaries, required "
-                        "dimension rows, and unrelated valid fields unchanged."
-                    ),
-                ],
                 "decision_closure_state": decision_closure_state,
                 "runtime_metric_gate_projection": (
                     _generated_code_semantic_review_metric_gate_projection(
@@ -2527,27 +2426,10 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                         review_material
                     )
                 ),
-                "model_payload_new_finding_patch_paths": [
-                    {
-                        "new_finding_index": index,
-                        "path": ["findings", index],
-                    }
-                    for index, row in enumerate(
-                        (
-                            invalid_payload.get("findings", [])
-                            if isinstance(invalid_payload, Mapping)
-                            else []
-                        )
-                        or []
+                "finding_budget": (
+                    _generated_code_semantic_review_finding_budget(
+                        review_material
                     )
-                    if isinstance(row, Mapping)
-                ],
-                "finding_index_coordinate_contract": (
-                    "Validation labels named 'semantic review new finding N' "
-                    "refer to model_payload_new_finding_patch_paths[N]. Runtime-"
-                    "bound prior continuations are not members of the model "
-                    "payload findings array and must be repaired only through "
-                    "their ordered prior_finding_reviews slots."
                 ),
                 "repair_scope_defect_artifact_contract": {
                     scope: sorted(roles)
@@ -2569,7 +2451,6 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             validation_label="generated-code semantic review packet",
             max_repair_attempts=self.config.max_repair_attempts,
             repair_context_builder=build_repair_context,
-            semantic_patch_repair=True,
         )
 
 def generated_code_semantic_review_pending_plan_errors(
@@ -3433,7 +3314,7 @@ def build_generated_code_semantic_review_prompt(
             "sibling_requirement_cannot_authorize_current_artifact_repair": True,
         },
         "finding_budget": {
-            "max_findings": GENERATED_CODE_SEMANTIC_REVIEW_MAX_FINDINGS,
+            **_generated_code_semantic_review_finding_budget(review_material),
             "priority": (
                 "Return only the smallest set of acceptance-critical, independently "
                 "repairable defects. Consolidate symptoms with the same root artifact "
@@ -3473,23 +3354,6 @@ def build_generated_code_semantic_review_prompt(
         "acceptance. Scope executable-design defects to source_code and theory "
         "defects to upstream_theory. Do not use upstream_metric_contract because no "
         "protocol is frozen. "
-    )
-    ownership_feedback = review_material.get(
-        "independent_repair_ownership_feedback",
-        {},
-    )
-    ownership_feedback_instruction = (
-        "This is one bounded feedback revision after the independent ownership "
-        "router found that every prior mandatory finding lacked an exact artifact "
-        "change. The router cannot accept code and its conclusion is not proof, so "
-        "reassess the original finding against the exact cited values. If no concrete "
-        "mismatch remains, return a closed ACCEPT decision with every dimension PASS "
-        "and only low/medium advisory findings using repair_scope=none. If you "
-        "disagree, retain REVISE only by citing the exact conflicting artifact values "
-        "that establish a required change; possibility, finite Monte Carlo variation, "
-        "a passed runtime gate, or a missing non-required diagnostic is insufficient. "
-        if isinstance(ownership_feedback, Mapping) and ownership_feedback
-        else ""
     )
     return (
         "Independently review the statistical and experimental semantics of the "
@@ -3542,8 +3406,7 @@ def build_generated_code_semantic_review_prompt(
         "computationally, or semantically equivalent, set "
         "before_after_semantically_equivalent=true and make the finding advisory "
         "with repair_scope=none; an equivalent rewrite cannot authorize another "
-        "generation. The independent owner router rechecks this delta and may reject "
-        "it without inventing a replacement formula. "
+        "generation. "
         "Treat "
         "runtime_metric_gate_projection as the authority for already-computed gate "
         "outcomes: never describe a row with passed=true as outside its runtime "
@@ -3557,7 +3420,6 @@ def build_generated_code_semantic_review_prompt(
         "and assumptions; a stated violation or unresolved contradiction cannot "
         "support PASS. "
         + phase_instruction
-        + ownership_feedback_instruction
         + "Apply the supplied source_responsibility_contract: "
         "a generated artifact may own one bounded part of the system, so judge it "
         "against requirements assigned to its author subsystem and against every "
@@ -3992,9 +3854,8 @@ def generated_code_semantic_review_json_schema(
     prior_schema = schema["properties"]["prior_finding_reviews"]
     prior_schema["minItems"] = len(prior_ids)
     prior_schema["maxItems"] = len(prior_ids)
-    schema["properties"]["findings"]["maxItems"] = max(
-        0,
-        GENERATED_CODE_SEMANTIC_REVIEW_MAX_FINDINGS - len(prior_ids),
+    schema["properties"]["findings"]["maxItems"] = (
+        GENERATED_CODE_SEMANTIC_REVIEW_MAX_FINDINGS
     )
     delta_properties = schema["$defs"]["artifact_delta"]["properties"]
     delta_properties["obligation_ref"]["enum"] = [
@@ -4099,41 +3960,30 @@ def _generated_code_semantic_review_lineage_errors(
     linked_findings: dict[str, int] = {}
     linked_actionable_findings: dict[str, int] = {}
     finding_ids: list[str] = []
-    new_finding_index = 0
-    for raw_row in packet.get("findings", []) or []:
+    for finding_index, raw_row in enumerate(packet.get("findings", []) or []):
         if not isinstance(raw_row, Mapping):
             continue
         finding_id = str(raw_row.get("finding_id", "") or "").strip()
         prior_finding_id = str(
             raw_row.get("prior_finding_id", "") or ""
         ).strip()
-        row_label = (
-            f"prior finding continuation {prior_finding_id}"
-            if prior_finding_id
-            else f"semantic review new finding {new_finding_index}"
-        )
-        if not prior_finding_id:
-            new_finding_index += 1
+        row_label = f"findings[{finding_index}]"
         finding_ids.append(finding_id)
         if not finding_id.startswith(
             GENERATED_CODE_SEMANTIC_REVIEW_FINDING_ID_PREFIX
         ):
-            errors.append("semantic review finding has invalid runtime identity")
+            errors.append(f"{row_label} has invalid runtime identity")
         if prior_finding_id:
             linked_findings[prior_finding_id] = (
                 linked_findings.get(prior_finding_id, 0) + 1
             )
             if prior_finding_id not in expected_prior_ids:
-                errors.append(
-                    "semantic review finding links an inactive prior_finding_id"
-                )
+                errors.append(f"{row_label} links an inactive prior_finding_id")
             if finding_id != prior_finding_id:
-                errors.append(
-                    "an unresolved prior finding must preserve its finding_id"
-                )
+                errors.append(f"{row_label} must preserve its prior finding_id")
         authority_refs = raw_row.get("authority_refs", [])
         if not isinstance(authority_refs, list):
-            errors.append("semantic review finding authority_refs must be an array")
+            errors.append(f"{row_label} authority_refs must be an array")
             authority_refs = []
         normalized_refs = {
             str(value).strip() for value in authority_refs if str(value).strip()
@@ -4141,8 +3991,8 @@ def _generated_code_semantic_review_lineage_errors(
         unknown_refs = normalized_refs - allowed_authority_refs
         if unknown_refs:
             errors.append(
-                "semantic review finding uses authority_refs outside the trusted "
-                "review authority contract"
+                f"{row_label} uses authority_refs outside the trusted review "
+                "authority contract"
             )
         actionable = str(raw_row.get("repair_scope", "") or "") != "none"
         if (
@@ -4155,27 +4005,20 @@ def _generated_code_semantic_review_lineage_errors(
                 row=raw_row,
             )
             if any(not row["resolved"] for row in cited_values):
-                errors.append(
-                    "actionable semantic review finding cites a missing current "
-                    "artifact value"
-                )
+                errors.append(f"{row_label} cites a missing current artifact value")
         if prior_finding_id and actionable:
             linked_actionable_findings[prior_finding_id] = (
                 linked_actionable_findings.get(prior_finding_id, 0) + 1
             )
         if actionable and not normalized_refs:
-            errors.append(
-                "actionable semantic review finding requires an explicit trusted "
-                "authority_ref"
-            )
+            errors.append(f"{row_label} requires an explicit trusted authority_ref")
         finding_scope = str(raw_row.get("repair_scope", "") or "").strip()
         if actionable and normalized_refs and not any(
             finding_scope in authority_scope_map.get(authority_ref, set())
             for authority_ref in normalized_refs
         ):
             errors.append(
-                "actionable semantic review finding requires an authority_ref "
-                "that permits its repair_scope"
+                f"{row_label} requires an authority_ref that permits its repair_scope"
             )
         cited_prior_refs = {
             authority_ref
@@ -4185,9 +4028,7 @@ def _generated_code_semantic_review_lineage_errors(
         if prior_finding_id and (
             f"prior_finding:{prior_finding_id}" not in normalized_refs
         ):
-            errors.append(
-                "an unresolved prior finding must cite its prior_finding authority_ref"
-            )
+            errors.append(f"{row_label} must cite its prior_finding authority_ref")
         if not prior_finding_id and cited_prior_refs:
             errors.append(
                 f"{row_label} cannot cite a prior_finding authority_ref; "
@@ -4197,8 +4038,7 @@ def _generated_code_semantic_review_lineage_errors(
             f"prior_finding:{prior_finding_id}"
         }:
             errors.append(
-                "semantic review finding may cite only its linked prior_finding "
-                "authority_ref"
+                f"{row_label} may cite only its linked prior_finding authority_ref"
             )
     if len(finding_ids) != len(set(finding_ids)):
         errors.append("semantic review finding IDs must be unique")
@@ -4385,32 +4225,36 @@ def validate_generated_code_semantic_review_packet(
     if not isinstance(findings, list):
         errors.append("findings must be an array")
         findings = []
-    elif len(findings) > GENERATED_CODE_SEMANTIC_REVIEW_MAX_FINDINGS:
+    finding_budget = _generated_code_semantic_review_finding_budget(
+        review_material
+    )
+    max_normalized_findings = int(
+        finding_budget["max_normalized_findings"]
+    )
+    if len(findings) > max_normalized_findings:
         errors.append(
-            "findings exceeds the acceptance-critical finding budget"
+            f"findings contains {len(findings)} normalized rows but the current "
+            f"maximum is {max_normalized_findings}: up to "
+            f"{finding_budget['active_prior_finding_count']} active prior "
+            "continuations plus "
+            f"{finding_budget['max_new_findings']} new acceptance-critical "
+            "findings"
         )
     finding_repair_scopes: set[str] = set()
-    new_finding_index = 0
     for finding_index, row in enumerate(findings):
         if not isinstance(row, Mapping):
-            errors.append("findings entries must be objects")
+            errors.append(f"findings[{finding_index}] must be an object")
             continue
         prior_finding_id = str(
             row.get("prior_finding_id", "") or ""
         ).strip()
-        row_label = (
-            f"prior finding continuation {prior_finding_id}"
-            if prior_finding_id
-            else f"semantic review new finding {new_finding_index}"
-        )
-        if not prior_finding_id:
-            new_finding_index += 1
+        row_label = f"findings[{finding_index}]"
         severity = str(row.get("severity", "") or "").strip().lower()
         if severity not in GENERATED_CODE_SEMANTIC_REVIEW_FINDING_SEVERITIES:
-            errors.append("semantic review finding has invalid severity")
+            errors.append(f"{row_label} has invalid severity")
         for field in ("category", "summary", "required_change"):
             if not str(row.get(field, "") or "").strip():
-                errors.append(f"semantic review finding missing {field}")
+                errors.append(f"{row_label} missing {field}")
         finding_repair_scope = str(
             row.get("repair_scope", "") or ""
         ).strip()
@@ -4418,35 +4262,35 @@ def validate_generated_code_semantic_review_packet(
             "none",
             *GENERATED_CODE_SEMANTIC_REVIEW_ACTIONABLE_REPAIR_SCOPES,
         }:
-            errors.append("semantic review finding has invalid repair_scope")
+            errors.append(f"{row_label} has invalid repair_scope")
         else:
             finding_repair_scopes.add(finding_repair_scope)
         evidence_refs = row.get("evidence_refs", [])
         if not isinstance(evidence_refs, list) or not any(
             str(value or "").strip() for value in evidence_refs
         ):
-            errors.append("semantic review finding missing evidence_refs")
+            errors.append(f"{row_label} missing evidence_refs")
         artifact_citations = row.get("artifact_citations", [])
         if not isinstance(artifact_citations, list) or not artifact_citations:
-            errors.append("semantic review finding missing artifact_citations")
+            errors.append(f"{row_label} missing artifact_citations")
         elif any(
             str(value or "").strip()
             not in GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS
             for value in artifact_citations
         ):
-            errors.append("semantic review finding has invalid artifact_citations")
+            errors.append(f"{row_label} has invalid artifact_citations")
         if schema_version >= 5:
             errors.extend(
                 _artifact_rooted_evidence_errors(
                     row=row,
-                    row_label="semantic review finding",
+                    row_label=row_label,
                 )
             )
         if schema_version >= 6:
             errors.extend(
                 _typed_evidence_citation_errors(
                     row=row,
-                    row_label="semantic review finding",
+                    row_label=row_label,
                 )
             )
         if schema_version >= 11:

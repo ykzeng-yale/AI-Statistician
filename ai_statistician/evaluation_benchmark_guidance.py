@@ -408,7 +408,6 @@ def _suite_rows(
     )
     proof_search_solved = _int(counts.get("proof_search_solved"))
     proof_search_obligations = _int(counts.get("proof_search_obligations"))
-    algorithm_promotion_ready = _int(counts.get("algorithm_repair_sandbox_patch_eval_promotion_ready"))
     runtime_pf_bv_rows = _int(
         counts.get("research_agent_runtime_pseudo_formal_block_routing_rows")
     )
@@ -2273,24 +2272,24 @@ def _suite_rows(
         ),
         BenchmarkSuiteGuidanceRow(
             suite_id="S7_feedback_loop_repair",
-            exercised=bool(artifacts.get("research_loop"))
-            and bool(artifacts.get("algorithm_repair_sandbox_patch_eval")),
-            status="CAPACITY_GAP" if algorithm_promotion_ready == 0 else "OK",
+            exercised=bool(artifacts.get("research_loop")),
+            status="OK"
+            if _int(counts.get("research_loop_theory_revisions")) > 0
+            else "CAPACITY_GAP",
             evidence_paths=(
                 str(artifacts.get("research_loop", "")),
                 str(artifacts.get("research_loop_repair_audit", "")),
-                str(artifacts.get("algorithm_repair_sandbox_patch_eval", "")),
             ),
             key_counts={
                 "research_loop_theory_revisions": counts.get("research_loop_theory_revisions"),
-                "algorithm_repair_patch_eval_promotion_ready": algorithm_promotion_ready,
-                "algorithm_repair_production_patch_applied": counts.get(
-                    "algorithm_repair_production_patch_applied"
+                "research_loop_repair_tasks": counts.get("research_loop_repair_tasks"),
+                "research_loop_live_repair_artifacts": counts.get(
+                    "research_loop_live_repair_artifacts"
                 ),
             },
-            honesty_boundary="Queued or sandboxed repair is not the same as autonomous corrected theory/procedure convergence.",
-            issues=("algorithm repair has no promotion-ready patch in the current audit",)
-            if algorithm_promotion_ready == 0
+            honesty_boundary="A routed revision is feedback-loop evidence, not proof that the revised research result is correct.",
+            issues=("research loop produced no theory revision in the current audit",)
+            if _int(counts.get("research_loop_theory_revisions")) == 0
             else (),
         ),
         BenchmarkSuiteGuidanceRow(

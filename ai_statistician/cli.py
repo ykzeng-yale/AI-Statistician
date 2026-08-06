@@ -10,16 +10,6 @@ from typing import Any, Mapping
 
 from .agent_runtime import AgentTask
 from .algorithms import audit_algorithm_registry
-from .algorithm_repair_promotion import export_algorithm_repair_promotion_queue
-from .algorithm_repair_patch_training_export import export_algorithm_repair_patch_training_dataset
-from .algorithm_repair_patch_policy_model import train_algorithm_repair_patch_policy_model
-from .algorithm_repair_production_patch_plan import export_algorithm_repair_production_patch_plan
-from .algorithm_repair_reviewed_patch_apply import apply_reviewed_algorithm_repair_source_patches
-from .algorithm_repair_reviewed_patch_validate import validate_reviewed_algorithm_repair_patches
-from .algorithm_repair_sandbox import evaluate_algorithm_repair_sandbox
-from .algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
-from .algorithm_repair_sandbox_patch_eval import evaluate_algorithm_repair_sandbox_patches
-from .algorithm_repair_sandbox_rerun import rerun_algorithm_repair_sandbox_applications
 from .architecture_audit import audit_architecture
 from .assumption_interface_export import export_assumption_interfaces
 from .autoform_harness import audit_autoform_harness
@@ -209,9 +199,6 @@ from .formal_verifier_replay_repair_execution_queue import (
 from .formal_verifier_replay_repair_prompt_packets import (
     export_formal_verifier_replay_repair_prompt_packets,
 )
-from .formal_verifier_replay_repair_patch_autoworker import (
-    export_formal_verifier_replay_repair_patch_autoworker,
-)
 from .formal_verifier_replay_repair_patch_response_validation import (
     export_formal_verifier_replay_repair_patch_response_validation,
 )
@@ -232,9 +219,6 @@ from .formal_verifier_replay_repair_patch_rerun_residual_obligations import (
 )
 from .formal_verifier_replay_repair_patch_rerun_residual_prompt_packets import (
     export_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets,
-)
-from .formal_verifier_replay_repair_patch_rerun_residual_autoworker import (
-    export_formal_verifier_replay_repair_patch_rerun_residual_autoworker,
 )
 from .formal_verifier_replay_repair_patch_rerun_residual_response_validation import (
     export_formal_verifier_replay_repair_patch_rerun_residual_response_validation,
@@ -5302,28 +5286,6 @@ def _build_architect_coordinator_agent_from_args(
                 "architect_metric_semantic_reviewer_max_revisions",
                 2,
             ),
-            metric_repair_ownership_router_enabled=bool(
-                getattr(
-                    args,
-                    "architect_metric_repair_ownership_router",
-                    False,
-                )
-            ),
-            metric_repair_ownership_router_model=_runtime_evaluation_model_name(
-                args,
-                provider_choice=provider_choice,
-                configured_model=getattr(
-                    args,
-                    "architect_metric_repair_ownership_router_llm_model",
-                    "",
-                ),
-            ),
-            metric_repair_ownership_router_model_tier=model_tier,
-            metric_repair_ownership_router_max_tokens=getattr(
-                args,
-                "architect_metric_repair_ownership_router_max_tokens",
-                5000,
-            ),
         ),
     )
 
@@ -9508,35 +9470,6 @@ def _formal_verifier_replay_repair_patch_response_validation(args: argparse.Name
     return 0 if payload["all_ok"] else 1
 
 
-def _formal_verifier_replay_repair_patch_autoworker(args: argparse.Namespace) -> int:
-    payload = export_formal_verifier_replay_repair_patch_autoworker(
-        Path(args.formal_verifier_replay_repair_prompt_packets_dir),
-        Path(args.out),
-        max_responses=args.max_responses,
-    )
-    print("\nAI Statistical Theory Lab Formal Verifier Repair Patch Autoworker")
-    print("=" * 72)
-    print(
-        f"responses={payload['n_ok']}/{payload['n_responses']} "
-        f"patch_proposals={payload['n_patch_proposals']} "
-        f"kernel_verified={payload['n_kernel_verified']} "
-        f"all_ok={payload['all_ok']}"
-    )
-    print(
-        f"\nautoworker manifest written to "
-        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_autoworker_manifest.json').resolve()}"
-    )
-    print(
-        f"response jsonl written to "
-        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_responses.jsonl').resolve()}"
-    )
-    print(
-        f"markdown report written to "
-        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_autoworker.md').resolve()}"
-    )
-    return 0 if payload["all_ok"] else 1
-
-
 def _pseudo_formal_block_verifier_prompt_packets(args: argparse.Namespace) -> int:
     payload = export_pseudo_formal_block_verifier_prompt_packets(
         [Path(path) for path in args.runtime_learning_jsonl],
@@ -9882,38 +9815,6 @@ def _formal_verifier_replay_repair_patch_rerun_residual_prompt_packets(
     print(
         f"markdown report written to "
         f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_residual_prompt_packets.md').resolve()}"
-    )
-    return 0 if payload["all_ok"] else 1
-
-
-def _formal_verifier_replay_repair_patch_rerun_residual_autoworker(
-    args: argparse.Namespace,
-) -> int:
-    payload = export_formal_verifier_replay_repair_patch_rerun_residual_autoworker(
-        Path(args.formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_dir),
-        Path(args.out),
-        max_responses=args.max_responses,
-    )
-    print("\nAI Statistical Theory Lab Formal Verifier Patch Rerun Residual Autoworker")
-    print("=" * 72)
-    print(
-        f"responses={payload['n_ok']}/{payload['n_responses']} "
-        f"patch_proposals={payload['n_residual_patch_proposals']} "
-        f"source_discovery={payload['n_source_discovery_responses']} "
-        f"kernel_verified={payload['n_kernel_verified']} "
-        f"all_ok={payload['all_ok']}"
-    )
-    print(
-        f"\nresidual autoworker manifest written to "
-        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest.json').resolve()}"
-    )
-    print(
-        f"residual response jsonl written to "
-        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_residual_responses.jsonl').resolve()}"
-    )
-    print(
-        f"markdown report written to "
-        f"{(Path(args.out) / 'formal_verifier_replay_repair_patch_rerun_residual_autoworker.md').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -11381,249 +11282,6 @@ def _research_loop_live_repair_audit(args: argparse.Namespace) -> int:
         f"\nlive repair audit manifest written to "
         f"{(Path(args.out) / 'research_loop_live_repair_audit_manifest.json').resolve()}"
     )
-    return 0 if payload["all_ok"] else 1
-
-
-def _algorithm_repair_promotion(args: argparse.Namespace) -> int:
-    payload = export_algorithm_repair_promotion_queue(
-        Path(args.loop_dir),
-        Path(args.out),
-    )
-    print("\nAI Statistical Theory Lab Algorithm Repair Promotion Queue")
-    print("=" * 72)
-    print(
-        f"algorithm_artifacts={payload['n_algorithm_repair_artifacts']} "
-        f"candidates={payload['n_ok']}/{payload['n_candidates']} "
-        f"all_ok={payload['all_ok']}"
-    )
-    for status, count in payload["by_sandbox_status"].items():
-        print(f"  {status}: {count}")
-    print(
-        f"\nalgorithm repair promotion manifest written to "
-        f"{(Path(args.out) / 'algorithm_repair_promotion_manifest.json').resolve()}"
-    )
-    return 0 if payload["all_ok"] else 1
-
-
-def _algorithm_repair_sandbox(args: argparse.Namespace) -> int:
-    payload = evaluate_algorithm_repair_sandbox(
-        Path(args.promotion_dir),
-        Path(args.out),
-    )
-    print("\nAI Statistical Theory Lab Algorithm Repair Sandbox Evaluation")
-    print("=" * 72)
-    print(
-        f"candidates={payload['n_ok']}/{payload['n_candidates']} "
-        f"algorithm_audit_ok={payload['algorithm_audit_all_ok']} "
-        f"all_ok={payload['all_ok']}"
-    )
-    for status, count in payload["by_sandbox_status"].items():
-        print(f"  {status}: {count}")
-    print(
-        f"\nalgorithm repair sandbox manifest written to "
-        f"{(Path(args.out) / 'algorithm_repair_sandbox_manifest.json').resolve()}"
-    )
-    return 0 if payload["all_ok"] else 1
-
-
-def _algorithm_repair_sandbox_apply(args: argparse.Namespace) -> int:
-    payload = apply_algorithm_repair_sandbox_results(
-        Path(args.sandbox_dir),
-        Path(args.out),
-    )
-    print("\nAI Statistical Theory Lab Algorithm Repair Sandbox Apply Evaluation")
-    print("=" * 72)
-    print(
-        f"applied_artifacts={payload['n_ok']}/{payload['n_candidates']} "
-        f"algorithm_audit_ok={payload['algorithm_audit_all_ok']} "
-        f"all_ok={payload['all_ok']}"
-    )
-    for mode, count in payload["by_application_mode"].items():
-        print(f"  {mode}: {count}")
-    print(
-        f"\nalgorithm repair sandbox apply manifest written to "
-        f"{(Path(args.out) / 'algorithm_repair_sandbox_apply_manifest.json').resolve()}"
-    )
-    return 0 if payload["all_ok"] else 1
-
-
-def _algorithm_repair_sandbox_rerun(args: argparse.Namespace) -> int:
-    payload = rerun_algorithm_repair_sandbox_applications(
-        Path(args.apply_dir),
-        Path(args.out),
-        question_file=Path(args.question_file),
-        n_runs=args.runs,
-        seed=args.seed,
-    )
-    print("\nAI Statistical Theory Lab Algorithm Repair Sandbox Rerun Evaluation")
-    print("=" * 72)
-    print(
-        f"rerun_artifacts={payload['n_ok']}/{payload['n_candidates']} "
-        f"algorithm_audit_ok={payload['algorithm_audit_all_ok']} "
-        f"all_ok={payload['all_ok']}"
-    )
-    for status, count in payload["by_rerun_status"].items():
-        print(f"  {status}: {count}")
-    print(
-        f"\nalgorithm repair sandbox rerun manifest written to "
-        f"{(Path(args.out) / 'algorithm_repair_sandbox_rerun_manifest.json').resolve()}"
-    )
-    return 0 if payload["all_ok"] else 1
-
-
-def _algorithm_repair_sandbox_patch_eval(args: argparse.Namespace) -> int:
-    payload = evaluate_algorithm_repair_sandbox_patches(
-        Path(args.apply_dir),
-        Path(args.out),
-        question_file=Path(args.question_file),
-        n_runs=args.runs,
-        seed=args.seed,
-    )
-    print("\nAI Statistical Theory Lab Algorithm Repair Sandbox Patch Evaluation")
-    print("=" * 72)
-    print(
-        f"patch_eval_artifacts={payload['n_ok']}/{payload['n_candidates']} "
-        f"before_after={payload['n_before_after_comparisons']} "
-        f"production_patches={payload['n_production_patches_applied']} "
-        f"all_ok={payload['all_ok']}"
-    )
-    for status, count in payload["by_comparison_status"].items():
-        print(f"  {status}: {count}")
-    print(
-        f"\nalgorithm repair sandbox patch-eval manifest written to "
-        f"{(Path(args.out) / 'algorithm_repair_sandbox_patch_eval_manifest.json').resolve()}"
-    )
-    return 0 if payload["all_ok"] else 1
-
-
-def _algorithm_repair_patch_training_export(args: argparse.Namespace) -> int:
-    payload = export_algorithm_repair_patch_training_dataset(
-        Path(args.patch_eval_dir),
-        Path(args.out),
-        validation_fraction=args.validation_fraction,
-    )
-    print("\nAI Statistical Theory Lab Algorithm Repair Patch Training Export")
-    print("=" * 72)
-    print(
-        f"examples={payload['n_training_examples']} "
-        f"train={payload['n_train']} validation={payload['n_validation']} "
-        f"production_patches={payload['n_production_patches_applied']} "
-        f"promotion_ready={payload['n_promotion_ready']} "
-        f"all_ok={payload['all_ok']}"
-    )
-    for status, count in payload["by_comparison_status"].items():
-        print(f"  {status}: {count}")
-    print(
-        f"\nalgorithm repair patch training manifest written to "
-        f"{(Path(args.out) / 'algorithm_repair_patch_training_manifest.json').resolve()}"
-    )
-    print(f"train JSONL written to {(Path(args.out) / 'algorithm_repair_patch_train.jsonl').resolve()}")
-    print(
-        f"validation JSONL written to "
-        f"{(Path(args.out) / 'algorithm_repair_patch_validation.jsonl').resolve()}"
-    )
-    return 0 if payload["all_ok"] else 1
-
-
-def _algorithm_repair_patch_policy_train(args: argparse.Namespace) -> int:
-    payload = train_algorithm_repair_patch_policy_model(
-        Path(args.train_jsonl),
-        Path(args.out),
-        validation_jsonl=Path(args.validation_jsonl) if args.validation_jsonl else None,
-        epochs=args.epochs,
-        learning_rate=args.learning_rate,
-        l2=args.l2,
-    )
-    print("\nAI Statistical Theory Lab Algorithm Repair Patch Policy Model")
-    print("=" * 72)
-    print(
-        f"train={payload['n_train']} validation={payload['n_validation']} "
-        f"pairs={payload['n_training_pairs']} features={payload['n_features']} "
-        f"val_safe_acc={payload['validation_safe_decision_accuracy']:.3f} "
-        f"all_ok={payload['all_ok']}"
-    )
-    print(f"model={Path(str(payload['model_json'])).resolve()}")
-    print(
-        f"manifest written to "
-        f"{(Path(args.out) / 'algorithm_repair_patch_policy_model_manifest.json').resolve()}"
-    )
-    return 0 if payload["all_ok"] else 1
-
-
-def _algorithm_repair_production_patch_plan(args: argparse.Namespace) -> int:
-    payload = export_algorithm_repair_production_patch_plan(
-        Path(args.policy_model_dir),
-        Path(args.out),
-    )
-    print("\nAI Statistical Theory Lab Algorithm Repair Production Patch Plans")
-    print("=" * 72)
-    print(
-        f"plans={payload['n_ok']}/{payload['n_plans']} "
-        f"review_required={payload['n_review_required']} "
-        f"production_patches={payload['n_production_patches_applied']} "
-        f"promotion_ready={payload['n_promotion_ready']} "
-        f"all_ok={payload['all_ok']}"
-    )
-    for kind, count in payload["by_patch_kind"].items():
-        print(f"  {kind}: {count}")
-    print(
-        f"\nproduction patch plan manifest written to "
-        f"{(Path(args.out) / 'algorithm_repair_production_patch_plan_manifest.json').resolve()}"
-    )
-    print(f"plans JSONL written to {(Path(args.out) / 'algorithm_repair_production_patch_plans.jsonl').resolve()}")
-    return 0 if payload["all_ok"] else 1
-
-
-def _algorithm_repair_reviewed_patch_apply(args: argparse.Namespace) -> int:
-    payload = apply_reviewed_algorithm_repair_source_patches(
-        Path(args.plan_dir),
-        Path(args.out),
-        source_root=Path(args.source_root),
-    )
-    print("\nAI Statistical Theory Lab Algorithm Repair Reviewed Patch Apply")
-    print("=" * 72)
-    print(
-        f"patch_candidates={payload['n_ok']}/{payload['n_plans']} "
-        f"source_changed={payload['n_source_changed']} "
-        f"syntax_valid={payload['n_syntax_valid']} "
-        f"production_patches={payload['n_production_patches_applied']} "
-        f"all_ok={payload['all_ok']}"
-    )
-    for kind, count in payload["by_patch_kind"].items():
-        print(f"  {kind}: {count}")
-    print(
-        f"\nreviewed patch apply manifest written to "
-        f"{(Path(args.out) / 'algorithm_repair_reviewed_patch_apply_manifest.json').resolve()}"
-    )
-    print(f"results JSONL written to {(Path(args.out) / 'algorithm_repair_reviewed_patch_apply_results.jsonl').resolve()}")
-    return 0 if payload["all_ok"] else 1
-
-
-def _algorithm_repair_reviewed_patch_validate(args: argparse.Namespace) -> int:
-    payload = validate_reviewed_algorithm_repair_patches(
-        Path(args.apply_dir),
-        Path(args.out),
-        source_root=Path(args.source_root),
-        question_file=Path(args.question_file),
-        n_runs=args.runs,
-        seed=args.seed,
-    )
-    print("\nAI Statistical Theory Lab Algorithm Repair Reviewed Patch Validation")
-    print("=" * 72)
-    print(
-        f"validated={payload['n_ok']}/{payload['n_candidates']} "
-        f"imports={payload['n_import_ok']} "
-        f"simulations={payload['n_simulation_completed']} "
-        f"patched_metric={payload['n_patched_metric_present']} "
-        f"all_ok={payload['all_ok']}"
-    )
-    for kind, count in payload["by_patch_kind"].items():
-        print(f"  {kind}: {count}")
-    print(
-        f"\nreviewed patch validation manifest written to "
-        f"{(Path(args.out) / 'algorithm_repair_reviewed_patch_validate_manifest.json').resolve()}"
-    )
-    print(f"results JSONL written to {(Path(args.out) / 'algorithm_repair_reviewed_patch_validate_results.jsonl').resolve()}")
     return 0 if payload["all_ok"] else 1
 
 
@@ -14306,7 +13964,6 @@ def _apply_research_agent_runtime_research_eval_profile(
     args.formal_target_semantic_review_required = False
     args.formal_verification_policy = "advisory"
     args.recommended_research_path = "simulation_first"
-    args.architect_metric_repair_ownership_router = True
     args.architect_max_tokens = max(
         8000,
         int(getattr(args, "architect_max_tokens", 0) or 0),
@@ -14523,7 +14180,6 @@ def _apply_research_agent_runtime_capability_eval_preset(
             MINIMAL_LIVE_FORMALIZER_LEAN_REPAIR_YIELD_AFTER_ATTEMPTS
         )
     if preset == "full-live":
-        args.architect_metric_repair_ownership_router = True
         args.architect_metric_semantic_reviewer_max_tokens = max(
             LIVE_EVALUATION_MIN_METRIC_REVIEWER_MAX_TOKENS,
             int(
@@ -15268,18 +14924,6 @@ def _research_agent_runtime_capability_config_errors(
             "--formalizer-candidate-lean-lsp-mcp"
         )
     if str(getattr(args, "capability_eval_preset", "") or "") == "full-live":
-        if not bool(
-            getattr(
-                args,
-                "architect_metric_repair_ownership_router",
-                False,
-            )
-        ):
-            errors.append(
-                "capability eval preset full-live requires the independent "
-                "ArchitectMetricRepairOwnershipRouter; missing "
-                "--architect-metric-repair-ownership-router"
-            )
         serious_theory_model_tier = str(
             getattr(args, "serious_theory_model_tier", "") or ""
         ).strip().lower()
@@ -19961,30 +19605,6 @@ def build_parser() -> argparse.ArgumentParser:
         func=_formal_verifier_replay_repair_prompt_packets
     )
 
-    formal_verifier_replay_repair_patch_autoworker = sub.add_parser(
-        "formal-verifier-replay-repair-patch-autoworker",
-        help="generate conservative local repair patch responses from prompt packets",
-    )
-    formal_verifier_replay_repair_patch_autoworker.add_argument(
-        "--formal-verifier-replay-repair-prompt-packets-dir",
-        required=True,
-        help="directory containing formal_verifier_replay_repair_prompt_packets_manifest.json",
-    )
-    formal_verifier_replay_repair_patch_autoworker.add_argument(
-        "--max-responses",
-        type=int,
-        default=20,
-        help="maximum prompt packets to answer with patch proposals",
-    )
-    formal_verifier_replay_repair_patch_autoworker.add_argument(
-        "--out",
-        default="runs/formal_verifier_replay_repair_patch_autoworker",
-        help="formal-verifier repair patch autoworker output directory",
-    )
-    formal_verifier_replay_repair_patch_autoworker.set_defaults(
-        func=_formal_verifier_replay_repair_patch_autoworker
-    )
-
     pseudo_formal_block_verifier_prompt_packets = sub.add_parser(
         "pseudo-formal-block-verifier-prompt-packets",
         help=(
@@ -20375,29 +19995,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formal_verifier_replay_repair_patch_rerun_residual_prompt_packets.set_defaults(
         func=_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets
-    )
-
-    formal_verifier_replay_repair_patch_rerun_residual_autoworker = sub.add_parser(
-        "formal-verifier-replay-repair-patch-rerun-residual-autoworker",
-        help="generate conservative local responses for patch-rerun residual prompt packets",
-    )
-    formal_verifier_replay_repair_patch_rerun_residual_autoworker.add_argument(
-        "--formal-verifier-replay-repair-patch-rerun-residual-prompt-packets-dir",
-        required=True,
-        help="directory containing formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_manifest.json",
-    )
-    formal_verifier_replay_repair_patch_rerun_residual_autoworker.add_argument(
-        "--max-responses",
-        type=int,
-        default=40,
-    )
-    formal_verifier_replay_repair_patch_rerun_residual_autoworker.add_argument(
-        "--out",
-        default="runs/formal_verifier_replay_repair_patch_rerun_residual_autoworker",
-        help="formal-verifier repair patch rerun residual autoworker output directory",
-    )
-    formal_verifier_replay_repair_patch_rerun_residual_autoworker.set_defaults(
-        func=_formal_verifier_replay_repair_patch_rerun_residual_autoworker
     )
 
     formal_verifier_replay_repair_patch_rerun_residual_response_validation = (
@@ -21473,181 +21070,6 @@ def build_parser() -> argparse.ArgumentParser:
     research_loop_live_repair_audit.add_argument("--validation-fraction", type=float, default=0.2)
     research_loop_live_repair_audit.set_defaults(func=_research_loop_live_repair_audit)
 
-    algorithm_repair_promotion = sub.add_parser(
-        "algorithm-repair-promotion",
-        help="convert algorithm live-repair artifacts into sandbox patch candidates",
-    )
-    algorithm_repair_promotion.add_argument(
-        "--loop-dir",
-        required=True,
-        help="directory containing research_loop_manifest.json",
-    )
-    algorithm_repair_promotion.add_argument(
-        "--out",
-        default="runs/algorithm_repair_promotion",
-        help="algorithm repair promotion output directory",
-    )
-    algorithm_repair_promotion.set_defaults(func=_algorithm_repair_promotion)
-
-    algorithm_repair_sandbox = sub.add_parser(
-        "algorithm-repair-sandbox",
-        help="evaluate algorithm repair promotion candidates against the current vetted registry",
-    )
-    algorithm_repair_sandbox.add_argument(
-        "--promotion-dir",
-        required=True,
-        help="directory containing algorithm_repair_promotion_manifest.json",
-    )
-    algorithm_repair_sandbox.add_argument(
-        "--out",
-        default="runs/algorithm_repair_sandbox",
-        help="algorithm repair sandbox output directory",
-    )
-    algorithm_repair_sandbox.set_defaults(func=_algorithm_repair_sandbox)
-
-    algorithm_repair_sandbox_apply = sub.add_parser(
-        "algorithm-repair-sandbox-apply",
-        help="create non-mutating applied sandbox artifacts for ready algorithm repair plans",
-    )
-    algorithm_repair_sandbox_apply.add_argument(
-        "--sandbox-dir",
-        required=True,
-        help="directory containing algorithm_repair_sandbox_manifest.json",
-    )
-    algorithm_repair_sandbox_apply.add_argument(
-        "--out",
-        default="runs/algorithm_repair_sandbox_apply",
-        help="algorithm repair sandbox apply output directory",
-    )
-    algorithm_repair_sandbox_apply.set_defaults(func=_algorithm_repair_sandbox_apply)
-
-    algorithm_repair_sandbox_rerun = sub.add_parser(
-        "algorithm-repair-sandbox-rerun",
-        help="rerun current vetted simulators for sandbox-applied algorithm repair plans",
-    )
-    algorithm_repair_sandbox_rerun.add_argument(
-        "--apply-dir",
-        required=True,
-        help="directory containing algorithm_repair_sandbox_apply_manifest.json",
-    )
-    algorithm_repair_sandbox_rerun.add_argument("--question-file", default="examples/research_questions.json")
-    algorithm_repair_sandbox_rerun.add_argument("--runs", type=int, default=50)
-    algorithm_repair_sandbox_rerun.add_argument("--seed", type=int, default=20260530)
-    algorithm_repair_sandbox_rerun.add_argument(
-        "--out",
-        default="runs/algorithm_repair_sandbox_rerun",
-        help="algorithm repair sandbox rerun output directory",
-    )
-    algorithm_repair_sandbox_rerun.set_defaults(func=_algorithm_repair_sandbox_rerun)
-
-    algorithm_repair_sandbox_patch_eval = sub.add_parser(
-        "algorithm-repair-sandbox-patch-eval",
-        help="execute deterministic isolated patch evaluation for sandbox-applied algorithm repairs",
-    )
-    algorithm_repair_sandbox_patch_eval.add_argument(
-        "--apply-dir",
-        required=True,
-        help="directory containing algorithm_repair_sandbox_apply_manifest.json",
-    )
-    algorithm_repair_sandbox_patch_eval.add_argument(
-        "--question-file",
-        default="examples/research_questions.json",
-    )
-    algorithm_repair_sandbox_patch_eval.add_argument("--runs", type=int, default=50)
-    algorithm_repair_sandbox_patch_eval.add_argument("--seed", type=int, default=20260531)
-    algorithm_repair_sandbox_patch_eval.add_argument(
-        "--out",
-        default="runs/algorithm_repair_sandbox_patch_eval",
-        help="algorithm repair sandbox patch-eval output directory",
-    )
-    algorithm_repair_sandbox_patch_eval.set_defaults(func=_algorithm_repair_sandbox_patch_eval)
-
-    algorithm_repair_patch_training_export = sub.add_parser(
-        "algorithm-repair-patch-training-export",
-        help="export isolated patch-eval evidence as algorithm repair promotion-policy training data",
-    )
-    algorithm_repair_patch_training_export.add_argument(
-        "--patch-eval-dir",
-        required=True,
-        help="directory containing algorithm_repair_sandbox_patch_eval_manifest.json",
-    )
-    algorithm_repair_patch_training_export.add_argument(
-        "--out",
-        default="runs/algorithm_repair_patch_training_export",
-        help="algorithm repair patch training export output directory",
-    )
-    algorithm_repair_patch_training_export.add_argument("--validation-fraction", type=float, default=0.2)
-    algorithm_repair_patch_training_export.set_defaults(func=_algorithm_repair_patch_training_export)
-
-    algorithm_repair_patch_policy_train = sub.add_parser(
-        "algorithm-repair-patch-policy-train",
-        help="train a deterministic promotion-safety policy baseline from patch-eval examples",
-    )
-    algorithm_repair_patch_policy_train.add_argument("--train-jsonl", required=True)
-    algorithm_repair_patch_policy_train.add_argument("--validation-jsonl")
-    algorithm_repair_patch_policy_train.add_argument(
-        "--out",
-        default="runs/algorithm_repair_patch_policy_model",
-        help="algorithm repair patch policy model output directory",
-    )
-    algorithm_repair_patch_policy_train.add_argument("--epochs", type=int, default=100)
-    algorithm_repair_patch_policy_train.add_argument("--learning-rate", type=float, default=0.15)
-    algorithm_repair_patch_policy_train.add_argument("--l2", type=float, default=0.001)
-    algorithm_repair_patch_policy_train.set_defaults(func=_algorithm_repair_patch_policy_train)
-
-    algorithm_repair_production_patch_plan = sub.add_parser(
-        "algorithm-repair-production-patch-plan",
-        help="export reviewed production source-change plans from safe patch-policy predictions",
-    )
-    algorithm_repair_production_patch_plan.add_argument(
-        "--policy-model-dir",
-        required=True,
-        help="directory containing algorithm_repair_patch_policy_model_manifest.json",
-    )
-    algorithm_repair_production_patch_plan.add_argument(
-        "--out",
-        default="runs/algorithm_repair_production_patch_plan",
-        help="algorithm repair production patch plan output directory",
-    )
-    algorithm_repair_production_patch_plan.set_defaults(func=_algorithm_repair_production_patch_plan)
-
-    algorithm_repair_reviewed_patch_apply = sub.add_parser(
-        "algorithm-repair-reviewed-patch-apply",
-        help="apply reviewed algorithm repair patch plans in an isolated source workspace",
-    )
-    algorithm_repair_reviewed_patch_apply.add_argument(
-        "--plan-dir",
-        required=True,
-        help="directory containing algorithm_repair_production_patch_plan_manifest.json",
-    )
-    algorithm_repair_reviewed_patch_apply.add_argument("--source-root", default=".")
-    algorithm_repair_reviewed_patch_apply.add_argument(
-        "--out",
-        default="runs/algorithm_repair_reviewed_patch_apply",
-        help="algorithm repair reviewed patch apply output directory",
-    )
-    algorithm_repair_reviewed_patch_apply.set_defaults(func=_algorithm_repair_reviewed_patch_apply)
-
-    algorithm_repair_reviewed_patch_validate = sub.add_parser(
-        "algorithm-repair-reviewed-patch-validate",
-        help="import copied package with reviewed patches and rerun affected-procedure simulation",
-    )
-    algorithm_repair_reviewed_patch_validate.add_argument(
-        "--apply-dir",
-        required=True,
-        help="directory containing algorithm_repair_reviewed_patch_apply_manifest.json",
-    )
-    algorithm_repair_reviewed_patch_validate.add_argument("--source-root", default=".")
-    algorithm_repair_reviewed_patch_validate.add_argument("--question-file", default="examples/research_questions.json")
-    algorithm_repair_reviewed_patch_validate.add_argument("--runs", type=int, default=10)
-    algorithm_repair_reviewed_patch_validate.add_argument("--seed", type=int, default=20260601)
-    algorithm_repair_reviewed_patch_validate.add_argument(
-        "--out",
-        default="runs/algorithm_repair_reviewed_patch_validate",
-        help="algorithm repair reviewed patch validation output directory",
-    )
-    algorithm_repair_reviewed_patch_validate.set_defaults(func=_algorithm_repair_reviewed_patch_validate)
-
     research_eval = sub.add_parser(
         "research-eval",
         help="run multi-seed evaluation for the open-question statistical theory lab benchmark",
@@ -22102,26 +21524,6 @@ def build_parser() -> argparse.ArgumentParser:
             "maximum full metric-contract rewrites after independent "
             "pre-execution semantic review rejects a candidate"
         ),
-    )
-    research_agent_runtime.add_argument(
-        "--architect-metric-repair-ownership-router",
-        action="store_true",
-        help=(
-            "independently route rejected metric-review findings by the "
-            "artifact that must change before any execution"
-        ),
-    )
-    research_agent_runtime.add_argument(
-        "--architect-metric-repair-ownership-router-llm-model",
-        default="",
-        help=(
-            "repair-ownership router model; Anthropic is capped at Claude Sonnet"
-        ),
-    )
-    research_agent_runtime.add_argument(
-        "--architect-metric-repair-ownership-router-max-tokens",
-        type=int,
-        default=5000,
     )
     research_agent_runtime.add_argument(
         "--architect-metric-protocol-max-upstream-theory-revisions",

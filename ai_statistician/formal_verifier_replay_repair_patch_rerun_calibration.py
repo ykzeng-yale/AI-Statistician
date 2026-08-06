@@ -170,7 +170,6 @@ def _calibration_row(
         local_checked=local_checked,
         local_compiled=local_compiled,
         artifact_placeholder_free=artifact_placeholder_free,
-        contains_patch_marker=contains_patch_marker,
         residual_gaps=residual_gaps,
     )
     proof_evidence_status = (
@@ -229,7 +228,6 @@ def _calibration_status(
     local_checked: bool,
     local_compiled: bool,
     artifact_placeholder_free: bool,
-    contains_patch_marker: bool,
     residual_gaps: tuple[str, ...],
 ) -> str:
     if not attempted:
@@ -240,8 +238,6 @@ def _calibration_status(
         return "patch_artifact_compile_failed"
     if not artifact_placeholder_free:
         return "patch_artifact_placeholder_reference_repair_needed"
-    if contains_patch_marker:
-        return "patch_artifact_compiles_patch_proposal_not_proof"
     if residual_gaps:
         return "patch_artifact_compiles_with_residual_formal_gaps"
     return "full_route_kernel_verified"
@@ -251,14 +247,9 @@ def _next_action(status: str) -> str:
     return {
         "awaiting_patch_rerun_attempt": "run the queued patch artifact under local Lean or AXLE",
         "patch_rerun_awaiting_local_lean": "rerun with --lean-project to obtain kernel compile evidence",
-        "patch_artifact_compile_failed": "repair patched artifact syntax/import/type errors before replay calibration",
-        "patch_artifact_placeholder_reference_repair_needed": "remove remaining placeholder references before promotion",
-        "patch_artifact_compiles_patch_proposal_not_proof": (
-            "replace the patch-plan declaration with a verified bridge proof and rerun calibration"
-        ),
-        "patch_artifact_compiles_with_residual_formal_gaps": (
-            "close residual formal gaps, then rerun patch artifact calibration"
-        ),
+        "patch_artifact_compile_failed": "return the complete source and exact Lean diagnostics to the proof agent",
+        "patch_artifact_placeholder_reference_repair_needed": "return the complete source and verification result to the proof agent",
+        "patch_artifact_compiles_with_residual_formal_gaps": "return the complete source and unresolved goals to the proof agent",
         "full_route_kernel_verified": "eligible for response validation and proof-ledger promotion evidence",
     }.get(status, "inspect patch-rerun calibration row")
 

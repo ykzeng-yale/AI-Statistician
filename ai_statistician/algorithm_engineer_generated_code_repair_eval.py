@@ -7,9 +7,6 @@ from typing import Any, Mapping
 
 from .agent_runtime import AgentTask, BlackboardState
 from .algorithm_engineer_llm import AlgorithmEngineerConfig, LLMAlgorithmEngineerAgent
-from .generated_metric_repair_policy import (
-    generated_code_sandbox_guard_repair_instruction,
-)
 from .model_backend import (
     LIVE_EVALUATION_CLAUDE_MODEL_TIER,
     OpenAIResponsesGeneratorBackend,
@@ -625,8 +622,9 @@ def _prior_execution_failure_feedback(
         "n_generated_code_execution_failed": 1,
         "n_unsafe_generated_code_rejected": 0,
         "prototypes": prototypes,
-        "required_repair": generated_code_sandbox_guard_repair_instruction(
-            artifact_label="generated Python sandbox",
+        "required_repair": (
+            "Regenerate the complete source candidate from the attached exact "
+            "execution diagnostics and unchanged execution contract."
         ),
         "boundary": (
             "Injected feedback is a component eval signal. Passing the repair "

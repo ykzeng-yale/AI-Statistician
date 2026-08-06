@@ -12,8 +12,6 @@ from ai_statistician.source_theorem_exact_semantic_definition_authoring_worker i
     CANDIDATE_PROOF_EVIDENCE_STATUS,
     AUTHORING_WORKER_PROOF_EVIDENCE_STATUS,
     MATERIALIZER_PROOF_EVIDENCE_STATUS,
-    STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION,
-    STRUCTURAL_REFORMULATION_QUEUE_STATUS,
     _candidate_definition_request_from_task,
     run_source_theorem_exact_semantic_definition_authoring_candidate_materializer,
     run_source_theorem_exact_semantic_definition_authoring_worker,
@@ -381,38 +379,28 @@ def test_authoring_worker_dry_run_writes_prompt_packets_without_proof_evidence(
         "C",
         "hC",
     ]
-    assert any(
-        "smallest import list" in row
-        for row in environment_contract["import_policy"]
-    )
-    assert any(
-        "explicit parameter" in row
-        for row in environment_contract["binder_policy"]
-    )
-    assert any(
-        "not proof evidence" in row
-        for row in environment_contract["local_lean_policy"]
-    )
+    assert environment_contract["model_owns_candidate_and_repair_strategy"] is True
+    assert environment_contract["runtime_supplies_observations_only"] is True
     assert environment_contract["local_lean_feedback"][
         "unknown_identifiers_from_last_check"
     ] == ["Nat.ceil"]
     assert environment_contract["local_lean_feedback"][
         "unavailable_imports_from_last_check"
     ] == ["Mathlib.Data.Int.Order"]
-    assert any(
-        "Do not introduce a new import" in row
-        for row in environment_contract["repair_policy"]
-    )
-    assert any(
-        "unverified identifier/import" in row
-        for row in environment_contract["repair_policy"]
-    )
+    for policy_key in (
+        "repair_policy",
+        "import_policy",
+        "binder_policy",
+        "local_lean_policy",
+        "hard_local_negative_constraints",
+    ):
+        assert policy_key not in environment_contract
     assert prompt_packets[0]["lean_authoring_environment_contract"][
         "local_lean_feedback"
     ] == environment_contract["local_lean_feedback"]
     assert prompt_packets[0]["lean_authoring_environment_contract"][
-        "repair_policy"
-    ] == environment_contract["repair_policy"]
+        "project_identifier_lookup"
+    ] == environment_contract["project_identifier_lookup"]
     learning_rows = [
         json.loads(line)
         for line in Path(manifest["runtime_learning_rows_jsonl"]).read_text().splitlines()
@@ -613,10 +601,8 @@ def test_authoring_worker_prompt_contract_reports_project_verified_import_invent
     nearest = inventory["nearby_verified_import_modules_by_unavailable_import"][0]
     assert nearest["unavailable_import"] == "Mathlib.Data.Int.Order"
     assert "Mathlib.Data.Int.Basic" in nearest["nearest_verified_modules"]
-    assert any(
-        "unverified_candidate_import_modules" in row
-        for row in contract["repair_policy"]
-    )
+    assert "repair_policy" not in contract
+    assert contract["runtime_supplies_observations_only"] is True
     prompt_payload = json.loads(prompt_packets[0]["user_prompt"])
     assert prompt_payload["lean_authoring_environment_contract"][
         "project_verified_import_inventory"
@@ -680,32 +666,22 @@ def test_authoring_worker_prompt_contract_prefers_compiled_import_descendants(
     ]
     contract = prompt_packets[0]["lean_authoring_environment_contract"]
     inventory = contract["project_verified_import_inventory"]
-    repair_row = inventory["unavailable_import_repair_rows"][0]
-    assert repair_row["unavailable_import"] == "Mathlib.Algebra.Order.Floor"
-    assert repair_row["verified_exact_or_descendant_modules"][:2] == [
+    observation_row = inventory["unavailable_import_observation_rows"][0]
+    assert observation_row["unavailable_import"] == "Mathlib.Algebra.Order.Floor"
+    assert observation_row["verified_exact_or_descendant_modules"][:2] == [
         "Mathlib.Algebra.Order.Floor.Defs",
         "Mathlib.Algebra.Order.Floor.Ring",
     ]
-    assert repair_row["nearest_verified_modules"][:2] == [
+    assert observation_row["nearest_verified_modules"][:2] == [
         "Mathlib.Algebra.Order.Floor.Defs",
         "Mathlib.Algebra.Order.Floor.Ring",
     ]
-    assert "Mathlib.Topology.Algebra.Order.Floor" in repair_row[
+    assert "Mathlib.Topology.Algebra.Order.Floor" in observation_row[
         "nearest_verified_modules"
     ]
-    assert any(
-        "replace the unavailable import with one verified_exact_or_descendant_module"
-        in option
-        for option in repair_row["repair_options"]
-    )
-    assert any(
-        "unavailable_import_repair_rows" in item
-        for item in contract["repair_policy"]
-    )
-    assert any(
-        "verified_exact_or_descendant_modules" in item
-        for item in contract["import_policy"]
-    )
+    assert "repair_options" not in observation_row
+    assert "repair_policy" not in contract
+    assert "import_policy" not in contract
     prompt_payload = json.loads(prompt_packets[0]["user_prompt"])
     assert prompt_payload["lean_authoring_environment_contract"][
         "project_verified_import_inventory"
@@ -796,22 +772,8 @@ def test_authoring_worker_prompt_contract_reports_unknown_identifier_source_look
         "Mathlib.Algebra.Order.Floor.Defs"
     )
     assert row["declaration_hits"][0]["module_compiled"] is True
-    assert any(
-        "add one verified_declaration_module" in option
-        for option in row["repair_options"]
-    )
-    assert any(
-        "do not replace this identifier with a sibling API" in option
-        for option in row["repair_options"]
-    )
-    assert any(
-        "project_identifier_lookup" in item
-        for item in contract["repair_policy"]
-    )
-    assert any(
-        "Do not swap to a sibling API" in item
-        for item in contract["repair_policy"]
-    )
+    assert "repair_options" not in row
+    assert "repair_policy" not in contract
     prompt_payload = json.loads(prompt_packets[0]["user_prompt"])
     assert prompt_payload["lean_authoring_environment_contract"][
         "project_identifier_lookup"
@@ -911,27 +873,8 @@ def test_authoring_worker_prompt_contract_reports_typeclass_failure_lookup(
     ]
     assert row["declaration_hits"][0]["declaration_kind"] == "class"
     assert row["declaration_hits"][0]["declaration_name"] == "FloorRing"
-    assert any(
-        "do not treat a class declaration module as evidence that an instance exists"
-        in option
-        for option in row["repair_options"]
-    )
-    assert any(
-        "do not replace the failed operation with a new named API" in option
-        for option in row["repair_options"]
-    )
-    assert any(
-        "typeclass_synthesis_failure" in item
-        for item in contract["repair_policy"]
-    )
-    assert any(
-        "Any replacement operation must have its own source lookup" in item
-        for item in contract["repair_policy"]
-    )
-    assert not any(
-        item.startswith("For unknown identifiers, consult project_identifier_lookup")
-        for item in contract["repair_policy"]
-    )
+    assert "repair_options" not in row
+    assert "repair_policy" not in contract
     prompt_payload = json.loads(prompt_packets[0]["user_prompt"])
     assert prompt_payload["lean_authoring_environment_contract"][
         "project_identifier_lookup"
@@ -1924,7 +1867,7 @@ def test_authoring_worker_static_candidate_preserves_kernel_boundary(
     )
 
 
-def test_authoring_worker_rejects_forbidden_shortcut_candidate(
+def test_authoring_worker_leaves_valid_lean_semantics_to_review_and_kernel(
     tmp_path: Path,
 ) -> None:
     tasks_path = tmp_path / "authoring_tasks.jsonl"
@@ -1954,17 +1897,17 @@ def test_authoring_worker_rejects_forbidden_shortcut_candidate(
     )
 
     assert manifest["n_candidate_packets"] == 1
-    assert manifest["n_candidate_packets_ok"] == 0
-    assert manifest["n_candidate_packets_failed"] == 1
+    assert manifest["n_candidate_packets_ok"] == 1
+    assert manifest["n_candidate_packets_failed"] == 0
     candidates = [
         json.loads(line)
         for line in Path(manifest["authoring_candidate_packets_jsonl"]).read_text().splitlines()
     ]
-    assert candidates[0]["ok"] is False
+    assert candidates[0]["ok"] is True
     assert candidates[0]["runtime_queue_status"] == (
-        "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
+        "PENDING_EXACT_SEMANTIC_DEFINITION_CANDIDATE_MATERIALIZATION"
     )
-    assert "forbidden shortcut" in candidates[0]["validation_errors"][0]
+    assert candidates[0]["validation_errors"] == []
     assert candidates[0]["source_theorem_kernel_verified"] is False
     assert candidates[0]["semantic_definition_kernel_verified"] is False
 
@@ -2025,12 +1968,8 @@ def test_authoring_worker_retry_prompt_carries_response_validation_feedback(
     )
     static_response = {
         "placeholder_symbol": "rank",
-        "definition_design": "Incorrectly add an unverified rational import.",
-        "lean_definition_candidate": (
-            "import Mathlib.Data.Real.Basic\n"
-            "import Mathlib.Data.Rat.Basic\n\n"
-            "def repairedRank : Nat := 0"
-        ),
+        "definition_design": "Intentionally incomplete candidate for retry coverage.",
+        "lean_definition_candidate": "",
         "required_imports": [
             "Mathlib.Data.Real.Basic",
             "Mathlib.Data.Rat.Basic",
@@ -2065,11 +2004,11 @@ def test_authoring_worker_retry_prompt_carries_response_validation_feedback(
     )
 
     assert candidate["ok"] is False
-    assert "Mathlib.Data.Rat.Basic" in candidate["validation_errors"][0]
+    assert "missing lean_definition_candidate" in candidate["validation_errors"]
     assert retry_task["retry_failure_classification"] == (
         "authoring_candidate_validation_failed"
     )
-    assert "Mathlib.Data.Rat.Basic" in retry_task["retry_validation_errors"][0]
+    assert retry_task["retry_validation_errors"] == candidate["validation_errors"]
 
     retry_manifest = run_source_theorem_exact_semantic_definition_authoring_worker(
         out_dir=tmp_path / "authoring_worker_retry_prompt",
@@ -2085,29 +2024,21 @@ def test_authoring_worker_retry_prompt_carries_response_validation_feedback(
     feedback = prompt_payload["response_validation_feedback"]
     contract = prompt_payload["lean_authoring_environment_contract"]
 
-    assert prompt_packet["retry_validation_errors"] == [
-        candidate["validation_errors"][0]
-    ]
+    assert prompt_packet["retry_validation_errors"] == candidate["validation_errors"]
     assert feedback["failure_classification"] == (
         "authoring_candidate_validation_failed"
     )
-    assert feedback["unverified_required_imports"] == [
-        "Mathlib.Data.Rat.Basic"
-    ]
-    assert "Mathlib.Data.Rat.Basic" in prompt_packet["user_prompt"]
-    assert contract["response_validation_feedback"]["validation_errors"] == [
-        candidate["validation_errors"][0]
-    ]
-    assert contract["hard_local_negative_constraints"][
-        "unverified_imports_rejected_by_response_validator"
-    ] == ["Mathlib.Data.Rat.Basic"]
-    assert any(
-        "response_validation_feedback.unverified_required_imports" in row
-        for row in contract["repair_policy"]
+    assert feedback["unverified_required_imports"] == []
+    assert "missing lean_definition_candidate" in prompt_packet["user_prompt"]
+    assert contract["response_validation_feedback"]["validation_errors"] == (
+        candidate["validation_errors"]
     )
+    assert "hard_local_negative_constraints" not in contract
+    assert "repair_policy" not in contract
+    assert contract["model_owns_candidate_and_repair_strategy"] is True
 
 
-def test_authoring_worker_structural_route_carries_response_validation_feedback(
+def test_authoring_worker_validation_failure_regenerates_without_structural_recipe(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "lean_project"
@@ -2208,52 +2139,16 @@ def test_authoring_worker_structural_route_carries_response_validation_feedback(
         .read_text(encoding="utf-8")
         .splitlines()[0]
     )
-    learning_rows = [
-        json.loads(line)
-        for line in Path(manifest["runtime_learning_rows_jsonl"])
-        .read_text(encoding="utf-8")
-        .splitlines()
-        if line.strip()
+    assert candidate["ok"] is True
+    assert candidate["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_CANDIDATE_MATERIALIZATION"
+    )
+    assert candidate["validation_errors"] == []
+    assert candidate["candidate_repair_feedback"]["local_lean_diagnostics"] == [
+        "error(lean.unknownIdentifier): Unknown constant `List.get?`"
     ]
-    retry_task = json.loads(
-        Path(manifest["retryable_authoring_tasks_jsonl"])
-        .read_text(encoding="utf-8")
-        .splitlines()[0]
-    )
-
-    assert candidate["ok"] is False
-    assert candidate["runtime_queue_status"] == STRUCTURAL_REFORMULATION_QUEUE_STATUS
-    assert candidate["failure_classification"] == (
-        STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION
-    )
-    assert "Mathlib.Data.Int.Order" in " ".join(candidate["validation_errors"])
-    assert "List.get?" in " ".join(candidate["validation_errors"])
-    feedback = candidate["response_validation_feedback"]
-    assert feedback["source_failed_candidate_packet_id"] == (
-        candidate["candidate_packet_id"]
-    )
-    assert feedback["unverified_required_imports"] == ["Mathlib.Data.Int.Order"]
-    route = candidate[
-        "source_theorem_exact_semantic_definition_structural_reformulation_route"
-    ]
-    assert route["response_validation_feedback"] == feedback
-    assert route["unverified_required_imports"] == ["Mathlib.Data.Int.Order"]
-    assert route["pseudo_formalization_required"] is True
-    assert route["target_lanes"] == [
-        "source_theorem_exact_semantic_definition",
-        "lean_rag",
-        "source_to_bridge",
-    ]
-    candidate_learning_row = learning_rows[-1]
-    assert candidate_learning_row["runtime_queue_status"] == (
-        STRUCTURAL_REFORMULATION_QUEUE_STATUS
-    )
-    assert candidate_learning_row["retry_validation_errors"] == (
-        candidate["validation_errors"]
-    )
-    assert candidate_learning_row["response_validation_feedback"] == feedback
-    assert retry_task["response_validation_feedback"] == feedback
-    assert retry_task["retry_validation_errors"] == candidate["validation_errors"]
+    assert candidate["local_definition_lean_checked"] is False
+    assert candidate["source_theorem_kernel_verified"] is False
 
 
 def test_authoring_candidate_materializer_writes_lean_repair_task(
@@ -2684,7 +2579,7 @@ def test_authoring_candidate_materializer_orders_grouped_adapter_dependencies(
     assert execution_rows[1]["required_adapter_object_names"] == ["BadRanks"]
 
 
-def test_authoring_candidate_materializer_blocks_invalid_candidate(
+def test_authoring_candidate_materializer_defers_valid_lean_semantics_to_review(
     tmp_path: Path,
 ) -> None:
     candidate_path = tmp_path / "candidate_packets.jsonl"
@@ -2723,20 +2618,26 @@ def test_authoring_candidate_materializer_blocks_invalid_candidate(
     )
 
     assert manifest["n_candidate_packets"] == 1
-    assert manifest["n_materialized_definition_only_candidates"] == 0
-    assert manifest["n_materialized_lean_repair_tasks"] == 0
-    assert manifest["n_blocked_candidates"] == 1
+    assert manifest["n_materialized_definition_only_candidates"] == 1
+    assert manifest["n_materialized_lean_repair_tasks"] == 1
+    assert manifest["n_blocked_candidates"] == 0
     rows = [
         json.loads(line)
         for line in Path(manifest["materialization_rows_jsonl"]).read_text().splitlines()
     ]
     assert rows[0]["materialization_status"] == (
-        "EXACT_SEMANTIC_DEFINITION_CANDIDATE_MATERIALIZATION_BLOCKED"
+        "EXACT_SEMANTIC_DEFINITION_CANDIDATE_MATERIALIZED_PENDING_LOCAL_LEAN"
     )
-    assert "forbidden shortcut" in rows[0]["validation_errors"][0]
-    assert rows[0]["definition_only_candidate_artifact_path"] == ""
-    repair_tasks = Path(manifest["materialized_lean_repair_tasks_jsonl"]).read_text()
-    assert repair_tasks == ""
+    assert rows[0]["validation_errors"] == []
+    assert rows[0]["definition_only_candidate_artifact_path"]
+    repair_task = json.loads(
+        Path(manifest["materialized_lean_repair_tasks_jsonl"])
+        .read_text()
+        .splitlines()[0]
+    )
+    assert "def covered : Prop := True" in Path(
+        repair_task["definition_only_candidate_artifact_path"]
+    ).read_text()
 
 
 def test_authoring_worker_cli_reports_live_and_static_attempts(

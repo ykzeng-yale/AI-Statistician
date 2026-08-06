@@ -305,8 +305,6 @@ class LLMTheoryDeveloperAgent:
                 validation_label="LLM TheoryDeveloper core packet",
                 max_repair_attempts=effective_max_repair_attempts,
                 repair_context_builder=_theory_developer_json_repair_context,
-                semantic_patch_repair=True,
-                allow_progress_repair_extension=True,
             )
         # Test doubles may return a sentinel without running the supplied builder.
         if not core_packet.get("estimator_specs"):
@@ -939,55 +937,12 @@ def _theory_developer_json_repair_context(
     validation_label: str,
     truncation_detected: bool,
 ) -> dict[str, Any]:
-    serious_theory_mode = any(
-        f'"mode":"{mode}"' in original_user_prompt
-        for mode in THEORY_SERIOUS_PROMPT_MODES
-    )
-    del bad_response, invalid_payload, invalid_packet, validation_label
+    del original_user_prompt, bad_response, invalid_payload, invalid_packet, validation_label
     return {
         "subsystem": "TheoryDeveloper",
         "truncation_detected": bool(truncation_detected),
         "validator_required_key_checklist": THEORY_DEVELOPER_VALIDATOR_CHECKLIST,
         "last_validation_errors": [str(error) for error in errors[:8]],
-        "repair_prompt_priority_instructions": [
-            (
-                "The corrected JSON must include every field listed in "
-                "top_level_required_fields exactly; do not omit proof_plan or "
-                "simulation_ademp_spec in compact mode, and keep both as "
-                "non-empty objects with short scalar/list values."
-            ),
-            (
-                "Use exact required key names from validator_required_key_checklist; "
-                "do not replace theorem_cards[0].informal_statement with statement "
-                "or theorem_cards[0].proof_strategy with proof_idea."
-            ),
-            (
-                "theorem_cards[0] must include id, informal_statement, "
-                "assumptions_used, conclusion, rate_or_limit_law, proof_strategy, "
-                "and semantic_risks."
-            ),
-            (
-                "theory_derivation_packet must include at least "
-                f"{THEORY_SERIOUS_MIN_DERIVATION_STEPS if serious_theory_mode else THEORY_MIN_DERIVATION_STEPS} "
-                "derivation_steps, "
-                f"{THEORY_SERIOUS_MIN_EQUATION_CHAIN_STEPS if serious_theory_mode else THEORY_MIN_EQUATION_CHAIN_STEPS} "
-                "equation_chain rows with lhs/rhs/justification, one "
-                "assumption_ledger row, and formalization_handoff."
-            ),
-            (
-                "In serious capability/revision mode, preserve the declared larger "
-                "derivation, equation, lemma, critic, and action budgets needed to "
-                "address all active findings."
-                if serious_theory_mode
-                else "Use exactly one item for estimator_specs, theorem_cards, "
-                "lemma_cards, formalization_requests, critic_findings, and "
-                "next_actions."
-            ),
-            (
-                f"Preserve proof_evidence_status as {THEORY_DERIVATION_NOT_PROOF_EVIDENCE} "
-                "and set kernel_verified to false."
-            ),
-        ],
     }
 
 
@@ -3673,8 +3628,6 @@ def _generate_targeted_theory_revision(
         validation_label="LLM TheoryDeveloper targeted revision packet",
         max_repair_attempts=max_repair_attempts,
         retry_prompt_builder=retry_prompt_builder,
-        semantic_patch_repair=False,
-        allow_progress_repair_extension=False,
     )
 
 
@@ -3797,8 +3750,6 @@ def _complete_theory_estimator_interfaces(
                     **kwargs,
                 )
             ),
-            semantic_patch_repair=True,
-            allow_progress_repair_extension=True,
         )
     except PacketValidationError as exc:
         completed_phase = (

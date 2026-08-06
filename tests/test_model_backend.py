@@ -221,6 +221,98 @@ def test_anthropic_generator_backend_transports_client_tool_turn(
     assert response.metadata["provider_stop_reason"] == "tool_use"
 
 
+def test_anthropic_generator_backend_transforms_strict_client_tool_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+    transformed: list[dict[str, object]] = []
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            captured["kwargs"] = kwargs
+            return SimpleNamespace(
+                content=[
+                    SimpleNamespace(
+                        type="tool_use",
+                        id="toolu_strict",
+                        name="submit_packet",
+                        input={"rows": [{"status": "PASS"}]},
+                    )
+                ],
+                model="claude-haiku-4-5-20251001",
+                stop_reason="tool_use",
+                usage=SimpleNamespace(input_tokens=31, output_tokens=17),
+            )
+
+    class FakeAnthropicClient:
+        def __init__(self, *, api_key: str, timeout: float, max_retries: int) -> None:
+            self.messages = FakeMessages()
+
+    def transform_schema(schema):
+        transformed.append(schema)
+        return {**schema, "transformed_for_strict_output": True}
+
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        SimpleNamespace(
+            Anthropic=FakeAnthropicClient,
+            transform_schema=transform_schema,
+        ),
+    )
+    schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["rows"],
+        "properties": {
+            "rows": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["status"],
+                    "properties": {"status": {"type": "string"}},
+                },
+            }
+        },
+    }
+    request = ClientToolTurnRequest(
+        system_prompt="Submit a typed packet.",
+        messages=({"role": "user", "content": "Submit."},),
+        tools=(
+            ClientToolDefinition(
+                name="submit_packet",
+                description="Submit the complete packet.",
+                input_schema=schema,
+                terminal=True,
+                strict=True,
+            ),
+        ),
+        model="claude-haiku-4-5-20251001",
+        tool_choice="submit_packet",
+        metadata={"model_tier": "haiku"},
+    )
+
+    response = AnthropicGeneratorBackend(
+        api_key="test-anthropic-key"
+    ).generate_client_tool_turn(request)
+
+    assert transformed == [schema]
+    assert captured["kwargs"]["tools"] == [
+        {
+            "name": "submit_packet",
+            "description": "Submit the complete packet.",
+            "input_schema": {
+                **schema,
+                "transformed_for_strict_output": True,
+            },
+            "strict": True,
+        }
+    ]
+    assert response.metadata["strict_client_tool_names"] == ["submit_packet"]
+    assert response.metadata["n_strict_client_tools"] == 1
+
+
 def test_anthropic_client_tool_turn_rejects_opus_before_client_creation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -893,9 +985,6 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
     )
     assert llm_subsystem_expected_model_tier("TheoryDeveloper") == "sonnet"
     assert llm_subsystem_expected_model_tier("FormalizerProofEngineer") == "sonnet"
-    assert llm_subsystem_expected_model_tier(
-        "ArchitectMetricRepairOwnershipRouter"
-    ) == "sonnet"
     assert llm_subsystem_expected_model_tier("SimulationEngineer") == "sonnet"
     assert llm_subsystem_expected_model_tier("AlgorithmEngineer") == "sonnet"
     assert llm_subsystem_expected_model_tier("CriticEvaluator") == "haiku"

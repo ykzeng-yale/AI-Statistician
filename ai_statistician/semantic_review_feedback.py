@@ -90,7 +90,7 @@ def compact_semantic_review_feedback(
         "reviewed_source_artifacts": _compact_reviewed_source_artifacts(
             feedback.get("reviewed_source_artifacts", []),
             max_rows=max_rows,
-            max_source_chars=12000,
+            max_source_chars=40000,
             max_text_chars=max_text_chars,
         ),
         "source_repair_contract": _compact_source_repair_contract(

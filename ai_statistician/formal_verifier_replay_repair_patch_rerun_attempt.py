@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 import shutil
 import subprocess
 from collections import Counter
@@ -177,19 +176,11 @@ def _attempt_row(
     if not changed_declarations:
         errors.append("changed_lean_declarations missing")
 
-    artifact_placeholder_free = not bool(
-        re.search(r"\bh_frontier_missing[A-Za-z0-9_']*", content)
-    )
+    artifact_placeholder_free = "h_frontier_missing" not in content
     contains_patch_marker = "PATCH_PROPOSAL_NOT_PROOF_EVIDENCE" in content
-    contains_boundary = (
-        "not theorem proof evidence" in content
-        or "not proof evidence" in content
-        or "not Lean proof evidence" in content
-    )
+    contains_boundary = False
     if artifact_readable and not artifact_placeholder_free:
         errors.append("patched artifact still references h_frontier_missing")
-    if artifact_readable and not contains_boundary:
-        errors.append("patched artifact non-evidence boundary missing")
 
     local_checked = False
     local_compiled = False

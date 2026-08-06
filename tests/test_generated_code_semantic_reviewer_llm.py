@@ -8,10 +8,6 @@ import pytest
 
 from ai_statistician.agent_runtime import AgentTask, BlackboardState
 from ai_statistician.algorithm_engineer_llm import build_algorithm_engineer_prompt
-from ai_statistician.architect_metric_repair_ownership_router_llm import (
-    ArchitectMetricRepairOwnershipRouterConfig,
-    LLMArchitectMetricRepairOwnershipRouterAgent,
-)
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.generated_code_semantic_reviewer_llm import (
     GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS,
@@ -29,6 +25,7 @@ from ai_statistician.generated_code_semantic_reviewer_llm import (
     generated_code_semantic_review_repair_scope,
     generated_code_semantic_review_repair_scopes,
     validate_generated_code_semantic_review_packet,
+    _generated_code_semantic_review_finding_budget,
     _generated_code_semantic_review_missing_citation_diagnostics,
     _generated_code_semantic_review_row_cited_values,
     _python_generated_source_interface_inventory,
@@ -233,7 +230,9 @@ def test_semantic_review_prompt_projection_deduplicates_metric_authority() -> No
         projected_responsibility
     )
     assert "evidence_contract" not in projected_control
-    assert '"max_findings":4' in prompt
+    assert '"max_new_findings":4' in prompt
+    assert '"active_prior_finding_count":0' in prompt
+    assert '"prior_continuations_consume_new_finding_budget":false' in prompt
     assert GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA["properties"][
         "findings"
     ]["maxItems"] == 4
@@ -690,87 +689,6 @@ def _reviewer(
             provider_name="static",
             model=model,
             model_tier=model_tier,
-            max_repair_attempts=0,
-        ),
-    )
-
-
-def _repair_ownership_router(
-    repair_scope: str,
-) -> LLMArchitectMetricRepairOwnershipRouterAgent:
-    artifact_role = {
-        "source_code": "generated_source_artifact",
-        "upstream_metric_contract": "metric_protocol_candidate",
-        "upstream_theory": "source_theory_packet",
-    }[repair_scope]
-    return LLMArchitectMetricRepairOwnershipRouterAgent(
-        provider=StaticJSONGeneratorBackend(
-            {
-                "decisions": [
-                    {
-                        "finding_index": 0,
-                        "required_artifact_changes": [
-                            {
-                                "artifact_role": artifact_role,
-                            }
-                        ],
-                        "source_theory_can_remain_unchanged": (
-                            repair_scope != "upstream_theory"
-                        ),
-                        "ownership_certainty": "resolved",
-                        "finding_actionability": "actionable_exact_delta",
-                        "rationale": "Static fixture binds the defect to one owner.",
-                    }
-                ]
-            }
-        ),
-        config=ArchitectMetricRepairOwnershipRouterConfig(
-            provider_name="static",
-            model=LIVE_EVALUATION_CLAUDE_MODEL,
-            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
-            max_repair_attempts=0,
-        ),
-    )
-
-
-class _SequencedReviewBackend:
-    provider_name = "anthropic"
-
-    def __init__(self, responses: list[dict[str, object]]) -> None:
-        self.responses = list(responses)
-        self.requests: list[GeneratorRequest] = []
-
-    def generate(self, request: GeneratorRequest) -> GeneratorResponse:
-        self.requests.append(request)
-        return GeneratorResponse(
-            text=json.dumps(self.responses.pop(0)),
-            provider=self.provider_name,
-            model=request.model,
-        )
-
-
-def _resolved_no_change_router() -> LLMArchitectMetricRepairOwnershipRouterAgent:
-    return LLMArchitectMetricRepairOwnershipRouterAgent(
-        provider=StaticJSONGeneratorBackend(
-            {
-                "decisions": [
-                    {
-                        "finding_index": 0,
-                        "required_artifact_changes": [],
-                        "ownership_certainty": "resolved_no_change",
-                        "finding_actionability": "no_distinct_delta",
-                        "rationale": (
-                            "The cited runtime gate passed and the finding does "
-                            "not establish an exact artifact mismatch."
-                        ),
-                    }
-                ]
-            }
-        ),
-        config=ArchitectMetricRepairOwnershipRouterConfig(
-            provider_name="static",
-            model=LIVE_EVALUATION_CLAUDE_MODEL,
-            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
             max_repair_attempts=0,
         ),
     )
@@ -1427,7 +1345,6 @@ def _runtime_fixture(
             finding_evidence_refs=finding_evidence_refs,
             finding_artifact_citations=finding_artifact_citations,
         ),
-        repair_ownership_router=_repair_ownership_router(repair_scope),
         max_revisions=1,
     )
     return subsystem, dispatch["next_task"], blackboard, script_path
@@ -1501,139 +1418,6 @@ def test_generated_code_semantic_reviewer_accepts_and_resumes_deferred_task(
     assert projection[
         "canonical_architect_evidence_contract_fingerprint"
     ] == stable_hash(work_order["architect_evidence_contract"])
-
-
-def test_no_change_ownership_feedback_gets_one_fresh_reviewer_decision(
-    tmp_path: Path,
-) -> None:
-    subsystem, task, blackboard, _ = _runtime_fixture(
-        tmp_path,
-        accept=False,
-        capability_eval=True,
-    )
-    backend = _SequencedReviewBackend(
-        [
-            _review_response(accept=False),
-            _review_response(accept=True),
-        ]
-    )
-    subsystem.reviewer = LLMGeneratedCodeSemanticReviewerAgent(
-        provider=backend,
-        config=GeneratedCodeSemanticReviewerConfig(
-            provider_name="anthropic",
-            model=LIVE_EVALUATION_CLAUDE_MODEL,
-            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
-            max_repair_attempts=0,
-        ),
-    )
-    subsystem.repair_ownership_router = _resolved_no_change_router()
-
-    result = subsystem.run(task, blackboard)
-
-    assert result.status == "REROUTE"
-    assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "FormalizationEvaluator"
-    assert len(backend.requests) == 2
-    assert all(
-        request.model == LIVE_EVALUATION_CLAUDE_MODEL
-        and request.metadata["model_tier"]
-        == LIVE_EVALUATION_CLAUDE_MODEL_TIER
-        for request in backend.requests
-    )
-    assert "one bounded feedback revision" in backend.requests[1].user_prompt
-    review_packets = [
-        row
-        for row in result.produced_artifacts.values()
-        if row.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
-    ]
-    assert sorted(
-        row["overall_verdict"] for row in review_packets
-    ) == ["ACCEPT", "REVISE"]
-    feedback_materialization = next(
-        row
-        for row in result.produced_artifacts.values()
-        if row.get("artifact_kind")
-        == "RuntimeGeneratedCodeSemanticReviewMaterialization"
-        and "independent_repair_ownership_feedback"
-        in row.get("review_material", {})
-    )
-    ownership_feedback = feedback_materialization["review_material"][
-        "independent_repair_ownership_feedback"
-    ]
-    assert ownership_feedback[
-        "all_actionable_findings_resolved_no_change"
-    ] is True
-    execution = next(
-        row
-        for row in result.produced_artifacts.values()
-        if row.get("artifact_kind")
-        == "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
-    )
-    assert execution["ownership_feedback_revision_used"] is True
-    assert execution["ownership_feedback_router_packet_id"] == (
-        ownership_feedback["ownership_packet_id"]
-    )
-    assert execution["semantic_review_accepted"] is True
-    assert execution["repair_routing_authority"] == (
-        "GeneratedCodeSemanticReviewerAfterOwnershipFeedback"
-    )
-    assert [call.tool_name for call in result.tool_calls] == [
-        "LLMGeneratedCodeSemanticReviewerAgent.review",
-        (
-            "LLMArchitectMetricRepairOwnershipRouterAgent."
-            "route_generated_code_review"
-        ),
-        "LLMGeneratedCodeSemanticReviewerAgent.review",
-    ]
-
-
-def test_no_change_ownership_disagreement_fails_closed_without_repair(
-    tmp_path: Path,
-) -> None:
-    subsystem, task, blackboard, _ = _runtime_fixture(
-        tmp_path,
-        accept=False,
-        capability_eval=True,
-    )
-    backend = _SequencedReviewBackend(
-        [
-            _review_response(accept=False),
-            _review_response(accept=False),
-        ]
-    )
-    subsystem.reviewer = LLMGeneratedCodeSemanticReviewerAgent(
-        provider=backend,
-        config=GeneratedCodeSemanticReviewerConfig(
-            provider_name="anthropic",
-            model=LIVE_EVALUATION_CLAUDE_MODEL,
-            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
-            max_repair_attempts=0,
-        ),
-    )
-    subsystem.repair_ownership_router = _resolved_no_change_router()
-
-    result = subsystem.run(task, blackboard)
-
-    assert result.status == "BLOCKED"
-    assert result.next_task is None
-    assert result.failure_classification == (
-        "generated_code_semantic_review_ownership_disagreement"
-    )
-    assert len(backend.requests) == 2
-    assert not [
-        row
-        for row in result.produced_artifacts.values()
-        if row.get("artifact_kind")
-        == "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
-    ]
-    assert len(
-        [
-            row
-            for row in result.produced_artifacts.values()
-            if row.get("artifact_kind")
-            == "GeneratedCodeSemanticReviewPacket"
-        ]
-    ) == 2
 
 
 def test_semantic_review_projection_excludes_advisory_coding_agent_work(
@@ -3081,14 +2865,19 @@ def test_schema_excludes_prior_authority_from_new_finding_slots() -> None:
     material, _lineage, prior_finding_id = _prior_finding_review_inputs()
 
     schema = generated_code_semantic_review_json_schema(material)
+    budget = _generated_code_semantic_review_finding_budget(material)
 
     authority_enum = schema["$defs"]["artifact_delta"]["properties"][
         "obligation_ref"
     ]["enum"]
     assert f"prior_finding:{prior_finding_id}" not in authority_enum
-    assert schema["properties"]["findings"]["maxItems"] == (
-        4 - 1
-    )
+    assert schema["properties"]["findings"]["maxItems"] == 4
+    assert budget == {
+        "max_new_findings": 4,
+        "active_prior_finding_count": 1,
+        "max_normalized_findings": 5,
+        "prior_continuations_consume_new_finding_budget": False,
+    }
 
 
 def test_schema_v7_normalizes_model_locator_format(
@@ -3538,7 +3327,7 @@ def test_nonpass_dimension_keeps_low_severity_finding_actionable(
     ] == "source_code"
 
 
-def test_semantic_repair_exposes_unclosed_decision_without_selecting_owner(
+def test_full_packet_regeneration_exposes_unclosed_decision_without_selecting_owner(
     tmp_path: Path,
 ) -> None:
     subsystem, task, blackboard, _ = _runtime_fixture(
@@ -3612,7 +3401,7 @@ def test_semantic_repair_exposes_unclosed_decision_without_selecting_owner(
         }
     )
 
-    class DecisionClosurePatchBackend:
+    class DecisionClosureRegenerationBackend:
         provider_name = "anthropic"
 
         def __init__(self) -> None:
@@ -3627,30 +3416,18 @@ def test_semantic_repair_exposes_unclosed_decision_without_selecting_owner(
                 self.repair_payload = json.loads(
                     request.user_prompt.split("\n\n", 1)[1]
                 )
-                payload = {
-                    "base_payload_fingerprint": self.repair_payload[
-                        "base_payload_fingerprint"
-                    ],
-                    "updates": [
-                            {
-                                "path": ["findings", 0, "repair_scope"],
-                                "replacement": "source_code",
-                            },
-                            {
-                                "path": ["findings", 0, "authority_refs"],
-                                "replacement_json": json.dumps(
-                                    ["implementation_target:generated-estimator"]
-                                ),
-                            },
-                        ],
-                }
+                payload = deepcopy(response)
+                payload["findings"][0]["repair_scope"] = "source_code"
+                payload["findings"][0]["authority_refs"] = [
+                    "implementation_target:generated-estimator"
+                ]
             return GeneratorResponse(
                 text=json.dumps(payload),
                 provider=self.provider_name,
                 model=request.model,
             )
 
-    backend = DecisionClosurePatchBackend()
+    backend = DecisionClosureRegenerationBackend()
     subsystem.reviewer = LLMGeneratedCodeSemanticReviewerAgent(
         provider=backend,
         config=GeneratedCodeSemanticReviewerConfig(
@@ -3666,7 +3443,7 @@ def test_semantic_repair_exposes_unclosed_decision_without_selecting_owner(
     assert result.status == "REVISE", result.observations
     assert len(backend.requests) == 2
     assert backend.requests[1].metadata["json_repair_mode"] == (
-        "typed_semantic_patch"
+        "full_packet_regeneration"
     )
     repair_context = backend.repair_payload["subsystem_repair_context"]
     closure = repair_context["decision_closure_state"]
@@ -3679,6 +3456,10 @@ def test_semantic_repair_exposes_unclosed_decision_without_selecting_owner(
         "metric_semantics_alignment"
     )
     assert any(
+        "Rewrite the full JSON object from scratch" in instruction
+        for instruction in backend.repair_payload["repair_instructions"]
+    )
+    assert not any(
         "Close the decision in one evidence-based direction" in instruction
         for instruction in backend.repair_payload["repair_instructions"]
     )
@@ -3855,7 +3636,7 @@ def test_missing_dimension_citation_diagnostic_prioritizes_exact_gate() -> None:
     assert candidate["runtime_gate_value"]["passed"] is False
 
 
-def test_semantic_repair_exposes_exact_severity_enum_for_bounded_patch(
+def test_full_packet_regeneration_exposes_exact_severity_enum(
     tmp_path: Path,
 ) -> None:
     subsystem, task, blackboard, _ = _runtime_fixture(
@@ -3866,7 +3647,7 @@ def test_semantic_repair_exposes_exact_severity_enum_for_bounded_patch(
     response = _review_response(accept=False, repair_scope="source_code")
     response["findings"][0]["severity"] = "major"
 
-    class SeverityPatchBackend:
+    class SeverityRegenerationBackend:
         provider_name = "anthropic"
 
         def __init__(self) -> None:
@@ -3882,28 +3663,17 @@ def test_semantic_repair_exposes_exact_severity_enum_for_bounded_patch(
                     request.user_prompt.split("\n\n", 1)[1]
                 )
                 self.repair_payloads.append(repair_payload)
-                payload = {
-                    "base_payload_fingerprint": repair_payload[
-                        "base_payload_fingerprint"
-                    ],
-                    "updates": [
-                        {
-                            "path": ["findings", 0, "severity"],
-                            "replacement": (
-                                "important"
-                                if len(self.requests) == 2
-                                else "high"
-                            ),
-                        }
-                    ],
-                }
+                payload = deepcopy(response)
+                payload["findings"][0]["severity"] = (
+                    "important" if len(self.requests) == 2 else "high"
+                )
             return GeneratorResponse(
                 text=json.dumps(payload),
                 provider=self.provider_name,
                 model=request.model,
             )
 
-    backend = SeverityPatchBackend()
+    backend = SeverityRegenerationBackend()
     subsystem.reviewer = LLMGeneratedCodeSemanticReviewerAgent(
         provider=backend,
         config=GeneratedCodeSemanticReviewerConfig(
@@ -3923,7 +3693,7 @@ def test_semantic_repair_exposes_exact_severity_enum_for_bounded_patch(
         for request in backend.requests
     )
     assert all(
-        request.metadata["json_repair_mode"] == "typed_semantic_patch"
+        request.metadata["json_repair_mode"] == "full_packet_regeneration"
         for request in backend.requests[1:]
     )
     closure = backend.repair_payloads[-1]["subsystem_repair_context"][
@@ -3941,7 +3711,7 @@ def test_semantic_repair_exposes_exact_severity_enum_for_bounded_patch(
     ]
 
 
-def test_mixed_semantic_assessments_route_upstream_owner_before_source(
+def test_mixed_semantic_assessments_follow_reviewer_scopes(
     tmp_path: Path,
 ) -> None:
     _, task, blackboard, _ = _runtime_fixture(tmp_path, accept=False)
@@ -4004,7 +3774,7 @@ def test_mixed_semantic_assessments_route_upstream_owner_before_source(
     response["findings"] = [dict(row) for row in repaired_findings]
     response["findings"][1]["evidence_citations"] = []
 
-    class MixedOwnerPatchBackend:
+    class MixedScopeBackend:
         provider_name = "anthropic"
 
         def __init__(self) -> None:
@@ -4012,34 +3782,13 @@ def test_mixed_semantic_assessments_route_upstream_owner_before_source(
 
         def generate(self, request: GeneratorRequest) -> GeneratorResponse:
             self.requests.append(request)
-            if len(self.requests) == 1:
-                payload = response
-            else:
-                repair_payload = json.loads(
-                    request.user_prompt.split("\n\n", 1)[1]
-                )
-                payload = {
-                    "base_payload_fingerprint": repair_payload[
-                        "base_payload_fingerprint"
-                    ],
-                    "updates": [
-                        {
-                            "path": [
-                                "base_payload_excerpt",
-                                "top_level_outline",
-                                "findings",
-                            ],
-                            "replacement_json": json.dumps(repaired_findings),
-                        }
-                    ],
-                }
             return GeneratorResponse(
-                text=json.dumps(payload),
+                text=json.dumps(response),
                 provider=self.provider_name,
                 model=request.model,
             )
 
-    backend = MixedOwnerPatchBackend()
+    backend = MixedScopeBackend()
     subsystem = GeneratedCodeSemanticReviewerRuntimeSubsystem(
         reviewer=LLMGeneratedCodeSemanticReviewerAgent(
             provider=backend,
@@ -4055,7 +3804,7 @@ def test_mixed_semantic_assessments_route_upstream_owner_before_source(
 
     result = subsystem.run(task, blackboard)
 
-    assert result.status == "REROUTE"
+    assert result.status == "REVISE"
     assert len(backend.requests) == 1
     assert all(
         request.metadata["provider_structured_output"] is True
@@ -4066,13 +3815,13 @@ def test_mixed_semantic_assessments_route_upstream_owner_before_source(
     )
     assert backend.requests[0].metadata["review_material_json_chars"] > 0
     assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert result.next_task.owner_subsystem == "AlgorithmEngineer"
     feedback = result.next_task.inputs["environment_feedback"]
     assert feedback["overall_verdict"] == "REVISE"
-    assert feedback["repair_scopes"] == ["upstream_theory", "source_code"]
+    assert feedback["repair_scopes"] == ["source_code", "upstream_theory"]
     assert [row["repair_owner"] for row in feedback["repair_plan"]] == [
-        "ArchitectCoordinator",
         "AlgorithmEngineer",
+        "ArchitectCoordinator",
     ]
     review_packet = next(
         artifact
@@ -4089,14 +3838,12 @@ def test_mixed_semantic_assessments_route_upstream_owner_before_source(
         "THEORY_REVISION_REQUIRED"
     )
     assert review_packet["model_requested_reviewed_source_assessment"] == "ALIGNED"
-    replan = result.next_task.inputs["architect_context"][
-        "runtime_generated_code_semantic_review_replan"
-    ]
-    assert replan["repair_scope"] == "upstream_theory"
-    assert replan["repair_scopes"] == ["upstream_theory", "source_code"]
-    assert (
+    pending = result.next_task.inputs["architect_context"][
         "runtime_generated_code_semantic_review_pending_repair_plan"
-        not in result.next_task.inputs["architect_context"]
+    ]
+    assert pending["pending_repair_scopes"] == ["upstream_theory"]
+    assert "runtime_generated_code_semantic_review_replan" not in (
+        result.next_task.inputs["architect_context"]
     )
 
 
@@ -4416,7 +4163,7 @@ def test_runtime_routes_pending_theory_after_fresh_source_review_accepts(
         "upstream_theory"
     ]
     assert execution["repair_routing_authority"] == (
-        "RuntimePendingRepairPlan"
+        "GeneratedCodeSemanticReviewer+RuntimePendingRepairPlan"
     )
     feedback = result.next_task.inputs["environment_feedback"]
     assert feedback["reviewer_overall_verdict"] == "ACCEPT"
@@ -4743,14 +4490,9 @@ def test_post_result_metric_protocol_revision_starts_versioned_fresh_candidate(
     assert fresh_revision["structural_review_findings"] == [
         {
             "source_finding_index": 0,
-            "severity": "high",
-            "category": "metric_semantics",
-            "required_change": (
-                "Reinspect metric_protocol_candidate against the semantic finding "
-                "and its cited evidence; author a fresh artifact and repeat "
-                "independent review. Finding: The metric label and implemented "
-                "quantity differ."
-            ),
+                "severity": "high",
+                "category": "metric_semantics",
+                "required_change": "Compute the frozen protocol quantity directly.",
         }
     ]
     assert "summary" not in fresh_revision["structural_review_findings"][0]
@@ -4764,45 +4506,6 @@ def test_post_result_metric_protocol_revision_starts_versioned_fresh_candidate(
         "empirical_metric_requirements"
     ] == []
     assert "runtime_generated_code_semantic_review_replan" not in fresh_context
-
-
-def test_runtime_rejects_router_scope_not_supported_by_finding_delta(
-    tmp_path: Path,
-) -> None:
-    subsystem, task, blackboard, _ = _runtime_fixture(
-        tmp_path,
-        accept=False,
-        metric_failed=True,
-        repair_scope="upstream_metric_contract",
-        finding_evidence_refs=[
-            "metric_protocol_candidate#/empirical_metric_requirements/0",
-            "generated_source_artifact#/exact_source_code",
-            "generated_source_artifact#/exact_result",
-        ],
-        finding_artifact_citations=[
-            "metric_protocol_candidate",
-            "generated_source_artifact",
-        ],
-    )
-    subsystem.repair_ownership_router = _repair_ownership_router("source_code")
-
-    result = subsystem.run(task, blackboard)
-
-    assert result.status == "BLOCKED"
-    assert result.next_task is None
-    assert result.failure_classification == (
-        "generated_code_repair_ownership_unresolved"
-    )
-    execution = next(
-        row
-        for row in result.produced_artifacts.values()
-        if row.get("artifact_kind")
-        == "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
-    )
-    assert execution["repair_routing_authority"] == (
-        "ArchitectMetricRepairOwnershipRouter"
-    )
-    assert execution["repair_ownership_resolved"] is False
 
 
 def test_runtime_defers_separate_theory_finding_behind_required_source_repair(
@@ -4875,49 +4578,6 @@ def test_runtime_defers_separate_theory_finding_behind_required_source_repair(
             max_repair_attempts=0,
         ),
     )
-    subsystem.repair_ownership_router = (
-        LLMArchitectMetricRepairOwnershipRouterAgent(
-            provider=StaticJSONGeneratorBackend(
-                {
-                    "decisions": [
-                        {
-                            "finding_index": 0,
-                            "required_artifact_changes": [
-                                {"artifact_role": "generated_source_artifact"}
-                            ],
-                                "ownership_certainty": "resolved",
-                                "finding_actionability": (
-                                    "actionable_exact_delta"
-                                ),
-                            "rationale": (
-                                "The generated measurement path must change."
-                            ),
-                        },
-                        {
-                            "finding_index": 1,
-                            "required_artifact_changes": [
-                                {"artifact_role": "source_theory_packet"}
-                            ],
-                                "ownership_certainty": "resolved",
-                                "finding_actionability": (
-                                    "actionable_exact_delta"
-                                ),
-                            "rationale": (
-                                "A distinct mathematical premise must be reassessed."
-                            ),
-                        },
-                    ]
-                }
-            ),
-            config=ArchitectMetricRepairOwnershipRouterConfig(
-                provider_name="static",
-                model=LIVE_EVALUATION_CLAUDE_MODEL,
-                model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
-                max_repair_attempts=0,
-            ),
-        )
-    )
-
     result = subsystem.run(task, blackboard)
 
     assert result.status == "REVISE"
@@ -4947,82 +4607,7 @@ def test_runtime_defers_separate_theory_finding_behind_required_source_repair(
     assert pending["pending_findings"][0]["repair_scope"] == "upstream_theory"
 
 
-def test_capability_eval_fails_closed_without_postexecution_owner_router(
-    tmp_path: Path,
-) -> None:
-    subsystem, task, blackboard, _ = _runtime_fixture(
-        tmp_path,
-        accept=False,
-        capability_eval=True,
-    )
-    subsystem.repair_ownership_router = None
-
-    result = subsystem.run(task, blackboard)
-
-    assert result.status == "BLOCKED"
-    assert result.next_task is None
-    assert result.failure_classification == (
-        "generated_code_repair_ownership_router_missing"
-    )
-
-
-def test_postexecution_unresolved_ownership_stops_same_lineage(
-    tmp_path: Path,
-) -> None:
-    subsystem, task, blackboard, _ = _runtime_fixture(
-        tmp_path,
-        accept=False,
-        capability_eval=True,
-    )
-    subsystem.repair_ownership_router = (
-        LLMArchitectMetricRepairOwnershipRouterAgent(
-            provider=StaticJSONGeneratorBackend(
-                {
-                    "decisions": [
-                        {
-                            "finding_index": 0,
-                            "required_artifact_changes": [],
-                            "source_theory_can_remain_unchanged": False,
-                            "ownership_certainty": "unresolved",
-                            "finding_actionability": "insufficient_evidence",
-                            "rationale": (
-                                "The available typed artifacts do not identify "
-                                "which immutable owner introduced the defect."
-                            ),
-                        }
-                    ]
-                }
-            ),
-            config=ArchitectMetricRepairOwnershipRouterConfig(
-                provider_name="static",
-                model=LIVE_EVALUATION_CLAUDE_MODEL,
-                model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
-                max_repair_attempts=0,
-            ),
-        )
-    )
-
-    result = subsystem.run(task, blackboard)
-
-    assert result.status == "BLOCKED"
-    assert result.next_task is None
-    assert result.failure_classification == (
-        "generated_code_repair_ownership_unresolved"
-    )
-    execution = next(
-        row
-        for row in result.produced_artifacts.values()
-        if row.get("artifact_kind")
-        == "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
-    )
-    assert execution["repair_scope"] == "unresolved"
-    assert execution["repair_ownership_resolved"] is False
-    assert execution["semantic_review_lineage_budget"]["selected_action"] == (
-        "blocked_unresolved_ownership"
-    )
-
-
-def test_postexecution_mixed_ownership_routes_one_bounded_source_repair(
+def test_postexecution_reviewer_scopes_route_one_bounded_source_repair(
     tmp_path: Path,
 ) -> None:
     subsystem, task, blackboard, _ = _runtime_fixture(
@@ -5099,52 +4684,6 @@ def test_postexecution_mixed_ownership_routes_one_bounded_source_repair(
             max_repair_attempts=0,
         ),
     )
-    subsystem.repair_ownership_router = (
-        LLMArchitectMetricRepairOwnershipRouterAgent(
-            provider=StaticJSONGeneratorBackend(
-                {
-                    "decisions": [
-                        {
-                            "finding_index": 0,
-                            "required_artifact_changes": [
-                                {
-                                    "artifact_role": (
-                                        "generated_source_artifact"
-                                    )
-                                }
-                            ],
-                            "source_theory_can_remain_unchanged": True,
-                                "ownership_certainty": "resolved",
-                                "finding_actionability": (
-                                    "actionable_exact_delta"
-                                ),
-                            "rationale": (
-                                "The exact current source owns the concrete defect."
-                            ),
-                        },
-                        {
-                            "finding_index": 1,
-                            "required_artifact_changes": [],
-                            "source_theory_can_remain_unchanged": False,
-                                "ownership_certainty": "unresolved",
-                                "finding_actionability": "insufficient_evidence",
-                            "rationale": (
-                                "Fresh execution after source repair is required "
-                                "before assigning the remaining theory hypothesis."
-                            ),
-                        },
-                    ]
-                }
-            ),
-            config=ArchitectMetricRepairOwnershipRouterConfig(
-                provider_name="static",
-                model=LIVE_EVALUATION_CLAUDE_MODEL,
-                model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
-                max_repair_attempts=0,
-            ),
-        )
-    )
-
     result = subsystem.run(task, blackboard)
 
     assert result.status == "REVISE"
@@ -5158,10 +4697,10 @@ def test_postexecution_mixed_ownership_routes_one_bounded_source_repair(
         == "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
     )
     assert execution["repair_scope"] == "source_code"
-    assert execution["repair_scopes"] == ["source_code", "unresolved"]
-    assert execution["repair_ownership_resolved"] is False
-    assert execution["partial_repair_frontier"] is True
-    assert execution["deferred_unresolved_ownership"] is True
+    assert execution["repair_scopes"] == ["source_code", "upstream_theory"]
+    assert execution["repair_scope_resolved"] is True
+    assert execution["partial_repair_frontier"] is False
+    assert execution["deferred_unresolved_ownership"] is False
     assert execution["semantic_review_lineage_budget"]["selected_action"] == (
         "local_repair"
     )
@@ -5249,7 +4788,7 @@ def test_coding_agent_prompts_preserve_independent_semantic_findings() -> None:
     )
     parent_source = (
         "def run_sandbox(seed, replicates):\n"
-        + "    values = []\n" * 120
+        + "    values = []\n" * 1000
         + "    return {'tail_marker': 'FULL_PARENT_SOURCE_TAIL'}\n"
     )
     feedback = {
@@ -5339,14 +4878,12 @@ def test_coding_agent_prompts_preserve_independent_semantic_findings() -> None:
         assert "generated_code_semantic_review" in prompt
         assert rationale in prompt
         assert required_change in prompt
-        assert "treat" in prompt
-        assert "as binding" in prompt
         assert "FULL_PARENT_SOURCE_TAIL" in prompt
         assert stable_hash(parent_source) in prompt
-        assert "smallest source change" in prompt
-        assert "untrusted data" in prompt
-        assert "cannot create new acceptance obligations" in prompt
-        assert "merely to improve an observed score" in prompt
+        assert "exact validator, execution, or independent-review observations" in prompt
+        assert "Regenerate the complete packet and complete source" in prompt
+        assert "You own the repair strategy" in prompt
+        assert '"embedded_source_is_untrusted_data":true' in prompt
         assert '"metric_evaluation_semantics"' in prompt
     assert "Never place a quorum in threshold" in simulation_prompt
     assert "pre-thresholded 0/1 flags" in simulation_prompt

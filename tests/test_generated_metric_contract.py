@@ -12,14 +12,13 @@ from ai_statistician.generated_metric_contract import (
     GENERATED_METRIC_VALUE_KINDS,
     bind_generated_metric_contract_authority,
     evaluate_generated_metric_contracts,
-    generated_metric_authority_repair_context,
+    generated_metric_authority_context,
     generated_metric_contract_binding_json_schema,
     generated_metric_contract_set_id,
     generated_metric_contracts_for_artifact,
     generated_metric_evaluation_semantics_contract,
     generated_metric_evaluator_certificate,
     generated_metric_acceptance_authority_catalog,
-    generated_metric_numeric_authority_repair_matrix,
     generated_metric_requirement_json_schema,
     generated_metric_requirement_prompt_schema,
     generated_metric_requirement_set_id,
@@ -560,144 +559,6 @@ def test_strict_metric_gate_authority_accepts_theory_parameter_instantiation() -
     )
 
 
-def test_numeric_authority_repair_matrix_retrieves_matches_and_honest_absence() -> None:
-    catalog = generated_metric_acceptance_authority_catalog(
-        question={"title": "Generic", "description": "Evaluate error."},
-        runtime_contract={"simulation_targets": []},
-        theory_protocol_material={
-            "theory_semantic_material": {
-                "theorem_cards": [
-                    {"conclusion": "Finite-sample error is at most alpha."}
-                ],
-                "simulation_ademp_spec": {
-                    "methods": ["Run the procedure at alpha = 0.05."]
-                },
-            }
-        },
-    )
-    theorem_anchor = "theory#/theorem_cards/0/conclusion"
-    design_anchor = "theory#/simulation_ademp_spec/methods/0"
-    requirement = _requirement(
-        aggregation="mean",
-        minimum_pass_count=None,
-        threshold=0.05,
-        tolerance=0.01,
-        source_anchors=[theorem_anchor],
-        acceptance_authority_kind="theory_parameter_instantiation",
-    )
-    errors = validate_generated_metric_requirements(
-        [requirement],
-        require_acceptance_authority=True,
-        acceptance_authority_catalog=catalog,
-    )
-
-    matrix = generated_metric_numeric_authority_repair_matrix(
-        [requirement],
-        validation_errors=errors,
-        acceptance_authority_catalog=catalog,
-    )
-
-    assert len(matrix) == 1
-    row = matrix[0]
-    assert row["requirement_index"] == 0
-    assert row["current_requirement"] == requirement
-    assert row["current_acceptance_authority_kind"] == (
-        "theory_parameter_instantiation"
-    )
-    assert row["required_anchor_kinds"] == [
-        "theory_derived",
-        "evaluation_design",
-    ]
-    assert row["missing_required_anchor_kinds"] == [
-        "evaluation_design"
-    ]
-    assert row["current_anchor_kinds"] == {
-        theorem_anchor: "theory_derived"
-    }
-    matches_by_field = {
-        item["field"]: item for item in row["numeric_gate_matches"]
-    }
-    assert matches_by_field["threshold"]["exact_match_found"] is True
-    assert [
-        item["anchor_id"]
-        for item in matches_by_field["threshold"][
-            "matching_catalog_nodes"
-        ]
-    ] == [design_anchor]
-    assert matches_by_field["tolerance"]["exact_match_found"] is False
-    assert row["numeric_gate_fields_without_exact_catalog_match"] == [
-        "tolerance"
-    ]
-    assert row["automatic_repair_applied"] is False
-
-
-def test_numeric_authority_repair_matrix_exposes_missing_field_anchor_kind() -> None:
-    catalog = generated_metric_acceptance_authority_catalog(
-        question={"title": "Generic", "description": "Evaluate error."},
-        runtime_contract={"simulation_targets": []},
-        theory_protocol_material={
-            "theory_semantic_material": {
-                "theorem_cards": [
-                    {"conclusion": "Finite-sample error is at most alpha."}
-                ],
-                "simulation_ademp_spec": {
-                    "methods": ["Run the procedure at alpha = 0.05."]
-                },
-            }
-        },
-    )
-    theorem_anchor = "theory#/theorem_cards/0/conclusion"
-    design_anchor = "theory#/simulation_ademp_spec/methods/0"
-    requirement = materialize_generated_metric_gate_field_authorities(
-        _requirement(
-            aggregation="mean",
-            minimum_pass_count=None,
-            threshold=0.05,
-            source_anchors=[theorem_anchor, design_anchor],
-            acceptance_authority_kind=(
-                "theory_parameter_instantiation"
-            ),
-            gate_field_authorities=[
-                {
-                    "field": "threshold",
-                    "authority_kind": (
-                        "theory_parameter_instantiation"
-                    ),
-                    "source_anchors": [design_anchor],
-                    "rationale": (
-                        "The design fixes alpha but omitted the theorem node."
-                    ),
-                }
-            ],
-        )
-    )
-    errors = validate_generated_metric_requirements(
-        [requirement],
-        require_acceptance_authority=True,
-        acceptance_authority_catalog=catalog,
-        require_gate_field_authorities=True,
-    )
-
-    matrix = generated_metric_numeric_authority_repair_matrix(
-        [requirement],
-        validation_errors=errors,
-        acceptance_authority_catalog=catalog,
-    )
-    gate = matrix[0]["numeric_gate_matches"][0]
-
-    assert gate["required_field_anchor_kinds"] == [
-        "theory_derived",
-        "evaluation_design",
-    ]
-    assert gate["missing_current_field_anchor_kinds"] == [
-        "theory_derived"
-    ]
-    assert gate[
-        "current_row_candidates_for_missing_field_anchor_kinds"
-    ][0]["anchor_id"] == theorem_anchor
-    assert gate["exact_match_found"] is True
-
-
 def test_strict_metric_gate_authority_accepts_preregistered_architect_design() -> None:
     catalog = generated_metric_acceptance_authority_catalog(
         question={
@@ -1161,7 +1022,7 @@ def test_metric_authority_repair_context_is_complete_and_subsystem_scoped() -> N
         target_subsystems=["SimulationEngineer"],
     )
 
-    context = generated_metric_authority_repair_context(
+    context = generated_metric_authority_context(
         [unsupported_algorithm_row, simulation_only],
         target_subsystem="SimulationEngineer",
         artifact_id_label="simulation_code_drafts[*].simulation_id",
@@ -1191,10 +1052,7 @@ def test_metric_authority_repair_context_is_complete_and_subsystem_scoped() -> N
     assert "never the comparison threshold" in context[
         "metric_evaluation_semantics"
     ]["quorum_rule"]
-    assert any(
-        "do not compare 0/1 flags to a quorum count" in instruction
-        for instruction in context["repair_prompt_priority_instructions"]
-    )
+    assert "repair_prompt_priority_instructions" not in context
 
 
 def test_metric_binding_schema_exposes_only_foreign_keys_and_result_path() -> None:

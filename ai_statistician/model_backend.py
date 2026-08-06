@@ -57,7 +57,6 @@ AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY = {
     "SimulatorEngineer": "sonnet",
     "AlgorithmEngineer": "sonnet",
     "ArchitectMetricSemanticReviewer": "sonnet",
-    "ArchitectMetricRepairOwnershipRouter": "sonnet",
     "GeneratedCodeSemanticReviewer": "sonnet",
     "FormalTargetSemanticReviewer": "sonnet",
     "CriticEvaluator": "haiku",
@@ -640,6 +639,7 @@ class ClientToolDefinition:
     description: str
     input_schema: Mapping[str, Any]
     terminal: bool = False
+    strict: bool = False
 
 
 @dataclass(frozen=True)
@@ -1123,20 +1123,41 @@ class AnthropicGeneratorBackend:
         )
         if request.disable_parallel_tool_use:
             tool_choice["disable_parallel_tool_use"] = True
+        serialized_tools: list[dict[str, Any]] = []
+        strict_tool_names: list[str] = []
+        for tool in request.tools:
+            input_schema = deepcopy(dict(tool.input_schema))
+            serialized_tool: dict[str, Any] = {
+                "name": tool.name,
+                "description": tool.description,
+                "input_schema": input_schema,
+            }
+            if tool.strict:
+                transform_schema = getattr(anthropic, "transform_schema", None)
+                if not callable(transform_schema):
+                    raise ValueError(
+                        "installed anthropic SDK does not expose transform_schema "
+                        "required for strict client-tool input"
+                    )
+                try:
+                    serialized_tool["input_schema"] = transform_schema(
+                        _prune_unreferenced_json_schema_defs(input_schema)
+                    )
+                except Exception as exc:
+                    raise ValueError(
+                        "failed to transform strict Anthropic client-tool schema "
+                        f"for {tool.name}: {type(exc).__name__}: {exc}"
+                    ) from exc
+                serialized_tool["strict"] = True
+                strict_tool_names.append(tool.name)
+            serialized_tools.append(serialized_tool)
         request_kwargs: dict[str, Any] = {
             "model": request.model,
             "max_tokens": request.max_tokens,
             "temperature": request.temperature,
             "system": request.system_prompt,
             "messages": [deepcopy(dict(message)) for message in request.messages],
-            "tools": [
-                {
-                    "name": tool.name,
-                    "description": tool.description,
-                    "input_schema": deepcopy(dict(tool.input_schema)),
-                }
-                for tool in request.tools
-            ],
+            "tools": serialized_tools,
             "tool_choice": tool_choice,
         }
         with self._capability_lock:
@@ -1203,6 +1224,8 @@ class AnthropicGeneratorBackend:
                 "tools_available": True,
                 "tools_executed_by_backend": False,
                 "client_tool_names": tool_names,
+                "strict_client_tool_names": strict_tool_names,
+                "n_strict_client_tools": len(strict_tool_names),
                 "n_client_tool_calls": len(tool_calls),
                 "disable_parallel_tool_use": bool(
                     request.disable_parallel_tool_use

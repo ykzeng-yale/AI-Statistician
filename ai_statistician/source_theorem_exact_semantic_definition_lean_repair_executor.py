@@ -1498,13 +1498,13 @@ def _candidate_definition_request(
                 "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECK_NOT_ESTABLISHED"
             ),
         },
-        "forbidden_shortcuts": [
-            "do not define the placeholder as True",
+        "evidence_integrity_constraints": [
             "do not add axiom/sorry/admit/unsafe",
-            "do not assume or restate the source theorem target",
-            "do not introduce stronger assumptions than the source theorem binders",
-            "do not import generic declarations found by lexical source lookup as the definition",
+            "do not claim source-theorem proof or kernel verification before tool evidence",
+            "preserve the source theorem target and immutable artifact lineage",
         ],
+        "model_owns_candidate_and_repair_strategy": True,
+        "runtime_supplies_observations_only": True,
         "local_lean_gate": (
             "The definition-only candidate must compile under local Lean/AXLE "
             "before it can be used by proof-body execution; compilation is still "
@@ -1779,55 +1779,6 @@ def _author_definition_mode(execution_status: str) -> str:
     return "author_missing_exact_semantic_definition"
 
 
-def _author_definition_policy(
-    *,
-    execution_status: str,
-    authoring_mode: str,
-    placeholder: str,
-) -> str:
-    if authoring_mode == TYPECHECKED_CANDIDATE_REVIEW_AUTHORING_MODE:
-        lead = (
-            "Review the locally typechecked definition-only exact Lean candidate "
-            "against the source theorem binders, semantic anchors, source "
-            "references, and adapter dependencies. If it is faithful, return a "
-            "reviewed candidate that preserves local Lean typecheckability; if "
-            "it is not faithful, repair it or report explicit known_gaps. Do not "
-            "claim source theorem proof. "
-        )
-    elif authoring_mode == "repair_typechecked_semantic_definition_candidate":
-        lead = (
-            "Repair the typechecked exact Lean definition against the listed "
-            "semantic alignment blockers and required anchors. The replacement "
-            "must preserve local Lean typecheckability while eliminating the "
-            "semantic blockers. "
-        )
-    elif authoring_mode == "repair_failed_exact_semantic_definition_candidate":
-        lead = (
-            "Repair the existing definition-only exact Lean candidate using the "
-            "local Lean diagnostics, failure classification, source theorem "
-            "binders, source references, and semantic contract. The replacement "
-            "must be designed to compile in the configured Lake project before "
-            "semantic review resumes. "
-        )
-        if "ENVIRONMENT" in execution_status:
-            lead += (
-                "If the blocker is an import or dependency environment issue, "
-                "avoid broad speculative imports and keep any required environment "
-                "work explicit in known_gaps. "
-            )
-    else:
-        lead = (
-            "Synthesize the exact Lean definition from source theorem binders "
-            "and source reference snippets. "
-        )
-    return (
-        lead
-        + "Do not import generic declarations for "
-        f"{placeholder or 'the placeholder'} and do not define the placeholder "
-        "as True, a constant, or an assumption-strengthening shortcut."
-    )
-
-
 def _author_definition_task(row: Mapping[str, Any]) -> dict[str, Any]:
     """Create an executable handoff when source references require synthesis."""
 
@@ -1951,11 +1902,8 @@ def _author_definition_task(row: Mapping[str, Any]) -> dict[str, Any]:
             "local_definition_lean_compiled",
             "semantic_definition_typecheck_evidence_status",
         ],
-        "authoring_policy": _author_definition_policy(
-            execution_status=execution_status,
-            authoring_mode=authoring_mode,
-            placeholder=placeholder,
-        ),
+        "model_owns_candidate_and_repair_strategy": True,
+        "runtime_supplies_observations_only": True,
         "acceptance_gate": (
             "A definition-only candidate must local-Lean check before semantic "
             "review, and exact source-theorem proof-body execution must remain "
@@ -2470,23 +2418,8 @@ def _classify_local_lean_failure(diagnostics: Sequence[str]) -> str:
         return "lean_import_environment_missing"
     if "timed out" in lowered:
         return "local_lean_timeout"
-    if "failed to synthesize instance" in lowered or "synthinstancefailed" in lowered:
-        return "local_lean_typeclass_synthesis_failed"
-    if "invalid field" in lowered or "environment does not contain" in lowered:
-        return "local_lean_invalid_field"
-    if (
-        "unknown constant" in lowered
-        or "unknown identifier" in lowered
-        or "unknown declaration" in lowered
-        or "unknown namespace" in lowered
-    ):
-        return "local_lean_unknown_identifier"
-    if "application type mismatch" in lowered or "type mismatch" in lowered:
-        return "local_lean_type_mismatch"
-    if "expected token" in lowered or "unexpected token" in lowered:
-        return "local_lean_parse_error"
     if text.strip():
-        return "local_lean_failed_unclassified"
+        return "local_lean_candidate_rejected"
     return ""
 
 

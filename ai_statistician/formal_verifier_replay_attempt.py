@@ -56,10 +56,8 @@ async def export_formal_verifier_replay_attempts(
 ) -> dict[str, object]:
     """Attempt full theorem/bridge replay targets under a verifier.
 
-    This exporter writes attempt feedback for the calibration ledger. It strips
-    `h_frontier_missing_*` assumptions from matched formal-gap skeletons before
-    verification, so successful placeholder closures cannot become proof
-    evidence.
+    This exporter writes verifier feedback for complete candidates supplied by
+    a proof agent. It never synthesizes or edits Lean source.
     """
 
     errors: list[str] = []
@@ -78,8 +76,14 @@ async def export_formal_verifier_replay_attempts(
         if isinstance(row, dict) and str(row.get("task_id", ""))
     }
     selected_tasks = replay_tasks[: max(0, max_tasks)]
+    candidate_tasks = [
+        task
+        for task in selected_tasks
+        if str(task.get("candidate_formal_statement", "")).strip()
+        and str(task.get("candidate_proof_body", "")).strip()
+    ]
     records: list[FormalVerifierReplayAttemptRecord] = []
-    for index, task in enumerate(selected_tasks, start=1):
+    for index, task in enumerate(candidate_tasks, start=1):
         records.append(
             await _attempt_task(
                 task,
@@ -101,6 +105,7 @@ async def export_formal_verifier_replay_attempts(
         "verifier": getattr(verifier, "name", type(verifier).__name__),
         "max_tasks": max_tasks,
         "n_source_replay_tasks": len(replay_tasks),
+        "n_awaiting_agent_candidate": len(selected_tasks) - len(candidate_tasks),
         "n_attempted": len(records),
         "n_positive": n_positive,
         "n_negative": n_negative,
@@ -116,7 +121,8 @@ async def export_formal_verifier_replay_attempts(
         "rows": [asdict(row) for row in records],
         "limitations": [
             "replay attempts are full-route theorem/bridge attempts, not proof evidence unless kernel_verified=true",
-            "matched formal-gap skeletons are stripped of h_frontier_missing placeholders before verification",
+            "the harness does not synthesize statements, proof bodies, tactics, imports, or edits",
+            "tasks without a complete agent-supplied statement and proof body remain awaiting_agent_candidate",
             "mock-positive attempts are calibration feedback only and require AXLE/local Lean replay",
             "failed attempts preserve earliest verifier errors for replay repair",
         ],
@@ -146,8 +152,9 @@ async def _attempt_task(
     gap_task: dict[str, Any],
     attempt_index: int,
 ) -> FormalVerifierReplayAttemptRecord:
-    formal_statement, placeholder_removed = _formal_statement_for_task(task, gap_task)
-    proof_body = _proof_body_for_task(task)
+    formal_statement = str(task.get("candidate_formal_statement", ""))
+    proof_body = str(task.get("candidate_proof_body", ""))
+    placeholder_removed = False
     retrieval_hits = _retrieval_hits_for_task(task)
     obligation = FormalObligation(
         id=str(task.get("replay_id", "")),
@@ -233,84 +240,6 @@ async def _attempt_task(
     )
 
 
-def _formal_statement_for_task(task: dict[str, Any], gap_task: dict[str, Any]) -> tuple[str, bool]:
-    statement = str(gap_task.get("statement", ""))
-    if statement:
-        stripped, removed = _strip_frontier_missing_placeholder(statement)
-        return stripped, removed
-    theorem_name = _lean_identifier(str(task.get("display_name", "")) or str(task.get("replay_id", "")))
-    return (
-        "\n".join(
-            [
-                "import Mathlib",
-                "namespace AIStatisticianReplayAttempts",
-                "",
-                f"theorem {theorem_name} : True := by sorry",
-                "",
-                "end AIStatisticianReplayAttempts",
-                "",
-            ]
-        ),
-        False,
-    )
-
-
-def _strip_frontier_missing_placeholder(statement: str) -> tuple[str, bool]:
-    lines = statement.splitlines()
-    output: list[str] = []
-    removed = False
-    skip_placeholder = False
-    skip_proof = False
-    for line in lines:
-        stripped = line.strip()
-        if skip_proof:
-            if re.match(r"\s*end\s+\S+", line):
-                skip_proof = False
-                output.append(line)
-            continue
-        if skip_placeholder:
-            if ") :" in line:
-                output.append(f"{line[: len(line) - len(line.lstrip())]}:")
-                skip_placeholder = False
-            continue
-        if "(h_frontier_missing" in line:
-            removed = True
-            if ") :" in line:
-                output.append(f"{line[: len(line) - len(line.lstrip())]}:")
-            else:
-                skip_placeholder = True
-            continue
-        if ":= by" in line:
-            prefix = line.split(":= by", 1)[0].rstrip()
-            output.append(f"{prefix} := by sorry")
-            skip_proof = True
-            continue
-        if "placeholder assumption named `h_frontier_missing_*`" in line:
-            output.append(
-                line.replace("placeholder assumption", "removed placeholder assumption").replace(
-                    "h_frontier_missing_*",
-                    "frontier_missing_placeholder_removed",
-                )
-            )
-            continue
-        if stripped.startswith("Status: FORMAL_GAP."):
-            output.append("Status: FULL_ROUTE_REPLAY_ATTEMPT.")
-            continue
-        output.append(line)
-    return "\n".join(output).rstrip() + "\n", removed
-
-
-def _proof_body_for_task(task: dict[str, Any]) -> str:
-    return "\n".join(
-        [
-            "by",
-            "  -- Non-placeholder full-route replay probe.",
-            "  -- This may fail; the verifier error is calibration feedback.",
-            "  first | rfl | simp",
-        ]
-    )
-
-
 def _retrieval_hits_for_task(task: dict[str, Any]) -> list[RetrievalHit]:
     hits: list[RetrievalHit] = []
     for index, obligation_id in enumerate(task.get("subclaim_replay_obligations", []) or []):
@@ -330,13 +259,6 @@ def _retrieval_hits_for_task(task: dict[str, Any]) -> list[RetrievalHit]:
 def _placeholder_references(formal_statement: str, proof_body: str) -> tuple[str, ...]:
     refs = sorted(set(re.findall(r"\bh_frontier_missing[A-Za-z0-9_']*", formal_statement + "\n" + proof_body)))
     return tuple(refs)
-
-
-def _lean_identifier(value: str) -> str:
-    cleaned = re.sub(r"[^A-Za-z0-9_]+", "_", value).strip("_") or "replay_attempt"
-    if cleaned[0].isdigit():
-        cleaned = f"replay_{cleaned}"
-    return cleaned
 
 
 def _error_category(error: str) -> str:

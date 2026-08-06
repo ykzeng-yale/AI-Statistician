@@ -1855,28 +1855,14 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
     invalid_interface = {
         "interfaces": {estimator["id"]: invalid_contract}
     }
-    still_invalid_patch = {
-        "base_payload_fingerprint": typed_semantic_patch_payload_fingerprint(
-            invalid_interface
-        ),
-        "updates": [
-            {
-                "path": [
-                    "interfaces",
-                    estimator["id"],
-                    "response_fields",
-                    0,
-                    "sample_size_rate",
-                    "contributions",
-                    0,
-                    "polynomial_exponent",
-                ],
-                "replacement": "still-invalid",
-            }
-        ],
-    }
+    still_invalid_interface = json.loads(json.dumps(invalid_interface))
+    still_invalid_interface["interfaces"][estimator["id"]]["response_fields"][
+        0
+    ]["sample_size_rate"]["contributions"][0]["polynomial_exponent"] = (
+        "still-invalid"
+    )
     first_provider = SequentialGeneratorBackend(
-        [core_patch, invalid_interface, still_invalid_patch]
+        [core_patch, invalid_interface, still_invalid_interface]
     )
     first_developer = LLMTheoryDeveloperAgent(
         provider=first_provider,
@@ -1907,7 +1893,7 @@ def test_theory_revision_resumes_interface_stage_from_validated_core() -> None:
         "estimator_interface_authoring",
     ]
     assert first_provider.requests[2].metadata["json_repair_mode"] == (
-        "typed_semantic_patch"
+        "full_packet_regeneration"
     )
     assert "allowed_semantic_reference_ids" in first_provider.requests[2].user_prompt
     assert "orthogonal_expansion" in first_provider.requests[2].user_prompt
@@ -1995,7 +1981,7 @@ def test_theory_revision_rejects_lineage_mismatch_before_provider_call() -> None
     assert provider.requests == []
 
 
-def test_theory_developer_opts_into_one_strict_progress_patch(
+def test_theory_developer_uses_shared_full_packet_regeneration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, object] = {}
@@ -2021,13 +2007,15 @@ def test_theory_developer_opts_into_one_strict_progress_patch(
     packet = developer.derive(
         OpenResearchQuestion(
             id="strict_progress_patch",
-            title="Strict progress patch",
-            description="Exercise the bounded TheoryDeveloper repair policy.",
+            title="Full packet regeneration",
+            description="Exercise the shared TheoryDeveloper retry policy.",
         )
     )
 
     assert packet == {"ok": True}
-    assert captured["allow_progress_repair_extension"] is True
+    assert "semantic_patch_repair" not in captured
+    assert "allow_progress_repair_extension" not in captured
+    assert captured["repair_context_builder"] is not None
 
 
 def test_theory_developer_truncation_recovery_is_serious_and_bounded() -> None:
@@ -2122,8 +2110,8 @@ def test_llm_theory_developer_repairs_invalid_json_packet_before_accepting() -> 
     assert provider.requests[1].metadata["json_repair_attempt"] == 1
     assert "Your previous response failed AI Statistician local validation" in provider.requests[1].user_prompt
     assert "required_output_contract" in provider.requests[1].user_prompt
-    assert "Keep all fields concise" in provider.requests[1].user_prompt
-    assert provider.requests[1].user_prompt.count("x") < 2500
+    assert "Rewrite the full JSON object from scratch" in provider.requests[1].user_prompt
+    assert provider.requests[1].user_prompt.count("x") >= 4000
 
 
 def test_llm_theory_developer_default_repair_budget_allows_two_repairs() -> None:
@@ -2495,9 +2483,6 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
     assert runtime_args.serious_theory_llm_model == ""
     assert runtime_args.serious_theory_model_tier == "sonnet"
     assert runtime_args.serious_theory_max_tokens == 10000
-    assert runtime_args.architect_metric_repair_ownership_router is False
-    assert runtime_args.architect_metric_repair_ownership_router_llm_model == ""
-    assert runtime_args.architect_metric_repair_ownership_router_max_tokens == 5000
     assert default_generator_model(
         runtime_args.provider,
         runtime_args.llm_model,
@@ -2597,7 +2582,6 @@ def test_live_evaluation_builders_are_pinned_to_current_haiku(
     )
     args.generated_code_semantic_reviewer_provider = "same"
     args.formal_target_semantic_reviewer_provider = "same"
-    args.architect_metric_repair_ownership_router = True
     args.llm_model = "claude-sonnet-4-6"
     args.serious_theory_llm_model = "claude-sonnet-4-6"
     args.architect_llm_model = "claude-sonnet-4-6"
@@ -2654,7 +2638,6 @@ def test_live_evaluation_builders_are_pinned_to_current_haiku(
     assert agents[5].config.max_repair_attempts == 2
     architect = agents[0]
     assert architect.metric_semantic_reviewer.config.model_tier == "haiku"
-    assert architect.metric_repair_ownership_router.config.model_tier == "haiku"
 
 
 def test_cli_never_offers_opus_as_a_live_model_tier() -> None:

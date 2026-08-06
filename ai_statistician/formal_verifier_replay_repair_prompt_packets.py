@@ -130,10 +130,10 @@ def export_formal_verifier_replay_repair_prompt_packets(
         "packets": [asdict(packet) for packet in packets],
         "prompt_packet_fingerprint": stable_hash([asdict(packet) for packet in packets]),
         "limitations": [
-            "repair prompt packets are instructions for a prover/RAG worker, not proof evidence",
-            "a returned patch is not proof evidence until formal-verifier replay and calibration pass",
+            "regeneration packets are instructions for a proof agent, not proof evidence",
+            "a returned candidate is not proof evidence until formal-verifier replay and calibration pass",
             "workers must not claim theorem closure unless replay_calibration_status is full_route_kernel_verified",
-            "candidate bridge lemma names are work targets, not declarations known to exist",
+            "the harness does not select edits, tactics, imports, or declarations",
         ],
     }
     if out_dir is not None:
@@ -168,8 +168,8 @@ def _prompt_packet(
     forbidden_claims = (
         "do not claim the target theorem is proved before replay calibration",
         "do not mark kernel_verified=true without AXLE/local Lean evidence",
-        "do not leave h_frontier_missing placeholders in the repaired route",
-        "do not treat retrieval hits or scaffold compilation as theorem proof evidence",
+        "do not change the theorem target or its semantic contract",
+        "do not treat retrieval hits or candidate compilation as target-theorem proof evidence",
     )
     if not prompt:
         errors.append("prompt missing")
@@ -223,8 +223,8 @@ def _prompt_packet(
         forbidden_claims=forbidden_claims,
         proof_evidence_status="PROMPT_PACKET_NOT_PROOF_EVIDENCE",
         proof_evidence_boundary=(
-            "This prompt packet is not proof evidence. It asks a worker to patch a "
-            "repair scaffold and rerun verification; theorem evidence starts only "
+            "This prompt packet is not proof evidence. It asks a proof agent to "
+            "regenerate a complete candidate and rerun verification; theorem evidence starts only "
             "when the repaired replay calibration is full_route_kernel_verified."
         ),
         ok=not errors,
@@ -240,20 +240,17 @@ def _prompt(queue_row: dict[str, Any], task: dict[str, Any]) -> str:
     retrieval_hits = "\n".join(
         f"- {item}" for item in _str_tuple(queue_row.get("retrieval_hit_obligations", []))
     ) or "- none"
-    repair_steps = "\n".join(
-        f"- {item}" for item in _str_tuple(queue_row.get("route_specific_repair_steps", []))
-    ) or "- patch the scaffold, then rerun replay calibration"
     return "\n".join(
         [
-            "You are the FormalVerifier repair worker for an AI Statistical Theory Lab replay target.",
-            "Patch the Lean repair scaffold for the route below. Do not claim the theorem is proved.",
+            "You are the FormalVerifier proof agent for an AI Statistical Theory Lab replay target.",
+            "Read the complete current candidate and exact diagnostics, then return one complete revised Lean candidate.",
+            "Keep the theorem target unchanged. Do not return a diff and do not claim the theorem is proved.",
             "",
             f"Execution id: {queue_row.get('execution_id', '')}",
             f"Priority rank: {queue_row.get('execution_priority_rank', '')}",
             f"Route: {queue_row.get('display_name', '')}",
             f"Target theorem: {queue_row.get('target_theorem_name', '')}",
-            f"Candidate bridge lemma: {queue_row.get('candidate_bridge_lemma_name', '')}",
-            f"Artifact path: {queue_row.get('artifact_path', '')}",
+            f"Current candidate context: {queue_row.get('artifact_path', '')}",
             f"Execution status: {queue_row.get('execution_status', '')}",
             f"Acceptance gate: {queue_row.get('acceptance_gate', '')}",
             "",
@@ -263,18 +260,15 @@ def _prompt(queue_row: dict[str, Any], task: dict[str, Any]) -> str:
             "Retrieval-hit obligations:",
             retrieval_hits,
             "",
-            "Route-specific repair steps:",
-            repair_steps,
-            "",
-            "Rerun commands after patching:",
+            "Rerun commands after regeneration:",
             commands,
             "",
-            "Current repair scaffold, not proof evidence:",
+            "Complete current candidate and diagnostics, not proof evidence:",
             "```lean",
             str(task.get("lean_repair_source_not_verified", "")).strip(),
             "```",
             "",
-            "Return a JSON object matching the expected_output_contract. Keep any remaining formal gap explicit.",
+            "Return a JSON object matching the expected_output_contract with the complete candidate source.",
         ]
     )
 
@@ -289,7 +283,7 @@ def _expected_output_contract(queue_row: dict[str, Any]) -> dict[str, object]:
         "candidate_bridge_lemma_name": str(queue_row.get("candidate_bridge_lemma_name", "")),
         "patched_artifact_path": str(queue_row.get("artifact_path", "")),
         "changed_lean_declarations": [],
-        "proof_body_or_bridge_patch": "",
+        "proof_body_or_bridge_patch": "complete revised Lean candidate source (compatibility field)",
         "rerun_commands": list(_str_tuple(queue_row.get("command_plan", []))),
         "replay_attempt_manifest": "",
         "replay_calibration_manifest": "",
@@ -298,7 +292,7 @@ def _expected_output_contract(queue_row: dict[str, Any]) -> dict[str, object]:
         "placeholders_removed": False,
         "residual_formal_gaps": [],
         "claim_status": "PATCH_PROPOSAL_NOT_PROOF_EVIDENCE",
-        "promotion_gate": "accept only if replay_calibration_status is full_route_kernel_verified and no h_frontier_missing placeholder remains",
+        "promotion_gate": "accept only if full_route_kernel_verified covers the unchanged target and residual_formal_gaps is empty",
     }
 
 

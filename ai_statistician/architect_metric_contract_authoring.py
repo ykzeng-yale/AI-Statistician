@@ -7,15 +7,6 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from .agent_runtime import agent_runtime_substage
-from .architect_metric_authority_patch_transport import (
-    build_metric_authority_semantic_patch_transport,
-    metric_gate_authority_resolution_decisions,
-)
-from .architect_metric_repair_ownership_router_llm import (
-    ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED,
-    LLMArchitectMetricRepairOwnershipRouterAgent,
-    apply_architect_metric_repair_ownership_routes,
-)
 from .architect_metric_semantic_reviewer_llm import (
     ARCHITECT_METRIC_RUNTIME_CONTRACT_RETRACTION_EVIDENCE_IDS,
     ARCHITECT_METRIC_SEMANTIC_REVIEW_BOUNDARY,
@@ -38,12 +29,10 @@ from .generated_metric_contract import (
     GENERATED_METRIC_VALUE_KINDS,
     generated_metric_acceptance_authority_catalog,
     generated_metric_evaluation_semantics_contract,
-    generated_metric_numeric_authority_repair_matrix,
     generated_metric_requirement_json_schema,
     generated_metric_requirement_prompt_schema,
     generated_metric_requirement_set_id,
     generated_metric_requirement_target_namespace_contract,
-    is_generated_metric_numeric_authority_error,
     materialize_generated_metric_gate_field_authorities,
     validate_generated_metric_requirements,
 )
@@ -52,7 +41,6 @@ from .implementation_metric_handoff import (
 )
 from .llm_json_repair import (
     PacketValidationError,
-    SEMANTIC_PATCH_PROGRESS_POLICY_STRICT_RESIDUAL_SET,
     extract_json_object,
     generate_validated_json_packet,
 )
@@ -439,13 +427,6 @@ def _metric_protocol_combined_repair_scope(
 ) -> str:
     if str(verdict or "").strip().upper() == "ACCEPT":
         return "none"
-    scopes = {
-        str(row.get("repair_scope", "") or "").strip()
-        for row in findings
-        if isinstance(row, Mapping)
-    }
-    if ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED in scopes:
-        return ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED
     return architect_metric_semantic_recommended_repair_scope(
         verdict=verdict,
         findings=findings,
@@ -940,93 +921,6 @@ def _confirmatory_metric_requirement_rows(
     return kept, omitted
 
 
-def _metric_authoring_repair_priority_instructions(
-    errors: Any,
-) -> list[str]:
-    error_rows = (
-        [str(error) for error in errors]
-        if isinstance(errors, list | tuple)
-        else []
-    )
-    instructions: list[str] = []
-    if any(
-        "no substantive numeric gate fields" in error
-        for error in error_rows
-    ):
-        instructions.append(
-            "For a boolean metric, gate_field_authorities must be exactly the empty "
-            "array [] even when threshold=1 or tolerance=0 encodes the boolean "
-            "comparison. In generic patch mode, replace the complete "
-            "gate_field_authorities array with replacement_json='[]'; do not emit "
-            "a placeholder authority row or rename field to field_name."
-        )
-    if any(
-        is_generated_metric_numeric_authority_error(error)
-        for error in error_rows
-    ):
-        instructions.append(
-            "When unmatched_gate_resolution_decisions is nonempty, resolve it before "
-            "editing any other path and choose exactly one semantic decision for each "
-            "listed field. The current_invalid_owner cannot be retained because no "
-            "exact upstream node owns that value. For fields with "
-            "an exact matching catalog node, cite that node and preserve its valid "
-            "owner; retain valid source authority for other fields. Authority is "
-            "field-level. If choosing "
-            "architect_preregistered_design, emit every exact "
-            "required_patch_updates_if_preregistered entry "
-            "together, including the owner and a pre-execution rationale. If choosing "
-            "diagnostic_only, make the row non-required and remove every acceptance "
-            "contribution; choose remove_requirement when the row does not belong in "
-            "the protocol. Preserve unimplicated fields. Never "
-            "fabricate numeric support by changing anchors, copying the value into "
-            "theory, or changing the gate to match an anchor."
-        )
-    if any(
-        is_generated_metric_numeric_authority_error(error)
-        or "authority_kind must be one of" in error
-        for error in error_rows
-    ):
-        instructions.append(
-            "Keep the two authority namespaces distinct. "
-            "acceptance_authority_catalog[*].authority_kind classifies a cited "
-            "source node; gate_field_authorities[*].authority_kind names who owns "
-            "the executable gate. In particular, evaluation_design is a catalog-node "
-            "kind and is never a valid gate-owner value. Do not copy it into a gate. "
-            "Choose one allowed gate_owner_kinds value from "
-            "authority_kind_namespace_contract based on the cited evidence; runtime "
-            "does not choose or map the owner automatically and only recomputes the "
-            "row-level roll-up."
-        )
-    instructions.extend(
-        [
-            (
-                "Resolve every supplied local validation error while preserving "
-                "valid requirement rows, stable requirement IDs, and unrelated "
-                "fields."
-            ),
-            (
-                "Use only exact anchor IDs from the current acceptance authority "
-                "catalog; never invent or paraphrase an anchor."
-            ),
-            (
-                "Keep one independently compared scalar quantity, or one truly "
-                "homogeneous collection, per row and split independent gates."
-            ),
-            (
-                "Retain at least one required SimulationEngineer row. Do not author "
-                "or repair required_runtime_replicates: AgentRuntime binds that field "
-                "from its own execution budget after generation and before review."
-            ),
-            (
-                "Use only pre-execution artifacts: do not cite observed results, "
-                "claim proof, relax a gate after execution, or add task-specific "
-                "runtime rules."
-            ),
-        ]
-    )
-    return instructions[:6]
-
-
 def _compact_independent_semantic_review_repair(
     value: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
@@ -1061,253 +955,24 @@ def _metric_authoring_repair_context(
     independent_semantic_review_repair: Mapping[str, Any] | None,
     frozen_requirement_rebinding: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    error_rows = (
-        [str(error) for error in errors]
-        if isinstance(errors, list | tuple)
-        else []
-    )
-    requirements = (
-        invalid_packet.get("empirical_metric_requirements", [])
-        if isinstance(invalid_packet, Mapping)
-        else []
-    )
-    numeric_authority_repair_matrix = (
-        generated_metric_numeric_authority_repair_matrix(
-            requirements,
-            validation_errors=error_rows,
-            acceptance_authority_catalog=acceptance_authority_catalog,
-        )
-    )
-    gate_field_resolution_decisions_by_id = (
-        metric_gate_authority_resolution_decisions(
-            numeric_authority_repair_matrix,
-            validation_errors=error_rows,
-        )
-    )
-    for matrix_row in numeric_authority_repair_matrix:
-        unmatched_fields = [
-            str(field)
-            for field in matrix_row.get(
-                "numeric_gate_fields_without_exact_catalog_match", []
-            )
-            if str(field).strip()
-        ]
-        matrix_row[
-            "source_derived_authority_allowed_for_every_gate_field"
-        ] = not unmatched_fields
-        matrix_row["required_resolution_options_for_unmatched_fields"] = (
-            [
-                "typed_boolean_predicate_if_intrinsically_boolean",
-                "architect_preregistered_design_with_preexecution_rationale",
-                "diagnostic_only_or_remove",
-            ]
-            if unmatched_fields
-            else [
-                "cite_exact_matching_catalog_nodes",
-                "typed_boolean_predicate_if_intrinsically_boolean",
-                "architect_preregistered_design_with_preexecution_rationale",
-                "diagnostic_only_or_remove",
-            ]
-        )
-        matrix_row["forbidden_resolutions"] = [
-            "copy_candidate_value_into_upstream_theory",
-            "change_gate_only_to_match_an_anchor",
-            "retain_source_derived_authority_for_an_unmatched_gate_field",
-        ]
-        field_patch_contracts: list[dict[str, Any]] = []
-        for gate_match in matrix_row.get("numeric_gate_matches", []):
-            if not isinstance(gate_match, Mapping):
-                continue
-            field = str(gate_match.get("field", "") or "").strip()
-            raw_entry_index = gate_match.get(
-                "gate_field_authority_entry_index", -1
-            )
-            entry_index = (
-                int(raw_entry_index)
-                if isinstance(raw_entry_index, int)
-                and not isinstance(raw_entry_index, bool)
-                else -1
-            )
-            if field not in unmatched_fields or entry_index < 0:
-                continue
-            field_patch_contracts.append(
-                {
-                    "field": field,
-                    "llm_semantic_choice_required": True,
-                    "runtime_applies_automatically": False,
-                    "applicable_when": (
-                        "The LLM determines that this unmatched field is a "
-                        "defensible pre-execution empirical design choice."
-                    ),
-                    "required_updates_if_selected": [
-                        {
-                            "path": [
-                                "empirical_metric_requirements",
-                                int(matrix_row["requirement_index"]),
-                                "gate_field_authorities",
-                                entry_index,
-                                "authority_kind",
-                            ],
-                            "replacement": (
-                                "architect_preregistered_design"
-                            ),
-                        },
-                        {
-                            "path": [
-                                "empirical_metric_requirements",
-                                int(matrix_row["requirement_index"]),
-                                "gate_field_authorities",
-                                entry_index,
-                                "rationale",
-                            ],
-                            "replacement_requirement": (
-                                "Explain this field using pre-execution decision "
-                                "relevance, fixed-budget uncertainty, and attainable "
-                                "behavior without claiming theorem authority."
-                            ),
-                        },
-                    ],
-                    "all_required_updates_must_be_emitted_together": True,
-                    "rationale_only_update_resolves_ownership": False,
-                    "row_rollup_recomputed_by_runtime": True,
-                }
-            )
-        matrix_row[
-            "architect_preregistered_design_patch_contracts"
-        ] = field_patch_contracts
-
-    unmatched_gate_resolution_decisions: list[dict[str, Any]] = []
-    for matrix_row in numeric_authority_repair_matrix:
-        preregistered_contracts = {
-            str(row.get("field", "") or "").strip(): dict(row)
-            for row in matrix_row.get(
-                "architect_preregistered_design_patch_contracts",
-                [],
-            )
-            if isinstance(row, Mapping)
-            and str(row.get("field", "") or "").strip()
-        }
-        for gate_match in matrix_row.get("numeric_gate_matches", []):
-            if (
-                not isinstance(gate_match, Mapping)
-                or gate_match.get("current_source_authority_must_change")
-                is not True
-            ):
-                continue
-            field = str(gate_match.get("field", "") or "").strip()
-            if not field:
-                continue
-            requirement_index = int(matrix_row["requirement_index"])
-            preregistered_contract = preregistered_contracts.get(field, {})
-            unmatched_gate_resolution_decisions.append(
-                {
-                    "decision_id": (
-                        f"requirement:{requirement_index}:field:{field}"
-                    ),
-                    "requirement_id": str(
-                        matrix_row.get("requirement_id", "") or ""
-                    ),
-                    "field": field,
-                    "current_invalid_owner": str(
-                        gate_match.get(
-                            "current_field_authority_kind",
-                            "",
-                        )
-                        or ""
-                    ),
-                    "value": gate_match.get("value"),
-                    "allowed_resolutions": [
-                        "architect_preregistered_design",
-                        "diagnostic_only",
-                        "remove_requirement",
-                    ],
-                    "required_patch_updates_if_preregistered": list(
-                        preregistered_contract.get(
-                            "required_updates_if_selected",
-                            [],
-                        )
-                    ),
-                }
-            )
-
-    repair_catalog = acceptance_authority_catalog
-    repair_catalog_scope = "full_catalog"
-    if numeric_authority_repair_matrix:
-        relevant_anchor_ids: set[str] = set()
-        for matrix_row in numeric_authority_repair_matrix:
-            relevant_anchor_ids.update(
-                str(anchor_id)
-                for anchor_id in matrix_row.get("current_source_anchors", [])
-                if str(anchor_id).strip()
-            )
-            for gate_match in matrix_row.get("numeric_gate_matches", []):
-                if not isinstance(gate_match, Mapping):
-                    continue
-                relevant_anchor_ids.update(
-                    str(node.get("anchor_id", "") or "").strip()
-                    for node in gate_match.get("matching_catalog_nodes", [])
-                    if isinstance(node, Mapping)
-                    and str(node.get("anchor_id", "") or "").strip()
-                )
-        repair_catalog = [
-            dict(row)
-            for row in acceptance_authority_catalog
-            if str(row.get("anchor_id", "") or "").strip()
-            in relevant_anchor_ids
-        ]
-        repair_catalog_scope = "numeric_authority_local_slice"
-
+    del errors
     context = {
-        "gate_field_resolution_decisions_by_id": (
-            gate_field_resolution_decisions_by_id
-        ),
-        "unmatched_gate_resolution_decisions": (
-            unmatched_gate_resolution_decisions
+        "repair_mode": "full_packet_regeneration",
+        "invalid_packet_fingerprint": (
+            stable_hash(invalid_packet)
+            if isinstance(invalid_packet, Mapping)
+            else ""
         ),
         "runtime_owned_replicates": runtime_replicates,
         "acceptance_authority_catalog_id": acceptance_authority_catalog_id,
-        "acceptance_authority_catalog": repair_catalog,
-        "acceptance_authority_catalog_scope": repair_catalog_scope,
-        "acceptance_authority_catalog_total_rows": len(
-            acceptance_authority_catalog
+        "acceptance_authority_catalog": [
+            dict(row) for row in acceptance_authority_catalog
+        ],
+        "target_namespace": (
+            generated_metric_requirement_target_namespace_contract()
         ),
-        "acceptance_authority_catalog_repair_rows": len(repair_catalog),
-        "numeric_authority_repair_matrix": numeric_authority_repair_matrix,
-        "numeric_authority_repair_automatic_selection": False,
-        "authority_kind_namespace_contract": {
-            "gate_owner_field": "gate_field_authorities[*].authority_kind",
-            "gate_owner_kinds": list(
-                GENERATED_METRIC_ACCEPTANCE_AUTHORITY_KINDS
-            ),
-            "catalog_node_field": (
-                "acceptance_authority_catalog[*].authority_kind"
-            ),
-            "catalog_node_kinds": sorted(
-                {
-                    str(row.get("authority_kind", "") or "").strip()
-                    for row in acceptance_authority_catalog
-                    if str(row.get("authority_kind", "") or "").strip()
-                }
-            ),
-            "catalog_only_node_kinds": sorted(
-                {
-                    str(row.get("authority_kind", "") or "").strip()
-                    for row in acceptance_authority_catalog
-                    if str(row.get("authority_kind", "") or "").strip()
-                }
-                - set(GENERATED_METRIC_ACCEPTANCE_AUTHORITY_KINDS)
-            ),
-            "catalog_node_kind_may_be_copied_to_gate_owner": False,
-            "llm_semantic_owner_choice_required": True,
-            "runtime_automatic_owner_mapping": False,
-            "row_level_acceptance_authority_kind": (
-                "runtime recomputes the conservative roll-up from valid "
-                "field-level gate owners"
-            ),
-        },
-        "repair_prompt_priority_instructions": (
-            _metric_authoring_repair_priority_instructions(error_rows)
-        ),
+        "requirement_schema": generated_metric_requirement_prompt_schema(),
+        "required_target_rows": required_target_rows,
         "independent_semantic_review_repair": (
             _compact_independent_semantic_review_repair(
                 independent_semantic_review_repair
@@ -1335,40 +1000,6 @@ def _metric_authoring_repair_context(
             frozen_output_fields
         )
         context["required_target_rows"] = []
-        context["repair_prompt_priority_instructions"] = [
-            (
-                "This is authority rebinding for an already frozen gate portfolio. "
-                "Return only requirement_id, source_anchors, and "
-                "acceptance_authority_rationale"
-                + (
-                    ", plus gate_field_authorities with unchanged field and "
-                    "authority_kind values"
-                    if FROZEN_METRIC_PROTOCOL_REBINDING_GATE_FIELD
-                    in frozen_mutable_fields
-                    else ""
-                )
-                + ". Runtime reconstructs every frozen gate field; never add, "
-                "delete, relax, or reinterpret a gate."
-            ),
-            *context["repair_prompt_priority_instructions"],
-        ][:6]
-    if numeric_authority_repair_matrix:
-        context["repair_context_scope"] = (
-            "numeric_authority_and_runtime_budget_local_slice"
-        )
-        context["repair_context_omitted_redundant_sections"] = [
-            "target_namespace",
-            "requirement_schema",
-            "required_target_rows",
-            "rejected_empirical_metric_requirements",
-            "dimension_reviews",
-        ]
-    else:
-        context["target_namespace"] = (
-            generated_metric_requirement_target_namespace_contract()
-        )
-        context["requirement_schema"] = generated_metric_requirement_prompt_schema()
-        context["required_target_rows"] = required_target_rows
     if isinstance(frozen_requirement_rebinding, Mapping) and (
         frozen_requirement_rebinding
     ):
@@ -1652,9 +1283,6 @@ def author_reviewed_architect_metric_requirements(
     config: ArchitectMetricContractAuthoringConfig,
     request_model: str,
     semantic_reviewer: LLMArchitectMetricSemanticReviewerAgent | None,
-    repair_ownership_router: (
-        LLMArchitectMetricRepairOwnershipRouterAgent | None
-    ),
     question: OpenResearchQuestion,
     runtime_contract: Mapping[str, Any],
     theory_protocol_material: Mapping[str, Any] | None = None,
@@ -2970,7 +2598,6 @@ def author_reviewed_architect_metric_requirements(
                 "revision_index": revision_index,
                 "model_tier": config.model_tier,
                 "max_packet_repair_attempts": config.max_repair_attempts,
-                "progress_repair_extension_allowed": True,
                 "active_prior_finding_count": len(active_finding_ids),
             },
         ):
@@ -3011,14 +2638,6 @@ def author_reviewed_architect_metric_requirements(
                             frozen_rebinding
                         ),
                     )
-                ),
-                semantic_patch_repair=True,
-                semantic_patch_transport_builder=(
-                    build_metric_authority_semantic_patch_transport
-                ),
-                allow_progress_repair_extension=True,
-                progress_repair_policy=(
-                    SEMANTIC_PATCH_PROGRESS_POLICY_STRICT_RESIDUAL_SET
                 ),
             )
         authoring_packet_hash = stable_hash(authoring_packet)
@@ -3159,37 +2778,6 @@ def author_reviewed_architect_metric_requirements(
             for row in semantic_review_packet.get("findings", []) or []
             if isinstance(row, Mapping)
         ]
-        repair_ownership_packet: dict[str, Any] = {}
-        if (
-            semantic_review_packet.get("overall_verdict") == "REVISE"
-            and repair_ownership_router is not None
-            and routed_current_findings
-        ):
-            with agent_runtime_substage(
-                "architect_metric_repair_ownership_router",
-                metadata={
-                    "revision_index": revision_index,
-                    "finding_count": len(routed_current_findings),
-                    "model_tier": str(
-                        getattr(
-                            getattr(repair_ownership_router, "config", None),
-                            "model_tier",
-                            "",
-                        )
-                        or ""
-                    ),
-                },
-            ):
-                repair_ownership_packet = repair_ownership_router.route(
-                    question=question,
-                    review_material=review_material,
-                    semantic_review_packet=semantic_review_packet,
-                    trusted_lineage=trusted_review_lineage,
-                )
-            routed_current_findings = apply_architect_metric_repair_ownership_routes(
-                findings=semantic_review_packet.get("findings", []),
-                ownership_packet=repair_ownership_packet,
-            )
         routed_current_findings = (
             bind_architect_metric_finding_evidence_identities(
                 findings=routed_current_findings,
@@ -3295,23 +2883,6 @@ def author_reviewed_architect_metric_requirements(
                     or ""
                 ),
                 "recommended_repair_scope": recommended_repair_scope,
-                "repair_ownership_packet_id": str(
-                    repair_ownership_packet.get("packet_id", "") or ""
-                ),
-                "repair_ownership_packet_hash": (
-                    stable_hash(repair_ownership_packet)
-                    if repair_ownership_packet
-                    else ""
-                ),
-                "repair_ownership_model": str(
-                    repair_ownership_packet.get("model", "") or ""
-                ),
-                "repair_ownership_model_tier": str(
-                    repair_ownership_packet.get("model_tier", "") or ""
-                ),
-                "repair_ownership_decisions": list(
-                    repair_ownership_packet.get("decisions", []) or []
-                ),
                 "repair_target_finding_ids": list(
                     authoring_packet.get("repair_target_finding_ids", []) or []
                 ),
@@ -3406,7 +2977,7 @@ def author_reviewed_architect_metric_requirements(
                 ARCHITECT_METRIC_SEMANTIC_REVIEW_BOUNDARY
             )
             return authoring_packet
-        if recommended_repair_scope == ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED or (
+        if (
             recommended_repair_scope
             != ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPE_METRIC_CONTRACT
             and not _metric_candidate_repair_available(routed_findings)
@@ -3426,7 +2997,6 @@ def author_reviewed_architect_metric_requirements(
             **dict(semantic_review_packet),
             "findings": routed_findings,
             "recommended_repair_scope": recommended_repair_scope,
-            "repair_ownership_packet": repair_ownership_packet,
         }
 
     raise ArchitectMetricSemanticReviewRejected(

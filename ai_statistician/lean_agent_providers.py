@@ -1703,7 +1703,6 @@ def _compact_openprover_failure_feedback(row: Mapping[str, Any]) -> dict[str, An
             "error_tail",
             "error_kind",
             "unknown_identifiers",
-            "repair_hints",
             "goal_snapshots",
         )
         if row.get(key) not in (None, "", [], {})

@@ -20,17 +20,7 @@ from .frontier_discover_and_prove_prompt_packets import (
 )
 from .frontier_precision_audit import audit_frontier_precision
 from .fresh_holdout_frontier_audit import audit_fresh_holdout_frontier
-from .algorithm_repair_promotion import export_algorithm_repair_promotion_queue
-from .algorithm_repair_patch_policy_model import train_algorithm_repair_patch_policy_model
-from .algorithm_repair_patch_training_export import export_algorithm_repair_patch_training_dataset
-from .algorithm_repair_production_patch_plan import export_algorithm_repair_production_patch_plan
-from .algorithm_repair_reviewed_patch_apply import apply_reviewed_algorithm_repair_source_patches
-from .algorithm_repair_reviewed_patch_validate import validate_reviewed_algorithm_repair_patches
 from .algorithm_simulation_stress_audit import audit_algorithm_simulation_stress
-from .algorithm_repair_sandbox import evaluate_algorithm_repair_sandbox
-from .algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
-from .algorithm_repair_sandbox_patch_eval import evaluate_algorithm_repair_sandbox_patches
-from .algorithm_repair_sandbox_rerun import rerun_algorithm_repair_sandbox_applications
 from .adversarial_intake_audit import audit_adversarial_unsupported_intake
 from .architecture_audit import audit_architecture
 from .assumption_interface_export import export_assumption_interfaces
@@ -184,9 +174,6 @@ from .formal_verifier_replay_repair_execution_queue import (
 from .formal_verifier_replay_repair_prompt_packets import (
     export_formal_verifier_replay_repair_prompt_packets,
 )
-from .formal_verifier_replay_repair_patch_autoworker import (
-    export_formal_verifier_replay_repair_patch_autoworker,
-)
 from .formal_verifier_replay_repair_patch_response_validation import (
     export_formal_verifier_replay_repair_patch_response_validation,
 )
@@ -207,9 +194,6 @@ from .formal_verifier_replay_repair_patch_rerun_residual_obligations import (
 )
 from .formal_verifier_replay_repair_patch_rerun_residual_prompt_packets import (
     export_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets,
-)
-from .formal_verifier_replay_repair_patch_rerun_residual_autoworker import (
-    export_formal_verifier_replay_repair_patch_rerun_residual_autoworker,
 )
 from .formal_verifier_replay_repair_patch_rerun_residual_response_validation import (
     export_formal_verifier_replay_repair_patch_rerun_residual_response_validation,
@@ -1509,26 +1493,10 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_prompt_packets",
         stage_start,
     )
-    formal_verifier_replay_repair_patch_autoworker_manifest = (
-        export_formal_verifier_replay_repair_patch_autoworker(
-            out_dir / "formal_verifier_replay_repair_prompt_packets",
-            out_dir / "formal_verifier_replay_repair_patch_autoworker",
-        )
-    )
-    stage_start = _record_stage(
-        stage_timings,
-        "formal_verifier_replay_repair_patch_autoworker",
-        stage_start,
-    )
     formal_verifier_replay_repair_patch_response_validation_manifest = (
         export_formal_verifier_replay_repair_patch_response_validation(
             out_dir / "formal_verifier_replay_repair_prompt_packets",
             out_dir / "formal_verifier_replay_repair_patch_response_validation",
-            response_jsonl=(
-                out_dir
-                / "formal_verifier_replay_repair_patch_autoworker"
-                / "formal_verifier_replay_repair_patch_responses.jsonl"
-            ),
         )
     )
     stage_start = _record_stage(
@@ -1610,28 +1578,11 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets",
         stage_start,
     )
-    formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest = (
-        export_formal_verifier_replay_repair_patch_rerun_residual_autoworker(
-            out_dir / "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets",
-            out_dir / "formal_verifier_replay_repair_patch_rerun_residual_autoworker",
-            max_responses=40,
-        )
-    )
-    stage_start = _record_stage(
-        stage_timings,
-        "formal_verifier_replay_repair_patch_rerun_residual_autoworker",
-        stage_start,
-    )
     formal_verifier_replay_repair_patch_rerun_residual_response_validation_manifest = (
         export_formal_verifier_replay_repair_patch_rerun_residual_response_validation(
             out_dir / "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets",
             out_dir
             / "formal_verifier_replay_repair_patch_rerun_residual_response_validation",
-            response_jsonl=(
-                out_dir
-                / "formal_verifier_replay_repair_patch_rerun_residual_autoworker"
-                / "formal_verifier_replay_repair_patch_rerun_residual_responses.jsonl"
-            ),
         )
     )
     stage_start = _record_stage(
@@ -1907,60 +1858,6 @@ async def run_research_system_audit(
     )
     stage_start = _record_stage(stage_timings, "research_loop_repair_audits", stage_start)
 
-    algorithm_repair_promotion_manifest = export_algorithm_repair_promotion_queue(
-        out_dir / "research_loop",
-        out_dir / "algorithm_repair_promotion",
-    )
-    algorithm_repair_sandbox_manifest = evaluate_algorithm_repair_sandbox(
-        out_dir / "algorithm_repair_promotion",
-        out_dir / "algorithm_repair_sandbox",
-    )
-    algorithm_repair_sandbox_apply_manifest = apply_algorithm_repair_sandbox_results(
-        out_dir / "algorithm_repair_sandbox",
-        out_dir / "algorithm_repair_sandbox_apply",
-    )
-    algorithm_repair_sandbox_rerun_manifest = rerun_algorithm_repair_sandbox_applications(
-        out_dir / "algorithm_repair_sandbox_apply",
-        out_dir / "algorithm_repair_sandbox_rerun",
-        question_file=actual_question_file,
-        n_runs=max(10, min(config.n_runs, 50)),
-        seed=config.seed + 17,
-    )
-    algorithm_repair_sandbox_patch_eval_manifest = evaluate_algorithm_repair_sandbox_patches(
-        out_dir / "algorithm_repair_sandbox_apply",
-        out_dir / "algorithm_repair_sandbox_patch_eval",
-        question_file=actual_question_file,
-        n_runs=max(10, min(config.n_runs, 50)),
-        seed=config.seed + 19,
-    )
-    algorithm_repair_patch_training_manifest = export_algorithm_repair_patch_training_dataset(
-        out_dir / "algorithm_repair_sandbox_patch_eval",
-        out_dir / "algorithm_repair_patch_training_export",
-        validation_fraction=0.2,
-    )
-    algorithm_repair_patch_policy_manifest = train_algorithm_repair_patch_policy_model(
-        Path(str(algorithm_repair_patch_training_manifest["train_jsonl"])),
-        out_dir / "algorithm_repair_patch_policy_model",
-        validation_jsonl=Path(str(algorithm_repair_patch_training_manifest["validation_jsonl"])),
-    )
-    algorithm_repair_production_patch_plan_manifest = export_algorithm_repair_production_patch_plan(
-        out_dir / "algorithm_repair_patch_policy_model",
-        out_dir / "algorithm_repair_production_patch_plan",
-    )
-    algorithm_repair_reviewed_patch_apply_manifest = apply_reviewed_algorithm_repair_source_patches(
-        out_dir / "algorithm_repair_production_patch_plan",
-        out_dir / "algorithm_repair_reviewed_patch_apply",
-        source_root=Path("."),
-    )
-    algorithm_repair_reviewed_patch_validate_manifest = validate_reviewed_algorithm_repair_patches(
-        out_dir / "algorithm_repair_reviewed_patch_apply",
-        out_dir / "algorithm_repair_reviewed_patch_validate",
-        source_root=Path("."),
-        question_file=actual_question_file,
-        n_runs=max(5, min(config.n_runs, 10)),
-        seed=config.seed + 23,
-    )
-    stage_start = _record_stage(stage_timings, "algorithm_repair_pipeline", stage_start)
     research_agent_runtime_audit_manifest = _research_agent_runtime_audit_overlay(
         out_dir,
         configured_runtime_dir=config.research_agent_runtime_dir,
@@ -2422,9 +2319,6 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_prompt_packets": bool(
             formal_verifier_replay_repair_prompt_packets_manifest["all_ok"]
         ),
-        "formal_verifier_replay_repair_patch_autoworker": bool(
-            formal_verifier_replay_repair_patch_autoworker_manifest["all_ok"]
-        ),
         "formal_verifier_replay_repair_patch_response_validation": bool(
             formal_verifier_replay_repair_patch_response_validation_manifest["all_ok"]
         ),
@@ -2447,11 +2341,6 @@ async def run_research_system_audit(
         ),
         "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets": bool(
             formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_manifest[
-                "all_ok"
-            ]
-        ),
-        "formal_verifier_replay_repair_patch_rerun_residual_autoworker": bool(
-            formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest[
                 "all_ok"
             ]
         ),
@@ -2534,16 +2423,6 @@ async def run_research_system_audit(
         and int(research_loop_manifest["n_questions"]) == 1,
         "research_loop_repair_audit": bool(research_loop_repair_manifest["all_ok"]),
         "research_loop_live_repair_audit": bool(research_loop_live_repair_manifest["all_ok"]),
-        "algorithm_repair_promotion": bool(algorithm_repair_promotion_manifest["all_ok"]),
-        "algorithm_repair_sandbox": bool(algorithm_repair_sandbox_manifest["all_ok"]),
-        "algorithm_repair_sandbox_apply": bool(algorithm_repair_sandbox_apply_manifest["all_ok"]),
-        "algorithm_repair_sandbox_rerun": bool(algorithm_repair_sandbox_rerun_manifest["all_ok"]),
-        "algorithm_repair_sandbox_patch_eval": bool(algorithm_repair_sandbox_patch_eval_manifest["all_ok"]),
-        "algorithm_repair_patch_training_export": bool(algorithm_repair_patch_training_manifest["all_ok"]),
-        "algorithm_repair_patch_policy_model": bool(algorithm_repair_patch_policy_manifest["all_ok"]),
-        "algorithm_repair_production_patch_plan": bool(algorithm_repair_production_patch_plan_manifest["all_ok"]),
-        "algorithm_repair_reviewed_patch_apply": bool(algorithm_repair_reviewed_patch_apply_manifest["all_ok"]),
-        "algorithm_repair_reviewed_patch_validate": bool(algorithm_repair_reviewed_patch_validate_manifest["all_ok"]),
     }
     benchmark_cache_gate_names = (
         "research_benchmark",
@@ -2595,7 +2474,6 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_application_validation",
         "formal_verifier_replay_repair_execution_queue",
         "formal_verifier_replay_repair_prompt_packets",
-        "formal_verifier_replay_repair_patch_autoworker",
         "formal_verifier_replay_repair_patch_response_validation",
         "formal_verifier_replay_repair_patch_response_promotion",
         "formal_verifier_replay_repair_patch_rerun_queue",
@@ -2603,7 +2481,6 @@ async def run_research_system_audit(
         "formal_verifier_replay_repair_patch_rerun_calibration",
         "formal_verifier_replay_repair_patch_rerun_residual_obligations",
         "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets",
-        "formal_verifier_replay_repair_patch_rerun_residual_autoworker",
         "formal_verifier_replay_repair_patch_rerun_residual_response_validation",
         "formal_verifier_replay_repair_patch_rerun_residual_followup_queue",
         "formal_verifier_agentic_proof_strategy_plan",
@@ -6593,21 +6470,6 @@ async def run_research_system_audit(
             "formal_verifier_replay_repair_prompt_packets_local_lean_compiled_scaffold": formal_verifier_replay_repair_prompt_packets_manifest[
                 "n_local_lean_compiled_scaffold"
             ],
-            "formal_verifier_replay_repair_patch_autoworker_responses": formal_verifier_replay_repair_patch_autoworker_manifest[
-                "n_responses"
-            ],
-            "formal_verifier_replay_repair_patch_autoworker_ok": formal_verifier_replay_repair_patch_autoworker_manifest[
-                "n_ok"
-            ],
-            "formal_verifier_replay_repair_patch_autoworker_patch_proposals": formal_verifier_replay_repair_patch_autoworker_manifest[
-                "n_patch_proposals"
-            ],
-            "formal_verifier_replay_repair_patch_autoworker_kernel_verified": formal_verifier_replay_repair_patch_autoworker_manifest[
-                "n_kernel_verified"
-            ],
-            "formal_verifier_replay_repair_patch_autoworker_artifacts": formal_verifier_replay_repair_patch_autoworker_manifest[
-                "n_patch_artifacts"
-            ],
             "formal_verifier_replay_repair_patch_response_validation_rows": formal_verifier_replay_repair_patch_response_validation_manifest[
                 "n_response_validation_rows"
             ],
@@ -6754,24 +6616,6 @@ async def run_research_system_audit(
             ],
             "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_source_discovery": formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_manifest[
                 "n_source_discovery_packets"
-            ],
-            "formal_verifier_replay_repair_patch_rerun_residual_autoworker_responses": formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest[
-                "n_responses"
-            ],
-            "formal_verifier_replay_repair_patch_rerun_residual_autoworker_ok": formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest[
-                "n_ok"
-            ],
-            "formal_verifier_replay_repair_patch_rerun_residual_autoworker_patch_proposals": formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest[
-                "n_residual_patch_proposals"
-            ],
-            "formal_verifier_replay_repair_patch_rerun_residual_autoworker_source_discovery": formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest[
-                "n_source_discovery_responses"
-            ],
-            "formal_verifier_replay_repair_patch_rerun_residual_autoworker_kernel_verified": formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest[
-                "n_kernel_verified"
-            ],
-            "formal_verifier_replay_repair_patch_rerun_residual_autoworker_artifacts": formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest[
-                "n_patch_artifacts"
             ],
             "formal_verifier_replay_repair_patch_rerun_residual_response_validation_rows": formal_verifier_replay_repair_patch_rerun_residual_response_validation_manifest[
                 "n_response_validation_rows"
@@ -7562,128 +7406,6 @@ async def run_research_system_audit(
             "research_loop_live_repair_sft_train": research_loop_live_repair_manifest["n_train"],
             "research_loop_live_repair_sft_validation": research_loop_live_repair_manifest[
                 "n_validation"
-            ],
-            "algorithm_repair_promotion_candidates": algorithm_repair_promotion_manifest["n_candidates"],
-            "algorithm_repair_promotion_candidates_ok": algorithm_repair_promotion_manifest["n_ok"],
-            "algorithm_repair_promotion_artifacts": algorithm_repair_promotion_manifest[
-                "n_algorithm_repair_artifacts"
-            ],
-            "algorithm_repair_sandbox_candidates": algorithm_repair_sandbox_manifest["n_candidates"],
-            "algorithm_repair_sandbox_candidates_ok": algorithm_repair_sandbox_manifest["n_ok"],
-            "algorithm_repair_sandbox_apply_candidates": algorithm_repair_sandbox_apply_manifest["n_candidates"],
-            "algorithm_repair_sandbox_apply_candidates_ok": algorithm_repair_sandbox_apply_manifest["n_ok"],
-            "algorithm_repair_sandbox_rerun_candidates": algorithm_repair_sandbox_rerun_manifest["n_candidates"],
-            "algorithm_repair_sandbox_rerun_candidates_ok": algorithm_repair_sandbox_rerun_manifest["n_ok"],
-            "algorithm_repair_sandbox_patch_eval_candidates": algorithm_repair_sandbox_patch_eval_manifest[
-                "n_candidates"
-            ],
-            "algorithm_repair_sandbox_patch_eval_candidates_ok": algorithm_repair_sandbox_patch_eval_manifest[
-                "n_ok"
-            ],
-            "algorithm_repair_sandbox_patch_eval_executed": algorithm_repair_sandbox_patch_eval_manifest[
-                "n_isolated_patches_executed"
-            ],
-            "algorithm_repair_sandbox_patch_eval_before_after": algorithm_repair_sandbox_patch_eval_manifest[
-                "n_before_after_comparisons"
-            ],
-            "algorithm_repair_sandbox_patch_eval_production_patches": algorithm_repair_sandbox_patch_eval_manifest[
-                "n_production_patches_applied"
-            ],
-            "algorithm_repair_sandbox_patch_eval_promotion_ready": algorithm_repair_sandbox_patch_eval_manifest[
-                "n_promotion_ready"
-            ],
-            "algorithm_repair_patch_training_examples": algorithm_repair_patch_training_manifest[
-                "n_training_examples"
-            ],
-            "algorithm_repair_patch_training_train": algorithm_repair_patch_training_manifest["n_train"],
-            "algorithm_repair_patch_training_validation": algorithm_repair_patch_training_manifest[
-                "n_validation"
-            ],
-            "algorithm_repair_patch_training_production_patches": algorithm_repair_patch_training_manifest[
-                "n_production_patches_applied"
-            ],
-            "algorithm_repair_patch_training_promotion_ready": algorithm_repair_patch_training_manifest[
-                "n_promotion_ready"
-            ],
-            "algorithm_repair_patch_policy_train": algorithm_repair_patch_policy_manifest["n_train"],
-            "algorithm_repair_patch_policy_validation": algorithm_repair_patch_policy_manifest[
-                "n_validation"
-            ],
-            "algorithm_repair_patch_policy_training_pairs": algorithm_repair_patch_policy_manifest[
-                "n_training_pairs"
-            ],
-            "algorithm_repair_patch_policy_features": algorithm_repair_patch_policy_manifest["n_features"],
-            "algorithm_repair_patch_policy_validation_safe_decision_accuracy": algorithm_repair_patch_policy_manifest[
-                "validation_safe_decision_accuracy"
-            ],
-            "algorithm_repair_patch_policy_validation_chose_gold": algorithm_repair_patch_policy_manifest[
-                "validation_chose_gold"
-            ],
-            "algorithm_repair_patch_policy_validation_rejected_unsafe": algorithm_repair_patch_policy_manifest[
-                "validation_rejected_unsafe"
-            ],
-            "algorithm_repair_production_patch_plans": algorithm_repair_production_patch_plan_manifest[
-                "n_plans"
-            ],
-            "algorithm_repair_production_patch_plans_ok": algorithm_repair_production_patch_plan_manifest[
-                "n_ok"
-            ],
-            "algorithm_repair_production_patch_review_required": algorithm_repair_production_patch_plan_manifest[
-                "n_review_required"
-            ],
-            "algorithm_repair_production_patch_applied": algorithm_repair_production_patch_plan_manifest[
-                "n_production_patches_applied"
-            ],
-            "algorithm_repair_production_patch_promotion_ready": algorithm_repair_production_patch_plan_manifest[
-                "n_promotion_ready"
-            ],
-            "algorithm_repair_reviewed_patch_apply_candidates": algorithm_repair_reviewed_patch_apply_manifest[
-                "n_plans"
-            ],
-            "algorithm_repair_reviewed_patch_apply_candidates_ok": algorithm_repair_reviewed_patch_apply_manifest[
-                "n_ok"
-            ],
-            "algorithm_repair_reviewed_patch_apply_source_changed": algorithm_repair_reviewed_patch_apply_manifest[
-                "n_source_changed"
-            ],
-            "algorithm_repair_reviewed_patch_apply_syntax_valid": algorithm_repair_reviewed_patch_apply_manifest[
-                "n_syntax_valid"
-            ],
-            "algorithm_repair_reviewed_patch_apply_target_found": algorithm_repair_reviewed_patch_apply_manifest[
-                "n_target_symbol_found"
-            ],
-            "algorithm_repair_reviewed_patch_apply_production_patches": algorithm_repair_reviewed_patch_apply_manifest[
-                "n_production_patches_applied"
-            ],
-            "algorithm_repair_reviewed_patch_apply_promotion_ready": algorithm_repair_reviewed_patch_apply_manifest[
-                "n_promotion_ready"
-            ],
-            "algorithm_repair_reviewed_patch_validate_candidates": algorithm_repair_reviewed_patch_validate_manifest[
-                "n_candidates"
-            ],
-            "algorithm_repair_reviewed_patch_validate_candidates_ok": algorithm_repair_reviewed_patch_validate_manifest[
-                "n_ok"
-            ],
-            "algorithm_repair_reviewed_patch_validate_import_ok": algorithm_repair_reviewed_patch_validate_manifest[
-                "n_import_ok"
-            ],
-            "algorithm_repair_reviewed_patch_validate_algorithm_audit_ok": algorithm_repair_reviewed_patch_validate_manifest[
-                "n_algorithm_audit_ok"
-            ],
-            "algorithm_repair_reviewed_patch_validate_simulation_completed": algorithm_repair_reviewed_patch_validate_manifest[
-                "n_simulation_completed"
-            ],
-            "algorithm_repair_reviewed_patch_validate_patched_metric_present": algorithm_repair_reviewed_patch_validate_manifest[
-                "n_patched_metric_present"
-            ],
-            "algorithm_repair_reviewed_patch_validate_finite_metrics_ok": algorithm_repair_reviewed_patch_validate_manifest[
-                "n_finite_metrics_ok"
-            ],
-            "algorithm_repair_reviewed_patch_validate_production_patches": algorithm_repair_reviewed_patch_validate_manifest[
-                "n_production_patches_applied"
-            ],
-            "algorithm_repair_reviewed_patch_validate_promotion_ready": algorithm_repair_reviewed_patch_validate_manifest[
-                "n_promotion_ready"
             ],
         },
         "questions": benchmark_manifest["questions"],
@@ -9171,21 +8893,6 @@ async def run_research_system_audit(
                 / "formal_verifier_replay_repair_prompt_packets"
                 / "formal_verifier_replay_repair_prompt_packets.md"
             ),
-            "formal_verifier_replay_repair_patch_autoworker": str(
-                out_dir
-                / "formal_verifier_replay_repair_patch_autoworker"
-                / "formal_verifier_replay_repair_patch_autoworker_manifest.json"
-            ),
-            "formal_verifier_replay_repair_patch_autoworker_responses": str(
-                out_dir
-                / "formal_verifier_replay_repair_patch_autoworker"
-                / "formal_verifier_replay_repair_patch_responses.jsonl"
-            ),
-            "formal_verifier_replay_repair_patch_autoworker_report": str(
-                out_dir
-                / "formal_verifier_replay_repair_patch_autoworker"
-                / "formal_verifier_replay_repair_patch_autoworker.md"
-            ),
             "formal_verifier_replay_repair_patch_response_validation": str(
                 out_dir
                 / "formal_verifier_replay_repair_patch_response_validation"
@@ -9290,21 +8997,6 @@ async def run_research_system_audit(
                 out_dir
                 / "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets"
                 / "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets.md"
-            ),
-            "formal_verifier_replay_repair_patch_rerun_residual_autoworker": str(
-                out_dir
-                / "formal_verifier_replay_repair_patch_rerun_residual_autoworker"
-                / "formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest.json"
-            ),
-            "formal_verifier_replay_repair_patch_rerun_residual_autoworker_responses": str(
-                out_dir
-                / "formal_verifier_replay_repair_patch_rerun_residual_autoworker"
-                / "formal_verifier_replay_repair_patch_rerun_residual_responses.jsonl"
-            ),
-            "formal_verifier_replay_repair_patch_rerun_residual_autoworker_report": str(
-                out_dir
-                / "formal_verifier_replay_repair_patch_rerun_residual_autoworker"
-                / "formal_verifier_replay_repair_patch_rerun_residual_autoworker.md"
             ),
             "formal_verifier_replay_repair_patch_rerun_residual_response_validation": str(
                 out_dir
@@ -9735,98 +9427,6 @@ async def run_research_system_audit(
                 out_dir
                 / "research_loop_live_repair_audit"
                 / "research_loop_live_repair_sft_validation.jsonl"
-            ),
-            "algorithm_repair_promotion": str(
-                out_dir / "algorithm_repair_promotion" / "algorithm_repair_promotion_manifest.json"
-            ),
-            "algorithm_repair_promotion_queue": str(
-                out_dir / "algorithm_repair_promotion" / "algorithm_repair_promotion_queue.jsonl"
-            ),
-            "algorithm_repair_sandbox": str(
-                out_dir / "algorithm_repair_sandbox" / "algorithm_repair_sandbox_manifest.json"
-            ),
-            "algorithm_repair_sandbox_results": str(
-                out_dir / "algorithm_repair_sandbox" / "algorithm_repair_sandbox_results.jsonl"
-            ),
-            "algorithm_repair_sandbox_apply": str(
-                out_dir / "algorithm_repair_sandbox_apply" / "algorithm_repair_sandbox_apply_manifest.json"
-            ),
-            "algorithm_repair_sandbox_apply_results": str(
-                out_dir / "algorithm_repair_sandbox_apply" / "algorithm_repair_sandbox_apply_results.jsonl"
-            ),
-            "algorithm_repair_sandbox_rerun": str(
-                out_dir / "algorithm_repair_sandbox_rerun" / "algorithm_repair_sandbox_rerun_manifest.json"
-            ),
-            "algorithm_repair_sandbox_rerun_results": str(
-                out_dir / "algorithm_repair_sandbox_rerun" / "algorithm_repair_sandbox_rerun_results.jsonl"
-            ),
-            "algorithm_repair_sandbox_patch_eval": str(
-                out_dir
-                / "algorithm_repair_sandbox_patch_eval"
-                / "algorithm_repair_sandbox_patch_eval_manifest.json"
-            ),
-            "algorithm_repair_sandbox_patch_eval_results": str(
-                out_dir
-                / "algorithm_repair_sandbox_patch_eval"
-                / "algorithm_repair_sandbox_patch_eval_results.jsonl"
-            ),
-            "algorithm_repair_patch_training_export": str(
-                out_dir
-                / "algorithm_repair_patch_training_export"
-                / "algorithm_repair_patch_training_manifest.json"
-            ),
-            "algorithm_repair_patch_training_train": str(
-                out_dir / "algorithm_repair_patch_training_export" / "algorithm_repair_patch_train.jsonl"
-            ),
-            "algorithm_repair_patch_training_validation": str(
-                out_dir
-                / "algorithm_repair_patch_training_export"
-                / "algorithm_repair_patch_validation.jsonl"
-            ),
-            "algorithm_repair_patch_policy_model": str(
-                out_dir
-                / "algorithm_repair_patch_policy_model"
-                / "algorithm_repair_patch_policy_model_manifest.json"
-            ),
-            "algorithm_repair_patch_policy_model_json": str(
-                out_dir
-                / "algorithm_repair_patch_policy_model"
-                / "algorithm_repair_patch_policy_model.json"
-            ),
-            "algorithm_repair_patch_policy_validation_predictions": str(
-                out_dir
-                / "algorithm_repair_patch_policy_model"
-                / "algorithm_repair_patch_policy_validation_predictions.jsonl"
-            ),
-            "algorithm_repair_production_patch_plan": str(
-                out_dir
-                / "algorithm_repair_production_patch_plan"
-                / "algorithm_repair_production_patch_plan_manifest.json"
-            ),
-            "algorithm_repair_production_patch_plans": str(
-                out_dir
-                / "algorithm_repair_production_patch_plan"
-                / "algorithm_repair_production_patch_plans.jsonl"
-            ),
-            "algorithm_repair_reviewed_patch_apply": str(
-                out_dir
-                / "algorithm_repair_reviewed_patch_apply"
-                / "algorithm_repair_reviewed_patch_apply_manifest.json"
-            ),
-            "algorithm_repair_reviewed_patch_apply_results": str(
-                out_dir
-                / "algorithm_repair_reviewed_patch_apply"
-                / "algorithm_repair_reviewed_patch_apply_results.jsonl"
-            ),
-            "algorithm_repair_reviewed_patch_validate": str(
-                out_dir
-                / "algorithm_repair_reviewed_patch_validate"
-                / "algorithm_repair_reviewed_patch_validate_manifest.json"
-            ),
-            "algorithm_repair_reviewed_patch_validate_results": str(
-                out_dir
-                / "algorithm_repair_reviewed_patch_validate"
-                / "algorithm_repair_reviewed_patch_validate_results.jsonl"
             ),
             "formal_gaps": str(out_dir / "research_benchmark" / "formal_gaps"),
         },

@@ -30,11 +30,10 @@ DEFAULT_LOCAL_LEAN_PROJECTS = (
 
 def splice_proof(formal_statement: str, proof_body: str) -> str:
     proof = proof_body.strip()
-    if proof.lower().startswith("by "):
+    if proof.lower().startswith("by"):
         return formal_statement.replace("by sorry", proof, 1)
-    if any(proof.startswith(prefix) for prefix in ("exact ", "apply ", "simp", "rfl", "omega", "linarith")):
-        return formal_statement.replace("by sorry", "by\n  " + proof, 1)
-    return formal_statement.replace(":= by sorry", ":=\n  " + proof, 1)
+    indented = "\n  ".join(proof.splitlines())
+    return formal_statement.replace("by sorry", "by\n  " + indented, 1)
 
 
 def placeholder_proof_errors(content: str) -> list[str]:

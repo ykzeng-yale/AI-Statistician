@@ -42,16 +42,6 @@ from .architect_coordinator_llm import (
 from .architect_metric_contract_authoring import (
     ArchitectMetricSemanticReviewRejected,
 )
-from .architect_metric_repair_ownership_router_llm import (
-    ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY,
-    ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED,
-    ARCHITECT_METRIC_REPAIR_TARGET_GENERATED_SOURCE,
-    ARCHITECT_METRIC_REPAIR_TARGET_METRIC_PROTOCOL,
-    ARCHITECT_METRIC_REPAIR_TARGET_SOURCE_THEORY,
-    ARCHITECT_METRIC_REPAIR_TARGET_UPSTREAM_GENERATED_DEPENDENCY,
-    LLMArchitectMetricRepairOwnershipRouterAgent,
-    apply_generated_code_repair_ownership_routes,
-)
 from .algorithm_engineer_llm import (
     ALGORITHM_ENGINEER_BOUNDARY,
     ALGORITHM_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
@@ -71,10 +61,6 @@ from .fingerprint import stable_hash
 from .lean_proof_agent_contract import (
     llm_proof_body_generation_contract,
     without_legacy_python_lean_strategy_fields,
-)
-from .generated_metric_repair_policy import (
-    generated_code_sandbox_guard_repair_instruction,
-    generated_metric_gate_repair_instruction,
 )
 from .generated_metric_contract import (
     GENERATED_METRIC_CONTRACT_BOUNDARY,
@@ -97,6 +83,7 @@ from .generated_code_semantic_reviewer_llm import (
     GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE,
     GENERATED_CODE_SEMANTIC_REVIEW_POSTEXECUTION_REPAIR_ORDER,
     GENERATED_CODE_SEMANTIC_REVIEW_SOURCE_SUBSYSTEMS,
+    GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_DEPENDENCY_SCOPE,
     GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_REPAIR_SCOPES,
     LLMGeneratedCodeSemanticReviewerAgent,
     generated_code_semantic_review_active_pending_repair_plan,
@@ -124,6 +111,13 @@ from .generated_code_semantic_review_scope import (
     generated_code_semantic_review_theory_projection,
     generated_code_semantic_review_upstream_dependency_projection,
 )
+
+# Compatibility names for persisted repair-plan artifacts. New reviewer packets
+# author the canonical scope directly; no separate ownership model is consulted.
+ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY = (
+    GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_DEPENDENCY_SCOPE
+)
+ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED = "unresolved"
 from .scientific_sandbox import (
     SCIENTIFIC_WASM_SANDBOX_PROFILE,
     ScientificEstimatorBinding,
@@ -15043,14 +15037,12 @@ def _runtime_generated_code_authoritative_repair_routing(
     prioritized_repair_scopes: Sequence[str] = (),
 ) -> dict[str, Any]:
     target_scope_by_role = {
-        ARCHITECT_METRIC_REPAIR_TARGET_SOURCE_THEORY: "upstream_theory",
-        ARCHITECT_METRIC_REPAIR_TARGET_METRIC_PROTOCOL: (
-            "upstream_metric_contract"
+        "source_theory_packet": "upstream_theory",
+        "metric_protocol_candidate": "upstream_metric_contract",
+        "upstream_generated_dependency": (
+            GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_DEPENDENCY_SCOPE
         ),
-        ARCHITECT_METRIC_REPAIR_TARGET_UPSTREAM_GENERATED_DEPENDENCY: (
-            ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
-        ),
-        ARCHITECT_METRIC_REPAIR_TARGET_GENERATED_SOURCE: "source_code",
+        "generated_source_artifact": "source_code",
     }
     deferred_routed_findings: list[dict[str, Any]] = []
     deferred_fingerprints: set[str] = set()
@@ -15108,7 +15100,7 @@ def _runtime_generated_code_authoritative_repair_routing(
         GENERATED_CODE_SEMANTIC_REVIEW_POSTEXECUTION_REPAIR_ORDER
     )
     unresolved_ownership_observed = bool(
-        ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED in observed_scopes
+        "unresolved" in observed_scopes
     )
     ordered_actionable_scopes = [
         scope
@@ -15130,10 +15122,10 @@ def _runtime_generated_code_authoritative_repair_routing(
                 for scope in ordered_actionable_scopes
                 if scope != "source_code"
             ],
-            ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED,
+            "unresolved",
         ]
     elif routing_unresolved:
-        repair_scopes = [ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED]
+        repair_scopes = ["unresolved"]
     else:
         repair_scopes = [
             scope
@@ -15157,7 +15149,7 @@ def _runtime_generated_code_authoritative_repair_routing(
         if repair_scope == "source_code"
         else "AlgorithmEngineer"
         if repair_scope
-        == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
+        == GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_DEPENDENCY_SCOPE
         else "ArchitectCoordinator"
     )
     repair_plan = [
@@ -15169,7 +15161,7 @@ def _runtime_generated_code_authoritative_repair_routing(
                 if scope == "source_code"
                 else "AlgorithmEngineer"
                 if scope
-                == ARCHITECT_GENERATED_CODE_REPAIR_SCOPE_UPSTREAM_DEPENDENCY
+                == GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_DEPENDENCY_SCOPE
                 else "ArchitectCoordinator"
             ),
         }
@@ -15204,13 +15196,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         self,
         *,
         reviewer: LLMGeneratedCodeSemanticReviewerAgent,
-        repair_ownership_router: (
-            LLMArchitectMetricRepairOwnershipRouterAgent | None
-        ) = None,
         max_revisions: int = 1,
     ) -> None:
         self.reviewer = reviewer
-        self.repair_ownership_router = repair_ownership_router
         self.max_revisions = max(0, int(max_revisions or 0))
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
@@ -15651,247 +15639,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             for row in review_packet.get("findings", []) or []
             if isinstance(row, Mapping)
         ]
-        repair_ownership_packet: dict[str, Any] = {}
-        ownership_feedback_router_packet: dict[str, Any] = {}
-        ownership_feedback_revision_used = False
-        if (
-            reviewer_verdict == "REVISE"
-            and self.repair_ownership_router is not None
-        ):
-            with agent_runtime_substage(
-                "generated_code_repair_ownership_router",
-                metadata={
-                    "source_subsystem": source_subsystem,
-                    "finding_count": len(routed_findings),
-                    "model_tier": str(
-                        getattr(
-                            getattr(
-                                self.repair_ownership_router,
-                                "config",
-                                None,
-                            ),
-                            "model_tier",
-                            "",
-                        )
-                        or ""
-                    ),
-                    "execution_results_available": True,
-                    "frozen_protocol_immutable_after_execution": True,
-                },
-            ):
-                repair_ownership_packet = (
-                    self.repair_ownership_router.route_generated_code_review(
-                        question=question,
-                        review_material=review_material,
-                        semantic_review_packet=review_packet,
-                        trusted_lineage=trusted_lineage,
-                    )
-                )
-            if capability_eval and (
-                str(repair_ownership_packet.get("model_tier", "") or "")
-                != LIVE_EVALUATION_CLAUDE_MODEL_TIER
-                or str(repair_ownership_packet.get("model", "") or "")
-                != LIVE_EVALUATION_CLAUDE_MODEL
-            ):
-                return AgentStepResult(
-                    status="BLOCKED",
-                    rationale=(
-                        "Research-evaluation ownership routing did not use the "
-                        "exact configured Haiku model."
-                    ),
-                    produced_artifacts={
-                        materialization_id: materialization,
-                        review_packet_id: review_packet,
-                        str(
-                            repair_ownership_packet.get("packet_id", "")
-                            or "invalid_repair_ownership_packet"
-                        ): repair_ownership_packet,
-                    },
-                    failure_classification=(
-                        "generated_code_repair_ownership_model_invalid"
-                    ),
-                )
-            routed_findings = apply_generated_code_repair_ownership_routes(
-                findings=routed_findings,
-                ownership_packet=repair_ownership_packet,
-            )
-            ownership_decisions = [
-                dict(row)
-                for row in repair_ownership_packet.get("decisions", []) or []
-                if isinstance(row, Mapping)
-            ]
-            pending_plan_for_feedback = (
-                generated_code_semantic_review_active_pending_repair_plan(
-                    review_material
-                )
-            )
-            all_findings_resolved_no_change = bool(ownership_decisions) and all(
-                str(row.get("ownership_certainty", "") or "")
-                == "resolved_no_change"
-                for row in ownership_decisions
-            )
-            if (
-                all_findings_resolved_no_change
-                and not pending_plan_for_feedback.get(
-                    "active_repair_scopes",
-                    [],
-                )
-            ):
-                ownership_feedback_router_packet = repair_ownership_packet
-                ownership_feedback = {
-                    "initial_review_packet_id": review_packet_id,
-                    "initial_review_packet_hash": review_packet_hash,
-                    "ownership_packet_id": str(
-                        repair_ownership_packet.get("packet_id", "") or ""
-                    ),
-                    "ownership_packet_hash": stable_hash(
-                        repair_ownership_packet
-                    ),
-                    "decisions": ownership_decisions,
-                    "all_actionable_findings_resolved_no_change": True,
-                    "router_cannot_accept_generated_code": True,
-                    "evidence_boundary": (
-                        "Independent ownership feedback can challenge an "
-                        "unsupported mandatory finding, but only a fresh closed "
-                        "semantic-review packet can accept the generated artifact."
-                    ),
-                }
-                review_audit_artifacts.update(
-                    {
-                        materialization_id: materialization,
-                        review_packet_id: review_packet,
-                        str(
-                            repair_ownership_packet.get("packet_id", "") or ""
-                        ): repair_ownership_packet,
-                    }
-                )
-                review_material = deepcopy(review_material)
-                review_material[
-                    "independent_repair_ownership_feedback"
-                ] = ownership_feedback
-                materialization_id, materialization = materialize_review(
-                    review_material
-                )
-                with agent_runtime_substage(
-                    "generated_code_semantic_reviewer_ownership_feedback",
-                    metadata={
-                        "source_subsystem": source_subsystem,
-                        "revision_limit": 1,
-                        "model_tier": str(
-                            getattr(
-                                getattr(self.reviewer, "config", None),
-                                "model_tier",
-                                "",
-                            )
-                            or ""
-                        ),
-                    },
-                ):
-                    try:
-                        revised_review_packet = self.reviewer.review(
-                            question=question,
-                            review_material=review_material,
-                            trusted_lineage=trusted_lineage,
-                        )
-                    except PacketValidationError as exc:
-                        revised_review_packet = {}
-                        revised_review_errors = list(exc.errors)
-                    else:
-                        revised_review_errors = runtime_review_packet_errors(
-                            revised_review_packet,
-                            review_material,
-                        )
-                revised_review_packet_id = str(
-                    revised_review_packet.get("packet_id", "") or ""
-                )
-                revised_verdict = str(
-                    revised_review_packet.get("overall_verdict", "") or ""
-                )
-                if revised_review_errors or revised_verdict != "ACCEPT":
-                    blocked_artifacts = {
-                        **review_audit_artifacts,
-                        materialization_id: materialization,
-                    }
-                    if revised_review_packet_id:
-                        blocked_artifacts[
-                            revised_review_packet_id
-                        ] = revised_review_packet
-                    return AgentStepResult(
-                        status="BLOCKED",
-                        rationale=(
-                            "The semantic reviewer and independent ownership "
-                            "router remained inconsistent after one bounded "
-                            "feedback revision. The runtime stopped without "
-                            "guessing an artifact owner or mutating either packet."
-                        ),
-                        produced_artifacts=blocked_artifacts,
-                        observations=(
-                            EnvironmentObservation(
-                                observation_type=(
-                                    "generated_code_semantic_review_"
-                                    "ownership_disagreement"
-                                ),
-                                summary=(
-                                    "; ".join(
-                                        sorted(set(revised_review_errors))
-                                    )[:500]
-                                    or "reviewer retained REVISE after every "
-                                    "ownership decision resolved no change"
-                                ),
-                                payload={
-                                    "initial_review_packet_id": (
-                                        initial_review_packet_id
-                                    ),
-                                    "revised_review_packet_id": (
-                                        revised_review_packet_id
-                                    ),
-                                    "ownership_packet_id": str(
-                                        repair_ownership_packet.get(
-                                            "packet_id",
-                                            "",
-                                        )
-                                        or ""
-                                    ),
-                                    "validation_errors": sorted(
-                                        set(revised_review_errors)
-                                    ),
-                                    "proof_evidence_status": (
-                                        "NOT_PROOF_EVIDENCE"
-                                    ),
-                                },
-                            ),
-                        ),
-                        failure_classification=(
-                            "generated_code_semantic_review_ownership_"
-                            "disagreement"
-                        ),
-                    )
-                review_packet = revised_review_packet
-                review_packet_id = revised_review_packet_id
-                review_packet_hash = stable_hash(review_packet)
-                reviewer_verdict = revised_verdict
-                routed_findings = [
-                    dict(row)
-                    for row in review_packet.get("findings", []) or []
-                    if isinstance(row, Mapping)
-                ]
-                repair_ownership_packet = {}
-                ownership_feedback_revision_used = True
-        elif reviewer_verdict == "REVISE" and capability_eval:
-            return AgentStepResult(
-                status="BLOCKED",
-                rationale=(
-                    "Research evaluation requires one authoritative artifact-owner "
-                    "router for generated-code semantic findings."
-                ),
-                produced_artifacts={
-                    materialization_id: materialization,
-                    review_packet_id: review_packet,
-                },
-                failure_classification=(
-                    "generated_code_repair_ownership_router_missing"
-                ),
-            )
         reviewer_model = str(review_packet.get("model", "") or "")
         reviewer_tier = str(review_packet.get("model_tier", "") or "")
         reviewer_agent = str(review_packet.get("source_agent", "") or "")
@@ -15958,7 +15705,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 prioritized_repair_scopes=active_pending_scopes,
             )
             if verdict == "REVISE"
-            and (repair_ownership_packet or active_pending_scopes)
             else {
                 "semantic_reviewer_repair_scope": str(
                     review_packet.get("repair_scope", "") or ""
@@ -16242,26 +15988,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 )
                 or []
             ),
-            "repair_ownership_packet_id": str(
-                repair_ownership_packet.get("packet_id", "") or ""
-            ),
-            "repair_ownership_packet_hash": (
-                stable_hash(repair_ownership_packet)
-                if repair_ownership_packet
-                else ""
-            ),
-            "ownership_feedback_revision_used": (
-                ownership_feedback_revision_used
-            ),
-            "ownership_feedback_router_packet_id": str(
-                ownership_feedback_router_packet.get("packet_id", "") or ""
-            ),
-            "ownership_feedback_router_packet_hash": (
-                stable_hash(ownership_feedback_router_packet)
-                if ownership_feedback_router_packet
-                else ""
-            ),
-            "repair_ownership_resolved": bool(
+            "repair_scope_resolved": bool(
                 authoritative_routing.get("ownership_resolved", True)
             ),
             "partial_repair_frontier": bool(
@@ -16291,17 +16018,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 source_repair_contract
             ),
             "repair_routing_authority": (
-                "GeneratedCodeSemanticReviewerAfterOwnershipFeedback"
-                if ownership_feedback_revision_used
-                else
-                (
-                    "ArchitectMetricRepairOwnershipRouter"
-                    "+RuntimePendingRepairPlan"
-                )
-                if repair_ownership_packet and active_pending_scopes
-                else "ArchitectMetricRepairOwnershipRouter"
-                if repair_ownership_packet
-                else "RuntimePendingRepairPlan"
+                "GeneratedCodeSemanticReviewer+RuntimePendingRepairPlan"
                 if active_pending_scopes
                 else "GeneratedCodeSemanticReviewer"
             ),
@@ -16325,20 +16042,32 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             review_packet_id: review_packet,
             execution_id: execution_manifest,
         }
-        if repair_ownership_packet:
-            produced_artifacts[
-                str(repair_ownership_packet["packet_id"])
-            ] = repair_ownership_packet
-        feedback = {
-            "feedback_type": "generated_code_semantic_review_feedback",
-            "feedback_source": GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
+        feedback_identity = {
+            "question_id": question.id,
             "source_subsystem": source_subsystem,
             "source_manifest_id": str(
                 work_order.get("source_manifest_id", "") or ""
             ),
+            "source_theory_packet_id": str(
+                work_order.get("theory_packet_id", "") or ""
+            ),
+            "source_theory_packet_hash": str(
+                work_order.get("theory_packet_hash", "") or ""
+            ),
             "semantic_review_execution_id": execution_id,
             "semantic_review_packet_id": review_packet_id,
             "semantic_review_packet_hash": review_packet_hash,
+            "repair_scope": repair_scope,
+            "repair_scopes": repair_scopes,
+        }
+        feedback = {
+            "feedback_id": (
+                "generated_code_semantic_review_feedback:"
+                + stable_hash(feedback_identity)[:20]
+            ),
+            "feedback_type": "generated_code_semantic_review_feedback",
+            "feedback_source": GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
+            **feedback_identity,
             "reviewer_overall_verdict": reviewer_verdict,
             "overall_verdict": verdict,
             "workflow_verdict": verdict,
@@ -16369,14 +16098,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     "semantic_reviewer_repair_scopes", []
                 )
                 or []
-            ),
-            "repair_ownership_packet_id": str(
-                repair_ownership_packet.get("packet_id", "") or ""
-            ),
-            "repair_ownership_packet_hash": (
-                stable_hash(repair_ownership_packet)
-                if repair_ownership_packet
-                else ""
             ),
             "partial_repair_frontier": bool(
                 authoritative_routing.get("partial_repair_frontier", False)
@@ -17126,11 +16847,8 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 "repair_routing_authority": execution_manifest[
                     "repair_routing_authority"
                 ],
-                "repair_ownership_packet_id": execution_manifest[
-                    "repair_ownership_packet_id"
-                ],
-                "repair_ownership_resolved": execution_manifest[
-                    "repair_ownership_resolved"
+                "repair_scope_resolved": execution_manifest[
+                    "repair_scope_resolved"
                 ],
                 "empirical_evaluation_phase": empirical_evaluation_phase,
                 "confirmatory_empirical_evidence_eligible": (
@@ -17203,53 +16921,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 ),
             )
         ]
-        routed_ownership_artifact = (
-            ownership_feedback_router_packet or repair_ownership_packet
-        )
-        if routed_ownership_artifact:
-            review_tool_calls.append(
-                review_call_record(
-                    tool_name=(
-                        "LLMArchitectMetricRepairOwnershipRouterAgent."
-                        "route_generated_code_review"
-                    ),
-                    inputs={
-                        "work_order_id": work_order_id,
-                        "initial_review_packet_id": initial_review_packet_id,
-                        "source_subsystem": source_subsystem,
-                    },
-                    output=routed_ownership_artifact,
-                    summary=(
-                        "recommended_repair_scope="
-                        + str(
-                            routed_ownership_artifact.get(
-                                "recommended_repair_scope",
-                                "",
-                            )
-                            or ""
-                        )
-                    ),
-                )
-            )
-        if ownership_feedback_revision_used:
-            review_tool_calls.append(
-                review_call_record(
-                    tool_name="LLMGeneratedCodeSemanticReviewerAgent.review",
-                    inputs={
-                        "work_order_id": work_order_id,
-                        "review_input_fingerprint": stable_hash(
-                            review_material
-                        ),
-                        "source_subsystem": source_subsystem,
-                        "feedback_revision": True,
-                    },
-                    output=review_packet,
-                    summary=(
-                        f"revised_verdict={verdict} "
-                        f"reviewer_model={reviewer_model}"
-                    ),
-                )
-            )
         return AgentStepResult(
             status=status,
             rationale=rationale,
@@ -41629,11 +41300,6 @@ def run_research_agent_runtime(
             subsystems[GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM] = (
                 GeneratedCodeSemanticReviewerRuntimeSubsystem(
                     reviewer=generated_code_semantic_reviewer,
-                    repair_ownership_router=(
-                        architect_coordinator.metric_repair_ownership_router
-                        if architect_coordinator is not None
-                        else None
-                    ),
                     max_revisions=(
                         config.generated_code_semantic_review_max_revisions
                     ),
@@ -59347,18 +59013,6 @@ def _runtime_llm_topology(
             ),
         ),
         _llm_agent_topology_row(
-            "ArchitectMetricRepairOwnershipRouter",
-            (
-                architect_coordinator.metric_repair_ownership_router
-                if architect_coordinator is not None
-                else None
-            ),
-            role=(
-                "independent pre- and post-execution routing of semantic-review "
-                "findings by the immutable artifact that must change"
-            ),
-        ),
-        _llm_agent_topology_row(
             "TheoryDeveloper",
             theory_developer,
             role="deductive statistical theory discovery and theorem/procedure proposal",
@@ -59542,9 +59196,6 @@ def _runtime_llm_topology(
         "architect_metric_semantic_reviewer_provider": _subsystem_field(
             "ArchitectMetricSemanticReviewer", "provider_name"
         ),
-        "architect_metric_repair_ownership_router_provider": _subsystem_field(
-            "ArchitectMetricRepairOwnershipRouter", "provider_name"
-        ),
         "theory_developer_provider": _subsystem_field("TheoryDeveloper", "provider_name"),
         "simulation_engineer_provider": _subsystem_field(
             "SimulationEngineer", "provider_name"
@@ -59568,9 +59219,6 @@ def _runtime_llm_topology(
         "architect_metric_semantic_reviewer_model": _subsystem_field(
             "ArchitectMetricSemanticReviewer", "model"
         ),
-        "architect_metric_repair_ownership_router_model": _subsystem_field(
-            "ArchitectMetricRepairOwnershipRouter", "model"
-        ),
         "theory_developer_model": _subsystem_field("TheoryDeveloper", "model"),
         "theory_developer_serious_model": _subsystem_field(
             "TheoryDeveloper", "serious_model"
@@ -59588,9 +59236,6 @@ def _runtime_llm_topology(
         "architect_model_tier": _subsystem_field("ArchitectCoordinator", "model_tier"),
         "architect_metric_semantic_reviewer_model_tier": _subsystem_field(
             "ArchitectMetricSemanticReviewer", "model_tier"
-        ),
-        "architect_metric_repair_ownership_router_model_tier": _subsystem_field(
-            "ArchitectMetricRepairOwnershipRouter", "model_tier"
         ),
         "theory_developer_model_tier": _subsystem_field("TheoryDeveloper", "model_tier"),
         "theory_developer_serious_model_tier": _subsystem_field(
@@ -106159,6 +105804,9 @@ def _algorithm_sandbox_revision_feedback(
     forbidden_generated_code_calls: list[str] = []
     for row in prototypes[:5]:
         safety_errors = list(_str_tuple(row.get("safety_errors", [])))[:5]
+        script_hash = _generated_sandbox_prototype_script_hash(row)
+        parent_source = _generated_python_sandbox_parent_source(row)
+        parent_source_hash = stable_hash(parent_source) if parent_source else ""
         row_forbidden_calls = _generated_python_forbidden_call_names_from_safety_errors(
             safety_errors
         )
@@ -106169,15 +105817,27 @@ def _algorithm_sandbox_revision_feedback(
                 "prototype_artifact_id": _generated_sandbox_prototype_artifact_id(
                     row
                 ),
-                "script_hash": _generated_sandbox_prototype_script_hash(row),
+                "script_hash": script_hash,
+                "parent_source": parent_source,
+                "parent_source_hash": parent_source_hash,
+                "parent_source_complete": bool(
+                    parent_source
+                    and script_hash
+                    and parent_source_hash == script_hash
+                ),
                 "prototype_status": str(row.get("prototype_status", "") or ""),
                 "executor": str(row.get("executor", "") or ""),
                 "smoke_passed": row.get("smoke_passed"),
                 "execution_smoke_passed": row.get("execution_smoke_passed"),
+                "execution_attempted": row.get("execution_attempted"),
+                "returncode": row.get("returncode"),
                 "metric_gate_errors": list(
                     _str_tuple(row.get("metric_gate_errors", []))
                 )[:5],
                 "safety_errors": safety_errors,
+                "runtime_errors": list(
+                    _str_tuple(row.get("runtime_errors", []))
+                ),
                 "forbidden_generated_code_calls": row_forbidden_calls[:5],
                 "metrics": _compact_generated_sandbox_metrics(
                     row.get("metrics", {})
@@ -106213,19 +105873,6 @@ def _algorithm_sandbox_revision_feedback(
                 "reason": str(row.get("reason", "") or "")[:500],
             }
         )
-    has_metric_gate_failure = (
-        failure_classification == "generated_algorithm_sandbox_metric_gate_failed"
-        or int(manifest.get("n_metric_gate_failed", 0) or 0) > 0
-        or any(row.get("metric_gate_errors") for row in prototypes)
-    )
-    metric_gate_repair = (
-        " "
-        + generated_metric_gate_repair_instruction(
-            artifact_label="generated algorithm draft"
-        )
-        if has_metric_gate_failure
-        else ""
-    )
     feedback_type = "algorithm_sandbox_execution_feedback"
     source_manifest_id = str(manifest.get("manifest_id", "") or "")
     feedback_id = _generated_sandbox_feedback_id(
@@ -106260,17 +105907,9 @@ def _algorithm_sandbox_revision_feedback(
         )[:10],
         "prototypes": compact_prototypes,
         "required_repair": (
-            "produce a sandbox draft that passes the selected execution contract, "
-            "defines run_estimator(request), makes run_sandbox exercise that same "
-            "implementation, and returns finite, "
-            "nondegenerate metrics satisfying the stated acceptance gate; or "
-            "explicitly choose a matching registered template/unsupported blocker "
-            "instead of repeating the same non-executable or metric-failing draft"
-            + " "
-            + generated_code_sandbox_guard_repair_instruction(
-                artifact_label="generated algorithm draft"
-            )
-            + metric_gate_repair
+            "Regenerate the complete source candidate using the attached complete "
+            "parent source, exact execution diagnostics, unchanged execution "
+            "contract, and frozen acceptance contract. The model owns the repair."
         ),
         "boundary": boundary,
     }
@@ -106444,18 +106083,16 @@ def _generated_python_sandbox_code_excerpt(
 
 def _generated_python_sandbox_parent_source(
     row: Mapping[str, Any],
-    *,
-    limit: int = 12000,
 ) -> str:
     script_path = str(row.get("script_path", "") or "")
     if script_path:
         try:
             path = Path(script_path)
             if path.exists() and path.is_file():
-                return path.read_text(encoding="utf-8")[:limit]
+                return path.read_text(encoding="utf-8")
         except OSError:
             pass
-    return str(row.get("code_excerpt", "") or "")[:limit]
+    return str(row.get("code_excerpt", "") or "")
 
 
 def _generated_simulation_revision_feedback(
@@ -106579,22 +106216,6 @@ def _generated_simulation_revision_feedback(
                 "reason": str(row.get("reason", "") or "")[:500],
             }
         )
-    has_metric_gate_failure = (
-        failure_classification == "generated_simulation_sandbox_metric_gate_failed"
-        or int(
-            manifest.get("n_generated_simulation_sandbox_metric_gate_failed", 0) or 0
-        )
-        > 0
-        or any(row.get("metric_gate_errors") for row in prototypes)
-    )
-    metric_gate_repair = (
-        " "
-        + generated_metric_gate_repair_instruction(
-            artifact_label="generated simulation draft"
-        )
-        if has_metric_gate_failure
-        else ""
-    )
     feedback_type = "generated_simulation_sandbox_execution_feedback"
     source_manifest_id = str(manifest.get("manifest_id", "") or "")
     feedback_id = _generated_sandbox_feedback_id(
@@ -106647,17 +106268,9 @@ def _generated_simulation_revision_feedback(
         )[:10],
         "generated_simulation_prototypes": compact_prototypes,
         "required_repair": (
-            "produce a safe simulation_code_drafts entry that follows the current "
-            "generated_simulation_code_contract, invokes runtime-injected exact "
-            "estimator callbacks when an accepted handoff is present, and returns finite, "
-            "nondegenerate diagnostic metrics that satisfy the stated acceptance "
-            "gate, or omit the generated draft with an explicit blocker instead "
-            "of repeating the same non-executable or metric-failing code"
-            + " "
-            + generated_code_sandbox_guard_repair_instruction(
-                artifact_label="generated simulation draft"
-            )
-            + metric_gate_repair
+            "Regenerate the complete source candidate using the attached complete "
+            "parent source, exact execution diagnostics, unchanged execution "
+            "contract, and frozen acceptance contract. The model owns the repair."
         ),
         "boundary": boundary,
     }

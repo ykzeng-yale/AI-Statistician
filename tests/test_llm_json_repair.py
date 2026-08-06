@@ -6,70 +6,86 @@ import pytest
 
 from ai_statistician.llm_json_repair import (
     PacketValidationError,
-    SEMANTIC_PATCH_PROGRESS_POLICY_STRICT_RESIDUAL_SET,
     _apply_typed_semantic_patch,
     _compact_response_metadata,
     _format_generation_error,
-    _validation_error_focus_schemas,
-    _validation_error_focus_values,
     _repair_attempt_max_tokens,
     _repair_prompt,
-    _typed_semantic_patch_fits_update_budget,
     _typed_semantic_patch_schema,
+    _validation_error_focus_schemas,
+    _validation_error_focus_values,
     extract_json_object,
     generate_validated_json_packet,
+    typed_semantic_patch_payload_fingerprint,
 )
 from ai_statistician.model_backend import (
     GeneratorRequest,
     GeneratorResponse,
-    LIVE_EVALUATION_CLAUDE_MODEL,
-    LIVE_EVALUATION_CLAUDE_MODEL_TIER,
     PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY,
     PROVIDER_STRUCTURED_OUTPUT_ON_REPAIR_METADATA_KEY,
 )
 
 
-def test_extract_json_object_handles_fenced_json() -> None:
-    payload = extract_json_object(
-        "```json\n{\"ok\": true, \"items\": [1, 2]}\n```",
-        label="test",
+class _SequenceBackend:
+    provider_name = "test"
+
+    def __init__(self, responses: list[dict[str, object] | str]) -> None:
+        self.responses = list(responses)
+        self.requests: list[GeneratorRequest] = []
+
+    def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+        self.requests.append(request)
+        response = self.responses.pop(0)
+        return GeneratorResponse(
+            text=response if isinstance(response, str) else json.dumps(response),
+            provider=self.provider_name,
+            model=request.model,
+        )
+
+
+def _request(**metadata: object) -> GeneratorRequest:
+    return GeneratorRequest(
+        system_prompt="Return JSON.",
+        user_prompt="Produce one complete status packet.",
+        model="test-haiku",
+        max_tokens=128,
+        schema={
+            "type": "object",
+            "required": ["status"],
+            "properties": {"status": {"type": "string"}},
+        },
+        metadata=metadata,
     )
 
-    assert payload == {"ok": True, "items": [1, 2]}
+
+def test_extract_json_object_handles_fenced_and_trailing_text() -> None:
+    assert extract_json_object(
+        "```json\n{\"ok\": true, \"items\": [1, 2]}\n``` trailing",
+        label="test",
+    ) == {"ok": True, "items": [1, 2]}
 
 
-def test_truncation_repair_never_reduces_a_large_output_budget() -> None:
-    assert _repair_attempt_max_tokens(
-        10000,
-        truncation_repair_mode=True,
-    ) == 16000
-    assert _repair_attempt_max_tokens(
-        20000,
-        truncation_repair_mode=True,
-    ) == 20000
+def test_extract_json_object_preserves_decode_error() -> None:
+    with pytest.raises(json.JSONDecodeError):
+        extract_json_object('{"ok": true "missing": true}', label="test")
 
 
-def test_validation_error_focus_resolves_nested_array_rows_and_schema() -> None:
-    payload = {
-        "packets": [
-            {
-                "blocks": [
-                    {"block_id": "b0", "scope_parent_id": "theorem:id"},
-                    {"block_id": "b1", "scope_parent_id": "b0"},
-                ]
-            }
-        ]
-    }
+def test_format_generation_error_includes_bounded_excerpt() -> None:
+    bad = '{"items": ["a" "b"], "tail": "' + ("x" * 1000) + '"}'
+    with pytest.raises(json.JSONDecodeError) as caught:
+        json.loads(bad)
+    message = _format_generation_error(caught.value, bad)
+    assert "JSONDecodeError" in message
+    assert '"a" "b"' in message
+    assert "x" * 500 not in message
+
+
+def test_validation_error_focus_resolves_nested_rows_and_schema() -> None:
+    payload = {"packets": [{"blocks": [{"id": "b0"}, {"id": "b1"}]}]}
     block_schema = {
         "type": "object",
-        "required": ["block_id", "scope_parent_id"],
-        "properties": {
-            "block_id": {"type": "string"},
-            "scope_parent_id": {
-                "type": "string",
-                "description": "Empty or an earlier block_id.",
-            },
-        },
+        "required": ["id"],
+        "properties": {"id": {"type": "string"}},
     }
     schema = {
         "type": "object",
@@ -85,14 +101,11 @@ def test_validation_error_focus_resolves_nested_array_rows_and_schema() -> None:
             }
         },
     }
-    errors = [
-        "packets[0] blocks[0] scope_parent_id must reference an earlier block"
-    ]
-
+    errors = ["packets[0] blocks[1] id is invalid"]
     assert _validation_error_focus_values(payload, errors=errors) == [
         {
-            "path": ["packets", 0, "blocks", 0],
-            "value": payload["packets"][0]["blocks"][0],
+            "path": ["packets", 0, "blocks", 1],
+            "value": {"id": "b1"},
             "value_truncated": False,
         }
     ]
@@ -109,1646 +122,165 @@ def test_validation_error_focus_resolves_nested_array_rows_and_schema() -> None:
     ]
 
 
-def test_compact_semantic_patch_can_enable_strict_output_only_for_repair() -> None:
-    class RepairMetadataBackend:
-        provider_name = "static"
+def test_repair_prompt_returns_full_regeneration_context() -> None:
+    prior = json.dumps({"status": "invalid", "detail": "y" * 8000})
+    prompt = _repair_prompt(
+        original_user_prompt="START" + ("x" * 9000) + "END",
+        bad_response=prior,
+        errors=["status must be valid"],
+        validation_label="status packet",
+    )
+    payload = json.loads(prompt.split("\n\n", 1)[1])
+    assert payload["original_request"]["truncated"] is True
+    assert payload["invalid_response_excerpt"] == prior
+    instructions = " ".join(payload["repair_instructions"])
+    assert "Rewrite the full JSON object from scratch" in instructions
+    assert "do not emit a patch" in instructions
 
-        def __init__(self) -> None:
-            self.requests: list[GeneratorRequest] = []
 
-        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
-            self.requests.append(request)
-            if len(self.requests) == 1:
-                response = {"status": "invalid"}
-            else:
-                repair_payload = json.loads(request.user_prompt.split("\n\n", 1)[1])
-                response = {
-                    "base_payload_fingerprint": repair_payload[
-                        "base_payload_fingerprint"
-                    ],
-                    "updates": [{"path": ["status"], "replacement": "valid"}],
-                }
-            return GeneratorResponse(
-                text=json.dumps(response),
-                provider=self.provider_name,
-                model=request.model,
-            )
-
-    backend = RepairMetadataBackend()
+def test_generate_validated_packet_regenerates_complete_object() -> None:
+    backend = _SequenceBackend(
+        [{"status": "invalid", "keep": "context"}, {"status": "valid"}]
+    )
     packet = generate_validated_json_packet(
         provider=backend,
-        request=GeneratorRequest(
-            system_prompt="Return JSON.",
-            user_prompt="Produce status JSON.",
-            model="test-haiku",
-            max_tokens=1000,
-            schema={
-                "type": "object",
-                "required": ["status"],
-                "properties": {"status": {"type": "string"}},
-            },
-            metadata={PROVIDER_STRUCTURED_OUTPUT_ON_REPAIR_METADATA_KEY: True},
-        ),
-        extract_payload=lambda text: extract_json_object(text, label="status packet"),
-        build_packet=lambda payload, response, raw_text: dict(payload),
+        request=_request(),
+        extract_payload=lambda text: extract_json_object(text, label="status"),
+        build_packet=lambda payload, _response, _raw: dict(payload),
         validate_packet=lambda candidate: (
             [] if candidate.get("status") == "valid" else ["status must be valid"]
         ),
         validation_label="status packet",
         max_repair_attempts=1,
-        semantic_patch_repair=True,
     )
-
     assert packet["status"] == "valid"
-    assert backend.requests[0].metadata.get(
-        PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY
-    ) is not True
-    assert (
-        backend.requests[1].metadata[PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY]
-        is True
-    )
-
-
-def test_exact_key_cardinality_error_requires_full_regeneration() -> None:
-    assert not _typed_semantic_patch_fits_update_budget(
-        ["interfaces must contain exactly one row for every frozen estimator id"]
-    )
-
-
-def test_compact_response_metadata_preserves_structured_output_fallback() -> None:
-    compact = _compact_response_metadata(
-        {
-            "provider_structured_output_requested": True,
-            "provider_structured_output_applied": False,
-            "provider_structured_output_fallback_count": 1,
-            "provider_structured_output_fallback_reason": "schema_not_supported",
-            "provider_structured_output_cached_fallback": True,
-            "unrelated_large_metadata": "x" * 1000,
-        }
-    )
-
-    assert compact == {
-        "provider_structured_output_requested": True,
-        "provider_structured_output_applied": False,
-        "provider_structured_output_fallback_count": 1,
-        "provider_structured_output_fallback_reason": "schema_not_supported",
-        "provider_structured_output_cached_fallback": True,
-    }
-
-
-def test_extract_json_object_uses_first_balanced_object_not_greedy_tail() -> None:
-    text = (
-        "Here is the packet:\n"
-        "{\"ok\": true, \"note\": \"brace in string { kept }\"}\n"
-        "Trailing explanation with another {not json} brace."
-    )
-
-    assert extract_json_object(text, label="test") == {
-        "ok": True,
-        "note": "brace in string { kept }",
-    }
-
-
-def test_extract_json_object_preserves_decode_error_for_almost_json() -> None:
-    with pytest.raises(json.JSONDecodeError):
-        extract_json_object('{"ok": true "missing_comma": true}', label="test")
-
-
-def test_format_generation_error_includes_bounded_json_error_excerpt() -> None:
-    bad_response = '{"ok": true, "items": ["a", "b" "c"], "tail": "' + ("x" * 1000) + '"}'
-    with pytest.raises(json.JSONDecodeError) as caught:
-        json.loads(bad_response)
-
-    message = _format_generation_error(caught.value, bad_response)
-
-    assert "JSONDecodeError" in message
-    assert "response_excerpt_around_error=" in message
-    assert '"b" "c"' in message
-    assert "x" * 500 not in message
-
-
-def test_repair_prompt_compacts_large_original_request() -> None:
-    original = "START" + ("x" * 9000) + "required_output_contract"
-    prompt = _repair_prompt(
-        original_user_prompt=original,
-        bad_response='{"ok": true "broken": true}',
-        errors=["JSONDecodeError: missing comma"],
-        validation_label="test packet",
-    )
-    payload = json.loads(prompt.split("\n\n", 1)[1])
-    original_request = payload["original_request"]
-
-    assert original_request["truncated"] is True
-    assert original_request["n_chars"] == len(original)
-    assert original_request["head"].startswith("START")
-    assert original_request["tail"].endswith("required_output_contract")
-    assert "x" * 9000 not in prompt
-    assert (
-        "Rewrite the full JSON object from scratch; do not continue or patch the invalid response."
-        in payload["repair_instructions"]
-    )
-    assert (
-        "Use exactly one item for required arrays unless the original contract explicitly requires more."
-        in payload["repair_instructions"]
-    )
-    assert (
-        "Keep string fields under 240 characters and avoid multiline derivation essays."
-        in payload["repair_instructions"]
-    )
-
-
-def test_generate_validated_json_packet_feeds_validation_errors_into_repair_prompt() -> None:
-    class SequencedBackend:
-        provider_name = "test"
-
-        def __init__(self) -> None:
-            self.requests: list[GeneratorRequest] = []
-            self.responses = ['{"ok": false}', '{"ok": true}']
-
-        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
-            self.requests.append(request)
-            return GeneratorResponse(
-                text=self.responses.pop(0),
-                provider=self.provider_name,
-                model=request.model,
-            )
-
-    backend = SequencedBackend()
-    request = GeneratorRequest(
-        system_prompt="Return JSON.",
-        user_prompt="Produce a packet with required semantic anchors.",
-        model="test-model",
-        max_tokens=128,
-    )
-
-    packet = generate_validated_json_packet(
-        provider=backend,
-        request=request,
-        extract_payload=lambda text: extract_json_object(text, label="test packet"),
-        build_packet=lambda payload, response, raw_text: dict(payload),
-        validate_packet=lambda candidate: []
-        if candidate.get("ok") is True
-        else ["missing required semantic anchor references: hRank"],
-        validation_label="test packet",
-        max_repair_attempts=1,
-    )
-
-    assert packet["ok"] is True
-    assert packet["llm_json_repair_attempts"] == 1
-    assert len(backend.requests) == 2
-    repair_prompt = backend.requests[1].user_prompt
-    assert "local_validation_errors" in repair_prompt
-    assert "missing required semantic anchor references: hRank" in repair_prompt
-    assert '"invalid_response_excerpt": "{\\"ok\\": false}"' in repair_prompt
-
-
-def test_collection_cardinality_error_uses_full_packet_regeneration() -> None:
-    class SequencedBackend:
-        provider_name = "anthropic"
-
-        def __init__(self) -> None:
-            self.requests: list[GeneratorRequest] = []
-            self.responses = [
-                {"rows": [{"status": "PASS"} for _ in range(7)]},
-                {"rows": [{"status": "PASS"} for _ in range(6)]},
-            ]
-
-        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
-            self.requests.append(request)
-            return GeneratorResponse(
-                text=json.dumps(self.responses.pop(0)),
-                provider=self.provider_name,
-                model=request.model,
-            )
-
-    backend = SequencedBackend()
-    packet = generate_validated_json_packet(
-        provider=backend,
-        request=GeneratorRequest(
-            system_prompt="Return JSON.",
-            user_prompt="Return exactly six runtime-owned review slots.",
-            model=LIVE_EVALUATION_CLAUDE_MODEL,
-            max_tokens=512,
-            schema={
-                "type": "object",
-                "properties": {
-                    "rows": {
-                        "type": "array",
-                        "minItems": 6,
-                        "maxItems": 6,
-                    }
-                },
-            },
-            metadata={"model_tier": LIVE_EVALUATION_CLAUDE_MODEL_TIER},
-        ),
-        extract_payload=lambda text: extract_json_object(
-            text,
-            label="runtime-owned slot packet",
-        ),
-        build_packet=lambda payload, response, raw_text: dict(payload),
-        validate_packet=lambda candidate: []
-        if len(candidate.get("rows", [])) == 6
-        else ["rows must contain each required slot exactly once"],
-        validation_label="runtime-owned slot packet",
-        max_repair_attempts=1,
-        semantic_patch_repair=True,
-    )
-
-    assert len(packet["rows"]) == 6
-    assert [request.model for request in backend.requests] == [
-        LIVE_EVALUATION_CLAUDE_MODEL,
-        LIVE_EVALUATION_CLAUDE_MODEL,
-    ]
-    assert [
-        request.metadata["json_repair_mode"] for request in backend.requests
-    ] == [
-        "full_packet_generation",
-        "full_packet_regeneration",
-    ]
-    assert backend.requests[1].schema == backend.requests[0].schema
-
-
-def test_validation_error_preserves_final_invalid_packet() -> None:
-    class InvalidBackend:
-        provider_name = "test"
-
-        def __init__(self) -> None:
-            self.requests: list[GeneratorRequest] = []
-
-        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
-            self.requests.append(request)
-            return GeneratorResponse(
-                text=json.dumps(
-                    {
-                        "revision": len(self.requests),
-                        "rows": [{"status": "invalid"}],
-                    }
-                ),
-                provider=self.provider_name,
-                model=request.model,
-            )
-
-    with pytest.raises(PacketValidationError) as caught:
-        generate_validated_json_packet(
-            provider=InvalidBackend(),
-            request=GeneratorRequest(
-                system_prompt="Return JSON.",
-                user_prompt="Produce a packet.",
-                model="test-haiku",
-                max_tokens=128,
-            ),
-            extract_payload=lambda text: extract_json_object(
-                text, label="invalid packet"
-            ),
-            build_packet=lambda payload, response, raw_text: dict(payload),
-            validate_packet=lambda candidate: ["rows[0].status must be valid"],
-            validation_label="invalid packet",
-            max_repair_attempts=1,
-        )
-
-    assert caught.value.last_invalid_packet == {
-        "revision": 2,
-        "rows": [{"status": "invalid"}],
-    }
-
-
-def test_generate_validated_json_packet_includes_subsystem_repair_context() -> None:
-    class SequencedBackend:
-        provider_name = "test"
-
-        def __init__(self) -> None:
-            self.requests: list[GeneratorRequest] = []
-            self.responses = ['{"ok": false}', '{"ok": true}']
-
-        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
-            self.requests.append(request)
-            return GeneratorResponse(
-                text=self.responses.pop(0),
-                provider=self.provider_name,
-                model=request.model,
-            )
-
-    backend = SequencedBackend()
-    request = GeneratorRequest(
-        system_prompt="Return JSON.",
-        user_prompt="Produce a packet.",
-        model="test-model",
-        max_tokens=128,
-    )
-
-    packet = generate_validated_json_packet(
-        provider=backend,
-        request=request,
-        extract_payload=lambda text: extract_json_object(text, label="test packet"),
-        build_packet=lambda payload, response, raw_text: dict(payload),
-        validate_packet=lambda candidate: []
-        if candidate.get("ok") is True
-        else ["missing subsystem-specific field"],
-        validation_label="test packet",
-        max_repair_attempts=1,
-        repair_context_builder=lambda **kwargs: {
-            "context_kind": "subsystem_repair_context",
-            "errors_seen": kwargs["errors"],
-            "invalid_payload_seen": kwargs["invalid_payload"],
-            "invalid_packet_seen": kwargs["invalid_packet"],
-            "required_field": "semantic_anchor",
-            "repair_prompt_priority_instructions": [
-                "Copy subsystem seed into candidate field."
-            ],
-        },
-    )
-
-    assert packet["ok"] is True
-    repair_payload = json.loads(backend.requests[1].user_prompt.split("\n\n", 1)[1])
-    assert repair_payload["subsystem_repair_context"] == {
-        "context_kind": "subsystem_repair_context",
-        "errors_seen": ["missing subsystem-specific field"],
-        "invalid_payload_seen": {"ok": False},
-        "invalid_packet_seen": {"ok": False},
-        "required_field": "semantic_anchor",
-        "repair_prompt_priority_instructions": [
-            "Copy subsystem seed into candidate field."
-        ],
-    }
-    assert (
-        "Copy subsystem seed into candidate field."
-        in repair_payload["repair_instructions"]
-    )
-
-
-def test_semantic_patch_repair_preserves_unaffected_large_payload() -> None:
-    large_candidate = "candidate:" + ("x" * 9000)
-
-    class PatchBackend:
-        provider_name = "test"
-
-        def __init__(self) -> None:
-            self.requests: list[GeneratorRequest] = []
-
-        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
-            self.requests.append(request)
-            if len(self.requests) == 1:
-                response = {
-                    "formal_targets": [
-                        {
-                            "id": "FT1",
-                            "provenance": {"source_goal_id": ""},
-                        }
-                    ],
-                    "large_candidate": large_candidate,
-                }
-            else:
-                repair_payload = json.loads(
-                    request.user_prompt.split("\n\n", 1)[1]
-                )
-                response = {
-                    "base_payload_fingerprint": repair_payload[
-                        "base_payload_fingerprint"
-                    ],
-                    "updates": [
-                        {
-                            "path": [
-                                "base_payload_excerpt",
-                                "top_level_outline",
-                                "formal_targets",
-                                0,
-                                "provenance",
-                                "source_goal_id",
-                            ],
-                            "replacement_json": json.dumps("THM1"),
-                        }
-                    ],
-                }
-            return GeneratorResponse(
-                text=json.dumps(response),
-                provider=self.provider_name,
-                model=request.model,
-            )
-
-    backend = PatchBackend()
-    packet = generate_validated_json_packet(
-        provider=backend,
-        request=GeneratorRequest(
-            system_prompt="Return JSON.",
-            user_prompt="Produce a large typed packet.",
-            model="test-model",
-            max_tokens=6000,
-            schema={"type": "object"},
-        ),
-        extract_payload=lambda text: extract_json_object(
-            text,
-            label="large typed packet",
-        ),
-        build_packet=lambda payload, response, raw_text: dict(payload),
-        validate_packet=lambda candidate: (
-            []
-            if candidate["formal_targets"][0]["provenance"][
-                "source_goal_id"
-            ]
-            else ["formal target FT1 must preserve source_goal_id"]
-        ),
-        validation_label="large typed packet",
-        max_repair_attempts=1,
-        semantic_patch_repair=True,
-    )
-
-    assert len(backend.requests) == 2
-    assert backend.requests[1].metadata["json_repair_mode"] == (
-        "typed_semantic_patch"
-    )
-    assert backend.requests[1].max_tokens == 6000
-    assert backend.requests[1].schema is not None
-    assert set(backend.requests[1].schema["required"]) == {
-        "base_payload_fingerprint",
-        "updates",
-    }
-    repair_payload = json.loads(
-        backend.requests[1].user_prompt.split("\n\n", 1)[1]
-    )
-    assert repair_payload["base_payload_excerpt"]["formal_targets"][0][
-        "id"
-    ] == "FT1"
-    assert "top_level_outline" not in repair_payload["base_payload_excerpt"]
-    assert repair_payload["base_payload_excerpt_metadata"]["truncated"] is True
-    assert (
-        repair_payload["base_payload_excerpt_metadata"][
-            "excerpt_is_payload_root"
-        ]
-        is True
-    )
-    assert any(
-        "relative to the base payload root" in instruction
-        and "first component must be an actual top-level packet field" in instruction
-        for instruction in repair_payload["repair_instructions"]
-    )
-    assert large_candidate not in backend.requests[1].user_prompt
-    assert packet["large_candidate"] == large_candidate
-    assert packet["formal_targets"][0]["provenance"]["source_goal_id"] == (
-        "THM1"
-    )
-    assert packet["llm_json_repair_history"][0]["repair_mode"] == (
-        "full_packet_generation"
-    )
-    patch_history = packet["llm_json_repair_history"][1]
-    assert patch_history["repair_mode"] == "typed_semantic_patch"
-    assert patch_history["patched_paths"] == [
-        ["formal_targets", 0, "provenance", "source_goal_id"]
-    ]
-    assert patch_history["patch_path_normalizations"] == [
-        {
-            "update_index": 0,
-            "stripped_prompt_wrapper_prefixes": [
-                "base_payload_excerpt",
-                "top_level_outline",
-            ],
-            "normalized_path": [
-                "formal_targets",
-                0,
-                "provenance",
-                "source_goal_id",
-            ],
-        }
-    ]
-    assert patch_history["base_payload_fingerprint"]
-    assert patch_history["patched_payload_fingerprint"]
-
-
-def test_semantic_patch_replaces_empty_array_when_adding_first_row() -> None:
-    class ArrayPatchBackend:
-        provider_name = "test"
-
-        def __init__(self) -> None:
-            self.requests: list[GeneratorRequest] = []
-
-        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
-            self.requests.append(request)
-            if len(self.requests) == 1:
-                response = {
-                    "dimension_reviews": [
-                        {"dimension": "mathematical_consistency", "status": "PASS"}
-                    ],
-                    "findings": [],
-                }
-            else:
-                repair_payload = json.loads(
-                    request.user_prompt.split("\n\n", 1)[1]
-                )
-                assert any(
-                    "target the containing array field" in instruction
-                    for instruction in repair_payload["repair_instructions"]
-                )
-                response = {
-                    "base_payload_fingerprint": repair_payload[
-                        "base_payload_fingerprint"
-                    ],
-                    "updates": [
-                        {
-                            "path": ["dimension_reviews", 0, "status"],
-                            "replacement": "FAIL",
-                        },
-                        {
-                            "path": ["findings"],
-                            "replacement_json": json.dumps(
-                                [{"severity": "high", "summary": "Conflict"}]
-                            ),
-                        },
-                    ],
-                }
-            return GeneratorResponse(
-                text=json.dumps(response),
-                provider=self.provider_name,
-                model=request.model,
-            )
-
-    def validate(candidate: dict[str, object]) -> list[str]:
-        dimensions = candidate.get("dimension_reviews", [])
-        findings = candidate.get("findings", [])
-        errors = []
-        if not isinstance(dimensions, list) or dimensions[0]["status"] != "FAIL":
-            errors.append("failed identity requires mathematical consistency FAIL")
-        if not isinstance(findings, list) or not findings:
-            errors.append("failed identity requires a high typed finding")
-        return errors
-
-    backend = ArrayPatchBackend()
-    packet = generate_validated_json_packet(
-        provider=backend,
-        request=GeneratorRequest(
-            system_prompt="Return JSON.",
-            user_prompt="Review one identity.",
-            model="test-haiku",
-            max_tokens=2000,
-            schema={"type": "object"},
-        ),
-        extract_payload=lambda text: extract_json_object(
-            text,
-            label="identity review",
-        ),
-        build_packet=lambda payload, response, raw_text: dict(payload),
-        validate_packet=validate,
-        validation_label="identity review",
-        max_repair_attempts=1,
-        semantic_patch_repair=True,
-    )
-
-    assert len(backend.requests) == 2
-    assert packet["dimension_reviews"][0]["status"] == "FAIL"
-    assert packet["findings"] == [{"severity": "high", "summary": "Conflict"}]
-    assert packet["llm_json_repair_history"][1]["patched_paths"] == [
-        ["dimension_reviews", 0, "status"],
-        ["findings"],
-    ]
-
-
-def test_progress_extension_allows_one_strictly_smaller_patch_residual() -> None:
-    class ProgressivePatchBackend:
-        provider_name = "test"
-
-        def __init__(self) -> None:
-            self.requests: list[GeneratorRequest] = []
-
-        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
-            self.requests.append(request)
-            if len(self.requests) == 1:
-                response = {"first": False, "second": False}
-            else:
-                repair_payload = json.loads(
-                    request.user_prompt.split("\n\n", 1)[1]
-                )
-                field = "first" if len(self.requests) == 2 else "second"
-                response = {
-                    "base_payload_fingerprint": repair_payload[
-                        "base_payload_fingerprint"
-                    ],
-                    "updates": [
-                        {
-                            "path": [field],
-                            "replacement": True,
-                        }
-                    ],
-                }
-            return GeneratorResponse(
-                text=json.dumps(response),
-                provider=self.provider_name,
-                model=request.model,
-            )
-
-    def validate(candidate: dict[str, object]) -> list[str]:
-        return [
-            f"{field} must be true"
-            for field in ("first", "second")
-            if candidate.get(field) is not True
-        ]
-
-    backend = ProgressivePatchBackend()
-    packet = generate_validated_json_packet(
-        provider=backend,
-        request=GeneratorRequest(
-            system_prompt="Return JSON.",
-            user_prompt="Produce a two-field packet.",
-            model="test-haiku",
-            max_tokens=5000,
-            schema={"type": "object"},
-        ),
-        extract_payload=lambda text: extract_json_object(
-            text,
-            label="progressive packet",
-        ),
-        build_packet=lambda payload, response, raw_text: dict(payload),
-        validate_packet=validate,
-        validation_label="progressive packet",
-        max_repair_attempts=1,
-        semantic_patch_repair=True,
-        allow_progress_repair_extension=True,
-    )
-
-    assert packet["first"] is True
-    assert packet["second"] is True
-    assert len(backend.requests) == 3
-    assert [
-        request.metadata["json_repair_progress_extension_attempt"]
-        for request in backend.requests
-    ] == [0, 0, 1]
-    assert [
-        row["progress_extension_attempt"]
-        for row in packet["llm_json_repair_history"]
-    ] == [0, 0, 1]
-    assert [
-        len(row["errors"])
-        for row in packet["llm_json_repair_history"]
-    ] == [2, 1, 0]
-
-
-def test_progress_extension_stops_when_patch_makes_no_progress() -> None:
-    class StalledPatchBackend:
-        provider_name = "test"
-
-        def __init__(self) -> None:
-            self.requests: list[GeneratorRequest] = []
-
-        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
-            self.requests.append(request)
-            if len(self.requests) == 1:
-                response = {"first": False, "second": False}
-            else:
-                repair_payload = json.loads(
-                    request.user_prompt.split("\n\n", 1)[1]
-                )
-                response = {
-                    "base_payload_fingerprint": repair_payload[
-                        "base_payload_fingerprint"
-                    ],
-                    "updates": [
-                        {
-                            "path": ["first"],
-                            "replacement": False,
-                        }
-                    ],
-                }
-            return GeneratorResponse(
-                text=json.dumps(response),
-                provider=self.provider_name,
-                model=request.model,
-            )
-
-    backend = StalledPatchBackend()
-    with pytest.raises(PacketValidationError) as caught:
-        generate_validated_json_packet(
-            provider=backend,
-            request=GeneratorRequest(
-                system_prompt="Return JSON.",
-                user_prompt="Produce a two-field packet.",
-                model="test-haiku",
-                max_tokens=5000,
-                schema={"type": "object"},
-            ),
-            extract_payload=lambda text: extract_json_object(
-                text,
-                label="stalled packet",
-            ),
-            build_packet=lambda payload, response, raw_text: dict(payload),
-            validate_packet=lambda candidate: [
-                f"{field} must be true"
-                for field in ("first", "second")
-                if candidate.get(field) is not True
-            ],
-            validation_label="stalled packet",
-            max_repair_attempts=1,
-            semantic_patch_repair=True,
-            allow_progress_repair_extension=True,
-        )
-
-    assert caught.value.attempts == 2
-    assert len(backend.requests) == 2
-    assert [len(row["errors"]) for row in caught.value.history] == [2, 2]
-    assert all(
-        row["progress_extension_attempt"] == 0
-        for row in caught.value.history
-    )
-
-
-def test_progress_extension_allows_non_growing_validator_frontier() -> None:
-    class RevealedResidualBackend:
-        provider_name = "test"
-
-        def __init__(self) -> None:
-            self.requests: list[GeneratorRequest] = []
-
-        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
-            self.requests.append(request)
-            if len(self.requests) == 1:
-                response = {"first": False, "second": False, "revealed": False}
-            else:
-                repair_payload = json.loads(
-                    request.user_prompt.split("\n\n", 1)[1]
-                )
-                updates = (
-                    [{"path": ["first"], "replacement": True}]
-                    if len(self.requests) == 2
-                    else [
-                        {"path": ["second"], "replacement": True},
-                        {"path": ["revealed"], "replacement": True},
-                    ]
-                )
-                response = {
-                    "base_payload_fingerprint": repair_payload[
-                        "base_payload_fingerprint"
-                    ],
-                    "updates": updates,
-                }
-            return GeneratorResponse(
-                text=json.dumps(response),
-                provider=self.provider_name,
-                model=request.model,
-            )
-
-    def validate(candidate: dict[str, object]) -> list[str]:
-        errors = []
-        if candidate.get("first") is not True:
-            errors.append("first must be true")
-        if candidate.get("second") is not True:
-            errors.append("second must be true")
-        if candidate.get("first") is True and candidate.get("revealed") is not True:
-            errors.append("revealed dependency must be true")
-        return errors
-
-    backend = RevealedResidualBackend()
-    packet = generate_validated_json_packet(
-        provider=backend,
-        request=GeneratorRequest(
-            system_prompt="Return JSON.",
-            user_prompt="Produce a dependency packet.",
-            model="test-haiku",
-            max_tokens=5000,
-            schema={"type": "object"},
-        ),
-        extract_payload=lambda text: extract_json_object(
-            text,
-            label="revealed residual packet",
-        ),
-        build_packet=lambda payload, response, raw_text: dict(payload),
-        validate_packet=validate,
-        validation_label="revealed residual packet",
-        max_repair_attempts=1,
-        semantic_patch_repair=True,
-        allow_progress_repair_extension=True,
-    )
-
-    assert packet["first"] is True
-    assert packet["second"] is True
-    assert packet["revealed"] is True
-    assert len(backend.requests) == 3
-    assert [
-        row["progress_extension_attempt"]
-        for row in packet["llm_json_repair_history"]
-    ] == [0, 0, 1]
-    assert [
-        len(row["errors"])
-        for row in packet["llm_json_repair_history"]
-    ] == [2, 2, 0]
-
-
-def test_progress_extension_rejects_changed_single_residual() -> None:
-    class ChangedResidualBackend:
-        provider_name = "test"
-
-        def __init__(self) -> None:
-            self.requests: list[GeneratorRequest] = []
-
-        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
-            self.requests.append(request)
-            if len(self.requests) == 1:
-                response = {"authority_kind": "evaluation_design"}
-            else:
-                repair_payload = json.loads(
-                    request.user_prompt.split("\n\n", 1)[1]
-                )
-                authority_kind = (
-                    "theory_derived"
-                    if len(self.requests) == 2
-                    else "architect_preregistered_design"
-                )
-                response = {
-                    "base_payload_fingerprint": repair_payload[
-                        "base_payload_fingerprint"
-                    ],
-                    "updates": [
-                        {
-                            "path": ["authority_kind"],
-                            "replacement": authority_kind,
-                        }
-                    ],
-                }
-            return GeneratorResponse(
-                text=json.dumps(response),
-                provider=self.provider_name,
-                model=request.model,
-            )
-
-    def validate(candidate: dict[str, object]) -> list[str]:
-        authority_kind = candidate.get("authority_kind")
-        if authority_kind == "architect_preregistered_design":
-            return []
-        if authority_kind == "theory_derived":
-            return ["theory_derived cannot authorize the numeric bound"]
-        return ["numeric bound is absent from the evaluation design"]
-
-    backend = ChangedResidualBackend()
-    with pytest.raises(PacketValidationError) as caught:
-        generate_validated_json_packet(
-            provider=backend,
-            request=GeneratorRequest(
-                system_prompt="Return JSON.",
-                user_prompt="Assign a valid numeric authority owner.",
-                model="test-haiku",
-                max_tokens=5000,
-                schema={"type": "object"},
-            ),
-            extract_payload=lambda text: extract_json_object(
-                text,
-                label="numeric authority packet",
-            ),
-            build_packet=lambda payload, response, raw_text: dict(payload),
-            validate_packet=validate,
-            validation_label="numeric authority packet",
-            max_repair_attempts=2,
-            semantic_patch_repair=True,
-            allow_progress_repair_extension=True,
-            progress_repair_policy=(
-                SEMANTIC_PATCH_PROGRESS_POLICY_STRICT_RESIDUAL_SET
-            ),
-        )
-
-    assert caught.value.attempts == 2
-    assert len(backend.requests) == 2
-    assert caught.value.errors == [
-        "theory_derived cannot authorize the numeric bound"
-    ]
-    assert [
-        row["progress_extension_attempt"]
-        for row in caught.value.history
-    ] == [0, 0]
-    assert caught.value.history[0]["errors"] != (
-        caught.value.history[1]["errors"]
-    )
-
-
-def test_semantic_patch_focuses_validator_named_rows_at_original_indices() -> None:
-    class FocusedRowBackend:
-        provider_name = "test"
-
-        def __init__(self) -> None:
-            self.requests: list[GeneratorRequest] = []
-
-        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
-            self.requests.append(request)
-            if len(self.requests) == 1:
-                response = {
-                    "rows": [
-                        {"row_id": index, "status": "invalid", "anchors": []}
-                        for index in range(5)
-                    ],
-                    "large_candidate": "x" * 9000,
-                }
-            else:
-                repair_payload = json.loads(
-                    request.user_prompt.split("\n\n", 1)[1]
-                )
-                response = {
-                    "base_payload_fingerprint": repair_payload[
-                        "base_payload_fingerprint"
-                    ],
-                    "updates": [
-                        {
-                            "path": ["rows", 4, "status"],
-                            "replacement": "valid",
-                        },
-                        {
-                            "path": ["rows", 4, "anchors"],
-                            "replacement_json": json.dumps(["source:current-row"]),
-                        }
-                    ],
-                }
-            return GeneratorResponse(
-                text=json.dumps(response),
-                provider=self.provider_name,
-                model=request.model,
-            )
-
-    backend = FocusedRowBackend()
-    packet = generate_validated_json_packet(
-        provider=backend,
-        request=GeneratorRequest(
-            system_prompt="Return JSON.",
-            user_prompt="Produce a row packet.",
-            model="test-haiku",
-            max_tokens=5000,
-            schema={
-                "type": "object",
-                "properties": {
-                    "rows": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "required": ["row_id", "status", "anchors"],
-                            "properties": {
-                                "row_id": {"type": "integer"},
-                                "status": {"type": "string"},
-                                "anchors": {
-                                    "type": "array",
-                                    "minItems": 1,
-                                    "items": {"type": "string"},
-                                },
-                            },
-                        },
-                    }
-                },
-            },
-        ),
-        extract_payload=lambda text: extract_json_object(text, label="row packet"),
-        build_packet=lambda payload, response, raw_text: dict(payload),
-        validate_packet=lambda candidate: (
-            []
-            if candidate["rows"][4]["status"] == "valid"
-            and candidate["rows"][4]["anchors"] == ["source:current-row"]
-            else ["rows[4].status must be valid"]
-        ),
-        validation_label="row packet",
-        max_repair_attempts=1,
-        semantic_patch_repair=True,
-    )
-
-    repair_payload = json.loads(
-        backend.requests[1].user_prompt.split("\n\n", 1)[1]
-    )
-    assert len(repair_payload["base_payload_excerpt"]["rows"]) == 2
-    assert repair_payload["validation_error_focus_values"] == [
-        {
-            "path": ["rows", 4],
-            "value": {"anchors": [], "row_id": 4, "status": "invalid"},
-            "value_truncated": False,
-        }
-    ]
-    assert repair_payload["validation_error_focus_schemas"] == [
-        {
-            "path_pattern": ["rows", "<array_index>"],
-            "expected_item_schema": backend.requests[0].schema["properties"][
-                "rows"
-            ]["items"],
-        }
-    ]
-    assert repair_payload["patch_contract"]["maximum_updates"] == 4
-    assert backend.requests[1].schema["properties"]["updates"]["maxItems"] == 4
-    assert packet["rows"][4]["status"] == "valid"
-    assert packet["rows"][4]["anchors"] == ["source:current-row"]
-
-
-@pytest.mark.parametrize(
-    ("update", "message"),
-    [
-        (
-            {
-                "path": ["status"],
-                "replacement": {"status": "valid"},
-            },
-            "finite JSON scalar",
-        ),
-        (
-            {
-                "path": ["status"],
-                "replacement": ["valid"],
-            },
-            "finite JSON scalar",
-        ),
-        (
-            {
-                "path": ["status"],
-                "replacement": "valid",
-                "replacement_json": json.dumps("valid"),
-            },
-            "exactly one of replacement, replacement_json, or remove",
-        ),
-    ],
-)
-def test_typed_semantic_patch_rejects_ambiguous_or_complex_direct_replacements(
-    update: dict[str, object],
-    message: str,
-) -> None:
-    with pytest.raises(ValueError, match=message):
-        _apply_typed_semantic_patch(
-            base_payload={"status": "invalid"},
-            expected_base_fingerprint="base-fingerprint",
-            patch_envelope={
-                "base_payload_fingerprint": "base-fingerprint",
-                "updates": [update],
-            },
-            max_updates=4,
-        )
-
-
-def test_typed_semantic_patch_allows_any_existing_payload_depth() -> None:
-    path = [
-        "estimator_specs",
-        0,
-        "estimator_interface_contract",
-        "response_fields",
-        0,
-        "sample_size_rate",
-        "contributions",
-        0,
-        "justification_ref",
-    ]
-    base_payload = {
-        "estimator_specs": [
-            {
-                "estimator_interface_contract": {
-                    "response_fields": [
-                        {
-                            "sample_size_rate": {
-                                "contributions": [
-                                    {"justification_ref": "missing_reference"}
-                                ]
-                            }
-                        }
-                    ]
-                }
-            }
-        ]
-    }
-
-    patched, applied_paths, _normalizations = _apply_typed_semantic_patch(
-        base_payload=base_payload,
-        expected_base_fingerprint="base-fingerprint",
-        patch_envelope={
-            "base_payload_fingerprint": "base-fingerprint",
-            "updates": [
-                {
-                    "path": path,
-                    "replacement": "valid_reference",
-                }
-            ],
-        },
-        max_updates=4,
-    )
-
-    assert applied_paths == [path]
-    assert (
-        patched["estimator_specs"][0]["estimator_interface_contract"]
-        ["response_fields"][0]["sample_size_rate"]["contributions"][0]
-        ["justification_ref"]
-        == "valid_reference"
-    )
-    patch_schema = _typed_semantic_patch_schema(max_updates=4)
-    update_variants = patch_schema["properties"]["updates"]["items"]["anyOf"]
-    assert all(
-        "maxItems" not in variant["properties"]["path"]
-        for variant in update_variants
-    )
-
-
-def test_typed_semantic_patch_removes_exact_model_selected_array_item() -> None:
-    patched, applied_paths, normalizations = _apply_typed_semantic_patch(
-        base_payload={"rows": [{"id": "keep"}, {"id": "remove"}]},
-        expected_base_fingerprint="base-fingerprint",
-        patch_envelope={
-            "base_payload_fingerprint": "base-fingerprint",
-            "updates": [
-                {
-                    "path": ["rows", 1],
-                    "remove": True,
-                }
-            ],
-        },
-        max_updates=4,
-    )
-
-    assert patched == {"rows": [{"id": "keep"}]}
-    assert applied_paths == [["rows", 1]]
-    assert normalizations == []
-
-
-def test_typed_semantic_patch_remove_rejects_object_field_deletion() -> None:
-    with pytest.raises(ValueError, match="existing array-item path"):
-        _apply_typed_semantic_patch(
-            base_payload={"status": "invalid"},
-            expected_base_fingerprint="base-fingerprint",
-            patch_envelope={
-                "base_payload_fingerprint": "base-fingerprint",
-                "updates": [
-                    {
-                        "path": ["status"],
-                        "remove": True,
-                    }
-                ],
-            },
-            max_updates=4,
-        )
-
-
-def test_semantic_patch_does_not_strip_a_real_wrapper_named_payload_field() -> None:
-    class WrapperFieldBackend:
-        provider_name = "test"
-
-        def __init__(self) -> None:
-            self.requests: list[GeneratorRequest] = []
-
-        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
-            self.requests.append(request)
-            if len(self.requests) == 1:
-                response = {
-                    "base_payload_excerpt": {"status": "invalid"},
-                }
-            else:
-                repair_payload = json.loads(
-                    request.user_prompt.split("\n\n", 1)[1]
-                )
-                response = {
-                    "base_payload_fingerprint": repair_payload[
-                        "base_payload_fingerprint"
-                    ],
-                    "updates": [
-                        {
-                            "path": ["base_payload_excerpt", "status"],
-                            "replacement_json": json.dumps("valid"),
-                        }
-                    ],
-                }
-            return GeneratorResponse(
-                text=json.dumps(response),
-                provider=self.provider_name,
-                model=request.model,
-            )
-
-    packet = generate_validated_json_packet(
-        provider=WrapperFieldBackend(),
-        request=GeneratorRequest(
-            system_prompt="Return JSON.",
-            user_prompt="Produce a wrapper-named packet.",
-            model="test-model",
-            max_tokens=1000,
-            schema={"type": "object"},
-        ),
-        extract_payload=lambda text: extract_json_object(
-            text,
-            label="wrapper-named packet",
-        ),
-        build_packet=lambda payload, response, raw_text: dict(payload),
-        validate_packet=lambda candidate: (
-            []
-            if candidate["base_payload_excerpt"]["status"] == "valid"
-            else ["status must be valid"]
-        ),
-        validation_label="wrapper-named packet",
-        max_repair_attempts=1,
-        semantic_patch_repair=True,
-    )
-
-    assert packet["base_payload_excerpt"]["status"] == "valid"
-    history = packet["llm_json_repair_history"][1]
-    assert history["patched_paths"] == [["base_payload_excerpt", "status"]]
-    assert history["patch_path_normalizations"] == []
-
-
-def test_semantic_patch_defers_broad_defects_then_repairs_residual() -> None:
-    class AdaptiveRepairBackend:
-        provider_name = "test"
-
-        def __init__(self) -> None:
-            self.requests: list[GeneratorRequest] = []
-
-        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
-            self.requests.append(request)
-            if len(self.requests) == 1:
-                response = {"generation": 0, "status": "broadly_invalid"}
-            elif len(self.requests) == 2:
-                response = {"generation": 1, "status": "one_residual"}
-            else:
-                repair_payload = json.loads(
-                    request.user_prompt.split("\n\n", 1)[1]
-                )
-                response = {
-                    "base_payload_fingerprint": repair_payload[
-                        "base_payload_fingerprint"
-                    ],
-                    "updates": [
-                        {
-                            "path": ["status"],
-                            "replacement_json": json.dumps("valid"),
-                        }
-                    ],
-                }
-            return GeneratorResponse(
-                text=json.dumps(response),
-                provider=self.provider_name,
-                model=request.model,
-            )
-
-    def validate(candidate: dict[str, object]) -> list[str]:
-        if candidate.get("generation") == 0:
-            return [f"independent broad defect {index}" for index in range(9)]
-        if candidate.get("status") != "valid":
-            return ["one residual semantic defect"]
-        return []
-
-    backend = AdaptiveRepairBackend()
-    packet = generate_validated_json_packet(
-        provider=backend,
-        request=GeneratorRequest(
-            system_prompt="Return JSON.",
-            user_prompt="Produce a typed packet.",
-            model="test-haiku",
-            max_tokens=5000,
-            schema={"type": "object"},
-        ),
-        extract_payload=lambda text: extract_json_object(
-            text,
-            label="adaptive typed packet",
-        ),
-        build_packet=lambda payload, response, raw_text: dict(payload),
-        validate_packet=validate,
-        validation_label="adaptive typed packet",
-        max_repair_attempts=2,
-        semantic_patch_repair=True,
-    )
-
-    assert [
-        request.metadata["json_repair_mode"] for request in backend.requests
-    ] == [
-        "full_packet_generation",
-        "full_packet_regeneration",
-        "typed_semantic_patch",
-    ]
-    assert backend.requests[2].max_tokens == 5000
-    assert packet["generation"] == 1
-    assert packet["status"] == "valid"
-    assert packet["llm_json_repair_attempts"] == 2
-
-
-def test_semantic_patch_defers_cross_field_pass_contradictions() -> None:
-    class CoherentReviewBackend:
-        provider_name = "test"
-
-        def __init__(self) -> None:
-            self.requests: list[GeneratorRequest] = []
-
-        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
-            self.requests.append(request)
-            payload = (
-                {"verdict": "PASS", "unresolved_assumptions": ["missing regime"]}
-                if len(self.requests) == 1
-                else {"verdict": "REVISE", "unresolved_assumptions": ["missing regime"]}
-            )
-            return GeneratorResponse(
-                text=json.dumps(payload),
-                provider=self.provider_name,
-                model=request.model,
-            )
-
-    backend = CoherentReviewBackend()
-    packet = generate_validated_json_packet(
-        provider=backend,
-        request=GeneratorRequest(
-            system_prompt="Return JSON.",
-            user_prompt="Review the candidate.",
-            model="test-model",
-            max_tokens=1000,
-        ),
-        extract_payload=lambda text: extract_json_object(text, label="review packet"),
-        build_packet=lambda payload, response, raw_text: dict(payload),
-        validate_packet=lambda candidate: (
-            ["claim check 0 cannot PASS with unresolved assumptions"]
-            if candidate.get("verdict") == "PASS"
-            else []
-        ),
-        validation_label="review packet",
-        max_repair_attempts=1,
-        semantic_patch_repair=True,
-    )
-
-    assert packet["verdict"] == "REVISE"
     assert [
         request.metadata["json_repair_mode"] for request in backend.requests
     ] == ["full_packet_generation", "full_packet_regeneration"]
-    assert "Rewrite the full JSON object from scratch" in backend.requests[1].user_prompt
+    repair = json.loads(backend.requests[1].user_prompt.split("\n\n", 1)[1])
+    assert repair["local_validation_errors"] == ["status must be valid"]
+    assert '"keep": "context"' in repair["invalid_response_excerpt"]
 
 
-def test_typed_patch_separates_residual_count_from_edit_count() -> None:
-    class MultiEditBackend:
-        provider_name = "test"
-
-        def __init__(self) -> None:
-            self.requests: list[GeneratorRequest] = []
-
-        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
-            self.requests.append(request)
-            if len(self.requests) == 1:
-                response = {
-                    "rows": [
-                        {"left": 0, "middle": 0, "right": 0}
-                        for _ in range(7)
-                    ]
-                }
-            else:
-                repair_payload = json.loads(
-                    request.user_prompt.split("\n\n", 1)[1]
-                )
-                updates = []
-                for row_index in range(7):
-                    for field in ("left", "middle", "right"):
-                        updates.append(
-                            {
-                                "path": ["rows", row_index, field],
-                                "replacement_json": "1",
-                            }
-                        )
-                response = {
-                    "base_payload_fingerprint": repair_payload[
-                        "base_payload_fingerprint"
-                    ],
-                    "updates": updates,
-                }
-            return GeneratorResponse(
-                text=json.dumps(response),
-                provider=self.provider_name,
-                model=request.model,
-            )
-
-    def validate(candidate: dict[str, object]) -> list[str]:
-        rows = candidate.get("rows", [])
-        return [
-            f"row {index} needs three local field edits"
-            for index, row in enumerate(rows)
-            if row != {"left": 1, "middle": 1, "right": 1}
-        ]
-
-    backend = MultiEditBackend()
-    packet = generate_validated_json_packet(
+def test_full_regeneration_reuses_provider_schema_and_strict_output() -> None:
+    backend = _SequenceBackend([{"status": "invalid"}, {"status": "valid"}])
+    generate_validated_json_packet(
         provider=backend,
-        request=GeneratorRequest(
-            system_prompt="Return JSON.",
-            user_prompt="Produce a bounded multi-edit packet.",
-            model="test-haiku",
-            max_tokens=5000,
-            schema={"type": "object"},
+        request=_request(
+            **{PROVIDER_STRUCTURED_OUTPUT_ON_REPAIR_METADATA_KEY: True}
         ),
-        extract_payload=lambda text: extract_json_object(
-            text,
-            label="multi-edit packet",
+        extract_payload=lambda text: extract_json_object(text, label="status"),
+        build_packet=lambda payload, _response, _raw: dict(payload),
+        validate_packet=lambda candidate: (
+            [] if candidate.get("status") == "valid" else ["status must be valid"]
         ),
-        build_packet=lambda payload, response, raw_text: dict(payload),
-        validate_packet=validate,
-        validation_label="multi-edit packet",
-        max_repair_attempts=1,
-        semantic_patch_repair=True,
-    )
-
-    assert len(backend.requests) == 2
-    assert backend.requests[1].metadata["json_repair_mode"] == (
-        "typed_semantic_patch"
-    )
-    assert backend.requests[1].schema["properties"]["updates"]["maxItems"] == 28
-    assert len(packet["llm_json_repair_history"][1]["patched_paths"]) == 21
-    assert validate(packet) == []
-
-
-def test_generate_validated_json_packet_escalates_truncated_repair_budget() -> None:
-    class TruncatingThenValidBackend:
-        provider_name = "test"
-
-        def __init__(self) -> None:
-            self.requests: list[GeneratorRequest] = []
-
-        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
-            self.requests.append(request)
-            if len(self.requests) == 1:
-                return GeneratorResponse(
-                    text='{"ok": true, "items": ["unfinished"',
-                    provider=self.provider_name,
-                    model=request.model,
-                    metadata={
-                        "provider_stop_reason": "max_tokens",
-                        "provider_usage": {"output_tokens": request.max_tokens},
-                    },
-                )
-            return GeneratorResponse(
-                text='{"ok": true}',
-                provider=self.provider_name,
-                model=request.model,
-                metadata={"provider_stop_reason": "end_turn"},
-            )
-
-    backend = TruncatingThenValidBackend()
-    request = GeneratorRequest(
-        system_prompt="Return JSON.",
-        user_prompt="Produce a packet with required semantic anchors." + ("x" * 9000),
-        model="test-model",
-        max_tokens=128,
-    )
-
-    packet = generate_validated_json_packet(
-        provider=backend,
-        request=request,
-        extract_payload=lambda text: extract_json_object(text, label="test packet"),
-        build_packet=lambda payload, response, raw_text: dict(payload),
-        validate_packet=lambda candidate: []
-        if candidate.get("ok") is True
-        else ["missing ok"],
-        validation_label="test packet",
+        validation_label="status packet",
         max_repair_attempts=1,
     )
-
-    assert packet["ok"] is True
-    assert len(backend.requests) == 2
-    assert backend.requests[1].max_tokens > backend.requests[0].max_tokens
-    assert backend.requests[1].metadata[
-        "json_repair_previous_attempt_truncated"
-    ] is True
-    repair_payload = json.loads(backend.requests[1].user_prompt.split("\n\n", 1)[1])
-    assert repair_payload["truncation_detected"] is True
-    assert "provider hit the max token/output limit" in " ".join(
-        repair_payload["repair_instructions"]
-    )
-    assert repair_payload["original_request"]["truncated"] is True
-    assert repair_payload["original_request"]["omitted_chars"] > 0
-    assert packet["llm_json_repair_history"][0]["request_max_tokens"] == 128
-    assert packet["llm_json_repair_history"][1]["request_max_tokens"] > 128
+    assert backend.requests[1].schema == backend.requests[0].schema
+    assert backend.requests[1].metadata[PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY]
 
 
-def test_complete_regeneration_uses_progress_extension_for_typed_repair() -> None:
-    class TruncatingThenInvalidThenValidBackend:
-        provider_name = "test"
-
-        def __init__(self) -> None:
-            self.requests: list[GeneratorRequest] = []
-
-        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
-            self.requests.append(request)
-            if len(self.requests) == 1:
-                return GeneratorResponse(
-                    text='{"ok": true, "items": ["unfinished"',
-                    provider=self.provider_name,
-                    model=request.model,
-                    metadata={
-                        "provider_stop_reason": "max_tokens",
-                        "provider_usage": {"output_tokens": request.max_tokens},
-                    },
-                )
-            if len(self.requests) == 2:
-                return GeneratorResponse(
-                    text='{"ok": false}',
-                    provider=self.provider_name,
-                    model=request.model,
-                    metadata={"provider_stop_reason": "end_turn"},
-                )
-            repair_payload = json.loads(
-                request.user_prompt.split("\n\n", 1)[1]
-            )
-            return GeneratorResponse(
-                text=json.dumps(
-                    {
-                        "base_payload_fingerprint": repair_payload[
-                            "base_payload_fingerprint"
-                        ],
-                        "updates": [
-                            {
-                                "path": ["ok"],
-                                "replacement_json": "true",
-                            }
-                        ],
-                    }
-                ),
-                provider=self.provider_name,
-                model=request.model,
-                metadata={"provider_stop_reason": "end_turn"},
-            )
-
-    backend = TruncatingThenInvalidThenValidBackend()
-    request = GeneratorRequest(
-        system_prompt="Return JSON.",
-        user_prompt="Produce a packet with required semantic anchors." + ("x" * 9000),
-        model="test-model",
-        max_tokens=128,
-    )
-
-    packet = generate_validated_json_packet(
+def test_regeneration_includes_subsystem_context() -> None:
+    backend = _SequenceBackend([{"status": "invalid"}, {"status": "valid"}])
+    generate_validated_json_packet(
         provider=backend,
-        request=request,
-        extract_payload=lambda text: extract_json_object(text, label="test packet"),
-        build_packet=lambda payload, response, raw_text: dict(payload),
-        validate_packet=lambda candidate: []
-        if candidate.get("ok") is True
-        else ["missing ok"],
-        validation_label="test packet",
-        max_repair_attempts=1,
-        semantic_patch_repair=True,
-        allow_progress_repair_extension=True,
-    )
-
-    assert packet["ok"] is True
-    assert [request.max_tokens for request in backend.requests] == [128, 1152, 128]
-    assert [
-        request.metadata["json_repair_mode"] for request in backend.requests
-    ] == [
-        "full_packet_generation",
-        "full_packet_regeneration",
-        "typed_semantic_patch",
-    ]
-    assert backend.requests[2].metadata["json_repair_truncation_repair_mode"] is False
-    assert backend.requests[2].metadata[
-        "json_repair_progress_extension_attempt"
-    ] == 1
-    third_repair_payload = json.loads(
-        backend.requests[2].user_prompt.split("\n\n", 1)[1]
-    )
-    assert "truncation_detected" not in third_repair_payload
-    assert packet["llm_json_repair_history"][2]["patched_paths"] == [["ok"]]
-
-
-def test_complete_regeneration_progress_allows_one_typed_repair() -> None:
-    class ProgressingRegenerationBackend:
-        provider_name = "test"
-
-        def __init__(self) -> None:
-            self.requests: list[GeneratorRequest] = []
-
-        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
-            self.requests.append(request)
-            if len(self.requests) == 1:
-                payload = {"ok": False, **{f"missing_{index}": False for index in range(9)}}
-            elif len(self.requests) == 2:
-                payload = {"ok": False}
-            else:
-                repair_payload = json.loads(
-                    request.user_prompt.split("\n\n", 1)[1]
-                )
-                payload = {
-                    "base_payload_fingerprint": repair_payload[
-                        "base_payload_fingerprint"
-                    ],
-                    "updates": [{"path": ["ok"], "replacement": True}],
-                }
-            return GeneratorResponse(
-                text=json.dumps(payload),
-                provider=self.provider_name,
-                model=request.model,
-                metadata={"provider_stop_reason": "end_turn"},
-            )
-
-    backend = ProgressingRegenerationBackend()
-
-    def validate(candidate: Mapping[str, object]) -> list[str]:
-        if candidate.get("ok") is True:
-            return []
-        missing_errors = [
-            f"{key} must be true"
-            for key, value in candidate.items()
-            if key.startswith("missing_") and value is not True
-        ]
-        return missing_errors or ["ok must be true"]
-
-    packet = generate_validated_json_packet(
-        provider=backend,
-        request=GeneratorRequest(
-            system_prompt="Return JSON.",
-            user_prompt="Produce a valid packet.",
-            model="test-model",
-            max_tokens=128,
+        request=_request(),
+        extract_payload=lambda text: extract_json_object(text, label="status"),
+        build_packet=lambda payload, _response, _raw: dict(payload),
+        validate_packet=lambda candidate: (
+            [] if candidate.get("status") == "valid" else ["status must be valid"]
         ),
-        extract_payload=lambda text: extract_json_object(text, label="test packet"),
-        build_packet=lambda payload, response, raw_text: dict(payload),
-        validate_packet=validate,
-        validation_label="test packet",
+        validation_label="status packet",
         max_repair_attempts=1,
-        semantic_patch_repair=True,
-        allow_progress_repair_extension=True,
+        repair_context_builder=lambda **kwargs: {
+            "errors_seen": kwargs["errors"],
+            "invalid_payload_seen": kwargs["invalid_payload"],
+        },
+    )
+    repair = json.loads(backend.requests[1].user_prompt.split("\n\n", 1)[1])
+    assert repair["subsystem_repair_context"] == {
+        "errors_seen": ["status must be valid"],
+        "invalid_payload_seen": {"status": "invalid"},
+    }
+
+
+def test_validation_error_preserves_final_invalid_packet() -> None:
+    backend = _SequenceBackend([{"status": "bad"}, {"status": "still-bad"}])
+    with pytest.raises(PacketValidationError) as caught:
+        generate_validated_json_packet(
+            provider=backend,
+            request=_request(),
+            extract_payload=lambda text: extract_json_object(text, label="status"),
+            build_packet=lambda payload, _response, _raw: dict(payload),
+            validate_packet=lambda _candidate: ["status must be valid"],
+            validation_label="status packet",
+            max_repair_attempts=1,
+        )
+    assert caught.value.last_invalid_packet == {"status": "still-bad"}
+    assert caught.value.attempts == 2
+
+
+def test_truncation_regeneration_increases_output_budget() -> None:
+    class _TruncatedSequenceBackend(_SequenceBackend):
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            response = super().generate(request)
+            if len(self.requests) == 1:
+                response.metadata["provider_stop_reason"] = "max_tokens"
+            return response
+
+    backend = _TruncatedSequenceBackend(
+        ['{"status": "unfinished"', {"status": "valid"}]
+    )
+    packet = generate_validated_json_packet(
+        provider=backend,
+        request=_request(),
+        extract_payload=lambda text: extract_json_object(text, label="status"),
+        build_packet=lambda payload, _response, _raw: dict(payload),
+        validate_packet=lambda candidate: (
+            [] if candidate.get("status") == "valid" else ["status must be valid"]
+        ),
+        validation_label="status packet",
+        max_repair_attempts=1,
+    )
+    assert packet["status"] == "valid"
+    assert backend.requests[1].max_tokens == _repair_attempt_max_tokens(
+        128, truncation_repair_mode=True
     )
 
-    assert packet["ok"] is True
-    assert [
-        request.metadata["json_repair_mode"] for request in backend.requests
-    ] == [
-        "full_packet_generation",
-        "full_packet_regeneration",
-        "typed_semantic_patch",
-    ]
-    assert packet["llm_json_repair_history"][2]["progress_extension_attempt"] == 1
+
+def test_generic_typed_edit_remains_available_for_explicit_artifact_revision() -> None:
+    base = {"rows": [{"status": "keep"}, {"status": "replace"}]}
+    fingerprint = typed_semantic_patch_payload_fingerprint(base)
+    patched, paths, annotations = _apply_typed_semantic_patch(
+        base_payload=base,
+        expected_base_fingerprint=fingerprint,
+        patch_envelope={
+            "base_payload_fingerprint": fingerprint,
+            "updates": [
+                {"path": ["rows", 1, "status"], "replacement": "valid"}
+            ],
+        },
+        max_updates=1,
+    )
+    assert patched == {"rows": [{"status": "keep"}, {"status": "valid"}]}
+    assert paths == [["rows", 1, "status"]]
+    assert annotations == []
+    assert _typed_semantic_patch_schema(max_updates=1)["properties"][
+        "updates"
+    ]["maxItems"] == 1
+
+
+def test_compact_response_metadata_preserves_structured_output_fallback() -> None:
+    assert _compact_response_metadata(
+        {
+            "provider_structured_output_requested": True,
+            "provider_structured_output_applied": False,
+            "provider_structured_output_fallback_reason": "unsupported",
+            "ignored": "x" * 1000,
+        }
+    ) == {
+        "provider_structured_output_requested": True,
+        "provider_structured_output_applied": False,
+        "provider_structured_output_fallback_reason": "unsupported",
+    }

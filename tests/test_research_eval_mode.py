@@ -372,7 +372,6 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
         formal_target_semantic_review_required=True,
         formal_verification_policy="required",
         recommended_research_path="proof_first",
-        architect_metric_repair_ownership_router=False,
         architect_max_tokens=5000,
         serious_theory_model_tier="sonnet",
         serious_theory_max_tokens=1000,
@@ -388,7 +387,6 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
     assert args.formal_target_semantic_review_required is False
     assert args.formal_verification_policy == "advisory"
     assert args.recommended_research_path == "simulation_first"
-    assert args.architect_metric_repair_ownership_router is True
     assert args.architect_max_tokens == 8000
     assert args.architect_metric_semantic_reviewer_max_tokens == 16000
     assert args.serious_theory_model_tier == "haiku"

@@ -61,9 +61,9 @@ def export_formal_verifier_replay_repair_packets(
 ) -> dict[str, object]:
     """Export repair packets from failed full-route replay attempts.
 
-    These packets are route-specific repair contracts. They are not proof
-    evidence until a repaired replay attempt passes AXLE/local Lean without
-    placeholders.
+    These packets contain exact failed-candidate context for a proof agent.
+    They are not proof evidence until a regenerated candidate passes
+    AXLE/local Lean for the unchanged target.
     """
 
     errors: list[str] = []
@@ -143,10 +143,10 @@ def export_formal_verifier_replay_repair_packets(
         "training_examples": training_examples,
         "repair_fingerprint": stable_hash([asdict(row) for row in packets]),
         "limitations": [
-            "repair packets are not Lean proof evidence",
-            "proof_body_template_not_verified is a scaffold for the next attempt, not a checked proof",
-            "a repair packet closes only after a repaired full-route replay attempt passes AXLE/local Lean",
-            "failed replay attempts remain formal gaps until the repaired target is kernel verified",
+            "feedback packets are not Lean proof evidence",
+            "the harness does not choose edits, tactics, imports, or bridge lemmas",
+            "a candidate closes only after the unchanged target passes AXLE/local Lean",
+            "failed replay attempts remain formal gaps until the target is kernel verified",
         ],
     }
     if out_dir is not None:
@@ -218,9 +218,13 @@ def _packet_from_failed_row(
     retrieval_hits = _retrieval_hit_obligations(attempt)
     theorem_name = _target_theorem_name(str(attempt.get("formal_statement", "")), display_name)
     bridge_name = _candidate_bridge_lemma_name(display_name, theorem_name)
-    repair_class = _repair_class(error_category)
-    steps = _repair_steps(repair_class, subclaims, retrieval_hits, bridge_name, theorem_name)
-    proof_template = _proof_body_template(repair_class, subclaims, retrieval_hits, bridge_name)
+    repair_class = "model_regeneration_from_exact_feedback"
+    steps = (
+        "inspect the complete current candidate and exact verifier diagnostics",
+        "return one complete revised candidate for the unchanged theorem target",
+        "rerun the candidate and preserve the next verifier result verbatim",
+    )
+    proof_template = ""
     acceptance_gate = str(row.get("acceptance_gate") or task.get("acceptance_gate", ""))
     latest_attempt_id = str(row.get("latest_attempt_id") or attempt.get("attempt_id", ""))
     if not replay_id:
@@ -261,12 +265,10 @@ def _packet_from_failed_row(
         candidate_bridge_lemma_name=bridge_name,
         route_specific_repair_steps=steps,
         proof_body_template_not_verified=proof_template,
-        training_prompt=_training_prompt(row, task, attempt, steps, proof_template),
+        training_prompt=_training_prompt(row, task, attempt, steps),
         training_completion=json.dumps(
             {
-                "repair_class": repair_class,
-                "candidate_bridge_lemma_name": bridge_name,
-                "route_specific_repair_steps": list(steps),
+                "candidate_source": "complete revised Lean source supplied by the proof agent",
                 "claim_status": "repair_packet_not_proof_evidence",
                 "acceptance_gate": acceptance_gate,
             },
@@ -284,88 +286,6 @@ def _packet_from_failed_row(
         with_exact_subclaims=bool(subclaims),
         ok=not errors,
         errors=tuple(errors),
-    )
-
-
-def _repair_class(error_category: str) -> str:
-    return {
-        "tactic_no_progress": "route_specific_subclaim_composition",
-        "missing_identifier": "import_or_declaration_repair",
-        "type_mismatch": "statement_alignment_repair",
-        "placeholder_or_gap": "bridge_lemma_placeholder_replacement",
-    }.get(error_category, "full_route_replay_repair")
-
-
-def _repair_steps(
-    repair_class: str,
-    subclaims: tuple[str, ...],
-    retrieval_hits: tuple[str, ...],
-    bridge_name: str,
-    theorem_name: str,
-) -> tuple[str, ...]:
-    sources = tuple(dict.fromkeys([*subclaims, *retrieval_hits]))
-    source_text = ", ".join(sources) if sources else "available replay subclaims"
-    if repair_class == "route_specific_subclaim_composition":
-        return (
-            f"verify/import candidate subclaim obligations from: {source_text}",
-            f"synthesize route-specific bridge lemma `{bridge_name}` for `{theorem_name}`",
-            "replace the generic `first | rfl | simp` probe with exact bridge/subclaim composition",
-            "rerun `formal-verifier-replay-attempts --local-lean` on this replay route",
-            "recalibrate and promote only if the repaired attempt is kernel verified and placeholder-free",
-        )
-    if repair_class == "import_or_declaration_repair":
-        return (
-            "resolve the missing identifier by adding the import or proving the named bridge declaration",
-            f"prefer route-specific bridge lemma `{bridge_name}` if no existing declaration matches",
-            "rerun the placeholder-stripped full-route replay attempt after the import/declaration repair",
-            "recalibrate and preserve any next verifier error as the new repair target",
-        )
-    if repair_class == "statement_alignment_repair":
-        return (
-            "compare theorem target types with replayed subclaim conclusion types",
-            f"adjust or add `{bridge_name}` so the composed conclusion exactly matches `{theorem_name}`",
-            "rerun local Lean/AXLE and preserve the next type error as repair feedback",
-        )
-    return (
-        f"develop `{bridge_name}` for the missing full-route theorem step",
-        "replace any placeholder/generic proof probe with the verified bridge lemma application",
-        "rerun local Lean/AXLE before promoting the replay route",
-    )
-
-
-def _proof_body_template(
-    repair_class: str,
-    subclaims: tuple[str, ...],
-    retrieval_hits: tuple[str, ...],
-    bridge_name: str,
-) -> str:
-    sources = tuple(dict.fromkeys([*subclaims, *retrieval_hits]))
-    source_lines = (
-        "\n".join(f"  -- compose replay source: {name}" for name in sources)
-        if sources
-        else "  -- no replay sources recorded"
-    )
-    if repair_class == "route_specific_subclaim_composition":
-        return "\n".join(
-            [
-                "by",
-                "  -- REPAIR TEMPLATE ONLY; not verified proof evidence.",
-                "  -- Replace generic simplification with route-specific subclaim composition.",
-                source_lines,
-                f"  -- After proving/importing `{bridge_name}`, close with:",
-                f"  -- exact {bridge_name} ...",
-                "  -- Rerun AXLE/local Lean before treating this as evidence.",
-            ]
-        )
-    return "\n".join(
-        [
-            "by",
-            "  -- REPAIR TEMPLATE ONLY; not verified proof evidence.",
-            "  -- First repair the declaration/import/statement mismatch.",
-            source_lines,
-            f"  -- Then apply the verified bridge lemma `{bridge_name}`.",
-            "  -- Rerun AXLE/local Lean before treating this as evidence.",
-        ]
     )
 
 
@@ -423,14 +343,13 @@ def _training_prompt(
     task: dict[str, Any],
     attempt: dict[str, Any],
     steps: tuple[str, ...],
-    proof_template: str,
 ) -> str:
     subclaims = _str_tuple(task.get("subclaim_replay_obligations", []))
     retrieval_hits = _retrieval_hit_obligations(attempt)
     return "\n".join(
         [
-            "You are repairing a failed full-route FormalVerifier replay attempt.",
-            "Return a route-specific bridge/composition repair plan. Do not claim the theorem is proved.",
+            "You are revising a failed full-route FormalVerifier candidate.",
+            "Return one complete revised Lean candidate. Keep the theorem target unchanged.",
             "",
             f"Replay id: {row.get('replay_id', '')}",
             f"Route: {row.get('display_name', '')}",
@@ -444,17 +363,17 @@ def _training_prompt(
             "Attempt retrieval hits:",
             "\n".join(f"- {name}" for name in retrieval_hits) or "- none",
             "",
-            "Repair steps:",
+            "Execution loop contract:",
             "\n".join(f"- {step}" for step in steps),
             "",
-            "Failed proof body:",
+            "Complete current formal statement:",
             "```lean",
-            str(attempt.get("proof_body", "")).strip(),
+            str(attempt.get("formal_statement", "")).strip(),
             "```",
             "",
-            "Repair proof body template (not verified proof evidence):",
+            "Complete current proof body:",
             "```lean",
-            proof_template,
+            str(attempt.get("proof_body", "")).strip(),
             "```",
         ]
     )

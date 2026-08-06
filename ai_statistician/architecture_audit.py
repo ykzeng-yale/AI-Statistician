@@ -18,8 +18,6 @@ from .research_lab import (
 )
 from .research_loop import ResearchLoopCoordinator
 from .algorithm_engineer import DefaultAlgorithmEngineer
-from .algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
-from .algorithm_repair_sandbox_rerun import rerun_algorithm_repair_sandbox_applications
 from .proof_engineer import DefaultProofEngineer
 from .proof_search import BestFirstWholeProofSearchController
 from .theory_developer import DefaultTheoryDeveloper
@@ -116,11 +114,10 @@ def audit_architecture(out_dir: Path | None = None) -> dict[str, object]:
             status="ACHIEVED",
             evidence=(
                 "vetted research algorithm registry is executed by ResearchSimulator",
-                f"{apply_algorithm_repair_sandbox_results.__module__}.{apply_algorithm_repair_sandbox_results.__name__}",
-                f"{rerun_algorithm_repair_sandbox_applications.__module__}.{rerun_algorithm_repair_sandbox_applications.__name__}",
+                f"{DefaultAlgorithmEngineer.__module__}.{DefaultAlgorithmEngineer.__name__}",
             ),
-            limitation="Algorithms are registry-vetted; arbitrary LLM-written code is not admitted into production execution. Sandbox apply/rerun evidence is non-mutating and still requires a real isolated patch workspace before promotion.",
-            target_delta="Add isolated code-patch workspace execution with property tests, implementation hashes, and simulator feedback gates.",
+            limitation="The legacy lab remains registry-backed; live generated-code capability is evaluated separately by AgentRuntime in an isolated scientific sandbox.",
+            target_delta="Use complete-source regeneration from exact execution feedback, with immutable artifact lineage and no runtime-authored edit recipes.",
         ),
         ArchitectureComponent(
             component="research_simulator",

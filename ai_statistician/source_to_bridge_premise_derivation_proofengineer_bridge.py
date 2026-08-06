@@ -3234,12 +3234,13 @@ def _adapter_object_candidate_definition_request(
                 "SEMANTIC_DEFINITION_CANDIDATE_TYPECHECK_NOT_ESTABLISHED"
             ),
         },
-        "forbidden_shortcuts": [
-            "do not define the placeholder as True",
+        "evidence_integrity_constraints": [
             "do not add axiom/sorry/admit/unsafe",
-            "do not assume or restate the source theorem target",
-            "do not introduce stronger assumptions than the source theorem binders",
+            "do not claim source-theorem proof or kernel verification before tool evidence",
+            "preserve the source theorem target and immutable artifact lineage",
         ],
+        "model_owns_candidate_and_repair_strategy": True,
+        "runtime_supplies_observations_only": True,
         "local_lean_gate": (
             "The definition-only candidate must compile under local Lean/AXLE "
             "before proof-body execution can use it; this is still semantic-"

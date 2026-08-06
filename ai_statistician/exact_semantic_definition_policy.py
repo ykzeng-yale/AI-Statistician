@@ -13,17 +13,6 @@ _POLICY_PACK_GLOB = (
 
 
 @dataclass(frozen=True)
-class ExactSemanticDefinitionCandidateRiskRule:
-    message: str
-    scope: str = "definition_block"
-    present_any: tuple[str, ...] = ()
-    present_all: tuple[str, ...] = ()
-    absent_all: tuple[str, ...] = ()
-    absent_regex_all: tuple[str, ...] = ()
-    case_sensitive: bool = True
-
-
-@dataclass(frozen=True)
 class ExactSemanticDefinitionPlaceholderPolicy:
     policy_id: str
     policy_scope: str
@@ -59,10 +48,6 @@ class ExactSemanticDefinitionPlaceholderPolicy:
     source_to_bridge_dependency_requirements: tuple[str, ...] = ()
     source_to_bridge_required_anchor_names: tuple[str, ...] = ()
     source_anchor_roles: Mapping[str, str] = field(default_factory=dict)
-    candidate_risk_rules: tuple[
-        ExactSemanticDefinitionCandidateRiskRule,
-        ...,
-    ] = ()
 
 
 @dataclass(frozen=True)
@@ -86,7 +71,6 @@ class ExactSemanticDefinitionPolicyPack:
         ExactSemanticDefinitionSourceAnchorRoleRule,
         ...,
     ] = ()
-    formal_environment_statement_repair_rules: tuple[dict[str, Any], ...] = ()
     source_to_bridge_adapter_object_names: tuple[str, ...] = ()
     source_to_bridge_semantic_anchor_fallback_rules: tuple[
         dict[str, Any],
@@ -128,7 +112,6 @@ def _load_policy_pack_policies() -> tuple[
     tuple[ExactSemanticDefinitionPolicyPack, ...],
     tuple[str, ...],
     tuple[ExactSemanticDefinitionSourceAnchorRoleRule, ...],
-    tuple[dict[str, Any], ...],
     tuple[str, ...],
     tuple[dict[str, Any], ...],
     str,
@@ -140,7 +123,6 @@ def _load_policy_pack_policies() -> tuple[
     policy_packs: list[ExactSemanticDefinitionPolicyPack] = []
     policy_pack_ids: list[str] = []
     source_anchor_role_rules: list[ExactSemanticDefinitionSourceAnchorRoleRule] = []
-    statement_repair_rules: list[dict[str, Any]] = []
     adapter_object_names: list[str] = []
     semantic_anchor_fallback_rules: list[dict[str, Any]] = []
     default_source_anchor_role = "source_parameter"
@@ -187,12 +169,6 @@ def _load_policy_pack_policies() -> tuple[
             if isinstance(row, Mapping)
         )
         semantic_anchor_fallback_rules.extend(pack_semantic_anchor_fallback_rules)
-        pack_statement_repair_rules = tuple(
-            _formal_environment_statement_repair_rule_from_mapping(row)
-            for row in payload.get("formal_environment_statement_repair_rules", [])
-            if isinstance(row, Mapping)
-        )
-        statement_repair_rules.extend(pack_statement_repair_rules)
         raw_policies = payload.get("placeholder_policies", [])
         if not isinstance(raw_policies, list):
             raise ValueError(
@@ -220,9 +196,6 @@ def _load_policy_pack_policies() -> tuple[
                 theorem_target_ids=pack_theorem_target_ids,
                 placeholder_policies=pack_policies,
                 source_anchor_role_rules=pack_source_anchor_role_rules,
-                formal_environment_statement_repair_rules=(
-                    pack_statement_repair_rules
-                ),
                 source_to_bridge_adapter_object_names=(
                     pack_adapter_object_names
                 ),
@@ -237,7 +210,6 @@ def _load_policy_pack_policies() -> tuple[
         tuple(policy_packs),
         tuple(dict.fromkeys(policy_pack_ids)),
         tuple(source_anchor_role_rules),
-        tuple(statement_repair_rules),
         tuple(dict.fromkeys(adapter_object_names)),
         tuple(semantic_anchor_fallback_rules),
         default_source_anchor_role,
@@ -354,28 +326,7 @@ def _policy_from_mapping(
             row.get("source_to_bridge_required_anchor_names")
         ),
         source_anchor_roles=_string_mapping(row.get("source_anchor_roles")),
-        candidate_risk_rules=tuple(
-            _risk_rule_from_mapping(rule)
-            for rule in row.get("candidate_risk_rules", [])
-            if isinstance(rule, Mapping)
-        ),
     )
-
-
-def _formal_environment_statement_repair_rule_from_mapping(
-    row: Mapping[str, Any],
-) -> dict[str, Any]:
-    return {
-        "rule_id": str(row.get("rule_id", "") or "").strip(),
-        "typeclass_blocker_contains_any": _string_tuple(
-            row.get("typeclass_blocker_contains_any")
-        ),
-        "missing_symbol_keys_any": _string_tuple(row.get("missing_symbol_keys_any")),
-        "diagnosis": str(row.get("diagnosis", "") or ""),
-        "repair_hint": str(row.get("repair_hint", "") or ""),
-        "example_target_shape": str(row.get("example_target_shape", "") or ""),
-        "honesty_boundary": str(row.get("honesty_boundary", "") or ""),
-    }
 
 
 def _source_to_bridge_semantic_anchor_fallback_rule_from_mapping(
@@ -390,20 +341,6 @@ def _source_to_bridge_semantic_anchor_fallback_rule_from_mapping(
             default=False,
         ),
     }
-
-
-def _risk_rule_from_mapping(
-    row: Mapping[str, Any],
-) -> ExactSemanticDefinitionCandidateRiskRule:
-    return ExactSemanticDefinitionCandidateRiskRule(
-        message=str(row.get("message", "") or ""),
-        scope=str(row.get("scope", "definition_block") or "definition_block"),
-        present_any=_string_tuple(row.get("present_any")),
-        present_all=_string_tuple(row.get("present_all")),
-        absent_all=_string_tuple(row.get("absent_all")),
-        absent_regex_all=_string_tuple(row.get("absent_regex_all")),
-        case_sensitive=_bool_like(row.get("case_sensitive", True), default=True),
-    )
 
 
 def _source_anchor_role_rule_from_mapping(
@@ -477,7 +414,6 @@ def _build_policy_registry() -> tuple[
     tuple[ExactSemanticDefinitionPolicyPack, ...],
     tuple[str, ...],
     tuple[ExactSemanticDefinitionSourceAnchorRoleRule, ...],
-    tuple[dict[str, Any], ...],
     tuple[str, ...],
     tuple[dict[str, Any], ...],
     str,
@@ -488,7 +424,6 @@ def _build_policy_registry() -> tuple[
         policy_packs,
         policy_pack_ids,
         source_anchor_role_rules,
-        formal_environment_statement_repair_rules,
         source_to_bridge_adapter_object_names,
         source_to_bridge_semantic_anchor_fallback_rules,
         default_source_anchor_role,
@@ -501,7 +436,6 @@ def _build_policy_registry() -> tuple[
         policy_packs,
         policy_pack_ids,
         source_anchor_role_rules,
-        formal_environment_statement_repair_rules,
         source_to_bridge_adapter_object_names,
         source_to_bridge_semantic_anchor_fallback_rules,
         default_source_anchor_role,
@@ -514,7 +448,6 @@ def _build_policy_registry() -> tuple[
     EXACT_SEMANTIC_DEFINITION_POLICY_PACKS,
     EXACT_SEMANTIC_DEFINITION_POLICY_PACK_IDS,
     EXACT_SEMANTIC_DEFINITION_SOURCE_ANCHOR_ROLE_RULES,
-    EXACT_SEMANTIC_DEFINITION_FORMAL_ENVIRONMENT_STATEMENT_REPAIR_RULES,
     EXACT_SEMANTIC_DEFINITION_SOURCE_TO_BRIDGE_ADAPTER_OBJECT_NAMES,
     EXACT_SEMANTIC_DEFINITION_SOURCE_TO_BRIDGE_SEMANTIC_ANCHOR_FALLBACK_RULES,
     EXACT_SEMANTIC_DEFINITION_DEFAULT_SOURCE_ANCHOR_ROLE,
@@ -557,20 +490,6 @@ def exact_semantic_definition_source_anchor_role_rules(
         rule
         for pack in _policy_packs_for_optional_context(context)
         for rule in pack.source_anchor_role_rules
-    )
-
-
-def exact_semantic_definition_formal_environment_statement_repair_rules(
-    *,
-    context: Mapping[str, Any] | None = None,
-) -> tuple[
-    dict[str, Any],
-    ...,
-]:
-    return tuple(
-        rule
-        for pack in _policy_packs_for_optional_context(context)
-        for rule in pack.formal_environment_statement_repair_rules
     )
 
 
@@ -1312,10 +1231,10 @@ def exact_semantic_definition_contract(
             "matches the source theorem statement",
             "supports downstream local Lean/AXLE verification",
         ],
-        "forbidden_shortcuts": [
-            "do not define the placeholder as True",
+        "evidence_integrity_constraints": [
             "do not add axiom/sorry/admit/unsafe",
-            "do not assume the target theorem",
+            "do not claim theorem proof or kernel verification before tool evidence",
+            "preserve the source theorem target and immutable artifact lineage",
         ],
     }
 
@@ -1328,62 +1247,6 @@ def _copy_contract_value(value: Any) -> Any:
     if isinstance(value, dict):
         return {str(key): _copy_contract_value(item) for key, item in value.items()}
     return value
-
-
-def exact_semantic_definition_candidate_risks(
-    placeholder_symbol: str,
-    *,
-    definition_block: str,
-    policy: ExactSemanticDefinitionPlaceholderPolicy | None = None,
-) -> list[str]:
-    selected_policy = policy or exact_semantic_definition_placeholder_policy(
-        placeholder_symbol
-    )
-    risks = [
-        rule.message
-        for rule in selected_policy.candidate_risk_rules
-        if _candidate_risk_rule_matches(
-            rule,
-            definition_block=definition_block,
-        )
-    ]
-    return list(dict.fromkeys(risks))
-
-
-def _candidate_risk_rule_matches(
-    rule: ExactSemanticDefinitionCandidateRiskRule,
-    *,
-    definition_block: str,
-) -> bool:
-    target = (
-        definition_block.split(":=", 1)[1]
-        if rule.scope == "definition_body" and ":=" in definition_block
-        else definition_block
-    )
-    if not rule.case_sensitive:
-        target_for_terms = target.lower()
-        present_any = tuple(value.lower() for value in rule.present_any)
-        present_all = tuple(value.lower() for value in rule.present_all)
-        absent_all = tuple(value.lower() for value in rule.absent_all)
-        regex_flags = re.IGNORECASE
-    else:
-        target_for_terms = target
-        present_any = rule.present_any
-        present_all = rule.present_all
-        absent_all = rule.absent_all
-        regex_flags = 0
-    if present_any and not any(value in target_for_terms for value in present_any):
-        return False
-    if present_all and not all(value in target_for_terms for value in present_all):
-        return False
-    if absent_all and not all(value not in target_for_terms for value in absent_all):
-        return False
-    if rule.absent_regex_all and not all(
-        re.search(pattern, target, flags=regex_flags) is None
-        for pattern in rule.absent_regex_all
-    ):
-        return False
-    return True
 
 
 def _semantic_import_required_signal_present(

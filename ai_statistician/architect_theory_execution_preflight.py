@@ -843,12 +843,17 @@ def _architect_theory_execution_preflight_submit_schema(
         "type": "array",
         "minItems": 1,
         "maxItems": 6,
-        "items": {"type": "string", "minLength": 1, "maxLength": 120},
+        "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": r"^S[1-9][0-9]*H[1-9][0-9]*$",
+        },
         "description": (
             "Short source_ref handles returned by search_preflight_sources that "
-            "support this blocking finding. Runtime resolves them to immutable "
-            "source_hit_id values. Theory anchor evidence_refs remain separately "
-            "required."
+            "support this blocking finding. Use S...H... handles here only. Runtime "
+            "resolves them to immutable source_hit_id values. The separate "
+            "evidence_refs field accepts only theory anchor IDs from its enum."
         ),
     }
     finding_schema["required"].append("source_evidence_refs")
@@ -2235,6 +2240,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             ),
             input_schema=submit_schema,
             terminal=True,
+            strict=True,
         ),
     )
     prompt = build_architect_theory_execution_preflight_prompt(material)
@@ -2244,6 +2250,9 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "source_ref handles; runtime binds them to exact source identities. You own each "
         "statistical judgment and each search query. Runtime retrieval ranking, "
         "source identity checks, and packet validation do not choose semantics. "
+        "Keep the two citation namespaces distinct: evidence_refs uses only exact "
+        "theory anchor IDs allowed by the submit schema, while source_evidence_refs "
+        "uses only S...H... handles returned by search_preflight_sources. "
         "Call submit_theory_preflight_review with the full typed review; do not "
         "answer in prose."
     )
@@ -2381,7 +2390,48 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 material=material,
             )
             if errors:
-                raise ClientToolInputError("; ".join(errors[:12]))
+                anchor_ids = [
+                    str(row.get("anchor_id", "") or "")
+                    for row in material.get("anchor_catalog", []) or []
+                    if isinstance(row, Mapping)
+                    and str(row.get("anchor_id", "") or "").strip()
+                ]
+                source_handles = sorted(
+                    {
+                        str(value)
+                        for value in state["source_ref_by_hit_id"].values()
+                        if str(value).strip()
+                    }
+                )
+                rejection = {
+                    "ok": False,
+                    "error": "preflight_submission_rejected",
+                    "validation_errors": list(errors[:12]),
+                    "field_contracts": {
+                        "evidence_refs": {
+                            "meaning": "theory anchor IDs from source_material",
+                            "allowed_values": anchor_ids,
+                        },
+                        "source_evidence_refs": {
+                            "meaning": (
+                                "runtime-returned search_preflight_sources handles"
+                            ),
+                            "allowed_values": source_handles,
+                        },
+                    },
+                    "repair_instruction": (
+                        "Resubmit the complete typed review after correcting every "
+                        "listed field error. Do not swap the two citation namespaces."
+                    ),
+                }
+                return ClientToolExecutionResult(
+                    content=rejection,
+                    is_error=True,
+                    observation_key=(
+                        "preflight_submission_rejected:"
+                        + stable_hash(rejection)
+                    ),
+                )
             return ClientToolExecutionResult(
                 content={
                     "ok": True,
@@ -2629,83 +2679,11 @@ def review_architect_theory_execution_preflight(
         )
 
     def build_repair_context(**kwargs: Any) -> dict[str, Any]:
-        invalid_payload = kwargs.get("invalid_payload", {})
-        required_estimator_ids = list(
-            material.get("required_estimator_ids", []) or []
-        )
-        estimator_paths = [
-            {
-                "estimator_id": str(estimator_id),
-                "path": ["estimator_execution_checks", index],
-            }
-            for index, estimator_id in enumerate(required_estimator_ids)
-        ]
-        required_prior_finding_ids = list(
-            material.get("active_prior_finding_ids", []) or []
-        )
-        raw_prior_finding_reviews = (
-            invalid_payload.get("prior_finding_reviews", [])
-            if isinstance(invalid_payload, Mapping)
-            else []
-        )
-        raw_prior_finding_review_count = (
-            len(raw_prior_finding_reviews)
-            if isinstance(raw_prior_finding_reviews, list)
-            else 0
-        )
-        prior_finding_paths = [
-            {
-                "finding_id": str(finding_id),
-                "path": ["prior_finding_reviews", index],
-                "current_finding_path": [
-                    "prior_finding_reviews",
-                    index,
-                    "current_finding",
-                ],
-            }
-            for index, finding_id in enumerate(required_prior_finding_ids)
-            if index < raw_prior_finding_review_count
-        ]
-        raw_findings = (
-            invalid_payload.get("findings", [])
-            if isinstance(invalid_payload, Mapping)
-            else []
-        )
-        current_finding_paths = [
-            {
-                "finding_index": index,
-                "path": ["findings", index],
-            }
-            for index, row in enumerate(raw_findings or [])
-            if isinstance(row, Mapping)
-        ]
         return {
-            "task": "Repair only the invalid fields in the preflight review packet.",
+            "task": "Regenerate the complete preflight review packet.",
             "local_validation_errors": [
                 str(value) for value in kwargs.get("errors", [])
             ],
-            "typed_patch_path_basis": (
-                "raw provider transport payload; do not use indices from the "
-                "normalized review artifact"
-            ),
-            "dimension_review_patch_paths": {
-                dimension: ["dimension_reviews", index]
-                for index, dimension in enumerate(
-                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
-                )
-            },
-            "estimator_execution_check_patch_paths": estimator_paths,
-            "prior_finding_review_patch_paths": prior_finding_paths,
-            "prior_finding_reviews_array_path": ["prior_finding_reviews"],
-            "prior_finding_review_transport_slots": [
-                {
-                    "output_index": index,
-                    "finding_id": str(finding_id),
-                    "base_row_exists": index < raw_prior_finding_review_count,
-                }
-                for index, finding_id in enumerate(required_prior_finding_ids)
-            ],
-            "current_finding_patch_paths": current_finding_paths,
             "required_dimensions": list(
                 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS
             ),
@@ -2729,45 +2707,6 @@ def review_architect_theory_execution_preflight(
                 for row in material.get("anchor_catalog", []) or []
                 if isinstance(row, Mapping)
             ],
-            "consistency_policy": (
-                "Repair statuses and findings together. AgentRuntime projects repair "
-                "instructions from model-authored finding.required_change values. "
-                "Preserve semantic judgments unless a listed validation error "
-                "requires change."
-            ),
-            "repair_prompt_priority_instructions": [
-                (
-                    "Copy typed patch path prefixes exactly from "
-                    "dimension_review_patch_paths or "
-                    "estimator_execution_check_patch_paths or "
-                    "prior_finding_review_patch_paths or "
-                    "current_finding_patch_paths."
-                ),
-                (
-                    "For every prior_finding_reviews row whose status is UNRESOLVED, "
-                    "put exactly one semantic continuation at its supplied "
-                    "current_finding_path. Set current_finding=null for a resolved "
-                    "prior row. AgentRuntime binds the ordered slot to both canonical "
-                    "prior_finding_id and finding_id; never copy either identity into "
-                    "any output row."
-                ),
-                (
-                    "When the raw prior_finding_reviews array does not contain every "
-                    "prior_finding_review_transport_slots row, replace the complete "
-                    "array at prior_finding_reviews_array_path in one update. Do not "
-                    "target a row index whose base_row_exists is false."
-                ),
-                (
-                    "Treat source_interface_inventories as exact source facts. Do not "
-                    "label listed outputs or request/response fields MISSING; describe "
-                    "only the unresolved semantic mapping."
-                ),
-                (
-                    "When a theorem application or procedure identity is invalid, "
-                    "primitive_mathematical_consistency must be non-PASS and the "
-                    "finding must preserve the same mathematical reason."
-                ),
-            ],
         }
 
     return generate_validated_json_packet(
@@ -2782,6 +2721,4 @@ def review_architect_theory_execution_preflight(
         validation_label="Architect theory-to-execution preflight review packet",
         max_repair_attempts=max_repair_attempts,
         repair_context_builder=build_repair_context,
-        semantic_patch_repair=True,
-        allow_progress_repair_extension=True,
     )

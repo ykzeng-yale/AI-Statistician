@@ -13,7 +13,7 @@ from ai_statistician.source_theorem_exact_semantic_definition_lean_repair_execut
 )
 
 
-def test_local_lean_failure_classifier_routes_candidate_diagnostics() -> None:
+def test_local_lean_failure_classifier_preserves_candidate_diagnostics_for_model() -> None:
     classify = executor_module._classify_local_lean_failure
 
     assert classify(
@@ -22,20 +22,20 @@ def test_local_lean_failure_classifier_routes_candidate_diagnostics() -> None:
             "failed to synthesize instance of type class",
             "  FloorRing ℝ",
         ]
-    ) == "local_lean_typeclass_synthesis_failed"
+    ) == "local_lean_candidate_rejected"
     assert classify(
         [
             "candidate.lean:30:33: error(lean.invalidField): "
             "Invalid field `toNNReal`: The environment does not contain "
             "`Real.toNNReal`"
         ]
-    ) == "local_lean_invalid_field"
+    ) == "local_lean_candidate_rejected"
     assert classify(
         [
             "candidate.lean:30:25: error(lean.unknownIdentifier): "
             "Unknown constant `Int.floor`"
         ]
-    ) == "local_lean_unknown_identifier"
+    ) == "local_lean_candidate_rejected"
 
 
 def test_lean_repair_request_uses_policy_roles_for_unannotated_source_binders() -> None:
@@ -232,7 +232,12 @@ def test_exact_semantic_definition_lean_repair_executor_checks_import_candidate(
     assert request["proof_evidence_status"] == (
         "EXACT_SEMANTIC_DEFINITION_AUTHORING_TASK_NOT_PROOF_EVIDENCE"
     )
-    assert "do not define the placeholder as True" in request["forbidden_shortcuts"]
+    assert request["model_owns_candidate_and_repair_strategy"] is True
+    assert request["runtime_supplies_observations_only"] is True
+    assert "forbidden_shortcuts" not in request
+    assert "do not add axiom/sorry/admit/unsafe" in request[
+        "evidence_integrity_constraints"
+    ]
     assert authoring_tasks[0]["source_theorem_kernel_verified"] is False
     assert authoring_tasks[0]["semantic_definition_kernel_verified"] is False
     assert authoring_tasks[0]["proof_evidence_status"] == (
@@ -1052,12 +1057,9 @@ def test_exact_semantic_definition_lean_repair_executor_preserves_typechecked_ca
     assert authoring_tasks[0]["local_definition_lean_compiled"] is True
     assert authoring_tasks[0]["semantic_definition_kernel_verified"] is False
     assert authoring_tasks[0]["source_theorem_kernel_verified"] is False
-    assert "Review the locally typechecked definition-only" in authoring_tasks[0][
-        "authoring_policy"
-    ]
-    assert "Do not claim source theorem proof" in authoring_tasks[0][
-        "authoring_policy"
-    ]
+    assert authoring_tasks[0]["model_owns_candidate_and_repair_strategy"] is True
+    assert authoring_tasks[0]["runtime_supplies_observations_only"] is True
+    assert "authoring_policy" not in authoring_tasks[0]
     learning_rows = [
         json.loads(line)
         for line in Path(manifest["runtime_learning_rows_jsonl"]).read_text().splitlines()
@@ -1799,9 +1801,13 @@ def test_definition_candidate_local_lean_failure_creates_authoring_repair_task(
     assert results[0]["execution_status"] == (
         "TYPECHECKED_EXACT_DEFINITION_CANDIDATE_LOCAL_LEAN_FAILED"
     )
-    assert results[0]["failure_classification"] == "local_lean_type_mismatch"
-    assert manifest["dominant_failure_classification"] == "local_lean_type_mismatch"
-    assert manifest["by_failure_classification"] == {"local_lean_type_mismatch": 1}
+    assert results[0]["failure_classification"] == "local_lean_candidate_rejected"
+    assert manifest["dominant_failure_classification"] == (
+        "local_lean_candidate_rejected"
+    )
+    assert manifest["by_failure_classification"] == {
+        "local_lean_candidate_rejected": 1
+    }
     assert manifest["n_lean_environment_repair_tasks"] == 0
     assert manifest["n_exact_semantic_definition_authoring_tasks"] == 1
     assert manifest["n_exact_semantic_definition_authoring_repair_tasks"] == 1
@@ -1837,7 +1843,7 @@ def test_definition_candidate_local_lean_failure_creates_authoring_repair_task(
     ] == str(definition_only_candidate)
     assert authoring_tasks[0]["candidate_repair_feedback"][
         "failure_classification"
-    ] == "local_lean_type_mismatch"
+    ] == "local_lean_candidate_rejected"
     assert "application type mismatch" in "\n".join(
         authoring_tasks[0]["candidate_repair_feedback"]["local_lean_diagnostics"]
     )

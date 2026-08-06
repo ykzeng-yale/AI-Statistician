@@ -219,6 +219,18 @@ def generated_code_execution_contract_errors(draft: Mapping[str, Any]) -> list[s
     return sorted(set(errors))
 
 
+def generated_python_syntax_errors(code: str) -> list[str]:
+    """Return parser diagnostics without proposing a source-code repair."""
+
+    if not str(code or "").strip():
+        return []
+    try:
+        ast.parse(str(code), mode="exec")
+    except SyntaxError as exc:
+        return [f"generated Python draft syntax error: {exc}"]
+    return []
+
+
 def scientific_python_safety_errors(
     code: str,
     *,

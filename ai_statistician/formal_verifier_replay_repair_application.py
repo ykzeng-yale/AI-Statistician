@@ -59,12 +59,7 @@ def export_formal_verifier_replay_repair_application_tasks(
     *,
     max_tasks: int = 20,
 ) -> dict[str, object]:
-    """Export concrete Lean repair-application tasks from replay repair packets.
-
-    The generated Lean files are scaffolds for bridge/import/type repair work.
-    They intentionally remain non-evidence until the repaired replay target is
-    rerun through AXLE/local Lean and recalibrated as kernel verified.
-    """
+    """Export model-regeneration contexts from failed replay candidates."""
 
     errors: list[str] = []
     repair_manifest_path = (
@@ -139,9 +134,9 @@ def export_formal_verifier_replay_repair_application_tasks(
         "training_examples": training_examples,
         "application_fingerprint": stable_hash([asdict(task) for task in tasks]),
         "limitations": [
-            "repair application tasks are not Lean proof evidence",
-            "lean_repair_source_not_verified is a scaffold and is not submitted as a checked proof",
-            "candidate bridge lemma names are work targets, not declarations known to exist",
+            "regeneration contexts are not Lean proof evidence",
+            "lean_repair_source_not_verified contains context only and is not a candidate",
+            "the harness does not choose imports, declarations, tactics, or edits",
             "completion requires rerunning formal-verifier-replay-attempts and recalibrating to full_route_kernel_verified",
         ],
     }
@@ -221,14 +216,8 @@ def _application_task_from_packet(
         errors.append("display_name missing")
     if not target_name:
         errors.append("target_theorem_name missing")
-    if not bridge_name:
-        errors.append("candidate_bridge_lemma_name missing")
     if not source_statement:
         errors.append("source formal statement missing")
-    if not imports:
-        errors.append("source formal statement has no imports")
-    if "h_frontier_missing" in source_statement or "h_frontier_missing" in proof_template:
-        errors.append("repair application references h_frontier_missing placeholder")
     application_id = (
         "formal_verifier_replay_repair_application:"
         f"{stable_hash([packet_id, replay_id, application_mode, bridge_name])[:16]}"
@@ -272,8 +261,7 @@ def _application_task_from_packet(
         training_completion=json.dumps(
             {
                 "application_mode": application_mode,
-                "candidate_bridge_lemma_name": bridge_name,
-                "artifact_path": artifact_path,
+                "candidate_source": "complete revised Lean source supplied by the proof agent",
                 "claim_status": "repair_application_task_not_proof_evidence",
                 "verification_commands": list(verification_commands),
             },
@@ -285,12 +273,7 @@ def _application_task_from_packet(
 
 
 def _application_mode(repair_class: str) -> str:
-    return {
-        "route_specific_subclaim_composition": "bridge_lemma_then_exact_subclaim_composition",
-        "import_or_declaration_repair": "import_or_declaration_patch_then_replay",
-        "statement_alignment_repair": "statement_alignment_bridge_patch",
-        "bridge_lemma_placeholder_replacement": "placeholder_replacement_bridge_patch",
-    }.get(repair_class, "full_route_replay_repair_patch")
+    return "complete_candidate_regeneration"
 
 
 def _lean_repair_source(
@@ -303,56 +286,34 @@ def _lean_repair_source(
 ) -> str:
     packet_id = str(packet.get("packet_id", ""))
     display_name = str(packet.get("display_name", ""))
-    target_name = str(packet.get("target_theorem_name", ""))
-    bridge_name = str(packet.get("candidate_bridge_lemma_name", ""))
     subclaims = _str_tuple(packet.get("subclaim_replay_obligations", []))
     retrieval_hits = _str_tuple(packet.get("retrieval_hit_obligations", []))
-    repair_steps = _str_tuple(packet.get("route_specific_repair_steps", []))
     failed_proof_body = str(attempt.get("proof_body", "")).strip()
-    proof_template = str(packet.get("proof_body_template_not_verified", "")).strip()
-    import_lines = "\n".join(f"import {item}" for item in imports) or "import Mathlib"
     return "\n".join(
         [
             "/-",
-            "FORMAL VERIFIER REPLAY REPAIR APPLICATION TASK",
+            "FORMAL VERIFIER REPLAY MODEL REGENERATION CONTEXT",
             f"Packet: {packet_id}",
             f"Route: {display_name}",
             f"Application mode: {application_mode}",
             "",
-            "This file is a repair scaffold, not Lean proof evidence.",
-            "Do not promote this route until a repaired full-route replay attempt",
-            "passes AXLE/local Lean and calibration reports full_route_kernel_verified.",
-            "-/",
-            import_lines,
+            "This file is context. It is not proof evidence or a Lean candidate.",
+            "The proof agent must return one complete revised candidate for the unchanged target.",
             "",
-            f"namespace {namespace}",
-            "",
-            "/- Target theorem from the failed placeholder-stripped replay attempt:",
+            "Complete current formal statement:",
             _indent_block(str(attempt.get("formal_statement", "")).strip() or "(missing source statement)"),
-            "-/",
             "",
-            f"/- Candidate bridge lemma to develop or import: `{bridge_name}`.",
-            f"It should close or align the replay target `{target_name}` using the verified subclaims below.",
+            "Exact verifier diagnostics:",
+            _indent_block(str(packet.get("first_error", "")).strip() or "(no diagnostics recorded)"),
+            "",
             "Subclaim replay obligations:",
             *[f"- {item}" for item in subclaims],
             "Attempt retrieval hits:",
             *[f"- {item}" for item in retrieval_hits],
-            "-/",
             "",
-            "/- Failed proof body:",
+            "Complete current proof body:",
             _indent_block(failed_proof_body or "(missing failed proof body)"),
             "-/",
-            "",
-            "/- Repair steps:",
-            *[f"- {item}" for item in repair_steps],
-            "-/",
-            "",
-            "/- Proof-body template to replace after the bridge/import/type repair.",
-            "This template is not verified proof evidence:",
-            _indent_block(proof_template or "(missing proof template)"),
-            "-/",
-            "",
-            f"end {namespace}",
             "",
         ]
     )
@@ -366,22 +327,21 @@ def _training_prompt(
 ) -> str:
     return "\n".join(
         [
-            "You are applying a FormalVerifier replay repair packet.",
-            "Return the concrete bridge/import/type repair work needed before rerunning Lean.",
+            "You are revising a failed FormalVerifier candidate.",
+            "Return one complete revised Lean source file for the unchanged theorem target.",
             "Do not claim the theorem is proved.",
             "",
             f"Packet id: {packet.get('packet_id', '')}",
             f"Replay id: {packet.get('replay_id', '')}",
             f"Route: {packet.get('display_name', '')}",
-            f"Repair class: {packet.get('repair_class', '')}",
             f"First error: {packet.get('first_error', '')}",
             "",
-            "Failed placeholder-stripped statement:",
+            "Complete current statement:",
             "```lean",
             str(attempt.get("formal_statement", "")).strip(),
             "```",
             "",
-            "Lean repair scaffold (not proof evidence):",
+            "Complete regeneration context (not proof evidence):",
             "```lean",
             lean_source.strip(),
             "```",

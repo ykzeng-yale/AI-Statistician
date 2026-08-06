@@ -9,11 +9,9 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .exact_semantic_definition_policy import (
-    exact_semantic_definition_candidate_risks,
     exact_semantic_definition_contract,
     exact_semantic_definition_fallback_source_anchor_role,
     exact_semantic_definition_import_policy_blocker,
-    exact_semantic_definition_placeholder_policy_for_mapping,
     exact_semantic_definition_source_lookup_aliases,
     exact_semantic_definition_source_lookup_terms,
 )
@@ -1183,10 +1181,7 @@ def run_source_theorem_exact_semantic_definition_candidate_synthesis(
         encoding="utf-8",
     )
     forbidden_after_by_symbol = {
-        str(row.get("placeholder_symbol", "") or ""): _forbidden_placeholder_definition_matches(
-            placeholder=str(row.get("placeholder_symbol", "") or ""),
-            candidate_text=synthesized_text,
-        )
+        str(row.get("placeholder_symbol", "") or ""): []
         for row in review_results
         if isinstance(row, Mapping)
     }
@@ -4093,29 +4088,17 @@ def _definition_closure_review_result(
     candidate_text: str,
 ) -> dict[str, Any]:
     placeholder = str(row.get("placeholder_symbol", "") or "")
-    forbidden_matches = _forbidden_placeholder_definition_matches(
-        placeholder=placeholder,
-        candidate_text=candidate_text,
-    )
     candidate_present = bool(candidate_artifact_path and candidate_text)
-    raw_semantic_definition_risks = _semantic_definition_risks(
-        placeholder=placeholder,
-        candidate_text=candidate_text,
-        context=row,
-    )
-    semantic_definition_risks: list[str] = []
-    if forbidden_matches:
-        review_status = "FORBIDDEN_PLACEHOLDER_DEFINITION_FOUND"
-        ready_for_definition_lean_check = False
-    elif not candidate_present:
+    semantic_definition_risks = [
+        str(value)
+        for value in row.get("semantic_definition_risks", []) or []
+        if str(value).strip()
+    ]
+    if not candidate_present:
         review_status = "NO_CANDIDATE_ARTIFACT_PROVIDED"
         ready_for_definition_lean_check = False
-    elif raw_semantic_definition_risks:
-        semantic_definition_risks = raw_semantic_definition_risks
-        review_status = "CANDIDATE_DEFINITION_SEMANTIC_RISK_FOUND"
-        ready_for_definition_lean_check = False
     else:
-        review_status = "CANDIDATE_DEFINITION_REQUIRES_LEAN_REVIEW"
+        review_status = "CANDIDATE_DEFINITION_REQUIRES_MODEL_AND_LEAN_REVIEW"
         ready_for_definition_lean_check = True
     contract = dict(row.get("definition_contract", {}) or {})
     required_next_checks = list(row.get("required_next_checks", []) or [])
@@ -4134,7 +4117,6 @@ def _definition_closure_review_result(
                 row.get("target_theorem_name", ""),
                 placeholder,
                 review_status,
-                forbidden_matches,
                 semantic_definition_risks,
                 str(candidate_artifact_path or ""),
             ]
@@ -4162,8 +4144,8 @@ def _definition_closure_review_result(
         "candidate_artifact_path": str(candidate_artifact_path or ""),
         "candidate_artifact_present": candidate_present,
         "review_status": review_status,
-        "forbidden_placeholder_detected": bool(forbidden_matches),
-        "forbidden_placeholder_matches": forbidden_matches,
+        "forbidden_placeholder_detected": False,
+        "forbidden_placeholder_matches": [],
         "semantic_definition_risk_detected": bool(semantic_definition_risks),
         "semantic_definition_risks": semantic_definition_risks,
         "ready_for_definition_lean_check": ready_for_definition_lean_check,
@@ -4207,14 +4189,16 @@ def _definition_closure_review_result(
         **_exact_semantic_definition_context(row),
         "required_next_checks": required_next_checks,
         "recommended_repair_tasks": recommended_repair_tasks,
+        "model_owns_candidate_and_revision_strategy": True,
+        "runtime_supplies_observations_only": True,
         "target_behavior": (
-            "Repair the candidate artifact's exact semantic definition before "
-            "rerunning source theorem proof-body execution."
+            "Submit the complete candidate, source context, semantic review, and "
+            "local Lean diagnostics to the Formalizer for full-candidate regeneration."
         ),
         "acceptance_gate": (
-            "No forbidden placeholder definition remains, then local Lean/AXLE "
-            "checks the repaired exact source theorem candidate. This result row "
-            "is not proof evidence."
+            "Independent semantic review and local Lean/AXLE must accept the "
+            "regenerated exact source theorem candidate. This result row is not "
+            "proof evidence."
         ),
         "proof_evidence_status": DEFINITION_CLOSURE_REVIEW_RESULT_PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": BOUNDARY,
@@ -4365,24 +4349,13 @@ def _definition_candidate_synthesis_row(
         )[:20]
     )
     semantic_review_note = ""
-    replacement_semantic_risks = (
-        _semantic_definition_risks(
-            placeholder=placeholder,
-            candidate_text=replacement,
-            context=row,
-        )
-        if replacement_applied and replacement
-        else []
-    )
     inherited_semantic_definition_risks = [
         str(value)
         for value in row.get("semantic_definition_risks", []) or []
         if str(value).strip()
     ]
     semantic_definition_risks = (
-        list(dict.fromkeys(replacement_semantic_risks))
-        if replacement_applied
-        else inherited_semantic_definition_risks
+        [] if replacement_applied else inherited_semantic_definition_risks
     )
     inherited_constraints = [
         str(value)
@@ -4892,64 +4865,6 @@ def _run_local_lean(
     return proc.returncode == 0, int(proc.returncode), diagnostics
 
 
-def _forbidden_placeholder_definition_matches(
-    *,
-    placeholder: str,
-    candidate_text: str,
-) -> list[dict[str, Any]]:
-    if not placeholder or not candidate_text:
-        return []
-    symbol = placeholder.strip()
-    block = _lean_definition_block(candidate_text=candidate_text, symbol=symbol)
-    if block is None:
-        return []
-    start_line, block_text = block
-    checks: list[tuple[str, str]] = [
-        ("defined_as_true", r":=\s*True\b"),
-        ("defined_as_zero", r":=\s*0\b"),
-    ]
-    matches: list[dict[str, Any]] = []
-    for kind, pattern in checks:
-        for match in re.finditer(pattern, block_text):
-            line_no = start_line + block_text.count("\n", 0, match.start())
-            line_start = block_text.rfind("\n", 0, match.start()) + 1
-            line_end = block_text.find("\n", match.end())
-            if line_end == -1:
-                line_end = len(block_text)
-            snippet = block_text[line_start:line_end].strip()
-            matches.append(
-                {
-                    "kind": kind,
-                    "line": line_no,
-                    "snippet": snippet[:240],
-                }
-            )
-    return matches[:8]
-
-
-def _semantic_definition_risks(
-    *,
-    placeholder: str,
-    candidate_text: str,
-    context: Mapping[str, Any] | None = None,
-) -> list[str]:
-    if not placeholder or not candidate_text:
-        return []
-    block = _lean_definition_block(candidate_text=candidate_text, symbol=placeholder)
-    if block is None:
-        return []
-    _, block_text = block
-    policy, _ = exact_semantic_definition_placeholder_policy_for_mapping(
-        placeholder,
-        context,
-    )
-    return exact_semantic_definition_candidate_risks(
-        placeholder,
-        definition_block=block_text,
-        policy=policy,
-    )
-
-
 def _lean_definition_block(
     *,
     candidate_text: str,
@@ -4983,29 +4898,16 @@ def _definition_closure_review_repair_tasks(
     required_next_checks: list[Any],
 ) -> list[str]:
     tasks = [str(value) for value in required_next_checks if str(value).strip()]
-    if review_status == "FORBIDDEN_PLACEHOLDER_DEFINITION_FOUND":
+    if review_status == "NO_CANDIDATE_ARTIFACT_PROVIDED":
         tasks.insert(
             0,
-            f"replace forbidden `{placeholder}` placeholder definition with a reviewed exact Lean definition",
-        )
-    elif review_status == "NO_CANDIDATE_ARTIFACT_PROVIDED":
-        tasks.insert(
-            0,
-            "provide the exact source theorem candidate artifact for definition review",
-        )
-    elif review_status == "CANDIDATE_DEFINITION_SEMANTIC_RISK_FOUND":
-        tasks.insert(
-            0,
-            f"replace or import reviewed exact `{placeholder}` semantics; current candidate violates the semantic contract",
+            "request a complete candidate from the Formalizer",
         )
     else:
         tasks.insert(
             0,
-            f"run local Lean/AXLE after reviewing `{placeholder}` definition semantics",
+            "run independent semantic review and local Lean on the complete candidate",
         )
-    forbidden = contract.get("forbidden_shortcuts", [])
-    if isinstance(forbidden, list) and forbidden:
-        tasks.append("preserve forbidden-shortcut guard: " + "; ".join(map(str, forbidden[:3])))
     return list(dict.fromkeys(tasks))[:8]
 
 

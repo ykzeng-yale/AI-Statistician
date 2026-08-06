@@ -1392,33 +1392,10 @@ def _architect_metric_rejected_review_consistency_state(
         and str(row.get("severity", "") or "").strip().lower()
         in {"high", "critical"}
     ]
-    mathematical_consistency_status_path = next(
-        (
-            ["dimension_reviews", index, "status"]
-            for index, row in enumerate(packet.get("dimension_reviews", []) or [])
-            if isinstance(row, Mapping)
-            and str(row.get("dimension", "") or "").strip()
-            == "mathematical_and_numeric_internal_consistency"
-        ),
-        [],
-    )
-    findings = packet.get("findings", [])
-    findings = findings if isinstance(findings, list) else []
     return {
         "failed_claim_checks": failed_claim_checks,
         "dimension_statuses": dimension_statuses,
         "high_or_critical_finding_indices": high_finding_indices,
-        "typed_patch_paths": {
-            "mathematical_consistency_status": (
-                mathematical_consistency_status_path
-            ),
-            "findings_array": ["findings"],
-            "findings_current_length": len(findings),
-            "array_edit": (
-                "Replace the complete findings array with replacement_json when "
-                "adding or removing a row; never address a missing index."
-            ),
-        },
         "consistency_contract": [
             (
                 "Every retained FAIL claim check requires at least one relevant "
@@ -1633,48 +1610,6 @@ def _architect_metric_semantic_review_repair_context(
             _architect_metric_claim_check_contract(review_material)
         ),
         "rejected_review_packet": rejected_review,
-        "repair_prompt_priority_instructions": [
-            (
-                "Preserve unresolved_assumptions and unresolved_conflicts unless "
-                "current cited artifacts explicitly resolve them. Otherwise change "
-                "the affected claim to FAIL, its dimension to FAIL, and emit one high "
-                "or critical finding with the correct repair scope."
-            ),
-            (
-                "Close rejected_review_consistency_state atomically: repair a "
-                "recomputation, result, and verdict together, or retain the failed "
-                "calculation with consistent dimensions and findings. Never hide a "
-                "failed check behind PASS dimensions."
-            ),
-            (
-                "Preserve one general claim check per requirement_id and every "
-                "foundational identity mapping and every response_identity_check. "
-                "Use distinct zero-based indices only for foundational mappings; "
-                "runtime binds exact foundational claim/context refs and response "
-                "semantics from those identities. Preserve complete normalization/"
-                "order reconciliation; unresolved disagreement requires FAIL."
-            ),
-            (
-                "Every response_identity_check must retain finite numeric "
-                "derived_polynomial_exponent and derived_log_exponent fields. Use "
-                "0.0 for a genuinely not_indexed response. If the independent "
-                "derivation disagrees with the declared rate, preserve the derived "
-                "values and mark the check FAIL with an explicit conflict rather "
-                "than deleting either exponent."
-            ),
-            (
-                "Resolve each expected prior finding exactly once from its current "
-                "snapshot and allowed runtime evidence. Choose UNRESOLVED for a "
-                "still-current defect; runtime carries its identity. Emit findings "
-                "only for genuinely new defects."
-            ),
-            (
-                "Use current_candidate as immutable authority, preserve every valid "
-                "judgment from rejected_review_packet, and modify only fields named "
-                "by local_validation_errors while preserving the active repair "
-                "transport contract."
-            ),
-        ],
     }
 
 
@@ -1812,8 +1747,6 @@ class LLMArchitectMetricSemanticReviewerAgent:
                     errors=_kwargs.get("errors", []),
                 )
             ),
-            semantic_patch_repair=True,
-            allow_progress_repair_extension=True,
         )
 
 ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 6
@@ -3774,26 +3707,27 @@ def validate_architect_metric_semantic_review_packet(
         findings = []
     high_findings = 0
     linked_prior_finding_ids: list[str] = []
-    for row in findings:
+    for finding_index, row in enumerate(findings):
+        finding_path = f"findings[{finding_index}]"
         if not isinstance(row, Mapping):
-            errors.append("findings entries must be objects")
+            errors.append(f"{finding_path} must be an object")
             continue
         severity = str(row.get("severity", "") or "").strip().lower()
         if severity not in {"low", "medium", "high", "critical"}:
-            errors.append("Architect metric review finding has invalid severity")
+            errors.append(f"{finding_path} has invalid severity")
         if severity in {"high", "critical"}:
             high_findings += 1
         repair_scope = str(row.get("repair_scope", "") or "").strip()
         if repair_scope not in ARCHITECT_METRIC_SEMANTIC_REPAIR_SCOPES:
-            errors.append("Architect metric review finding has invalid repair_scope")
+            errors.append(f"{finding_path} has invalid repair_scope")
         for field in ("category", "summary", "required_change"):
             if not str(row.get(field, "") or "").strip():
-                errors.append(f"Architect metric review finding missing {field}")
+                errors.append(f"{finding_path} missing {field}")
         evidence_refs = row.get("evidence_refs", [])
         if not isinstance(evidence_refs, list) or not any(
             str(value or "").strip() for value in evidence_refs
         ):
-            errors.append("Architect metric review finding missing evidence_refs")
+            errors.append(f"{finding_path} missing evidence_refs")
         prior_finding_id = str(
             row.get("prior_finding_id", "") or ""
         ).strip()
@@ -3804,18 +3738,21 @@ def validate_architect_metric_semantic_review_packet(
             linked_prior_finding_ids.append(prior_finding_id)
             if prior_finding_id not in expected_prior_finding_ids:
                 errors.append(
-                    "current finding prior_finding_id must name an active prior finding"
+                    f"{finding_path} prior_finding_id must name an active prior "
+                    "finding"
                 )
             if (
                 prior_review_status_by_id.get(prior_finding_id)
                 != METRIC_PROTOCOL_FINDING_UNRESOLVED
             ):
                 errors.append(
-                    "current finding may link only to a prior finding marked UNRESOLVED"
+                    f"{finding_path} may link only to a prior finding marked "
+                    "UNRESOLVED"
                 )
             if new_finding_rationale:
                 errors.append(
-                    "a linked current finding must leave new_finding_rationale empty"
+                    f"{finding_path} linked prior finding must leave "
+                    "new_finding_rationale empty"
                 )
             finding_snapshot_rows = current_evidence_by_finding_id.get(
                 prior_finding_id,
@@ -3836,8 +3773,8 @@ def validate_architect_metric_semantic_review_packet(
                 ]
                 if not cited_snapshot_rows:
                     errors.append(
-                        "a linked unresolved finding must cite an exists=true "
-                        "current evidence snapshot"
+                        f"{finding_path} linked unresolved finding must cite an "
+                        "exists=true current evidence snapshot"
                     )
                 elif not any(
                     str(snapshot.get("evidence_ref", "") or "")
@@ -3845,12 +3782,13 @@ def validate_architect_metric_semantic_review_packet(
                     for snapshot in cited_snapshot_rows
                 ):
                     errors.append(
-                        "a linked unresolved finding must preserve the exact "
-                        "underlying current artifact reference"
+                        f"{finding_path} linked unresolved finding must preserve "
+                        "the exact underlying current artifact reference"
                     )
         elif expected_prior_finding_ids and not new_finding_rationale:
             errors.append(
-                "a genuinely new current finding requires new_finding_rationale"
+                f"{finding_path} genuinely new finding requires "
+                "new_finding_rationale"
             )
     if len(linked_prior_finding_ids) != len(set(linked_prior_finding_ids)):
         errors.append(

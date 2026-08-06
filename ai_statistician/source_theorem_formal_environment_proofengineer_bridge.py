@@ -12,12 +12,6 @@ from typing import Any, Mapping
 from .fingerprint import stable_hash
 from .lean_proof_agent_contract import llm_proof_body_generation_contract
 from .research_architect import KERNEL_PROOF_BOUNDARY
-from .exact_semantic_definition_policy import (
-    compact_exact_semantic_placeholder_key,
-    exact_semantic_definition_formal_environment_declaration_hint,
-    exact_semantic_definition_formal_environment_statement_repair_rules,
-    exact_semantic_definition_formal_environment_symbol_names,
-)
 from .source_theorem_exact_semantic_definition_source_lookup import (
     EXACT_SEMANTIC_DEFINITION_CONTEXT_KEYS,
 )
@@ -433,12 +427,6 @@ def _repair_packet(row: Mapping[str, Any]) -> dict[str, Any]:
     recommended_tasks = _str_list(row.get("recommended_repair_tasks", []) or [])
     candidate_artifact_path = str(row.get("candidate_artifact_path", "") or "").strip()
     candidate_source = _read_candidate_source(candidate_artifact_path)
-    candidate_source_symbols = _source_candidate_environment_symbols(
-        candidate_source,
-        context=row,
-    )
-    if candidate_source_symbols:
-        missing_symbols = list(dict.fromkeys([*missing_symbols, *candidate_source_symbols]))
     source_target_provenance = _source_theorem_target_provenance(row)
     question_id = str(
         row.get("question_id", "")
@@ -453,15 +441,6 @@ def _repair_packet(row: Mapping[str, Any]) -> dict[str, Any]:
     target_ids = _target_ids_from_work_order(row, fallback_target=target_theorem_name)
     semantic_alignment_constraints = _str_list(
         source_target_provenance.get("semantic_alignment_constraints", []) or []
-    )
-    declaration_hints = _formal_environment_declaration_hints(
-        missing_symbols,
-        context=row,
-    )
-    statement_hints = _statement_repair_hints(
-        typeclass_blockers,
-        missing_symbols=missing_symbols,
-        context=row,
     )
     signature_probe_plan = _lean_signature_probe_plan(
         missing_symbols=missing_symbols,
@@ -500,13 +479,17 @@ def _repair_packet(row: Mapping[str, Any]) -> dict[str, Any]:
         "target_lean_location_source": str(
             row.get("target_lean_location_source", "") or ""
         ),
-        "candidate_source_hash": str(
-            row.get("candidate_source_hash", "") or ""
-        ),
         "live_proof_state_request": dict(
             row.get("live_proof_state_request", {}) or {}
         ),
         "candidate_artifact_path": candidate_artifact_path,
+        "candidate_source": candidate_source,
+        "candidate_source_complete": True,
+        "candidate_source_hash": (
+            stable_hash(candidate_source)
+            if candidate_source
+            else str(row.get("candidate_source_hash", "") or "")
+        ),
         "exact_semantic_definition_context": exact_semantic_context,
         "lean_statement_sketch": str(row.get("lean_statement_sketch", "") or ""),
         "lean_imports": _str_list(row.get("lean_imports", []) or []),
@@ -574,18 +557,10 @@ def _repair_packet(row: Mapping[str, Any]) -> dict[str, Any]:
         "diagnostics": _str_list(row.get("diagnostics", []) or [])[:8],
         "missing_formal_symbols": missing_symbols,
         "typeclass_blockers": typeclass_blockers,
-        "formal_environment_declaration_hints": declaration_hints,
-        "statement_repair_hints": statement_hints,
         "lean_signature_probe_plan": signature_probe_plan,
-        "recommended_repair_tasks": recommended_tasks or _default_repair_tasks(
-            missing_symbols=missing_symbols,
-            typeclass_blockers=typeclass_blockers,
-        ),
-        "proofengineer_action_plan": _proofengineer_action_plan(
-            missing_symbols=missing_symbols,
-            typeclass_blockers=typeclass_blockers,
-            candidate_artifact_path=candidate_artifact_path,
-        ),
+        "recommended_repair_tasks": recommended_tasks,
+        "model_owns_candidate_and_repair_strategy": True,
+        "runtime_supplies_observations_only": True,
         "required_outputs": [
             "repaired exact source-theorem Lean candidate or import/environment patch",
             "rerunnable materializer/artifact-verifier manifest",
@@ -641,39 +616,6 @@ def _source_theorem_target_provenance(row: Mapping[str, Any]) -> dict[str, Any]:
     return provenance
 
 
-def _proofengineer_action_plan(
-    *,
-    missing_symbols: list[str],
-    typeclass_blockers: list[str],
-    candidate_artifact_path: str,
-) -> list[str]:
-    actions: list[str] = []
-    for symbol in missing_symbols:
-        actions.append(
-            "search Mathlib/StatInference/local Lean sources for an existing declaration "
-            f"matching `{symbol}` before inventing a new primitive"
-        )
-        actions.append(
-            "if no faithful declaration exists, draft a minimal source-theorem primitive "
-            f"for `{symbol}` with explicit semantics and mark it as unproved until local Lean verifies it"
-        )
-    for blocker in typeclass_blockers:
-        actions.append(
-            "repair the exact source-theorem statement or coercions that caused Lean to request "
-            f"typeclass `{blocker}`"
-        )
-    if candidate_artifact_path:
-        actions.append(
-            "rerun local Lean on the repaired candidate artifact "
-            f"`{candidate_artifact_path}` before exporting any proof-memory row"
-        )
-    actions.append(
-        "do not replace the exact source theorem with a route probe, vacuous True target, "
-        "or helper lemma that assumes the target"
-    )
-    return list(dict.fromkeys(actions))[:10]
-
-
 def _read_candidate_source(candidate_artifact_path: str) -> str:
     if not candidate_artifact_path:
         return ""
@@ -681,146 +623,6 @@ def _read_candidate_source(candidate_artifact_path: str) -> str:
         return Path(candidate_artifact_path).read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return ""
-
-
-def _source_candidate_environment_symbols(
-    source: str,
-    *,
-    context: Mapping[str, Any] | None = None,
-) -> list[str]:
-    if not source:
-        return []
-    symbol_positions: list[tuple[int, str]] = []
-    for symbol in exact_semantic_definition_formal_environment_symbol_names(
-        context=context,
-    ):
-        match = re.search(rf"\b{re.escape(symbol)}\b", source)
-        if match:
-            symbol_positions.append((match.start(), symbol))
-    return [
-        symbol
-        for _, symbol in sorted(
-            symbol_positions,
-            key=lambda item: (item[0], item[1]),
-        )
-    ]
-
-
-def _formal_environment_declaration_hints(
-    missing_symbols: list[str],
-    *,
-    context: Mapping[str, Any] | None = None,
-) -> list[dict[str, Any]]:
-    return [
-        exact_semantic_definition_formal_environment_declaration_hint(
-            symbol,
-            context=context,
-        )
-        for symbol in missing_symbols
-    ]
-
-
-def _statement_repair_hints(
-    typeclass_blockers: list[str],
-    *,
-    missing_symbols: list[str] | None = None,
-    context: Mapping[str, Any] | None = None,
-) -> list[dict[str, str]]:
-    hints: list[dict[str, str]] = []
-    matched_blockers: set[str] = set()
-    symbols = missing_symbols or []
-    for rule in exact_semantic_definition_formal_environment_statement_repair_rules(
-        context=context,
-    ):
-        matched_for_blockers = [
-            blocker
-            for blocker in typeclass_blockers
-            if _formal_environment_statement_repair_rule_matches(
-                rule,
-                blocker=blocker,
-                missing_symbols=symbols,
-            )
-        ]
-        if matched_for_blockers:
-            matched_blockers.update(matched_for_blockers)
-            for blocker in matched_for_blockers:
-                if rule.get("diagnosis") or rule.get("repair_hint"):
-                    hints.append(
-                        {
-                            "blocker": blocker,
-                            "diagnosis": str(rule.get("diagnosis", "") or ""),
-                            "repair_hint": str(rule.get("repair_hint", "") or ""),
-                            "example_target_shape": str(
-                                rule.get("example_target_shape", "") or ""
-                            ),
-                            "honesty_boundary": str(
-                                rule.get("honesty_boundary", "") or ""
-                            ),
-                            "policy_rule_id": str(rule.get("rule_id", "") or ""),
-                        }
-                    )
-        elif not typeclass_blockers and _formal_environment_statement_repair_rule_matches(
-            rule,
-            blocker="",
-            missing_symbols=symbols,
-        ):
-            if rule.get("diagnosis") or rule.get("repair_hint"):
-                hints.append(
-                    {
-                        "blocker": "",
-                        "diagnosis": str(rule.get("diagnosis", "") or ""),
-                        "repair_hint": str(rule.get("repair_hint", "") or ""),
-                        "example_target_shape": str(
-                            rule.get("example_target_shape", "") or ""
-                        ),
-                        "honesty_boundary": str(
-                            rule.get("honesty_boundary", "") or ""
-                        ),
-                        "policy_rule_id": str(rule.get("rule_id", "") or ""),
-                    }
-                )
-    for blocker in typeclass_blockers:
-        if blocker not in matched_blockers:
-            hints.append(
-                {
-                    "blocker": blocker,
-                    "diagnosis": "Lean could not synthesize a typeclass needed by the candidate",
-                    "repair_hint": (
-                        "inspect the exact diagnostic and repair the smallest statement "
-                        "coercion/import/class context needed for typechecking"
-                    ),
-                    "example_target_shape": "",
-                    "honesty_boundary": (
-                        "typeclass repair is environment routing evidence, not theorem proof"
-                    ),
-                }
-            )
-    return hints
-
-
-def _formal_environment_statement_repair_rule_matches(
-    rule: Mapping[str, Any],
-    *,
-    blocker: str,
-    missing_symbols: list[str],
-) -> bool:
-    blocker_terms = tuple(rule.get("typeclass_blocker_contains_any", ()) or ())
-    if blocker_terms and not any(term in blocker for term in blocker_terms):
-        return False
-    symbol_keys = tuple(
-        compact_exact_semantic_placeholder_key(value)
-        for value in rule.get("missing_symbol_keys_any", ()) or ()
-        if compact_exact_semantic_placeholder_key(value)
-    )
-    if symbol_keys:
-        missing_keys = {
-            compact_exact_semantic_placeholder_key(symbol)
-            for symbol in missing_symbols
-            if compact_exact_semantic_placeholder_key(symbol)
-        }
-        if not missing_keys.intersection(symbol_keys):
-            return False
-    return bool(blocker_terms or symbol_keys)
 
 
 def _lean_signature_probe_plan(
@@ -832,31 +634,12 @@ def _lean_signature_probe_plan(
     return {
         "probe_kind": "statement_typecheck_not_proof",
         "candidate_artifact_path": candidate_artifact_path,
-        "objective": (
-            "produce a repaired Lean candidate whose imports, primitive declarations, "
-            "and theorem statement typecheck far enough to reach the intentionally "
-            "unproved proof body"
-        ),
-        "allowed_edits": [
-            "add faithful imports found by search",
-            "draft narrow local primitive signatures for missing symbols when search fails",
-            "repair explicit coercions/codomain mismatches in the theorem statement",
-        ],
-        "forbidden_edits": [
-            "do not add axioms",
-            "do not replace the source theorem with `True` or a vacuous route probe",
-            "do not assume the target theorem or add a helper lemma restating it",
-            "do not mark signature-only primitives as proof evidence",
-        ],
         "known_blockers": {
             "missing_formal_symbols": list(missing_symbols),
             "typeclass_blockers": list(typeclass_blockers),
         },
-        "success_criterion": (
-            "the artifact verifier no longer reports missing-symbol/typeclass diagnostics; "
-            "remaining failure should be the intentional unproved proof body or genuine "
-            "proof obligations"
-        ),
+        "tool_observation_only": True,
+        "model_owns_candidate_and_repair_strategy": True,
         "proof_evidence_status": "SIGNATURE_PROBE_PLAN_NOT_PROOF_EVIDENCE",
         "boundary": BOUNDARY,
     }
@@ -2876,23 +2659,6 @@ def _live_proof_state_tool_arguments(
     return arguments
 
 
-def _default_repair_tasks(
-    *,
-    missing_symbols: list[str],
-    typeclass_blockers: list[str],
-) -> list[str]:
-    tasks = [
-        f"resolve Lean declaration/import or formal primitive `{symbol}`"
-        for symbol in missing_symbols
-    ]
-    tasks.extend(
-        f"repair exact source-theorem typeclass/coercion blocker `{blocker}`"
-        for blocker in typeclass_blockers
-    )
-    tasks.append("rerun local Lean/AXLE artifact verifier before claiming proof")
-    return tasks[:8]
-
-
 def _export_runtime_learning_rows(
     *,
     repair_packets: list[Mapping[str, Any]],
@@ -2982,12 +2748,6 @@ def _export_runtime_learning_rows(
                     "failure_classification": str(packet.get("failure_classification", "") or ""),
                     "missing_formal_symbols": list(packet.get("missing_formal_symbols", []) or []),
                     "typeclass_blockers": list(packet.get("typeclass_blockers", []) or []),
-                    "formal_environment_declaration_hints": list(
-                        packet.get("formal_environment_declaration_hints", []) or []
-                    ),
-                    "statement_repair_hints": list(
-                        packet.get("statement_repair_hints", []) or []
-                    ),
                     "lean_signature_probe_plan": dict(
                         packet.get("lean_signature_probe_plan", {}) or {}
                     ),

@@ -8,10 +8,6 @@ from typing import Any, Mapping
 
 from .agent_runtime import agent_runtime_substage
 
-from .architect_metric_repair_ownership_router_llm import (
-    ArchitectMetricRepairOwnershipRouterConfig,
-    LLMArchitectMetricRepairOwnershipRouterAgent,
-)
 from .architect_metric_semantic_reviewer_llm import (
     ARCHITECT_METRIC_SEMANTIC_REVIEW_BOUNDARY,
     ArchitectMetricSemanticReviewerConfig,
@@ -207,10 +203,6 @@ class ArchitectCoordinatorConfig:
     metric_semantic_reviewer_model_tier: str = "sonnet"
     metric_semantic_reviewer_max_tokens: int = 7000
     metric_semantic_reviewer_max_revisions: int = 2
-    metric_repair_ownership_router_enabled: bool = False
-    metric_repair_ownership_router_model: str = ""
-    metric_repair_ownership_router_model_tier: str = "sonnet"
-    metric_repair_ownership_router_max_tokens: int = 5000
 
 
 class LLMArchitectCoordinatorAgent:
@@ -223,9 +215,6 @@ class LLMArchitectCoordinatorAgent:
         config: ArchitectCoordinatorConfig = ArchitectCoordinatorConfig(),
         metric_semantic_reviewer: (
             LLMArchitectMetricSemanticReviewerAgent | None
-        ) = None,
-        metric_repair_ownership_router: (
-            LLMArchitectMetricRepairOwnershipRouterAgent | None
         ) = None,
         preflight_source_retriever: Any = None,
     ) -> None:
@@ -247,27 +236,6 @@ class LLMArchitectCoordinatorAgent:
                         provider_name=config.provider_name,
                     ),
                     source_retriever=preflight_source_retriever,
-                )
-            )
-        self.metric_repair_ownership_router = metric_repair_ownership_router
-        if (
-            self.metric_repair_ownership_router is None
-            and config.metric_repair_ownership_router_enabled
-        ):
-            self.metric_repair_ownership_router = (
-                LLMArchitectMetricRepairOwnershipRouterAgent(
-                    provider=provider,
-                    config=ArchitectMetricRepairOwnershipRouterConfig(
-                        model=config.metric_repair_ownership_router_model,
-                        model_tier=(
-                            config.metric_repair_ownership_router_model_tier
-                        ),
-                        max_tokens=(
-                            config.metric_repair_ownership_router_max_tokens
-                        ),
-                        temperature=0.0,
-                        provider_name=config.provider_name,
-                    ),
                 )
             )
 
@@ -333,7 +301,6 @@ class LLMArchitectCoordinatorAgent:
                 ),
                 request_model=request_model,
                 semantic_reviewer=self.metric_semantic_reviewer,
-                repair_ownership_router=self.metric_repair_ownership_router,
                 question=question,
                 runtime_contract=_architect_runtime_owned_evidence_contract(
                     architect_context=architect_context,
@@ -1059,25 +1026,6 @@ def _architect_metric_requirement_authoring_summary(
     review_history = packet.get("semantic_review_history", [])
     if not isinstance(review_history, list):
         review_history = []
-    semantic_patch_transport_kinds = list(
-        dict.fromkeys(
-            str(row.get("semantic_patch_transport_kind", "") or "").strip()
-            for row in history
-            if isinstance(row, Mapping)
-            and str(
-                row.get("semantic_patch_transport_kind", "") or ""
-            ).strip()
-        )
-    )
-    semantic_patch_application_rows = [
-        dict(application)
-        for row in history
-        if isinstance(row, Mapping)
-        for application in row.get(
-            "semantic_patch_application_rows", []
-        )
-        if isinstance(application, Mapping)
-    ]
     return {
         "artifact_kind": str(packet.get("artifact_kind", "") or ""),
         "packet_id": str(packet.get("packet_id", "") or ""),
@@ -1106,12 +1054,6 @@ def _architect_metric_requirement_authoring_summary(
         ),
         "llm_json_repair_attempts": int(
             packet.get("llm_json_repair_attempts", 0) or 0
-        ),
-        "semantic_patch_transport_kinds": (
-            semantic_patch_transport_kinds
-        ),
-        "semantic_patch_application_rows": (
-            semantic_patch_application_rows
         ),
         "provider_structured_output_requested": bool(
             response_metadata.get("provider_structured_output_requested")
@@ -2224,47 +2166,6 @@ def _architect_packet_repair_context(
         "formal_target_authoring_contract": (
             ARCHITECT_FORMAL_TARGET_AUTHORING_CONTRACT
         ),
-        "repair_prompt_priority_instructions": [
-            "Return every required top-level field, even when only one row is needed.",
-            "Every array named in required_array_item_shapes must contain JSON objects with exactly that shape, never strings.",
-            "Author subsystem_execution_plan rows for the intended research path; runtime-owned mandatory-stage shells are appended after generation.",
-            "Do not omit or rewrite runtime_owned_evidence_contract fields.",
-            (
-                "In research_eval or capability_eval, preserve the runtime-owned metric phase. While "
-                "theory_prerequisite_pending, leave empirical_metric_requirements "
-                "empty and route retrieval/theory only. After the structured theory "
-                "handoff and AlgorithmEngineer artifact, author the smallest "
-                "confirmatory simulation requirement set and freeze it only after "
-                "independent review; preserve any accepted frozen requirement set "
-                "unchanged on replans."
-            ),
-            (
-                "In research_eval, remove every strict formal subsystem from the "
-                "execution plan and route accepted empirical artifacts directly to "
-                "CriticEvaluator. Keep formal_targets only as an unverified future handoff."
-            ),
-            (
-                "In empirical_metric_requirements.target_subsystems, use only the "
-                "exact empirical-evaluation author value SimulationEngineer. "
-                "AlgorithmEngineer implementation acceptance uses execution plus "
-                "independent semantic review. SimulationEvaluator is a runtime execution "
-                "owner and is invalid in this field."
-            ),
-            (
-                "Author formal_targets as task-specific mathematical claims, never "
-                "as proof-completion, kernel-status, or generic evidence-gate prose."
-            ),
-            (
-                "For elementwise metric aggregations, threshold compares every raw "
-                "measurement and minimum_pass_count/minimum_pass_fraction separately "
-                "sets the quorum."
-            ),
-            (
-                "Recompute numeric constants, audit threshold attainability, and "
-                "verify that typed operator and aggregation direction exactly match "
-                "the measurement-protocol prose before freezing requirements."
-            ),
-        ],
     }
 
 

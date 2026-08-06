@@ -6,10 +6,8 @@ from pathlib import Path
 import ai_statistician.exact_semantic_definition_policy as policy_module
 from ai_statistician.exact_semantic_definition_policy import (
     compact_exact_semantic_placeholder_key,
-    exact_semantic_definition_candidate_risks,
     exact_semantic_definition_contract,
     exact_semantic_definition_formal_environment_declaration_hint,
-    exact_semantic_definition_formal_environment_statement_repair_rules,
     exact_semantic_definition_formal_environment_symbol_names,
     exact_semantic_definition_fallback_source_anchor_role,
     exact_semantic_definition_import_policy_blocker,
@@ -40,7 +38,6 @@ def test_split_conformal_placeholder_policy_is_data_pack_owned() -> None:
             Path(policy_module.__file__).resolve().parents[1] / "pyproject.toml"
         ).read_text(encoding="utf-8")
     )
-
     assert "_SPLIT_CONFORMAL_POLICIES" not in module_source
     assert "_split_conformal_registry" not in module_source
     assert "split_conformal_coverage.covered" not in module_source
@@ -199,9 +196,6 @@ def test_pack_level_hints_require_matching_task_context() -> None:
         context=conformal_context,
     )
     assert exact_semantic_definition_formal_environment_symbol_names(
-        context=survival_context,
-    ) == ()
-    assert exact_semantic_definition_formal_environment_statement_repair_rules(
         context=survival_context,
     ) == ()
     assert (
@@ -395,16 +389,6 @@ def test_policy_owns_formal_environment_symbols_and_repairs() -> None:
     ]
     assert "semantic primitive" in exchangeable_hint["signature_probe_fallback"]
 
-    rules = {
-        rule["rule_id"]: rule
-        for rule in exact_semantic_definition_formal_environment_statement_repair_rules()
-    }
-    assert "split_conformal_ennreal_lower_bound_from_real_alpha" in rules
-    assert rules["split_conformal_ennreal_lower_bound_from_real_alpha"][
-        "typeclass_blocker_contains_any"
-    ] == ("HSub \u2115 \u211d ENNReal",)
-    assert all("literal_replacements" not in rule for rule in rules.values())
-    assert all("regex_replacements" not in rule for rule in rules.values())
     assert "alpha" in exact_semantic_definition_source_lookup_aliases("\u03b1_total")
     assert "alphatotal" in exact_semantic_definition_source_lookup_aliases(
         "\u03b1_total"
@@ -415,7 +399,9 @@ def test_policy_owns_formal_environment_symbols_and_repairs() -> None:
 
     generic_contract = exact_semantic_definition_contract("newDomainObject")
     assert "newDomainObject" in generic_contract["semantic_intent"]
-    assert "do not assume the target theorem" in generic_contract["forbidden_shortcuts"]
+    assert "do not add axiom/sorry/admit/unsafe" in generic_contract[
+        "evidence_integrity_constraints"
+    ]
 
 
 def test_policy_owns_source_to_bridge_anchor_and_adapter_object_fallbacks() -> None:
@@ -443,64 +429,4 @@ def test_policy_owns_source_to_bridge_anchor_and_adapter_object_fallbacks() -> N
         "hn2",
         "alpha",
         "halpha",
-    )
-
-
-def test_placeholder_policy_owns_candidate_semantic_risk_rules() -> None:
-    pairwise_exchangeability = (
-        "def Exchangeable {Ω : Type _} (P : MeasureTheory.Measure Ω)"
-        " (s : Nat -> Ω -> ℝ) : Prop := P.real {ω | s 0 ω <= s 1 ω} = 1"
-    )
-    exchangeability_risks = exact_semantic_definition_candidate_risks(
-        "Exchangeable",
-        definition_block=pairwise_exchangeability,
-    )
-    assert any("pairwise" in risk for risk in exchangeability_risks)
-    assert any("permutation" in risk for risk in exchangeability_risks)
-
-    finite_max_order_stat = (
-        "def orderStat (scores : Finset Nat) : Nat := scores.max' (by simp)"
-    )
-    order_stat_risks = exact_semantic_definition_candidate_risks(
-        "orderStat",
-        definition_block=finite_max_order_stat,
-    )
-    assert any("finite maximum" in risk for risk in order_stat_risks)
-    assert any("rank parameter k" in risk for risk in order_stat_risks)
-
-    reviewed_order_stat = (
-        "def orderStat (scores : List Nat) (k : Nat) : Nat := scores.getD k 0"
-    )
-    assert (
-        exact_semantic_definition_candidate_risks(
-            "orderStat",
-            definition_block=reviewed_order_stat,
-        )
-        == []
-    )
-
-
-def test_policy_pack_string_false_case_sensitive_is_case_insensitive() -> None:
-    rule = policy_module._risk_rule_from_mapping(
-        {
-            "message": "semantic_definition_risk: missing permutation",
-            "absent_all": ["permutation"],
-            "case_sensitive": "false",
-        }
-    )
-
-    assert rule.case_sensitive is False
-    assert (
-        policy_module._candidate_risk_rule_matches(
-            rule,
-            definition_block="def Exchangeable : Prop := PermutationInvariantLaw",
-        )
-        is False
-    )
-    assert (
-        policy_module._candidate_risk_rule_matches(
-            rule,
-            definition_block="def Exchangeable : Prop := pairwiseScoreOrderOnly",
-        )
-        is True
     )

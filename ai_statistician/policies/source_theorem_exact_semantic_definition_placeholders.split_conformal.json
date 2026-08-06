@@ -19,56 +19,112 @@
   "source_anchor_role_fallback_rules": [
     {
       "role": "calibration_size_anchor",
-      "name_keys": ["n", "n1", "n2", "hn", "hn1", "hn2"]
+      "name_keys": [
+        "n",
+        "n1",
+        "n2",
+        "hn",
+        "hn1",
+        "hn2"
+      ]
     },
     {
       "role": "score_process_anchor",
-      "name_keys": ["s", "score", "scores", "hscore", "hmeas"]
+      "name_keys": [
+        "s",
+        "score",
+        "scores",
+        "hscore",
+        "hmeas"
+      ]
     },
     {
       "role": "threshold_function_anchor",
-      "name_keys": ["q", "qhat"]
+      "name_keys": [
+        "q",
+        "qhat"
+      ]
     },
     {
       "role": "quantile_definition_anchor",
-      "name_keys": ["hq", "hquantilethreshold"],
-      "binder_type_contains": ["orderStat"]
+      "name_keys": [
+        "hq",
+        "hquantilethreshold"
+      ],
+      "binder_type_contains": [
+        "orderStat"
+      ]
     },
     {
       "role": "coverage_event_anchor",
-      "name_keys": ["c", "cn", "c_n", "hc", "coverageevent", "covered"]
+      "name_keys": [
+        "c",
+        "cn",
+        "c_n",
+        "hc",
+        "coverageevent",
+        "covered"
+      ]
     },
     {
       "role": "exchangeability_anchor",
-      "name_keys": ["hexch", "hexchangeable"],
-      "binder_type_contains": ["Exchangeable"]
+      "name_keys": [
+        "hexch",
+        "hexchangeable"
+      ],
+      "binder_type_contains": [
+        "Exchangeable"
+      ]
     },
     {
       "role": "miscoverage_level_anchor",
-      "name_keys": ["alpha", "halpha", "halpha1"]
+      "name_keys": [
+        "alpha",
+        "halpha",
+        "halpha1"
+      ]
     },
     {
       "role": "source_hypothesis",
-      "name_prefixes": ["h"]
+      "name_prefixes": [
+        "h"
+      ]
     }
   ],
   "source_to_bridge_adapter_object_names_requiring_source_instantiation": [
     "covered",
     "rank",
     "BadRanks",
-    "\u03b1",
-    "\u03b1_total"
+    "α",
+    "α_total"
   ],
   "source_to_bridge_semantic_anchor_fallback_rules": [
     {
       "rule_id": "split_conformal_coverage_event_anchor_fallback",
-      "text_contains_any": ["covered", "coverage event", "hc"],
-      "anchor_names": ["hC", "C", "q_hat", "s"]
+      "text_contains_any": [
+        "covered",
+        "coverage event",
+        "hc"
+      ],
+      "anchor_names": [
+        "hC",
+        "C",
+        "q_hat",
+        "s"
+      ]
     },
     {
       "rule_id": "split_conformal_exchangeability_anchor_fallback",
-      "text_contains_any": ["exchangeability", "exchangeable", "hexch"],
-      "anchor_names": ["hexch", "s", "P"]
+      "text_contains_any": [
+        "exchangeability",
+        "exchangeable",
+        "hexch"
+      ],
+      "anchor_names": [
+        "hexch",
+        "s",
+        "P"
+      ]
     },
     {
       "rule_id": "split_conformal_rank_quantile_anchor_fallback",
@@ -80,22 +136,30 @@
         "orderstat",
         "hq"
       ],
-      "anchor_names": ["hq", "q_hat", "s", "n2", "hn2", "alpha", "halpha"]
+      "anchor_names": [
+        "hq",
+        "q_hat",
+        "s",
+        "n2",
+        "hn2",
+        "alpha",
+        "halpha"
+      ]
     },
     {
       "rule_id": "split_conformal_alpha_budget_anchor_fallback",
-      "text_contains_any": ["alpha", "\u03b1", "budget", "total"],
-      "anchor_names": ["alpha", "halpha", "n2", "hn2"]
-    }
-  ],
-  "formal_environment_statement_repair_rules": [
-    {
-      "rule_id": "split_conformal_ennreal_lower_bound_from_real_alpha",
-      "typeclass_blocker_contains_any": ["HSub \u2115 \u211d ENNReal"],
-      "diagnosis": "the exact candidate compares a `Measure` value in `ENNReal` with `1 - alpha : \u211d`; Lean is trying to subtract a real from a natural or coerce the wrong side of the inequality",
-      "repair_hint": "probe a typed statement whose probability lower bound is `ENNReal.ofReal (1 - alpha)` while keeping the source theorem marked as a semantic repair draft, not a proved exact theorem",
-      "example_target_shape": "P {\u03c9 | s (Fin.last m) \u03c9 \u2264 q_hat \u03c9} \u2265 ENNReal.ofReal (1 - alpha)",
-      "honesty_boundary": "changing the codomain/coercion shape can make the Lean statement typecheck, but it is not source-theorem evidence until semantic review and local Lean/AXLE verification succeed"
+      "text_contains_any": [
+        "alpha",
+        "α",
+        "budget",
+        "total"
+      ],
+      "anchor_names": [
+        "alpha",
+        "halpha",
+        "n2",
+        "hn2"
+      ]
     }
   ],
   "placeholder_policies": [
@@ -104,86 +168,109 @@
       "policy_scope": "split_conformal_coverage",
       "placeholder_key": "exchangeable",
       "semantic_goal": "Define finite exchangeability as permutation-invariant joint law of the score process, not only pairwise score-order symmetry.",
-      "formal_environment_symbol_names": ["Exchangeable"],
+      "formal_environment_symbol_names": [
+        "Exchangeable"
+      ],
       "formal_environment_search_queries": [
         "Exchangeable probability measure indexed random variables",
         "exchangeable Fin family MeasureTheory probability",
         "List.Perm distribution invariant MeasureTheory"
       ],
       "formal_environment_preferred_resolution": "reuse an existing Mathlib/StatInference exchangeability declaration if one exists",
-      "formal_environment_signature_probe_fallback": "for a typecheck-only repair artifact, introduce a local predicate `Exchangeable (P : Measure \u03a9) (s : Fin (m + 1) \u2192 \u03a9 \u2192 \u211d) : Prop` only as an unproved semantic primitive; do not count it as proof or source-theorem evidence",
+      "formal_environment_signature_probe_fallback": "for a typecheck-only repair artifact, introduce a local predicate `Exchangeable (P : Measure Ω) (s : Fin (m + 1) → Ω → ℝ) : Prop` only as an unproved semantic primitive; do not count it as proof or source-theorem evidence",
       "formal_environment_promotion_blocker": "the source theorem is not semantically promoted until this predicate is mapped to a reviewed library definition or kernel-proved primitive",
-      "required_anchor_names": ["P", "s"],
-      "source_to_bridge_premise_aliases": ["hexch", "hExchangeability"],
+      "required_anchor_names": [
+        "P",
+        "s"
+      ],
+      "source_to_bridge_premise_aliases": [
+        "hexch",
+        "hExchangeability"
+      ],
       "source_to_bridge_dependency_requirements": [
         "derive the rank point-mass bound from exact exchangeability hexch",
         "formalize the tie policy/rank-uniformity lemma needed for bad-rank probabilities"
       ],
-      "source_to_bridge_required_anchor_names": ["hexch", "P", "s"],
+      "source_to_bridge_required_anchor_names": [
+        "hexch",
+        "P",
+        "s"
+      ],
       "source_anchor_roles": {
         "hexch": "exchangeability_anchor",
         "hExchangeability": "exchangeability_anchor",
         "P": "probability_measure_anchor",
         "s": "score_process_anchor"
       },
-      "source_lookup_search_terms": ["exchangeability", "exchangeab"],
-      "source_lookup_aliases": ["exchangeable", "exchangeability"],
+      "source_lookup_search_terms": [
+        "exchangeability",
+        "exchangeab"
+      ],
+      "source_lookup_aliases": [
+        "exchangeable",
+        "exchangeability"
+      ],
       "definition_contract": {
         "semantic_intent": "finite calibration/test score family has a permutation-invariant joint law under the probability measure",
-        "lean_target_shape": "predicate over `P : Measure \u03a9` and `s : Fin (n + 1) -> \u03a9 -> \u211d`",
+        "lean_target_shape": "predicate over `P : Measure Ω` and `s : Fin (n + 1) -> Ω -> ℝ`",
         "required_properties": [
           "invariance under finite index permutations",
           "sufficient to derive uniform rank or bad-rank budget support lemmas",
           "compatible with MeasureTheory probability-measure assumptions"
-        ],
-        "forbidden_shortcuts": [
-          "do not define Exchangeable as True",
-          "do not add axiom/sorry/admit/unsafe",
-          "do not assume the split_conformal_coverage target theorem"
         ]
-      },
-      "candidate_risk_rules": [
-        {
-          "message": "semantic_definition_risk: Exchangeable candidate uses pairwise score-order probability symmetry rather than finite permutation-invariant joint-law exchangeability",
-          "present_any": ["P.real"],
-          "absent_all": ["Equiv.Perm"]
-        },
-        {
-          "message": "semantic_definition_risk: Exchangeable candidate does not expose a finite permutation/invariance parameter",
-          "absent_all": ["Equiv.Perm", "permutation"],
-          "case_sensitive": false
-        }
-      ]
+      }
     },
     {
       "policy_id": "split_conformal_coverage.probability_measure",
       "policy_scope": "split_conformal_coverage",
       "placeholder_key": "MeasureProbability",
-      "placeholder_aliases": ["ProbabilityMeasure", "IsProbabilityMeasure", "probability_measure"],
+      "placeholder_aliases": [
+        "ProbabilityMeasure",
+        "IsProbabilityMeasure",
+        "probability_measure"
+      ],
       "semantic_goal": "Replace generated probability-measure placeholders with the exact source theorem probability measure binder P and its Mathlib probability-measure instance, rather than inventing a local wrapper.",
-      "formal_environment_symbol_names": ["MeasureProbability"],
+      "formal_environment_symbol_names": [
+        "MeasureProbability"
+      ],
       "formal_environment_search_queries": [
         "Mathlib ProbabilityMeasure MeasureTheory IsProbabilityMeasure",
         "MeasureTheory.Measure IsProbabilityMeasure probability measure",
         "StatInference probability measure wrapper"
       ],
-      "formal_environment_preferred_resolution": "prefer `MeasureTheory.Measure \u03a9` with `[MeasureTheory.IsProbabilityMeasure P]` over a custom wrapper",
-      "formal_environment_signature_probe_fallback": "for a typecheck-only repair artifact, introduce a local wrapper with `toMeasure : MeasureTheory.Measure \u03a9` and `MeasureTheory.IsProbabilityMeasure toMeasure`; this remains a semantic placeholder and must block source-theorem promotion",
+      "formal_environment_preferred_resolution": "prefer `MeasureTheory.Measure Ω` with `[MeasureTheory.IsProbabilityMeasure P]` over a custom wrapper",
+      "formal_environment_signature_probe_fallback": "for a typecheck-only repair artifact, introduce a local wrapper with `toMeasure : MeasureTheory.Measure Ω` and `MeasureTheory.IsProbabilityMeasure toMeasure`; this remains a semantic placeholder and must block source-theorem promotion",
       "formal_environment_promotion_blocker": "`MeasureProbability` is not a reviewed source theorem primitive; map it to Mathlib probability-measure semantics before source theorem promotion",
-      "required_anchor_names": ["P"],
-      "source_to_bridge_premise_aliases": ["hProb", "hP", "prob_measure_univ"],
+      "required_anchor_names": [
+        "P"
+      ],
+      "source_to_bridge_premise_aliases": [
+        "hProb",
+        "hP",
+        "prob_measure_univ"
+      ],
       "source_to_bridge_dependency_requirements": [
         "use the exact source probability measure binder P",
         "derive probability-of-universe and real/ENNReal probability coercion facts from Mathlib measure semantics"
       ],
-      "source_to_bridge_required_anchor_names": ["P"],
+      "source_to_bridge_required_anchor_names": [
+        "P"
+      ],
       "source_anchor_roles": {
         "P": "probability_measure_anchor",
         "hP": "probability_measure_anchor",
         "hProb": "probability_measure_anchor"
       },
-      "source_lookup_search_terms": ["MeasureTheory.Measure", "IsProbabilityMeasure", "ProbabilityMeasure"],
-      "source_lookup_aliases": ["MeasureProbability", "probability measure", "MeasureTheory.Measure"],
+      "source_lookup_search_terms": [
+        "MeasureTheory.Measure",
+        "IsProbabilityMeasure",
+        "ProbabilityMeasure"
+      ],
+      "source_lookup_aliases": [
+        "MeasureProbability",
+        "probability measure",
+        "MeasureTheory.Measure"
+      ],
       "definition_contract": {
         "semantic_intent": "source theorem probability measure and probability-measure instance used to interpret event probabilities",
         "lean_target_shape": "reuse `P : MeasureTheory.Measure Ω` with `[MeasureTheory.IsProbabilityMeasure P]` or reviewed equivalent source binders",
@@ -191,39 +278,41 @@
           "uses the exact source theorem measure binder P",
           "preserves probability-measure normalization semantics",
           "supports downstream real/ENNReal probability adapter bridge lemmas"
-        ],
-        "forbidden_shortcuts": [
-          "do not define MeasureProbability as True",
-          "do not create an unrelated local probability wrapper",
-          "do not add axiom/sorry/admit/unsafe",
-          "do not assume the split_conformal_coverage target theorem"
         ]
-      },
-      "candidate_risk_rules": [
-        {
-          "message": "semantic_definition_risk: probability-measure placeholder candidate does not use the source measure binder P",
-          "absent_all": ["P"]
-        },
-        {
-          "message": "semantic_definition_risk: probability-measure placeholder candidate does not mention Mathlib probability-measure semantics",
-          "absent_all": ["IsProbabilityMeasure", "ProbabilityMeasure"]
-        }
-      ]
+      }
     },
     {
       "policy_id": "split_conformal_coverage.covered",
       "policy_scope": "split_conformal_coverage",
       "placeholder_key": "covered",
-      "placeholder_aliases": ["coverage_event", "coverageEvent", "coverage-event"],
-      "semantic_goal": "Define the source coverage event/object from the exact source theorem coverage binder hC and threshold q_hat, matching the held-out score event {\u03c9 | s (Fin.last n2) \u03c9 \u2264 q_hat \u03c9}.",
-      "required_anchor_names": ["s", "q_hat", "C", "hC"],
-      "source_to_bridge_premise_aliases": ["hGoodCovered", "hGoodRankCovered", "hGoodRankImpliesCovered", "hGoodImpliesCovered", "hCoverage"],
+      "placeholder_aliases": [
+        "coverage_event",
+        "coverageEvent",
+        "coverage-event"
+      ],
+      "semantic_goal": "Define the source coverage event/object from the exact source theorem coverage binder hC and threshold q_hat, matching the held-out score event {ω | s (Fin.last n2) ω ≤ q_hat ω}.",
+      "required_anchor_names": [
+        "s",
+        "q_hat",
+        "C",
+        "hC"
+      ],
+      "source_to_bridge_premise_aliases": [
+        "hGoodCovered",
+        "hGoodRankCovered",
+        "hGoodRankImpliesCovered",
+        "hGoodImpliesCovered",
+        "hCoverage"
+      ],
       "source_to_bridge_dependency_requirements": [
         "define covered from the exact source coverage event using hC",
         "define rank and BadRanks from the exact order-statistic threshold hq",
         "prove good-rank containment: rank outside BadRanks implies the covered event"
       ],
-      "source_to_bridge_required_anchor_names": ["hq", "hC"],
+      "source_to_bridge_required_anchor_names": [
+        "hq",
+        "hC"
+      ],
       "source_anchor_roles": {
         "hC": "coverage_event_anchor",
         "C": "coverage_event_anchor",
@@ -236,14 +325,26 @@
       "policy_scope": "split_conformal_coverage",
       "placeholder_key": "rank",
       "semantic_goal": "Define the rank object from the exact score process s and the order-statistic threshold equation hq; it must support good-rank containment and bad-rank probability premises.",
-      "required_anchor_names": ["n2", "s", "q_hat", "hq"],
-      "source_to_bridge_premise_aliases": ["hRank", "rank_uniformity", "rank_point_mass"],
+      "required_anchor_names": [
+        "n2",
+        "s",
+        "q_hat",
+        "hq"
+      ],
+      "source_to_bridge_premise_aliases": [
+        "hRank",
+        "rank_uniformity",
+        "rank_point_mass"
+      ],
       "source_to_bridge_dependency_requirements": [
         "derive the rank point-mass bound from exact exchangeability hexch",
         "formalize the tie policy/rank-uniformity lemma needed for bad-rank probabilities",
-        "define \u03b1 on ranks so each bad-rank event has probability bounded by \u03b1 r"
+        "define α on ranks so each bad-rank event has probability bounded by α r"
       ],
-      "source_to_bridge_required_anchor_names": ["hexch", "hq"],
+      "source_to_bridge_required_anchor_names": [
+        "hexch",
+        "hq"
+      ],
       "source_anchor_roles": {
         "hexch": "exchangeability_anchor",
         "hq": "quantile_definition_anchor",
@@ -252,22 +353,43 @@
         "s": "score_process_anchor",
         "q_hat": "threshold_function_anchor"
       },
-      "source_lookup_aliases": ["rank", "rank_uniformity"]
+      "source_lookup_aliases": [
+        "rank",
+        "rank_uniformity"
+      ]
     },
     {
       "policy_id": "split_conformal_coverage.good_rank_event",
       "policy_scope": "split_conformal_coverage",
       "placeholder_key": "good_rank_event",
-      "placeholder_aliases": ["goodRankEvent", "good-rank-event"],
+      "placeholder_aliases": [
+        "goodRankEvent",
+        "good-rank-event"
+      ],
       "semantic_goal": "Define the good-rank event from the exact finite rank/order-statistic threshold anchors, so it captures the rank condition that implies coverage without asserting a probability bound or restating the source theorem.",
-      "required_anchor_names": ["n2", "s", "q_hat", "hq"],
-      "source_to_bridge_premise_aliases": ["hGoodRank", "hGoodRankEvent", "hGoodRankCovered", "hGoodImpliesCovered"],
+      "required_anchor_names": [
+        "n2",
+        "s",
+        "q_hat",
+        "hq"
+      ],
+      "source_to_bridge_premise_aliases": [
+        "hGoodRank",
+        "hGoodRankEvent",
+        "hGoodRankCovered",
+        "hGoodImpliesCovered"
+      ],
       "source_to_bridge_dependency_requirements": [
         "define rank and BadRanks from the exact order-statistic threshold hq",
         "prove good-rank containment: rank outside BadRanks implies the covered event",
         "keep probability/exchangeability arguments in separate rank-uniformity or bad-rank probability premises"
       ],
-      "source_to_bridge_required_anchor_names": ["hq", "q_hat", "s", "n2"],
+      "source_to_bridge_required_anchor_names": [
+        "hq",
+        "q_hat",
+        "s",
+        "n2"
+      ],
       "source_anchor_roles": {
         "hq": "quantile_definition_anchor",
         "n2": "calibration_size_anchor",
@@ -275,8 +397,17 @@
         "s": "score_process_anchor",
         "q_hat": "threshold_function_anchor"
       },
-      "source_lookup_search_terms": ["good_rank_event", "good rank", "rank event", "rank containment"],
-      "source_lookup_aliases": ["good_rank_event", "goodRankEvent", "rank event"],
+      "source_lookup_search_terms": [
+        "good_rank_event",
+        "good rank",
+        "rank event",
+        "rank containment"
+      ],
+      "source_lookup_aliases": [
+        "good_rank_event",
+        "goodRankEvent",
+        "rank event"
+      ],
       "definition_contract": {
         "semantic_intent": "rank/order-statistic event whose occurrence is sufficient for held-out score coverage",
         "lean_target_shape": "predicate over the finite score family, conformal threshold, and reviewed rank/tie convention",
@@ -284,49 +415,58 @@
           "uses the exact order-statistic threshold equation hq",
           "does not claim coverage probability or exchangeability",
           "is suitable for a later bridge premise from good-rank event to covered event"
-        ],
-        "forbidden_shortcuts": [
-          "do not define good_rank_event as True",
-          "do not define it as an unrelated Nat inequality without source threshold anchors",
-          "do not assert the coverage theorem or a probability bound",
-          "do not add axiom/sorry/admit/unsafe"
         ]
-      },
-      "candidate_risk_rules": [
-        {
-          "message": "semantic_definition_risk: good_rank_event candidate does not mention the source threshold/quantile anchor hq or q_hat",
-          "scope": "definition_block",
-          "absent_all": ["hq", "q_hat"]
-        },
-        {
-          "message": "semantic_definition_risk: good_rank_event candidate appears to assert a probability/coverage theorem rather than defining the rank event",
-          "scope": "definition_block",
-          "present_any": ["Measure", "Probability", "P ", "Pr["]
-        }
-      ]
+      }
     },
     {
       "policy_id": "split_conformal_coverage.prediction_set",
       "policy_scope": "split_conformal_coverage",
       "placeholder_key": "C_n",
-      "placeholder_aliases": ["Cn", "C_n_set", "prediction_set", "predictionSet", "conformal_set"],
+      "placeholder_aliases": [
+        "Cn",
+        "C_n_set",
+        "prediction_set",
+        "predictionSet",
+        "conformal_set"
+      ],
       "semantic_goal": "Define the split-conformal prediction set C_n from the score process and conformal threshold q_hat, keeping the coverage event and probability proof separate.",
-      "required_anchor_names": ["s", "q_hat"],
-      "source_to_bridge_premise_aliases": ["hPredictionSet", "hCn", "hCnMembership", "hScoreBelowThreshold"],
+      "required_anchor_names": [
+        "s",
+        "q_hat"
+      ],
+      "source_to_bridge_premise_aliases": [
+        "hPredictionSet",
+        "hCn",
+        "hCnMembership",
+        "hScoreBelowThreshold"
+      ],
       "source_to_bridge_dependency_requirements": [
         "define the held-out coverage event from membership in C_n",
         "connect C_n membership to the score-threshold event using q_hat",
         "keep finite-sample probability coverage in a later proof-body or bridge premise"
       ],
-      "source_to_bridge_required_anchor_names": ["s", "q_hat", "hC"],
+      "source_to_bridge_required_anchor_names": [
+        "s",
+        "q_hat",
+        "hC"
+      ],
       "source_anchor_roles": {
         "hC": "coverage_event_anchor",
         "C": "coverage_event_anchor",
         "q_hat": "threshold_function_anchor",
         "s": "score_process_anchor"
       },
-      "source_lookup_search_terms": ["C_n", "prediction set", "conformal set", "coverage event"],
-      "source_lookup_aliases": ["C_n", "prediction_set", "conformal_set"],
+      "source_lookup_search_terms": [
+        "C_n",
+        "prediction set",
+        "conformal set",
+        "coverage event"
+      ],
+      "source_lookup_aliases": [
+        "C_n",
+        "prediction_set",
+        "conformal_set"
+      ],
       "definition_contract": {
         "semantic_intent": "split-conformal prediction set induced by scores below the learned threshold q_hat",
         "lean_target_shape": "set-valued object or membership predicate parameterized by the score process and q_hat",
@@ -334,11 +474,6 @@
           "uses q_hat as the learned conformal threshold",
           "uses the source score function s",
           "does not collapse C_n into the coverage event proof or theorem statement"
-        ],
-        "forbidden_shortcuts": [
-          "do not define C_n as Set.univ or True",
-          "do not define C_n as the theorem coverage conclusion",
-          "do not add axiom/sorry/admit/unsafe"
         ]
       }
     },
@@ -346,24 +481,43 @@
       "policy_id": "split_conformal_coverage.order_statistic_threshold",
       "policy_scope": "split_conformal_coverage",
       "placeholder_key": "orderstat",
-      "placeholder_aliases": ["orderStat", "orderStatistic"],
+      "placeholder_aliases": [
+        "orderStat",
+        "orderStatistic"
+      ],
       "semantic_goal": "Define the finite-sample conformal order-statistic threshold from the exact score process s and the order-statistic threshold equation hq. The definition must preserve the requested rank, duplicate score multiplicities, and the reviewed tie policy instead of collapsing scores through a set/image shortcut.",
-      "formal_environment_symbol_names": ["orderStat", "orderStatistic"],
+      "formal_environment_symbol_names": [
+        "orderStat",
+        "orderStatistic"
+      ],
       "formal_environment_search_queries": [
         "order statistic finite family real Lean",
         "Finset sort nth order statistic",
         "quantile order statistic conformal Lean"
       ],
       "formal_environment_preferred_resolution": "reuse or formalize a finite-sample order statistic over `Fin (m + 1)` before proving coverage",
-      "formal_environment_signature_probe_fallback": "for a typecheck-only repair artifact, introduce a local function `orderStat (s : Fin (m + 1) \u2192 \u03a9 \u2192 \u211d) (k : \u2115) (\u03c9 : \u03a9) : \u211d` as a semantic placeholder; it must remain outside proof evidence",
+      "formal_environment_signature_probe_fallback": "for a typecheck-only repair artifact, introduce a local function `orderStat (s : Fin (m + 1) → Ω → ℝ) (k : ℕ) (ω : Ω) : ℝ` as a semantic placeholder; it must remain outside proof evidence",
       "formal_environment_promotion_blocker": "theorem closure still requires the rank/order-statistic semantics bridge, not just the symbol declaration",
-      "required_anchor_names": ["n2", "s", "q_hat", "hq"],
-      "source_to_bridge_premise_aliases": ["hQuantileThreshold", "good_rank_event"],
+      "required_anchor_names": [
+        "n2",
+        "s",
+        "q_hat",
+        "hq"
+      ],
+      "source_to_bridge_premise_aliases": [
+        "hQuantileThreshold",
+        "good_rank_event"
+      ],
       "source_to_bridge_dependency_requirements": [
         "define rank and BadRanks from the exact order-statistic threshold hq",
         "formalize the tie policy/rank-uniformity lemma needed for bad-rank probabilities"
       ],
-      "source_to_bridge_required_anchor_names": ["hq", "q_hat", "s", "n2"],
+      "source_to_bridge_required_anchor_names": [
+        "hq",
+        "q_hat",
+        "s",
+        "n2"
+      ],
       "source_anchor_roles": {
         "hq": "quantile_definition_anchor",
         "n2": "calibration_size_anchor",
@@ -385,13 +539,29 @@
       ],
       "semantic_import_incompatible_status": "SEMANTIC_MISMATCH_NOT_EXACT_ORDER_STATISTIC",
       "semantic_import_incompatible_reason": "declaration name matches order-statistic literature but defines an aggregate/range/CDF display, not the rank-k conformal orderStat placeholder",
-      "semantic_import_required_signal_terms": ["k", "rank"],
-      "semantic_import_allowed_declaration_names": ["orderstat", "orderstatistic"],
-      "semantic_import_allowed_declaration_prefixes": ["orderstatreview"],
+      "semantic_import_required_signal_terms": [
+        "k",
+        "rank"
+      ],
+      "semantic_import_allowed_declaration_names": [
+        "orderstat",
+        "orderstatistic"
+      ],
+      "semantic_import_allowed_declaration_prefixes": [
+        "orderstatreview"
+      ],
       "semantic_import_missing_required_signal_status": "SEMANTIC_REVIEW_REQUIRED_ORDER_STATISTIC_RANK_NOT_EXPOSED",
       "semantic_import_missing_required_signal_reason": "candidate declaration does not visibly expose the requested rank parameter for orderStat",
-      "source_lookup_search_terms": ["orderStatistic", "order statistic", "quantile"],
-      "source_lookup_aliases": ["orderStat", "orderStatistic", "quantile"],
+      "source_lookup_search_terms": [
+        "orderStatistic",
+        "order statistic",
+        "quantile"
+      ],
+      "source_lookup_aliases": [
+        "orderStat",
+        "orderStatistic",
+        "quantile"
+      ],
       "definition_contract": {
         "semantic_intent": "finite order statistic / conformal quantile of calibration scores at the requested finite-sample rank",
         "lean_target_shape": "function from finite indexed real scores and a Nat rank to a real threshold",
@@ -400,46 +570,46 @@
           "rank index matches the conformal ceiling expression",
           "preserves duplicate score multiplicities and reviewed tie policy",
           "compatible with finite `Fin (n + 1)` score families"
-        ],
-        "forbidden_shortcuts": [
-          "do not define orderStat as a constant unrelated to scores",
-          "do not use Finset.image/set sorting that collapses duplicate scores",
-          "do not add axiom/sorry/admit/unsafe",
-          "do not restate coverage as an order-statistic property"
         ]
-      },
-      "candidate_risk_rules": [
-        {
-          "message": "semantic_definition_risk: orderStat candidate is a finite maximum, not a reviewed rank-k order statistic/conformal quantile",
-          "scope": "definition_body",
-          "present_any": [".max'", ".max ", ".max\n"]
-        },
-        {
-          "message": "semantic_definition_risk: orderStat candidate uses Finset.image, which collapses duplicate score values and is not faithful to finite-sample order statistics unless a reviewed no-tie or multiplicity-preserving tie policy is supplied",
-          "scope": "definition_body",
-          "present_any": ["Finset.univ.image"]
-        },
-        {
-          "message": "semantic_definition_risk: orderStat candidate body does not use the requested rank parameter k",
-          "scope": "definition_body",
-          "absent_regex_all": ["\\bk\\b"]
-        }
-      ]
+      }
     },
     {
       "policy_id": "split_conformal_coverage.BadRanks",
       "policy_scope": "split_conformal_coverage",
       "placeholder_key": "badranks",
-      "placeholder_aliases": ["BadRanks", "bad_ranks", "bad-ranks"],
+      "placeholder_aliases": [
+        "BadRanks",
+        "bad_ranks",
+        "bad-ranks"
+      ],
       "semantic_goal": "Define the finite bad-rank set from n2, alpha, halpha, and hq so it matches the ranks that violate conformal coverage containment.",
-      "required_anchor_names": ["n2", "alpha", "halpha", "s", "q_hat", "hq"],
-      "required_adapter_object_names": ["rank"],
-      "source_to_bridge_premise_aliases": ["hBadEvent", "BadRanks", "bad_rank_event", "hBad"],
+      "required_anchor_names": [
+        "n2",
+        "alpha",
+        "halpha",
+        "s",
+        "q_hat",
+        "hq"
+      ],
+      "required_adapter_object_names": [
+        "rank"
+      ],
+      "source_to_bridge_premise_aliases": [
+        "hBadEvent",
+        "BadRanks",
+        "bad_rank_event",
+        "hBad"
+      ],
       "source_to_bridge_dependency_requirements": [
         "provide measurability of the rank map or of the finite bad-rank event",
         "connect BadRanks to a finite/rank-indexed event in the exact source environment"
       ],
-      "source_to_bridge_required_anchor_names": ["hq", "alpha", "halpha", "n2"],
+      "source_to_bridge_required_anchor_names": [
+        "hq",
+        "alpha",
+        "halpha",
+        "n2"
+      ],
       "source_anchor_roles": {
         "hq": "quantile_definition_anchor",
         "alpha": "miscoverage_level_anchor",
@@ -449,21 +619,41 @@
         "s": "score_process_anchor",
         "q_hat": "threshold_function_anchor"
       },
-      "source_lookup_aliases": ["BadRanks", "bad ranks", "bad-rank"]
+      "source_lookup_aliases": [
+        "BadRanks",
+        "bad ranks",
+        "bad-rank"
+      ]
     },
     {
       "policy_id": "split_conformal_coverage.alpha",
       "policy_scope": "split_conformal_coverage",
       "placeholder_key": "alpha",
-      "placeholder_aliases": ["\u03b1"],
-      "semantic_goal": "Define the rank-indexed probability budget \u03b1 from the exact source miscoverage level alpha and rank-uniformity/exchangeability anchor hexch.",
-      "required_anchor_names": ["P", "n2", "alpha", "s", "hexch"],
-      "source_to_bridge_premise_aliases": ["hRank", "hAlpha", "rank_budget"],
+      "placeholder_aliases": [
+        "α"
+      ],
+      "semantic_goal": "Define the rank-indexed probability budget α from the exact source miscoverage level alpha and rank-uniformity/exchangeability anchor hexch.",
+      "required_anchor_names": [
+        "P",
+        "n2",
+        "alpha",
+        "s",
+        "hexch"
+      ],
+      "source_to_bridge_premise_aliases": [
+        "hRank",
+        "hAlpha",
+        "rank_budget"
+      ],
       "source_to_bridge_dependency_requirements": [
         "derive the rank point-mass bound from exact exchangeability hexch",
-        "define \u03b1 on ranks so each bad-rank event has probability bounded by \u03b1 r"
+        "define α on ranks so each bad-rank event has probability bounded by α r"
       ],
-      "source_to_bridge_required_anchor_names": ["hexch", "alpha", "n2"],
+      "source_to_bridge_required_anchor_names": [
+        "hexch",
+        "alpha",
+        "n2"
+      ],
       "source_anchor_roles": {
         "hexch": "exchangeability_anchor",
         "alpha": "miscoverage_level_anchor",
@@ -473,31 +663,67 @@
         "P": "probability_measure_anchor",
         "s": "score_process_anchor"
       },
-      "source_lookup_search_terms": ["alpha", "\u03b1", "miscoverage"],
-      "source_lookup_aliases": ["alpha", "\u03b1"]
+      "source_lookup_search_terms": [
+        "alpha",
+        "α",
+        "miscoverage"
+      ],
+      "source_lookup_aliases": [
+        "alpha",
+        "α"
+      ]
     },
     {
       "policy_id": "split_conformal_coverage.alpha_total",
       "policy_scope": "split_conformal_coverage",
       "placeholder_key": "alphatotal",
-      "placeholder_aliases": ["alpha_total", "\u03b1_total", "\u03b1total"],
-      "semantic_goal": "Define the total bad-rank budget \u03b1_total from alpha and BadRanks, with the intended downstream finite-sum bound.",
-      "required_anchor_names": ["n2", "alpha", "halpha"],
-      "required_adapter_object_names": ["BadRanks"],
-      "source_to_bridge_premise_aliases": ["hTotal", "h_total", "total_budget"],
-      "source_to_bridge_dependency_requirements": [
-        "define \u03b1_total from alpha and the conformal rank threshold",
-        "prove the finite bad-rank budget sum bound for \u03b1 over BadRanks"
+      "placeholder_aliases": [
+        "alpha_total",
+        "α_total",
+        "αtotal"
       ],
-      "source_to_bridge_required_anchor_names": ["alpha", "halpha", "n2"],
+      "semantic_goal": "Define the total bad-rank budget α_total from alpha and BadRanks, with the intended downstream finite-sum bound.",
+      "required_anchor_names": [
+        "n2",
+        "alpha",
+        "halpha"
+      ],
+      "required_adapter_object_names": [
+        "BadRanks"
+      ],
+      "source_to_bridge_premise_aliases": [
+        "hTotal",
+        "h_total",
+        "total_budget"
+      ],
+      "source_to_bridge_dependency_requirements": [
+        "define α_total from alpha and the conformal rank threshold",
+        "prove the finite bad-rank budget sum bound for α over BadRanks"
+      ],
+      "source_to_bridge_required_anchor_names": [
+        "alpha",
+        "halpha",
+        "n2"
+      ],
       "source_anchor_roles": {
         "alpha": "miscoverage_level_anchor",
         "halpha": "miscoverage_level_anchor",
         "n2": "calibration_size_anchor",
         "hn2": "calibration_size_anchor"
       },
-      "source_lookup_search_terms": ["alpha_total", "\u03b1_total", "alpha", "bad-rank budget"],
-      "source_lookup_aliases": ["alpha_total", "\u03b1_total", "alphatotal", "alpha", "\u03b1"]
+      "source_lookup_search_terms": [
+        "alpha_total",
+        "α_total",
+        "alpha",
+        "bad-rank budget"
+      ],
+      "source_lookup_aliases": [
+        "alpha_total",
+        "α_total",
+        "alphatotal",
+        "alpha",
+        "α"
+      ]
     }
   ]
 }

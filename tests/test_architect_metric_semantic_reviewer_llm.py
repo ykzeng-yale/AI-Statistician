@@ -909,18 +909,7 @@ def test_metric_review_requires_primitive_identity_audit_before_coding() -> None
             f"estimator_id generic_estimator at claim_ref {formula_ref}"
         ],
     )
-    repair_instructions = " ".join(
-        repair_context["repair_prompt_priority_instructions"]
-    )
-    assert len(repair_context["repair_prompt_priority_instructions"]) == 6
-    assert "Preserve unresolved_assumptions" in repair_instructions
-    assert "foundational identity mapping" in repair_instructions
-    assert "distinct zero-based indices" in repair_instructions
-    assert "runtime binds exact foundational claim/context refs" in (
-        repair_instructions
-    )
-    assert "finite numeric derived_polynomial_exponent" in repair_instructions
-    assert "current_candidate as immutable authority" in repair_instructions
+    assert "repair_prompt_priority_instructions" not in repair_context
     assert "requirement_schema" not in repair_context
     assert len(json.dumps(repair_context, separators=(",", ":"))) < 12_000
 
@@ -1102,17 +1091,9 @@ def test_metric_review_audits_every_estimator_response_semantic_independently() 
     assert response_repair_context["rejected_review_packet"][
         "response_identity_checks"
     ] == packet["response_identity_checks"]
-    consistency_paths = response_repair_context[
+    assert "typed_patch_paths" not in response_repair_context[
         "rejected_review_consistency_state"
-    ]["typed_patch_paths"]
-    assert consistency_paths["mathematical_consistency_status"] == [
-        "dimension_reviews",
-        2,
-        "status",
     ]
-    assert consistency_paths["findings_array"] == ["findings"]
-    assert consistency_paths["findings_current_length"] == 0
-    assert "replacement_json" in consistency_paths["array_edit"]
 
     not_indexed_material = deepcopy(material)
     not_indexed_rate = not_indexed_material[
@@ -1423,33 +1404,10 @@ def test_metric_reviewer_repair_preserves_exact_active_finding_context() -> None
         for row in active_ledger
     ]
 
-    def typed_repair(request):
-        repair_request = json.loads(request.user_prompt.split("\n\n", 1)[1])
-        return {
-            "base_payload_fingerprint": repair_request[
-                "base_payload_fingerprint"
-            ],
-            "updates": [
-                {
-                    "path": ["prior_finding_reviews"],
-                    "replacement_json": json.dumps(
-                        repaired_payload["prior_finding_reviews"]
-                    ),
-                },
-                {
-                    "path": ["claim_checks", 1, "result"],
-                    "replacement": repaired_payload["claim_checks"][1][
-                        "result"
-                    ],
-                },
-                {
-                    "path": ["claim_checks", 1, "verdict"],
-                    "replacement": "PASS",
-                },
-            ],
-        }
+    def regenerate_packet(_request):
+        return deepcopy(repaired_payload)
 
-    backend = _SequenceBackend([invalid_payload, typed_repair])
+    backend = _SequenceBackend([invalid_payload, regenerate_packet])
 
     packet = LLMArchitectMetricSemanticReviewerAgent(
         provider=backend,
@@ -1522,7 +1480,7 @@ def test_metric_reviewer_repair_preserves_exact_active_finding_context() -> None
         ]
     assert repair_payload["local_validation_errors"]
     assert backend.requests[1].metadata["json_repair_mode"] == (
-        "typed_semantic_patch"
+        "full_packet_regeneration"
     )
     assert backend.requests[1].model == TEST_HAIKU_MODEL
     assert packet["expected_prior_finding_ids"] == expected_ids
@@ -1533,7 +1491,7 @@ def test_metric_reviewer_repair_preserves_exact_active_finding_context() -> None
     assert validate_architect_metric_semantic_review_packet(packet) == []
 
 
-def test_metric_reviewer_allows_one_progressive_typed_repair_extension() -> None:
+def test_metric_reviewer_regenerates_complete_packet_in_one_retry() -> None:
     second_requirement = _generic_requirement(
         requirement_id="second_gate",
         source_anchors=["theory:second-gate"],
@@ -1570,39 +1528,16 @@ def test_metric_reviewer_allows_one_progressive_typed_repair_extension() -> None
         "evidence_ref"
     ] = "requirement:second_gate.metric_semantics"
 
-    def add_missing_requirement(request):
-        repair_request = json.loads(request.user_prompt.split("\n\n", 1)[1])
-        return {
-            "base_payload_fingerprint": repair_request[
-                "base_payload_fingerprint"
-            ],
-            "updates": [
-                {
-                    "path": ["claim_checks"],
-                    "replacement_json": json.dumps(
-                        [*initial_payload["claim_checks"], second_check]
-                    ),
-                }
-            ],
-        }
+    def regenerate_complete_packet(_request):
+        repaired = deepcopy(initial_payload)
+        repaired["claim_checks"] = [
+            *repaired["claim_checks"],
+            second_check,
+        ]
+        repaired["claim_checks"][-1]["check_type"] = "direct_substitution"
+        return repaired
 
-    def repair_new_check_type(request):
-        repair_request = json.loads(request.user_prompt.split("\n\n", 1)[1])
-        return {
-            "base_payload_fingerprint": repair_request[
-                "base_payload_fingerprint"
-            ],
-            "updates": [
-                {
-                    "path": ["claim_checks", 2, "check_type"],
-                    "replacement": "direct_substitution",
-                }
-            ],
-        }
-
-    backend = _SequenceBackend(
-        [initial_payload, add_missing_requirement, repair_new_check_type]
-    )
+    backend = _SequenceBackend([initial_payload, regenerate_complete_packet])
     packet = LLMArchitectMetricSemanticReviewerAgent(
         provider=backend,
         config=ArchitectMetricSemanticReviewerConfig(
@@ -1634,18 +1569,107 @@ def test_metric_reviewer_allows_one_progressive_typed_repair_extension() -> None
         },
     )
 
-    assert len(backend.requests) == 3
-    assert [
-        request.metadata["json_repair_progress_extension_attempt"]
-        for request in backend.requests
-    ] == [0, 0, 1]
-    assert backend.requests[2].metadata["json_repair_mode"] == (
-        "typed_semantic_patch"
+    assert len(backend.requests) == 2
+    assert backend.requests[1].metadata["json_repair_mode"] == (
+        "full_packet_regeneration"
     )
-    assert packet["llm_json_repair_attempts"] == 2
+    assert packet["llm_json_repair_attempts"] == 1
     assert {
         row["requirement_id"] for row in packet["claim_checks"]
     } == {"generic_gate", "second_gate"}
+    assert validate_architect_metric_semantic_review_packet(packet) == []
+
+
+def test_metric_reviewer_focuses_invalid_finding_row_with_canonical_schema() -> None:
+    material = architect_metric_review_material_with_runtime_evaluator_certificate(
+        {
+            "review_stage": "pre_execution_metric_contract_review",
+            "execution_results_available": False,
+            "empirical_metric_requirements": [_generic_requirement()],
+        }
+    )
+    invalid_payload = _review_payload(accept=False)
+    invalid_payload["findings"][0]["repair_scope"] = "algorithm_code"
+    invalid_payload["findings"][0]["evidence_refs"] = []
+    captured_repair_request: dict[str, object] = {}
+
+    def repair_finding(request):
+        repair_request = json.loads(request.user_prompt.split("\n\n", 1)[1])
+        captured_repair_request.update(repair_request)
+        repaired = deepcopy(invalid_payload)
+        repaired["findings"][0]["repair_scope"] = "metric_contract"
+        repaired["findings"][0]["evidence_refs"] = [
+            "requirement:generic_gate"
+        ]
+        return repaired
+
+    backend = _SequenceBackend([invalid_payload, repair_finding])
+    packet = LLMArchitectMetricSemanticReviewerAgent(
+        provider=backend,
+        config=ArchitectMetricSemanticReviewerConfig(
+            provider_name="anthropic",
+            model=TEST_HAIKU_MODEL,
+            model_tier="haiku",
+            max_repair_attempts=1,
+        ),
+    ).review(
+        question=OpenResearchQuestion(
+            id="q_metric_finding_focus",
+            title="Review a generic statistical gate",
+            description="Check one pre-execution metric contract.",
+        ),
+        review_material=material,
+        trusted_lineage={
+            "authoring_packet_id": "metric-authoring:finding-focus",
+            "authoring_packet_hash": stable_hash(
+                {"candidate": "finding-focus"}
+            ),
+            "empirical_metric_requirement_set_id": (
+                generated_metric_requirement_set_id(
+                    material["empirical_metric_requirements"]
+                )
+            ),
+            "source_agent": "ArchitectMetricContractPlanner",
+            "source_model": TEST_HAIKU_MODEL,
+            "source_model_tier": "haiku",
+        },
+    )
+
+    assert captured_repair_request["local_validation_errors"] == [
+        "findings[0] has invalid repair_scope",
+        "findings[0] missing evidence_refs",
+    ]
+    repair_context = captured_repair_request["subsystem_repair_context"]
+    assert repair_context["validation_error_focus_values"] == [
+        {
+            "path": ["findings", 0],
+            "value": invalid_payload["findings"][0],
+            "value_truncated": False,
+        }
+    ]
+    focused_schema = repair_context[
+        "validation_error_focus_schemas"
+    ][0]
+    assert focused_schema["path_pattern"] == ["findings", "<array_index>"]
+    finding_schema = focused_schema["expected_item_schema"]
+    assert finding_schema["required"] == [
+        "prior_finding_id",
+        "new_finding_rationale",
+        "severity",
+        "category",
+        "summary",
+        "required_change",
+        "repair_scope",
+        "evidence_refs",
+    ]
+    assert finding_schema["properties"]["repair_scope"]["enum"] == [
+        "metric_contract",
+        "upstream_theory",
+    ]
+    assert packet["findings"][0]["repair_scope"] == "metric_contract"
+    assert packet["findings"][0]["evidence_refs"] == [
+        "requirement:generic_gate"
+    ]
     assert validate_architect_metric_semantic_review_packet(packet) == []
 
 

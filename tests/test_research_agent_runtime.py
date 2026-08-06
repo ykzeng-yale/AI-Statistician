@@ -23622,10 +23622,7 @@ def test_architect_repair_contract_requires_object_shaped_array_rows() -> None:
     assert repair_context["required_array_item_shapes"][
         "literature_fair_comparison_plan"
     ]["candidate_source_family"] == "one short string"
-    assert any(
-        "never strings" in instruction
-        for instruction in repair_context["repair_prompt_priority_instructions"]
-    )
+    assert "repair_prompt_priority_instructions" not in repair_context
     target_schema = ARCHITECT_COORDINATOR_JSON_SCHEMA["properties"][
         "evidence_contract"
     ]["properties"]["empirical_metric_requirements"]["items"]["properties"][
@@ -23676,10 +23673,6 @@ def test_architect_repair_contract_requires_object_shaped_array_rows() -> None:
         row["target_subsystems"]
         for row in repair_context["empirical_metric_requirement_target_examples"]
     ] == [["SimulationEngineer"]]
-    assert any(
-        "SimulationEvaluator is a runtime execution owner" in instruction
-        for instruction in repair_context["repair_prompt_priority_instructions"]
-    )
     assert repair_context["formal_target_authoring_contract"][
         "content_owner"
     ] == "ArchitectCoordinator"
@@ -24917,7 +24910,7 @@ def test_architect_does_not_forward_mismatched_semantic_replan_feedback() -> Non
     assert routed_feedback == {}
 
 
-def test_metric_authoring_numeric_repair_context_uses_local_catalog_slice() -> None:
+def test_metric_authoring_regeneration_context_preserves_full_authority_input() -> None:
     from ai_statistician.architect_metric_contract_authoring import (
         _metric_authoring_repair_context,
     )
@@ -24996,76 +24989,26 @@ def test_metric_authoring_numeric_repair_context_uses_local_catalog_slice() -> N
         },
     )
 
-    assert context["acceptance_authority_catalog_scope"] == (
-        "numeric_authority_local_slice"
-    )
-    assert context["acceptance_authority_catalog_total_rows"] == 3
-    assert context["acceptance_authority_catalog_repair_rows"] == 2
+    assert context["repair_mode"] == "full_packet_regeneration"
     assert {
         row["anchor_id"] for row in context["acceptance_authority_catalog"]
-    } == {theory_anchor, matching_design_anchor}
-    assert irrelevant_design_anchor not in {
+    } == {theory_anchor, matching_design_anchor, irrelevant_design_anchor}
+    assert irrelevant_design_anchor in {
         row["anchor_id"] for row in context["acceptance_authority_catalog"]
     }
-    matrix = context["numeric_authority_repair_matrix"]
-    assert matrix[0]["numeric_gate_matches"][0]["matching_catalog_nodes"][0][
-        "anchor_id"
-    ] == matching_design_anchor
-    assert matrix[0]["numeric_gate_matches"][0][
-        "required_field_anchor_kinds"
-    ] == ["theory_derived", "evaluation_design"]
-    assert matrix[0]["numeric_gate_matches"][0][
-        "missing_current_field_anchor_kinds"
-    ] == ["evaluation_design"]
-    assert matrix[0][
-        "source_derived_authority_allowed_for_every_gate_field"
-    ] is True
-    assert "cite_exact_matching_catalog_nodes" in matrix[0][
-        "required_resolution_options_for_unmatched_fields"
-    ]
-    assert context["numeric_authority_repair_automatic_selection"] is False
-    namespace_contract = context["authority_kind_namespace_contract"]
-    assert namespace_contract["gate_owner_kinds"] == [
-        "theory_derived",
-        "theory_parameter_instantiation",
-        "evaluation_mandated",
-        "architect_preregistered_design",
-        "diagnostic_only",
-    ]
-    assert namespace_contract["catalog_node_kinds"] == [
-        "evaluation_design",
-        "theory_derived",
-    ]
-    assert namespace_contract["catalog_only_node_kinds"] == [
-        "evaluation_design"
-    ]
-    assert namespace_contract[
-        "catalog_node_kind_may_be_copied_to_gate_owner"
-    ] is False
-    assert namespace_contract["llm_semantic_owner_choice_required"] is True
-    assert namespace_contract["runtime_automatic_owner_mapping"] is False
-    priority_instructions = " ".join(
-        context["repair_prompt_priority_instructions"]
-    )
-    assert "Authority is field-level" in priority_instructions
-    assert "retain valid source authority for other fields" in (
-        priority_instructions
-    )
-    assert "evaluation_design is a catalog-node kind" in priority_instructions
-    assert "never a valid gate-owner value" in priority_instructions
-    assert context["repair_context_scope"] == (
-        "numeric_authority_and_runtime_budget_local_slice"
-    )
-    assert "requirement_schema" not in context
-    assert "target_namespace" not in context
-    assert "required_target_rows" not in context
+    assert "repair_prompt_priority_instructions" not in context
+    assert context["requirement_schema"]
+    assert context["target_namespace"]
+    assert context["required_target_rows"] == []
+    assert "numeric_authority_repair_matrix" not in context
+    assert "gate_field_resolution_decisions_by_id" not in context
     compact_review = context["independent_semantic_review_repair"]
     assert compact_review["findings"] == [{"finding_id": "finding:test"}]
     assert "rejected_empirical_metric_requirements" not in compact_review
     assert "dimension_reviews" not in compact_review
 
 
-def test_metric_authoring_unmatched_numeric_gate_does_not_invent_source_authority() -> None:
+def test_metric_authoring_unmatched_gate_is_returned_to_model_without_recipe() -> None:
     from ai_statistician.architect_metric_contract_authoring import (
         _metric_authoring_repair_context,
     )
@@ -25128,61 +25071,18 @@ def test_metric_authoring_unmatched_numeric_gate_does_not_invent_source_authorit
         independent_semantic_review_repair={},
     )
 
-    matrix_row = context["numeric_authority_repair_matrix"][0]
-    assert matrix_row[
-        "source_derived_authority_allowed_for_every_gate_field"
-    ] is False
-    assert matrix_row[
-        "required_resolution_options_for_unmatched_fields"
-    ] == [
-        "typed_boolean_predicate_if_intrinsically_boolean",
-        "architect_preregistered_design_with_preexecution_rationale",
-        "diagnostic_only_or_remove",
+    assert context["repair_mode"] == "full_packet_regeneration"
+    assert context["acceptance_authority_catalog"] == [
+        {
+            "anchor_id": "theory#/theorem_cards/0/conclusion",
+            "authority_kind": "theory_derived",
+            "content": "The diagnostic is finite.",
+            "explicit_numeric_values": [],
+        }
     ]
-    assert "copy_candidate_value_into_upstream_theory" in matrix_row[
-        "forbidden_resolutions"
-    ]
-    patch_contract = matrix_row[
-        "architect_preregistered_design_patch_contracts"
-    ][0]
-    assert patch_contract["llm_semantic_choice_required"] is True
-    assert patch_contract["runtime_applies_automatically"] is False
-    assert patch_contract["all_required_updates_must_be_emitted_together"] is True
-    assert patch_contract["rationale_only_update_resolves_ownership"] is False
-    assert patch_contract["required_updates_if_selected"][0] == {
-        "path": [
-            "empirical_metric_requirements",
-            0,
-            "gate_field_authorities",
-            0,
-            "authority_kind",
-        ],
-        "replacement": "architect_preregistered_design",
-    }
-    assert patch_contract["required_updates_if_selected"][1]["path"] == [
-        "empirical_metric_requirements",
-        0,
-        "gate_field_authorities",
-        0,
-        "rationale",
-    ]
-    assert matrix_row["automatic_repair_applied"] is False
-    assert matrix_row["numeric_gate_matches"][0][
-        "current_source_authority_must_change"
-    ] is True
-    decision = context["unmatched_gate_resolution_decisions"][0]
-    assert decision["decision_id"] == "requirement:0:field:threshold"
-    assert decision["requirement_id"] == "candidate_owned_gate"
-    assert decision["field"] == "threshold"
-    assert decision["current_invalid_owner"] == "theory_derived"
-    assert decision["allowed_resolutions"] == [
-        "architect_preregistered_design",
-        "diagnostic_only",
-        "remove_requirement",
-    ]
-    assert decision[
-        "required_patch_updates_if_preregistered"
-    ] == patch_contract["required_updates_if_selected"]
+    assert "numeric_authority_repair_matrix" not in context
+    assert "unmatched_gate_resolution_decisions" not in context
+    assert "architect_preregistered_design_patch_contracts" not in str(context)
 
     validation_errors = validate_generated_metric_requirements(
         [requirement],
@@ -26087,6 +25987,14 @@ def test_semantic_review_reserves_one_reviewer_bound_source_repair(
     assert review_result.next_task is not None
     assert review_result.next_task.owner_subsystem == "SimulationEvaluator"
     first_feedback = review_result.next_task.inputs["environment_feedback"]
+    assert first_feedback["feedback_id"].startswith(
+        "generated_code_semantic_review_feedback:"
+    )
+    assert first_feedback["question_id"] == question.id
+    assert first_feedback["source_theory_packet_id"] == theory_packet["packet_id"]
+    assert first_feedback["source_theory_packet_hash"] == runtime_module.stable_hash(
+        theory_packet
+    )
     assert first_feedback["ordinary_source_repair_budget_exhausted"] is True
     assert first_feedback["reviewer_bound_repair_reserved"] is True
     first_context = review_result.next_task.inputs["architect_context"]
@@ -26297,6 +26205,11 @@ def test_semantic_review_does_not_send_rejected_algorithm_to_simulation(
     assert review_result.next_task is not None
     assert review_result.next_task.owner_subsystem == "AlgorithmEngineer"
     next_feedback = review_result.next_task.inputs["environment_feedback"]
+    assert next_feedback["feedback_id"].startswith(
+        "generated_code_semantic_review_feedback:"
+    )
+    assert next_feedback["question_id"] == question.id
+    assert next_feedback["source_theory_packet_id"] == theory_packet["packet_id"]
     assert next_feedback["ordinary_source_repair_budget_exhausted"] is True
     assert next_feedback["reviewer_bound_repair_reserved"] is True
     assert review_result.next_task.inputs["architect_context"][
@@ -26902,28 +26815,10 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
                 }
             elif request.metadata.get("subsystem") == "ArchitectMetricContractPlanner":
                 if request.metadata.get("json_repair_mode") == (
-                    "typed_semantic_patch"
+                    "full_packet_regeneration"
                 ):
-                    repair_payload = json.loads(request.user_prompt)
-                    decisions = {
-                        decision_id: {
-                            "resolution": (
-                                "architect_preregistered_design"
-                            ),
-                            "source_binding_id": "",
-                            "rationale": expected_metric_rows[0][
-                                "gate_field_authorities"
-                            ][0]["rationale"],
-                        }
-                        for decision_id in repair_payload[
-                            "gate_field_resolution_decisions_by_id"
-                        ]
-                    }
                     payload = {
-                        "base_payload_fingerprint": repair_payload[
-                            "base_payload_fingerprint"
-                        ],
-                        "decisions": decisions,
+                        "empirical_metric_requirements": expected_metric_rows
                     }
                 else:
                     payload = {"empirical_metric_requirements": metric_rows}
@@ -27175,7 +27070,7 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     (
         preflight_request,
         metric_request,
-        patch_request,
+        regeneration_request,
         review_request,
         architect_request,
     ) = backend.requests
@@ -27184,20 +27079,13 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     )
     assert preflight_request.model == LIVE_EVALUATION_CLAUDE_MODEL
     assert metric_request.metadata["provider_structured_output"] is True
-    assert metric_request.metadata["json_repair_progress_extension_allowed"] is True
     assert metric_request.model == LIVE_EVALUATION_CLAUDE_MODEL
     assert metric_request.max_tokens == 8000
-    assert patch_request.model == LIVE_EVALUATION_CLAUDE_MODEL
-    assert patch_request.max_tokens == 8000
-    assert patch_request.metadata["json_repair_mode"] == (
-        "typed_semantic_patch"
+    assert regeneration_request.model == LIVE_EVALUATION_CLAUDE_MODEL
+    assert regeneration_request.max_tokens == 8000
+    assert regeneration_request.metadata["json_repair_mode"] == (
+        "full_packet_regeneration"
     )
-    assert patch_request.metadata[
-        "json_repair_progress_extension_attempt"
-    ] == 0
-    assert patch_request.metadata[
-        "json_repair_semantic_patch_transport_kind"
-    ] == "architect_metric_authority_exact_key_decision_patch_v1"
     assert metric_request.schema["required"] == [
         "empirical_metric_requirements"
     ]
@@ -27303,27 +27191,15 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert "upper versus lower limits" in hard_requirements
     assert "at-most versus at-least counts" in hard_requirements
     assert "Do not emit required_runtime_replicates" in hard_requirements
-    repair_payload = json.loads(patch_request.user_prompt)
-    repair_decisions = repair_payload[
-        "gate_field_resolution_decisions_by_id"
-    ]
-    assert len(repair_decisions) == 1
-    repair_decision = next(iter(repair_decisions.values()))
-    assert repair_decision["requirement_id"] == (
-        "sequential:simulationengineer:gate"
+    repair_payload = json.loads(
+        regeneration_request.user_prompt.split("\n\n", 1)[1]
     )
-    assert repair_decision["field"] == "threshold"
-    assert repair_decision["value"] == 0.25
-    assert repair_decision["current_owner"] == "theory_derived"
-    assert repair_decision["source_binding_options"] == []
-    assert repair_decision["allowed_resolutions"] == [
-        "architect_preregistered_design",
-        "diagnostic_only",
-        "remove_requirement",
-    ]
-    assert patch_request.schema["properties"]["decisions"]["required"] == list(
-        repair_decisions
-    )
+    assert repair_payload["local_validation_errors"]
+    repair_context = repair_payload["subsystem_repair_context"]
+    assert repair_context["repair_mode"] == "full_packet_regeneration"
+    assert "gate_field_resolution_decisions_by_id" not in repair_context
+    assert "numeric_authority_repair_matrix" not in repair_context
+    assert regeneration_request.schema == metric_request.schema
     assert metric_prompt["metric_evaluation_semantics"]["authoring_example"][
         "threshold"
     ] == 0.10
@@ -27348,16 +27224,6 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert packet["metric_requirement_authoring"][
         "llm_json_repair_attempts"
     ] == 1
-    authoring_summary = packet["metric_requirement_authoring"]
-    assert authoring_summary["semantic_patch_transport_kinds"] == [
-        "architect_metric_authority_exact_key_decision_patch_v1"
-    ]
-    assert authoring_summary["semantic_patch_application_rows"][0][
-        "model_selected_resolution"
-    ] == "architect_preregistered_design"
-    assert authoring_summary["semantic_patch_application_rows"][0][
-        "runtime_selected_semantics"
-    ] is False
     assert packet["metric_requirement_authoring"][
         "runtime_owned_requirement_bindings"
     ]["required_runtime_replicates"] == {
@@ -28075,7 +27941,6 @@ def test_metric_reviewer_failure_persists_only_unreviewed_replay_candidate(
             ),
             request_model="claude-haiku-4-5-20251001",
             semantic_reviewer=InvalidReviewer(),
-            repair_ownership_router=None,
             question=question,
             runtime_contract={
                 "capability_eval_requires_typed_metric_contracts": True,
@@ -28796,262 +28661,6 @@ def test_live_architect_stops_metric_rewrites_for_upstream_theory_gap() -> None:
     )
 
 
-def test_live_architect_uses_artifact_router_to_correct_repair_owner() -> None:
-    from ai_statistician.architect_metric_contract_authoring import (
-        ArchitectMetricSemanticReviewRejected,
-    )
-    from ai_statistician.architect_metric_semantic_reviewer_llm import (
-        ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS,
-    )
-
-    question = load_open_research_questions(
-        Path("examples/research_questions.json")
-    )[0]
-    metric_rows = [
-        {
-            "requirement_id": f"generic:{target.lower()}:owner-routing",
-            "target_subsystems": [target],
-            "metric_semantics": "a raw finite-sample measurement",
-            "measurement_protocol": (
-                "return one raw measurement for each of exactly 17 replicates"
-            ),
-            "required_runtime_replicates": 17,
-            "operator": "<=",
-            "threshold": 0.1,
-            "lower": None,
-            "upper": None,
-            "tolerance": 0.0,
-            "aggregation": "mean",
-            "minimum_pass_count": None,
-            "minimum_pass_fraction": None,
-            "required": True,
-            "source_anchors": [
-                "theory#/theorem_cards/0/conclusion"
-            ],
-            "acceptance_authority_kind": "theory_derived",
-            "acceptance_authority_rationale": (
-                "The exact current theory equation supplies the test gate."
-            ),
-            "boundary": "empirical control, not theorem proof evidence",
-        }
-        for target in ("SimulationEngineer",)
-    ]
-
-    class MisclassifiedOwnerBackend:
-        provider_name = "anthropic"
-
-        def __init__(self) -> None:
-            self.requests = []
-
-        def generate(self, request):
-            self.requests.append(request)
-            subsystem = request.metadata.get("subsystem")
-            if request.metadata.get("review_stage") == "theory_execution_preflight":
-                payload = _accepted_theory_execution_preflight_payload(request)
-            elif subsystem == "ArchitectMetricContractPlanner":
-                payload = {"empirical_metric_requirements": metric_rows}
-            elif subsystem == "ArchitectMetricSemanticReviewer":
-                payload = {
-                        "theory_scope_checks": {
-                            "generic:simulationengineer:owner-routing": {
-                                "claim_ref": "theory_derivation_packet:E1",
-                                "recomputation": (
-                                    "Substitute the stated quantities into E1."
-                                ),
-                                "result": (
-                                    "The source equation is contradictory."
-                                ),
-                                "verdict": "FAIL",
-                                "evidence_refs": [
-                                    "theory#/theorem_cards/0/conclusion"
-                                ],
-                            }
-                        },
-                        "claim_checks": [
-                            {
-                                "requirement_id": (
-                                    "generic:simulationengineer:owner-routing"
-                                ),
-                                "claim_ref": (
-                                    "requirement:"
-                                    "generic:simulationengineer:owner-routing"
-                                ),
-                                "check_type": "pass_set_translation",
-                                "recomputation": "Translate mean(value) <= 0.1.",
-                                "normalization_and_unit_audit": (
-                                    "The candidate value and threshold use the "
-                                    "same declared units, with replicate "
-                                    "aggregation stated explicitly."
-                                ),
-                                "normalization_reconstruction": {
-                                    "source_expression": "source_value = theta",
-                                    "protocol_expression_ref": (
-                                        "requirement:generic:"
-                                        "simulationengineer:owner-routing."
-                                        "metric_semantics"
-                                    ),
-                                    "protocol_expression": (
-                                        "a raw finite-sample measurement"
-                                    ),
-                                    "substitution_without_reinterpretation": (
-                                        "metric_value = theta"
-                                    ),
-                                    "resulting_sample_size_order": "O(1)",
-                                    "required_sample_size_order": "O(1)",
-                                    "convention_consistent": True,
-                                    "unresolved_conflicts": [],
-                                },
-                                "sample_size_order_derivation": (
-                                    _metric_sample_size_order_derivation_fixture(
-                                        evidence_ref=(
-                                            "requirement:generic:"
-                                            "simulationengineer:owner-routing"
-                                        )
-                                    )
-                                ),
-                                "result": "The candidate evaluator pass set is typed.",
-                                "verdict": "PASS",
-                                "evidence_refs": [
-                                    "requirement:"
-                                    "generic:simulationengineer:owner-routing"
-                                ],
-                            },
-                        ],
-                        "dimension_reviews": [
-                        {
-                            "dimension": dimension,
-                            "status": (
-                                "FAIL"
-                                if dimension
-                                == "mathematical_and_numeric_internal_consistency"
-                                else "PASS"
-                            ),
-                            "rationale": (
-                                "The candidate exposes a contradiction in the "
-                                "source theory equation."
-                            ),
-                            "evidence_refs": ["theory_derivation_packet:E1"],
-                        }
-                        for dimension in (
-                            ARCHITECT_METRIC_SEMANTIC_REVIEW_DIMENSIONS
-                        )
-                    ],
-                    "findings": [
-                        {
-                            "severity": "high",
-                            "category": "inconsistent source derivation",
-                            "summary": (
-                                "The source theory equation itself is incorrect."
-                            ),
-                            "required_change": (
-                                "Correct the derivation and refresh its metric anchor."
-                            ),
-                            "repair_scope": "metric_contract",
-                            "evidence_refs": ["theory_derivation_packet:E1"],
-                        }
-                    ],
-                    "overall_verdict": "REVISE",
-                    "repair_instructions": [
-                        "Correct the responsible artifact before execution."
-                    ],
-                }
-            elif subsystem == "ArchitectMetricRepairOwnershipRouter":
-                payload = {
-                    "decisions": [
-                        {
-                            "finding_index": 0,
-                            "required_artifact_changes": [
-                                {
-                                    "artifact_role": "source_theory_packet",
-                                },
-                                {
-                                    "artifact_role": "metric_protocol_candidate",
-                                },
-                            ],
-                            "source_theory_can_remain_unchanged": False,
-                            "ownership_certainty": "resolved",
-                            "rationale": (
-                                "The source equation cannot remain unchanged."
-                            ),
-                        }
-                    ]
-                }
-            else:
-                raise AssertionError(
-                    "ArchitectCoordinator must not run after routed rejection"
-                )
-            return GeneratorResponse(
-                text=json.dumps(payload),
-                provider="anthropic",
-                model=request.model,
-                metadata={
-                    "provider_structured_output_requested": True,
-                    "provider_structured_output_applied": True,
-                },
-            )
-
-    backend = MisclassifiedOwnerBackend()
-    with pytest.raises(ArchitectMetricSemanticReviewRejected) as exc_info:
-        LLMArchitectCoordinatorAgent(
-            provider=backend,
-            config=ArchitectCoordinatorConfig(
-                provider_name="anthropic",
-                model=LIVE_EVALUATION_CLAUDE_MODEL,
-                model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
-                max_tokens=8000,
-                metric_semantic_reviewer_model=(
-                    LIVE_EVALUATION_CLAUDE_MODEL
-                ),
-                metric_semantic_reviewer_model_tier=(
-                    LIVE_EVALUATION_CLAUDE_MODEL_TIER
-                ),
-                metric_semantic_reviewer_max_revisions=2,
-                metric_repair_ownership_router_enabled=True,
-                metric_repair_ownership_router_model=(
-                    LIVE_EVALUATION_CLAUDE_MODEL
-                ),
-                metric_repair_ownership_router_model_tier=(
-                    LIVE_EVALUATION_CLAUDE_MODEL_TIER
-                ),
-            ),
-        ).propose(
-            question=question,
-            architect_context=(
-                _preflight_ready_theory_informed_metric_context_fixture()
-            ),
-            runtime_config={
-                "evaluation_mode": "capability_eval",
-                "formal_verification_policy": "required",
-                "n_runs": 17,
-                "exact_source_theorem_prover_available": True,
-            },
-        )
-
-    assert [request.metadata.get("subsystem") for request in backend.requests] == [
-        "ArchitectMetricSemanticReviewer",
-        "ArchitectMetricContractPlanner",
-        "ArchitectMetricSemanticReviewer",
-        "ArchitectMetricRepairOwnershipRouter",
-    ]
-    assert backend.requests[0].metadata["review_stage"] == (
-        "theory_execution_preflight"
-    )
-    assert exc_info.value.recommended_repair_scope == "upstream_theory"
-    history = exc_info.value.semantic_review_history
-    assert len(history) == 1
-    assert history[0]["semantic_reviewer_recommended_repair_scope"] == (
-        "metric_contract"
-    )
-    assert history[0]["recommended_repair_scope"] == "upstream_theory"
-    assert history[0]["findings"][0]["semantic_reviewer_repair_scope"] == (
-        "metric_contract"
-    )
-    assert history[0]["findings"][0]["repair_scope"] == "upstream_theory"
-    assert history[0]["repair_ownership_packet_id"].startswith(
-        "metric_repair_ownership:"
-    )
-
-
 def test_architect_runtime_persists_preexecution_metric_review_rejection() -> None:
     from ai_statistician.architect_metric_contract_authoring import (
         ArchitectMetricSemanticReviewRejected,
@@ -29159,8 +28768,6 @@ def test_architect_runtime_routes_upstream_metric_review_to_theory_developer() -
             "empirical_metric_requirement_set_id": "metric-set:upstream-gap",
             "semantic_review_packet_id": "metric-review:upstream-gap",
             "semantic_review_packet_hash": "review-hash",
-            "repair_ownership_packet_id": "repair-owner:upstream-gap",
-            "repair_ownership_packet_hash": "repair-owner-hash",
             "overall_verdict": "REVISE",
             "recommended_repair_scope": "upstream_theory",
             "dimension_reviews": [
@@ -29240,13 +28847,7 @@ def test_architect_runtime_routes_upstream_metric_review_to_theory_developer() -
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "TheoryDeveloper"
     feedback = result.next_task.inputs["environment_feedback"]
-    assert feedback["feedback_source"] == (
-        "ArchitectMetricRepairOwnershipRouter"
-    )
-    assert feedback["repair_ownership_packet_id"] == (
-        "repair-owner:upstream-gap"
-    )
-    assert feedback["repair_ownership_packet_hash"] == "repair-owner-hash"
+    assert feedback["feedback_source"] == "ArchitectMetricSemanticReviewer"
     assert feedback["recommended_repair_scope"] == "upstream_theory"
     assert feedback["upstream_theory_revision_count"] == 1
     assert feedback["findings"] == [history[0]["findings"][0]]
@@ -29305,103 +28906,6 @@ def test_architect_runtime_routes_upstream_metric_review_to_theory_developer() -
     exhausted_manifest = next(iter(exhausted.produced_artifacts.values()))
     assert exhausted_manifest["upstream_theory_revision_routed"] is False
     assert exhausted_manifest["upstream_theory_revision_count"] == 2
-
-
-def test_architect_runtime_routes_unresolved_metric_ownership_to_theory_clarification() -> None:
-    from ai_statistician.architect_metric_contract_authoring import (
-        ArchitectMetricSemanticReviewRejected,
-    )
-
-    question = load_open_research_questions(
-        Path("examples/research_questions.json")
-    )[0]
-    parent_theory = _structured_theory_packet_fixture(
-        "theory_derivation:ownership-uncertain"
-    )
-    history = [
-        {
-            "revision_index": 0,
-            "source_theory_packet_id": parent_theory["packet_id"],
-            "source_theory_packet_hash": runtime_module.stable_hash(parent_theory),
-            "authoring_packet_id": "metric-authoring:ownership-uncertain",
-            "authoring_packet_hash": "authoring-hash",
-            "empirical_metric_requirement_set_id": "metric-set:ownership-uncertain",
-            "semantic_review_packet_id": "metric-review:ownership-uncertain",
-            "semantic_review_packet_hash": "review-hash",
-            "overall_verdict": "REVISE",
-            "recommended_repair_scope": "unresolved",
-            "findings": [
-                {
-                    "severity": "medium",
-                    "category": "calibration ownership",
-                    "summary": (
-                        "The supplied artifacts do not show whether the calibration "
-                        "belongs to theory or only to its empirical measurement."
-                    ),
-                    "required_change": (
-                        "Clarify the theoretical calibration before re-authoring."
-                    ),
-                    "repair_scope": "unresolved",
-                }
-            ],
-            "repair_instructions": [
-                "Clarify calibration ownership before execution."
-            ],
-        }
-    ]
-
-    class RejectingCoordinator:
-        def propose(self, **_kwargs):
-            raise ArchitectMetricSemanticReviewRejected(
-                question_id=question.id,
-                semantic_review_history=history,
-                source_theory_packet_id=parent_theory["packet_id"],
-                source_theory_packet_hash=runtime_module.stable_hash(parent_theory),
-            )
-
-    result = ArchitectCoordinatorRuntimeSubsystem(
-        coordinator=RejectingCoordinator(),  # type: ignore[arg-type]
-        runtime_config=ResearchAgentRuntimeConfig(
-            evaluation_mode="capability_eval",
-            metric_protocol_max_upstream_theory_revisions=2,
-        ),
-    ).run(
-        AgentTask(
-            task_id="architect:metric-owner-clarification",
-            owner_subsystem="ArchitectCoordinator",
-            objective="Route unresolved ownership without authorizing execution.",
-            inputs={
-                "question": runtime_module._question_to_payload(question),
-                "architect_context": {
-                    "theory_packet_id": parent_theory["packet_id"],
-                    "architect_metric_protocol_gate": {
-                        "artifact_kind": "RuntimeArchitectMetricProtocolGate",
-                        "source_theory_packet_id": parent_theory["packet_id"],
-                        "upstream_theory_revision_count": 0,
-                        "execution_authorized": False,
-                    },
-                },
-            },
-        ),
-        BlackboardState(
-            project_id="metric-owner-clarification",
-            artifacts={parent_theory["packet_id"]: parent_theory},
-        ),
-    )
-
-    assert result.status == "REROUTE"
-    assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "TheoryDeveloper"
-    feedback = result.next_task.inputs["environment_feedback"]
-    assert feedback["recommended_repair_scope"] == "unresolved"
-    assert feedback["ownership_clarification_required"] is True
-    assert feedback["findings"] == history[0]["findings"]
-    assert feedback["execution_authorized"] is False
-    assert runtime_module.metric_protocol_upstream_theory_revision_feedback_errors(
-        feedback,
-        question_id=question.id,
-        parent_theory_packet=parent_theory,
-    ) == []
 
 
 def test_source_theorem_promotion_planning_is_structured_and_task_agnostic() -> None:
@@ -49467,8 +48971,9 @@ def test_generated_algorithm_sandbox_rejects_from_import_helper_aliases(
     assert "from statistics import mean, stdev" in feedback["prototypes"][0][
         "code_excerpt"
     ]
-    assert "from statistics import mean/stdev" in feedback["required_repair"]
-    assert "sum(values) / len(values)" in feedback["required_repair"]
+    assert "complete source candidate" in feedback["required_repair"]
+    assert "exact execution diagnostics" in feedback["required_repair"]
+    assert "The model owns the repair" in feedback["required_repair"]
 
 
 def test_generated_algorithm_sandbox_allows_math_import_and_append(tmp_path: Path) -> None:
@@ -50110,7 +49615,9 @@ def test_typed_generated_metric_contract_failure_returns_exact_repair_feedback(
         "all_required_passed"
     ] is False
     assert "strict-fdr-control" in json.dumps(feedback)
-    assert "Keep every contract_id" in feedback["required_repair"]
+    assert "complete source candidate" in feedback["required_repair"]
+    assert "frozen acceptance contract" in feedback["required_repair"]
+    assert "The model owns the repair" in feedback["required_repair"]
 
 
 def test_capability_runtime_executes_algorithm_without_empirical_contract(
@@ -50547,7 +50054,7 @@ def test_theory_developer_prompt_preserves_exact_semantic_blocker_artifacts() ->
     assert len(prompt) < 30000
 
 
-def test_algorithm_engineer_prompt_exposes_generated_python_safe_subset() -> None:
+def test_algorithm_engineer_prompt_exposes_execution_profiles_without_repair_recipe() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     prompt = build_algorithm_engineer_prompt(
         question=question,
@@ -50573,27 +50080,14 @@ def test_algorithm_engineer_prompt_exposes_generated_python_safe_subset() -> Non
         ],
     )
 
-    assert "safe_subset" in prompt
-    assert "forbidden_dependencies" in prompt
+    assert '"profiles"' in prompt
+    assert '"scientific_wasm"' in prompt
     assert "numpy" in prompt
-    assert "sklearn" in prompt
+    assert "scikit-learn" in prompt
     assert "split_conformal_interval" in prompt
     assert "trusted split-conformal regression interval sandbox" in prompt
-    assert "imports except math/statistics/random" in prompt
-    assert "allowed_import_forms" in prompt
-    assert "forbidden_import_forms" in prompt
-    assert "from statistics import ..." in prompt
-    assert "bare helper aliases" in prompt
-    assert "sum(values) / len(values)" in prompt
-    assert '"zip"' in prompt
-    assert '"set"' in prompt
-    assert '"any"' in prompt
-    assert '"all"' in prompt
-    assert "random.Random" in prompt
-    assert "public methods on sandbox-local" in prompt
-    assert "JSON-serializable dict" in prompt
-    assert "global/nonlocal" in prompt
-    assert "private/dunder method calls or attribute access" in prompt
+    assert "manual_summary_patterns" not in prompt
+    assert "sum(values) / len(values)" not in prompt
     assert "leave sandbox_code_drafts empty" in prompt
 
 
@@ -50656,11 +50150,8 @@ def test_algorithm_engineer_prompt_includes_sandbox_repair_feedback() -> None:
     assert "Capability-eval mode is active" in prompt
     assert "for every ID in canonical_implementation_gap_ids" in prompt
     assert '"canonical_implementation_gap_ids":["custom"]' in prompt
-    assert "Do not call bare helpers" in prompt
-    assert "sum(values) / len(values)" in prompt
-    assert "do not reuse those names as bare calls" in prompt
-    assert "rng = random.Random(seed + rep)" in prompt
-    assert "avoid global/nonlocal" in prompt
+    assert "You own the repair strategy" in prompt
+    assert "sum(values) / len(values)" not in prompt
     assert "do not repeat the same unsafe" in prompt
 
 
@@ -50694,11 +50185,10 @@ def test_algorithm_engineer_prompt_consumes_estimator_runtime_feedback() -> None
         },
     )
 
-    assert "Accepted-estimator runtime feedback is active" in prompt
+    assert "exact validator, execution, or independent-review observations" in prompt
     assert '"failed_estimator_ids":["custom"]' in prompt
     assert "ValueError: response was non-finite" in prompt
-    assert "Do not weaken a metric gate" in prompt
-    assert "independently review the fresh source again" in prompt
+    assert "You own the repair strategy" in prompt
 
 
 def test_algorithm_engineer_prompt_does_not_own_simulation_metric_gate() -> None:
@@ -51000,9 +50490,8 @@ def test_coding_component_gate_memory_replays_to_algorithm_and_simulation_prompt
         environment_feedback=simulation_feedback,
     )
 
-    assert "Coding-agent component-gate feedback is active" in algorithm_prompt
-    assert "not as current-run execution evidence" in algorithm_prompt
-    assert "for every ID in canonical_implementation_gap_ids" in algorithm_prompt
+    assert '"feedback_type":"coding_agent_generated_code_component_gate_feedback"' in algorithm_prompt
+    assert "Regenerate the complete packet and complete source" in algorithm_prompt
     assert (
         '"canonical_implementation_gap_ids":["custom_conformal"]'
         in algorithm_prompt
@@ -51011,9 +50500,8 @@ def test_coding_component_gate_memory_replays_to_algorithm_and_simulation_prompt
     assert "CODING_AGENT_COMPONENT_GATE_FEEDBACK_NOT_PROOF_EVIDENCE" in (
         algorithm_prompt
     )
-    assert "Coding-agent component-gate feedback is active" in simulation_prompt
-    assert "not as current-run simulation evidence" in simulation_prompt
-    assert "include exactly one safe simulation_code_drafts entry" in simulation_prompt
+    assert '"feedback_type":"coding_agent_generated_code_component_gate_feedback"' in simulation_prompt
+    assert "Regenerate the complete packet and complete source" in simulation_prompt
     assert "live_attempt_failed_then_passed" in simulation_prompt
 
 
@@ -51175,11 +50663,11 @@ def test_coding_capability_memory_replays_to_algorithm_and_simulation_prompts(
     )
 
     assert "Integrated coding-agent capability feedback is active" in algorithm_prompt
-    assert "Do not satisfy this with a registered template" in algorithm_prompt
+    assert "Regenerate the complete packet and complete source" in algorithm_prompt
     assert "Coding-agent component-gate feedback is active" not in algorithm_prompt
     assert "generated_algorithm_failure_feedback_closed" in algorithm_prompt
     assert "Integrated coding-agent capability feedback is active" in simulation_prompt
-    assert "Do not satisfy this with a registered simulator" in simulation_prompt
+    assert "Regenerate the complete packet and complete source" in simulation_prompt
     assert "Coding-agent component-gate feedback is active" not in simulation_prompt
     assert "generated_simulation_code_executed_locally" in simulation_prompt
 
@@ -51555,15 +51043,10 @@ def test_simulation_engineer_prompt_includes_generated_code_repair_feedback() ->
     assert '"timeout_seconds":60' in prompt
     assert '"runtime_replicates":80' in prompt
     assert "Every selected estimator callback must run" in prompt
-    assert "Generated-simulation execution feedback is active" in prompt
+    assert "exact validator, execution, or independent-review observations" in prompt
     assert "complete hash-bound parent_source" in prompt
-    assert "Preserve the frozen" in prompt
-    assert "imports except math/statistics/random" in prompt
-    assert "from statistics import ..." in prompt
-    assert "bare helper aliases" in prompt
-    assert "sum(values) / len(values)" in prompt
-    assert "rng = random.Random(seed + rep)" in prompt
-    assert "avoid global/nonlocal" in prompt
+    assert "You own the repair strategy" in prompt
+    assert "sum(values) / len(values)" not in prompt
     assert "do not repeat the same unsafe" in prompt
 
 
@@ -51614,7 +51097,7 @@ def test_simulation_engineer_prompt_includes_metric_gate_repair_feedback() -> No
         },
     )
 
-    assert "Runtime metric-gate repair is active" in prompt
+    assert "Runtime metric-gate repair is active" not in prompt
     assert "Capability-eval mode is active" in prompt
     assert "include exactly one safe simulation_code_drafts entry" in prompt
     assert 'entrypoint exactly "run_sandbox"' in prompt
@@ -51627,13 +51110,8 @@ def test_simulation_engineer_prompt_includes_metric_gate_repair_feedback() -> No
     assert '"mean_coverage":"0.0"' in prompt
     assert '"target_coverage":"0.9"' in prompt
     assert "def run_sandbox(seed: int, replicates: int) -> dict" in prompt
-    assert "Keep every contract_id" in prompt
-    assert "Do not rename the required result path" in prompt
-    assert (
-        "Read metric_contracts, metric_contract_evaluation, metric_gate_errors"
-    ) in prompt
-    assert "lower or remove a threshold" in prompt
-    assert "empirical execution evidence only" in prompt
+    assert "exact validator, execution, or independent-review observations" in prompt
+    assert "You own the repair strategy" in prompt
     assert "do not hard-code true_ate" not in prompt
     assert "vacuous all-covering" not in prompt
     assert "mean_width" in prompt
@@ -51805,12 +51283,13 @@ def test_coding_packet_validation_feedback_preserves_role_boundaries() -> None:
         },
     )
 
-    assert "Local packet-validator feedback is active" in simulation_prompt
+    assert '"feedback_type":"simulation_engineer_packet_validation_feedback"' in simulation_prompt
+    assert "Regenerate the complete packet and complete source" in simulation_prompt
     assert validation_error in simulation_prompt
     assert "simulation_gate" in simulation_prompt
-    assert "Local packet-validator feedback is active" in algorithm_prompt
+    assert '"feedback_type":"algorithm_engineer_packet_validation_feedback"' in algorithm_prompt
+    assert "Regenerate the complete packet and complete source" in algorithm_prompt
     assert "failed to define run_sandbox" in algorithm_prompt
-    assert "Set metric_contracts to an empty array" in algorithm_prompt
     assert "simulation_gate" not in algorithm_prompt
 
     task = AgentTask(
@@ -55578,6 +55057,12 @@ def test_generated_python_sandbox_rejection_feedback_includes_code_excerpt(
     assert "values = [1, 2, 3" in algorithm_feedback["prototypes"][0][
         "code_excerpt"
     ]
+    assert algorithm_feedback["prototypes"][0]["parent_source"] == bad_code
+    assert algorithm_feedback["prototypes"][0]["parent_source_hash"] == (
+        runtime_module.stable_hash(bad_code)
+    )
+    assert algorithm_feedback["prototypes"][0]["parent_source_complete"] is True
+    assert "The model owns the repair" in algorithm_feedback["required_repair"]
     assert "values = [1, 2, 3" in simulation_feedback[
         "generated_simulation_prototypes"
     ][0]["code_excerpt"]
@@ -55769,10 +55254,9 @@ def test_generated_simulation_sandbox_rejects_degenerate_coverage_metric(
     assert prototype["smoke_passed"] is False
     assert "nondegenerate-generated-metric" in prototype["metric_gate_errors"][0]
     feedback = result.next_task.inputs["environment_feedback"]
-    assert "Runtime metric-gate repair is active" in feedback["required_repair"]
-    assert (
-        "Read metric_contracts, metric_contract_evaluation, metric_gate_errors"
-    ) in feedback["required_repair"]
+    assert "complete source candidate" in feedback["required_repair"]
+    assert "exact execution diagnostics" in feedback["required_repair"]
+    assert "frozen acceptance contract" in feedback["required_repair"]
 
 
 def test_generated_simulation_sandbox_requires_explicit_metric_path(
@@ -57278,7 +56762,6 @@ def test_downstream_theory_trace_alignment_memory_replays_to_worker_prompts(
     )
 
     for prompt in (algorithm_prompt, simulation_prompt, formalizer_prompt):
-        assert "Runtime theory-trace downstream alignment feedback is active" in prompt
         assert "RUNTIME_THEORY_TRACE_DOWNSTREAM_ALIGNMENT_MISSING" in prompt
         assert "THEORY_TRACE_DOWNSTREAM_ALIGNMENT_FEEDBACK_NOT_PROOF_EVIDENCE" in prompt
         assert "aipw_asymptotic_normality" in prompt
@@ -58929,8 +58412,8 @@ def test_algorithm_engineer_repair_eval_feedback_targets_execution_repair() -> N
     )
 
     required_repair = feedback["required_repair"]
-    assert "Generated-code sandbox guard repair is active" in required_repair
-    assert "compiler/runtime diagnostics" in required_repair
+    assert "complete source candidate" in required_repair
+    assert "exact execution diagnostics" in required_repair
     assert feedback["failure_classification"] == (
         "generated_algorithm_sandbox_execution_failed"
     )
@@ -59076,7 +58559,7 @@ def test_simulation_engineer_generated_code_repair_eval_rejects_static_backend_m
     assert manifest["static_or_fixture_only"] is True
 
 
-def test_simulation_engineer_repair_eval_feedback_requires_design_safe_metric_repair() -> None:
+def test_simulation_engineer_repair_eval_feedback_preserves_contract_without_recipe() -> None:
     prior_failure = _simulation_prior_metric_gate_failure_manifest(
         simulation_id="generated_split_conformal_stress_repair_probe",
         target_coverage=0.9,
@@ -59086,13 +58569,12 @@ def test_simulation_engineer_repair_eval_feedback_requires_design_safe_metric_re
     )
 
     required_repair = feedback["required_repair"]
-    assert (
-        "Repair the generated estimator, simulation, DGP, or metric calculation"
-        in required_repair
-    )
-    assert "substitute an easier proxy" in required_repair
-    assert "lower or remove a threshold" in required_repair
-    assert "If the safe subset cannot express a meaningful repair" in required_repair
+    assert "complete source candidate" in required_repair
+    assert "exact execution diagnostics" in required_repair
+    assert "unchanged execution contract" in required_repair
+    assert "frozen acceptance contract" in required_repair
+    assert "substitute an easier proxy" not in required_repair
+    assert "lower or remove a threshold" not in required_repair
     assert "target_coverage" not in required_repair
     assert "not proof evidence" in feedback["boundary"]
 
@@ -60541,7 +60023,7 @@ def test_formalizer_prompt_includes_semantic_definition_repair_queue_memory() ->
     assert "repair_reviewed_exact_semantic_definitions" in prompt
     assert "orderStat" in prompt
     assert "finite maximum" in prompt
-    assert "do not attempt source-theorem proof-body search" in prompt
+    assert "do not attempt source-theorem proof-body search" not in prompt
 
 
 def test_formalizer_semantic_definition_repair_target_exports_work_order() -> None:
@@ -66342,14 +65824,10 @@ def test_verifier_gate_known_gaps_become_authoring_repair_task_and_prompt(
     ]
     assert resolution_contract["source_anchor_context_rows"] == 3
     assert "hq" in resolution_contract["source_theorem_binder_names"]
-    assert any(
-        "remove stale known_gap text" in action
-        for action in resolution_contract["required_resolution_actions"]
-    )
-    assert any(
-        "remove candidate Known gaps comments" in action
-        for action in resolution_contract["required_resolution_actions"]
-    )
+    assert resolution_contract["contract_kind"] == "verifier_gate_observation_packet"
+    assert resolution_contract["model_owns_candidate_and_repair_strategy"] is True
+    assert resolution_contract["runtime_supplies_observations_only"] is True
+    assert "required_resolution_actions" not in resolution_contract
     assert prompt_feedback["recommended_repair_tasks"] == feedback[
         "recommended_repair_tasks"
     ]
@@ -67037,19 +66515,18 @@ def test_exact_semantic_structural_reformulation_memory_becomes_pf_bv_followup()
     ]["response_validation_feedback"]["unverified_required_imports"] == [
         "Mathlib.Data.Int.Order"
     ]
-    assert "You must emit pseudo_formal_proof_packets" in prompt
+    assert "consume the complete rejected candidate" in prompt
     assert "Mathlib.Data.Int.Order" in prompt
     assert "response_validation_feedback" in prompt
     assert "unverified_required_imports" in prompt
-    assert "hard-negative rejected imports" in prompt
-    assert "do not reuse them as Lean candidate required_imports" in prompt
-    assert "PF/BV work-order constraint" in prompt
-    assert "Choose the decomposition and field values from the provider schema" in prompt
+    assert "model owns whether to regenerate a complete Lean candidate" in prompt
+    assert "Runtime observations do not prescribe an import" in prompt
     assert (
         "source_theorem_exact_semantic_definition_structural_reformulation"
         in prompt
     )
-    assert "Do not directly retry sibling Lean APIs" in prompt
+    assert "hard-negative rejected imports" not in prompt
+    assert "Do not directly retry sibling Lean APIs" not in prompt
 
 
 def test_exact_semantic_environment_import_blocker_becomes_authoring_task() -> None:
@@ -69748,7 +69225,7 @@ def test_exact_semantic_authoring_prompt_extracts_invalid_field_and_typeclass_fe
     ] == "FloorSemiring Real"
 
 
-def test_exact_semantic_authoring_candidate_rejects_unverified_imports() -> None:
+def test_exact_semantic_authoring_candidate_defers_import_availability_to_lean() -> None:
     packet = {
         "placeholder_symbol": "rank",
         "definition_design": "Use the verified floor defs import only.",
@@ -69777,7 +69254,7 @@ def test_exact_semantic_authoring_candidate_rejects_unverified_imports() -> None
                 "verified_candidate_import_modules": [
                     "Mathlib.Data.Real.Basic",
                 ],
-                "unavailable_import_repair_rows": [],
+                "unavailable_import_observation_rows": [],
             },
             "project_identifier_lookup": {
                 "identifier_lookup_rows": [
@@ -69795,8 +69272,7 @@ def test_exact_semantic_authoring_candidate_rejects_unverified_imports() -> None
 
     errors = validate_authoring_candidate_packet(packet)
 
-    assert any("Mathlib.Algebra.Order.Floor" in error for error in errors)
-    assert not any("Floor.Defs" in error for error in errors)
+    assert errors == []
 
 
 def test_exact_semantic_authoring_candidate_rejects_hidden_body_imports() -> None:
@@ -69825,7 +69301,7 @@ def test_exact_semantic_authoring_candidate_rejects_hidden_body_imports() -> Non
                 "verified_candidate_import_modules": [
                     "Mathlib.Data.Real.Basic",
                 ],
-                "unavailable_import_repair_rows": [],
+                "unavailable_import_observation_rows": [],
             },
         },
     }
@@ -69834,10 +69310,10 @@ def test_exact_semantic_authoring_candidate_rejects_hidden_body_imports() -> Non
 
     assert any("must be mirrored in required_imports" in error for error in errors)
     assert any("Mathlib.Data.Set.Basic" in error for error in errors)
-    assert any("required_imports include modules not verified" in error for error in errors)
+    assert not any("required_imports include modules not verified" in error for error in errors)
 
 
-def test_exact_semantic_authoring_candidate_rejects_reused_unresolved_identifier() -> None:
+def test_exact_semantic_authoring_candidate_defers_identifier_resolution_to_lean() -> None:
     packet = {
         "placeholder_symbol": "rank",
         "definition_design": "Keep the unavailable list field by mistake.",
@@ -69886,8 +69362,7 @@ def test_exact_semantic_authoring_candidate_rejects_reused_unresolved_identifier
 
     errors = validate_authoring_candidate_packet(packet)
 
-    assert any("get?" in error for error in errors)
-    assert any("locally unresolved identifiers" in error for error in errors)
+    assert errors == []
 
 
 def test_exact_semantic_authoring_prompt_preserves_prior_invalid_api_feedback(
@@ -69972,12 +69447,7 @@ def test_exact_semantic_authoring_prompt_preserves_prior_invalid_api_feedback(
     lookup_rows = prompt_payload["lean_authoring_environment_contract"][
         "project_identifier_lookup"
     ]["identifier_lookup_rows"]
-    identifier_reuse_policy = prompt_payload["lean_authoring_environment_contract"][
-        "project_identifier_lookup"
-    ]["identifier_reuse_policy"]
-    hard_negative_constraints = prompt_payload["lean_authoring_environment_contract"][
-        "hard_local_negative_constraints"
-    ]
+    environment_contract = prompt_payload["lean_authoring_environment_contract"]
 
     assert lean_feedback["unknown_identifiers_from_last_check"] == []
     assert "List.get?" in lean_feedback["unknown_identifiers_from_prior_checks"]
@@ -69986,21 +69456,18 @@ def test_exact_semantic_authoring_prompt_preserves_prior_invalid_api_feedback(
         row["lookup_identifier"] == "List.get?"
         for row in lookup_rows
     )
-    assert "List.get?" in hard_negative_constraints[
-        "identifiers_with_no_verified_declaration_module"
+    assert environment_contract["model_owns_candidate_and_repair_strategy"] is True
+    assert environment_contract["runtime_supplies_observations_only"] is True
+    assert "hard_local_negative_constraints" not in environment_contract
+    assert "identifier_reuse_policy" not in environment_contract[
+        "project_identifier_lookup"
     ]
-    assert any(
-        row["identifier"] == "List.get?"
-        and row["reuse_status"] == "must_not_reuse_without_new_local_evidence"
-        and row["must_not_reuse_in_candidate"] is True
-        for row in identifier_reuse_policy
-    )
     assert prompt_packet["candidate_repair_feedback"][
         "unknown_identifiers_from_all_checks"
     ] == ["get?", "List.get?"]
 
 
-def test_exact_semantic_authoring_candidate_rejects_prior_unresolved_identifier() -> None:
+def test_exact_semantic_authoring_candidate_allows_model_to_retry_prior_identifier() -> None:
     packet = {
         "placeholder_symbol": "rank",
         "definition_design": "Reintroduce an API that failed two repairs ago.",
@@ -70054,11 +69521,10 @@ def test_exact_semantic_authoring_candidate_rejects_prior_unresolved_identifier(
 
     errors = validate_authoring_candidate_packet(packet)
 
-    assert any("get?" in error for error in errors)
-    assert any("locally unresolved identifiers" in error for error in errors)
+    assert errors == []
 
 
-def test_exact_semantic_authoring_candidate_rejects_prior_parse_error_fragment() -> None:
+def test_exact_semantic_authoring_candidate_defers_prior_parse_fragment_to_lean() -> None:
     packet = {
         "placeholder_symbol": "C_n",
         "definition_design": "Repeat syntax that local Lean already rejected.",
@@ -70095,11 +69561,10 @@ def test_exact_semantic_authoring_candidate_rejects_prior_parse_error_fragment()
 
     errors = validate_authoring_candidate_packet(packet)
 
-    assert any("parse-error source fragments" in error for error in errors)
-    assert any("⌈raw⌉₊" in error for error in errors)
+    assert errors == []
 
 
-def test_exact_semantic_authoring_candidate_rejects_lookup_hit_without_import() -> None:
+def test_exact_semantic_authoring_candidate_does_not_turn_lookup_into_edit_policy() -> None:
     packet = {
         "placeholder_symbol": "rank",
         "definition_design": "Use a lookup-hit API without importing its module.",
@@ -70144,11 +69609,10 @@ def test_exact_semantic_authoring_candidate_rejects_lookup_hit_without_import() 
 
     errors = validate_authoring_candidate_packet(packet)
 
-    assert any("Int.floor" in error for error in errors)
-    assert any("locally unresolved identifiers" in error for error in errors)
+    assert errors == []
 
 
-def test_exact_semantic_authoring_hard_negative_validation_routes_structural_reformulation() -> None:
+def test_exact_semantic_authoring_validation_failure_requests_full_regeneration() -> None:
     error = PacketValidationError(
         validation_label="Exact semantic-definition authoring candidate packet",
         attempts=7,
@@ -70185,32 +69649,26 @@ def test_exact_semantic_authoring_hard_negative_validation_routes_structural_ref
         error=error,
     )
 
-    assert packet["failure_classification"] == (
-        STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION
+    assert packet["failure_classification"] == "authoring_candidate_validation_failed"
+    assert packet["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
     )
-    assert packet["runtime_queue_status"] == STRUCTURAL_REFORMULATION_QUEUE_STATUS
     assert packet["llm_json_repair_attempts"] == 7
     assert packet["llm_json_repair_history"][0]["response_metadata"][
         "timeout_seconds"
     ] == 120.0
     assert "provider" not in packet["recommended_next_action"].lower()
-    assert packet["structural_reformulation_required"] is True
-    assert packet["pseudo_formalization_required"] is True
-    route = packet[
+    assert "regenerate one complete candidate packet" in packet[
+        "recommended_next_action"
+    ]
+    assert packet["structural_reformulation_required"] is False
+    assert packet["pseudo_formalization_required"] is False
+    assert packet[
         "source_theorem_exact_semantic_definition_structural_reformulation_route"
-    ]
-    assert route["pseudo_formalization_required"] is True
-    assert route["pseudo_formal_method_contract_id"]
-    assert route["runtime_queue_status"] == STRUCTURAL_REFORMULATION_QUEUE_STATUS
-    assert route["target_lanes"] == [
-        "source_theorem_exact_semantic_definition",
-        "lean_rag",
-        "source_to_bridge",
-    ]
-    assert "not establish" in route["proof_evidence_boundary"]
+    ] == {}
 
 
-def test_exact_semantic_authoring_worker_emits_structural_reformulation_followup(
+def test_exact_semantic_authoring_worker_does_not_prejudge_lean_retry_candidate(
     tmp_path: Path,
 ) -> None:
     tasks_path = tmp_path / "authoring_tasks.jsonl"
@@ -70275,41 +69733,22 @@ def test_exact_semantic_authoring_worker_emits_structural_reformulation_followup
         .read_text(encoding="utf-8")
         .splitlines()[0]
     )
-    retry_task = json.loads(
-        Path(manifest["retryable_authoring_tasks_jsonl"])
-        .read_text(encoding="utf-8")
-        .splitlines()[0]
+    assert manifest["n_candidate_packets_ok"] == 1
+    assert manifest["n_structural_reformulation_required_tasks"] == 0
+    assert manifest["failure_classification_counts"] == {}
+    assert candidate["ok"] is True
+    assert candidate["runtime_queue_status"] == (
+        "PENDING_EXACT_SEMANTIC_DEFINITION_CANDIDATE_MATERIALIZATION"
     )
-
-    assert manifest["n_candidate_packets_ok"] == 0
-    assert manifest["n_structural_reformulation_required_tasks"] == 1
-    assert manifest["failure_classification_counts"] == {
-        STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION: 1
-    }
-    assert candidate["failure_classification"] == (
-        STRUCTURAL_REFORMULATION_FAILURE_CLASSIFICATION
-    )
-    assert candidate["runtime_queue_status"] == STRUCTURAL_REFORMULATION_QUEUE_STATUS
-    assert candidate["structural_reformulation_required"] is True
-    assert retry_task["runtime_queue_status"] == STRUCTURAL_REFORMULATION_QUEUE_STATUS
-    assert retry_task["authoring_trigger"] == (
-        "EXACT_SEMANTIC_DEFINITION_STRUCTURAL_REFORMULATION_REQUIRED"
-    )
-    assert retry_task["pseudo_formalization_required"] is True
-    route = retry_task[
-        "source_theorem_exact_semantic_definition_structural_reformulation_route"
-    ]
-    assert route["target_queue_status_by_lane"][
-        "source_theorem_exact_semantic_definition"
-    ] == "PENDING_EXACT_SEMANTIC_DEFINITION_FROM_PSEUDO_FORMAL_BLOCK"
-    assert route["local_lean_feedback_summary"][
+    assert Path(manifest["retryable_authoring_tasks_jsonl"]).read_text() == ""
+    assert candidate["candidate_repair_feedback"][
         "unknown_identifiers_from_all_checks"
     ] == ["Nat.ceil"]
     assert candidate["source_theorem_kernel_verified"] is False
     assert candidate["semantic_definition_kernel_verified"] is False
 
 
-def test_exact_semantic_authoring_candidate_rejects_typeclass_failing_api_reuse() -> None:
+def test_exact_semantic_authoring_candidate_defers_typeclass_retry_to_lean() -> None:
     packet = {
         "placeholder_symbol": "rank",
         "definition_design": "Keep using the API that caused FloorSemiring failure.",
@@ -70377,11 +69816,10 @@ def test_exact_semantic_authoring_candidate_rejects_typeclass_failing_api_reuse(
 
     errors = validate_authoring_candidate_packet(packet)
 
-    assert any("Nat.ceil" in error for error in errors)
-    assert any("typeclass-failing source lines" in error for error in errors)
+    assert errors == []
 
 
-def test_exact_semantic_authoring_candidate_rejects_typeclass_declaration_import_as_instance_repair() -> None:
+def test_exact_semantic_authoring_candidate_does_not_infer_instance_from_inventory() -> None:
     packet = {
         "placeholder_symbol": "rank",
         "definition_design": "Import a class declaration module as if it gave an instance.",
@@ -70434,11 +69872,10 @@ def test_exact_semantic_authoring_candidate_rejects_typeclass_declaration_import
 
     errors = validate_authoring_candidate_packet(packet)
 
-    assert any("Mathlib.Algebra.Order.Floor.Defs" in error for error in errors)
-    assert any("required_imports include modules not verified" in error for error in errors)
+    assert errors == []
 
 
-def test_exact_semantic_authoring_worker_repair_task_for_unverified_import(
+def test_exact_semantic_authoring_worker_sends_import_candidate_to_local_lean(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "lean_project"
@@ -70527,29 +69964,16 @@ def test_exact_semantic_authoring_worker_repair_task_for_unverified_import(
         .read_text(encoding="utf-8")
         .splitlines()[0]
     )
-    retry_task = json.loads(
-        Path(manifest["retryable_authoring_tasks_jsonl"])
-        .read_text(encoding="utf-8")
-        .splitlines()[0]
-    )
-
     assert manifest["n_llm_attempted"] == 1
-    assert manifest["n_candidate_packets_ok"] == 0
-    assert manifest["n_candidate_packets_failed"] == 1
-    assert manifest["n_retryable_authoring_tasks"] == 1
-    assert candidate["ok"] is False
+    assert manifest["n_candidate_packets_ok"] == 1
+    assert manifest["n_candidate_packets_failed"] == 0
+    assert manifest["n_retryable_authoring_tasks"] == 0
+    assert candidate["ok"] is True
     assert candidate["runtime_queue_status"] == (
-        "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
+        "PENDING_EXACT_SEMANTIC_DEFINITION_CANDIDATE_MATERIALIZATION"
     )
-    assert "Mathlib.Algebra.Order.Floor" in candidate["validation_errors"][0]
-    assert retry_task["runtime_queue_status"] == (
-        "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR"
-    )
-    assert retry_task["authoring_trigger"] == (
-        "EXACT_SEMANTIC_DEFINITION_AUTHORING_REPAIR_REQUIRED"
-    )
-    assert retry_task["repair_of_authoring_candidate_validation_failure"] is True
-    assert "Mathlib.Algebra.Order.Floor" in retry_task["retry_validation_errors"][0]
+    assert candidate["validation_errors"] == []
+    assert Path(manifest["retryable_authoring_tasks_jsonl"]).read_text() == ""
 
 
 def test_exact_semantic_authoring_live_provider_helpers_require_backend_identity() -> None:
@@ -70769,7 +70193,6 @@ def test_proof_body_reached_semantic_review_feedback_drives_definition_repair(
     assert "proof_body_gate_status" in prompt
     assert "proof_body_goal_reached" in prompt
     assert "upper coverage bound" in prompt
-    assert "tie policy/no-tie assumption" in prompt
 
 
 def test_runtime_semantic_definition_repair_queue_drives_formalizer_target_mode(
@@ -72843,7 +72266,8 @@ def test_source_theorem_proof_body_incomplete_without_concrete_bridge_routes_to_
         proof_bank_runtime_memory_summary=summary,
     )
     assert "source_theorem_exact_proof_body_repair" in prompt
-    assert "replace the complete proof after `:= by`" in prompt
+    assert "regenerate the complete declaration candidate" in prompt
+    assert "preserve target_theorem_statement exactly" in prompt
     assert "residual subgoal" in prompt
 
     proposal = {
@@ -102514,28 +101938,6 @@ def test_runtime_evaluation_model_policy_rejects_model_drift() -> None:
     )
 
 
-def test_runtime_topology_records_metric_repair_ownership_router() -> None:
-    coordinator = LLMArchitectCoordinatorAgent(
-        provider=StaticArchitectLLMProvider(_architect_sample_response()),
-        config=ArchitectCoordinatorConfig(
-            provider_name="anthropic",
-            metric_repair_ownership_router_enabled=True,
-        ),
-    )
-
-    row = _llm_agent_topology_row(
-        "ArchitectMetricRepairOwnershipRouter",
-        coordinator.metric_repair_ownership_router,
-        role="artifact-bound pre-execution repair ownership",
-    )
-
-    assert row["enabled"] is True
-    assert row["model"] == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
-    assert row["model_tier"] == "sonnet"
-    assert row["expected_model_tier"] == "sonnet"
-    assert runtime_module._llm_topology_policy_violations([row]) == []
-
-
 def test_runtime_topology_audit_rejects_resolved_claude_tier_policy_violation() -> None:
     topology = {
         "policy_status": "OK",
@@ -104024,10 +103426,7 @@ def _capability_eval_preset_args(preset: str) -> argparse.Namespace:
         serious_theory_model_tier="sonnet",
         serious_theory_max_tokens=8000,
         llm_timeout_seconds=120.0,
-        architect_metric_repair_ownership_router=False,
         architect_metric_semantic_reviewer_max_tokens=7000,
-        architect_metric_repair_ownership_router_llm_model="",
-        architect_metric_repair_ownership_router_max_tokens=5000,
         max_iterations=12,
         provider="static",
         architect_coordinator_provider="none",
@@ -104420,7 +103819,6 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     assert args.serious_theory_model_tier == "haiku"
     assert args.serious_theory_max_tokens >= 10000
     assert args.llm_timeout_seconds == 240.0
-    assert args.architect_metric_repair_ownership_router is True
     assert args.architect_metric_semantic_reviewer_max_tokens == 16000
     assert args.formalization_gap_planner_live_route_planner is True
     assert args.formalization_gap_planner_live_max_handoffs == 1
@@ -104473,14 +103871,6 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
         == "full"
     )
     assert _research_agent_runtime_capability_config_errors(args) == []
-
-    args.architect_metric_repair_ownership_router = False
-    assert (
-        "capability eval preset full-live requires the independent "
-        "ArchitectMetricRepairOwnershipRouter; missing "
-        "--architect-metric-repair-ownership-router"
-    ) in _research_agent_runtime_capability_config_errors(args)
-    args.architect_metric_repair_ownership_router = True
 
     args.serious_theory_model_tier = "sonnet"
     assert (

@@ -65,29 +65,23 @@ class _SequencedBackend:
     def __init__(self, initial_payload: dict[str, object]) -> None:
         self.initial_payload = initial_payload
         self.requests = []
+        self.repair_payload = {}
 
     def generate(self, request):
         self.requests.append(request)
         if len(self.requests) == 1:
             payload = self.initial_payload
         else:
-            repair_payload = json.loads(request.user_prompt.split("\n\n", 1)[1])
-            path = repair_payload["subsystem_repair_context"][
-                "dimension_review_patch_paths"
-            ]["primitive_mathematical_consistency"]
-            payload = {
-                "base_payload_fingerprint": repair_payload[
-                    "base_payload_fingerprint"
-                ],
-                "updates": [
-                    {
-                        "path": [*path, "evidence_refs"],
-                        "replacement_json": json.dumps(
-                            ["theory.estimator_specs"]
-                        ),
-                    }
-                ],
-            }
+            self.repair_payload = json.loads(
+                request.user_prompt.split("\n\n", 1)[1]
+            )
+            payload = deepcopy(self.initial_payload)
+            primitive_index = ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS.index(
+                "primitive_mathematical_consistency"
+            )
+            payload["dimension_reviews"][primitive_index]["evidence_refs"] = [
+                "theory.estimator_specs"
+            ]
         return GeneratorResponse(
             text=json.dumps(payload),
             provider="anthropic",
@@ -441,6 +435,8 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
         "search_preflight_sources",
         "submit_theory_preflight_review",
     ]
+    assert backend.requests[0].tools[0].strict is False
+    assert backend.requests[0].tools[1].strict is True
     assert backend.requests[0].metadata["model_tier"] == "haiku"
     assert backend.requests[0].disable_parallel_tool_use is True
     first_result = json.loads(
@@ -615,6 +611,75 @@ def test_preflight_client_tool_loop_returns_unknown_ref_error_for_model_repair()
     assert failed_submit["is_error"] is True
     assert "runtime-returned source refs" in failed_submit["result_excerpt"]
     assert "available handles: S1H1" in failed_submit["result_excerpt"]
+    rejection = json.loads(failed_submit["result_excerpt"])
+    assert rejection["error"] == "preflight_submission_rejected"
+    assert "theory.estimator_specs" in rejection["field_contracts"][
+        "evidence_refs"
+    ]["allowed_values"]
+    assert "S1H1" in rejection["field_contracts"]["source_evidence_refs"][
+        "allowed_values"
+    ]
+
+
+def test_preflight_repairs_swapped_citation_namespaces_from_structured_feedback() -> None:
+    class SwappedCitationBackend(_PreflightToolBackend):
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            turn = len(self.requests)
+            if turn == 1:
+                return _tool_response(
+                    ClientToolCall(
+                        "search-1",
+                        "search_preflight_sources",
+                        {
+                            "query": "finite input censored outcome",
+                            "source_scope": "theory",
+                            "k": 4,
+                        },
+                    )
+                )
+            result = json.loads(request.messages[-1]["content"][0]["content"])
+            if result.get("hits"):
+                self.hit_id = result["hits"][0]["source_hit_id"]
+                self.source_ref = result["hits"][0]["source_ref"]
+            if turn == 2:
+                payload = self._submission(source_ref="theory.estimator_specs")
+                payload["findings"][0]["evidence_refs"] = [self.source_ref]
+                return _tool_response(
+                    ClientToolCall(
+                        "submit-swapped-refs",
+                        "submit_theory_preflight_review",
+                        payload,
+                    )
+                )
+            assert result["error"] == "preflight_submission_rejected"
+            assert result["field_contracts"]["evidence_refs"][
+                "allowed_values"
+            ]
+            assert self.source_ref in result["field_contracts"][
+                "source_evidence_refs"
+            ]["allowed_values"]
+            return _tool_response(
+                ClientToolCall(
+                    "submit-repaired-refs",
+                    "submit_theory_preflight_review",
+                    self._submission(source_ref=self.source_ref),
+                )
+            )
+
+    backend = SwappedCitationBackend(accept=False)
+
+    packet = _tool_review(backend)
+
+    assert packet["overall_verdict"] == "REVISE"
+    assert packet["client_tool_loop_turns"] == 3
+    rejected = packet["client_tool_loop_history"][1]["tool_calls"][0]
+    assert rejected["is_error"] is True
+    rejection = json.loads(rejected["result_excerpt"])
+    assert "theory execution preflight uses missing or unknown evidence refs" in (
+        rejection["validation_errors"]
+    )
+    assert packet["findings"][0]["source_evidence_refs"] == [backend.hit_id]
 
 
 def test_preflight_recovers_from_rejected_final_submission() -> None:
@@ -821,7 +886,7 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     ) == []
 
 
-def test_preflight_patch_paths_follow_raw_ordered_index_transport() -> None:
+def test_preflight_full_regeneration_focuses_invalid_dimension() -> None:
     initial_payload = _payload(accept=False)
     primitive_index = ARCHITECT_THEORY_EXECUTION_PREFLIGHT_DIMENSIONS.index(
         "primitive_mathematical_consistency"
@@ -847,26 +912,20 @@ def test_preflight_patch_paths_follow_raw_ordered_index_transport() -> None:
         max_repair_attempts=1,
     )
 
-    repair_payload = json.loads(backend.requests[1].user_prompt.split("\n\n", 1)[1])
-    context = repair_payload["subsystem_repair_context"]
-    assert "current_invalid_packet" not in context
-    assert context["dimension_review_patch_paths"][
+    context = backend.repair_payload["subsystem_repair_context"]
+    assert "dimension_review_patch_paths" not in context
+    assert context["required_dimensions"][primitive_index] == (
         "primitive_mathematical_consistency"
-    ] == ["dimension_reviews", primitive_index]
-    assert context["estimator_execution_check_patch_paths"] == [
-        {
-            "estimator_id": "generic_stream_method",
-            "path": ["estimator_execution_checks", 0],
-        }
-    ]
+    )
+    assert any(
+        "unknown evidence refs" in error
+        for error in context["local_validation_errors"]
+    )
+    assert "unknown.anchor" in backend.repair_payload["invalid_response_excerpt"]
     assert packet["overall_verdict"] == "REVISE"
-    assert packet["llm_json_repair_history"][1]["patched_paths"] == [
-        [
-            "dimension_reviews",
-            primitive_index,
-            "evidence_refs",
-        ]
-    ]
+    assert packet["llm_json_repair_history"][1]["repair_mode"] == (
+        "full_packet_regeneration"
+    )
 
 
 def test_preflight_prior_finding_schema_does_not_expand_per_finding() -> None:
@@ -1317,20 +1376,10 @@ def test_preflight_repairs_missing_ordered_prior_continuation() -> None:
             else:
                 repair_payload = json.loads(request.user_prompt.split("\n\n", 1)[1])
                 self.repair_context = repair_payload["subsystem_repair_context"]
-                prior_row = self.repair_context[
-                    "prior_finding_review_patch_paths"
-                ][0]
-                payload = {
-                    "base_payload_fingerprint": repair_payload[
-                        "base_payload_fingerprint"
-                    ],
-                    "updates": [
-                        {
-                            "path": prior_row["current_finding_path"],
-                            "replacement_json": json.dumps(continuation),
-                        }
-                    ],
-                }
+                payload = deepcopy(initial_payload)
+                payload["prior_finding_reviews"][0]["current_finding"] = (
+                    continuation
+                )
             return GeneratorResponse(
                 text=json.dumps(payload),
                 provider="anthropic",
@@ -1360,18 +1409,10 @@ def test_preflight_repairs_missing_ordered_prior_continuation() -> None:
     )
 
     assert len(backend.requests) == 2
-    assert backend.repair_context["current_finding_patch_paths"] == []
-    assert backend.repair_context["prior_finding_review_patch_paths"] == [
-        {
-            "finding_id": prior_finding_id,
-            "path": ["prior_finding_reviews", 0],
-            "current_finding_path": [
-                "prior_finding_reviews",
-                0,
-                "current_finding",
-            ],
-        }
+    assert backend.repair_context["required_prior_finding_ids"] == [
+        prior_finding_id
     ]
+    assert "prior_finding_review_patch_paths" not in backend.repair_context
     assert packet["findings"][0]["prior_finding_id"] == prior_finding_id
     assert packet["findings"][0]["finding_id"] == prior_finding_id
     assert packet["runtime_prior_finding_identity_bindings"][0][
@@ -1418,19 +1459,8 @@ def test_preflight_repairs_missing_ordered_prior_row_by_replacing_array() -> Non
             else:
                 repair_payload = json.loads(request.user_prompt.split("\n\n", 1)[1])
                 self.repair_context = repair_payload["subsystem_repair_context"]
-                payload = {
-                    "base_payload_fingerprint": repair_payload[
-                        "base_payload_fingerprint"
-                    ],
-                    "updates": [
-                        {
-                            "path": self.repair_context[
-                                "prior_finding_reviews_array_path"
-                            ],
-                            "replacement_json": json.dumps(resolved_rows),
-                        }
-                    ],
-                }
+                payload = deepcopy(initial_payload)
+                payload["prior_finding_reviews"] = deepcopy(resolved_rows)
             return GeneratorResponse(
                 text=json.dumps(payload),
                 provider="anthropic",
@@ -1460,32 +1490,10 @@ def test_preflight_repairs_missing_ordered_prior_row_by_replacing_array() -> Non
     )
 
     assert len(backend.requests) == 2
-    assert backend.repair_context["prior_finding_review_patch_paths"] == [
-        {
-            "finding_id": prior_finding_ids[0],
-            "path": ["prior_finding_reviews", 0],
-            "current_finding_path": [
-                "prior_finding_reviews",
-                0,
-                "current_finding",
-            ],
-        }
-    ]
-    assert backend.repair_context["prior_finding_reviews_array_path"] == [
-        "prior_finding_reviews"
-    ]
-    assert backend.repair_context["prior_finding_review_transport_slots"] == [
-        {
-            "output_index": 0,
-            "finding_id": prior_finding_ids[0],
-            "base_row_exists": True,
-        },
-        {
-            "output_index": 1,
-            "finding_id": prior_finding_ids[1],
-            "base_row_exists": False,
-        },
-    ]
+    assert backend.repair_context["required_prior_finding_ids"] == (
+        prior_finding_ids
+    )
+    assert "prior_finding_reviews_array_path" not in backend.repair_context
     assert [
         row["finding_id"] for row in packet["prior_finding_reviews"]
     ] == prior_finding_ids
@@ -1523,7 +1531,6 @@ def test_rejected_preflight_skips_metric_author_and_execution_lineage() -> None:
             ),
             request_model=TEST_HAIKU_MODEL,
             semantic_reviewer=Reviewer(),  # type: ignore[arg-type]
-            repair_ownership_router=None,
             question=_question(),
             runtime_contract={
                 "capability_eval_requires_typed_metric_contracts": True,

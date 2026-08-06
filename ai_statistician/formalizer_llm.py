@@ -311,8 +311,6 @@ class LLMFormalizerProofEngineerAgent:
                 proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary
                 or {},
             ),
-            semantic_patch_repair=True,
-            allow_progress_repair_extension=True,
         )
 
     def repair_lean_candidate_with_client_tools(
@@ -7827,24 +7825,13 @@ def _formalizer_mode_specific_instructions(
     ):
         instructions.append(
             "For source_theorem_exact_semantic_definition_structural_reformulation, "
-            "treat repeated Lean API/syntax/typeclass hard-negative feedback as a "
-            "semantic-design blocker. You must emit pseudo_formal_proof_packets that "
-            "decompose the exact semantic-definition obligation into source-anchored "
-            "blocks before proposing another Lean definition. Route residual blocks "
-            "through typed block semantics. Target-lane names are runtime-derived "
-            "outcomes, not writable block-field values. Choose the decomposition and "
-            "field values from the provider schema and source context; on rejection, "
-            "use the per-block routing observations to make the smallest semantic "
-            "revision. Do not "
-            "directly retry sibling Lean APIs, guessed imports, or previously rejected "
-            "syntax fragments; reformulate around project-verified primitives, explicit "
-            "parameters, or declare the missing semantic primitive/formal library gap. "
-            "If source_theorem_exact_candidate_repair_diagnostics includes "
-            "response_validation_feedback.unverified_required_imports, treat those "
-            "module names as hard-negative rejected imports: do not reuse them as Lean "
-            "candidate required_imports, and cite the blocked import/API as a PF/BV "
-            "work-order constraint for lean_rag or exact semantic-definition grounding "
-            "instead of retrying the import."
+            "consume the complete rejected candidate, exact validator/Lean diagnostics, "
+            "source anchors, retrieval results, and current project context. The model "
+            "owns whether to regenerate a complete Lean candidate, decompose the "
+            "obligation, request more retrieval/tool evidence, or return an honest typed "
+            "blocker. Preserve target and artifact lineage. Runtime observations do not "
+            "prescribe an import, API, syntax edit, tactic, or decomposition, and they are "
+            "not proof evidence."
         )
     if (
         mode == "source_theorem_exact_semantic_definition_repair"
@@ -7853,14 +7840,11 @@ def _formalizer_mode_specific_instructions(
     ):
         instructions.append(
             "For source_theorem_exact_semantic_definition_repair, make the main formal "
-            "target a reviewed/imported exact semantic definition repair for listed "
-            "placeholder symbols and semantic_definition_risks; do not attempt "
-            "source-theorem proof-body search or promotion until that semantic-definition "
-            "repair passes local Lean/AXLE. If diagnostics include proof_body_gate_status="
-            "PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED or failure_classification="
-            "proof_body_reached_semantic_alignment_unreviewed, treat that as a theorem/"
-            "semantic-definition repair gate and propose reviewed semantics, an explicit "
-            "tie policy/no-tie assumption, or theorem-assumption revision."
+            "target a reviewed exact semantic definition for the listed placeholder "
+            "symbols. Consume the full candidate, source anchors, diagnostics, and "
+            "retrieval context, then let the model generate the next complete candidate "
+            "or typed blocker. Keep proof-body promotion closed until the candidate passes "
+            "local Lean/AXLE and semantic review; runtime does not prescribe the repair."
         )
     if (
         mode == "source_theorem_exact_proof_body_repair"
@@ -7878,10 +7862,9 @@ def _formalizer_mode_specific_instructions(
             "target fixed and consume source_theorem_exact_proof_body_repair_diagnostics "
             "as a lineage-bound ProofEngineer task. When proof_body_repair_scope is "
             "replace_entire_exact_declaration_proof_body, preserve target_theorem_statement "
-            "exactly and replace the complete proof after `:= by`; use a provided "
+            "exactly and regenerate the complete declaration candidate; use a provided "
             "target_declaration_source_excerpt when it is source-bound, otherwise use "
             "candidate_source_excerpt plus target_lean_declaration and compiler feedback. "
-            "Do not ask Python to parse a Lean declaration to manufacture missing context. "
             "proof_body_goal_excerpt is a residual subgoal produced while "
             "elaborating the current proof and may be nested inside a bad tactic term; do "
             "not silently change the theorem statement to that residual goal. Emit a "
@@ -10269,7 +10252,6 @@ def _compact_value(value: Any) -> Any:
             "placeholder_symbols",
             "response_validation_feedback",
             "unverified_required_imports",
-            "hard_negative_rejected_imports",
             "source_failed_candidate_packet_id",
             "validation_issue_summary",
             "validation_issue_kinds",
@@ -10291,6 +10273,7 @@ def _compact_value(value: Any) -> Any:
         )
         excluded_keys = {
             "blocked_import_prefixes",
+            "hard_negative_rejected_imports",
             "concrete_lane_routable_repair_seed",
             "lane_activation_hints",
             "mathlib_import_unavailable",

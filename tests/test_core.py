@@ -12,19 +12,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 from ai_statistician.algorithms import audit_algorithm_registry
-from ai_statistician.algorithm_repair_promotion import export_algorithm_repair_promotion_queue
-from ai_statistician.algorithm_repair_patch_policy_model import (
-    load_algorithm_repair_patch_policy_model,
-    train_algorithm_repair_patch_policy_model,
-)
-from ai_statistician.algorithm_repair_production_patch_plan import export_algorithm_repair_production_patch_plan
-from ai_statistician.algorithm_repair_reviewed_patch_apply import apply_reviewed_algorithm_repair_source_patches
-from ai_statistician.algorithm_repair_reviewed_patch_validate import validate_reviewed_algorithm_repair_patches
-from ai_statistician.algorithm_repair_patch_training_export import export_algorithm_repair_patch_training_dataset
-from ai_statistician.algorithm_repair_sandbox import evaluate_algorithm_repair_sandbox
-from ai_statistician.algorithm_repair_sandbox_apply import apply_algorithm_repair_sandbox_results
-from ai_statistician.algorithm_repair_sandbox_patch_eval import evaluate_algorithm_repair_sandbox_patches
-from ai_statistician.algorithm_repair_sandbox_rerun import rerun_algorithm_repair_sandbox_applications
 from ai_statistician.algorithm_simulation_stress_audit import audit_algorithm_simulation_stress
 from ai_statistician.adversarial_intake_audit import audit_adversarial_unsupported_intake
 from ai_statistician.architecture_audit import audit_architecture
@@ -84,9 +71,6 @@ from ai_statistician.formal_verifier_replay_repair_execution_queue import (
 from ai_statistician.formal_verifier_replay_repair_prompt_packets import (
     export_formal_verifier_replay_repair_prompt_packets,
 )
-from ai_statistician.formal_verifier_replay_repair_patch_autoworker import (
-    export_formal_verifier_replay_repair_patch_autoworker,
-)
 from ai_statistician.formal_verifier_replay_repair_patch_response_validation import (
     export_formal_verifier_replay_repair_patch_response_validation,
 )
@@ -107,9 +91,6 @@ from ai_statistician.formal_verifier_replay_repair_patch_rerun_residual_obligati
 )
 from ai_statistician.formal_verifier_replay_repair_patch_rerun_residual_prompt_packets import (
     export_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets,
-)
-from ai_statistician.formal_verifier_replay_repair_patch_rerun_residual_autoworker import (
-    export_formal_verifier_replay_repair_patch_rerun_residual_autoworker,
 )
 from ai_statistician.formal_verifier_replay_repair_patch_rerun_residual_response_validation import (
     export_formal_verifier_replay_repair_patch_rerun_residual_response_validation,
@@ -5312,7 +5293,6 @@ class SystemTests(unittest.TestCase):
                 "algorithm_simulation_stress_all_diagnoses_ok": True,
                 "algorithm_simulation_stress_multi_seed_checked": True,
                 "research_loop_theory_revisions": 6,
-                "algorithm_repair_sandbox_patch_eval_promotion_ready": 0,
                 "adversarial_intake_cases": 6,
                 "adversarial_intake_ok": 6,
                 "adversarial_intake_rejected": 6,
@@ -5510,7 +5490,6 @@ class SystemTests(unittest.TestCase):
                 "algorithm_simulation_stress_audit": "runs/example/algorithm_simulation_stress_manifest.json",
                 "research_loop": "runs/example/research_loop_manifest.json",
                 "research_loop_repair_audit": "runs/example/research_loop_repair_audit_manifest.json",
-                "algorithm_repair_sandbox_patch_eval": "runs/example/algorithm_repair_sandbox_patch_eval_manifest.json",
                 "adversarial_intake_audit": "runs/example/adversarial_intake_manifest.json",
                 "fresh_holdout_frontier_audit": "runs/example/fresh_holdout_frontier_manifest.json",
             },
@@ -15387,6 +15366,19 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                     retrieval_hits=retrieval_hits,
                 )
 
+        replay_manifest_path = Path("runs/test_formal_verifier_replay/formal_verifier_replay_manifest.json")
+        replay_manifest_payload = json.loads(replay_manifest_path.read_text(encoding="utf-8"))
+        replay_manifest_payload["tasks"][0]["candidate_formal_statement"] = (
+            "import Mathlib\n"
+            "theorem agent_candidate_target : True := by sorry\n"
+        )
+        replay_manifest_payload["tasks"][0]["candidate_proof_body"] = (
+            "by\n  exact True.intro\n"
+        )
+        replay_manifest_path.write_text(
+            json.dumps(replay_manifest_payload, indent=2),
+            encoding="utf-8",
+        )
         failing_verifier = FailingReplayVerifier()
         attempt_manifest = asyncio.run(
             export_formal_verifier_replay_attempts(
@@ -15401,7 +15393,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(attempt_manifest["n_attempted"], 1)
         self.assertEqual(attempt_manifest["n_negative"], 1)
         self.assertEqual(attempt_manifest["n_kernel_verified"], 0)
-        self.assertEqual(attempt_manifest["n_placeholder_removed"], 1)
+        self.assertEqual(attempt_manifest["n_placeholder_removed"], 0)
         self.assertEqual(attempt_manifest["n_with_placeholder_reference"], 0)
         attempt_row = attempt_manifest["rows"][0]
         self.assertNotIn("h_frontier_missing", attempt_row["formal_statement"])
@@ -15451,12 +15443,13 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(repair["n_with_attempt"], 1)
         self.assertEqual(repair["n_with_exact_subclaims"], 1)
         packet = repair["packets"][0]
-        self.assertEqual(packet["repair_class"], "import_or_declaration_repair")
+        self.assertEqual(packet["repair_class"], "model_regeneration_from_exact_feedback")
         self.assertIn("aipw_score_definition", packet["subclaim_replay_obligations"])
         self.assertNotEqual(packet["target_theorem_name"], "skeleton")
         self.assertNotEqual(packet["candidate_bridge_lemma_name"], "skeleton_replay_bridge")
         self.assertIn("not proof evidence", packet["proof_evidence_boundary"])
-        self.assertIn("not verified proof evidence", packet["proof_body_template_not_verified"])
+        self.assertEqual(packet["proof_body_template_not_verified"], "")
+        self.assertIn("complete revised Lean candidate", packet["training_prompt"])
         self.assertTrue(Path("runs/test_formal_verifier_replay_repair/formal_verifier_replay_repair_manifest.json").exists())
         self.assertTrue(Path("runs/test_formal_verifier_replay_repair/formal_verifier_replay_repair_packets.jsonl").exists())
         self.assertTrue(Path("runs/test_formal_verifier_replay_repair/formal_verifier_replay_repair_training.jsonl").exists())
@@ -15468,15 +15461,15 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertTrue(application["all_ok"])
         self.assertEqual(application["n_application_tasks"], 1)
-        self.assertEqual(application["n_import_or_declaration_applications"], 1)
+        self.assertEqual(application["n_import_or_declaration_applications"], 0)
         self.assertEqual(application["n_with_source_statement"], 1)
         self.assertEqual(application["n_with_artifact"], 1)
         app_task = application["tasks"][0]
-        self.assertEqual(app_task["application_mode"], "import_or_declaration_patch_then_replay")
+        self.assertEqual(app_task["application_mode"], "complete_candidate_regeneration")
         self.assertIn("aipw_score_definition", app_task["subclaim_replay_obligations"])
         self.assertIn("not proof evidence", app_task["proof_evidence_boundary"])
         self.assertNotIn("h_frontier_missing", app_task["source_formal_statement"])
-        self.assertIn("FORMAL VERIFIER REPLAY REPAIR APPLICATION TASK", app_task["lean_repair_source_not_verified"])
+        self.assertIn("FORMAL VERIFIER REPLAY MODEL REGENERATION CONTEXT", app_task["lean_repair_source_not_verified"])
         self.assertIn("formal-verifier-replay-attempts", app_task["verification_commands"][0])
         self.assertTrue(Path(app_task["artifact_path"]).exists())
         self.assertTrue(
@@ -15507,7 +15500,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(validation_row["contains_scaffold_boundary"])
         self.assertTrue(validation_row["contains_non_evidence_boundary"])
         self.assertTrue(validation_row["contains_target_statement"])
-        self.assertTrue(validation_row["contains_candidate_bridge_name"])
+        self.assertFalse(validation_row["contains_candidate_bridge_name"])
         self.assertEqual(
             validation_row["proof_evidence_status"],
             "SCAFFOLD_ONLY_NOT_PROOF_EVIDENCE",
@@ -15576,7 +15569,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(prompt_packet["proof_evidence_status"], "PROMPT_PACKET_NOT_PROOF_EVIDENCE")
         self.assertIn("not proof evidence", prompt_packet["proof_evidence_boundary"])
         self.assertIn("formal-verifier-replay-attempts", prompt_packet["prompt"])
-        self.assertIn("FORMAL VERIFIER REPLAY REPAIR APPLICATION TASK", prompt_packet["prompt"])
+        self.assertIn("FORMAL VERIFIER REPLAY MODEL REGENERATION CONTEXT", prompt_packet["prompt"])
         self.assertEqual(
             prompt_packet["expected_output_contract"]["claim_status"],
             "PATCH_PROPOSAL_NOT_PROOF_EVIDENCE",
@@ -15633,45 +15626,53 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             promotion_awaiting["rows"][0]["promotion_status"],
             "AWAITING_WORKER_RESPONSE_NO_PROMOTION",
         )
-        autoworker = export_formal_verifier_replay_repair_patch_autoworker(
+        model_response_dir = Path("runs/test_formal_verifier_replay_repair_model_response")
+        model_response_dir.mkdir(parents=True, exist_ok=True)
+        patched_artifact = model_response_dir / "candidate.lean"
+        patched_artifact.write_text(
+            "theorem model_generated_candidate (n : Nat) : n = n := by rfl\n",
+            encoding="utf-8",
+        )
+        model_response = {
+            "prompt_packet_id": prompt_packet["prompt_packet_id"],
+            "execution_id": prompt_packet["execution_id"],
+            "application_id": prompt_packet["application_id"],
+            "target_theorem_name": prompt_packet["target_theorem_name"],
+            "candidate_bridge_lemma_name": prompt_packet["candidate_bridge_lemma_name"],
+            "patched_artifact_path": str(patched_artifact),
+            "changed_lean_declarations": ["model_generated_candidate"],
+            "proof_body_or_bridge_patch": patched_artifact.read_text(encoding="utf-8"),
+            "rerun_commands": prompt_packet["expected_output_contract"]["rerun_commands"],
+            "replay_attempt_manifest": "",
+            "replay_calibration_manifest": "",
+            "replay_calibration_status": "UNRUN_AFTER_PATCH",
+            "kernel_verified": False,
+            "placeholders_removed": True,
+            "residual_formal_gaps": prompt_packet["required_primitives"],
+            "claim_status": "PATCH_PROPOSAL_NOT_PROOF_EVIDENCE",
+            "promotion_gate": prompt_packet["expected_output_contract"]["promotion_gate"],
+        }
+        model_response_jsonl = model_response_dir / "responses.jsonl"
+        model_response_jsonl.write_text(json.dumps(model_response) + "\n", encoding="utf-8")
+        model_response_validation = export_formal_verifier_replay_repair_patch_response_validation(
             Path("runs/test_formal_verifier_replay_repair_prompt_packets"),
-            Path("runs/test_formal_verifier_replay_repair_patch_autoworker"),
+            Path("runs/test_formal_verifier_replay_repair_patch_response_validation_model"),
+            response_jsonl=model_response_jsonl,
         )
-        self.assertTrue(autoworker["all_ok"])
-        self.assertEqual(autoworker["n_responses"], 1)
-        self.assertEqual(autoworker["n_patch_proposals"], 1)
-        self.assertEqual(autoworker["n_kernel_verified"], 0)
-        self.assertEqual(autoworker["n_patch_artifacts"], 1)
-        autoworker_row = autoworker["rows"][0]
-        self.assertEqual(autoworker_row["claim_status"], "PATCH_PROPOSAL_NOT_PROOF_EVIDENCE")
-        self.assertFalse(autoworker_row["kernel_verified"])
-        self.assertIn("not theorem proof evidence", autoworker_row["proof_evidence_boundary"])
-        self.assertTrue(Path(autoworker_row["patched_artifact_path"]).exists())
-        self.assertIn(
-            "PATCH_PROPOSAL_NOT_PROOF_EVIDENCE",
-            Path(autoworker_row["patched_artifact_path"]).read_text(encoding="utf-8"),
+        self.assertTrue(model_response_validation["all_ok"])
+        self.assertEqual(model_response_validation["n_responses"], 1)
+        self.assertEqual(model_response_validation["n_awaiting_worker_response"], 0)
+        self.assertEqual(model_response_validation["n_patch_proposal_not_proof"], 1)
+        model_response_promotion = export_formal_verifier_replay_repair_patch_response_promotion(
+            Path("runs/test_formal_verifier_replay_repair_patch_response_validation_model"),
+            Path("runs/test_formal_verifier_replay_repair_patch_response_promotion_model"),
         )
-        autoworker_validation = export_formal_verifier_replay_repair_patch_response_validation(
-            Path("runs/test_formal_verifier_replay_repair_prompt_packets"),
-            Path("runs/test_formal_verifier_replay_repair_patch_response_validation_autoworker"),
-            response_jsonl=Path(
-                "runs/test_formal_verifier_replay_repair_patch_autoworker/formal_verifier_replay_repair_patch_responses.jsonl"
-            ),
-        )
-        self.assertTrue(autoworker_validation["all_ok"])
-        self.assertEqual(autoworker_validation["n_responses"], 1)
-        self.assertEqual(autoworker_validation["n_awaiting_worker_response"], 0)
-        self.assertEqual(autoworker_validation["n_patch_proposal_not_proof"], 1)
-        autoworker_promotion = export_formal_verifier_replay_repair_patch_response_promotion(
-            Path("runs/test_formal_verifier_replay_repair_patch_response_validation_autoworker"),
-            Path("runs/test_formal_verifier_replay_repair_patch_response_promotion_autoworker"),
-        )
-        self.assertTrue(autoworker_promotion["all_ok"])
-        self.assertEqual(autoworker_promotion["n_patch_proposal_needs_replay_calibration"], 1)
-        self.assertEqual(autoworker_promotion["n_ready_for_proof_promotion"], 0)
+        self.assertTrue(model_response_promotion["all_ok"])
+        self.assertEqual(model_response_promotion["n_patch_proposal_needs_replay_calibration"], 1)
+        self.assertEqual(model_response_promotion["n_ready_for_proof_promotion"], 0)
         rerun_queue = export_formal_verifier_replay_repair_patch_rerun_queue(
-            Path("runs/test_formal_verifier_replay_repair_patch_response_validation_autoworker"),
-            Path("runs/test_formal_verifier_replay_repair_patch_response_promotion_autoworker"),
+            Path("runs/test_formal_verifier_replay_repair_patch_response_validation_model"),
+            Path("runs/test_formal_verifier_replay_repair_patch_response_promotion_model"),
             Path("runs/test_formal_verifier_replay_repair_patch_rerun_queue"),
         )
         self.assertTrue(rerun_queue["all_ok"])
@@ -15709,7 +15710,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(rerun_attempts["n_rerun_attempt_rows"], 1)
         self.assertEqual(rerun_attempts["n_local_lean_checked"], 0)
         self.assertEqual(rerun_attempts["n_artifact_readable"], 1)
-        self.assertEqual(rerun_attempts["n_with_patch_proposal_marker"], 1)
+        self.assertEqual(rerun_attempts["n_with_patch_proposal_marker"], 0)
         attempt_row = rerun_attempts["rows"][0]
         self.assertEqual(attempt_row["rerun_attempt_status"], "PATCH_ARTIFACT_AWAITING_LOCAL_LEAN")
         self.assertIn("not theorem proof evidence", attempt_row["proof_evidence_boundary"])
@@ -15896,57 +15897,82 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "AWAITING_RESIDUAL_WORKER_RESPONSE",
         )
         self.assertIn("not proof evidence", awaiting_row["proof_evidence_boundary"])
-        residual_autoworker = export_formal_verifier_replay_repair_patch_rerun_residual_autoworker(
-            Path(
-                "runs/test_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets"
+        residual_packet = residual_prompt_packet
+        residual_model_dir = Path(
+            "runs/test_formal_verifier_replay_repair_patch_rerun_residual_model_response"
+        )
+        residual_model_dir.mkdir(parents=True, exist_ok=True)
+        residual_artifact = residual_model_dir / "candidate.lean"
+        residual_artifact.write_text(
+            "theorem model_generated_residual_candidate (n : Nat) : n = n := by rfl\n",
+            encoding="utf-8",
+        )
+        residual_model_response = {
+            "prompt_packet_id": residual_packet["prompt_packet_id"],
+            "residual_prompt_packet_id": residual_packet["prompt_packet_id"],
+            "residual_obligation_id": residual_packet["residual_obligation_id"],
+            "rerun_calibration_id": residual_packet["rerun_calibration_id"],
+            "rerun_id": residual_packet["rerun_id"],
+            "rerun_attempt_id": residual_packet["rerun_attempt_id"],
+            "target_theorem_name": residual_packet["target_theorem_name"],
+            "candidate_bridge_lemma_name": residual_packet["candidate_bridge_lemma_name"],
+            "residual_gap": residual_packet["residual_gap"],
+            "action_class": residual_packet["action_class"],
+            "proposed_lean_artifact_path": str(residual_artifact),
+            "changed_lean_declarations": ["model_generated_residual_candidate"],
+            "proof_or_composition_patch": residual_artifact.read_text(encoding="utf-8"),
+            "used_proof_bank_obligations": residual_packet.get(
+                "proof_bank_bridge_obligations", []
             ),
-            Path(
-                "runs/test_formal_verifier_replay_repair_patch_rerun_residual_autoworker"
+            "used_local_declarations": residual_packet.get(
+                "local_candidate_declarations", []
             ),
+            "source_discovery_queries": [residual_packet["residual_gap"]],
+            "rerun_commands": residual_packet["expected_output_contract"]["rerun_commands"],
+            "patch_rerun_attempt_manifest": "",
+            "patch_rerun_calibration_manifest": "",
+            "patch_rerun_residual_obligations_manifest": "",
+            "patch_rerun_calibration_status": "UNRUN_AFTER_RESIDUAL_PATCH",
+            "kernel_verified": False,
+            "closed_residual_gaps": [],
+            "remaining_residual_gaps": [residual_packet["residual_gap"]],
+            "remaining_residual_formal_gaps": [residual_packet["residual_gap"]],
+            "claim_status": "RESIDUAL_PATCH_PROPOSAL_NOT_PROOF_EVIDENCE",
+            "promotion_gate": residual_packet["expected_output_contract"]["promotion_gate"],
+        }
+        residual_model_jsonl = residual_model_dir / "responses.jsonl"
+        residual_model_jsonl.write_text(
+            json.dumps(residual_model_response) + "\n", encoding="utf-8"
         )
-        self.assertTrue(residual_autoworker["all_ok"])
-        self.assertEqual(
-            residual_autoworker["n_responses"],
-            residual_prompt_packets["n_prompt_packets"],
-        )
-        self.assertEqual(residual_autoworker["n_residual_patch_proposals"], 1)
-        self.assertEqual(residual_autoworker["n_kernel_verified"], 0)
-        residual_autoworker_row = residual_autoworker["rows"][0]
-        self.assertEqual(
-            residual_autoworker_row["claim_status"],
-            "RESIDUAL_PATCH_PROPOSAL_NOT_PROOF_EVIDENCE",
-        )
-        self.assertTrue(Path(residual_autoworker_row["proposed_lean_artifact_path"]).exists())
-        residual_autoworker_validation = (
+        residual_model_validation = (
             export_formal_verifier_replay_repair_patch_rerun_residual_response_validation(
                 Path(
                     "runs/test_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets"
                 ),
                 Path(
-                    "runs/test_formal_verifier_replay_repair_patch_rerun_residual_autoworker_validation"
+                    "runs/test_formal_verifier_replay_repair_patch_rerun_residual_model_validation"
                 ),
-                response_jsonl=Path(
-                    "runs/test_formal_verifier_replay_repair_patch_rerun_residual_autoworker/formal_verifier_replay_repair_patch_rerun_residual_responses.jsonl"
-                ),
+                response_jsonl=residual_model_jsonl,
             )
         )
-        self.assertTrue(residual_autoworker_validation["all_ok"])
+        self.assertTrue(residual_model_validation["all_ok"])
         self.assertEqual(
-            residual_autoworker_validation["n_response_present"],
-            residual_prompt_packets["n_prompt_packets"],
-        )
-        self.assertEqual(
-            residual_autoworker_validation["n_contract_ok"],
-            residual_prompt_packets["n_prompt_packets"],
-        )
-        self.assertEqual(
-            residual_autoworker_validation["n_residual_patch_proposal_not_proof"],
+            residual_model_validation["n_response_present"],
             1,
         )
+        self.assertEqual(
+            residual_model_validation["n_contract_ok"],
+            1,
+        )
+        self.assertEqual(
+            residual_model_validation["n_residual_patch_proposal_not_proof"],
+            1,
+        )
+        self.assertEqual(residual_model_validation["n_source_discovery_responses"], 0)
         residual_followup_queue = (
             export_formal_verifier_replay_repair_patch_rerun_residual_followup_queue(
                 Path(
-                    "runs/test_formal_verifier_replay_repair_patch_rerun_residual_autoworker_validation"
+                    "runs/test_formal_verifier_replay_repair_patch_rerun_residual_model_validation"
                 ),
                 Path(
                     "runs/test_formal_verifier_replay_repair_patch_rerun_residual_followup_queue"
@@ -15956,13 +15982,13 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(residual_followup_queue["all_ok"])
         self.assertEqual(
             residual_followup_queue["n_followup_items"],
-            residual_autoworker_validation["n_residual_patch_proposal_not_proof"]
-            + residual_autoworker_validation["n_source_discovery_responses"],
+            residual_model_validation["n_residual_patch_proposal_not_proof"]
+            + residual_model_validation["n_source_discovery_responses"],
         )
         self.assertEqual(residual_followup_queue["n_patch_rerun_items"], 1)
         self.assertEqual(
             residual_followup_queue["n_source_discovery_items"],
-            residual_autoworker_validation["n_source_discovery_responses"],
+            residual_model_validation["n_source_discovery_responses"],
         )
         self.assertEqual(
             residual_followup_queue["n_ready"],
@@ -16661,16 +16687,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 "runs/test_formal_verifier_agentic_proof_execution_queue/formal_verifier_agentic_proof_execution_queue.md"
             ).exists()
         )
-        self.assertTrue(
-            Path(
-                "runs/test_formal_verifier_replay_repair_patch_rerun_residual_autoworker/formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest.json"
-            ).exists()
-        )
-        self.assertTrue(
-            Path(
-                "runs/test_formal_verifier_replay_repair_patch_rerun_residual_autoworker/formal_verifier_replay_repair_patch_rerun_residual_responses.jsonl"
-            ).exists()
-        )
         residual_response_jsonl = Path(
             "runs/test_formal_verifier_replay_repair_patch_rerun_residual_prompt_packets/formal_verifier_replay_repair_patch_rerun_residual_responses.jsonl"
         )
@@ -16763,21 +16779,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(
             Path(
                 "runs/test_formal_verifier_replay_repair_patch_rerun_residual_response_validation/formal_verifier_replay_repair_patch_rerun_residual_response_validation_manifest.json"
-            ).exists()
-        )
-        self.assertTrue(
-            Path(
-                "runs/test_formal_verifier_replay_repair_patch_autoworker/formal_verifier_replay_repair_patch_autoworker_manifest.json"
-            ).exists()
-        )
-        self.assertTrue(
-            Path(
-                "runs/test_formal_verifier_replay_repair_patch_autoworker/formal_verifier_replay_repair_patch_responses.jsonl"
-            ).exists()
-        )
-        self.assertTrue(
-            Path(
-                "runs/test_formal_verifier_replay_repair_patch_autoworker/formal_verifier_replay_repair_patch_autoworker.md"
             ).exists()
         )
         response_jsonl = Path(
@@ -17069,7 +17070,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "formal_verifier_replay_repair_application_validation",
             "formal_verifier_replay_repair_execution_queue",
             "formal_verifier_replay_repair_prompt_packets",
-            "formal_verifier_replay_repair_patch_autoworker",
             "formal_verifier_replay_repair_patch_response_validation",
             "formal_verifier_replay_repair_patch_response_promotion",
             "formal_verifier_replay_repair_patch_rerun_queue",
@@ -17077,7 +17077,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "formal_verifier_replay_repair_patch_rerun_calibration",
             "formal_verifier_replay_repair_patch_rerun_residual_obligations",
             "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets",
-            "formal_verifier_replay_repair_patch_rerun_residual_autoworker",
             "formal_verifier_replay_repair_patch_rerun_residual_response_validation",
             "formal_verifier_replay_repair_patch_rerun_residual_followup_queue",
             "formal_verifier_agentic_proof_strategy_plan",
@@ -17784,38 +17783,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         (
             root
-            / "formal_verifier_replay_repair_patch_autoworker"
-            / "formal_verifier_replay_repair_patch_autoworker_manifest.json"
-        ).write_text(
-            json.dumps(
-                {
-                    "n_responses": 1,
-                    "n_ok": 1,
-                    "n_patch_proposals": 1,
-                    "n_kernel_verified": 0,
-                    "n_patch_artifacts": 1,
-                    "rows": [
-                        {
-                            "response_id": "formal_verifier_replay_repair_patch_autoworker:test",
-                            "prompt_packet_id": "formal_verifier_replay_repair_prompt_packet:test",
-                            "display_name": "causal_ate_aipw:aipw_double_robustness:skeleton",
-                            "candidate_bridge_lemma_name": (
-                                "aipw_double_robustness_replay_bridge"
-                            ),
-                            "claim_status": "PATCH_PROPOSAL_NOT_PROOF_EVIDENCE",
-                            "kernel_verified": False,
-                            "worker_status": "PATCH_PROPOSAL_READY_FOR_REPLAY",
-                            "proof_evidence_boundary": (
-                                "This autoworker response is a patch proposal only."
-                            ),
-                        }
-                    ],
-                }
-            ),
-            encoding="utf-8",
-        )
-        (
-            root
             / "formal_verifier_replay_repair_patch_response_validation"
             / "formal_verifier_replay_repair_patch_response_validation_manifest.json"
         ).write_text(
@@ -18144,62 +18111,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         (
             root
-            / "formal_verifier_replay_repair_patch_rerun_residual_autoworker"
-            / "formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest.json"
-        ).write_text(
-            json.dumps(
-                {
-                    "n_responses": 1,
-                    "n_ok": 1,
-                    "n_residual_patch_proposals": 1,
-                    "n_source_discovery_responses": 0,
-                    "n_kernel_verified": 0,
-                    "n_patch_artifacts": 1,
-                    "rows": [
-                        {
-                            "response_id": (
-                                "formal_verifier_replay_repair_patch_rerun_residual_autoworker:test"
-                            ),
-                            "prompt_packet_id": (
-                                "formal_verifier_replay_repair_patch_rerun_residual_prompt_packet:test"
-                            ),
-                            "residual_obligation_id": (
-                                "formal_verifier_replay_repair_patch_rerun_residual_obligation:test"
-                            ),
-                            "rerun_calibration_id": (
-                                "formal_verifier_replay_repair_patch_rerun_calibration:test"
-                            ),
-                            "display_name": (
-                                "causal_ate_aipw:aipw_double_robustness:skeleton"
-                            ),
-                            "residual_gap": "aipw_score_definition",
-                            "action_class": "reuse_exact_proof_bank_obligation",
-                            "worker_status": "RESIDUAL_PATCH_PROPOSAL_READY_FOR_RERUN",
-                            "proposed_lean_artifact_path": str(
-                                root
-                                / "formal_verifier_replay_repair_patch_rerun_residual_autoworker"
-                                / "residual_patch_proposals"
-                                / "aipw_double_robustness.lean"
-                            ),
-                            "source_discovery_queries": [],
-                            "remaining_residual_formal_gaps": [
-                                "aipw_score_definition"
-                            ],
-                            "kernel_verified": False,
-                            "proof_evidence_status": (
-                                "RESIDUAL_PATCH_PROPOSAL_NOT_PROOF_EVIDENCE"
-                            ),
-                            "proof_evidence_boundary": (
-                                "This residual autoworker response is not proof evidence."
-                            ),
-                        }
-                    ],
-                }
-            ),
-            encoding="utf-8",
-        )
-        (
-            root
             / "formal_verifier_replay_repair_patch_rerun_residual_response_validation"
             / "formal_verifier_replay_repair_patch_rerun_residual_response_validation_manifest.json"
         ).write_text(
@@ -18295,8 +18206,7 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             "priority": "high",
                             "proposed_lean_artifact_path": str(
                                 root
-                                / "formal_verifier_replay_repair_patch_rerun_residual_autoworker"
-                                / "residual_patch_proposals"
+                                / "model_generated_residual_candidates"
                                 / "aipw_double_robustness.lean"
                             ),
                             "proposed_artifact_exists": True,
@@ -18799,10 +18709,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "formal_verifier_replay_repair_prompt_packets_ok": 1,
                         "formal_verifier_replay_repair_prompt_packets_with_scaffold_source": 1,
                         "formal_verifier_replay_repair_prompt_packets_with_command_plan": 1,
-                        "formal_verifier_replay_repair_patch_autoworker_responses": 1,
-                        "formal_verifier_replay_repair_patch_autoworker_patch_proposals": 1,
-                        "formal_verifier_replay_repair_patch_autoworker_kernel_verified": 0,
-                        "formal_verifier_replay_repair_patch_autoworker_artifacts": 1,
                         "formal_verifier_replay_repair_patch_response_validation_rows": 1,
                         "formal_verifier_replay_repair_patch_response_validation_responses": 1,
                         "formal_verifier_replay_repair_patch_response_validation_awaiting": 0,
@@ -18837,11 +18743,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                         "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_exact_reuse": 1,
                         "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_bridge_chain": 0,
                         "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_source_discovery": 0,
-                        "formal_verifier_replay_repair_patch_rerun_residual_autoworker_responses": 1,
-                        "formal_verifier_replay_repair_patch_rerun_residual_autoworker_patch_proposals": 1,
-                        "formal_verifier_replay_repair_patch_rerun_residual_autoworker_source_discovery": 0,
-                        "formal_verifier_replay_repair_patch_rerun_residual_autoworker_kernel_verified": 0,
-                        "formal_verifier_replay_repair_patch_rerun_residual_autoworker_artifacts": 1,
                         "formal_verifier_replay_repair_patch_rerun_residual_response_validation_rows": 1,
                         "formal_verifier_replay_repair_patch_rerun_residual_response_validation_responses": 0,
                         "formal_verifier_replay_repair_patch_rerun_residual_response_validation_awaiting": 1,
@@ -18997,11 +18898,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             / "formal_verifier_replay_repair_prompt_packets"
                             / "formal_verifier_replay_repair_prompt_packets_manifest.json"
                         ),
-                        "formal_verifier_replay_repair_patch_autoworker": str(
-                            root
-                            / "formal_verifier_replay_repair_patch_autoworker"
-                            / "formal_verifier_replay_repair_patch_autoworker_manifest.json"
-                        ),
                         "formal_verifier_replay_repair_patch_response_validation": str(
                             root
                             / "formal_verifier_replay_repair_patch_response_validation"
@@ -19036,11 +18932,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             root
                             / "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets"
                             / "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_manifest.json"
-                        ),
-                        "formal_verifier_replay_repair_patch_rerun_residual_autoworker": str(
-                            root
-                            / "formal_verifier_replay_repair_patch_rerun_residual_autoworker"
-                            / "formal_verifier_replay_repair_patch_rerun_residual_autoworker_manifest.json"
                         ),
                         "formal_verifier_replay_repair_patch_rerun_residual_response_validation": str(
                             root
@@ -19448,24 +19339,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertEqual(
             payload["formal_capacity_queue"][
-                "formal_verifier_replay_repair_patch_autoworker_responses"
-            ],
-            1,
-        )
-        self.assertEqual(
-            payload["formal_capacity_queue"][
-                "formal_verifier_replay_repair_patch_autoworker_patch_proposals"
-            ],
-            1,
-        )
-        self.assertEqual(
-            payload["formal_capacity_queue"][
-                "formal_verifier_replay_repair_patch_autoworker_kernel_verified"
-            ],
-            0,
-        )
-        self.assertEqual(
-            payload["formal_capacity_queue"][
                 "formal_verifier_replay_repair_patch_response_validation_rows"
             ],
             1,
@@ -19678,36 +19551,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "not proof evidence",
             payload["formal_capacity_queue"][
                 "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_preview"
-            ][0]["proof_evidence_boundary"],
-        )
-        self.assertEqual(
-            payload["formal_capacity_queue"][
-                "formal_verifier_replay_repair_patch_rerun_residual_autoworker_responses"
-            ],
-            1,
-        )
-        self.assertEqual(
-            payload["formal_capacity_queue"][
-                "formal_verifier_replay_repair_patch_rerun_residual_autoworker_patch_proposals"
-            ],
-            1,
-        )
-        self.assertEqual(
-            payload["formal_capacity_queue"][
-                "formal_verifier_replay_repair_patch_rerun_residual_autoworker_kernel_verified"
-            ],
-            0,
-        )
-        self.assertEqual(
-            payload["formal_capacity_queue"][
-                "formal_verifier_replay_repair_patch_rerun_residual_autoworker_preview"
-            ][0]["worker_status"],
-            "RESIDUAL_PATCH_PROPOSAL_READY_FOR_RERUN",
-        )
-        self.assertIn(
-            "not proof evidence",
-            payload["formal_capacity_queue"][
-                "formal_verifier_replay_repair_patch_rerun_residual_autoworker_preview"
             ][0]["proof_evidence_boundary"],
         )
         self.assertEqual(
@@ -22800,602 +22643,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(artifact["rerun_metrics"]["n_failed_target"], 0.0)
         self.assertIn("patch_summary", artifact)
 
-    def test_algorithm_repair_promotion_queue_filters_sandbox_candidates(self) -> None:
-        loop_dir = Path("runs/test_algorithm_repair_promotion_input")
-        loop_dir.mkdir(parents=True, exist_ok=True)
-        artifact_path = loop_dir / "research_loop_live_repair_artifacts.jsonl"
-        good_artifact = {
-            "schema_version": 1,
-            "artifact_id": "live_repair:algorithm-good",
-            "question_id": "q",
-            "round": 1,
-            "source_action_id": "simulation:algorithm",
-            "owner_agent": "algorithm_engineer",
-            "trigger": "IMPLEMENTATION_OR_NUMERICAL_ISSUE",
-            "execution_status": "EXECUTED_SCOPED_ALGORITHM_REPAIR_PROPOSAL",
-            "task_type": "algorithm_repair_from_numerical_failure",
-            "live_repair_handler": "DefaultAlgorithmEngineer",
-            "repair_contract_ok": True,
-            "repair_contract_errors": [],
-            "rerun_requested": False,
-            "repair_artifact": {
-                "target_procedure": "oracle_aipw_ate",
-                "algorithm_id": "oracle_aipw",
-                "patch_summary": "Add deterministic finite-value guard.",
-                "implementation_hash": "a" * 64,
-                "reproduction_test": {"procedure_id": "oracle_aipw_ate", "nonfinite_metrics": ["rmse"]},
-                "rerun_metrics": {
-                    "n_failed_target": 0.0,
-                    "finite_metric_required": 1.0,
-                    "max_failed_fraction": 0.05,
-                },
-                "numerical_repair_kind": "finite_metric_guard",
-                "algorithm_registry_status": "vetted",
-            },
-            "repair_contract": {
-                "required_fields": [
-                    "patch_summary",
-                    "implementation_hash",
-                    "reproduction_test",
-                    "rerun_metrics",
-                ],
-                "required_gate": "algorithm audit plus finite simulation metrics",
-            },
-        }
-        artifact_path.write_text(json.dumps(good_artifact) + "\n", encoding="utf-8")
-        (loop_dir / "research_loop_manifest.json").write_text(
-            json.dumps({"live_repair_artifacts_jsonl": str(artifact_path)}),
-            encoding="utf-8",
-        )
-        payload = export_algorithm_repair_promotion_queue(
-            loop_dir,
-            Path("runs/test_algorithm_repair_promotion"),
-        )
-        self.assertTrue(payload["all_ok"])
-        self.assertEqual(payload["n_candidates"], 1)
-        self.assertEqual(payload["n_ok"], 1)
-        self.assertEqual(payload["by_sandbox_status"]["READY_FOR_SANDBOX_PATCH"], 1)
-        queue_path = Path(payload["queue_jsonl"])
-        self.assertTrue(queue_path.exists())
-        rows = [json.loads(line) for line in queue_path.read_text(encoding="utf-8").splitlines()]
-        self.assertEqual(rows[0]["algorithm_id"], "oracle_aipw")
-        self.assertEqual(rows[0]["sandbox_status"], "READY_FOR_SANDBOX_PATCH")
-
-    def test_algorithm_repair_sandbox_validates_current_registry_hash(self) -> None:
-        promotion_dir = Path("runs/test_algorithm_repair_sandbox_input")
-        promotion_dir.mkdir(parents=True, exist_ok=True)
-        spec = attach_research_algorithm_metadata(
-            TheoryPlanner().plan(ProblemFormalizer().formalize(load_open_research_questions(Path("examples/research_questions.json"))[0]))[0]
-        )[0].algorithm_spec
-        self.assertIsNotNone(spec)
-        candidate = {
-            "candidate_id": "algorithm_repair_candidate:test",
-            "artifact_id": "live_repair:algorithm-good",
-            "question_id": "q",
-            "source_action_id": "simulation:algorithm",
-            "target_procedure": "oracle_aipw_ate",
-            "algorithm_id": "oracle_aipw",
-            "implementation_hash": spec.implementation_hash,
-            "numerical_repair_kind": "finite_metric_guard",
-            "sandbox_status": "READY_FOR_SANDBOX_PATCH",
-            "required_gate": "sandboxed algorithm patch + algorithm audit + finite simulation rerun",
-            "ok": True,
-            "errors": [],
-        }
-        queue_path = promotion_dir / "algorithm_repair_promotion_queue.jsonl"
-        queue_path.write_text(json.dumps(candidate) + "\n", encoding="utf-8")
-        (promotion_dir / "algorithm_repair_promotion_manifest.json").write_text(
-            json.dumps({"queue_jsonl": str(queue_path), "n_candidates": 1, "all_ok": True}),
-            encoding="utf-8",
-        )
-        payload = evaluate_algorithm_repair_sandbox(
-            promotion_dir,
-            Path("runs/test_algorithm_repair_sandbox"),
-        )
-        self.assertTrue(payload["all_ok"])
-        self.assertEqual(payload["n_ok"], 1)
-        self.assertEqual(payload["by_sandbox_status"]["SANDBOX_PATCH_PLAN_READY"], 1)
-        rows = [
-            json.loads(line)
-            for line in Path(payload["results_jsonl"]).read_text(encoding="utf-8").splitlines()
-        ]
-        self.assertTrue(rows[0]["hash_matches_current_registry"])
-        self.assertFalse(rows[0]["patch_applied_to_production"])
-        self.assertIn("finite-value", " ".join(rows[0]["allowed_patch_scope"]))
-
-    def test_algorithm_repair_sandbox_apply_records_non_mutating_application(self) -> None:
-        sandbox_dir = Path("runs/test_algorithm_repair_sandbox_apply_input")
-        sandbox_dir.mkdir(parents=True, exist_ok=True)
-        result = {
-            "candidate_id": "algorithm_repair_candidate:test",
-            "algorithm_id": "oracle_aipw",
-            "target_procedure": "oracle_aipw_ate",
-            "original_implementation_hash": "a" * 64,
-            "current_implementation_hash": "a" * 64,
-            "hash_matches_current_registry": True,
-            "algorithm_audit_ok": True,
-            "sandbox_status": "SANDBOX_PATCH_PLAN_READY",
-            "patch_applied_to_production": False,
-            "allowed_patch_scope": [
-                "add finite-value metric guards",
-                "record non-finite replicate diagnostics",
-                "do not change estimand or theorem statement",
-            ],
-            "required_next_gate": (
-                "apply bounded patch in isolated workspace, rerun algorithm audit, "
-                "then rerun finite simulation diagnostics before promotion"
-            ),
-            "ok": True,
-            "errors": [],
-        }
-        results_path = sandbox_dir / "algorithm_repair_sandbox_results.jsonl"
-        results_path.write_text(json.dumps(result) + "\n", encoding="utf-8")
-        (sandbox_dir / "algorithm_repair_sandbox_manifest.json").write_text(
-            json.dumps({"results_jsonl": str(results_path), "n_candidates": 1, "all_ok": True}),
-            encoding="utf-8",
-        )
-        payload = apply_algorithm_repair_sandbox_results(
-            sandbox_dir,
-            Path("runs/test_algorithm_repair_sandbox_apply"),
-        )
-        self.assertTrue(payload["all_ok"])
-        self.assertEqual(payload["n_candidates"], 1)
-        self.assertEqual(payload["n_ok"], 1)
-        rows = [
-            json.loads(line)
-            for line in Path(payload["results_jsonl"]).read_text(encoding="utf-8").splitlines()
-        ]
-        self.assertEqual(rows[0]["patch_application_mode"], "non_mutating_guard_plan")
-        self.assertFalse(rows[0]["patch_applied_to_production"])
-        self.assertTrue(rows[0]["sandbox_artifact_created"])
-        self.assertEqual(rows[0]["rerun_evidence_kind"], "registry_audit_plus_guard_gate")
-        self.assertIn("isolated workspace", rows[0]["required_next_gate"])
-
-    def test_algorithm_repair_sandbox_rerun_records_current_registry_evidence(self) -> None:
-        apply_dir = Path("runs/test_algorithm_repair_sandbox_rerun_input")
-        apply_dir.mkdir(parents=True, exist_ok=True)
-        result = {
-            "application_id": "algorithm_repair_sandbox_apply:test",
-            "candidate_id": "algorithm_repair_candidate:test",
-            "algorithm_id": "oracle_aipw",
-            "target_procedure": "oracle_aipw_ate",
-            "patch_application_mode": "non_mutating_guard_plan",
-            "patch_applied_to_production": False,
-            "sandbox_artifact_created": True,
-            "registry_audit_ok": True,
-            "rerun_evidence_kind": "registry_audit_plus_guard_gate",
-            "allowed_patch_scope": [
-                "add finite-value metric guards",
-                "record non-finite replicate diagnostics",
-                "do not change estimand or theorem statement",
-            ],
-            "required_next_gate": (
-                "apply bounded patch in isolated workspace, rerun algorithm audit, "
-                "then rerun finite simulation diagnostics before promotion"
-            ),
-            "ok": True,
-            "errors": [],
-        }
-        results_path = apply_dir / "algorithm_repair_sandbox_apply_results.jsonl"
-        results_path.write_text(json.dumps(result) + "\n", encoding="utf-8")
-        (apply_dir / "algorithm_repair_sandbox_apply_manifest.json").write_text(
-            json.dumps({"results_jsonl": str(results_path), "n_candidates": 1, "all_ok": True}),
-            encoding="utf-8",
-        )
-        payload = rerun_algorithm_repair_sandbox_applications(
-            apply_dir,
-            Path("runs/test_algorithm_repair_sandbox_rerun"),
-            question_file=Path("examples/research_questions.json"),
-            n_runs=12,
-            seed=20260530,
-        )
-        self.assertTrue(payload["all_ok"])
-        self.assertEqual(payload["n_candidates"], 1)
-        self.assertEqual(payload["n_ok"], 1)
-        rows = [
-            json.loads(line)
-            for line in Path(payload["results_jsonl"]).read_text(encoding="utf-8").splitlines()
-        ]
-        self.assertEqual(rows[0]["evidence_kind"], "current_registry_rerun_with_guard_replay")
-        self.assertTrue(rows[0]["registry_rerun_completed"])
-        self.assertTrue(rows[0]["guard_plan_replayed"])
-        self.assertFalse(rows[0]["production_patch_applied"])
-        self.assertEqual(rows[0]["rerun_status"], "RERUN_EVIDENCE_READY")
-        self.assertEqual(rows[0]["baseline_metrics"]["n_runs"], 12.0)
-        self.assertIn("guard_failed_fraction", rows[0]["guarded_metrics"])
-        self.assertIn("isolated code workspace", rows[0]["required_next_gate"])
-
-    def test_algorithm_repair_sandbox_patch_eval_executes_isolated_patch(self) -> None:
-        apply_dir = Path("runs/test_algorithm_repair_sandbox_patch_eval_input")
-        apply_dir.mkdir(parents=True, exist_ok=True)
-        result = {
-            "application_id": "algorithm_repair_sandbox_apply:test",
-            "candidate_id": "algorithm_repair_candidate:test",
-            "algorithm_id": "oracle_aipw",
-            "target_procedure": "oracle_aipw_ate",
-            "patch_application_mode": "non_mutating_guard_plan",
-            "patch_applied_to_production": False,
-            "sandbox_artifact_created": True,
-            "registry_audit_ok": True,
-            "rerun_evidence_kind": "registry_audit_plus_guard_gate",
-            "allowed_patch_scope": [
-                "add finite-value metric guards",
-                "record non-finite replicate diagnostics",
-                "do not change estimand or theorem statement",
-            ],
-            "required_next_gate": (
-                "apply bounded patch in isolated workspace, rerun algorithm audit, "
-                "then rerun finite simulation diagnostics before promotion"
-            ),
-            "ok": True,
-            "errors": [],
-        }
-        results_path = apply_dir / "algorithm_repair_sandbox_apply_results.jsonl"
-        results_path.write_text(json.dumps(result) + "\n", encoding="utf-8")
-        (apply_dir / "algorithm_repair_sandbox_apply_manifest.json").write_text(
-            json.dumps({"results_jsonl": str(results_path), "n_candidates": 1, "all_ok": True}),
-            encoding="utf-8",
-        )
-        payload = evaluate_algorithm_repair_sandbox_patches(
-            apply_dir,
-            Path("runs/test_algorithm_repair_sandbox_patch_eval"),
-            question_file=Path("examples/research_questions.json"),
-            n_runs=12,
-            seed=20260531,
-        )
-        self.assertTrue(payload["all_ok"])
-        self.assertEqual(payload["n_candidates"], 1)
-        self.assertEqual(payload["n_ok"], 1)
-        self.assertEqual(payload["n_isolated_patches_executed"], 1)
-        self.assertEqual(payload["n_before_after_comparisons"], 1)
-        self.assertEqual(payload["n_production_patches_applied"], 0)
-        self.assertTrue(Path(payload["patch_module"]).exists())
-        rows = [
-            json.loads(line)
-            for line in Path(payload["results_jsonl"]).read_text(encoding="utf-8").splitlines()
-        ]
-        self.assertTrue(rows[0]["isolated_patch_executed"])
-        self.assertTrue(rows[0]["before_after_comparison_ready"])
-        self.assertFalse(rows[0]["production_patch_applied"])
-        self.assertFalse(rows[0]["promotion_ready"])
-        self.assertEqual(rows[0]["baseline_metrics"]["n_runs"], 12.0)
-        self.assertEqual(rows[0]["patched_metrics"]["finite_guard_patch_applied"], 1.0)
-        self.assertIn(
-            rows[0]["comparison_status"],
-            {
-                "ISOLATED_PATCH_EXECUTED_NO_NUMERICAL_DELTA",
-                "ISOLATED_PATCH_CHANGED_NUMERICAL_METRICS",
-                "ISOLATED_PATCH_REMOVED_NONFINITE_METRICS",
-            },
-        )
-
-    def test_algorithm_repair_patch_training_export_preserves_promotion_boundary(self) -> None:
-        patch_eval_dir = Path("runs/test_algorithm_repair_patch_training_input")
-        patch_eval_dir.mkdir(parents=True, exist_ok=True)
-        result = {
-            "patch_eval_id": "algorithm_repair_sandbox_patch_eval:test",
-            "application_id": "algorithm_repair_sandbox_apply:test",
-            "candidate_id": "algorithm_repair_candidate:test",
-            "algorithm_id": "oracle_aipw",
-            "target_procedure": "oracle_aipw_ate",
-            "question_id": "q",
-            "problem_class": "semiparametric_causal_ate",
-            "patch_application_mode": "isolated_workspace_deterministic_finite_guard",
-            "baseline_metrics": {"n_runs": 12.0, "coverage_95": 0.93},
-            "patched_metrics": {
-                "n_runs": 12.0,
-                "coverage_95": 0.93,
-                "finite_guard_patch_applied": 1.0,
-            },
-            "metric_deltas": {"coverage_95": 0.0},
-            "nonfinite_baseline_metrics": [],
-            "nonfinite_patched_metrics": [],
-            "isolated_patch_executed": True,
-            "before_after_comparison_ready": True,
-            "production_patch_applied": False,
-            "promotion_ready": False,
-            "comparison_status": "ISOLATED_PATCH_EXECUTED_NO_NUMERICAL_DELTA",
-            "required_next_gate": "reviewed source commit plus full release audit",
-            "ok": True,
-            "errors": [],
-        }
-        results_path = patch_eval_dir / "algorithm_repair_sandbox_patch_eval_results.jsonl"
-        results_path.write_text(json.dumps(result) + "\n", encoding="utf-8")
-        (patch_eval_dir / "algorithm_repair_sandbox_patch_eval_manifest.json").write_text(
-            json.dumps({"results_jsonl": str(results_path), "n_candidates": 1, "all_ok": True}),
-            encoding="utf-8",
-        )
-        payload = export_algorithm_repair_patch_training_dataset(
-            patch_eval_dir,
-            Path("runs/test_algorithm_repair_patch_training_export"),
-            validation_fraction=0.0,
-        )
-        self.assertTrue(payload["all_ok"])
-        self.assertEqual(payload["n_training_examples"], 1)
-        self.assertEqual(payload["n_train"], 1)
-        self.assertEqual(payload["n_validation"], 0)
-        self.assertEqual(payload["n_production_patches_applied"], 0)
-        rows = [
-            json.loads(line)
-            for line in Path(payload["train_jsonl"]).read_text(encoding="utf-8").splitlines()
-        ]
-        self.assertEqual(rows[0]["task"], "algorithm_repair_patch_promotion_policy")
-        completion = json.loads(rows[0]["completion"])
-        self.assertEqual(completion["decision"], "hold_for_reviewed_production_commit")
-        self.assertFalse(completion["production_patch_applied"])
-        self.assertFalse(completion["promotion_ready"])
-        self.assertIn("reviewed source commit", completion["required_next_gate"])
-
-    def test_algorithm_repair_patch_policy_model_rejects_unsafe_promotion(self) -> None:
-        training_dir = Path("runs/test_algorithm_repair_patch_policy_training_input")
-        training_dir.mkdir(parents=True, exist_ok=True)
-        example = {
-            "schema_version": 1,
-            "example_id": "algorithm_repair_patch_training:test",
-            "split": "train",
-            "task": "algorithm_repair_patch_promotion_policy",
-            "prompt": "\n".join(
-                [
-                    "Patch evaluation context:",
-                    json.dumps(
-                        {
-                            "algorithm_id": "oracle_aipw",
-                            "target_procedure": "oracle_aipw_ate",
-                            "comparison_status": "ISOLATED_PATCH_EXECUTED_NO_NUMERICAL_DELTA",
-                            "production_patch_applied": False,
-                            "promotion_ready": False,
-                            "required_next_gate": "reviewed source commit plus full release audit",
-                        },
-                        sort_keys=True,
-                    ),
-                ]
-            ),
-            "completion": json.dumps(
-                {
-                    "decision": "hold_for_reviewed_production_commit",
-                    "production_patch_applied": False,
-                    "promotion_ready": False,
-                    "required_next_gate": "reviewed source commit plus full release audit",
-                },
-                sort_keys=True,
-            ),
-            "patch_eval_id": "algorithm_repair_sandbox_patch_eval:test",
-            "application_id": "algorithm_repair_sandbox_apply:test",
-            "candidate_id": "algorithm_repair_candidate:test",
-            "algorithm_id": "oracle_aipw",
-            "target_procedure": "oracle_aipw_ate",
-            "question_id": "q",
-            "problem_class": "semiparametric_causal_ate",
-            "comparison_status": "ISOLATED_PATCH_EXECUTED_NO_NUMERICAL_DELTA",
-            "required_next_gate": "reviewed source commit plus full release audit",
-            "production_patch_applied": False,
-            "promotion_ready": False,
-            "tags": ["algorithm_repair", "patch_eval", "oracle_aipw"],
-        }
-        train_path = training_dir / "algorithm_repair_patch_train.jsonl"
-        validation_path = training_dir / "algorithm_repair_patch_validation.jsonl"
-        train_path.write_text(json.dumps(example) + "\n", encoding="utf-8")
-        validation_path.write_text(json.dumps({**example, "split": "validation"}) + "\n", encoding="utf-8")
-        payload = train_algorithm_repair_patch_policy_model(
-            train_path,
-            Path("runs/test_algorithm_repair_patch_policy_model"),
-            validation_jsonl=validation_path,
-            epochs=40,
-        )
-        self.assertTrue(payload["all_ok"])
-        self.assertEqual(payload["n_train"], 1)
-        self.assertEqual(payload["n_validation"], 1)
-        self.assertEqual(payload["n_training_pairs"], 2)
-        self.assertEqual(payload["validation_chose_gold"], 1)
-        self.assertEqual(payload["validation_rejected_unsafe"], 1)
-        self.assertGreater(payload["n_features"], 0)
-        model = load_algorithm_repair_patch_policy_model(Path(payload["model_json"]))
-        self.assertTrue(model.feature_names)
-        rows = [
-            json.loads(line)
-            for line in Path(payload["validation_predictions_jsonl"]).read_text(encoding="utf-8").splitlines()
-        ]
-        self.assertEqual(rows[0]["predicted_decision"], "hold_for_reviewed_production_commit")
-        self.assertFalse(rows[0]["predicted_production_patch_applied"])
-        self.assertFalse(rows[0]["predicted_promotion_ready"])
-
-    def test_algorithm_repair_production_patch_plan_exports_reviewed_source_plan(self) -> None:
-        model_dir = Path("runs/test_algorithm_repair_production_patch_plan_input")
-        model_dir.mkdir(parents=True, exist_ok=True)
-        example = {
-            "example_id": "algorithm_repair_patch_training:test",
-            "patch_eval_id": "algorithm_repair_sandbox_patch_eval:test",
-            "algorithm_id": "oracle_aipw",
-            "target_procedure": "oracle_aipw_ate",
-            "comparison_status": "ISOLATED_PATCH_EXECUTED_NO_NUMERICAL_DELTA",
-            "required_next_gate": "reviewed source commit plus full release audit",
-            "prompt": "nonfinite finite_guard production_patch_applied false promotion_ready false",
-            "completion": json.dumps(
-                {
-                    "decision": "hold_for_reviewed_production_commit",
-                    "production_patch_applied": False,
-                    "promotion_ready": False,
-                    "required_next_gate": "reviewed source commit plus full release audit",
-                },
-                sort_keys=True,
-            ),
-        }
-        prediction = {
-            "example_id": example["example_id"],
-            "split": "validation",
-            "patch_eval_id": example["patch_eval_id"],
-            "algorithm_id": "oracle_aipw",
-            "target_procedure": "oracle_aipw_ate",
-            "gold_completion": example["completion"],
-            "predicted_completion": example["completion"],
-            "unsafe_completion": "{}",
-            "gold_score": 0.9,
-            "unsafe_score": 0.1,
-            "chose_gold": True,
-            "rejected_unsafe": True,
-            "predicted_valid_json": True,
-            "predicted_decision": "hold_for_reviewed_production_commit",
-            "predicted_production_patch_applied": False,
-            "predicted_promotion_ready": False,
-        }
-        train_path = model_dir / "algorithm_repair_patch_train.jsonl"
-        validation_path = model_dir / "algorithm_repair_patch_validation.jsonl"
-        train_predictions_path = model_dir / "algorithm_repair_patch_policy_train_predictions.jsonl"
-        validation_predictions_path = model_dir / "algorithm_repair_patch_policy_validation_predictions.jsonl"
-        train_path.write_text(json.dumps(example) + "\n", encoding="utf-8")
-        validation_path.write_text(json.dumps(example) + "\n", encoding="utf-8")
-        train_predictions_path.write_text(json.dumps(prediction) + "\n", encoding="utf-8")
-        validation_predictions_path.write_text(json.dumps(prediction) + "\n", encoding="utf-8")
-        (model_dir / "algorithm_repair_patch_policy_model_manifest.json").write_text(
-            json.dumps(
-                {
-                    "all_ok": True,
-                    "train_jsonl": str(train_path),
-                    "validation_jsonl": str(validation_path),
-                    "train_predictions_jsonl": str(train_predictions_path),
-                    "validation_predictions_jsonl": str(validation_predictions_path),
-                }
-            ),
-            encoding="utf-8",
-        )
-        payload = export_algorithm_repair_production_patch_plan(
-            model_dir,
-            Path("runs/test_algorithm_repair_production_patch_plan"),
-        )
-        self.assertTrue(payload["all_ok"])
-        self.assertEqual(payload["n_plans"], 1)
-        self.assertEqual(payload["n_ok"], 1)
-        self.assertEqual(payload["n_review_required"], 1)
-        self.assertEqual(payload["n_production_patches_applied"], 0)
-        rows = [
-            json.loads(line)
-            for line in Path(payload["plans_jsonl"]).read_text(encoding="utf-8").splitlines()
-        ]
-        self.assertEqual(rows[0]["source_file"], "ai_statistician/research_lab.py")
-        self.assertEqual(rows[0]["target_symbol"], "ResearchSimulator._oracle_aipw")
-        self.assertEqual(rows[0]["patch_kind"], "finite_metric_guard")
-        self.assertTrue(rows[0]["review_required"])
-        self.assertFalse(rows[0]["production_patch_applied"])
-        self.assertIn("full research-system audit", " ".join(rows[0]["release_gates"]))
-
-    def test_algorithm_repair_reviewed_patch_apply_writes_isolated_source_diff(self) -> None:
-        plan_dir = Path("runs/test_algorithm_repair_reviewed_patch_apply_input")
-        plan_dir.mkdir(parents=True, exist_ok=True)
-        plan = {
-            "plan_id": "algorithm_repair_production_patch_plan:test",
-            "example_id": "algorithm_repair_patch_training:test",
-            "patch_eval_id": "algorithm_repair_sandbox_patch_eval:test",
-            "algorithm_id": "oracle_aipw",
-            "target_procedure": "oracle_aipw_ate",
-            "source_file": "ai_statistician/research_lab.py",
-            "target_symbol": "ResearchSimulator._oracle_aipw",
-            "patch_kind": "finite_metric_guard",
-            "patch_summary": "Port the isolated finite-metric guard.",
-            "predicted_decision": "hold_for_reviewed_production_commit",
-            "comparison_status": "ISOLATED_PATCH_EXECUTED_NO_NUMERICAL_DELTA",
-            "gold_score": 0.9,
-            "unsafe_score": 0.1,
-            "review_required": True,
-            "production_patch_applied": False,
-            "promotion_ready": False,
-            "required_source_edits": ["Add finite-value metric validation."],
-            "release_gates": ["rerun full research-system audit before promotion"],
-            "ok": True,
-            "errors": [],
-        }
-        plans_path = plan_dir / "algorithm_repair_production_patch_plans.jsonl"
-        plans_path.write_text(json.dumps(plan) + "\n", encoding="utf-8")
-        (plan_dir / "algorithm_repair_production_patch_plan_manifest.json").write_text(
-            json.dumps({"plans_jsonl": str(plans_path), "n_plans": 1, "all_ok": True}),
-            encoding="utf-8",
-        )
-        payload = apply_reviewed_algorithm_repair_source_patches(
-            plan_dir,
-            Path("runs/test_algorithm_repair_reviewed_patch_apply"),
-            source_root=Path("."),
-        )
-        self.assertTrue(payload["all_ok"])
-        self.assertEqual(payload["n_plans"], 1)
-        self.assertEqual(payload["n_ok"], 1)
-        self.assertEqual(payload["n_source_changed"], 1)
-        self.assertEqual(payload["n_syntax_valid"], 1)
-        self.assertEqual(payload["n_target_symbol_found"], 1)
-        self.assertEqual(payload["n_production_patches_applied"], 0)
-        rows = [
-            json.loads(line)
-            for line in Path(payload["results_jsonl"]).read_text(encoding="utf-8").splitlines()
-        ]
-        self.assertTrue(rows[0]["source_changed"])
-        self.assertTrue(rows[0]["syntax_valid"])
-        self.assertFalse(rows[0]["production_patch_applied"])
-        patched_text = Path(rows[0]["patched_source_file"]).read_text(encoding="utf-8")
-        diff_text = Path(rows[0]["diff_file"]).read_text(encoding="utf-8")
-        self.assertIn("finite_guard_patch_applied", patched_text)
-        self.assertIn("finite_guard_patch_applied", diff_text)
-        self.assertNotIn("finite_guard_patch_applied", Path("ai_statistician/research_lab.py").read_text(encoding="utf-8"))
-
-    def test_algorithm_repair_reviewed_patch_validate_imports_copied_patch(self) -> None:
-        plan_dir = Path("runs/test_algorithm_repair_reviewed_patch_validate_input")
-        plan_dir.mkdir(parents=True, exist_ok=True)
-        plan = {
-            "plan_id": "algorithm_repair_production_patch_plan:test",
-            "example_id": "algorithm_repair_patch_training:test",
-            "patch_eval_id": "algorithm_repair_sandbox_patch_eval:test",
-            "algorithm_id": "oracle_aipw",
-            "target_procedure": "oracle_aipw_ate",
-            "source_file": "ai_statistician/research_lab.py",
-            "target_symbol": "ResearchSimulator._oracle_aipw",
-            "patch_kind": "finite_metric_guard",
-            "patch_summary": "Port the isolated finite-metric guard.",
-            "predicted_decision": "hold_for_reviewed_production_commit",
-            "comparison_status": "ISOLATED_PATCH_EXECUTED_NO_NUMERICAL_DELTA",
-            "gold_score": 0.9,
-            "unsafe_score": 0.1,
-            "review_required": True,
-            "production_patch_applied": False,
-            "promotion_ready": False,
-            "required_source_edits": ["Add finite-value metric validation."],
-            "release_gates": ["rerun full research-system audit before promotion"],
-            "ok": True,
-            "errors": [],
-        }
-        plans_path = plan_dir / "algorithm_repair_production_patch_plans.jsonl"
-        plans_path.write_text(json.dumps(plan) + "\n", encoding="utf-8")
-        (plan_dir / "algorithm_repair_production_patch_plan_manifest.json").write_text(
-            json.dumps({"plans_jsonl": str(plans_path), "n_plans": 1, "all_ok": True}),
-            encoding="utf-8",
-        )
-        apply_payload = apply_reviewed_algorithm_repair_source_patches(
-            plan_dir,
-            Path("runs/test_algorithm_repair_reviewed_patch_validate_apply"),
-            source_root=Path("."),
-        )
-        self.assertTrue(apply_payload["all_ok"])
-        payload = validate_reviewed_algorithm_repair_patches(
-            Path("runs/test_algorithm_repair_reviewed_patch_validate_apply"),
-            Path("runs/test_algorithm_repair_reviewed_patch_validate"),
-            source_root=Path("."),
-            question_file=Path("examples/research_questions.json"),
-            n_runs=5,
-            seed=20260601,
-        )
-        self.assertTrue(payload["all_ok"])
-        self.assertEqual(payload["n_candidates"], 1)
-        self.assertEqual(payload["n_ok"], 1)
-        self.assertEqual(payload["n_import_ok"], 1)
-        self.assertEqual(payload["n_algorithm_audit_ok"], 1)
-        self.assertEqual(payload["n_simulation_completed"], 1)
-        self.assertEqual(payload["n_patched_metric_present"], 1)
-        self.assertEqual(payload["n_finite_metrics_ok"], 1)
-        rows = [
-            json.loads(line)
-            for line in Path(payload["results_jsonl"]).read_text(encoding="utf-8").splitlines()
-        ]
-        self.assertTrue(rows[0]["import_ok"])
-        self.assertTrue(rows[0]["patched_metric_present"])
-        self.assertEqual(rows[0]["metrics"]["finite_guard_patch_applied"], 1.0)
-        self.assertFalse(rows[0]["production_patch_applied"])
-
     def test_research_loop_default_proof_engineer_bridges_formal_gap(self) -> None:
         question = load_open_research_questions(Path("examples/research_questions.json"))[0]
         problem = ProblemFormalizer().formalize(question)
@@ -24008,7 +23255,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_application_validation"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_execution_queue"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_prompt_packets"])
-        self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_autoworker"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_response_validation"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_response_promotion"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_rerun_queue"])
@@ -24016,7 +23262,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_rerun_calibration"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_rerun_residual_obligations"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_rerun_residual_prompt_packets"])
-        self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_rerun_residual_autoworker"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_rerun_residual_response_validation"])
         self.assertTrue(payload["gates"]["formal_verifier_replay_repair_patch_rerun_residual_followup_queue"])
         self.assertTrue(payload["gates"]["formal_verifier_agentic_proof_strategy_plan"])
@@ -24049,16 +23294,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(payload["gates"]["research_loop"])
         self.assertTrue(payload["gates"]["research_loop_repair_audit"])
         self.assertTrue(payload["gates"]["research_loop_live_repair_audit"])
-        self.assertTrue(payload["gates"]["algorithm_repair_promotion"])
-        self.assertTrue(payload["gates"]["algorithm_repair_sandbox"])
-        self.assertTrue(payload["gates"]["algorithm_repair_sandbox_apply"])
-        self.assertTrue(payload["gates"]["algorithm_repair_sandbox_rerun"])
-        self.assertTrue(payload["gates"]["algorithm_repair_sandbox_patch_eval"])
-        self.assertTrue(payload["gates"]["algorithm_repair_patch_training_export"])
-        self.assertTrue(payload["gates"]["algorithm_repair_patch_policy_model"])
-        self.assertTrue(payload["gates"]["algorithm_repair_production_patch_plan"])
-        self.assertTrue(payload["gates"]["algorithm_repair_reviewed_patch_apply"])
-        self.assertTrue(payload["gates"]["algorithm_repair_reviewed_patch_validate"])
         self.assertTrue(payload["gates"]["evaluation_benchmark_guidance"])
         self.assertEqual(payload["counts"]["questions"], 10)
         self.assertEqual(payload["counts"]["frontier_questions"], 60)
@@ -24160,115 +23395,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             payload["counts"]["research_loop_live_repair_artifacts"],
         )
         self.assertGreaterEqual(payload["counts"]["research_loop_live_repair_sft_examples"], 1)
-        self.assertEqual(
-            payload["counts"]["algorithm_repair_promotion_candidates_ok"],
-            payload["counts"]["algorithm_repair_promotion_candidates"],
-        )
-        self.assertEqual(
-            payload["counts"]["algorithm_repair_sandbox_candidates_ok"],
-            payload["counts"]["algorithm_repair_sandbox_candidates"],
-        )
-        self.assertEqual(
-            payload["counts"]["algorithm_repair_sandbox_apply_candidates_ok"],
-            payload["counts"]["algorithm_repair_sandbox_apply_candidates"],
-        )
-        self.assertEqual(
-            payload["counts"]["algorithm_repair_sandbox_rerun_candidates_ok"],
-            payload["counts"]["algorithm_repair_sandbox_rerun_candidates"],
-        )
-        self.assertEqual(
-            payload["counts"]["algorithm_repair_sandbox_patch_eval_candidates_ok"],
-            payload["counts"]["algorithm_repair_sandbox_patch_eval_candidates"],
-        )
-        self.assertEqual(
-            payload["counts"]["algorithm_repair_sandbox_patch_eval_executed"],
-            payload["counts"]["algorithm_repair_sandbox_patch_eval_candidates"],
-        )
-        self.assertEqual(
-            payload["counts"]["algorithm_repair_sandbox_patch_eval_before_after"],
-            payload["counts"]["algorithm_repair_sandbox_patch_eval_candidates"],
-        )
-        self.assertEqual(payload["counts"]["algorithm_repair_sandbox_patch_eval_production_patches"], 0)
-        self.assertEqual(payload["counts"]["algorithm_repair_sandbox_patch_eval_promotion_ready"], 0)
-        self.assertEqual(
-            payload["counts"]["algorithm_repair_patch_training_examples"],
-            payload["counts"]["algorithm_repair_sandbox_patch_eval_candidates"],
-        )
-        self.assertEqual(
-            payload["counts"]["algorithm_repair_patch_training_train"]
-            + payload["counts"]["algorithm_repair_patch_training_validation"],
-            payload["counts"]["algorithm_repair_patch_training_examples"],
-        )
-        self.assertEqual(payload["counts"]["algorithm_repair_patch_training_production_patches"], 0)
-        self.assertEqual(payload["counts"]["algorithm_repair_patch_training_promotion_ready"], 0)
-        self.assertEqual(
-            payload["counts"]["algorithm_repair_patch_policy_train"],
-            payload["counts"]["algorithm_repair_patch_training_train"],
-        )
-        self.assertEqual(
-            payload["counts"]["algorithm_repair_patch_policy_validation"],
-            payload["counts"]["algorithm_repair_patch_training_validation"],
-        )
-        self.assertGreater(payload["counts"]["algorithm_repair_patch_policy_features"], 0)
-        self.assertGreaterEqual(payload["counts"]["algorithm_repair_patch_policy_training_pairs"], 0)
-        self.assertGreaterEqual(
-            payload["counts"]["algorithm_repair_patch_policy_validation_safe_decision_accuracy"],
-            0.0,
-        )
-        self.assertEqual(
-            payload["counts"]["algorithm_repair_production_patch_plans_ok"],
-            payload["counts"]["algorithm_repair_production_patch_plans"],
-        )
-        self.assertEqual(
-            payload["counts"]["algorithm_repair_production_patch_review_required"],
-            payload["counts"]["algorithm_repair_production_patch_plans"],
-        )
-        self.assertEqual(payload["counts"]["algorithm_repair_production_patch_applied"], 0)
-        self.assertEqual(payload["counts"]["algorithm_repair_production_patch_promotion_ready"], 0)
-        self.assertEqual(
-            payload["counts"]["algorithm_repair_reviewed_patch_apply_candidates_ok"],
-            payload["counts"]["algorithm_repair_reviewed_patch_apply_candidates"],
-        )
-        self.assertEqual(
-            payload["counts"]["algorithm_repair_reviewed_patch_apply_source_changed"],
-            payload["counts"]["algorithm_repair_reviewed_patch_apply_candidates"],
-        )
-        self.assertEqual(
-            payload["counts"]["algorithm_repair_reviewed_patch_apply_syntax_valid"],
-            payload["counts"]["algorithm_repair_reviewed_patch_apply_candidates"],
-        )
-        self.assertEqual(
-            payload["counts"]["algorithm_repair_reviewed_patch_apply_target_found"],
-            payload["counts"]["algorithm_repair_reviewed_patch_apply_candidates"],
-        )
-        self.assertEqual(payload["counts"]["algorithm_repair_reviewed_patch_apply_production_patches"], 0)
-        self.assertEqual(payload["counts"]["algorithm_repair_reviewed_patch_apply_promotion_ready"], 0)
-        self.assertEqual(
-            payload["counts"]["algorithm_repair_reviewed_patch_validate_candidates_ok"],
-            payload["counts"]["algorithm_repair_reviewed_patch_validate_candidates"],
-        )
-        self.assertEqual(
-            payload["counts"]["algorithm_repair_reviewed_patch_validate_import_ok"],
-            payload["counts"]["algorithm_repair_reviewed_patch_validate_candidates"],
-        )
-        self.assertEqual(
-            payload["counts"]["algorithm_repair_reviewed_patch_validate_algorithm_audit_ok"],
-            payload["counts"]["algorithm_repair_reviewed_patch_validate_candidates"],
-        )
-        self.assertEqual(
-            payload["counts"]["algorithm_repair_reviewed_patch_validate_simulation_completed"],
-            payload["counts"]["algorithm_repair_reviewed_patch_validate_candidates"],
-        )
-        self.assertEqual(
-            payload["counts"]["algorithm_repair_reviewed_patch_validate_patched_metric_present"],
-            payload["counts"]["algorithm_repair_reviewed_patch_validate_candidates"],
-        )
-        self.assertEqual(
-            payload["counts"]["algorithm_repair_reviewed_patch_validate_finite_metrics_ok"],
-            payload["counts"]["algorithm_repair_reviewed_patch_validate_candidates"],
-        )
-        self.assertEqual(payload["counts"]["algorithm_repair_reviewed_patch_validate_production_patches"], 0)
-        self.assertEqual(payload["counts"]["algorithm_repair_reviewed_patch_validate_promotion_ready"], 0)
         self.assertEqual(payload["counts"]["evaluation_benchmark_guidance_suites"], 16)
         self.assertGreaterEqual(payload["counts"]["evaluation_benchmark_guidance_exercised"], 8)
         self.assertGreaterEqual(payload["counts"]["evaluation_benchmark_guidance_stale_or_missing"], 0)
@@ -24579,7 +23705,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "formal_verifier_replay_repair_application_validation",
             "formal_verifier_replay_repair_execution_queue",
             "formal_verifier_replay_repair_prompt_packets",
-            "formal_verifier_replay_repair_patch_autoworker",
             "formal_verifier_replay_repair_patch_response_validation",
             "formal_verifier_replay_repair_patch_response_promotion",
             "formal_verifier_replay_repair_patch_rerun_queue",
@@ -24587,7 +23712,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "formal_verifier_replay_repair_patch_rerun_calibration",
             "formal_verifier_replay_repair_patch_rerun_residual_obligations",
             "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets",
-            "formal_verifier_replay_repair_patch_rerun_residual_autoworker",
             "formal_verifier_replay_repair_patch_rerun_residual_response_validation",
             "formal_verifier_replay_repair_patch_rerun_residual_followup_queue",
             "formal_verifier_agentic_proof_strategy_plan",
@@ -27184,17 +26308,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ],
             0,
         )
-        self.assertEqual(payload["counts"]["formal_verifier_replay_repair_patch_autoworker_responses"], 0)
-        self.assertEqual(payload["counts"]["formal_verifier_replay_repair_patch_autoworker_ok"], 0)
-        self.assertEqual(
-            payload["counts"]["formal_verifier_replay_repair_patch_autoworker_patch_proposals"],
-            0,
-        )
-        self.assertEqual(
-            payload["counts"]["formal_verifier_replay_repair_patch_autoworker_kernel_verified"],
-            0,
-        )
-        self.assertEqual(payload["counts"]["formal_verifier_replay_repair_patch_autoworker_artifacts"], 0)
         self.assertEqual(
             payload["counts"]["formal_verifier_replay_repair_patch_response_validation_rows"],
             0,
@@ -27415,42 +26528,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertEqual(
             payload["counts"][
                 "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_source_discovery"
-            ],
-            0,
-        )
-        self.assertEqual(
-            payload["counts"][
-                "formal_verifier_replay_repair_patch_rerun_residual_autoworker_responses"
-            ],
-            0,
-        )
-        self.assertEqual(
-            payload["counts"][
-                "formal_verifier_replay_repair_patch_rerun_residual_autoworker_ok"
-            ],
-            0,
-        )
-        self.assertEqual(
-            payload["counts"][
-                "formal_verifier_replay_repair_patch_rerun_residual_autoworker_patch_proposals"
-            ],
-            0,
-        )
-        self.assertEqual(
-            payload["counts"][
-                "formal_verifier_replay_repair_patch_rerun_residual_autoworker_source_discovery"
-            ],
-            0,
-        )
-        self.assertEqual(
-            payload["counts"][
-                "formal_verifier_replay_repair_patch_rerun_residual_autoworker_kernel_verified"
-            ],
-            0,
-        )
-        self.assertEqual(
-            payload["counts"][
-                "formal_verifier_replay_repair_patch_rerun_residual_autoworker_artifacts"
             ],
             0,
         )
@@ -28345,23 +27422,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             Path(payload["artifacts"]["formal_verifier_replay_repair_prompt_packets_report"]).exists()
         )
         self.assertTrue(
-            Path(payload["artifacts"]["formal_verifier_replay_repair_patch_autoworker"]).exists()
-        )
-        self.assertTrue(
-            Path(
-                payload["artifacts"][
-                    "formal_verifier_replay_repair_patch_autoworker_responses"
-                ]
-            ).exists()
-        )
-        self.assertTrue(
-            Path(
-                payload["artifacts"][
-                    "formal_verifier_replay_repair_patch_autoworker_report"
-                ]
-            ).exists()
-        )
-        self.assertTrue(
             Path(
                 payload["artifacts"][
                     "formal_verifier_replay_repair_patch_response_validation"
@@ -28501,27 +27561,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             Path(
                 payload["artifacts"][
                     "formal_verifier_replay_repair_patch_rerun_residual_prompt_packets_report"
-                ]
-            ).exists()
-        )
-        self.assertTrue(
-            Path(
-                payload["artifacts"][
-                    "formal_verifier_replay_repair_patch_rerun_residual_autoworker"
-                ]
-            ).exists()
-        )
-        self.assertTrue(
-            Path(
-                payload["artifacts"][
-                    "formal_verifier_replay_repair_patch_rerun_residual_autoworker_responses"
-                ]
-            ).exists()
-        )
-        self.assertTrue(
-            Path(
-                payload["artifacts"][
-                    "formal_verifier_replay_repair_patch_rerun_residual_autoworker_report"
                 ]
             ).exists()
         )
@@ -29304,28 +28343,6 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path(payload["artifacts"]["theorem_composition"]).exists())
         self.assertTrue(Path(payload["artifacts"]["theorem_composition_jsonl"]).exists())
         self.assertTrue(Path(payload["artifacts"]["theorem_composition_report"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_promotion"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_promotion_queue"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_sandbox"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_sandbox_results"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_sandbox_apply"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_sandbox_apply_results"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_sandbox_rerun"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_sandbox_rerun_results"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_sandbox_patch_eval"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_sandbox_patch_eval_results"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_patch_training_export"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_patch_training_train"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_patch_training_validation"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_patch_policy_model"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_patch_policy_model_json"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_patch_policy_validation_predictions"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_production_patch_plan"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_production_patch_plans"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_reviewed_patch_apply"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_reviewed_patch_apply_results"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_reviewed_patch_validate"]).exists())
-        self.assertTrue(Path(payload["artifacts"]["algorithm_repair_reviewed_patch_validate_results"]).exists())
         self.assertTrue(Path(payload["artifacts"]["evaluation_benchmark_guidance"]).exists())
         self.assertTrue(Path(payload["artifacts"]["evaluation_benchmark_guidance_report"]).exists())
 

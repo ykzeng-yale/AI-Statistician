@@ -6,10 +6,6 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .agent_runtime import AgentTask, BlackboardState
-from .generated_metric_repair_policy import (
-    generated_code_sandbox_guard_repair_instruction,
-    generated_metric_gate_repair_instruction,
-)
 from .model_backend import (
     LIVE_EVALUATION_CLAUDE_MODEL_TIER,
     OpenAIResponsesGeneratorBackend,
@@ -569,12 +565,10 @@ def _prior_metric_gate_feedback(
         "n_generated_simulation_sandbox_metric_gate_failed": 1,
         "n_unsafe_generated_simulation_code_rejected": 0,
         "generated_simulation_prototypes": prototypes,
-        "required_repair": generated_metric_gate_repair_instruction(
-            artifact_label="generated simulation sandbox",
-        )
-        + " "
-        + generated_code_sandbox_guard_repair_instruction(
-            artifact_label="generated simulation sandbox"
+        "required_repair": (
+            "Regenerate the complete source candidate from the attached exact "
+            "execution diagnostics, unchanged execution contract, and frozen "
+            "acceptance contract."
         ),
         "runtime_requested_evidence_contract": {
             "capability_eval_requires_generated_simulation_code": True

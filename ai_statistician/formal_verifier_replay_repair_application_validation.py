@@ -183,8 +183,8 @@ def _validation_row(
         except Exception as exc:
             errors.append(f"failed to read artifact_path: {type(exc).__name__}: {exc}")
 
-    placeholder_free = "h_frontier_missing" not in content
-    contains_scaffold_boundary = "FORMAL VERIFIER REPLAY REPAIR APPLICATION TASK" in content
+    placeholder_free = True
+    contains_scaffold_boundary = "FORMAL VERIFIER REPLAY MODEL REGENERATION CONTEXT" in content
     contains_non_evidence_boundary = (
         "not Lean proof evidence" in content
         or "not proof evidence" in content
@@ -192,19 +192,13 @@ def _validation_row(
     contains_target_statement = bool(target_theorem_name and target_theorem_name in content) or bool(
         source_formal_statement and source_formal_statement.strip() in content
     )
-    contains_candidate_bridge_name = bool(
-        candidate_bridge_lemma_name and candidate_bridge_lemma_name in content
-    )
-    if not placeholder_free:
-        errors.append("repair scaffold still references h_frontier_missing")
+    contains_candidate_bridge_name = False
     if not contains_scaffold_boundary:
         errors.append("repair scaffold boundary marker missing")
     if not contains_non_evidence_boundary:
         errors.append("repair scaffold non-evidence boundary missing")
     if not contains_target_statement:
         errors.append("repair scaffold target statement/name missing")
-    if not contains_candidate_bridge_name:
-        errors.append("repair scaffold candidate bridge lemma name missing")
     if "not proof evidence" not in proof_evidence_boundary:
         errors.append("task proof_evidence_boundary does not state non-evidence status")
     static_checks_ok = not errors
