@@ -513,6 +513,59 @@ def test_preflight_client_tool_loop_returns_unknown_ref_error_for_model_repair()
     assert "runtime-returned source hit ids" in failed_submit["result_excerpt"]
 
 
+def test_preflight_recovers_from_rejected_final_submission() -> None:
+    class FinalSubmissionRecoveryBackend(_PreflightToolBackend):
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            turn = len(self.requests)
+            if turn > 1:
+                result_blocks = request.messages[-1]["content"]
+                for block in result_blocks:
+                    result = json.loads(block["content"])
+                    if result.get("hits"):
+                        self.hit_id = result["hits"][0]["source_hit_id"]
+            if turn <= 4:
+                return _tool_response(
+                    ClientToolCall(
+                        f"search-{turn}",
+                        "search_preflight_sources",
+                        {
+                            "query": "finite input censored outcome",
+                            "source_scope": "theory",
+                            "k": 4,
+                        },
+                    )
+                )
+            source_ref = (
+                "preflight_source_hit:unknown" if turn == 5 else self.hit_id
+            )
+            return _tool_response(
+                ClientToolCall(
+                    f"submit-{turn}",
+                    "submit_theory_preflight_review",
+                    self._submission(source_ref=source_ref),
+                )
+            )
+
+    backend = FinalSubmissionRecoveryBackend(accept=False)
+
+    packet = _tool_review(backend)
+
+    assert len(backend.requests) == 6
+    assert [tool.name for tool in backend.requests[4].tools] == [
+        "submit_theory_preflight_review"
+    ]
+    assert [tool.name for tool in backend.requests[5].tools] == [
+        "submit_theory_preflight_review"
+    ]
+    assert backend.requests[5].metadata[
+        "client_tool_loop_max_terminal_recovery_turns"
+    ] == 1
+    failed_submit = packet["client_tool_loop_history"][4]["tool_calls"][0]
+    assert failed_submit["is_error"] is True
+    assert packet["client_tool_loop_turns"] == 6
+
+
 def test_preflight_client_tool_loop_rejects_submit_before_search() -> None:
     backend = _PreflightToolBackend(
         accept=False,

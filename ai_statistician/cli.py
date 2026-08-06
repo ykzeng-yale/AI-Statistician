@@ -535,6 +535,7 @@ _OPERATOR_DOTENV_FILENAMES = (
 FULL_LIVE_MIN_AGENT_RUNTIME_ITERATIONS = 24
 RESEARCH_EVAL_MIN_AGENT_RUNTIME_ITERATIONS = 24
 MINIMAL_LIVE_FORMALIZER_LEAN_REPAIR_YIELD_AFTER_ATTEMPTS = 3
+LIVE_EVALUATION_MIN_METRIC_REVIEWER_MAX_TOKENS = 16000
 SERIOUS_THEORY_MIN_LLM_TIMEOUT_SECONDS = (
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS * 2.0
 )
@@ -14312,7 +14313,7 @@ def _apply_research_agent_runtime_research_eval_profile(
     )
     args.serious_theory_model_tier = LIVE_EVALUATION_CLAUDE_MODEL_TIER
     args.architect_metric_semantic_reviewer_max_tokens = max(
-        16000,
+        LIVE_EVALUATION_MIN_METRIC_REVIEWER_MAX_TOKENS,
         int(
             getattr(
                 args,
@@ -14523,6 +14524,17 @@ def _apply_research_agent_runtime_capability_eval_preset(
         )
     if preset == "full-live":
         args.architect_metric_repair_ownership_router = True
+        args.architect_metric_semantic_reviewer_max_tokens = max(
+            LIVE_EVALUATION_MIN_METRIC_REVIEWER_MAX_TOKENS,
+            int(
+                getattr(
+                    args,
+                    "architect_metric_semantic_reviewer_max_tokens",
+                    0,
+                )
+                or 0
+            ),
+        )
         args.formalization_gap_planner_live_route_planner = True
         args.llm_timeout_seconds = max(
             SERIOUS_THEORY_MIN_LLM_TIMEOUT_SECONDS,

@@ -37,6 +37,12 @@ from .typed_repair_handoff import build_typed_repair_handoff_contract
 
 
 RUNTIME_SCHEMA_VERSION = 1
+FORMAL_TARGET_REVIEW_PROPOSAL_PACKET_KINDS = frozenset(
+    {
+        "FormalizerProofEngineerProposalPacket",
+        "FormalizerProofEngineerPacket",
+    }
+)
 
 
 def _bool_like(value: Any) -> bool:
@@ -621,7 +627,11 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             validation_errors.append("formal-target review source subsystem is invalid")
 
         def bound_artifact(
-            *, id_field: str, hash_field: str, kind: str
+            *,
+            id_field: str,
+            hash_field: str,
+            kind: str = "",
+            allowed_kinds: frozenset[str] = frozenset(),
         ) -> dict[str, Any]:
             artifact_id = str(work_order.get(id_field, "") or "")
             expected_hash = str(work_order.get(hash_field, "") or "")
@@ -632,7 +642,11 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             artifact = dict(raw_artifact)
             if not expected_hash or stable_hash(artifact) != expected_hash:
                 validation_errors.append(f"{id_field} immutable hash mismatch")
-            if kind and str(artifact.get("artifact_kind", "") or "") != kind:
+            artifact_kind = str(artifact.get("artifact_kind", "") or "")
+            accepted_kinds = allowed_kinds or (
+                frozenset({kind}) if kind else frozenset()
+            )
+            if accepted_kinds and artifact_kind not in accepted_kinds:
                 validation_errors.append(f"{id_field} artifact kind mismatch")
             return artifact
 
@@ -649,7 +663,7 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
         proposal_packet = bound_artifact(
             id_field="proposal_packet_id",
             hash_field="proposal_packet_hash",
-            kind="FormalizerProofEngineerProposalPacket",
+            allowed_kinds=FORMAL_TARGET_REVIEW_PROPOSAL_PACKET_KINDS,
         )
         repair_task_payload = (
             dict(work_order.get("repair_task", {}) or {})

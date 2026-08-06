@@ -1725,6 +1725,78 @@ def _generated_code_semantic_review_artifact_roots(
     }
 
 
+def _prior_review_current_source_citations(
+    *,
+    review_material: Mapping[str, Any],
+    prior_row: Mapping[str, Any],
+) -> list[dict[str, str]]:
+    """Resolve immutable current-source provenance from the prior finding."""
+
+    finding = prior_row.get("finding", {})
+    finding = finding if isinstance(finding, Mapping) else {}
+    raw_refs = list(finding.get("evidence_refs", []) or [])
+    for citation in finding.get("evidence_citations", []) or []:
+        if not isinstance(citation, Mapping):
+            continue
+        role = str(citation.get("artifact_role", "") or "").strip()
+        locator = _normalize_evidence_locator(citation.get("locator", ""))
+        if role and locator:
+            raw_refs.append(f"{role}#{locator}")
+
+    citations: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for raw_ref in raw_refs:
+        role, separator, raw_locator = str(raw_ref or "").partition("#")
+        locator = _normalize_evidence_locator(raw_locator)
+        if (
+            not separator
+            or role != "generated_source_artifact"
+            or not locator.endswith("/exact_source_code")
+            or locator in seen
+        ):
+            continue
+        effective_locator = _generated_code_semantic_review_effective_locator(
+            artifact_role=role,
+            locator=locator,
+        )
+        resolved, _value = _json_pointer_value(
+            review_material,
+            effective_locator,
+        )
+        if not resolved:
+            continue
+        seen.add(locator)
+        citations.append(
+            {
+                "artifact_role": "generated_source_artifact",
+                "locator": locator,
+            }
+        )
+
+    if citations:
+        return citations
+
+    exact_artifacts = [
+        index
+        for index, artifact in enumerate(
+            review_material.get("exact_executed_artifacts", []) or []
+        )
+        if isinstance(artifact, Mapping)
+        and str(artifact.get("exact_source_code", "") or "")
+    ]
+    if len(exact_artifacts) == 1:
+        return [
+            {
+                "artifact_role": "generated_source_artifact",
+                "locator": (
+                    f"/exact_executed_artifacts/{exact_artifacts[0]}/"
+                    "exact_source_code"
+                ),
+            }
+        ]
+    return []
+
+
 def _generated_code_semantic_review_effective_locator(
     *,
     artifact_role: str,
@@ -2424,11 +2496,20 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                         "artifact hash changes."
                     ),
                     (
-                        "Preserve the exact prior_finding_reviews coverage and finding "
-                        "lineage contract. An unresolved prior finding must keep its "
-                        "runtime identity; a new actionable finding must select an "
-                        "explicit current obligation_ref rather than broad question "
+                        "Preserve the exact prior_finding_reviews ordered-slot "
+                        "coverage. For UNRESOLVED, repair current_finding inside the "
+                        "same slot; for RESOLVED_BY_CURRENT_ARTIFACT, set it to null. "
+                        "Do not copy a prior ID, repair_scope, or prior-finding "
+                        "authority: AgentRuntime binds those immutable fields by "
+                        "position. Top-level findings are new findings and must select "
+                        "an explicit current obligation_ref rather than broad question "
                         "text or a sibling-only requirement."
+                    ),
+                    (
+                        "When a validation error names 'semantic review new "
+                        "finding N', patch exactly the path listed at "
+                        "model_payload_new_finding_patch_paths[N]. Do not add the "
+                        "number of runtime-bound prior continuations to N."
                     ),
                     (
                         "Keep all trusted lineage, evidence boundaries, required "
@@ -2445,6 +2526,28 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                     generated_code_semantic_review_authority_contract(
                         review_material
                     )
+                ),
+                "model_payload_new_finding_patch_paths": [
+                    {
+                        "new_finding_index": index,
+                        "path": ["findings", index],
+                    }
+                    for index, row in enumerate(
+                        (
+                            invalid_payload.get("findings", [])
+                            if isinstance(invalid_payload, Mapping)
+                            else []
+                        )
+                        or []
+                    )
+                    if isinstance(row, Mapping)
+                ],
+                "finding_index_coordinate_contract": (
+                    "Validation labels named 'semantic review new finding N' "
+                    "refer to model_payload_new_finding_patch_paths[N]. Runtime-"
+                    "bound prior continuations are not members of the model "
+                    "payload findings array and must be repaired only through "
+                    "their ordered prior_finding_reviews slots."
                 ),
                 "repair_scope_defect_artifact_contract": {
                     scope: sorted(roles)
@@ -3263,6 +3366,29 @@ def build_generated_code_semantic_review_prompt(
         "dimension_review_order": list(
             GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
         ),
+        "ordered_review_slots": {
+            "prior_finding_reviews": [
+                {
+                    "output_index": index,
+                    "finding_id": str(row.get("finding_id", "") or ""),
+                    "finding": deepcopy(dict(row.get("finding", {}) or {})),
+                }
+                for index, row in enumerate(
+                    _generated_code_semantic_review_active_prior_findings(
+                        review_material
+                    )
+                )
+            ],
+            "dimension_reviews": [
+                {
+                    "output_index": index,
+                    "dimension": dimension,
+                }
+                for index, dimension in enumerate(
+                    GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
+                )
+            ],
+        },
         "dimension_authority_contract": (
             _generated_code_semantic_review_dimension_authority_contract(
                 review_material
@@ -3296,7 +3422,12 @@ def build_generated_code_semantic_review_prompt(
                 )
             ),
             "review_each_prior_exactly_once": True,
-            "unresolved_prior_requires_one_linked_current_finding": True,
+            "ordered_slot_identity_binding": (
+                "AgentRuntime binds each prior_finding_reviews position to its "
+                "canonical prior identity and authority. Do not copy IDs or "
+                "authority refs into the response."
+            ),
+            "unresolved_prior_requires_current_finding_in_same_slot": True,
             "resolved_prior_cannot_remain_linked": True,
             "new_actionable_finding_requires_trusted_authority_ref": True,
             "sibling_requirement_cannot_authorize_current_artifact_repair": True,
@@ -3382,17 +3513,21 @@ def build_generated_code_semantic_review_prompt(
         "that require the same artifact change, and omit non-blocking advice unless "
         "it is essential to understand a dimension rationale. Treat "
         "inherited_repair_obligations as the current repair frontier. Review every "
-        "active prior finding exactly once in prior_finding_reviews. Mark it "
+        "active prior finding exactly once, in ordered_review_slots order, in "
+        "prior_finding_reviews. Do not copy finding IDs. Mark a slot "
         "RESOLVED_BY_CURRENT_ARTIFACT only when the fresh artifact and cited current "
-        "evidence close it; otherwise mark it UNRESOLVED and link exactly one current "
-        "finding through prior_finding_id and the matching prior_finding authority_ref. "
+        "evidence close it and set current_finding=null; otherwise mark it "
+        "UNRESOLVED and author exactly one current_finding inside that same slot. "
+        "AgentRuntime binds the continuation to the existing finding identity, "
+        "source_code repair scope, and prior-finding authority. "
         "A genuinely new actionable finding is allowed, including a newly exposed "
         "regression, but it must cite an exact authority_ref from "
         "review_authority_contract whose allowed_repair_scopes includes the finding's "
-        "repair_scope. Broad question wording, advisory future work, a "
+        "repair_scope. Top-level findings are new findings only. Broad question "
+        "wording, advisory future work, a "
         "sibling-only requirement, or an unregistered expectation cannot create a "
-        "repair obligation. Use an empty prior_finding_id and an empty obligation_ref "
-        "only for non-actionable advisory findings. Apply review_authority_contract."
+        "repair obligation. Use an empty obligation_ref only for non-actionable "
+        "advisory findings. Apply review_authority_contract."
         "authority_kind_interpretation before selecting an obligation_ref. In "
         "particular, a theorem premise conditions a guarantee but does not require "
         "finite-data code to diagnose independence, continuity, identifiability, or "
@@ -3561,7 +3696,6 @@ You are not a theorem prover and must never claim Lean or kernel proof evidence.
 GENERATED_CODE_SEMANTIC_REVIEW_OUTPUT_CONTRACT: dict[str, Any] = {
     "prior_finding_reviews": [
         {
-            "finding_id": "exact active prior finding identity",
             "status": "UNRESOLVED|RESOLVED_BY_CURRENT_ARTIFACT",
             "rationale": "comparison against the fresh current artifact",
             "evidence_citations": [
@@ -3573,6 +3707,10 @@ GENERATED_CODE_SEMANTIC_REVIEW_OUTPUT_CONTRACT: dict[str, Any] = {
                     "locator": "/precise/path/inside/current/artifact",
                 }
             ],
+            "current_finding": (
+                "one continuation object for UNRESOLVED, null for resolved; "
+                "do not copy the prior identity or authority"
+            ),
         }
     ],
     "dimension_reviews": [
@@ -3592,9 +3730,6 @@ GENERATED_CODE_SEMANTIC_REVIEW_OUTPUT_CONTRACT: dict[str, Any] = {
             "required_change": "concrete coding-agent change",
             "repair_scope": (
                 "none|source_code|upstream_metric_contract|upstream_theory"
-            ),
-            "prior_finding_id": (
-                "exact active prior finding identity, or empty for a new finding"
             ),
             "artifact_delta": {
                 "obligation_ref": (
@@ -3674,13 +3809,12 @@ _MODEL_PRIOR_FINDING_REVIEW_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
     "required": [
-        "finding_id",
         "status",
         "rationale",
         "evidence_citations",
+        "current_finding",
     ],
     "properties": {
-        "finding_id": {"type": "string", "minLength": 1},
         "status": {
             "type": "string",
             "enum": list(
@@ -3692,6 +3826,17 @@ _MODEL_PRIOR_FINDING_REVIEW_SCHEMA: dict[str, Any] = {
             "type": "array",
             "minItems": 1,
             "items": {"$ref": "#/$defs/evidence_citation"},
+        },
+        "current_finding": {
+            "description": (
+                "Supply one semantic continuation when status is UNRESOLVED and "
+                "null when the prior finding is resolved. AgentRuntime binds this "
+                "ordered slot to the canonical prior finding identity and authority."
+            ),
+            "anyOf": [
+                {"$ref": "#/$defs/prior_finding_continuation"},
+                {"type": "null"},
+            ],
         },
     },
 }
@@ -3729,7 +3874,6 @@ _MODEL_FINDING_SCHEMA: dict[str, Any] = {
         "summary",
         "required_change",
         "repair_scope",
-        "prior_finding_id",
         "artifact_delta",
     ],
     "properties": {
@@ -3751,10 +3895,36 @@ _MODEL_FINDING_SCHEMA: dict[str, Any] = {
                 "checks final repair ownership."
             ),
         },
-        "prior_finding_id": {"type": "string"},
         "artifact_delta": {"$ref": "#/$defs/artifact_delta"},
     },
 }
+
+
+_MODEL_PRIOR_FINDING_CONTINUATION_SCHEMA = deepcopy(_MODEL_FINDING_SCHEMA)
+_MODEL_PRIOR_FINDING_CONTINUATION_SCHEMA["required"] = [
+    field
+    for field in _MODEL_PRIOR_FINDING_CONTINUATION_SCHEMA["required"]
+    if field != "repair_scope"
+]
+_MODEL_PRIOR_FINDING_CONTINUATION_SCHEMA["properties"].pop(
+    "repair_scope",
+    None,
+)
+_MODEL_PRIOR_FINDING_CONTINUATION_SCHEMA["properties"]["artifact_delta"] = (
+    deepcopy(_MODEL_ARTIFACT_DELTA_SCHEMA)
+)
+_MODEL_PRIOR_FINDING_CONTINUATION_SCHEMA["properties"]["artifact_delta"][
+    "required"
+] = [
+    field
+    for field in _MODEL_PRIOR_FINDING_CONTINUATION_SCHEMA["properties"][
+        "artifact_delta"
+    ]["required"]
+    if field != "obligation_ref"
+]
+_MODEL_PRIOR_FINDING_CONTINUATION_SCHEMA["properties"]["artifact_delta"][
+    "properties"
+].pop("obligation_ref", None)
 
 
 GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
@@ -3763,6 +3933,9 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
         "evidence_citation": _MODEL_EVIDENCE_CITATION_SCHEMA,
         "artifact_delta": _MODEL_ARTIFACT_DELTA_SCHEMA,
         "prior_finding_review": _MODEL_PRIOR_FINDING_REVIEW_SCHEMA,
+        "prior_finding_continuation": (
+            _MODEL_PRIOR_FINDING_CONTINUATION_SCHEMA
+        ),
         "dimension_review": _MODEL_DIMENSION_REVIEW_SCHEMA,
         "finding": _MODEL_FINDING_SCHEMA,
     },
@@ -3811,17 +3984,23 @@ def generated_code_semantic_review_json_schema(
     authority_refs = list(
         authority_contract["allowed_blocking_authority_refs"]
     )
+    new_finding_authority_refs = [
+        authority_ref
+        for authority_ref in authority_refs
+        if not str(authority_ref).startswith("prior_finding:")
+    ]
     prior_schema = schema["properties"]["prior_finding_reviews"]
     prior_schema["minItems"] = len(prior_ids)
     prior_schema["maxItems"] = len(prior_ids)
-    if prior_ids:
-        schema["$defs"]["prior_finding_review"]["properties"]["finding_id"]["enum"] = (
-            prior_ids
-        )
-    finding_properties = schema["$defs"]["finding"]["properties"]
-    finding_properties["prior_finding_id"]["enum"] = ["", *prior_ids]
+    schema["properties"]["findings"]["maxItems"] = max(
+        0,
+        GENERATED_CODE_SEMANTIC_REVIEW_MAX_FINDINGS - len(prior_ids),
+    )
     delta_properties = schema["$defs"]["artifact_delta"]["properties"]
-    delta_properties["obligation_ref"]["enum"] = ["", *authority_refs]
+    delta_properties["obligation_ref"]["enum"] = [
+        "",
+        *new_finding_authority_refs,
+    ]
     return schema
 
 
@@ -3920,6 +4099,7 @@ def _generated_code_semantic_review_lineage_errors(
     linked_findings: dict[str, int] = {}
     linked_actionable_findings: dict[str, int] = {}
     finding_ids: list[str] = []
+    new_finding_index = 0
     for raw_row in packet.get("findings", []) or []:
         if not isinstance(raw_row, Mapping):
             continue
@@ -3927,6 +4107,13 @@ def _generated_code_semantic_review_lineage_errors(
         prior_finding_id = str(
             raw_row.get("prior_finding_id", "") or ""
         ).strip()
+        row_label = (
+            f"prior finding continuation {prior_finding_id}"
+            if prior_finding_id
+            else f"semantic review new finding {new_finding_index}"
+        )
+        if not prior_finding_id:
+            new_finding_index += 1
         finding_ids.append(finding_id)
         if not finding_id.startswith(
             GENERATED_CODE_SEMANTIC_REVIEW_FINDING_ID_PREFIX
@@ -4003,7 +4190,8 @@ def _generated_code_semantic_review_lineage_errors(
             )
         if not prior_finding_id and cited_prior_refs:
             errors.append(
-                "a prior_finding authority_ref requires the matching prior_finding_id"
+                f"{row_label} cannot cite a prior_finding authority_ref; "
+                "prior identities are bound only through ordered review slots"
             )
         if prior_finding_id and cited_prior_refs != {
             f"prior_finding:{prior_finding_id}"
@@ -4202,10 +4390,21 @@ def validate_generated_code_semantic_review_packet(
             "findings exceeds the acceptance-critical finding budget"
         )
     finding_repair_scopes: set[str] = set()
+    new_finding_index = 0
     for finding_index, row in enumerate(findings):
         if not isinstance(row, Mapping):
             errors.append("findings entries must be objects")
             continue
+        prior_finding_id = str(
+            row.get("prior_finding_id", "") or ""
+        ).strip()
+        row_label = (
+            f"prior finding continuation {prior_finding_id}"
+            if prior_finding_id
+            else f"semantic review new finding {new_finding_index}"
+        )
+        if not prior_finding_id:
+            new_finding_index += 1
         severity = str(row.get("severity", "") or "").strip().lower()
         if severity not in GENERATED_CODE_SEMANTIC_REVIEW_FINDING_SEVERITIES:
             errors.append("semantic review finding has invalid severity")
@@ -4254,14 +4453,14 @@ def validate_generated_code_semantic_review_packet(
             errors.extend(
                 _repair_scope_defect_artifact_errors(
                     row=row,
-                    row_label=f"semantic review finding {finding_index}",
+                    row_label=row_label,
                 )
             )
         if schema_version >= 12:
             errors.extend(
                 _artifact_delta_errors(
                     row=row,
-                    row_label=f"semantic review finding {finding_index}",
+                    row_label=row_label,
                     review_material=review_material,
                 )
             )
@@ -4272,7 +4471,7 @@ def validate_generated_code_semantic_review_packet(
             )
             if any(not cited_value["resolved"] for cited_value in cited_values):
                 errors.append(
-                    f"semantic review finding {finding_index} cites a missing "
+                    f"{row_label} cites a missing "
                     "current artifact value"
                 )
 
@@ -4463,20 +4662,108 @@ def _normalize_generated_code_semantic_review_packet(
     body["blocking_authority_scope_map_fingerprint"] = stable_hash(
         body["blocking_authority_scope_map"]
     )
+    active_prior_finding_ids = list(
+        authority_contract["active_prior_finding_ids"]
+    )
+    active_prior_finding_rows = (
+        _generated_code_semantic_review_active_prior_findings(
+            review_material
+        )
+    )
     normalized_prior_finding_reviews: list[Any] = []
-    for row in body.get("prior_finding_reviews", []) or []:
+    prior_finding_continuations: list[dict[str, Any]] = []
+    prior_finding_identity_bindings: list[dict[str, Any]] = []
+    for index, row in enumerate(body.get("prior_finding_reviews", []) or []):
         if not isinstance(row, Mapping):
             normalized_prior_finding_reviews.append(row)
             continue
-        normalized_row = _normalize_review_row_evidence(row)
-        normalized_row["finding_id"] = str(
-            row.get("finding_id", "") or ""
-        ).strip()
+        finding_id = (
+            str(active_prior_finding_ids[index])
+            if index < len(active_prior_finding_ids)
+            else ""
+        )
+        current_finding = row.get("current_finding")
+        model_requested_evidence_citations = deepcopy(
+            list(row.get("evidence_citations", []) or [])
+        )
+        canonical_current_source_citations = (
+            _prior_review_current_source_citations(
+                review_material=review_material,
+                prior_row=(
+                    active_prior_finding_rows[index]
+                    if index < len(active_prior_finding_rows)
+                    else {}
+                ),
+            )
+        )
+        normalized_row = {
+            key: value
+            for key, value in row.items()
+            if key
+            not in {
+                "current_finding",
+                "finding_id",
+                "prior_finding_id",
+                "evidence_citations",
+                "evidence_refs",
+                "artifact_citations",
+            }
+        }
+        normalized_row["model_requested_evidence_citations"] = (
+            model_requested_evidence_citations
+        )
+        normalized_row["evidence_citations"] = (
+            canonical_current_source_citations
+        )
+        normalized_row = _normalize_review_row_evidence(normalized_row)
+        normalized_row["finding_id"] = finding_id
         normalized_row["status"] = str(
             row.get("status", "") or ""
         ).strip().upper()
         normalized_prior_finding_reviews.append(normalized_row)
+        if finding_id:
+            prior_finding_identity_bindings.append(
+                {
+                    "transport_index": index,
+                    "prior_finding_id": finding_id,
+                    "canonical_finding_id": finding_id,
+                    "canonical_authority_ref": f"prior_finding:{finding_id}",
+                    "canonical_current_source_citations": (
+                        canonical_current_source_citations
+                    ),
+                    "model_continuation_fingerprint": stable_hash(
+                        current_finding
+                    ),
+                    "identity_source": "prior_finding_reviews_ordered_index",
+                    "runtime_selected_semantics": False,
+                }
+            )
+        if isinstance(current_finding, Mapping) and finding_id:
+            continuation = {
+                key: value
+                for key, value in current_finding.items()
+                if key
+                not in {
+                    "finding_id",
+                    "prior_finding_id",
+                    "repair_scope",
+                }
+            }
+            delta = dict(continuation.get("artifact_delta", {}) or {})
+            delta["obligation_ref"] = f"prior_finding:{finding_id}"
+            continuation["artifact_delta"] = delta
+            continuation["prior_finding_id"] = finding_id
+            continuation["repair_scope"] = "source_code"
+            continuation = _bind_finding_authority_and_citations(
+                continuation,
+                authority_contract=authority_contract,
+            )
+            continuation["model_requested_repair_scope"] = "source_code"
+            prior_finding_continuations.append(continuation)
     body["prior_finding_reviews"] = normalized_prior_finding_reviews
+    body["prior_finding_identity_bindings"] = (
+        prior_finding_identity_bindings
+    )
     normalized_dimension_rows: list[Any] = []
     model_dimension_reviews = body.get("dimension_reviews", {}) or {}
     if isinstance(model_dimension_reviews, Mapping):
@@ -4530,20 +4817,21 @@ def _normalize_generated_code_semantic_review_packet(
     body["confirmatory_empirical_evidence_eligible"] = (
         confirmatory_empirical_evidence_eligible
     )
-    normalized_findings: list[Any] = []
+    normalized_findings: list[Any] = list(prior_finding_continuations)
     for row in body.get("findings", []) or []:
         if not isinstance(row, Mapping):
             normalized_findings.append(row)
             continue
         finding = _bind_finding_authority_and_citations(
-            row,
+            {
+                **dict(row),
+                "prior_finding_id": "",
+            },
             authority_contract=authority_contract,
         )
         requested_scope = str(finding.get("repair_scope", "") or "").strip()
         finding["model_requested_repair_scope"] = requested_scope
-        finding["prior_finding_id"] = str(
-            finding.get("prior_finding_id", "") or ""
-        ).strip()
+        finding["prior_finding_id"] = ""
         normalized_findings.append(finding)
     body["findings"] = normalize_generated_code_semantic_review_findings(
         question_id=question.id,

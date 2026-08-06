@@ -214,7 +214,121 @@ def test_bounded_client_tool_loop_does_not_accept_early_terminal_call() -> None:
 
     first_turn = backend.requests[0]
     assert first_turn.tool_choice == "any"
-    assert executed_tools == ["edit"]
+    assert [tool.name for tool in first_turn.tools] == ["submit"]
+    assert first_turn.disable_parallel_tool_use is True
+    assert executed_tools == []
+
+
+def test_bounded_client_tool_loop_reserves_final_turn_for_submission() -> None:
+    backend = ScriptedToolTurnBackend(
+        [
+            _response(ClientToolCall("call-edit", "edit", {"value": 2})),
+            _response(ClientToolCall("call-submit", "submit", {})),
+        ]
+    )
+
+    result = run_bounded_client_tool_loop(
+        backend=backend,
+        request=_request(),
+        execute_tool=lambda call, context: ClientToolExecutionResult(
+            content={"ok": True},
+            state_changed=call.name == "edit",
+            terminal=call.name == "submit",
+            terminal_payload=(
+                {"submitted": True} if call.name == "submit" else None
+            ),
+            observation_key=call.name,
+        ),
+        max_turns=2,
+        max_tool_calls=2,
+        max_no_progress_turns=1,
+    )
+
+    assert result.terminal_payload == {"submitted": True}
+    assert [tool.name for tool in backend.requests[0].tools] == [
+        "edit",
+        "check",
+        "submit",
+    ]
+    assert [tool.name for tool in backend.requests[1].tools] == ["submit"]
+    assert backend.requests[1].disable_parallel_tool_use is True
+    assert backend.requests[1].metadata[
+        "client_tool_loop_terminal_only_turn"
+    ] is True
+
+
+def test_bounded_client_tool_loop_allows_one_rejected_terminal_recovery() -> None:
+    backend = ScriptedToolTurnBackend(
+        [
+            _response(ClientToolCall("call-edit", "edit", {"value": 2})),
+            _response(ClientToolCall("call-submit-invalid", "submit", {})),
+            _response(ClientToolCall("call-submit-valid", "submit", {})),
+        ]
+    )
+    terminal_attempts = 0
+
+    def execute(call, context):
+        nonlocal terminal_attempts
+        if call.name == "edit":
+            return ClientToolExecutionResult(
+                content={"ok": True},
+                state_changed=True,
+                observation_key="edited",
+            )
+        terminal_attempts += 1
+        if terminal_attempts == 1:
+            raise ClientToolInputError("submitted packet is incomplete")
+        return ClientToolExecutionResult(
+            content={"ok": True},
+            terminal=True,
+            terminal_payload={"submitted": True},
+            observation_key="submitted",
+        )
+
+    result = run_bounded_client_tool_loop(
+        backend=backend,
+        request=_request(),
+        execute_tool=execute,
+        max_turns=2,
+        max_tool_calls=3,
+        max_no_progress_turns=1,
+        max_terminal_recovery_turns=1,
+    )
+
+    assert result.terminal_payload == {"submitted": True}
+    assert result.turns == 3
+    assert terminal_attempts == 2
+    assert [tool.name for tool in backend.requests[2].tools] == ["submit"]
+    assert backend.requests[2].metadata[
+        "client_tool_loop_max_terminal_recovery_turns"
+    ] == 1
+
+
+def test_bounded_client_tool_loop_does_not_extend_without_rejected_submit() -> None:
+    backend = ScriptedToolTurnBackend(
+        [
+            _response(ClientToolCall("call-edit", "edit", {})),
+            _response(text="I am not ready."),
+        ]
+    )
+
+    with pytest.raises(ClientToolLoopError) as exc_info:
+        run_bounded_client_tool_loop(
+            backend=backend,
+            request=_request(),
+            execute_tool=lambda call, context: ClientToolExecutionResult(
+                content={"ok": True},
+                state_changed=True,
+                observation_key="edited",
+            ),
+            max_turns=2,
+            max_tool_calls=3,
+            max_no_progress_turns=2,
+            max_terminal_recovery_turns=1,
+        )
+
+    assert exc_info.value.turns == 2
+    assert len(backend.requests) == 2
 
 
 def test_bounded_client_tool_loop_never_executes_unknown_tool() -> None:

@@ -1303,6 +1303,7 @@ class OpenProverHLMProofSearchProvider:
                     "agent": "StructuredLeanTaskNormalizer",
                     "target_statement_hash": stable_hash(target_statement),
                     "generation_contract": llm_proof_body_generation_contract(),
+                    "provider_structured_output": True,
                 },
             )
 

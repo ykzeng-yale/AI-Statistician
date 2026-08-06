@@ -13,6 +13,7 @@ from ai_statistician.architect_metric_authority_patch_transport import (
 from ai_statistician.architect_metric_contract_authoring import (
     _compact_metric_authoring_prompt_payload,
     _metric_authoring_repair_context,
+    _metric_authoring_repair_priority_instructions,
 )
 from ai_statistician.generated_metric_contract import (
     generated_metric_numeric_authority_repair_matrix,
@@ -43,6 +44,20 @@ CATALOG = [
         "explicit_numeric_values": [0.05],
     },
 ]
+
+
+def test_boolean_metric_authority_repair_requests_an_exact_empty_array() -> None:
+    instructions = _metric_authoring_repair_priority_instructions(
+        [
+            "[generated_metric_numeric_authority_missing] "
+            "empirical_metric_requirements[0].gate_field_authorities must be "
+            "the empty array because this metric declares no substantive "
+            "numeric gate fields"
+        ]
+    )
+
+    assert "replacement_json='[]'" in instructions[0]
+    assert "placeholder authority row" in instructions[0]
 
 
 def test_large_metric_authoring_prompt_uses_lossless_columnar_authority_context() -> None:

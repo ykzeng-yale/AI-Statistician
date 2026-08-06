@@ -128,6 +128,7 @@ def _runtime_fixture(
     reviewer_response_overrides: dict[str, object] | None = None,
     max_revisions: int = 2,
     revision_count: int = 0,
+    proposal_packet_kind: str = "FormalizerProofEngineerProposalPacket",
 ):
     question = _question()
     source = (
@@ -173,7 +174,7 @@ def _runtime_fixture(
         ],
     }
     proposal_packet = {
-        "artifact_kind": "FormalizerProofEngineerProposalPacket",
+        "artifact_kind": proposal_packet_kind,
         "packet_id": "formalizer:generic-formal-target-review",
         "source_agent": "LLMFormalizerProofEngineerAgent",
         "model": "source-haiku-model",
@@ -393,6 +394,22 @@ def test_formal_target_capability_eval_rejects_non_evaluation_reviewer_tier(
     )
     assert result.observations
     assert LIVE_EVALUATION_CLAUDE_MODEL_TIER in result.observations[0].summary
+
+
+def test_formal_target_review_accepts_hash_bound_repair_packet_kind(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        "ACCEPT",
+        proposal_packet_kind="FormalizerProofEngineerPacket",
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "ProofEngineer"
 
 
 def test_formal_target_semantic_review_rejects_target_and_disables_prover(

@@ -947,6 +947,17 @@ def _metric_authoring_repair_priority_instructions(
     )
     instructions: list[str] = []
     if any(
+        "no substantive numeric gate fields" in error
+        for error in error_rows
+    ):
+        instructions.append(
+            "For a boolean metric, gate_field_authorities must be exactly the empty "
+            "array [] even when threshold=1 or tolerance=0 encodes the boolean "
+            "comparison. In generic patch mode, replace the complete "
+            "gate_field_authorities array with replacement_json='[]'; do not emit "
+            "a placeholder authority row or rename field to field_name."
+        )
+    if any(
         is_generated_metric_numeric_authority_error(error)
         for error in error_rows
     ):

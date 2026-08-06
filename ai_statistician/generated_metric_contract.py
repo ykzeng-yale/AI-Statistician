@@ -826,7 +826,10 @@ def generated_metric_requirement_json_schema(
                     "Exactly one entry for every substantive active numeric gate "
                     "field, in evaluator-field order. Each entry independently owns "
                     "that field's provenance; runtime computes the conservative "
-                    "row-level acceptance_authority_kind roll-up."
+                    "row-level acceptance_authority_kind roll-up. For boolean "
+                    "metrics this array must be exactly [], even when threshold=1 "
+                    "or tolerance=0 encodes the boolean comparison; those encoding "
+                    "constants are not substantive numeric gates."
                 ),
             },
             "boundary": {"type": "string", "minLength": 1},

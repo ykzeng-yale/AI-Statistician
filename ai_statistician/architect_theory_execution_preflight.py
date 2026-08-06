@@ -77,6 +77,7 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT = (
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES = 3
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 5
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TERMINAL_RECOVERY_TURNS = 1
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_NO_PROGRESS_TURNS = 2
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_BOUNDARY = (
     "This independent pre-execution review can reject a TheoryDeveloper handoff "
@@ -2323,6 +2324,9 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             max_tool_calls=max_tool_calls,
             max_no_progress_turns=(
                 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_NO_PROGRESS_TURNS
+            ),
+            max_terminal_recovery_turns=(
+                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TERMINAL_RECOVERY_TURNS
             ),
         )
     except ClientToolLoopError as exc:

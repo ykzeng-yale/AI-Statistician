@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -2807,10 +2808,11 @@ def test_review_authority_is_task_bound_and_repair_scope_specific() -> None:
     schema = generated_code_semantic_review_json_schema(material)
     prior_schema = schema["properties"]["prior_finding_reviews"]
     assert prior_schema["minItems"] == prior_schema["maxItems"] == 1
-    assert schema["$defs"]["prior_finding_review"]["properties"][
-        "finding_id"
-    ]["enum"] == [
-        prior_finding_id
+    assert "finding_id" not in schema["$defs"]["prior_finding_review"][
+        "properties"
+    ]
+    assert "current_finding" in schema["$defs"]["prior_finding_review"][
+        "properties"
     ]
     assert "requirement:metric:simulation-only" not in schema["$defs"][
         "artifact_delta"
@@ -2964,7 +2966,6 @@ def test_schema_v9_requires_review_of_every_inherited_finding() -> None:
 def test_schema_v9_closes_or_preserves_inherited_finding_identity() -> None:
     material, lineage, prior_finding_id = _prior_finding_review_inputs()
     prior_review = {
-        "finding_id": prior_finding_id,
         "status": "UNRESOLVED",
         "rationale": "The fresh source still violates the parent interface.",
         "evidence_citations": [
@@ -2973,22 +2974,23 @@ def test_schema_v9_closes_or_preserves_inherited_finding_identity() -> None:
                 "locator": "/exact_executed_artifacts/0/exact_source_code",
             }
         ],
+        "current_finding": None,
     }
     unresolved_response = _review_response(
         accept=False,
         repair_scope="source_code",
     )
-    unresolved_response["prior_finding_reviews"] = [prior_review]
-    unresolved_response["findings"][0]["prior_finding_id"] = prior_finding_id
-    unresolved_response["findings"][0]["authority_refs"] = [
-        f"prior_finding:{prior_finding_id}"
+    continuation = deepcopy(unresolved_response["findings"][0])
+    continuation.pop("repair_scope", None)
+    continuation.pop("prior_finding_id", None)
+    continuation.pop("authority_refs", None)
+    continuation.pop("evidence_citations", None)
+    continuation["artifact_delta"].pop("obligation_ref", None)
+    continuation["artifact_delta"].pop("obligation_kind", None)
+    unresolved_response["prior_finding_reviews"] = [
+        {**prior_review, "current_finding": continuation}
     ]
-    unresolved_response["findings"][0]["artifact_delta"].update(
-        {
-            "obligation_ref": f"prior_finding:{prior_finding_id}",
-            "obligation_kind": "active_prior_finding",
-        }
-    )
+    unresolved_response["findings"] = []
     unresolved = LLMGeneratedCodeSemanticReviewerAgent(
         provider=StaticJSONGeneratorBackend(unresolved_response),
         config=GeneratedCodeSemanticReviewerConfig(
@@ -3004,6 +3006,15 @@ def test_schema_v9_closes_or_preserves_inherited_finding_identity() -> None:
     )
 
     assert unresolved["findings"][0]["finding_id"] == prior_finding_id
+    assert unresolved["findings"][0]["artifact_delta"][
+        "obligation_ref"
+    ] == f"prior_finding:{prior_finding_id}"
+    assert unresolved["prior_finding_identity_bindings"][0][
+        "identity_source"
+    ] == "prior_finding_reviews_ordered_index"
+    assert unresolved["prior_finding_identity_bindings"][0][
+        "runtime_selected_semantics"
+    ] is False
     assert unresolved["active_unresolved_finding_ids"] == [prior_finding_id]
 
     resolved_response = _review_response(accept=True)
@@ -3012,6 +3023,7 @@ def test_schema_v9_closes_or_preserves_inherited_finding_identity() -> None:
             **prior_review,
             "status": "RESOLVED_BY_CURRENT_ARTIFACT",
             "rationale": "The fresh source now satisfies the parent interface.",
+            "current_finding": None,
         }
     ]
     resolved = LLMGeneratedCodeSemanticReviewerAgent(
@@ -3037,7 +3049,7 @@ def test_schema_v9_closes_or_preserves_inherited_finding_identity() -> None:
     missing_evidence_response["prior_finding_reviews"][0][
         "evidence_citations"
     ][0]["locator"] = "/exact_executed_artifacts/0/missing_field"
-    missing_evidence_reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+    missing_evidence = LLMGeneratedCodeSemanticReviewerAgent(
         provider=StaticJSONGeneratorBackend(missing_evidence_response),
         config=GeneratedCodeSemanticReviewerConfig(
             provider_name="static",
@@ -3045,16 +3057,37 @@ def test_schema_v9_closes_or_preserves_inherited_finding_identity() -> None:
             model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
             max_repair_attempts=0,
         ),
+    ).review(
+        question=_question(),
+        review_material=material,
+        trusted_lineage=lineage,
     )
-    with pytest.raises(PacketValidationError) as exc_info:
-        missing_evidence_reviewer.review(
-            question=_question(),
-            review_material=material,
-            trusted_lineage=lineage,
-        )
-    assert any(
-        "cites a missing current artifact value" in error
-        for error in exc_info.value.errors
+    prior_row = missing_evidence["prior_finding_reviews"][0]
+    assert prior_row["model_requested_evidence_citations"][0][
+        "locator"
+    ].endswith("/missing_field")
+    assert prior_row["evidence_citations"] == [
+        {
+            "artifact_role": "generated_source_artifact",
+            "locator": "/exact_executed_artifacts/0/exact_source_code",
+        }
+    ]
+    assert missing_evidence["prior_finding_identity_bindings"][0][
+        "runtime_selected_semantics"
+    ] is False
+
+
+def test_schema_excludes_prior_authority_from_new_finding_slots() -> None:
+    material, _lineage, prior_finding_id = _prior_finding_review_inputs()
+
+    schema = generated_code_semantic_review_json_schema(material)
+
+    authority_enum = schema["$defs"]["artifact_delta"]["properties"][
+        "obligation_ref"
+    ]["enum"]
+    assert f"prior_finding:{prior_finding_id}" not in authority_enum
+    assert schema["properties"]["findings"]["maxItems"] == (
+        4 - 1
     )
 
 
@@ -4082,12 +4115,17 @@ def test_semantic_reviewer_schema_supports_anthropic_structured_output() -> None
         "dimension_reviews"
     ]
     assert dimension_review_schema["type"] == "array"
-    assert dimension_review_schema["minItems"] == len(
+    expected_dimension_count = len(
         GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
     )
-    assert dimension_review_schema["maxItems"] == len(
-        GENERATED_CODE_SEMANTIC_REVIEW_DIMENSIONS
-    )
+    if "minItems" in dimension_review_schema:
+        assert dimension_review_schema["minItems"] == expected_dimension_count
+        assert dimension_review_schema["maxItems"] == expected_dimension_count
+    else:
+        assert dimension_review_schema["description"] == (
+            f"{{maxItems: {expected_dimension_count}, "
+            f"minItems: {expected_dimension_count}}}"
+        )
     assert dimension_review_schema["items"] == {
         "$ref": "#/$defs/dimension_review"
     }
@@ -4109,9 +4147,13 @@ def test_semantic_reviewer_schema_supports_anthropic_structured_output() -> None
     assert source_dimension_evidence_schema["items"] == {
         "$ref": "#/$defs/evidence_citation"
     }
-    assert transformed["$defs"]["evidence_citation"]["properties"][
-        "locator"
-    ]["minLength"] == 1
+    transformed_locator_schema = transformed["$defs"][
+        "evidence_citation"
+    ]["properties"]["locator"]
+    assert (
+        transformed_locator_schema.get("minLength") == 1
+        or transformed_locator_schema.get("description") == "{minLength: 1}"
+    )
     assert "evidence_refs" not in dimension_definition["properties"]
     assert "evidence_citations" not in finding_definition["properties"]
     assert "artifact_citations" not in finding_definition["properties"]

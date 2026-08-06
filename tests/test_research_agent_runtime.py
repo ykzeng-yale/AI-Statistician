@@ -103600,6 +103600,7 @@ def _capability_eval_preset_args(preset: str) -> argparse.Namespace:
         serious_theory_max_tokens=8000,
         llm_timeout_seconds=120.0,
         architect_metric_repair_ownership_router=False,
+        architect_metric_semantic_reviewer_max_tokens=7000,
         architect_metric_repair_ownership_router_llm_model="",
         architect_metric_repair_ownership_router_max_tokens=5000,
         max_iterations=12,
@@ -103995,6 +103996,7 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     assert args.serious_theory_max_tokens >= 10000
     assert args.llm_timeout_seconds == 240.0
     assert args.architect_metric_repair_ownership_router is True
+    assert args.architect_metric_semantic_reviewer_max_tokens == 16000
     assert args.formalization_gap_planner_live_route_planner is True
     assert args.formalization_gap_planner_live_max_handoffs == 1
     assert args.formalization_gap_planner_live_max_route_requests_per_handoff == 1

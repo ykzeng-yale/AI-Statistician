@@ -105,11 +105,14 @@ def run_bounded_client_tool_loop(
     max_turns: int,
     max_tool_calls: int,
     max_no_progress_turns: int,
+    max_terminal_recovery_turns: int = 0,
 ) -> ClientToolLoopResult:
     """Run model -> client tool -> observation turns under caller-owned bounds."""
 
     if max_turns < 1 or max_tool_calls < 1 or max_no_progress_turns < 1:
         raise ValueError("client-tool loop budgets must all be positive")
+    if max_terminal_recovery_turns < 0:
+        raise ValueError("terminal recovery turn budget cannot be negative")
     generate_turn = getattr(backend, "generate_client_tool_turn", None)
     if not callable(generate_turn):
         raise ValueError("backend does not support client-tool turns")
@@ -121,7 +124,6 @@ def run_bounded_client_tool_loop(
     ):
         raise ValueError("client-tool definitions must have unique nonempty names")
     tool_definitions = {tool.name: tool for tool in request.tools}
-    allowed_tools = set(tool_definitions)
     messages = [deepcopy(dict(message)) for message in request.messages]
     history: list[dict[str, Any]] = []
     seen_observations: set[str] = set()
@@ -129,6 +131,11 @@ def run_bounded_client_tool_loop(
     runtime_executed_tool_calls = 0
     no_progress_turns = 0
     last_response: ClientToolTurnResponse | None = None
+    terminal_tools = tuple(tool for tool in request.tools if tool.terminal)
+    total_turn_budget = max_turns + (
+        max_terminal_recovery_turns if terminal_tools else 0
+    )
+    terminal_recovery_eligible = False
 
     def loop_error(
         reason: str,
@@ -150,28 +157,51 @@ def run_bounded_client_tool_loop(
             ),
         )
 
-    for turn_index in range(max_turns):
+    for turn_index in range(total_turn_budget):
+        if turn_index >= max_turns and not terminal_recovery_eligible:
+            break
+        terminal_only_turn = bool(
+            terminal_tools and turn_index >= max_turns - 1
+        )
+        turn_tools = terminal_tools if terminal_only_turn else request.tools
+        turn_allowed_tools = {tool.name for tool in turn_tools}
         with agent_runtime_substage(
             "client_tool_model_turn",
             metadata={
                 "turn_index": turn_index,
                 "max_turns": max_turns,
+                "max_terminal_recovery_turns": max_terminal_recovery_turns,
+                "max_total_turns": total_turn_budget,
                 "model_tool_calls_before": total_calls,
                 "max_model_tool_calls": max_tool_calls,
                 "model": request.model,
-                "n_available_tools": len(request.tools),
+                "n_available_tools": len(turn_tools),
+                "terminal_only_turn": terminal_only_turn,
             },
         ):
             response = generate_turn(
                 replace(
                     request,
                     messages=tuple(messages),
+                    tools=turn_tools,
+                    disable_parallel_tool_use=(
+                        True
+                        if terminal_only_turn
+                        else request.disable_parallel_tool_use
+                    ),
                     metadata={
                         **dict(request.metadata),
                         "client_tool_loop_turn_index": turn_index,
                         "client_tool_loop_max_turns": max_turns,
+                        "client_tool_loop_max_terminal_recovery_turns": (
+                            max_terminal_recovery_turns
+                        ),
+                        "client_tool_loop_max_total_turns": total_turn_budget,
                         "client_tool_loop_calls_before": total_calls,
                         "client_tool_loop_max_calls": max_tool_calls,
+                        "client_tool_loop_terminal_only_turn": (
+                            terminal_only_turn
+                        ),
                     },
                 )
             )
@@ -230,6 +260,7 @@ def run_bounded_client_tool_loop(
         tool_result_blocks: list[dict[str, Any]] = []
         turn_state_changed = False
         turn_new_observation = False
+        terminal_attempt_rejected = False
         terminal_payload: Mapping[str, Any] | None = None
         for call_index, call in enumerate(calls):
             total_calls += 1
@@ -246,15 +277,17 @@ def run_bounded_client_tool_loop(
                 total_calls_before=total_calls - 1,
             )
             executed_by_runtime = False
-            if call.name not in allowed_tools:
+            if call.name not in turn_allowed_tools:
                 execution = ClientToolExecutionResult(
                     content={
                         "ok": False,
-                        "error": "unknown_client_tool",
-                        "allowed_tools": allowed_tool_names,
+                        "error": "client_tool_unavailable_this_turn",
+                        "allowed_tools": sorted(turn_allowed_tools),
                     },
                     is_error=True,
-                    observation_key="unknown_client_tool:" + call.name,
+                    observation_key=(
+                        "client_tool_unavailable_this_turn:" + call.name
+                    ),
                 )
             elif (
                 tool_definitions[call.name].terminal
@@ -310,6 +343,12 @@ def run_bounded_client_tool_loop(
                     is_error=True,
                     observation_key="terminal_result_from_nonterminal_tool",
                 )
+            if (
+                tool_definitions.get(call.name) is not None
+                and tool_definitions[call.name].terminal
+                and execution.is_error
+            ):
+                terminal_attempt_rejected = True
             observation_key = execution.observation_key or stable_hash(
                 [call.name, execution.is_error, execution.content]
             )
@@ -372,6 +411,8 @@ def run_bounded_client_tool_loop(
                 final_response_metadata=deepcopy(dict(response.metadata)),
             )
 
+        terminal_recovery_eligible = terminal_attempt_rejected
+
         if turn_state_changed or turn_new_observation:
             no_progress_turns = 0
         else:
@@ -385,7 +426,7 @@ def run_bounded_client_tool_loop(
 
     raise loop_error(
         "global client-tool turn budget exhausted",
-        turns=max_turns,
+        turns=len(history),
         tool_calls=total_calls,
     )
 

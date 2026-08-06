@@ -1034,6 +1034,9 @@ def test_strict_metric_requirement_schema_enumerates_current_authority_ids() -> 
     assert field_schema["properties"]["gate_field_authority_mode"][
         "enum"
     ] == [GENERATED_METRIC_GATE_FIELD_AUTHORITY_MODE]
+    assert "For boolean metrics this array must be exactly []" in (
+        field_schema["properties"]["gate_field_authorities"]["description"]
+    )
 
 
 def test_metric_evaluation_semantics_separates_comparison_from_quorum() -> None:

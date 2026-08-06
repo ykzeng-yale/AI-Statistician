@@ -657,6 +657,8 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
 
         def generate(self, request):
             if request.metadata.get("agent") == "StructuredLeanTaskNormalizer":
+                assert request.metadata["provider_structured_output"] is True
+                assert request.schema is not None
                 self.normalization_calls += 1
                 text = (
                     ""
