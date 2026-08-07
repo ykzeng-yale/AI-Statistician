@@ -91,3 +91,51 @@ def test_formalizer_prompt_carries_exact_feedback_without_runtime_repair_recipe(
         "does not prescribe field-specific corrections" in instruction
         for instruction in payload["model_owned_feedback_instructions"]
     )
+
+
+def test_repeated_parser_failure_is_observation_not_runtime_lane_policy() -> None:
+    question = OpenResearchQuestion(
+        id="generic_parser_feedback",
+        title="Generic parser feedback",
+        description="Regenerate a Lean candidate from exact parser observations.",
+        tags=("formalizer",),
+    )
+    common = {
+        "question": question,
+        "theory_packet": {"packet_id": "theory:parser-feedback"},
+        "simulation_manifest": {},
+        "algorithm_manifest": {},
+        "registered_problem": {},
+        "theorem_goals": [],
+        "proof_bank_obligation_catalog": [],
+        "proof_bank_runtime_memory_summary": {},
+    }
+    baseline = build_formalizer_prompt(
+        **common,
+        environment_feedback={},
+    )
+    observed = build_formalizer_prompt(
+        **common,
+        environment_feedback={
+            "local_lean_observation": {
+                "diagnostic_classes": ["lean_parser_or_syntax_error"],
+                "diagnostics": [
+                    {
+                        "severity": "error",
+                        "message": "unexpected token at line 4 column 9",
+                    }
+                ],
+                "repeated_syntax_failure": True,
+            }
+        },
+    )
+    baseline_payload = json.loads(baseline[baseline.index('{"question":') :])
+    observed_payload = json.loads(observed[observed.index('{"question":') :])
+
+    assert observed_payload["runtime_environment_feedback"][
+        "local_lean_observation"
+    ]["diagnostics"][0]["message"] == "unexpected token at line 4 column 9"
+    assert observed_payload["required_output_contract"] == baseline_payload[
+        "required_output_contract"
+    ]
+    assert observed_payload.get("pseudo_formalization_contract", {}) == {}

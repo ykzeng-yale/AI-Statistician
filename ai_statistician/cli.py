@@ -521,8 +521,9 @@ RESEARCH_EVAL_MIN_AGENT_RUNTIME_ITERATIONS = 24
 MINIMAL_LIVE_FORMALIZER_LEAN_REPAIR_YIELD_AFTER_ATTEMPTS = 3
 LIVE_EVALUATION_MIN_ARCHITECT_MAX_TOKENS = 8000
 LIVE_EVALUATION_MIN_METRIC_REVIEWER_MAX_TOKENS = 16000
+LIVE_EVALUATION_MIN_SERIOUS_THEORY_MAX_TOKENS = 16000
 SERIOUS_THEORY_MIN_LLM_TIMEOUT_SECONDS = (
-    DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS * 2.0
+    DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS * 3.0
 )
 FULL_LIVE_MIN_GAP_PLANNER_PROVIDER_TIMEOUT_SECONDS = (
     SERIOUS_THEORY_MIN_LLM_TIMEOUT_SECONDS
@@ -14037,7 +14038,7 @@ def _apply_research_agent_runtime_research_eval_profile(
         ),
     )
     args.serious_theory_max_tokens = max(
-        ResearchArchitectConfig().serious_max_tokens,
+        LIVE_EVALUATION_MIN_SERIOUS_THEORY_MAX_TOKENS,
         int(getattr(args, "serious_theory_max_tokens", 0) or 0),
     )
     args.llm_timeout_seconds = max(
@@ -14222,7 +14223,7 @@ def _apply_research_agent_runtime_capability_eval_preset(
         if not hasattr(args, "serious_theory_llm_model"):
             args.serious_theory_llm_model = ""
         args.serious_theory_max_tokens = max(
-            ResearchArchitectConfig().serious_max_tokens,
+            LIVE_EVALUATION_MIN_SERIOUS_THEORY_MAX_TOKENS,
             int(getattr(args, "serious_theory_max_tokens", 0) or 0),
         )
         args.formal_verification_policy = "required"
@@ -14954,11 +14955,11 @@ def _research_agent_runtime_capability_config_errors(
         serious_theory_max_tokens = int(
             getattr(args, "serious_theory_max_tokens", 0) or 0
         )
-        if serious_theory_max_tokens < ResearchArchitectConfig().serious_max_tokens:
+        if serious_theory_max_tokens < LIVE_EVALUATION_MIN_SERIOUS_THEORY_MAX_TOKENS:
             errors.append(
                 "capability eval preset full-live requires a serious "
                 "TheoryDeveloper output budget of at least "
-                f"{ResearchArchitectConfig().serious_max_tokens} tokens; set "
+                f"{LIVE_EVALUATION_MIN_SERIOUS_THEORY_MAX_TOKENS} tokens; set "
                 "--serious-theory-max-tokens accordingly"
             )
         if not bool(getattr(args, "openprover_hlm", False)):

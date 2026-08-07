@@ -258,6 +258,21 @@ def test_truncation_regeneration_increases_output_budget() -> None:
     )
 
 
+def test_serious_packet_truncation_gets_a_full_second_output_window() -> None:
+    assert _regeneration_attempt_max_tokens(
+        10000,
+        truncation_regeneration_mode=True,
+    ) == 20000
+    assert _regeneration_attempt_max_tokens(
+        16000,
+        truncation_regeneration_mode=True,
+    ) == 32000
+    assert _regeneration_attempt_max_tokens(
+        24000,
+        truncation_regeneration_mode=True,
+    ) == 32000
+
+
 def test_final_semantic_attempt_truncation_gets_one_transport_regeneration() -> None:
     class _FinalAttemptTruncatedBackend(_SequenceBackend):
         def generate(self, request: GeneratorRequest) -> GeneratorResponse:

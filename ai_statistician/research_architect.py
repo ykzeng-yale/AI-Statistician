@@ -430,9 +430,6 @@ def build_theory_developer_prompt(
     compact_context = _compact_architect_context_for_prompt(architect_context)
     serious_theory_mode = theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
     transport_recovery = _theory_developer_transport_recovery(architect_context)
-    exact_semantic_instruction = (
-        _theory_developer_downstream_exact_semantic_instruction(compact_context)
-    )
     if serious_theory_mode:
         prompt_mode = {
             "mode": theory_prompt_mode,
@@ -481,48 +478,18 @@ def build_theory_developer_prompt(
                 if transport_recovery
                 else ""
             ) + (
-                "Return a complete valid JSON object within this budget. Develop the "
-                "primary procedure through five to eight dependency-linked derivation "
-                "steps and at least four equation-chain rows. Explicitly audit every "
-                "DGP calibration, finite-sample feasibility claim, estimand/procedure "
-                "alignment, rejected alternative, and assumption used downstream. "
-                "Include at least three explicit sanity_checks that independently "
-                "substitute into or recompute named-distribution properties, numeric "
-                "calibrations and uncertainty scales, boundary cases, normalization, "
-                "or inequality direction. A citation or repeated claim is not a "
-                "sanity check. Treat every procedure-defining identity as untrusted: "
-                "derive it from the primitive DGP mass/density and estimand before "
-                "algebraic compression, then test it at a concrete admissible "
-                "one-observation or boundary value. Expand each probability or "
-                "expectation over the full declared support before simplifying; "
-                "one outcome or integrand branch is not the expectation. Check law "
-                "normalization separately. When a procedure "
-                "compares multiple probability laws or regimes, name each one and "
-                "never transfer an identity or expectation across them. Preserve "
-                "the direction of every divergence or inequality. Compare the "
-                "reconstruction with every "
-                "available Architect formal_target and simulation_target; resolve a "
-                "mismatch in the theory packet or leave an explicit unresolved critic "
-                "finding rather than emitting an inconsistent procedure. Whenever a "
-                "variance or standard error enters an "
-                "estimator, limit law, confidence set, or studentized statistic, "
-                "distinguish the finite-sample variance of the estimator from the "
-                "asymptotic variance of any sample-size-scaled limit using distinct "
-                "notation or an explicit conversion identity. Literally substitute "
-                "the declared convention through every downstream formula; never "
-                "insert or remove an n or sqrt(n) factor implicitly. Repair any "
-                "contradiction in the theory packet itself; "
-                "never ask generated code to enforce incompatible premises. "
-                "For every estimator, make the formula, algorithm semantics, inputs, "
-                "outputs, normalization, and sample-size order explicit in the theory "
-                "workspace. A bounded second TheoryDeveloper phase will bind those "
-                "semantics to an immutable executable interface after this core "
-                "workspace passes validation. "
-                "Include multiple lemmas or critic findings when needed to represent "
-                "real dependencies; do not compress unresolved contradictions into a "
-                "single vague risk sentence. Do not repeat the same definition, "
-                "formula, or caveat across fields: state it once and refer to its id "
-                "elsewhere so the complete JSON object finishes within budget."
+                "Return one complete valid JSON object. Build a coherent mathematical "
+                "workspace at the level required by the question: derive claims from "
+                "the stated setup and assumptions, link equations and lemmas by id, "
+                "and independently check the claims most likely to invalidate the "
+                "procedure. Keep the DGP, estimand, procedure, theorem, executable "
+                "semantics, simulation plan, and formal target mutually consistent. "
+                "When evidence is insufficient or a contradiction remains, record it "
+                "as an unresolved critic finding instead of inventing certainty. Use "
+                "only the rows the argument needs, state each definition or equation "
+                "once, and refer to its id elsewhere. On a revision turn, use the "
+                "supplied candidate and reviewer observations as evidence, reconsider "
+                "the approach freely, and regenerate the entire packet."
             ),
         }
     else:
@@ -564,77 +531,19 @@ def build_theory_developer_prompt(
         "prompt_mode": prompt_mode,
         "architect_context": compact_context,
         "required_output_contract": THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT,
-        "procedure_identity_falsification_contract": [
-            (
-                "For every candidate estimator or decision rule, identify the exact "
-                "primitive identity that carries its claimed guarantee and derive it "
-                "from the DGP rather than from the candidate's own prose."
-            ),
-            (
-                "List every parameter, function, tuning value, model, stopping rule, "
-                "extremum, or candidate selected from the observations. Recompute the "
-                "claimed conditional or unconditional identity after that selection; "
-                "a fixed-candidate result cannot simply be substituted after plug-in."
-            ),
-            (
-                "For optimization, extrema, stopping, truncation, censoring, mixtures, "
-                "or nonlinear transforms, verify the exact closure direction and every "
-                "hypothesis. If this cannot be derived, reject that candidate or leave "
-                "one explicit unresolved critic finding instead of asserting validity."
-            ),
-            (
-                "Before selecting a proof route, compare the actual conclusion and "
-                "hypotheses of each retrieved declaration with the target. Prefer a "
-                "direct target-matching result whose assumptions are verified over a "
-                "stronger theorem that introduces unproved side conditions. If a "
-                "retrieved declaration is selected, preserve its exact qualified name "
-                "in formalization_handoff.candidate_lean_targets and explain the "
-                "mathematical match in theorem_cards[*].proof_strategy. Retrieval "
-                "remains candidate context, not proof evidence."
-            ),
-            (
-                "Treat any Architect-proposed proof skeleton as a routing proposal, "
-                "not mathematical authority. Preserve the target and evidence gates, "
-                "but replace the proposed route when declaration signatures support a "
-                "more direct argument under fewer verified assumptions; record the "
-                "reason for that route change in the proof strategy."
-            ),
-            (
-                "Use sanity_checks for falsification: show at least one primitive "
-                "conditional calculation, full-support expectation, or concrete "
-                "counterexample for each procedure-defining identity."
-            ),
-            (
-                "For every admitted finite input and resource-exit path, declare the "
-                "exact returned values and keep execution status separate from the "
-                "statistical decision. Never encode not observed, truncated, timed out, "
-                "or censored as false unless that equality is mathematically derived."
-            ),
-            (
-                "When executable bounds, approximation, truncation, or censoring change "
-                "the ideal procedure, derive the event inclusion, error decomposition, "
-                "or changed estimand that transports each claimed guarantee. Check each "
-                "theorem hypothesis under the same DGP or measure as its conclusion."
-            ),
-        ],
         output_budget_key: output_budget,
         "proof_boundary": KERNEL_PROOF_BOUNDARY,
     }
-    if exact_semantic_instruction:
-        payload["downstream_exact_semantic_formalizer_instruction"] = (
-            exact_semantic_instruction
-        )
     serious_mode_label = (
         "upstream-theory revision"
         if theory_prompt_mode == THEORY_PROMPT_MODE_SERIOUS_REVISION
         else "capability-theory pass"
     )
     mode_instruction = (
-        f"This is a serious {serious_mode_label}: preserve a rigorous equation "
-        "chain, lemma dependencies, assumption audit, feasibility derivations, and "
-        "all active critic feedback. Use more than one procedure, lemma, or critic "
-        "row when the mathematical alternatives or repair obligations genuinely "
-        "require them."
+        f"This is a serious {serious_mode_label}: produce a rigorous equation and "
+        "lemma dependency trace, audit assumptions, and preserve every active "
+        "review observation. Choose the number and organization of mathematical "
+        "objects from the argument itself; row counts are not a quality metric."
         if serious_theory_mode
         else "This is a focused first-pass discovery packet: exactly one primary "
         "procedure, one theorem card, one lemma card, one formalization request, one "
@@ -642,35 +551,17 @@ def build_theory_developer_prompt(
         "two equation-chain rows."
     )
     return (
-        "Derive statistical theory artifacts for the Architect loop. Return ONLY "
-        "JSON matching required_output_contract. Do not classify and stop. Do not "
-        "claim Lean/kernel proof evidence. Build a structured derivation trace that a "
-        "Formalizer/ProofEngineer can consume: name assumptions, write an explicit "
-        "equation chain, expose lemma dependencies, and state exactly which semantic "
-        "alignment constraints must survive formalization. In serious mode, show "
-        "independent substitutions or recomputations in sanity_checks; do not treat "
-        "the model's own earlier prose as evidence that a formula, named distribution, "
-        "calibration, uncertainty scale, normalization, or inequality is correct. "
-        "Use estimator_specs only for complete candidate procedures that directly "
-        "produce an estimand or decision. Put intermediate statistics, helper "
-        "quantities, and sufficient-statistic definitions in equation_chain, "
-        "lemma_cards, or formalization_handoff.required_definitions instead of using "
-        "another estimator slot. Fully state each estimator's formula, algorithm "
-        "semantics, inputs, outputs, normalization, and sample-size order in the core "
-        "workspace. Treat data-dependent selection, plug-in, optimization, extrema, "
-        "stopping, truncation, censoring, mixtures, and nonlinear transforms as new "
-        "mathematical operations: reconstruct the claimed invariant after those "
-        "operations and verify its direction and hypotheses. A fixed-candidate theorem "
-        "or repeated sanity-check claim is not such a reconstruction. Declare a total "
-        "typed return contract for every finite input and resource exit, then derive "
-        "how any executable modification transports the ideal guarantee. Do not emit "
-        "estimator_interface_contract here: after the core "
-        "workspace is frozen, the same TheoryDeveloper will author that bounded typed "
-        "interface from these exact semantic ids. Resolve any semantic contradiction "
-        "here instead of delegating choices to code. "
-        "Before returning, check required_output_contract exactly, including "
-        "theorem_cards[0].informal_statement, theorem_cards[0].proof_strategy, "
-        "proof_plan, simulation_ademp_spec, and every sanity_checks field. "
+        "Derive statistical theory artifacts for the Architect loop. Return ONLY one "
+        "JSON object matching required_output_contract. You own all mathematical "
+        "content and may change the approach when observations warrant it; the runtime "
+        "does not provide issue-specific corrections. State the setup and assumptions, "
+        "give an explicit dependency-linked derivation, define the procedure, expose "
+        "uncertainty, and align the theorem, simulation, executable, and formalization "
+        "handoffs. Use retrieved declarations as context, never as proof evidence. Do "
+        "not emit estimator_interface_contract in this core phase; the same "
+        "TheoryDeveloper authors the bounded interface after the core packet is frozen. "
+        "Do not claim Lean or kernel verification. Check the output contract before "
+        "returning and avoid repeating content across fields. "
         + mode_instruction
         + " Keep the packet within its declared budget and finish as one valid JSON "
         "object; do not trade JSON completeness for detail.\n\n"
@@ -1519,55 +1410,6 @@ _EXACT_SEMANTIC_FEEDBACK_ROW_CONTAINER_KEYS = (
     "rows",
     "source_theorem_exact_semantic_definition_typechecked_candidates",
 )
-
-
-def _theory_developer_downstream_exact_semantic_instruction(
-    compact_context: Mapping[str, Any],
-) -> dict[str, Any]:
-    environment_feedback = compact_context.get("environment_feedback")
-    if not isinstance(environment_feedback, Mapping):
-        return {}
-    if not _contains_exact_semantic_feedback(environment_feedback):
-        return {}
-    return {
-        "status": "ACTIVE_DOWNSTREAM_FORMALIZER_CONSTRAINT",
-        "required_behavior": (
-            "When refreshing theory_derivation_packet, theorem_cards, and "
-            "formalization_handoff, preserve exact source semantic primitive "
-            "names, placeholder symbols, target theorem names, "
-            "candidate_artifact_path/definition_only_candidate_artifact_path, "
-            "and proof_body_gate_status from architect_context.environment_feedback."
-        ),
-        "proof_body_gate": (
-            "If proof_body_gate_status=SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY, "
-            "do not open source-theorem proof-body search. Route the next handoff "
-            "to Formalizer/ProofEngineer exact semantic-definition review or repair."
-        ),
-        "proof_boundary": (
-            "Rows tagged FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE or "
-            "*_NOT_PROOF_EVIDENCE are blocker/review context only; do not describe "
-            "them as Lean proof, source theorem proof, or kernel evidence."
-        ),
-    }
-
-
-def _contains_exact_semantic_feedback(value: Any) -> bool:
-    if isinstance(value, Mapping):
-        for key, child in value.items():
-            key_text = str(key)
-            if "source_theorem_exact_semantic_definition" in key_text:
-                return True
-            if _contains_exact_semantic_feedback(child):
-                return True
-        return False
-    if isinstance(value, (list, tuple)):
-        return any(_contains_exact_semantic_feedback(child) for child in value[:12])
-    if isinstance(value, str):
-        return (
-            "source_theorem_exact_semantic_definition" in value
-            or "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY" in value
-        )
-    return False
 
 
 def _prompt_key_is_path_like(key: Any) -> bool:

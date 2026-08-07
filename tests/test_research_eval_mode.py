@@ -392,8 +392,8 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
     assert args.serious_theory_model_tier == "haiku"
     assert args.evaluation_claude_model_tier == "haiku"
     assert args.evaluation_claude_model == "claude-haiku-4-5-20251001"
-    assert args.serious_theory_max_tokens >= 10000
-    assert args.llm_timeout_seconds == 240.0
+    assert args.serious_theory_max_tokens >= 16000
+    assert args.llm_timeout_seconds == 360.0
     assert args.max_iterations == 24
     assert args.architect_metric_protocol_max_upstream_theory_revisions == 2
     assert args.architect_metric_protocol_max_fresh_candidate_revisions == 1

@@ -223,11 +223,6 @@ class LLMFormalizerProofEngineerAgent:
         requires_lean_candidate = _feedback_requires_formalizer_lean_candidate(
             environment_feedback or {}
         )
-        requires_repeated_syntax_contract = (
-            _feedback_has_repeated_syntax_failure_contract(
-                environment_feedback or {}
-            )
-        )
         requires_pseudo_formalization = _feedback_requires_pseudo_formalization(
             environment_feedback or {},
             proof_bank_runtime_memory_summary or {},
@@ -283,9 +278,6 @@ class LLMFormalizerProofEngineerAgent:
                     proof_bank_runtime_memory_summary or {}
                 ),
                 requires_lean_candidate=requires_lean_candidate,
-                requires_repeated_syntax_contract=(
-                    requires_repeated_syntax_contract
-                ),
                 requires_pseudo_formalization=requires_pseudo_formalization,
             )
 
@@ -403,9 +395,6 @@ class LLMFormalizerProofEngineerAgent:
         requires_lean_candidate = _feedback_requires_formalizer_lean_candidate(
             environment_feedback
         )
-        requires_repeated_syntax_contract = (
-            _feedback_has_repeated_syntax_failure_contract(environment_feedback)
-        )
         requires_pseudo_formalization = _feedback_requires_pseudo_formalization(
             environment_feedback,
             proof_bank_runtime_memory_summary or {},
@@ -417,7 +406,6 @@ class LLMFormalizerProofEngineerAgent:
                 proof_bank_runtime_memory_summary or {}
             ),
             requires_lean_candidate=requires_lean_candidate,
-            requires_repeated_syntax_contract=requires_repeated_syntax_contract,
             requires_pseudo_formalization=requires_pseudo_formalization,
         )
         if errors:
@@ -447,7 +435,6 @@ def _formalizer_contextual_validation_errors(
     environment_feedback: Mapping[str, Any],
     proof_bank_runtime_memory_summary: Mapping[str, Any],
     requires_lean_candidate: bool,
-    requires_repeated_syntax_contract: bool,
     requires_pseudo_formalization: bool,
 ) -> list[str]:
     errors = validate_formalizer_packet(packet)
@@ -470,7 +457,7 @@ def _formalizer_contextual_validation_errors(
             proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
         )
     )
-    if requires_lean_candidate or requires_repeated_syntax_contract:
+    if requires_lean_candidate:
         errors.extend(
             _validate_capability_eval_formalizer_lean_candidate_packet(
                 packet,
@@ -1164,9 +1151,6 @@ def build_formalizer_prompt(
     requires_lean_candidate = _feedback_requires_formalizer_lean_candidate(
         environment_feedback or {}
     )
-    repeated_syntax_fail_closed_active = (
-        _feedback_has_repeated_syntax_failure_contract(environment_feedback or {})
-    )
     task_bound_formal_target_contract = _task_bound_formal_target_contract(
         question=question,
         theory_packet=theory_packet,
@@ -1176,14 +1160,11 @@ def build_formalizer_prompt(
     proof_memory_summary = _compact_proof_bank_runtime_memory_summary(
         proof_bank_runtime_memory_summary or {}
     )
-    pseudo_formalization_active = _feedback_suggests_pseudo_formalization(
-        environment_feedback or {},
-        proof_memory_summary,
-    )
     pseudo_formalization_required = _feedback_requires_pseudo_formalization(
         environment_feedback or {},
         proof_memory_summary,
     )
+    pseudo_formalization_active = pseudo_formalization_required
     required_pseudo_formal_target_lanes = _required_pseudo_formal_target_lanes(
         environment_feedback or {},
         proof_memory_summary,
@@ -1196,7 +1177,7 @@ def build_formalizer_prompt(
     )
     source_theorem_candidate_materialization_contract = (
         {}
-        if repeated_syntax_fail_closed_active or exact_semantic_definition_gate_active
+        if exact_semantic_definition_gate_active
         else _source_theorem_candidate_materialization_contract(
             proof_memory_summary,
             environment_feedback=environment_feedback or {},
@@ -1363,15 +1344,6 @@ def build_formalizer_prompt(
             "error-specific repair recipe. The unchanged PF/BV validator will return "
             "any remaining structural or routing errors as the next observation. "
             "PF/BV output is routing memory only and cannot claim Lean or kernel proof. "
-        )
-    elif pseudo_formalization_active:
-        pseudo_formalization_instruction = (
-            "When source theorem proof repair is blocked by missing semantic anchors, missing "
-            "library support, or an overlarge proof step, you may emit pseudo_formal_proof_packets "
-            "following pseudo_formalization_contract. Those packets are decomposition and routing "
-            "artifacts only: they do not satisfy the Lean-candidate gate, cannot claim kernel "
-            "verification, and must route residual blocks through formal_targets, retrieval_queries, "
-            "gap_taxonomy, source_to_bridge candidates/requests, or next_actions. "
         )
     else:
         pseudo_formalization_instruction = ""
@@ -2284,81 +2256,6 @@ def _feedback_requires_exact_semantic_candidate_materialization_contract(
             "capability_eval_requires_exact_semantic_definition_materialized_feedback_rows",
         )
     )
-
-
-def _feedback_has_repeated_syntax_failure_contract(
-    feedback: Mapping[str, Any] | None,
-) -> bool:
-    if not isinstance(feedback, Mapping):
-        return False
-    input_summary = (
-        feedback.get("input_summary", {})
-        if isinstance(feedback.get("input_summary", {}), Mapping)
-        else {}
-    )
-    for source in (feedback, input_summary):
-        if not isinstance(source, Mapping):
-            continue
-        contract = (
-            source.get("local_lean_repair_contract", {})
-            if isinstance(source.get("local_lean_repair_contract", {}), Mapping)
-            else {}
-        )
-        diagnostic_classes = {
-            str(value).strip()
-            for value in contract.get("diagnostic_classes", []) or []
-            if str(value).strip()
-        }
-        if (
-            bool(contract.get("repeated_syntax_failure", False))
-            and (
-                not diagnostic_classes
-                or "lean_parser_or_syntax_error" in diagnostic_classes
-            )
-        ):
-            return True
-        if (
-            bool(source.get("repeated_formalizer_lean_candidate_failure", False))
-            and "lean_parser_or_syntax_error" in diagnostic_classes
-        ):
-            return True
-    return False
-
-
-def _feedback_suggests_pseudo_formalization(
-    *sources: Mapping[str, Any] | None,
-) -> bool:
-    for source in sources:
-        if not isinstance(source, Mapping) or not source:
-            continue
-        marker_source: Mapping[str, Any] = source
-        if str(source.get("feedback_type", "") or "") == (
-            "formalizer_task_bound_formal_source_context"
-        ):
-            marker_source = {
-                key: value
-                for key, value in source.items()
-                if key != "proofengineer_repair_context"
-            }
-        text = json.dumps(_compact_value(marker_source), default=str).lower()
-        if any(
-            marker in text
-            for marker in (
-                "source_theorem_proof_body",
-                "proof_body_adapter",
-                "semantic_alignment_unreviewed",
-                "semantic anchor",
-                "semantic_definition",
-                "missing import",
-                "library support",
-                "overlarge proof",
-                "pseudo_formal",
-                "pseudo-formal",
-                "block-verification",
-            )
-        ):
-            return True
-    return False
 
 
 def _formalizer_bool_like(value: Any) -> bool:
@@ -3410,21 +3307,6 @@ def _validate_source_theorem_candidate_materialization_packet(
         for row in packet.get("formal_targets", []) or []
         if isinstance(row, Mapping)
     ]
-    if _feedback_has_repeated_syntax_failure_contract(environment_feedback):
-        source_to_bridge_candidate_targets = [
-            row
-            for row in packet.get(
-                "source_to_bridge_premise_derivation_candidates", []
-            )
-            or []
-            if isinstance(row, Mapping)
-            and _source_to_bridge_candidate_lean_source(row).strip()
-        ]
-        if (
-            _has_explicit_source_theorem_formal_gap_target(formal_targets)
-            or source_to_bridge_candidate_targets
-        ):
-            return []
     source_candidates: list[Mapping[str, Any]] = []
     for row in formal_targets:
         source = str(row.get("lean_statement_sketch", "") or "").strip()

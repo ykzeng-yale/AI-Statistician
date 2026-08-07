@@ -41177,10 +41177,6 @@ def test_first_formalizer_proposal_receives_task_bound_formal_source_grounding()
         "formal_source_grounding_hits"
     ][1:]
     assert all(group["duplicate_hits_omitted"] == 1 for group in duplicate_groups)
-    assert not formalizer_module._feedback_suggests_pseudo_formalization(
-        grounded,
-        {},
-    )
     prompt = build_formalizer_prompt(
         question=question,
         theory_packet=theory_packet,
@@ -41213,6 +41209,11 @@ def test_first_formalizer_proposal_receives_task_bound_formal_source_grounding()
     assert "Do not derive or guess a module path" in prompt
     assert "ProofEngineer repair loop is active" not in prompt
     prompt_payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+    assert prompt_payload.get("pseudo_formalization_contract", {}) == {}
+    assert (
+        prompt_payload.get("pseudo_formalization_required_target_lanes", [])
+        == []
+    )
     assert prompt_payload["registered_theorem_goals"] == [
         {
             "id": "localized_error_bound",
@@ -49649,14 +49650,12 @@ def test_theory_developer_capability_eval_uses_serious_theory_mode() -> None:
     assert '"min_equation_chain_steps":4' in prompt
     assert '"min_sanity_checks":3' in prompt
     assert '"max_critic_findings":4' in prompt
-    assert "finite-sample feasibility claim" in prompt
-    assert "A citation or repeated claim is not a sanity check" in prompt
-    assert "procedure_identity_falsification_contract" in prompt
-    assert "a fixed-candidate result cannot simply be substituted" in prompt
-    assert "verify the exact closure direction" in prompt
-    assert "every admitted finite input and resource-exit path" in prompt
-    assert "same DGP or measure as its conclusion" in prompt
-    assert "total typed return contract" in prompt
+    assert "runtime does not provide issue-specific corrections" in prompt
+    assert "reviewer observations as evidence" in prompt
+    assert "row counts are not a quality metric" in prompt
+    assert "procedure_identity_falsification_contract" not in prompt
+    assert "a fixed-candidate result cannot simply be substituted" not in prompt
+    assert "verify the exact closure direction" not in prompt
     assert "exactly one primary procedure" not in prompt
     assert "s" * 800 not in prompt
     assert "x" * 800 not in prompt
@@ -49828,8 +49827,8 @@ def test_theory_developer_prompt_preserves_exact_semantic_blocker_artifacts() ->
         },
     )
 
-    assert "downstream_exact_semantic_formalizer_instruction" in prompt
-    assert "ACTIVE_DOWNSTREAM_FORMALIZER_CONSTRAINT" in prompt
+    assert "downstream_exact_semantic_formalizer_instruction" not in prompt
+    assert "ACTIVE_DOWNSTREAM_FORMALIZER_CONSTRAINT" not in prompt
     assert "formal_blocker_resource_requests" in prompt
     assert "source_theorem_exact_semantic_definition_repair_feedback" in prompt
     assert "runtime_exact_semantic_definition_work_order_feedback" in prompt
@@ -49838,8 +49837,7 @@ def test_theory_developer_prompt_preserves_exact_semantic_blocker_artifacts() ->
     assert definition_only_path in prompt
     assert "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY" in prompt
     assert "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE" in prompt
-    assert "do not open source-theorem proof-body search" in prompt
-    assert "source theorem proof" in prompt
+    assert "do not open source-theorem proof-body search" not in prompt
     assert len(prompt) < 30000
 
 
@@ -103600,8 +103598,8 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     assert args.formal_verification_policy == "required"
     assert args.theory_model_tier == "haiku"
     assert args.serious_theory_model_tier == "haiku"
-    assert args.serious_theory_max_tokens >= 10000
-    assert args.llm_timeout_seconds == 240.0
+    assert args.serious_theory_max_tokens >= 16000
+    assert args.llm_timeout_seconds == 360.0
     assert args.architect_metric_semantic_reviewer_max_tokens == 16000
     assert args.formalization_gap_planner_live_route_planner is True
     assert args.formalization_gap_planner_live_max_handoffs == 1
@@ -103609,7 +103607,7 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     assert args.formalization_gap_planner_live_max_provider_retries == 1
     assert args.formalization_gap_planner_live_provider == "same"
     assert args.formalization_gap_planner_live_model_tier == "haiku"
-    assert args.formalization_gap_planner_live_timeout_seconds == 240.0
+    assert args.formalization_gap_planner_live_timeout_seconds == 360.0
     assert args.coding_agent_packet_validation_replan_after_attempts == 2
     assert (
         args.algorithm_engineer_generated_code_repair_yield_after_attempts
@@ -103663,13 +103661,13 @@ def test_capability_eval_full_live_preset_uses_integrated_runtime_gates(
     ) in _research_agent_runtime_capability_config_errors(args)
     args.serious_theory_model_tier = "haiku"
 
-    args.serious_theory_max_tokens = 9999
+    args.serious_theory_max_tokens = 15999
     assert any(
-        "serious TheoryDeveloper output budget of at least 10000 tokens"
+        "serious TheoryDeveloper output budget of at least 16000 tokens"
         in error
         for error in _research_agent_runtime_capability_config_errors(args)
     )
-    args.serious_theory_max_tokens = 10000
+    args.serious_theory_max_tokens = 16000
 
     args.pseudo_formal_block_verifier_runtime = False
     assert (
@@ -103801,8 +103799,8 @@ def test_capability_eval_full_live_gives_gap_planner_long_call_timeout() -> None
 
     _apply_research_agent_runtime_capability_eval_preset(args)
 
-    assert args.llm_timeout_seconds == 240.0
-    assert args.formalization_gap_planner_live_timeout_seconds == 240.0
+    assert args.llm_timeout_seconds == 360.0
+    assert args.formalization_gap_planner_live_timeout_seconds == 360.0
 
 
 def test_capability_eval_rejects_static_component_repair_gate_provider() -> None:

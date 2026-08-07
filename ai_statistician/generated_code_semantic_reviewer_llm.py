@@ -1819,6 +1819,27 @@ def _generated_code_semantic_review_row_cited_values(
     return resolved_rows
 
 
+def _generated_code_semantic_review_missing_citation_errors(
+    *,
+    row_label: str,
+    cited_values: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    """Report unresolved model citations without prescribing a content repair."""
+
+    return [
+        (
+            f"{row_label} citation does not resolve to a current artifact value: "
+            f"{str(cited_value.get('artifact_role', '') or '')}#"
+            f"{str(cited_value.get('locator', '') or '')}. Locators are RFC 6901 "
+            "JSON Pointers over artifact values; they cannot name a line or "
+            "substring inside a scalar source-code string. Cite the containing "
+            "artifact value and identify the relevant snippet in current_behavior"
+        )
+        for cited_value in cited_values
+        if not bool(cited_value.get("resolved", False))
+    ]
+
+
 def _generated_code_semantic_review_cited_values(
     *,
     review_material: Mapping[str, Any],
@@ -3001,7 +3022,10 @@ def build_generated_code_semantic_review_prompt(
         "runtime behavior. "
         "For every actionable finding, complete artifact_delta as a compact "
         "counterfactual: select one obligation_ref and identify an exact locator in "
-        "the defective artifact, state current "
+        "the defective artifact. The locator must be an existing RFC 6901 JSON "
+        "Pointer to an artifact value. It cannot address a line or substring inside "
+        "a scalar source-code string; cite the containing source value and describe "
+        "the relevant snippet in current_behavior. State current "
         "and required behavior, and state the observable behavior change. Compare "
         "the before and after behaviors explicitly. If they are algebraically, "
         "computationally, or semantically equivalent, set "
@@ -3188,7 +3212,9 @@ GENERATED_CODE_SEMANTIC_REVIEW_OUTPUT_CONTRACT: dict[str, Any] = {
                     "upstream_generated_dependency|generated_source_artifact"
                 ),
                 "current_artifact_locator": (
-                    "/exact cited path in the artifact that must change"
+                    "an existing RFC 6901 JSON Pointer to the artifact value that "
+                    "must change; cite the containing scalar when the defect is a "
+                    "line or substring inside source text"
                 ),
                 "current_behavior": "what the current artifact does",
                 "required_behavior": "what the cited obligation requires",
@@ -3220,7 +3246,15 @@ _MODEL_ARTIFACT_DELTA_SCHEMA: dict[str, Any] = {
             "type": "string",
             "enum": list(GENERATED_CODE_SEMANTIC_REVIEW_ARTIFACT_CITATIONS),
         },
-        "current_artifact_locator": {"type": "string"},
+        "current_artifact_locator": {
+            "type": "string",
+            "description": (
+                "An existing RFC 6901 JSON Pointer in current_artifact_role. "
+                "JSON Pointers address artifact values, not lines or substrings "
+                "inside a scalar source-code string; cite the containing source "
+                "value and describe the relevant snippet in current_behavior."
+            ),
+        },
         "current_behavior": {"type": "string"},
         "required_behavior": {"type": "string"},
         "observable_change": {"type": "string"},
@@ -3485,11 +3519,12 @@ def _generated_code_semantic_review_lineage_errors(
                 review_material=review_material,
                 row=raw_row,
             )
-            if any(not row["resolved"] for row in cited_values):
-                errors.append(
-                    f"prior finding review {finding_id} cites a missing current "
-                    "artifact value"
+            errors.extend(
+                _generated_code_semantic_review_missing_citation_errors(
+                    row_label=f"prior finding review {finding_id}",
+                    cited_values=cited_values,
                 )
+            )
             if not any(
                 row["resolved"]
                 and row["artifact_role"] == "generated_source_artifact"
@@ -3750,11 +3785,12 @@ def validate_generated_code_semantic_review_packet(
                 review_material=review_material,
                 row=row,
             )
-            if any(not cited_value["resolved"] for cited_value in cited_values):
-                errors.append(
-                    f"semantic review dimension {dimension} cites a missing "
-                    "current artifact value"
+            errors.extend(
+                _generated_code_semantic_review_missing_citation_errors(
+                    row_label=f"semantic review dimension {dimension}",
+                    cited_values=cited_values,
                 )
+            )
         if (
             schema_version >= 7
             and dimension_index < len(
@@ -3862,11 +3898,12 @@ def validate_generated_code_semantic_review_packet(
                 review_material=review_material,
                 row=row,
             )
-            if any(not cited_value["resolved"] for cited_value in cited_values):
-                errors.append(
-                    f"{row_label} cites a missing "
-                    "current artifact value"
+            errors.extend(
+                _generated_code_semantic_review_missing_citation_errors(
+                    row_label=row_label,
+                    cited_values=cited_values,
                 )
+            )
 
     expected_verdict = _generated_code_semantic_review_derived_verdict(
         dimension_reviews=dimension_rows,

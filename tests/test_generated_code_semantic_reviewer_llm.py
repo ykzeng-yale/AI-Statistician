@@ -2155,6 +2155,63 @@ def test_actionable_review_requires_a_distinct_authority_bound_delta(
     )
 
 
+def test_unresolved_source_subpath_returns_protocol_level_regeneration_feedback(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        accept=False,
+        repair_scope="source_code",
+    )
+    result = subsystem.run(task, blackboard)
+    packet = next(
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind") == "GeneratedCodeSemanticReviewPacket"
+    )
+    materialization = next(
+        row
+        for row in result.produced_artifacts.values()
+        if row.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewMaterialization"
+    )
+    review_material = materialization["review_material"]
+    invalid = deepcopy(packet)
+    finding = invalid["findings"][0]
+    source_locator = finding["artifact_delta"]["current_artifact_locator"]
+    invalid_locator = source_locator + "/line_4"
+    finding["artifact_delta"]["current_artifact_locator"] = invalid_locator
+    for citation in finding["evidence_citations"]:
+        if (
+            citation["artifact_role"] == "generated_source_artifact"
+            and citation["locator"] == source_locator
+        ):
+            citation["locator"] = invalid_locator
+    finding["evidence_refs"] = [
+        ref.replace(
+            f"generated_source_artifact#{source_locator}",
+            f"generated_source_artifact#{invalid_locator}",
+        )
+        for ref in finding["evidence_refs"]
+    ]
+
+    errors = validate_generated_code_semantic_review_packet(
+        invalid,
+        review_material=review_material,
+    )
+
+    assert any(
+        "does not resolve to a current artifact value" in error
+        for error in errors
+    )
+    assert any("RFC 6901 JSON Pointers" in error for error in errors)
+    assert any("cannot name a line or substring" in error for error in errors)
+    locator_schema = GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA["$defs"][
+        "artifact_delta"
+    ]["properties"]["current_artifact_locator"]
+    assert "RFC 6901" in locator_schema["description"]
+
+
 def test_actionable_review_accepts_precise_descendant_authority_citation(
     tmp_path: Path,
 ) -> None:

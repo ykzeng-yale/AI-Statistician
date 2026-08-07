@@ -19,7 +19,7 @@ PacketValidator = Callable[[Mapping[str, Any]], list[str]]
 PayloadExtractor = Callable[[str], dict[str, Any]]
 
 
-_TRUNCATION_REGENERATION_MAX_TOKENS = 16000
+_TRUNCATION_REGENERATION_MAX_TOKENS = 32000
 _MAX_TRUNCATION_REGENERATIONS = 1
 
 

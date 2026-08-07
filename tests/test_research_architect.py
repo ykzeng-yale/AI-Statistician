@@ -817,31 +817,15 @@ def test_capability_theory_mode_requires_deeper_equation_trace(
     assert request.schema["properties"]["problem_card"]["properties"][
         "observed_data"
     ]["maxLength"] == 420
-    assert "finite-sample variance of the estimator" in request.user_prompt
-    assert "asymptotic variance of any sample-size-scaled limit" in (
+    assert "You own all mathematical content" in request.user_prompt
+    assert "runtime does not provide issue-specific corrections" in (
         request.user_prompt
     )
-    assert "never insert or remove an n or sqrt(n) factor implicitly" in (
-        request.user_prompt
-    )
-    assert "derive it from the primitive DGP mass/density and estimand" in (
-        request.user_prompt
-    )
-    assert "one-observation or boundary value" in request.user_prompt
-    assert "full declared support" in request.user_prompt
-    assert "one outcome or integrand branch is not the expectation" in (
-        request.user_prompt
-    )
-    assert "multiple probability laws or regimes" in request.user_prompt
-    assert "never transfer an identity or expectation across them" in (
-        request.user_prompt
-    )
-    assert "preserve the direction of every divergence or inequality" in (
-        request.user_prompt.lower()
-    )
-    assert "available Architect formal_target and simulation_target" in (
-        request.user_prompt
-    )
+    assert "reviewer observations as evidence" in request.user_prompt
+    assert "row counts are not a quality metric" in request.user_prompt
+    assert "n or sqrt(n) factor" not in request.user_prompt
+    assert "one-observation or boundary value" not in request.user_prompt
+    assert "optimization, extrema, stopping" not in request.user_prompt
 
 
 def test_theory_developer_anthropic_request_uses_structured_output() -> None:
@@ -2343,8 +2327,8 @@ def test_theory_developer_prompt_compacts_runtime_retrieval_context() -> None:
     assert "assumption_ledger" in prompt
     assert "formalization_handoff" in prompt
     assert "equation_chain" in prompt
-    assert "Use estimator_specs only for complete candidate procedures" in prompt
-    assert "intermediate statistics, helper quantities" in prompt
+    assert "You own all mathematical content" in prompt
+    assert "runtime does not provide issue-specific corrections" in prompt
     assert "at least three derivation steps" in prompt
     assert "Probability.coverage" in prompt
     assert '"signature":' in prompt
@@ -2377,9 +2361,9 @@ def test_theory_developer_prompt_compacts_runtime_retrieval_context() -> None:
     assert "route-feedback:staged-assembly" in prompt
     assert "staged_followup_assembly_error_preview" in prompt
     assert "formal_attempt_queue[0] does not resolve to a seed route" in prompt
-    assert "actual conclusion and hypotheses" in prompt
-    assert "direct target-matching result" in prompt
-    assert "routing proposal, not mathematical authority" in prompt
+    assert "actual conclusion and hypotheses" not in prompt
+    assert "direct target-matching result" not in prompt
+    assert "routing proposal, not mathematical authority" not in prompt
     assert "provider_total_tokens_including_staged_followups" in prompt
     assert "orchestration memory, not proof evidence" in prompt
 
