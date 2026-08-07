@@ -50000,6 +50000,50 @@ def test_algorithm_engineer_prompt_consumes_estimator_runtime_feedback() -> None
     assert "You choose and author every source change" in prompt
 
 
+def test_estimator_runtime_failure_routes_raw_observation_without_repair_recipe() -> None:
+    question = OpenResearchQuestion(
+        id="generic_estimator_runtime_failure",
+        title="Generic estimator runtime failure",
+        description="Exercise a generated estimator in a generated simulation.",
+        tags=("generic",),
+    )
+    runtime_error = (
+        "AcceptedEstimatorRuntimeError: ACCEPTED_ESTIMATOR_RUNTIME_ERROR: EST1: "
+        "TypeError: estimator request and response object keys must be strings"
+    )
+
+    task = runtime_module._simulation_estimator_runtime_repair_task(
+        question=question,
+        theory_packet_id="theory:generic",
+        simulation_manifest_id="simulation:generic",
+        implementation_gaps=(),
+        architect_context={},
+        simulation_feedback={
+            "generated_simulation_prototypes": [
+                {
+                    "estimator_runtime_failure_ids": ["EST1"],
+                    "estimator_runtime_errors": [runtime_error],
+                }
+            ]
+        },
+        n_runs=8,
+        seed=7,
+    )
+
+    feedback = task.inputs["environment_feedback"]
+    assert task.owner_subsystem == "AlgorithmEngineer"
+    assert "Regenerate" in task.objective
+    assert feedback["failed_estimator_ids"] == ["EST1"]
+    assert feedback["runtime_errors"] == [runtime_error]
+    assert "target_behavior" not in feedback
+    assert "success_metric" not in feedback
+    assert "required_repair" not in feedback
+    assert "repair_plan" not in feedback
+    assert task.inputs["architect_context"]["runtime_feedback_loop"]["handoff"] == (
+        "accepted_algorithm_estimator_runtime_regeneration"
+    )
+
+
 def test_algorithm_engineer_prompt_does_not_own_simulation_metric_gate() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     prompt = build_algorithm_engineer_prompt(

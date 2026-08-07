@@ -558,7 +558,12 @@ def test_estimator_abi_failure_routes_typed_feedback_to_algorithm_engineer() -> 
     assert feedback["failure_classification"] == (
         "accepted_algorithm_estimator_abi_failed"
     )
-    assert "run_estimator" in feedback["target_behavior"]
+    assert feedback["validation_errors"] == [
+        "accepted algorithm did not define callable run_estimator: candidate"
+    ]
+    assert "target_behavior" not in feedback
+    assert "success_metric" not in feedback
+    assert "required_repair" not in feedback
     assert task.inputs["implementation_gaps"] == [{"estimator_id": "candidate"}]
     assert task.inputs["architect_context"]["runtime_feedback_loop"][
         "simulation_evaluator_generated_code_repair_attempts_used"
@@ -602,7 +607,12 @@ def test_estimator_runtime_failure_routes_typed_feedback_to_algorithm_engineer()
         "accepted_algorithm_estimator_runtime_failed"
     )
     assert feedback["failed_estimator_ids"] == ["candidate"]
-    assert "finite JSON-compatible response" in feedback["target_behavior"]
+    assert feedback["runtime_errors"] == [
+        "RuntimeError: run_estimator response was non-finite"
+    ]
+    assert "target_behavior" not in feedback
+    assert "success_metric" not in feedback
+    assert "required_repair" not in feedback
     assert task.inputs["architect_context"]["runtime_feedback_loop"][
         "simulation_evaluator_generated_code_repair_attempts_used"
     ] == 1
@@ -896,3 +906,98 @@ def test_live_estimator_failure_is_tagged_as_algorithm_runtime_feedback(
     assert result.estimator_runtime_failure_ids == ("candidate",)
     assert len(result.estimator_runtime_errors) == 1
     assert "ACCEPTED_ESTIMATOR_RUNTIME_ERROR" in result.estimator_runtime_errors[0]
+
+
+def test_live_estimator_failure_caught_by_simulation_keeps_algorithm_origin(
+    tmp_path: Path,
+) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    if not runtime.python_available:
+        pytest.skip("pinned Pyodide runtime is not installed on this host")
+    algorithm = (
+        "def run_estimator(request):\n"
+        "    return {'estimate': 1.0, 'by_time': {1.5: 2}}\n"
+    )
+    simulation = (
+        "def run_sandbox(seed, replicates, estimators):\n"
+        "    try:\n"
+        "        estimators['candidate']({'seed': seed})\n"
+        "    except Exception as exc:\n"
+        "        return {'caught': True, 'message': str(exc)}\n"
+        "    return {'caught': False}\n"
+    )
+
+    result = execute_scientific_sandbox(
+        sandbox_dir=tmp_path,
+        artifact_id="bound-caught-estimator-failure",
+        language="python",
+        code=simulation,
+        dependencies=[],
+        seed=7,
+        replicates=5,
+        timeout_s=60,
+        estimator_bindings=(
+            ScientificEstimatorBinding(
+                artifact_id="candidate",
+                language="python",
+                code=algorithm,
+                code_hash=stable_hash(algorithm),
+            ),
+        ),
+    )
+
+    assert result.status == "FAILED"
+    assert result.metrics["caught"] is True
+    assert result.estimator_invocation_counts == {"candidate": 0}
+    assert result.estimator_runtime_failure_ids == ("candidate",)
+    assert len(result.estimator_runtime_errors) == 1
+    assert "object keys must be strings" in result.estimator_runtime_errors[0]
+
+
+def test_live_r_estimator_failure_caught_by_simulation_keeps_algorithm_origin(
+    tmp_path: Path,
+) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    if not runtime.r_available:
+        pytest.skip("pinned WebR runtime is not installed on this host")
+    algorithm = (
+        "run_estimator <- function(request) "
+        "list(estimate=Inf)\n"
+    )
+    simulation = (
+        "run_sandbox <- function(seed, replicates, estimators) {\n"
+        "  tryCatch({\n"
+        "    estimators[['candidate']](list(seed=seed))\n"
+        "    list(caught=FALSE)\n"
+        "  }, error=function(error) {\n"
+        "    list(caught=TRUE, message=conditionMessage(error))\n"
+        "  })\n"
+        "}\n"
+    )
+
+    result = execute_scientific_sandbox(
+        sandbox_dir=tmp_path,
+        artifact_id="bound-r-caught-estimator-failure",
+        language="r",
+        code=simulation,
+        dependencies=["base", "stats"],
+        seed=7,
+        replicates=5,
+        timeout_s=60,
+        estimator_bindings=(
+            ScientificEstimatorBinding(
+                artifact_id="candidate",
+                language="r",
+                code=algorithm,
+                code_hash=stable_hash(algorithm),
+                dependencies=("base", "stats"),
+            ),
+        ),
+    )
+
+    assert result.status == "FAILED"
+    assert result.metrics["caught"] is True
+    assert result.estimator_invocation_counts == {"candidate": 0}
+    assert result.estimator_runtime_failure_ids == ("candidate",)
+    assert len(result.estimator_runtime_errors) == 1
+    assert "finite JSON-compatible values" in result.estimator_runtime_errors[0]

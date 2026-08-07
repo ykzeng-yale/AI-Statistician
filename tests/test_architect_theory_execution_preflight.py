@@ -1346,6 +1346,66 @@ def test_preflight_binds_unresolved_prior_finding_from_ordered_index() -> None:
     ) == []
 
 
+def test_preflight_prior_lineage_errors_name_expected_and_missing_ids() -> None:
+    rejected, _backend = _review(accept=False)
+    prior_ledger = rejected["cumulative_finding_ledger"]
+    prior_finding_id = rejected["active_unresolved_finding_ids"][0]
+    material = build_architect_theory_execution_preflight_material(
+        question=_question(),
+        theory_protocol_material=_theory_material(),
+        upstream_research_contract={
+            "formal_targets": [],
+            "simulation_targets": ["evaluate the declared risk"],
+        },
+        prior_finding_ledger=prior_ledger,
+    )
+    packet = deepcopy(rejected)
+    packet["source_theory_packet_id"] = material["source_theory_packet_id"]
+    packet["source_theory_packet_hash"] = material["source_theory_packet_hash"]
+    packet["anchor_catalog_id"] = material["anchor_catalog_id"]
+    packet["anchor_catalog_fingerprint"] = material[
+        "anchor_catalog_fingerprint"
+    ]
+    packet["review_input_fingerprint"] = stable_hash(dict(material))
+    packet["prior_finding_reviews"] = []
+    packet["findings"] = []
+    packet["runtime_prior_finding_identity_bindings"] = []
+
+    errors = validate_architect_theory_execution_preflight_packet(
+        packet,
+        material=material,
+    )
+
+    lineage_error = next(
+        error
+        for error in errors
+        if error.startswith(
+            "theory execution preflight must resolve every active prior"
+        )
+    )
+    assert json.dumps([prior_finding_id]) in lineage_error
+    assert "observed=[]" in lineage_error
+
+    packet["prior_finding_reviews"] = [
+        {
+            "finding_id": prior_finding_id,
+            "status": "UNRESOLVED",
+            "rationale": "The current source still leaves the defect open.",
+            "evidence_refs": ["theory.estimator_specs"],
+        }
+    ]
+    errors = validate_architect_theory_execution_preflight_packet(
+        packet,
+        material=material,
+    )
+    continuation_error = next(
+        error
+        for error in errors
+        if error.startswith("each UNRESOLVED prior finding")
+    )
+    assert json.dumps([prior_finding_id]) in continuation_error
+
+
 def test_preflight_repairs_missing_ordered_prior_continuation() -> None:
     rejected, _backend = _review(accept=False)
     prior_ledger = rejected["cumulative_finding_ledger"]

@@ -57,6 +57,7 @@ async function runPython(request, source, estimatorSources) {
       `_ai_stat_simulation_namespace = {}\n` +
       `exec(compile(_ai_stat_simulation_source, "<generated_simulation>", "exec"), _ai_stat_simulation_namespace, _ai_stat_simulation_namespace)\n` +
       `_ai_stat_invocation_counts = {key: 0 for key in _ai_stat_estimator_sources}\n` +
+      `_ai_stat_runtime_failure = {"artifact_id": "", "error_message": ""}\n` +
       `_ai_stat_estimators = {}\n` +
       `def _ai_stat_json_native(_value):\n` +
       `    if _value is None or isinstance(_value, (bool, int, float, str)):\n` +
@@ -92,7 +93,11 @@ async function runPython(request, source, estimatorSources) {
       `            response = _ai_stat_json_native(raw_response)\n` +
       `            _ai_stat_json.dumps(response, allow_nan=False, sort_keys=True)\n` +
       `        except Exception as exc:\n` +
-      `            raise RuntimeError("ACCEPTED_ESTIMATOR_RUNTIME_ERROR: " + _artifact_id + ": " + type(exc).__name__ + ": " + str(exc)) from exc\n` +
+      `            failure_message = "ACCEPTED_ESTIMATOR_RUNTIME_ERROR: " + _artifact_id + ": " + type(exc).__name__ + ": " + str(exc)\n` +
+      `            if not _ai_stat_runtime_failure["artifact_id"]:\n` +
+      `                _ai_stat_runtime_failure["artifact_id"] = _artifact_id\n` +
+      `                _ai_stat_runtime_failure["error_message"] = failure_message\n` +
+      `            raise RuntimeError(failure_message) from exc\n` +
       `        _ai_stat_invocation_counts[_artifact_id] += 1\n` +
       `        return response\n` +
       `    return _bound_estimator\n` +
@@ -102,7 +107,7 @@ async function runPython(request, source, estimatorSources) {
       `if not callable(_ai_stat_run_sandbox):\n` +
       `    raise RuntimeError("generated simulation did not define callable run_sandbox")\n` +
       `_ai_stat_result = _ai_stat_run_sandbox(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, estimators=_ai_stat_estimators)\n` +
-      `_ai_stat_json.dumps({"metrics": _ai_stat_result, "estimator_invocation_counts": _ai_stat_invocation_counts}, allow_nan=False, sort_keys=True)`
+      `_ai_stat_json.dumps({"metrics": _ai_stat_result, "estimator_invocation_counts": _ai_stat_invocation_counts, "estimator_runtime_failure": _ai_stat_runtime_failure}, allow_nan=False, sort_keys=True)`
     : `${source}\n\nimport json as _ai_stat_json\n` +
       `_ai_stat_result = run_sandbox(seed=${Number(request.seed)}, replicates=${Number(request.replicates)})\n` +
       `_ai_stat_json.dumps({"metrics": _ai_stat_result, "estimator_invocation_counts": {}}, allow_nan=False, sort_keys=True)`;
@@ -129,6 +134,7 @@ async function runR(request, source, estimatorSources) {
         `.ai_stat_simulation_environment <- new.env(parent=globalenv())\n` +
         `eval(parse(text=.ai_stat_simulation_source), envir=.ai_stat_simulation_environment)\n` +
         `.ai_stat_invocation_counts <- setNames(as.list(rep(0L, length(.ai_stat_estimator_sources))), names(.ai_stat_estimator_sources))\n` +
+        `.ai_stat_runtime_failure <- list(artifact_id="", error_message="")\n` +
         `.ai_stat_json_finite <- function(value) {\n` +
         `  if (is.null(value)) return(TRUE)\n` +
         `  if (is.list(value)) return(all(vapply(value, .ai_stat_json_finite, logical(1))))\n` +
@@ -152,7 +158,9 @@ async function runR(request, source, estimatorSources) {
         `        if (!.ai_stat_json_finite(.candidate)) stop("run_estimator response must contain finite JSON-compatible values")\n` +
         `        .candidate\n` +
         `      }, error=function(.error) {\n` +
-        `        stop(paste0("ACCEPTED_ESTIMATOR_RUNTIME_ERROR: ", .id, ": ", class(.error)[[1]], ": ", conditionMessage(.error)), call.=FALSE)\n` +
+        `        .message <- paste0("ACCEPTED_ESTIMATOR_RUNTIME_ERROR: ", .id, ": ", class(.error)[[1]], ": ", conditionMessage(.error))\n` +
+        `        if (!nzchar(.ai_stat_runtime_failure$artifact_id)) .ai_stat_runtime_failure <<- list(artifact_id=.id, error_message=.message)\n` +
+        `        stop(.message, call.=FALSE)\n` +
         `      })\n` +
         `      .ai_stat_invocation_counts[[.id]] <<- .ai_stat_invocation_counts[[.id]] + 1L\n` +
         `      .response\n` +
@@ -162,7 +170,7 @@ async function runR(request, source, estimatorSources) {
         `names(.ai_stat_estimators) <- names(.ai_stat_estimator_sources)\n` +
         `if (!exists("run_sandbox", envir=.ai_stat_simulation_environment, mode="function", inherits=FALSE)) stop("generated simulation did not define callable run_sandbox")\n` +
         `.ai_stat_result <- get("run_sandbox", envir=.ai_stat_simulation_environment, inherits=FALSE)(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, estimators=.ai_stat_estimators)\n` +
-        `list(metrics=.ai_stat_result, estimator_invocation_counts=.ai_stat_invocation_counts)\n` +
+        `list(metrics=.ai_stat_result, estimator_invocation_counts=.ai_stat_invocation_counts, estimator_runtime_failure=.ai_stat_runtime_failure)\n` +
         `})`
       : `${source}\n\n` +
         `local({ .ai_stat_result <- run_sandbox(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}); list(metrics=.ai_stat_result, estimator_invocation_counts=list()) })`;
@@ -207,23 +215,44 @@ try {
     : await runPython(request, source, estimatorSources);
   const metrics = execution?.metrics;
   const estimatorInvocationCounts = execution?.estimator_invocation_counts || {};
+  const estimatorRuntimeFailure = execution?.estimator_runtime_failure || {};
+  const estimatorRuntimeFailureId = String(estimatorRuntimeFailure.artifact_id || "");
+  const estimatorRuntimeFailureMessage = String(estimatorRuntimeFailure.error_message || "");
   if (!metrics || typeof metrics !== "object" || Array.isArray(metrics)) {
     throw new Error("run_sandbox must return a named dictionary/list object");
   }
   if (!finiteJsonValue(metrics)) {
     throw new Error("run_sandbox returned a non-finite or non-JSON metric value");
   }
-  envelope = {
-    schema_version: 1,
-    artifact_kind: "ScientificSandboxExecutionEnvelope",
-    ok: true,
-    language: request.language,
-    backend: request.backend,
-    metrics,
-    estimator_invocation_counts: estimatorInvocationCounts,
-    started_at: startedAt,
-    completed_at: new Date().toISOString(),
-  };
+  envelope = estimatorRuntimeFailureId
+    ? {
+        schema_version: 1,
+        artifact_kind: "ScientificSandboxExecutionEnvelope",
+        ok: false,
+        language: request.language,
+        backend: request.backend,
+        metrics,
+        estimator_invocation_counts: estimatorInvocationCounts,
+        error_type: "AcceptedEstimatorRuntimeError",
+        error_message: estimatorRuntimeFailureMessage,
+        error_stack: "",
+        error_origin: "accepted_estimator",
+        error_artifact_id: estimatorRuntimeFailureId,
+        caught_by_generated_simulation: true,
+        started_at: startedAt,
+        completed_at: new Date().toISOString(),
+      }
+    : {
+        schema_version: 1,
+        artifact_kind: "ScientificSandboxExecutionEnvelope",
+        ok: true,
+        language: request.language,
+        backend: request.backend,
+        metrics,
+        estimator_invocation_counts: estimatorInvocationCounts,
+        started_at: startedAt,
+        completed_at: new Date().toISOString(),
+      };
 } catch (error) {
   const errorMessage = String(error?.message || error);
   const estimatorRuntimePrefix = "ACCEPTED_ESTIMATOR_RUNTIME_ERROR: ";

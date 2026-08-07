@@ -18069,7 +18069,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 )
                 observations.append(
                     EnvironmentObservation(
-                        observation_type="accepted_algorithm_estimator_abi_repair",
+                        observation_type="accepted_algorithm_estimator_abi_regeneration",
                         summary=(
                             "confirmatory simulation could not mechanically invoke "
                             "the accepted algorithm source; repair routed to "
@@ -18109,7 +18109,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 observations.append(
                     EnvironmentObservation(
                         observation_type=(
-                            "accepted_algorithm_estimator_runtime_repair"
+                            "accepted_algorithm_estimator_runtime_regeneration"
                         ),
                         summary=(
                             "a selected accepted estimator failed under the "
@@ -104855,16 +104855,6 @@ def _simulation_estimator_abi_repair_task(
         "implementation_gaps": gap_rows,
         "validation_errors": list(dict.fromkeys(binding_errors)),
         "target_component": "algorithm",
-        "target_behavior": (
-            "Regenerate each affected AlgorithmEngineer artifact with the generic "
-            "run_estimator(request) JSON ABI and make run_sandbox exercise that same "
-            "implementation. AgentRuntime must execute it and an independent reviewer "
-            "must accept the exact new source before confirmatory simulation retries."
-        ),
-        "success_metric": (
-            "the hash-bound accepted algorithm source is mechanically invoked at "
-            "least once by the generated confirmatory DGP harness"
-        ),
         "runtime_requested_evidence_contract": {
             "capability_eval_requires_generated_algorithm_code": True,
             "capability_eval_requires_generated_simulation_code": True,
@@ -104885,7 +104875,7 @@ def _simulation_estimator_abi_repair_task(
             else {}
         ),
         "source_subsystem": "SimulationEvaluator",
-        "handoff": "accepted_algorithm_estimator_abi_repair",
+        "handoff": "accepted_algorithm_estimator_abi_regeneration",
         "simulation_manifest_id": simulation_manifest_id,
         "simulation_evaluator_generated_code_repair_attempts_used": (
             max(0, int(repair_attempts_used or 0)) + 1
@@ -104907,8 +104897,8 @@ def _simulation_estimator_abi_repair_task(
         ),
         owner_subsystem="AlgorithmEngineer",
         objective=(
-            "Repair the exact algorithm artifact ABI required for mechanical "
-            "confirmatory DGP invocation."
+            "Regenerate the exact algorithm artifact after its mechanical "
+            "confirmatory DGP interface check failed."
         ),
         inputs={
             "question": _question_to_payload(question),
@@ -104981,17 +104971,6 @@ def _simulation_estimator_runtime_repair_task(
         "failed_estimator_ids": failure_ids,
         "runtime_errors": runtime_errors,
         "target_component": "algorithm",
-        "target_behavior": (
-            "Regenerate only the affected AlgorithmEngineer implementation so "
-            "run_estimator(request) executes on the supplied runtime DGP request "
-            "and returns a named, finite JSON-compatible response. AgentRuntime "
-            "must execute the fresh exact source and an independent reviewer must "
-            "accept it before confirmatory simulation retries."
-        ),
-        "success_metric": (
-            "each selected hash-bound estimator executes on the confirmatory DGP "
-            "request and returns a finite JSON-compatible response"
-        ),
         "runtime_requested_evidence_contract": {
             "capability_eval_requires_generated_algorithm_code": True,
             "capability_eval_requires_generated_simulation_code": True,
@@ -105015,7 +104994,7 @@ def _simulation_estimator_runtime_repair_task(
             else {}
         ),
         "source_subsystem": "SimulationEvaluator",
-        "handoff": "accepted_algorithm_estimator_runtime_repair",
+        "handoff": "accepted_algorithm_estimator_runtime_regeneration",
         "simulation_manifest_id": simulation_manifest_id,
         "failed_estimator_ids": failure_ids,
         "simulation_evaluator_generated_code_repair_attempts_used": (
@@ -105038,8 +105017,8 @@ def _simulation_estimator_runtime_repair_task(
         ),
         owner_subsystem="AlgorithmEngineer",
         objective=(
-            "Repair the accepted algorithm implementation that failed under "
-            "hash-bound confirmatory DGP execution."
+            "Regenerate the accepted algorithm implementation after its hash-bound "
+            "confirmatory DGP execution failed."
         ),
         inputs={
             "question": _question_to_payload(question),

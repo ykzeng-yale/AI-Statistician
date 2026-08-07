@@ -54,7 +54,8 @@ Every central change must therefore satisfy all of the following:
    distinct LLM reviewer must compare generated algorithms and simulations with
    the question, rigorous theory trace, frozen experiment contract, exact code,
    executed runtime arguments, and returned metrics. Review findings are typed
-   non-proof feedback routed to the originating coding agent for a fresh run.
+   non-proof observations routed to the originating coding agent for complete
+   same-agent regeneration and a fresh run.
    Formal targets require the analogous immutable semantic-claim contract and
    independent review; matching a declaration name is not enough to preserve a
    theorem.
@@ -64,7 +65,9 @@ Every central change must therefore satisfy all of the following:
 The domain-neutral generated-code semantic-review loop is now part of the one
 AgentRuntime. It is required by full capability evaluation and is scored only
 when both generated algorithm and generated simulation artifacts receive
-lineage-valid independent Sonnet acceptance from a separate agent invocation.
+lineage-valid independent acceptance from a separate agent invocation. Every
+provider-backed evaluation agent, including the reviewer, is pinned to exact
+`claude-haiku-4-5-20251001`; production may use Sonnet but never Opus.
 This closes the specific
 "runnable-but-vacuous experiment" design gap exposed by the frozen survival and
 sequential development panel; it does not close S14 or establish theorem proof.
@@ -72,8 +75,8 @@ sequential development panel; it does not close S14 or establish theorem proof.
 The analogous whole-formal-target review loop is now also part of the typed
 AgentRuntime path. A Formalizer-generated exact theorem is bound to its complete
 Lean source, exact statement, question, TheoryDeveloper packet, Formalizer
-proposal, semantic constraints, and immutable hashes. An independent Sonnet-tier
-agent invocation must accept its mathematical faithfulness, plausibility, quantifiers,
+proposal, semantic constraints, and immutable hashes. An independent reviewer
+invocation must accept its mathematical faithfulness, plausibility, quantifiers,
 assumptions, conclusion, and non-vacuity before ProofEngineer or OpenProver can
 search it. Rejection returns typed feedback to Formalizer or TheoryDeveloper;
 acceptance opens proof-search eligibility only and remains non-proof evidence.

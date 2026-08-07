@@ -1893,7 +1893,10 @@ def validate_architect_theory_execution_preflight_packet(
     if observed_prior_finding_ids != expected_prior_finding_ids:
         errors.append(
             "theory execution preflight must resolve every active prior "
-            "finding_id exactly once"
+            "finding_id exactly once; expected="
+            + json.dumps(expected_prior_finding_ids)
+            + "; observed="
+            + json.dumps(observed_prior_finding_ids)
         )
     allowed_prior_statuses = {
         METRIC_PROTOCOL_FINDING_UNRESOLVED,
@@ -2075,6 +2078,8 @@ def validate_architect_theory_execution_preflight_packet(
         errors.append(
             "theory execution preflight prior finding identity bindings mismatch"
         )
+    unresolved_without_continuation: list[str] = []
+    resolved_with_continuation: list[str] = []
     for prior_review in prior_finding_reviews:
         finding_id = str(prior_review.get("finding_id", "") or "").strip()
         status = str(prior_review.get("status", "") or "").strip().upper()
@@ -2083,18 +2088,24 @@ def validate_architect_theory_execution_preflight_packet(
             for row in findings
         )
         if status == METRIC_PROTOCOL_FINDING_UNRESOLVED and linked_count != 1:
-            errors.append(
-                "each UNRESOLVED prior finding requires exactly one linked "
-                "current finding"
-            )
+            unresolved_without_continuation.append(finding_id)
         if (
             status == METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY
             and linked_count
         ):
-            errors.append(
-                "a RESOLVED_BY_CURRENT_THEORY prior finding cannot remain in "
-                "current findings"
-            )
+            resolved_with_continuation.append(finding_id)
+    if unresolved_without_continuation:
+        errors.append(
+            "each UNRESOLVED prior finding requires exactly one linked current "
+            "finding; finding_ids="
+            + json.dumps(unresolved_without_continuation)
+        )
+    if resolved_with_continuation:
+        errors.append(
+            "a RESOLVED_BY_CURRENT_THEORY prior finding cannot remain in current "
+            "findings; finding_ids="
+            + json.dumps(resolved_with_continuation)
+        )
     if any(row.get("repair_scope") != "upstream_theory" for row in findings):
         errors.append("theory execution preflight findings must route upstream theory")
     expected_verdict = _derived_verdict(packet)
