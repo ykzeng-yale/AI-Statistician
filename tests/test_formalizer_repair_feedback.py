@@ -4,6 +4,7 @@ import inspect
 import json
 
 import ai_statistician.formalizer_repair_policy as repair_feedback_module
+from ai_statistician.fingerprint import stable_hash
 from ai_statistician.formalizer_llm import build_formalizer_prompt
 from ai_statistician.formalizer_repair_policy import (
     formalizer_validation_feedback_envelope,
@@ -40,9 +41,13 @@ def test_formalizer_repair_feedback_is_observation_not_rule_table() -> None:
 
 def test_formalizer_prompt_carries_exact_feedback_without_runtime_repair_recipe() -> None:
     error = "future validator says the emitted artifact does not satisfy omega"
+    rejected_candidate = {
+        "formal_targets": [{"id": "omega"}],
+        "full_candidate_tail_marker": "FULL_FORMALIZER_PACKET_TAIL",
+    }
     feedback = formalizer_validation_feedback_envelope(
         [error],
-        invalid_packet={"formal_targets": [{"id": "omega"}]},
+        invalid_packet=rejected_candidate,
     )
     prompt = build_formalizer_prompt(
         question=OpenResearchQuestion(
@@ -61,6 +66,8 @@ def test_formalizer_prompt_carries_exact_feedback_without_runtime_repair_recipe(
         environment_feedback={
             "failure_classification": "formalizer_packet_validation_failed",
             "formalizer_validation_feedback": feedback,
+            "rejected_candidate": rejected_candidate,
+            "rejected_candidate_fingerprint": stable_hash(rejected_candidate),
         },
     )
     payload = json.loads(prompt[prompt.index('{"question":') :])
@@ -70,11 +77,17 @@ def test_formalizer_prompt_carries_exact_feedback_without_runtime_repair_recipe(
 
     assert carried["feedback_id"] == feedback["feedback_id"]
     assert carried["validation_error_messages"] == [error]
+    assert payload["runtime_environment_feedback"]["rejected_candidate"] == (
+        rejected_candidate
+    )
+    assert payload["runtime_environment_feedback"][
+        "rejected_candidate_fingerprint"
+    ] == stable_hash(rejected_candidate)
     assert "validation_repair_policy" not in prompt
     assert "validation_repair_directives" not in prompt
     assert "pseudo_formalization_required_packet_seed" not in prompt
     assert "pseudo_formalization_required_copy_fragment" not in prompt
     assert any(
-        "AgentRuntime does not prescribe field-specific" in instruction
-        for instruction in payload["mode_specific_instructions"]
+        "does not prescribe field-specific corrections" in instruction
+        for instruction in payload["model_owned_feedback_instructions"]
     )

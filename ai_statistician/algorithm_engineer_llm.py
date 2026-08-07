@@ -430,6 +430,7 @@ def _compact_simulation_manifest_for_algorithm(simulation_manifest: Mapping[str,
 def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(feedback, Mapping):
         return {}
+    rejected_candidate = feedback.get("rejected_candidate", {})
     prototype_rows = feedback.get("prototypes", [])
     if not isinstance(prototype_rows, list):
         prototype_rows = []
@@ -513,6 +514,15 @@ def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict
             str(value)
             for value in feedback.get("validation_errors", []) or []
         ],
+        "rejected_candidate": (
+            deepcopy(dict(rejected_candidate))
+            if isinstance(rejected_candidate, Mapping)
+            else {}
+        ),
+        "rejected_candidate_fingerprint": _truncate_text(
+            feedback.get("rejected_candidate_fingerprint", ""),
+            limit=120,
+        ),
         "failed_estimator_ids": _compact_string_list(
             feedback.get("failed_estimator_ids", []),
             limit=8,

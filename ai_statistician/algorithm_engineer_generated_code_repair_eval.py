@@ -7,6 +7,7 @@ from typing import Any, Mapping
 
 from .agent_runtime import AgentTask, BlackboardState
 from .algorithm_engineer_llm import AlgorithmEngineerConfig, LLMAlgorithmEngineerAgent
+from .fingerprint import stable_hash
 from .model_backend import (
     LIVE_EVALUATION_CLAUDE_MODEL_TIER,
     OpenAIResponsesGeneratorBackend,
@@ -525,6 +526,13 @@ def _prior_execution_failure_manifest(
     estimator_id: str,
     question: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    parent_source = (
+        "def run_estimator(request: dict) -> dict:\n"
+        "    return {'estimate': missing_estimate}\n\n"
+        "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+        "    return run_estimator({'seed': seed, 'replicates': replicates})\n"
+    )
+    parent_source_hash = stable_hash(parent_source)
     payload: dict[str, Any] = {
         "schema_version": 1,
         "artifact_kind": "RuntimeAlgorithmSandboxManifest",
@@ -539,6 +547,10 @@ def _prior_execution_failure_manifest(
                 "execution_smoke_passed": False,
                 "returncode": 1,
                 "stderr_summary": "NameError: prior generated draft did not execute",
+                "parent_source": parent_source,
+                "parent_source_hash": parent_source_hash,
+                "parent_source_complete": True,
+                "script_hash": parent_source_hash,
                 "metrics": {},
             }
         ],
@@ -596,10 +608,6 @@ def _prior_execution_failure_feedback(
         "n_generated_code_execution_failed": 1,
         "n_unsafe_generated_code_rejected": 0,
         "prototypes": prototypes,
-        "required_repair": (
-            "Regenerate the complete source candidate from the attached exact "
-            "execution diagnostics and unchanged execution contract."
-        ),
         "boundary": (
             "Injected feedback is a component eval signal. Passing the repair "
             "is implementation evidence only, not theorem proof."

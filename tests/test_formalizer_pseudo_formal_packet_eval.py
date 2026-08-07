@@ -634,7 +634,8 @@ def test_formalizer_prompt_string_false_does_not_enter_metadata_authoring_mode()
     )
     assert "Source-to-bridge metadata authoring is active" not in prompt
     assert "metadata authoring takes priority" not in prompt
-    assert "For source_to_bridge_premise_derivation_required" in prompt
+    assert "source_to_bridge_premise_derivation_required" in prompt
+    assert "Capability-eval requests a complete Lean candidate" in prompt
 
 
 def test_formalizer_pseudo_formal_packet_eval_static_fixture_routes_rows(

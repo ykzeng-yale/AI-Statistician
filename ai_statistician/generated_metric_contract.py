@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import math
 import re
 from typing import Any, Mapping, Sequence
@@ -68,13 +69,17 @@ GENERATED_METRIC_GATE_FIELD_AUTHORITY_FIELDS: tuple[str, ...] = (
 GENERATED_METRIC_THEORY_GATING_AUTHORITY_FIELDS: tuple[str, ...] = (
     "theorem_cards",
     "lemma_cards",
-    "theory_derivation_packet",
+)
+GENERATED_METRIC_THEORY_DERIVATION_GATING_AUTHORITY_FIELDS: tuple[str, ...] = (
+    "derivation_summary",
+    "derivation_steps",
+    "equation_chain",
+    "assumption_ledger",
+    "sanity_checks",
 )
 GENERATED_METRIC_THEORY_DIAGNOSTIC_AUTHORITY_FIELDS: tuple[str, ...] = (
     "problem_card",
     "estimator_specs",
-    "proof_plan",
-    "formalization_requests",
 )
 GENERATED_METRIC_EVALUATION_DESIGN_FIELDS: tuple[str, ...] = (
     "dgps",
@@ -209,16 +214,6 @@ def generated_metric_evaluation_semantics_contract() -> dict[str, Any]:
             "only an intrinsically boolean predicate may return bool or 0/1 values; "
             "bind those values with operator == and threshold 1"
         ),
-        "authoring_example": {
-            "acceptance_goal": (
-                "at least 76 of 80 raw deviations are at most 0.10"
-            ),
-            "returned_metric": "a list of 80 raw deviation values",
-            "operator": "<=",
-            "threshold": 0.10,
-            "aggregation": "at_least_count",
-            "minimum_pass_count": 76,
-        },
         "boundary": GENERATED_METRIC_CONTRACT_BOUNDARY,
     }
 
@@ -342,6 +337,21 @@ def generated_metric_acceptance_authority_catalog(
         for field in GENERATED_METRIC_THEORY_GATING_AUTHORITY_FIELDS
         if field in theory_semantic_material
     }
+    theory_derivation_packet = theory_semantic_material.get(
+        "theory_derivation_packet", {}
+    )
+    if isinstance(theory_derivation_packet, Mapping):
+        derivation_authority = {
+            field: theory_derivation_packet[field]
+            for field in (
+                GENERATED_METRIC_THEORY_DERIVATION_GATING_AUTHORITY_FIELDS
+            )
+            if field in theory_derivation_packet
+        }
+        if derivation_authority:
+            theory_gating_authority_material["theory_derivation_packet"] = (
+                derivation_authority
+            )
     theory_diagnostic_authority_material = {
         field: theory_semantic_material[field]
         for field in GENERATED_METRIC_THEORY_DIAGNOSTIC_AUTHORITY_FIELDS
@@ -381,6 +391,21 @@ def generated_metric_acceptance_authority_catalog(
         "simulation_targets": list(runtime_contract.get("simulation_targets", []) or [])
     }
     rows = [
+        *_generated_metric_authority_semantic_rows(
+            theory_gating_authority_material,
+            root="theory",
+            authority_kind="theory_derived",
+        ),
+        *_generated_metric_authority_semantic_rows(
+            theory_diagnostic_authority_material,
+            root="theory",
+            authority_kind="diagnostic_only",
+        ),
+        *_generated_metric_authority_semantic_rows(
+            evaluation_design_material,
+            root="theory",
+            authority_kind="evaluation_design",
+        ),
         *_generated_metric_authority_leaf_rows(
             theory_gating_authority_material,
             root="theory",
@@ -408,6 +433,76 @@ def generated_metric_acceptance_authority_catalog(
         ),
     ]
     return sorted(rows, key=lambda row: str(row["anchor_id"]))
+
+
+def generated_metric_acceptance_authority_prompt_catalog(
+    catalog: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Prefer complete semantic records over their duplicated scalar leaves."""
+
+    rows = [deepcopy(dict(row)) for row in catalog if isinstance(row, Mapping)]
+    semantic_prefixes = [
+        (
+            str(row.get("anchor_id", "") or "").rstrip("/") + "/",
+            str(row.get("authority_kind", "") or ""),
+        )
+        for row in rows
+        if row.get("granularity") == "semantic_node"
+        and str(row.get("anchor_id", "") or "").strip()
+    ]
+    projected = [
+        row
+        for row in rows
+        if row.get("granularity") == "semantic_node"
+        or not any(
+            str(row.get("anchor_id", "") or "").startswith(prefix)
+            and str(row.get("authority_kind", "") or "") == authority_kind
+            for prefix, authority_kind in semantic_prefixes
+        )
+    ]
+    return sorted(projected, key=lambda row: str(row.get("anchor_id", "")))
+
+
+def _generated_metric_authority_semantic_rows(
+    value: Any,
+    *,
+    root: str,
+    authority_kind: str,
+    path: tuple[str, ...] = (),
+) -> list[dict[str, Any]]:
+    """Expose each structured list record once instead of repeating every leaf."""
+
+    if isinstance(value, Mapping):
+        rows: list[dict[str, Any]] = []
+        for key in sorted(value, key=lambda item: str(item)):
+            rows.extend(
+                _generated_metric_authority_semantic_rows(
+                    value[key],
+                    root=root,
+                    authority_kind=authority_kind,
+                    path=(*path, str(key)),
+                )
+            )
+        return rows
+    if not isinstance(value, (list, tuple)):
+        return []
+    rows = []
+    for index, item in enumerate(value):
+        if not isinstance(item, (Mapping, list, tuple)) or not item:
+            continue
+        item_path = (*path, str(index))
+        pointer = "/".join(_json_pointer_escape(segment) for segment in item_path)
+        content = deepcopy(dict(item) if isinstance(item, Mapping) else list(item))
+        rows.append(
+            {
+                "anchor_id": f"{root}#/{pointer}",
+                "authority_kind": authority_kind,
+                "content": content,
+                "explicit_numeric_values": _explicit_numeric_values(content),
+                "granularity": "semantic_node",
+            }
+        )
+    return rows
 
 
 def _generated_metric_authority_leaf_rows(
@@ -553,6 +648,22 @@ def _explicit_numeric_values(value: Any) -> list[int | float]:
 
     if _finite_number(value):
         return [_normalized_finite_number(value)]
+    if isinstance(value, Mapping):
+        return _unique_numeric_values(
+            [
+                candidate
+                for child in value.values()
+                for candidate in _explicit_numeric_values(child)
+            ]
+        )
+    if isinstance(value, (list, tuple)):
+        return _unique_numeric_values(
+            [
+                candidate
+                for child in value
+                for candidate in _explicit_numeric_values(child)
+            ]
+        )
     if not isinstance(value, str):
         return []
     values: list[int | float] = []
@@ -569,6 +680,17 @@ def _explicit_numeric_values(value: Any) -> list[int | float]:
             if not any(_same_finite_number(normalized, prior) for prior in values):
                 values.append(normalized)
     return values
+
+
+def _unique_numeric_values(values: Sequence[Any]) -> list[int | float]:
+    unique: list[int | float] = []
+    for value in values:
+        if not _finite_number(value):
+            continue
+        normalized = _normalized_finite_number(value)
+        if not any(_same_finite_number(normalized, prior) for prior in unique):
+            unique.append(normalized)
+    return unique
 
 
 def _normalized_finite_number(value: Any) -> int | float:

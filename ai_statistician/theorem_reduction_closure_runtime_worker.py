@@ -562,12 +562,6 @@ class TheoremReductionClosureRuntimeWorker:
             "n_work_orders": len(work_order_rows),
             "n_kernel_verified": n_kernel_verified,
             "all_kernel_verified": all_kernel_verified,
-            "required_repair": (
-                "Generate or revise the exact theorem-reduction closure "
-                "candidate using these compiler diagnostics and retrieval "
-                "context. Preserve the theorem goal and assumptions; do not "
-                "emit runtime placeholders."
-            ),
             "proof_evidence_status": (
                 "THEOREM_REDUCTION_CLOSURE_EXECUTION_FEEDBACK_NOT_PROOF_EVIDENCE"
             ),

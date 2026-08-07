@@ -1,6 +1,73 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any, Mapping, Sequence
+
+
+PRESCRIPTIVE_REPAIR_FIELDS = frozenset(
+    {
+        "candidate_reroute_options",
+        "next_action",
+        "preferred_tool_order",
+        "proof_state_workflow",
+        "recommended_action",
+        "recommended_actions",
+        "recommended_capability_eval_command",
+        "recommended_command",
+        "recommended_commands",
+        "recommended_next_action",
+        "recommended_repair",
+        "recommended_repairs",
+        "recommended_repair_tasks",
+        "recommended_tools",
+        "repair_instructions",
+        "repair_policy",
+        "repair_strategy",
+        "required_action",
+        "required_architect_behavior",
+        "required_behavior",
+        "required_change",
+        "required_repair",
+        "required_resolution",
+        "required_revision",
+        "semantic_reviewer_required_change",
+        "source_repair_strategy",
+        "suggested_fix",
+        "target_behavior",
+        "target_drift_repair_contract",
+        "target_shape_contract",
+        "unknown_identifier_grounding_requests",
+        "validation_issue_repair_actions",
+    }
+)
+
+
+def model_observations_without_repair_recipes(
+    value: Any,
+    *,
+    preserve_exact_keys: Sequence[str] = ("rejected_candidate",),
+) -> Any:
+    """Remove prescriptive edits while preserving raw candidate observations."""
+
+    preserved = frozenset(str(key) for key in preserve_exact_keys)
+
+    def project(child: Any, *, parent_key: str = "") -> Any:
+        if parent_key in preserved:
+            return deepcopy(child)
+        if isinstance(child, Mapping):
+            return {
+                str(key): project(item, parent_key=str(key))
+                for key, item in child.items()
+                if str(key) not in PRESCRIPTIVE_REPAIR_FIELDS
+                and not str(key).endswith(("_repair_rule", "_recipe"))
+            }
+        if isinstance(child, list):
+            return [project(item) for item in child]
+        if isinstance(child, tuple):
+            return [project(item) for item in child]
+        return deepcopy(child)
+
+    return project(value)
 
 
 def compact_semantic_review_feedback(
@@ -30,15 +97,9 @@ def compact_semantic_review_feedback(
             "severity",
             "category",
             "summary",
-            "required_change",
             "repair_scope",
             "evidence_refs",
         ),
-        max_rows=max_rows,
-        max_text_chars=max_text_chars,
-    )
-    repair_instructions = _compact_text_rows(
-        feedback.get("repair_instructions", []),
         max_rows=max_rows,
         max_text_chars=max_text_chars,
     )
@@ -86,7 +147,6 @@ def compact_semantic_review_feedback(
         ),
         "dimension_reviews": dimension_reviews,
         "findings": findings,
-        "repair_instructions": repair_instructions,
         "reviewed_source_artifacts": _compact_reviewed_source_artifacts(
             feedback.get("reviewed_source_artifacts", []),
             max_rows=max_rows,

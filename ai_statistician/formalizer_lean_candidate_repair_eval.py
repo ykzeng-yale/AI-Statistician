@@ -126,20 +126,6 @@ def run_formalizer_lean_candidate_repair_eval(
         feedback=prior_feedback,
         proof_state_provider=proof_state_provider,
     )
-    prior_feedback["target_behavior"] = (
-        "For this component eval, repair the failed Lean candidate into exactly "
-        "one compact non-vacuous no-import Lean helper theorem such as "
-        "`theorem ai_statistician_formalizer_repair_candidate "
-        "(n : Nat) : n = n := by rfl`. Put that helper in formal_targets with "
-        "expected_status=NEEDS_KERNEL_CHECK. Do not import Mathlib, do not use "
-        "sorry/admit/axiom, and do not claim source theorem proof."
-    )
-    prior_feedback["required_repair"] = (
-        str(prior_feedback.get("required_repair", "") or "")
-        + " For this eval, a minimal no-import Nat reflexivity helper is sufficient "
-        "and must compile under local Lean."
-    )
-
     theory_packet_id = "theory:formalizer_lean_repair_eval"
     simulation_manifest_id = "simulation:formalizer_lean_repair_eval"
     algorithm_manifest_id = "algorithm:formalizer_lean_repair_eval"
@@ -169,7 +155,7 @@ def run_formalizer_lean_candidate_repair_eval(
         "problem_class": "formalizer_lean_candidate_repair_eval",
         "dgp": "Synthetic no-data component eval for a Lean helper candidate.",
         "estimand": "No statistical estimand; this eval targets Lean helper generation.",
-        "assumptions": ["Nat reflexivity helper has no statistical assumptions"],
+        "assumptions": ["Synthetic Lean canary has no statistical assumptions"],
         "asymptotic_regime": "not applicable",
         "diagnostics": ["local Lean compile result"],
         "stress_tests": [],
@@ -180,11 +166,13 @@ def run_formalizer_lean_candidate_repair_eval(
             "id": "ai_statistician_formalizer_repair_candidate",
             "title": "Minimal Formalizer Lean repair helper",
             "informal_statement": (
-                "Generate a compact no-import Lean helper theorem such as "
-                "`theorem ai_statistician_formalizer_repair_candidate "
-                "(n : Nat) : n = n := by rfl`."
+                "Formalize the unchanged declaration `theorem "
+                "ai_statistician_formalizer_repair_candidate (n : Nat) : n = n`."
             ),
-            "proof_strategy": "Use Nat reflexivity and local Lean compilation.",
+            "proof_strategy": (
+                "Use the rejected candidate and local Lean observations to author "
+                "a complete proof candidate."
+            ),
             "status": "PROVABLE_NOW",
             "required_primitives": [],
             "proof_obligations": [],
@@ -203,8 +191,8 @@ def run_formalizer_lean_candidate_repair_eval(
         task_id=f"formalize-lean-repair:{question.id}:component_eval",
         owner_subsystem="ProofEngineer",
         objective=(
-            "Repair a prior local-Lean Formalizer candidate failure using a "
-            "new generated Lean helper candidate."
+            "Regenerate the unchanged Lean target from the rejected candidate and "
+            "exact local Lean observations."
         ),
         inputs={
             "question": {
@@ -600,14 +588,14 @@ def _prior_local_lean_failure_manifest(
             "packet_id": "formalizer_proposal:injected_prior_local_lean_failure",
             "formal_targets": [
                 {
-                    "id": "bad_local_lean_candidate",
+                    "id": "ai_statistician_formalizer_repair_candidate",
                     "informal_source": (
                         "injected prior failure for Formalizer Lean repair eval"
                     ),
                     "lean_statement_sketch": (
-                        "theorem bad_local_lean_candidate : "
-                        "DefinitelyUnknownLeanIdentifier := by\n"
-                        "  trivial\n"
+                        "theorem ai_statistician_formalizer_repair_candidate "
+                        "(n : Nat) : n = n := by\n"
+                        "  exact definitelyUnknownLeanProof n\n"
                     ),
                     "expected_status": "NEEDS_KERNEL_CHECK",
                 }
@@ -630,8 +618,7 @@ def _formalizer_repair_theory_packet(packet_id: str) -> dict[str, Any]:
                 "title": "Formalizer Lean-candidate repair probe",
                 "claim": (
                     "A generated helper candidate should repair a local Lean "
-                    "unknown-identifier failure into a no-import Nat reflexivity "
-                    "candidate that compiles."
+                    "unknown-identifier failure while preserving the theorem target."
                 ),
                 "proof_obligations": ["local Lean compile for generated candidate"],
             }
@@ -641,7 +628,7 @@ def _formalizer_repair_theory_packet(packet_id: str) -> dict[str, Any]:
                 "id": "formalizer_lean_candidate_repair_probe",
                 "target": (
                     "theorem ai_statistician_formalizer_repair_candidate "
-                    "(n : Nat) : n = n := by rfl"
+                    "(n : Nat) : n = n"
                 ),
                 "reason": (
                     "Component eval for Formalizer/ProofEngineer generated "
@@ -652,8 +639,8 @@ def _formalizer_repair_theory_packet(packet_id: str) -> dict[str, Any]:
         ],
         "proof_plan": {
             "strategy": (
-                "Use the local Lean diagnostics in runtime_environment_feedback "
-                "and return one compact formal_targets Lean candidate."
+                "Use the rejected candidate and local Lean observations in "
+                "runtime_environment_feedback to author a complete candidate."
             )
         },
     }

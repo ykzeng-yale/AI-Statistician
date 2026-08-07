@@ -32,6 +32,7 @@ from .llm_json_repair import (
     generate_validated_json_packet,
 )
 from .research_schema import OpenResearchQuestion, ResearchReport
+from .semantic_review_feedback import model_observations_without_repair_recipes
 from .theory_revision_lineage import (
     THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
     build_theory_developer_revision_binding,
@@ -1135,10 +1136,12 @@ def _compact_prompt_value(value: Any, *, list_limit: int, text_limit: int) -> An
 
 
 def _compact_environment_feedback_for_prompt(feedback: Mapping[str, Any]) -> dict[str, Any]:
+    feedback = model_observations_without_repair_recipes(feedback)
     high_priority_agenda = list(feedback.get("high_priority_agenda", []) or [])
     formal_subclaims = list(feedback.get("formal_subclaim_feedback", []) or [])
     failed_simulations = list(feedback.get("failed_simulations", []) or [])
     implementation_gaps = list(feedback.get("implementation_gaps", []) or [])
+    rejected_candidate = feedback.get("rejected_candidate", {})
     compact = {
         "artifact_kind": feedback.get("artifact_kind", ""),
         "feedback_id": feedback.get("feedback_id", ""),
@@ -1151,6 +1154,14 @@ def _compact_environment_feedback_for_prompt(feedback: Mapping[str, Any]) -> dic
         ),
         "validation_errors": _compact_learning_memory_value(
             feedback.get("validation_errors", [])
+        ),
+        "rejected_candidate": (
+            deepcopy(dict(rejected_candidate))
+            if isinstance(rejected_candidate, Mapping)
+            else {}
+        ),
+        "rejected_candidate_fingerprint": feedback.get(
+            "rejected_candidate_fingerprint", ""
         ),
         "retry_mode": feedback.get("retry_mode", ""),
         "truncation_detected": feedback.get("truncation_detected", ""),
@@ -1188,8 +1199,6 @@ def _compact_environment_feedback_for_prompt(feedback: Mapping[str, Any]) -> dic
         "formal_subclaim_feedback": [_compact_feedback_row(row) for row in formal_subclaims[:8]],
         "failed_simulations": [_compact_feedback_row(row) for row in failed_simulations[:5]],
         "implementation_gaps": [_compact_feedback_row(row) for row in implementation_gaps[:5]],
-        "required_repair": _truncate_text(feedback.get("required_repair", ""), 720),
-        "required_revision": _truncate_text(feedback.get("required_revision", ""), 600),
         "acceptance_gate": _truncate_text(feedback.get("acceptance_gate", ""), 720),
         "proof_evidence_status": _truncate_text(
             feedback.get("proof_evidence_status", ""), 240
@@ -1210,18 +1219,6 @@ def _compact_environment_feedback_for_prompt(feedback: Mapping[str, Any]) -> dic
         compact["metric_protocol_dimension_reviews"] = [
             _compact_feedback_row(row)
             for row in metric_protocol_dimension_reviews[:8]
-        ]
-    metric_protocol_repair_instructions = feedback.get(
-        "repair_instructions", []
-    )
-    if (
-        isinstance(metric_protocol_repair_instructions, list)
-        and metric_protocol_repair_instructions
-    ):
-        compact["metric_protocol_repair_instructions"] = [
-            _truncate_text(value, 600)
-            for value in metric_protocol_repair_instructions[:8]
-            if str(value).strip()
         ]
     theory_alignment_feedback = feedback.get("theory_trace_downstream_alignment_feedback")
     if isinstance(theory_alignment_feedback, Mapping) and theory_alignment_feedback:
@@ -1268,6 +1265,7 @@ def _compact_environment_feedback_for_prompt(feedback: Mapping[str, Any]) -> dic
 
 
 def _compact_runtime_learning_memory_for_prompt(memory: Mapping[str, Any]) -> dict[str, Any]:
+    memory = model_observations_without_repair_recipes(memory)
     rows = list(memory.get("rows", []) or [])
     return {
         "schema_version": memory.get("schema_version", 1),
@@ -1304,8 +1302,6 @@ def _compact_learning_memory_row(row: Any) -> dict[str, Any]:
         "failure_classifications": _compact_learning_memory_value(
             row.get("failure_classifications", [])
         ),
-        "target_behavior": _truncate_text(row.get("target_behavior", ""), 360),
-        "required_repair": _truncate_text(row.get("required_repair", ""), 360),
         "acceptance_gate": _truncate_text(row.get("acceptance_gate", ""), 240),
         "proof_evidence_status": _truncate_text(
             row.get("proof_evidence_status", ""), 180
@@ -1468,8 +1464,6 @@ _EXACT_SEMANTIC_FEEDBACK_MAPPING_KEYS = (
     "target_theorem_name",
     "target_lean_declaration",
     "failure_classification",
-    "required_repair",
-    "required_revision",
     "acceptance_gate",
     "proof_body_gate_status",
     "proof_body_goal_reached",
@@ -1499,8 +1493,6 @@ _EXACT_SEMANTIC_FEEDBACK_ROW_KEYS = (
     "semantic_primitives",
     "semantic_primitive_requirements",
     "failure_classification",
-    "required_repair",
-    "required_revision",
     "runtime_queue_status",
     "verification_status",
     "proof_body_gate_status",

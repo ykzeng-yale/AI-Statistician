@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,6 +28,7 @@ from .model_backend import (
     resolve_generator_model,
 )
 from .research_architect import KERNEL_PROOF_BOUNDARY
+from .semantic_review_feedback import model_observations_without_repair_recipes
 from .source_theorem_exact_semantic_definition_lean_repair_executor import (
     AUTHOR_DEFINITION_PROOF_EVIDENCE_STATUS,
 )
@@ -977,6 +979,7 @@ def _prompt_payload(
         candidate_definition_request=candidate_definition_request,
         placeholder_policy=placeholder_policy,
     )
+    rejected_candidate = task.get("rejected_candidate", {})
     return {
         "task": "author_exact_semantic_definition_candidate",
         "external_export_mode": export_mode,
@@ -1018,6 +1021,14 @@ def _prompt_payload(
         "response_validation_feedback": response_validation_feedback,
         "retry_validation_errors": list(
             response_validation_feedback.get("validation_errors", []) or []
+        ),
+        "rejected_candidate": (
+            deepcopy(dict(rejected_candidate))
+            if isinstance(rejected_candidate, Mapping)
+            else {}
+        ),
+        "rejected_candidate_fingerprint": str(
+            task.get("rejected_candidate_fingerprint", "") or ""
         ),
         "definition_contract": dict(task.get("definition_contract", {}) or {}),
         "lean_authoring_environment_contract": (
@@ -1207,7 +1218,9 @@ def _source_anchor_context_from_candidate_definition_request(
 
 
 def _candidate_repair_feedback(task: Mapping[str, Any]) -> dict[str, Any]:
-    feedback = dict(task.get("candidate_repair_feedback", {}) or {})
+    feedback = model_observations_without_repair_recipes(
+        task.get("candidate_repair_feedback", {}) or {}
+    )
     prior_feedback_sources = _prior_local_lean_feedback_sources(task, feedback)
     diagnostics = list(task.get("local_lean_diagnostics", []) or [])[:12]
     diagnostic_source_excerpts = [
@@ -1289,8 +1302,13 @@ def _candidate_repair_feedback(task: Mapping[str, Any]) -> dict[str, Any]:
             "local_lean_diagnostics": diagnostics,
             "local_lean_diagnostic_source_excerpts": diagnostic_source_excerpts,
             "failure_classification": str(task.get("failure_classification", "") or ""),
-            "recommended_next_action": str(
-                task.get("recommended_next_action", "") or ""
+            "rejected_candidate": (
+                deepcopy(dict(task.get("rejected_candidate", {})))
+                if isinstance(task.get("rejected_candidate", {}), Mapping)
+                else {}
+            ),
+            "rejected_candidate_fingerprint": str(
+                task.get("rejected_candidate_fingerprint", "") or ""
             ),
         }
     )
@@ -1348,12 +1366,6 @@ def _candidate_repair_feedback(task: Mapping[str, Any]) -> dict[str, Any]:
         source_anchor_context_rows = int(raw_source_anchor_context_rows)
     except (TypeError, ValueError):
         source_anchor_context_rows = len(source_anchor_context)
-    recommended_repair_tasks = _dedup_strings(
-        [
-            *_string_list(feedback.get("recommended_repair_tasks", [])),
-            *_string_list(task.get("recommended_repair_tasks", [])),
-        ]
-    )
     proof_body_recheck_blockers = _dedup_strings(
         [
             *_string_list(feedback.get("proof_body_recheck_blockers", [])),
@@ -1405,8 +1417,6 @@ def _candidate_repair_feedback(task: Mapping[str, Any]) -> dict[str, Any]:
         feedback["source_verifier_gate_work_order_id"] = str(
             task.get("source_verifier_gate_work_order_id", "") or ""
         )
-    if recommended_repair_tasks:
-        feedback["recommended_repair_tasks"] = recommended_repair_tasks
     if proof_body_recheck_blockers:
         feedback["proof_body_recheck_blockers"] = proof_body_recheck_blockers
     source_proof_evidence_status = str(
@@ -1576,7 +1586,6 @@ def _response_validation_feedback_from_errors(
         "runtime_queue_status": str(runtime_queue_status or ""),
         "validation_errors": validation_errors[:8],
         "unverified_required_imports": unverified_imports[:8],
-        "recommended_next_action": str(recommended_next_action or ""),
         "proof_evidence_status": AUTHOR_DEFINITION_PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": (
             "Authoring response-validation feedback is prompt repair context only. "
@@ -3185,6 +3194,15 @@ def _failed_candidate_packet(
     repair_attempts = (
         int(error.attempts) if isinstance(error, PacketValidationError) else 0
     )
+    rejected_candidate = (
+        deepcopy(dict(error.last_invalid_packet))
+        if isinstance(error, PacketValidationError)
+        and isinstance(error.last_invalid_packet, Mapping)
+        else {}
+    )
+    rejected_candidate_fingerprint = (
+        stable_hash(rejected_candidate) if rejected_candidate else ""
+    )
     runtime_queue_status = (
         "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY"
         if failure_classification
@@ -3287,6 +3305,8 @@ def _failed_candidate_packet(
         "ok": False,
         "validation_errors": validation_errors,
         "retry_validation_errors": validation_errors,
+        "rejected_candidate": rejected_candidate,
+        "rejected_candidate_fingerprint": rejected_candidate_fingerprint,
         "response_validation_feedback": response_validation_feedback,
         "llm_json_repair_attempts": repair_attempts,
         "llm_json_repair_history": repair_history,
@@ -3364,11 +3384,14 @@ def _retry_authoring_task(
     retry_task["retry_validation_errors"] = list(
         failed_candidate_packet.get("validation_errors", []) or []
     )
+    retry_task["rejected_candidate"] = deepcopy(
+        dict(failed_candidate_packet.get("rejected_candidate", {}) or {})
+    )
+    retry_task["rejected_candidate_fingerprint"] = str(
+        failed_candidate_packet.get("rejected_candidate_fingerprint", "") or ""
+    )
     retry_task["response_validation_feedback"] = dict(
         failed_candidate_packet.get("response_validation_feedback", {}) or {}
-    )
-    retry_task["retry_recommended_next_action"] = str(
-        failed_candidate_packet.get("recommended_next_action", "") or ""
     )
     retry_task["candidate_definition_request"] = _candidate_definition_request_from_prompt(
         prompt_packet,

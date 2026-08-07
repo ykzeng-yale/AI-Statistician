@@ -173,6 +173,63 @@ def test_validation_error_preserves_final_invalid_packet() -> None:
     assert caught.value.attempts == 2
 
 
+def test_full_regeneration_stops_when_validator_feedback_is_unchanged() -> None:
+    backend = _SequenceBackend(
+        [
+            {"status": "bad", "version": 1},
+            {"status": "bad", "version": 1},
+            {"status": "unused", "version": 3},
+        ]
+    )
+
+    with pytest.raises(PacketValidationError) as caught:
+        generate_validated_json_packet(
+            provider=backend,
+            request=_request(),
+            extract_payload=lambda text: extract_json_object(text, label="status"),
+            build_packet=lambda payload, _response, _raw: dict(payload),
+            validate_packet=lambda _candidate: ["status must be valid"],
+            validation_label="status packet",
+            max_repair_attempts=2,
+        )
+
+    assert len(backend.requests) == 2
+    assert caught.value.attempts == 2
+    assert caught.value.last_invalid_packet == {
+        "status": "bad",
+        "version": 1,
+    }
+    assert caught.value.history[-1]["no_progress_detected"] is True
+    assert caught.value.history[-1]["no_progress_reason"] == (
+        "validator_errors_unchanged_after_full_regeneration"
+    )
+
+
+def test_full_regeneration_continues_when_candidate_changes() -> None:
+    backend = _SequenceBackend(
+        [
+            {"status": "bad", "version": 1},
+            {"status": "still-bad", "version": 2},
+            {"status": "valid", "version": 3},
+        ]
+    )
+
+    packet = generate_validated_json_packet(
+        provider=backend,
+        request=_request(),
+        extract_payload=lambda text: extract_json_object(text, label="status"),
+        build_packet=lambda payload, _response, _raw: dict(payload),
+        validate_packet=lambda candidate: (
+            [] if candidate.get("status") == "valid" else ["status must be valid"]
+        ),
+        validation_label="status packet",
+        max_repair_attempts=2,
+    )
+
+    assert packet["status"] == "valid"
+    assert len(backend.requests) == 3
+
+
 def test_truncation_regeneration_increases_output_budget() -> None:
     class _TruncatedSequenceBackend(_SequenceBackend):
         def generate(self, request: GeneratorRequest) -> GeneratorResponse:

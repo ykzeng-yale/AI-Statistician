@@ -484,8 +484,9 @@ def test_faithfulness_review_feedback_reaches_real_formalizer_prompt(
         proof_bank_runtime_memory_summary=summary,
         environment_feedback=result.next_task.inputs["environment_feedback"],
     )
-    assert "Independent pseudo-formal block-verifier feedback is available" in prompt
-    assert "RuntimePseudoFormalBlockVerifierFeedbackContract" in prompt
+    assert "Treat prior runtime memory and environment feedback as observations" in prompt
+    assert "pseudo_formal_independent_block_verification_feedback_memory" in prompt
+    assert '"pseudo_formal_independent_block_verification_verdicts":["accepted"]' in prompt
     assert "pseudo_formal_faithfulness_review" in prompt
 
 

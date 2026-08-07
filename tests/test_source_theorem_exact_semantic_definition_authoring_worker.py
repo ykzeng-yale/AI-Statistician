@@ -5,7 +5,11 @@ import sys
 from pathlib import Path
 
 from ai_statistician.cli import main
-from ai_statistician.model_backend import GeneratorResponse, StaticJSONGeneratorBackend
+from ai_statistician.model_backend import (
+    DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+    GeneratorResponse,
+    StaticJSONGeneratorBackend,
+)
 from ai_statistician.source_theorem_exact_semantic_definition_authoring_worker import (
     AuthoringCandidateMaterializerConfig,
     AuthoringWorkerConfig,
@@ -368,9 +372,9 @@ def test_authoring_worker_dry_run_writes_prompt_packets_without_proof_evidence(
             "Mathlib.Data.Int.Order does not exist"
         ),
     ]
-    assert prompt_payload["candidate_repair_feedback"]["recommended_next_action"] == (
-        "repair the definition-only candidate Lean errors"
-    )
+    assert "recommended_next_action" not in prompt_payload[
+        "candidate_repair_feedback"
+    ]
     environment_contract = prompt_payload["lean_authoring_environment_contract"]
     assert environment_contract["candidate_scope"] == "definition_or_abbrev_only"
     assert environment_contract["required_anchor_names"] == [
@@ -1442,8 +1446,8 @@ def test_authoring_worker_marks_provider_connection_failure_retryable(
         provider=_ConnectionFailingProvider(),
         config=AuthoringWorkerConfig(
             provider_name="anthropic",
-            model="claude-sonnet-4-6",
-            model_tier="sonnet",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
             dry_run=False,
             allow_external_export=True,
             max_repair_attempts=0,
@@ -1693,7 +1697,8 @@ def test_authoring_worker_external_export_approval_manifest_allows_exact_task(
         provider=provider,
         config=AuthoringWorkerConfig(
             provider_name="anthropic",
-            model="claude-sonnet-4-6",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
             dry_run=False,
             allow_external_export=False,
             external_export_mode="redacted",
@@ -2005,10 +2010,16 @@ def test_authoring_worker_retry_prompt_carries_response_validation_feedback(
 
     assert candidate["ok"] is False
     assert "missing lean_definition_candidate" in candidate["validation_errors"]
+    assert candidate["rejected_candidate"]
+    assert candidate["rejected_candidate_fingerprint"]
     assert retry_task["retry_failure_classification"] == (
         "authoring_candidate_validation_failed"
     )
     assert retry_task["retry_validation_errors"] == candidate["validation_errors"]
+    assert retry_task["rejected_candidate"] == candidate["rejected_candidate"]
+    assert retry_task["rejected_candidate_fingerprint"] == candidate[
+        "rejected_candidate_fingerprint"
+    ]
 
     retry_manifest = run_source_theorem_exact_semantic_definition_authoring_worker(
         out_dir=tmp_path / "authoring_worker_retry_prompt",
@@ -2030,6 +2041,13 @@ def test_authoring_worker_retry_prompt_carries_response_validation_feedback(
     )
     assert feedback["unverified_required_imports"] == []
     assert "missing lean_definition_candidate" in prompt_packet["user_prompt"]
+    assert prompt_payload["rejected_candidate"] == candidate[
+        "rejected_candidate"
+    ]
+    assert prompt_payload["rejected_candidate_fingerprint"] == candidate[
+        "rejected_candidate_fingerprint"
+    ]
+    assert "recommended_next_action" not in feedback
     assert contract["response_validation_feedback"]["validation_errors"] == (
         candidate["validation_errors"]
     )

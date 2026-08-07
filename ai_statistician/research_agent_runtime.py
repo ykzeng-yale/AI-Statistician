@@ -6790,11 +6790,8 @@ def _runtime_handoff_artifact_missing_feedback_rows(
                     }
                 )[:16]
                 target_behavior = (
-                    str(feedback.get("required_repair", "") or "").strip()
-                    or (
-                        f"{repair_owner} must regenerate or rehydrate "
-                        f"{missing_artifact_id} before downstream work resumes."
-                    )
+                    f"Restore artifact {missing_artifact_id} through its owning "
+                    f"subsystem {repair_owner} before downstream consumption."
                 )
                 acceptance_gate = str(
                     feedback.get("acceptance_gate", "") or ""
@@ -11712,10 +11709,6 @@ def _architect_capability_gap_prerequisite_feedback(
         "recommended_capability_eval_command": str(
             row.get("recommended_capability_eval_command", "") or ""
         ),
-        "required_repair": (
-            "Produce the structured prerequisite artifact needed before "
-            f"{requested_subsystem} can execute the capability-gap obligation."
-        ),
         "acceptance_gate": (
             f"A {routed_prerequisite_subsystem} handoff artifact is available "
             f"with the concrete inputs needed by {requested_subsystem}."
@@ -12226,16 +12219,6 @@ def _architect_resume_theory_refresh_task_if_needed(
             resume_pending_task_payload.get("task_id", "") or ""
         ),
         "resume_pending_owner_subsystem": pending_owner,
-        "required_repair": (
-            "TheoryDeveloper must regenerate a structured TheoryDerivationPacket "
-            "with derivation_steps, equation_chain, assumption_ledger, "
-            "formalization_handoff, and stable anchors before the resumed "
-            "downstream subsystem continues."
-        ),
-        "required_revision": (
-            "Refresh the legacy or missing theory spine before reusing the "
-            "pending downstream handoff."
-        ),
         "acceptance_gate": (
             "The repaired TheoryDerivationPacket satisfies the derivation "
             "contract and can be consumed by SimulationEngineer, "
@@ -13211,17 +13194,13 @@ def _theory_developer_packet_validation_failure_result(
         "theory_developer_validation_failure:"
         + stable_hash([task.task_id, exc.validation_label, validation_errors, exc.history])[:20]
     )
-    target_behavior = (
-        "resume only estimator-interface authoring from the hash-bound validated "
-        "TheoryDeveloper core checkpoint; do not regenerate the completed core phase"
-        if recovery_checkpoint
-        else (
-            "rerun TheoryDeveloper with a compact but structured "
-            "TheoryDerivationPacket: preserve problem_card, theorem_cards, "
-            "derivation_steps, equation_chain, assumption_ledger, and "
-            "formalization_handoff, but use minimum validator-satisfying rows and "
-            "short mathematical strings"
-        )
+    rejected_candidate = (
+        deepcopy(dict(exc.last_invalid_packet))
+        if isinstance(exc.last_invalid_packet, Mapping)
+        else {}
+    )
+    rejected_candidate_fingerprint = (
+        stable_hash(rejected_candidate) if rejected_candidate else ""
     )
     learning_row = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -13243,8 +13222,12 @@ def _theory_developer_packet_validation_failure_result(
             "truncation_detected": truncation_detected,
             "max_runtime_validation_retries": max_runtime_validation_retries,
             "recovery_checkpoint_available": bool(recovery_checkpoint),
+            "rejected_candidate_fingerprint": rejected_candidate_fingerprint,
         },
-        "target_behavior": target_behavior,
+        "target_behavior": (
+            "Regenerate the complete TheoryDeveloper candidate from the unchanged "
+            "task, rejected candidate, and exact validator observations."
+        ),
         "acceptance_gate": (
             "TheoryDeveloper packet passes local validation with proof_evidence_status "
             "preserving the LLM-not-proof boundary; downstream workers may consume "
@@ -13267,6 +13250,8 @@ def _theory_developer_packet_validation_failure_result(
         "failure_classification": failure_classification,
         "validation_errors": validation_errors,
         "llm_json_repair_history": exc.history,
+        "rejected_candidate": rejected_candidate,
+        "rejected_candidate_fingerprint": rejected_candidate_fingerprint,
         "recovery_checkpoint_available": bool(recovery_checkpoint),
         **(
             {"recovery_checkpoint": recovery_checkpoint}
@@ -13274,7 +13259,6 @@ def _theory_developer_packet_validation_failure_result(
             else {}
         ),
         "learning_rows": [learning_row],
-        "recommended_next_action": learning_row["target_behavior"],
         "proof_evidence_status": "THEORY_DEVELOPER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE",
         "boundary": (
             "This artifact records a local validator failure from an LLM "
@@ -13333,26 +13317,6 @@ def _theory_developer_packet_validation_failure_result(
         source_feedback_summary = (
             _theory_developer_compact_runtime_feedback_summary(context)
         )
-        required_revision = (
-            "Keep the validated core checkpoint immutable and regenerate only the "
-            "failed estimator-interface packet from its exact semantic ids."
-            if recovery_checkpoint
-            else (
-                "Return one complete compact JSON object satisfying the serious "
-                "TheoryDeveloper output contract. Use exactly the minimum required "
-                "derivation, equation-chain, and independent sanity-check rows, one "
-                "primary theorem card, and a complete formalization_handoff. Preserve "
-                "the upstream mathematical obligations summarized in "
-                "source_runtime_feedback_summary."
-                if truncation_detected
-                else (
-                    "Return one complete compact JSON object satisfying the "
-                    "TheoryDeveloper output contract. Use minimum row counts, short "
-                    "symbolic equations, and preserve proof_evidence_status as "
-                    f"{THEORY_DERIVATION_NOT_PROOF_EVIDENCE}."
-                )
-            )
-        )
         retry_feedback = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
             "artifact_kind": "RuntimeTheoryDeveloperValidationFeedback",
@@ -13368,7 +13332,8 @@ def _theory_developer_packet_validation_failure_result(
             "max_runtime_validation_retries": max_runtime_validation_retries,
             "retry_mode": retry_mode,
             "truncation_detected": truncation_detected,
-            "required_revision": required_revision,
+            "rejected_candidate": rejected_candidate,
+            "rejected_candidate_fingerprint": rejected_candidate_fingerprint,
             **(
                 {"recovery_checkpoint": recovery_checkpoint}
                 if recovery_checkpoint
@@ -13392,8 +13357,8 @@ def _theory_developer_packet_validation_failure_result(
             ),
             owner_subsystem="TheoryDeveloper",
             objective=(
-                "Repair the locally invalid TheoryDeveloper packet with a compact "
-                "structured derivation trace."
+                "Regenerate the complete TheoryDeveloper candidate from the unchanged "
+                "task, rejected candidate, and exact validator observations."
             ),
             inputs={
                 "question": _question_to_payload(question),
@@ -13481,8 +13446,6 @@ def _theory_developer_compact_runtime_feedback_summary(
                 "feedback_source",
                 "failure_classification",
                 "failure_classifications",
-                "required_repair",
-                "required_revision",
                 "target_behavior",
                 "acceptance_gate",
                 "recommended_formalizer_target_mode",
@@ -13647,16 +13610,6 @@ def _runtime_theory_trace_repair_feedback(
         "source_task_id": source_task.task_id,
         "source_owner_subsystem": source_task.owner_subsystem,
         "source_theory_packet_id": theory_packet_id,
-        "required_repair": (
-            "TheoryDeveloper must regenerate a structured TheoryDerivationPacket "
-            "with derivation_steps, equation_chain, assumption_ledger, "
-            "formalization_handoff, and stable anchors before downstream execution."
-        ),
-        "required_revision": (
-            "Replace the weak or legacy theory derivation trace with a structured "
-            "packet that downstream SimulationEngineer, AlgorithmEngineer, and "
-            "FormalizerProofEngineer can consume and align to."
-        ),
         "acceptance_gate": (
             "The repaired TheoryDerivationPacket satisfies the derivation contract: "
             f"at least {THEORY_MIN_DERIVATION_STEPS} derivation steps, at least "
@@ -13708,11 +13661,6 @@ def _runtime_theory_trace_repair_result_if_needed(
             ],
         ]
         feedback["failure_classifications"] = classifications
-        feedback["required_repair"] = (
-            "TheoryDeveloper must emit and register a structured "
-            "TheoryDerivationPacket with a stable packet_id before downstream "
-            "execution."
-        )
     raw_architect_context = task.inputs.get("architect_context", {})
     repair_context = (
         dict(raw_architect_context) if isinstance(raw_architect_context, Mapping) else {}
@@ -13859,11 +13807,6 @@ def _runtime_handoff_artifact_missing_result_if_needed(
         "missing_artifact_role": artifact_role,
         "expected_artifact_kind": expected_artifact_kind,
         "repair_owner_agent": producer_subsystem,
-        "required_repair": (
-            f"{producer_subsystem} must regenerate or rehydrate the requested "
-            f"{artifact_role} artifact `{artifact_id}` before {source_subsystem} "
-            "can consume the handoff."
-        ),
         "acceptance_gate": acceptance_gate,
         "proof_evidence_status": (
             "HANDOFF_ARTIFACT_MISSING_FEEDBACK_NOT_PROOF_EVIDENCE"
@@ -20093,9 +20036,6 @@ def _simulation_engineer_packet_validation_failure_result(
         or context.get("empirical_evaluation_phase", "")
         or ""
     ).strip()
-    exploratory_diagnostic = bool(
-        empirical_evaluation_phase == EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
-    )
     validation_errors = [str(error) for error in exc.errors]
     validation_state = _coding_agent_packet_validation_state(
         task=task,
@@ -20113,44 +20053,23 @@ def _simulation_engineer_packet_validation_failure_result(
     failure_id = "simulation_engineer_validation_failure:" + stable_hash(
         [task.task_id, theory_packet_id, validation_errors, exc.history]
     )[:20]
+    rejected_candidate = (
+        deepcopy(dict(exc.last_invalid_packet))
+        if isinstance(exc.last_invalid_packet, Mapping)
+        else {}
+    )
     repair_feedback = {
         "feedback_type": "simulation_engineer_packet_validation_feedback",
         "failure_classification": failure_classification,
         "validation_label": exc.validation_label,
         "validation_errors": validation_errors,
         "last_attempt_summary": exc.history[-1] if exc.history else {},
+        "rejected_candidate": rejected_candidate,
+        "rejected_candidate_fingerprint": (
+            stable_hash(rejected_candidate) if rejected_candidate else ""
+        ),
         "empirical_evaluation_phase": empirical_evaluation_phase,
         **validation_state,
-        "target_behavior": (
-            "Return a locally valid exploratory SimulationEngineer packet with one "
-            "safe simulation_code_drafts row, raw finite diagnostics, and an empty "
-            "metric_contracts array. Preserve its non-confirmatory evidence boundary."
-            if exploratory_diagnostic
-            else "Return a locally valid SimulationEngineer packet. In capability-"
-            "evaluation mode, include a safe simulation_code_drafts row and at "
-            "least one artifact-bound metric_contracts row for every generated "
-            "simulation_id. Preserve the runtime-owned simulator and evidence "
-            "boundaries."
-        ),
-        "required_repair": (
-            "Use the exact validator errors above. Each generated draft must use "
-            "a declared Python or R language/profile, entrypoint=run_sandbox, and "
-            "follow the generated_simulation_code_contract supplied in the current "
-            "SimulationEngineer prompt. Keep metric_contracts "
-            "empty and return raw diagnostics; this retry cannot satisfy a "
-            "confirmatory gate."
-            if exploratory_diagnostic
-            else "Use the exact validator errors above. Each generated draft must use "
-            "a declared Python or R language/profile, entrypoint=run_sandbox, and "
-            "follow the generated_simulation_code_contract supplied in the current "
-            "SimulationEngineer prompt, including runtime-injected estimator "
-            "callbacks when an accepted algorithm handoff is present. Each metric_contracts "
-            "row must contain only a stable contract_id, the exact authoritative "
-            "requirement_id, the generated simulation_id as artifact_id, and a "
-            "nonempty result metric_path. AgentRuntime joins every immutable gate "
-            "field from the frozen Architect requirement. Do not replace a missing "
-            "binding with prose or rename a reported failed metric path."
-        ),
         "execution_evidence_status": (
             "SIMULATION_ENGINEER_PACKET_VALIDATION_FAILURE_NOT_EXECUTION_EVIDENCE"
         ),
@@ -20170,8 +20089,11 @@ def _simulation_engineer_packet_validation_failure_result(
         "failure_classification": failure_classification,
         "validation_errors": validation_errors,
         "llm_json_repair_history": exc.history,
+        "rejected_candidate": rejected_candidate,
+        "rejected_candidate_fingerprint": repair_feedback[
+            "rejected_candidate_fingerprint"
+        ],
         **validation_state,
-        "recommended_next_action": repair_feedback["required_repair"],
         "execution_evidence_status": repair_feedback[
             "execution_evidence_status"
         ],
@@ -20220,18 +20142,18 @@ def _simulation_engineer_packet_validation_failure_result(
         ),
         owner_subsystem="SimulationEvaluator",
         objective=(
-            "Repair the SimulationEngineer packet from exact local validator "
-            "feedback before any generated or registered simulation execution."
+            "Regenerate the complete SimulationEngineer packet from the unchanged "
+            "task, rejected candidate, and exact local validator observations."
         ),
         inputs=next_inputs,
         allowed_tools=task.allowed_tools,
         expected_artifacts=task.expected_artifacts,
         acceptance_gate=(
-            "repaired SimulationEngineer packet passes local validation and "
+            "regenerated SimulationEngineer packet passes local validation and "
             "AgentRuntime owns all subsequent execution"
         ),
         stop_condition=(
-            "repaired simulation packet or explicit simulation-design blocker "
+            "regenerated simulation packet or explicit simulation-design blocker "
             "recorded"
         ),
     )
@@ -20328,6 +20250,11 @@ def _algorithm_engineer_packet_validation_failure_result(
         "algorithm_engineer_validation_failure:"
         + stable_hash([task.task_id, exc.validation_label, validation_errors, exc.history])[:20]
     )
+    rejected_candidate = (
+        deepcopy(dict(exc.last_invalid_packet))
+        if isinstance(exc.last_invalid_packet, Mapping)
+        else {}
+    )
     learning_row = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "question_id": question.id,
@@ -20343,6 +20270,9 @@ def _algorithm_engineer_packet_validation_failure_result(
             "validation_errors": validation_errors,
             "attempts": exc.attempts,
             "last_attempt_summary": exc.history[-1] if exc.history else {},
+            "rejected_candidate_fingerprint": (
+                stable_hash(rejected_candidate) if rejected_candidate else ""
+            ),
             **validation_state,
         },
         "target_behavior": (
@@ -20371,9 +20301,12 @@ def _algorithm_engineer_packet_validation_failure_result(
         "failure_classification": failure_classification,
         "validation_errors": validation_errors,
         "llm_json_repair_history": exc.history,
+        "rejected_candidate": rejected_candidate,
+        "rejected_candidate_fingerprint": (
+            stable_hash(rejected_candidate) if rejected_candidate else ""
+        ),
         **validation_state,
         "learning_rows": [learning_row],
-        "recommended_next_action": learning_row["target_behavior"],
         "execution_evidence_status": "ALGORITHM_ENGINEER_PACKET_VALIDATION_FAILURE_NOT_EXECUTION_EVIDENCE",
         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
         "boundary": (
@@ -20388,12 +20321,11 @@ def _algorithm_engineer_packet_validation_failure_result(
         "validation_label": exc.validation_label,
         "validation_errors": validation_errors,
         "last_attempt_summary": exc.history[-1] if exc.history else {},
-        **validation_state,
-        "target_behavior": learning_row["target_behavior"],
-        "required_repair": (
-            "Return one complete replacement packet that satisfies the unchanged "
-            "request and the exact validator errors. The runtime will not edit it."
+        "rejected_candidate": rejected_candidate,
+        "rejected_candidate_fingerprint": (
+            stable_hash(rejected_candidate) if rejected_candidate else ""
         ),
+        **validation_state,
         "execution_evidence_status": "ALGORITHM_ENGINEER_PACKET_VALIDATION_FAILURE_NOT_EXECUTION_EVIDENCE",
         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
     }
@@ -20430,17 +20362,19 @@ def _algorithm_engineer_packet_validation_failure_result(
         task_id=f"algorithm-revise:{question.id}:{stable_hash([failure_id, repair_feedback])[:8]}",
         owner_subsystem="AlgorithmEngineer",
         objective=(
-            "Repair the AlgorithmEngineer packet using local validator feedback "
-            "before AgentRuntime executes any generated code or routes onward."
+            "Regenerate the complete AlgorithmEngineer packet from the unchanged "
+            "task, rejected candidate, and exact local validator observations."
         ),
         inputs=next_inputs,
         allowed_tools=task.allowed_tools,
         expected_artifacts=task.expected_artifacts,
         acceptance_gate=(
-            "repaired AlgorithmEngineer packet passes local validation and any "
+            "regenerated AlgorithmEngineer packet passes local validation and any "
             "generated sandbox draft is executed by AgentRuntime"
         ),
-        stop_condition="repaired algorithm packet or explicit implementation blocker recorded",
+        stop_condition=(
+            "regenerated algorithm packet or explicit implementation blocker recorded"
+        ),
     )
     next_task = (
         None
@@ -28868,6 +28802,9 @@ def _formalizer_packet_validation_failure_result(
         attempt_history=exc.history,
         retry_depth=packet_repair_retry_depth,
     )
+    rejected_candidate_fingerprint = (
+        stable_hash(last_invalid_packet) if last_invalid_packet else ""
+    )
 
     active_source_theorem_promotion_generation_request = (
         dict(
@@ -29180,6 +29117,8 @@ def _formalizer_packet_validation_failure_result(
 
     shared_feedback_fields = {
         "formalizer_validation_feedback": validation_feedback,
+        "rejected_candidate": last_invalid_packet,
+        "rejected_candidate_fingerprint": rejected_candidate_fingerprint,
         "source_theorem_candidate_materialization_contract": (
             source_theorem_candidate_materialization_contract
         ),
@@ -29289,7 +29228,6 @@ def _formalizer_packet_validation_failure_result(
         "last_attempt_summary": exc.history[-1] if exc.history else {},
         "target_behavior": target_behavior,
         "acceptance_gate": acceptance_gate,
-        "required_repair": target_behavior,
         "proof_evidence_status": (
             "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
         ),
@@ -32560,7 +32498,6 @@ def _formalizer_proof_state_routing_manifest(
         "proofengineer_repair_context": proofengineer_context,
         "routing_reason": routing_reason,
         "target_behavior": target_behavior,
-        "required_repair": target_behavior,
         "acceptance_gate": acceptance_gate,
         "proof_evidence_status": (
             "FORMALIZER_PROOF_STATE_ROUTING_NOT_PROOF_EVIDENCE"
@@ -33298,11 +33235,6 @@ def _formalizer_lean_candidate_repair_feedback(
         "candidate_diagnostics": diagnostics,
         "repair_owner_agent": "ProofEngineer",
         "proofengineer_repair_context": proofengineer_repair_context,
-        "required_repair": (
-            "Inspect the exact rejected artifact, immutable target identity, tool "
-            "observations, proof state, and retrieved declarations. Author the next "
-            "candidate or a typed blocker; AgentRuntime does not select the repair."
-        ),
         "proof_evidence_status": "FORMALIZER_LEAN_CANDIDATE_REPAIR_FEEDBACK_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
     }
@@ -35443,11 +35375,6 @@ def _critic_packet_validation_failure_bundle(
         "last_attempt_summary": exc.history[-1] if exc.history else {},
         "deterministic_next_action_agenda": compact_agenda,
         "deterministic_repair_feedback": deterministic_repair_feedback_payload,
-        "required_repair": (
-            "Regenerate the complete CriticEvaluator packet from the unchanged "
-            "request, rejected response, and raw validator errors. The runtime "
-            "does not select or author the correction."
-        ),
         "proof_evidence_status": "CRITIC_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
     }
@@ -40229,16 +40156,6 @@ class CriticEvaluatorRuntimeSubsystem:
                 failure_classification="critic_requested_theory_revision",
             )
         if should_route_to_formalizer:
-            formalizer_repair_required = (
-                "Repair the Formalizer/ProofEngineer proof target using the "
-                "explicit CriticEvaluator formal-gap agenda, exact semantic-definition "
-                "work orders, source-to-bridge premise-derivation feedback, local "
-                "Lean/proof-state feedback, and formal blocker resource requests. "
-                "Do not broaden this into a theory rewrite unless a blocker explicitly "
-                "invalidates the theorem statement or assumptions. Do not claim proof "
-                "evidence unless AXLE/local Lean kernel verification closes the "
-                "intended claim."
-            )
             formalizer_repair_feedback = dict(repair_feedback)
             formalizer_repair_feedback.update(
                 {
@@ -40252,8 +40169,6 @@ class CriticEvaluatorRuntimeSubsystem:
                         repair_feedback.get("failure_classification", "")
                         or ""
                     ),
-                    "required_revision": formalizer_repair_required,
-                    "required_repair": formalizer_repair_required,
                     "repair_owner_agent": "Formalizer/ProofEngineer/LeanProver",
                     "proof_repair_required": True,
                     "reuse_critic_agenda_as_formalizer_work_orders": True,
@@ -63514,11 +63429,6 @@ def _critic_repair_feedback(
         source_to_bridge_premise_feedback[
             "missing_semantic_anchor_references"
         ] = merged_anchor_references
-    required_repair = (
-        "Revise theorem statements, assumptions, estimator specification, or proof plan "
-        "to address formal gaps and non-kernel proof feedback. Do not claim proof evidence "
-        "unless AXLE/local Lean kernel verification closes the intended claim."
-    )
     feedback = {
         "feedback_source": "CriticEvaluator",
         "failure_classification": "critic_requested_theory_revision",
@@ -63545,8 +63455,6 @@ def _critic_repair_feedback(
         "proof_state_feedback_manifest_id": str(
             formalization_manifest.get("proof_state_feedback_manifest_id", "")
         ),
-        "required_revision": required_repair,
-        "required_repair": required_repair,
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
     }
     if formal_blocker_resource_requests:
@@ -64927,15 +64835,6 @@ def _runtime_theory_trace_downstream_alignment_feedback_from_learning_memory(
             else "downstream_theory_trace_alignment_missing"
         )
         feedback["target_consumer_subsystem"] = row_consumer or wanted_consumer
-        feedback["required_repair"] = (
-            str(row.get("target_behavior", "") or "").strip()
-            or str(input_summary.get("target_behavior", "") or "").strip()
-            or (
-                "Emit theory_trace_alignment references to exact derivation, "
-                "equation, assumption, and formalization anchors before the "
-                "downstream proposal is evaluated."
-            )
-        )
         feedback["theory_trace_downstream_alignment_contract"] = {
             "trigger": "RUNTIME_THEORY_TRACE_DOWNSTREAM_ALIGNMENT_MISSING",
             "target_consumer_subsystem": row_consumer or wanted_consumer,
@@ -65104,31 +65003,6 @@ def _runtime_coding_agent_capability_feedback_from_learning_memory(
                 ] = True
         if requested_contract:
             feedback["runtime_requested_evidence_contract"] = requested_contract
-        target_behavior = str(
-            feedback.get("target_behavior", "")
-            or input_summary.get("target_behavior", "")
-            or ""
-        ).strip()
-        success_metric = str(
-            feedback.get("success_metric", "")
-            or input_summary.get("success_metric", "")
-            or ""
-        ).strip()
-        feedback["required_repair"] = (
-            "Integrated coding-agent capability feedback is active: "
-            + (
-                target_behavior
-                if target_behavior
-                else "produce live generated code and let AgentRuntime execute it"
-            )
-            + (
-                " Success requires "
-                + success_metric
-                + "."
-                if success_metric
-                else "."
-            )
-        )
         feedback.setdefault(
             "boundary",
             (
@@ -65194,22 +65068,10 @@ def _runtime_coding_agent_component_gate_feedback_from_learning_memory(
         feedback["runtime_requested_evidence_contract"] = {
             "capability_eval_requires_generated_algorithm_code": True
         }
-        feedback["required_repair"] = (
-            "Use the attached coding-agent component gate only as calibration: "
-            "produce one safe generated algorithm run_sandbox draft, consume any "
-            "local failure or metric feedback, and let AgentRuntime execute it in "
-            "this run. Do not claim the component gate is current-run execution."
-        )
     elif target == "simulation":
         feedback["runtime_requested_evidence_contract"] = {
             "capability_eval_requires_generated_simulation_code": True
         }
-        feedback["required_repair"] = (
-            "Use the attached coding-agent component gate only as calibration: "
-            "produce one safe generated simulation run_sandbox draft, consume any "
-            "local failure or metric feedback, and let AgentRuntime execute it in "
-            "this run. Do not claim the component gate is current-run simulation."
-        )
     feedback.setdefault(
         "boundary",
         (
@@ -66201,15 +66063,6 @@ def _generated_simulation_required_before_formalization_feedback(
                 "this theory packet."
             ),
         },
-        "required_repair": (
-            "Capability-eval contract still requires generated simulation code "
-            "before formalization. Route to SimulationEngineer, produce exactly "
-            "one safe simulation_code_drafts entry that follows the current "
-            "generated_simulation_code_contract and invokes the runtime-injected "
-            "exact accepted estimator callback. Let the integrated AgentRuntime "
-            "sandbox execute and metric-gate it. Registered simulator rows are "
-            "baseline diagnostics and do not satisfy this generated-code gate."
-        ),
         "proof_evidence_status": (
             "CODING_AGENT_CAPABILITY_FEEDBACK_NOT_PROOF_EVIDENCE"
         ),
@@ -79608,11 +79461,6 @@ def _formalizer_pseudo_formal_work_order_rows(
                 "formalizer_validation_feedback": validation_feedback,
                 "model_owned_repair_required": True,
                 "runtime_selected_mathematical_content": False,
-                "required_repair": (
-                    "Inspect the exact validator observations and rejected packet, "
-                    "then author the next packet or a typed blocker. AgentRuntime "
-                    "does not choose the mathematical decomposition or repair."
-                ),
                 "source_formalizer_proposal_id": proposal_id,
                 "source_pseudo_formal_packet_index": packet_index,
                 "proof_evidence_status": PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE,
@@ -83475,70 +83323,12 @@ def _formalizer_source_theorem_promotion_work_orders(
                             "reached Lean goal with the exact source hypotheses and reviewed task definitions",
                             "kernel-verified bridge/reduction closure premises that the adapter must connect to",
                             "semantic alignment constraints and reviewed exact definition requirements",
-                            *(
-                                [
-                                    "exact source proof-body gate is open for kernel-eligible repair; stay in adapter/proof-body repair and do not reroute to exact semantic-definition review"
-                                ]
-                                if source_theorem_exact_proof_body_gate_open_for_work_order
-                                else []
-                            ),
-                            *(
-                                [
-                                    "exact source theorem signature probe artifact for target identity/proof-state replay: "
-                                    + proof_body_signature_probe_artifact_path
-                                ]
-                                if proof_body_signature_probe_artifact_path
-                                else []
-                            ),
-                            *(
-                                [
-                                    "derive these bridge premise names from exact source hypotheses; do not take them as new adapter assumptions: "
-                                    + ", ".join(
-                                        source_proof_body_adapter_pending_bridge_premise_names
-                                    )
-                                ]
-                                if source_proof_body_adapter_pending_bridge_premise_names
-                                else []
-                            ),
-                            *(
-                                [
-                                    "kernel-verified source-to-bridge premise derivations available as adapter/source-theorem retry context: "
-                                    + ", ".join(
-                                        kernel_verified_source_to_bridge_premise_derivation_ids
-                                    )
-                                ]
-                                if kernel_verified_source_to_bridge_premise_derivation_ids
-                                else []
-                            ),
                         ]
                         if proof_body_adapter_mode
                         else [
-                            "exact source theorem Lean candidate that reaches the proof body",
-                            "failed proof-body attempt summaries and Lean diagnostics",
-                            *(
-                                [
-                                    "replace the entire exact declaration proof body while preserving target_theorem_statement; treat the reported residual goal as diagnostic only"
-                                ]
-                                if proof_body_repair_scope
-                                == "replace_entire_exact_declaration_proof_body"
-                                else []
-                            ),
-                            *(
-                                [
-                                    "exact source theorem signature probe artifact for target identity/proof-state replay: "
-                                    + proof_body_signature_probe_artifact_path
-                                ]
-                                if proof_body_signature_probe_artifact_path
-                                else []
-                            ),
-                            *(
-                                [
-                                    "kernel-verified source-to-bridge adapter ids/artifacts available as proof-body routing context",
-                                ]
-                                if source_proof_body_adapter_kernel_verified
-                                else []
-                            ),
-                            "helper lemmas or tactic plan for the exact theorem target",
+                            "exact source theorem candidate and immutable target identity",
+                            "raw proof-state, compiler, and prior-attempt observations",
+                            "retrieved declarations and kernel-checked support artifacts",
                         ]
                         if proof_body_repair_mode
                         else [
@@ -88560,7 +88350,6 @@ def _runtime_pseudo_formal_next_action_agenda_rows(
                 validation_errors,
                 validation_label="Pseudo-formal proof packet",
             )
-        required_repair = str(work_order.get("required_repair", "") or "")
         owner_subsystem = _pseudo_formal_next_action_owner(
             target_lane,
             row_kind=pseudo_formal_row_kind,
@@ -88735,7 +88524,6 @@ def _runtime_pseudo_formal_next_action_agenda_rows(
                 "runtime_selected_mathematical_content": bool(
                     work_order.get("runtime_selected_mathematical_content", False)
                 ),
-                "required_repair": required_repair,
                 "runtime_queue_status": str(
                     work_order.get("runtime_queue_status", "")
                     or _pseudo_formal_runtime_queue_status(work_order)
@@ -88797,7 +88585,6 @@ def _runtime_pseudo_formal_next_action_learning_rows(
             )
             else {}
         )
-        required_repair = str(agenda.get("required_repair", "") or "")
         rows.append(
             _runtime_learning_row_with_surface_targets(
                 {
@@ -88957,7 +88744,6 @@ def _runtime_pseudo_formal_next_action_learning_rows(
                     "runtime_selected_mathematical_content": bool(
                         agenda.get("runtime_selected_mathematical_content", False)
                     ),
-                    "required_repair": required_repair,
                     "input_summary": {
                         "trigger": str(agenda.get("trigger", "") or ""),
                         "pseudo_formal_method_contract_id": str(
@@ -89121,7 +88907,6 @@ def _runtime_pseudo_formal_next_action_learning_rows(
                                 "runtime_selected_mathematical_content", False
                             )
                         ),
-                        "required_repair": required_repair,
                         "runtime_queue_boundary": str(
                             agenda.get("runtime_queue_boundary", "") or ""
                         ),

@@ -2363,9 +2363,9 @@ def test_theory_developer_prompt_compacts_runtime_retrieval_context() -> None:
     assert "CriticEvaluator" in prompt
     assert "formal_gap:proof_bank_expansion" in prompt
     assert "missing exchangeability bridge" in prompt
-    assert "Revise theorem statements and assumptions" in prompt
+    assert "Revise theorem statements and assumptions" not in prompt
     assert "previous_frontier_case" in prompt
-    assert "route non-kernel proof rows" in prompt
+    assert "route non-kernel proof rows" not in prompt
     assert "source_to_bridge_premise_derivation_feedback" in prompt
     assert "source_to_bridge_premise_semantic_repair_feedback" in prompt
     assert "hGoodCovered" in prompt

@@ -943,13 +943,6 @@ def architect_preexecution_metric_protocol_rejection_result(
                 *upstream_findings,
                 *failed_response_identity_checks,
             ],
-            "required_revision": (
-                "Regenerate the complete TheoryDeveloper packet so its estimand, "
-                "procedure, estimator, DGP, assumptions, derivation, and "
-                "feasibility claims are internally consistent and sufficiently "
-                "specified for independent metric authoring. Use the exact reviewer "
-                "feedback; do not patch the old packet or invent observed results."
-            ),
             "acceptance_gate": (
                 "A fresh structured TheoryDeveloper packet addresses every routed "
                 "upstream finding; a fresh metric candidate then receives independent "

@@ -28,6 +28,7 @@ from .generated_metric_contract import (
     GENERATED_METRIC_REQUIREMENT_TARGET_SUBSYSTEMS,
     GENERATED_METRIC_VALUE_KINDS,
     generated_metric_acceptance_authority_catalog,
+    generated_metric_acceptance_authority_prompt_catalog,
     generated_metric_evaluation_semantics_contract,
     generated_metric_requirement_json_schema,
     generated_metric_requirement_prompt_schema,
@@ -55,6 +56,7 @@ from .metric_protocol_finding_ledger import (
     update_metric_protocol_finding_ledger,
 )
 from .research_schema import OpenResearchQuestion
+from .semantic_review_feedback import model_observations_without_repair_recipes
 
 
 ARCHITECT_METRIC_REQUIREMENT_AUTHORING_SCHEMA_VERSION = 4
@@ -828,20 +830,46 @@ def _compact_metric_authoring_prompt_payload(
         )
         if field in theory
     }
+    non_authority_review_context = {
+        field: deepcopy(semantic_material.get(field))
+        for field in (
+            "critic_findings",
+            "proof_evidence_boundary",
+        )
+        if semantic_material.get(field) not in (None, "", [], {})
+    }
+    derivation = semantic_material.get("theory_derivation_packet", {})
+    if isinstance(derivation, Mapping) and derivation.get("self_critique"):
+        non_authority_review_context["theory_self_critique"] = deepcopy(
+            derivation["self_critique"]
+        )
+    simulation_design = semantic_material.get("simulation_ademp_spec", {})
+    if isinstance(simulation_design, Mapping):
+        projected_design_context = {
+            field: deepcopy(simulation_design[field])
+            for field in (
+                "aim",
+                "performance_measures",
+                "expected_theoretical_behavior",
+            )
+            if simulation_design.get(field) not in (None, "", [], {})
+        }
+        if projected_design_context:
+            non_authority_review_context["simulation_design_context"] = (
+                projected_design_context
+            )
     payload["theory_developer_protocol_material"].update(
         {
             "semantic_transport": (
-                "authority-bearing leaves are preserved in the columnar catalog"
+                "authority-bearing semantic nodes are preserved in the catalog"
             ),
-            "non_authority_review_context": {
-                field: deepcopy(semantic_material.get(field))
-                for field in (
-                    "critic_findings",
-                    "proof_evidence_boundary",
-                )
-                if semantic_material.get(field) not in (None, "", [], {})
-            },
+            "non_authority_review_context": non_authority_review_context,
         }
+    )
+    payload["accepted_implementation_interface_handoff"] = (
+        _metric_authoring_interface_prompt_projection(
+            payload.get("accepted_implementation_interface_handoff", {})
+        )
     )
 
     requirement_schema = payload.get("requirement_schema", {})
@@ -896,6 +924,72 @@ def _compact_metric_authoring_prompt_payload(
         "projected_chars": projected_chars,
         "authority_catalog_rows": len(catalog_rows),
     }
+
+
+def _metric_authoring_interface_prompt_projection(value: Any) -> dict[str, Any]:
+    """Keep exact interface identity and callable semantics without rate metadata."""
+
+    if not isinstance(value, Mapping):
+        return {}
+    projected = {
+        field: deepcopy(value[field])
+        for field in (
+            "artifact_kind",
+            "question_id",
+            "theory_packet_id",
+            "handoff_id",
+            "exact_source_included",
+            "execution_results_included",
+            "runtime_selected_semantics",
+            "proof_evidence_status",
+        )
+        if field in value
+    }
+    interfaces: list[dict[str, Any]] = []
+    for raw_interface in value.get("implementation_interfaces", []) or []:
+        if not isinstance(raw_interface, Mapping):
+            continue
+        contract = raw_interface.get("estimator_interface_contract", {})
+        contract = contract if isinstance(contract, Mapping) else {}
+        interfaces.append(
+            {
+                field: deepcopy(raw_interface[field])
+                for field in (
+                    "estimator_id",
+                    "language",
+                    "exact_source_hash",
+                    "estimator_interface_contract_id",
+                )
+                if field in raw_interface
+            }
+            | {
+                "request_fields": [
+                    {
+                        field: deepcopy(row[field])
+                        for field in ("name", "meaning", "binding")
+                        if field in row
+                    }
+                    for row in contract.get("request_fields", []) or []
+                    if isinstance(row, Mapping)
+                ],
+                "response_fields": [
+                    {
+                        field: deepcopy(row[field])
+                        for field in (
+                            "name",
+                            "meaning",
+                            "normalization",
+                            "derivation_ref",
+                        )
+                        if field in row
+                    }
+                    for row in contract.get("response_fields", []) or []
+                    if isinstance(row, Mapping)
+                ],
+            }
+        )
+    projected["implementation_interfaces"] = interfaces
+    return projected
 
 
 def _confirmatory_metric_requirement_rows(
@@ -1361,9 +1455,14 @@ def author_reviewed_architect_metric_requirements(
         runtime_contract=runtime_contract,
         theory_protocol_material=theory_material,
     )
+    acceptance_authority_prompt_catalog = (
+        generated_metric_acceptance_authority_prompt_catalog(
+            acceptance_authority_catalog
+        )
+    )
     acceptance_authority_anchor_ids = [
         str(row["anchor_id"])
-        for row in acceptance_authority_catalog
+        for row in acceptance_authority_prompt_catalog
         if str(row.get("anchor_id", "") or "").strip()
     ]
     acceptance_authority_catalog_id = (
@@ -1552,7 +1651,7 @@ def author_reviewed_architect_metric_requirements(
             implementation_interface
         ),
         "acceptance_authority_catalog_id": acceptance_authority_catalog_id,
-        "acceptance_authority_catalog": acceptance_authority_catalog,
+        "acceptance_authority_catalog": acceptance_authority_prompt_catalog,
         "runtime_owned_replicates": runtime_replicates,
         "confirmatory_required_rows_only": confirmatory_required_rows_only,
         "runtime_owned_field_bindings": {
@@ -1613,197 +1712,46 @@ def author_reviewed_architect_metric_requirements(
         "required_target_rows": required_target_rows,
         "hard_requirements": [
             (
-                "Return at least one required empirical metric row for each "
-                "generated empirical-evaluation subsystem. Algorithm implementation "
-                "is accepted by execution plus independent semantic review; do not "
-                "assign finite-sample statistical-performance thresholds to the "
-                "AlgorithmEngineer artifact itself."
+                "Return the smallest nonredundant pre-execution acceptance portfolio "
+                "that covers the requested generated empirical-evaluation subsystem. "
+                "Each row must govern one independently comparable returned quantity."
             ),
             (
-                "Prefer the smallest nonredundant portfolio that covers the central "
-                "plausible estimator, simulation, or DGP failure modes in the composed "
-                "confirmatory experiment. Every row must distinguish a failure mode not "
-                "already covered; do not add structural, calibration, or convenience "
-                "checks merely because they are measurable."
-            ),
-            *(
-                [
-                    "This packet is an acceptance portfolio, not a telemetry catalog. "
-                    "Every returned row is runtime-bound required=true and must be "
-                    "able to change the final empirical decision. Omit diagnostics; "
-                    "SimulationEngineer may still report them as non-gating telemetry."
-                ]
-                if confirmatory_required_rows_only
-                else []
+                "Author the complete measurement semantics, operator, aggregation, "
+                "active gate_fields, numeric values, source anchors, and rationales. "
+                "AgentRuntime only expands those choices into the evaluator ABI."
             ),
             (
-                "When an independent review shows that a row is ambiguous, fragile, "
-                "or poorly calibrated and the remaining rows still cover its author "
-                "subsystem and failure mode, delete that row instead of adding more "
-                "gates or complicating the protocol."
+                "Copy every source anchor exactly from acceptance_authority_catalog. "
+                "For theory_derived or evaluation_mandated numeric fields, the cited "
+                "node must contain the exact value. For theory_parameter_instantiation, "
+                "cite both the symbolic theory node and the evaluation_design node "
+                "containing the exact instantiated value."
             ),
             (
-                "Each row must represent exactly one independently compared scalar "
-                "quantity, or one homogeneous collection whose members share this "
-                "row's one operator, bounds, tolerance, aggregation, and quorum."
+                "When a necessary finite-sample decision is not fixed upstream, the "
+                "Architect may preregister it as architect_preregistered_design and "
+                "must justify it from decision relevance, attainable behavior, the "
+                "fixed runtime budget, and Monte Carlo uncertainty."
             ),
             (
-                "When acceptance requires multiple quantities or different "
-                "operators, thresholds, bounds, aggregations, or quorums, split them "
-                "into separate requirement rows; never bundle independent gates in "
-                "prose inside one row."
-            ),
-            "Use only operator and aggregation enum values from requirement_schema.",
-            (
-                "For identity/mean/min/max, operator and threshold compare the one "
-                "aggregate. For all/any/at_least_count/at_least_fraction, operator "
-                "and threshold compare every raw returned value before the boolean "
-                "results are aggregated."
+                "Use theory_developer_protocol_material for the estimand, DGP, method, "
+                "assumptions, and guarantees. The accepted implementation handoff is "
+                "only an invocation/output ABI and supplies no statistical authority."
             ),
             (
-                "Keep the comparison boundary and quorum separate: threshold or "
-                "bounds describe when one measurement passes; minimum_pass_count or "
-                "minimum_pass_fraction describes how many comparisons must pass."
+                "Follow requirement_schema and metric_evaluation_semantics exactly. "
+                "Return raw numeric measurements when available; use a boolean metric "
+                "only for an intrinsically boolean predicate."
             ),
             (
-                "In gate_fields, state every active substantive threshold, lower/upper "
-                "bound, nonzero tolerance, or quorum value exactly once together "
-                "with its authority_kind, source_anchors, and rationale. Runtime "
-                "expands those selections into the flat evaluator ABI. A "
-                "theory_derived or evaluation_mandated entry must exactly "
-                "match explicit_numeric_values on its own cited node. A "
-                "theory_parameter_instantiation entry must use the exact cited "
-                "evaluation-design value. An architect_preregistered_design entry "
-                "owns only its named pre-execution field and must not be copied into "
-                "or misrepresented as theory."
+                "Do not emit runtime-owned fields, diagnostics that cannot affect the "
+                "acceptance decision, execution claims, or unsupported thresholds."
             ),
             (
-                "Numeric acceptance authority is field-level. Do not use one field's "
-                "source authority to launder another field. AgentRuntime computes the "
-                "flat numeric fields, gate_field_authorities, and row-level "
-                "acceptance_authority_kind from gate_fields without choosing or "
-                "changing model-authored semantics."
+                "The candidate is frozen before confirmatory execution and is empirical "
+                "control evidence only, never theorem or kernel-proof evidence."
             ),
-            (
-                "Every source_anchors entry must copy one exact anchor_id from "
-                "acceptance_authority_catalog. Free-form citations, packet IDs with "
-                "appended prose, and invented source labels are invalid."
-            ),
-            (
-                "Set a field authority_kind=theory_derived only when that entry's "
-                "cited theory nodes actually derive or bound the exact named numeric "
-                "field. A topical mention, monotonicity statement, asymptotic rate, "
-                "or KL relationship does not by itself authorize a finite-sample "
-                "performance cutoff."
-            ),
-            (
-                "Use field authority_kind=theory_parameter_instantiation only "
-                "when one cited theory_derived node gives the symbolic finite-sample "
-                "gate (for example error <= alpha) and a separate cited "
-                "evaluation_design node preregisters the exact parameter value. Every "
-                "numeric gate must occur in that design node. A design value alone, "
-                "or a performance wish in expected behavior, cannot authorize a gate."
-            ),
-            (
-                "Set field authority_kind=evaluation_mandated only when an exact "
-                "catalog node explicitly mandates the numeric gate. A request to "
-                "evaluate power or stopping time, or a runtime simulation-planning "
-                "target, does not specify a minimum power or maximum stopping time."
-            ),
-            (
-                "Prefer theory_derived, theory_parameter_instantiation, or "
-                "evaluation_mandated whenever their requirements are genuinely met. "
-                "When a required finite-sample field is an evaluation decision "
-                "not fixed upstream, use field "
-                "authority_kind=architect_preregistered_design. Cite the "
-                "exact current question or theory nodes that define the metric, DGP, "
-                "procedure, and estimand, then justify every chosen threshold, "
-                "nonzero tolerance, and quorum from decision relevance, Monte Carlo "
-                "uncertainty, the fixed runtime budget, and attainable behavior. The "
-                "cited nodes provide semantic context and need not contain those "
-                "candidate-owned numbers."
-            ),
-            (
-                "For every architect_preregistered_design gate applied to a "
-                "stochastic finite-replicate estimate, include an explicit "
-                "uncertainty-scale calculation at runtime_owned_replicates in "
-                "the relevant gate_fields rationale and compare the proposed pass region "
-                "or quorum with that scale. If no defensible pre-execution "
-                "calculation supports a decision-relevant gate, omit the row."
-            ),
-            (
-                "An architect_preregistered_design gate is frozen after independent "
-                "review accepts the implementation interface but before confirmatory "
-                "simulation. The metric author receives no source text or execution "
-                "result. The gate remains empirical-control evidence only and must "
-                "pass independent semantic review. Never describe it as a theorem "
-                "guarantee, derive it from observed results, or retune it against its "
-                "own confirmatory execution."
-            ),
-            (
-                "accepted_implementation_interface_handoff is an invocation and "
-                "output ABI only. Use it to bind confirmatory measurements to the "
-                "accepted implementation identity. It is not authority for a metric "
-                "threshold, tolerance, bound, quorum, estimand, DGP, or statistical "
-                "guarantee. Do not infer missing source or smoke-test values from it."
-            ),
-            (
-                "When a useful measurement has no authority-backed acceptance cutoff, "
-                "omit it from this acceptance portfolio. Never turn an unsupported "
-                "expectation into a theory-backed required gate. Use an "
-                "architect_preregistered_design gate only when a statistically "
-                "defensible pre-execution acceptance decision is actually needed."
-            ),
-            (
-                "Bind every procedure, estimand, data-generating regime, pivot, and "
-                "calibration assumption to theory_developer_protocol_material. Do "
-                "not invent an unspecified estimator, test, stopping strategy, or "
-                "reference distribution merely to make a gate executable."
-            ),
-            (
-                "Operationally bind every evaluation argument used by an estimand or "
-                "metric: state whether it is fixed before all replicates, derived "
-                "once from frozen DGP/design parameters, or recomputed from each "
-                "replicate. Reject ambiguous labels that permit more than one of "
-                "those executions."
-            ),
-            (
-                "Audit mathematical feasibility before freezing each row: the "
-                "comparison must be attainable for the named procedure, data-generating "
-                "regime, runtime budget, and estimand, and it must not contradict an "
-                "analytic bound or expectation stated by the same packet."
-            ),
-            (
-                "Translate the measurement_protocol into the evaluator's exact "
-                "operator-then-aggregation semantics and verify that its pass set is "
-                "equivalent to the prose, especially for upper versus lower limits "
-                "and at-most versus at-least counts."
-            ),
-            (
-                "Require raw measurements whenever they exist. For an intrinsically "
-                "boolean predicate, use metric_value_kind=boolean with operator == "
-                "and an empty gate_fields array; runtime binds threshold 1 and "
-                "tolerance 0 as the boolean representation, "
-                "and null bounds only for an intrinsically boolean predicate. The "
-                "1 is the runtime-owned representation of true, not a substantive "
-                "numeric cutoff; source anchors must still authorize the predicate "
-                "itself. Use metric_value_kind=numeric for every measurable "
-                "quantity."
-            ),
-            (
-                "Do not emit required_runtime_replicates. AgentRuntime injects its "
-                "runtime-owned execution budget into every row before hashing, "
-                "validation, and independent review. Describe the measurement "
-                "semantics without copying infrastructure-owned fields."
-            ),
-            (
-                "gate_fields must contain exactly the active fields in evaluator "
-                "order: threshold for a non-between numeric operator; lower then "
-                "upper for between; optional nonzero tolerance next; and the selected "
-                "quorum field last. Do not emit null placeholders or zero tolerance."
-            ),
-            "Define measurable returned quantities, not prose-only success claims or task-specific runtime code.",
-            "These rows are empirical controls and never theorem proof evidence.",
         ],
         "boundary": GENERATED_METRIC_REQUIREMENT_BOUNDARY,
     }
@@ -1953,14 +1901,6 @@ def author_reviewed_architect_metric_requirements(
                 for row in carried_review.get("findings", []) or []
                 if isinstance(row, Mapping)
             ],
-            "repair_instructions": [
-                str(value)
-                for value in carried_review.get("repair_instructions", []) or []
-                if str(value).strip()
-            ],
-            "recommended_repair_scope": str(
-                carried_review.get("recommended_repair_scope", "") or ""
-            ),
         }
     max_semantic_revisions = max(
         0, int(config.metric_semantic_reviewer_max_revisions or 0)
@@ -1981,105 +1921,79 @@ def author_reviewed_architect_metric_requirements(
         )
         candidate_prompt_payload = dict(prompt_payload)
         if prior_review_packet:
-            candidate_prompt_payload["independent_semantic_review_repair"] = {
-                "revision_index": revision_index,
-                "rejected_authoring_packet_id": str(
-                    prior_authoring_packet.get("packet_id", "") or ""
-                ),
-                "rejected_requirement_set_id": str(
-                    prior_authoring_packet.get(
-                        "empirical_metric_requirement_set_id", ""
-                    )
-                    or ""
-                ),
-                "rejected_empirical_metric_requirements": [
-                    dict(row)
-                    for row in prior_authoring_packet.get(
-                        "empirical_metric_requirements", []
-                    )
-                    if isinstance(row, Mapping)
-                ],
-                "semantic_review_packet_id": str(
-                    prior_review_packet.get("packet_id", "") or ""
-                ),
-                "dimension_reviews": list(
-                    prior_review_packet.get("dimension_reviews", []) or []
-                ),
-                "findings": list(prior_review_packet.get("findings", []) or []),
-                "repair_instructions": list(
-                    prior_review_packet.get("repair_instructions", []) or []
-                ),
-                "active_prior_finding_ledger": active_finding_ledger,
-                "required_prior_finding_ids": active_finding_ids,
-                "active_prior_finding_ledger_fingerprint": (
-                    active_finding_ledger_fingerprint
-                ),
-                "cross_theory_revision_context": (
+            candidate_prompt_payload["independent_semantic_review_feedback"] = (
+                model_observations_without_repair_recipes(
                     {
-                        "source_rejection_manifest_id": carry_forward.get(
-                            "source_rejection_manifest_id", ""
+                        "revision_index": revision_index,
+                        "rejected_authoring_packet_id": str(
+                            prior_authoring_packet.get("packet_id", "") or ""
                         ),
-                        "source_rejection_manifest_hash": carry_forward.get(
-                            "source_rejection_manifest_hash", ""
-                        ),
-                        "prior_source_theory_packet_id": carried_review.get(
-                            "source_theory_packet_id", ""
-                        ),
-                        "prior_source_theory_packet_hash": carried_review.get(
-                            "source_theory_packet_hash", ""
-                        ),
-                        "current_source_theory_packet_id": str(
-                            theory_material.get("source_theory_packet_id", "")
+                        "rejected_requirement_set_id": str(
+                            prior_authoring_packet.get(
+                                "empirical_metric_requirement_set_id", ""
+                            )
                             or ""
                         ),
-                        "current_source_theory_packet_hash": str(
-                            theory_material.get("source_theory_packet_hash", "")
-                            or ""
+                        "rejected_empirical_metric_requirements": [
+                            dict(row)
+                            for row in prior_authoring_packet.get(
+                                "empirical_metric_requirements", []
+                            )
+                            if isinstance(row, Mapping)
+                        ],
+                        "semantic_review_packet_id": str(
+                            prior_review_packet.get("packet_id", "") or ""
                         ),
-                        "boundary": str(
-                            carry_forward.get("boundary", "") or ""
+                        "dimension_reviews": list(
+                            prior_review_packet.get("dimension_reviews", []) or []
                         ),
-                    }
-                    if carry_forward
-                    else {}
-                ),
-                "revision_policy": (
-                    (
-                        "Return only requirement_id, source_anchors, and "
-                        "acceptance_authority_rationale"
-                        + (
-                            ", plus gate_field_authorities with unchanged field "
-                            "and authority_kind values"
-                            if frozen_rebinding_includes_field_authorities
-                            else ""
-                        )
-                        + " for every exact frozen row. "
-                        "Repair rejected authority bindings against the current "
-                        "theory without changing, adding, deleting, relaxing, or "
-                        "reinterpreting any gate. Resolve every active prior finding."
-                    )
-                    if frozen_rebinding
-                    else (
-                        "Return the complete contract required by the schema, but "
-                        "repair the rejected contract in place. Preserve stable "
-                        "requirement_id values and all rows and fields not implicated "
-                        "by a finding unless the current revised theory requires a "
-                        "change. Edit, add, or remove only what is needed to resolve "
-                        "every finding; an implicated row may be deleted when it is "
-                        "redundant and remaining rows preserve author-subsystem "
-                        "coverage and the central independent failure modes; do not "
-                        "replace the metric portfolio with unrelated gates, drop a "
-                        "required author subsystem, or claim that execution passed. "
-                        "The current theory material is authoritative over stale "
-                        "assumptions in the rejected contract. Resolve every "
-                        "active_prior_finding_ledger row in this one complete revision "
-                        "and then rerun a whole-contract numeric, estimand, DGP, "
-                        "evaluator-order, and cross-row consistency audit. Do not "
-                        "treat a finding as resolved merely because it is absent from "
-                        "the latest review prose."
-                    )
-                ),
-            }
+                        "findings": list(
+                            prior_review_packet.get("findings", []) or []
+                        ),
+                        "active_prior_finding_ledger": active_finding_ledger,
+                        "required_prior_finding_ids": active_finding_ids,
+                        "active_prior_finding_ledger_fingerprint": (
+                            active_finding_ledger_fingerprint
+                        ),
+                        "cross_theory_revision_context": (
+                            {
+                                "source_rejection_manifest_id": carry_forward.get(
+                                    "source_rejection_manifest_id", ""
+                                ),
+                                "source_rejection_manifest_hash": carry_forward.get(
+                                    "source_rejection_manifest_hash", ""
+                                ),
+                                "prior_source_theory_packet_id": carried_review.get(
+                                    "source_theory_packet_id", ""
+                                ),
+                                "prior_source_theory_packet_hash": carried_review.get(
+                                    "source_theory_packet_hash", ""
+                                ),
+                                "current_source_theory_packet_id": str(
+                                    theory_material.get(
+                                        "source_theory_packet_id", ""
+                                    )
+                                    or ""
+                                ),
+                                "current_source_theory_packet_hash": str(
+                                    theory_material.get(
+                                        "source_theory_packet_hash", ""
+                                    )
+                                    or ""
+                                ),
+                                "boundary": str(
+                                    carry_forward.get("boundary", "") or ""
+                                ),
+                            }
+                            if carry_forward
+                            else {}
+                        ),
+                    },
+                    preserve_exact_keys=(
+                        "rejected_empirical_metric_requirements",
+                    ),
+                )
+            )
         (
             model_prompt_payload,
             prompt_projection,

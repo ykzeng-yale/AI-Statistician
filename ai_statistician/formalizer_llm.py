@@ -60,7 +60,11 @@ from .pseudo_formalization import (
     validate_pseudo_formal_packet,
 )
 from .research_schema import OpenResearchQuestion
-from .semantic_review_feedback import compact_semantic_review_feedback
+from .semantic_review_feedback import (
+    PRESCRIPTIVE_REPAIR_FIELDS,
+    compact_semantic_review_feedback,
+    model_observations_without_repair_recipes,
+)
 from .source_to_bridge_metadata import (
     default_premise_candidate_declaration_name,
     ensure_premise_candidate_declaration_name,
@@ -95,37 +99,7 @@ FORMAL_TARGET_ROLES = frozenset(
     }
 )
 
-_RUNTIME_AUTHORED_PRESCRIPTIVE_FIELDS = frozenset(
-    {
-        "candidate_reroute_options",
-        "preferred_tool_order",
-        "proof_state_workflow",
-        "recommended_action",
-        "recommended_actions",
-        "recommended_capability_eval_command",
-        "recommended_command",
-        "recommended_commands",
-        "recommended_next_action",
-        "recommended_repair",
-        "recommended_repairs",
-        "recommended_repair_tasks",
-        "recommended_tools",
-        "repair_instructions",
-        "repair_policy",
-        "repair_strategy",
-        "required_action",
-        "required_behavior",
-        "required_repair",
-        "required_resolution",
-        "required_revision",
-        "source_repair_strategy",
-        "target_behavior",
-        "target_drift_repair_contract",
-        "target_shape_contract",
-        "unknown_identifier_grounding_requests",
-        "validation_issue_repair_actions",
-    }
-)
+_RUNTIME_AUTHORED_PRESCRIPTIVE_FIELDS = PRESCRIPTIVE_REPAIR_FIELDS
 
 
 def _is_runtime_authored_prescriptive_field(key: Any) -> bool:
@@ -137,15 +111,7 @@ def _is_runtime_authored_prescriptive_field(key: Any) -> bool:
 
 
 def _without_runtime_authored_prescriptions(value: Any) -> Any:
-    if isinstance(value, Mapping):
-        return {
-            str(key): _without_runtime_authored_prescriptions(child)
-            for key, child in value.items()
-            if not _is_runtime_authored_prescriptive_field(key)
-        }
-    if isinstance(value, list | tuple):
-        return [_without_runtime_authored_prescriptions(child) for child in value]
-    return deepcopy(value)
+    return model_observations_without_repair_recipes(value)
 
 
 def _is_compaction_path_key(key: Any) -> bool:
@@ -1375,42 +1341,15 @@ def build_formalizer_prompt(
         for key, value in payload.items()
         if value not in (None, "", [], {}, ())
     }
-    metadata_authoring_mode = bool(
-        _formalizer_bool_like(
-            proof_memory_summary.get("source_to_bridge_metadata_authoring_required")
-        )
-        or proof_memory_summary.get("recommended_formalizer_target_mode")
-        == "source_to_bridge_metadata_authoring_required"
-    )
-    if requires_lean_candidate and metadata_authoring_mode:
+    if requires_lean_candidate:
         lean_candidate_instruction = (
-            "Capability-eval mode is active, but source-to-bridge metadata "
-            "authoring takes priority: do not emit another helper-only Lean "
-            "formal_targets entry just to satisfy the Lean-candidate gate. Keep "
-            "the source theorem as expected_status=FORMAL_GAP with "
-            "formal_target_role=SOURCE_THEOREM_FORMAL_GAP, and either emit a "
-            "structured source_to_bridge_premise_derivation_candidate_requests "
-            "object with the exact source-binding metadata, including "
-            "premise_candidate_declaration_name, or record the missing metadata "
-            "fields as a source_to_bridge_metadata_blocker. "
-        )
-    elif requires_lean_candidate:
-        lean_candidate_instruction = (
-            "Capability-eval mode is active for Formalizer/ProofEngineer: include "
-            "one compact concrete Lean theorem sketch with "
-            "expected_status=NEEDS_KERNEL_CHECK and set candidate_lean_declaration "
-            "to the exact declaration emitted by that sketch. Prefer the exact "
-            "task-bound source "
-            "theorem only when its objects, assumptions, quantifiers, and conclusion "
-            "can be represented faithfully; mark that row "
-            "formal_target_role=SOURCE_THEOREM_CANDIDATE. Otherwise keep that source "
-            "theorem as FORMAL_GAP with "
-            "formal_target_role=SOURCE_THEOREM_FORMAL_GAP and emit a clearly "
-            "provenance-marked support row with "
-            "formal_target_role=HELPER_OR_SUPPORT or a "
-            "source_to_bridge candidate that advances a named dependency. Do not "
-            "satisfy the packet using only "
-            "proof_bank_obligation_requests, gap taxonomy, or queue work orders. "
+            "Capability-eval requests a complete Lean candidate for the unchanged "
+            "task-bound target when the supplied source, retrieval, and environment "
+            "observations make one supportable. Choose the formalization, definitions, "
+            "decomposition, imports, and tactics yourself. If essential context is "
+            "missing, return the most precise typed blocker supported by the output "
+            "schema instead of weakening the target or inventing evidence. Generated "
+            "Lean remains a proposal until the exact local Lean/kernel gate accepts it. "
         )
     else:
         lean_candidate_instruction = ""
@@ -4034,6 +3973,7 @@ def _complete_lean_candidate_revision_feedback(
 
     if not isinstance(feedback, Mapping):
         return {}
+    feedback = model_observations_without_repair_recipes(feedback)
     input_summary = (
         feedback.get("input_summary", {})
         if isinstance(feedback.get("input_summary", {}), Mapping)
@@ -4060,7 +4000,6 @@ def _complete_lean_candidate_revision_feedback(
         "overall_verdict",
         "dimension_reviews",
         "findings",
-        "repair_instructions",
         "blocking_reason",
         "proof_evidence_status",
         "evidence_boundary",
@@ -4318,6 +4257,12 @@ def _complete_formalizer_environment_observations(
         for error in observed("validation_errors", []) or []
         if str(error)
     ]
+    rejected_candidate = observed("rejected_candidate", {})
+    rejected_candidate = (
+        deepcopy(dict(rejected_candidate))
+        if isinstance(rejected_candidate, Mapping)
+        else {}
+    )
     raw_validation_feedback = observed("formalizer_validation_feedback", {})
     validation_feedback = (
         {
@@ -4358,11 +4303,14 @@ def _complete_formalizer_environment_observations(
         "source_theorem_promotion_execution_id",
         "source_theorem_promotion_generation_request_id",
         "source_theorem_promotion_generation_request_hash",
+        "source_theorem_promotion_generation_request",
     )
     control = {
         key: (
             _compact_formalization_gap_planner_action_work_order(observed(key))
             if key == "formalization_gap_planner_action_work_order"
+            else deepcopy(observed(key))
+            if key == "source_theorem_promotion_generation_request"
             else _compact_value(observed(key))
         )
         for key in control_fields
@@ -4570,6 +4518,10 @@ def _complete_formalizer_environment_observations(
         ),
         "validation_label": str(observed("validation_label", "") or ""),
         "validation_errors": validation_errors,
+        "rejected_candidate": rejected_candidate,
+        "rejected_candidate_fingerprint": str(
+            observed("rejected_candidate_fingerprint", "") or ""
+        ),
         "formalizer_validation_feedback": validation_feedback,
         "control_plane": control,
         "lineage": lineage,
@@ -5316,6 +5268,10 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "source_field",
                 "source_manifest_path",
                 "artifact_path",
+                "target_ids",
+                "target_theorem_goal_ids",
+                "target_theorem_name",
+                "source_theorem_target_provenance",
                 "local_lean_compiled",
                 "source_theorem_target_known",
                 "diagnostic_helper_not_source_theorem",

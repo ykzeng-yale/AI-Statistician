@@ -1561,7 +1561,8 @@ def test_theory_developer_validation_failure_routes_compact_retry() -> None:
     assert retry_feedback["retry_mode"] == (
         "compact_truncation_transport_recovery"
     )
-    assert "minimum required" in retry_feedback["required_revision"]
+    assert "required_revision" not in retry_feedback
+    assert "required_repair" not in retry_feedback
     assert retry_feedback["validation_lineage_id"].startswith(
         "theory_developer_validation_lineage:"
     )
@@ -1637,11 +1638,10 @@ def test_theory_interface_failure_routes_validated_core_checkpoint() -> None:
     retry_feedback = result.next_task.inputs["environment_feedback"]
     assert retry_feedback["retry_mode"] == "resume_estimator_interface_authoring"
     assert retry_feedback["recovery_checkpoint"] == checkpoint
-    assert "regenerate only the failed estimator-interface packet" in (
-        retry_feedback["required_revision"]
-    )
-    assert "do not regenerate the completed core phase" in (
-        next(iter(result.produced_artifacts.values()))["recommended_next_action"]
+    assert "required_revision" not in retry_feedback
+    assert "required_repair" not in retry_feedback
+    assert "recommended_next_action" not in next(
+        iter(result.produced_artifacts.values())
     )
     assert result.observations[0].payload[
         "recovery_checkpoint_available"
@@ -14607,7 +14607,8 @@ def test_critic_routes_unresolved_premise_derivation_to_formalizer_after_repair_
     assert feedback["repair_owner_agent"] == "Formalizer/ProofEngineer/LeanProver"
     assert feedback["proof_repair_required"] is True
     assert feedback["reuse_critic_agenda_as_formalizer_work_orders"] is True
-    assert "Do not broaden this into a theory rewrite" in feedback["required_repair"]
+    assert "required_repair" not in feedback
+    assert "required_revision" not in feedback
     blocker_requests = feedback["formal_blocker_resource_requests"]
     assert blocker_requests[0]["source"] == "llm_formalizer_gap_taxonomy"
     assert blocker_requests[0]["blocker_kind"] == "formal_primitives"
@@ -16429,7 +16430,8 @@ def test_runtime_learning_memory_pins_route_planner_contract_feedback(
         proof_bank_runtime_memory_summary=summary,
     )
 
-    assert "Route-planner contract repair is active" in prompt
+    assert "Treat prior runtime memory and environment feedback as observations" in prompt
+    assert "choose the next Lean candidate yourself" in prompt
     assert "route-feedback:assembly-a" in prompt
     assert "formal_attempt_queue[0] does not resolve to a seed route" in prompt
     assert (
@@ -19459,8 +19461,8 @@ def test_architect_coordinator_prompt_requires_long_horizon_research_memory() ->
 
     assert "problem_analysis_before_retrieval" in prompt
     assert "dynamic_stat_knowledge_bank" in prompt
-    assert "subsystem_execution_plan is exempt" in prompt
-    assert "complete amended remaining graph" in prompt
+    assert '"execution_plan_contract"' in prompt
+    assert "complete amended remaining worker graph" in prompt
     assert "FormalizationGapPlanner" in prompt
     assert "literature_fair_comparison_gate" in prompt
     assert "proposer_verifier_iteration" in prompt
@@ -19477,17 +19479,18 @@ def test_architect_coordinator_prompt_requires_long_horizon_research_memory() ->
     assert '"ProofEngineer"' in prompt
     assert "concrete_premise_target_lacks_nonvacuous_derivation_candidate" in prompt
     assert "{ω | rank ω ∈ BadRanks}ᶜ ⊆ covered" in prompt
-    assert "route upstream to TheoryDeveloper/Formalizer" in prompt
     assert "source_theorem_truth_table_feedback" in prompt
     assert "RUNTIME_EVIDENCE_TRUTH_TABLE" in prompt
-    assert "source_theorem_kernel_verified=false" in prompt
-    assert "Do not broaden retrieval" in prompt
+    assert '"source_theorem_kernel_verified":false' in prompt
     assert "theory_derivation_trace_feedback" in prompt
     assert "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE" in prompt
-    assert "structured TheoryDerivationPacket" in prompt
     assert "equation_chain" in prompt
     assert "assumption_ledger" in prompt
     assert "formalization_handoff" in prompt
+    assert "Treat feedback as evidence for your own reasoning" in prompt
+    assert "route upstream to TheoryDeveloper/Formalizer" not in prompt
+    assert "Do not broaden retrieval" not in prompt
+    assert "structured TheoryDerivationPacket" not in prompt
 
 
 def test_architect_coordinator_prompt_turns_capability_gap_routing_into_agenda() -> None:
@@ -19606,13 +19609,13 @@ def test_architect_coordinator_prompt_turns_capability_gap_routing_into_agenda()
     assert "not proof evidence" in agenda["boundary"]
     assert '"runtime_capability_gap_routing_agenda"' in prompt
     assert '"ArchitectCapabilityGapRoutingAgenda"' in prompt
-    assert "open capability obligation" in prompt
     assert "live_generator_agents_enabled" in prompt
     assert "live_lean_lsp_mcp_called" in prompt
-    assert "rerun with live Claude generator agents enabled" in prompt
-    assert "drive Lean LSP proof-state feedback" in prompt
+    assert "rerun with live Claude generator agents enabled" not in prompt
+    assert "drive Lean LSP proof-state feedback" not in prompt
     assert "success_metric" in prompt
-    assert "recommended_capability_eval_command" in prompt
+    assert "recommended_capability_eval_command" not in prompt
+    assert "target_behavior" not in prompt
     assert "scorecard_payload" in prompt
     assert "n_live_generator_agents_enabled" in prompt
     assert "n_runtime_pseudo_formal_block_routing_rows_missing_inherited_scope" in prompt
@@ -19620,9 +19623,10 @@ def test_architect_coordinator_prompt_turns_capability_gap_routing_into_agenda()
     assert "retention_selection" in prompt
     assert "priority_pinned" in prompt
     assert "latest" in prompt
-    assert "compressed priority-pinned/latest view" in prompt
-    assert "survived prompt-context compression" in prompt
-    assert "do not infer that unseen capability gaps are resolved" in prompt
+    assert "Treat feedback as evidence for your own reasoning" in prompt
+    assert "open capability obligation" not in prompt
+    assert "compressed priority-pinned/latest view" not in prompt
+    assert '"required_architect_behavior"' not in prompt
     assert "not proof evidence" in prompt
 
 
@@ -19690,9 +19694,7 @@ def test_architect_runtime_plan_carries_gap_agenda_without_evidence_promotion() 
     assert agenda["artifact_kind"] == "ArchitectCapabilityGapRoutingAgenda"
     assert agenda["counts"]["retention_policy"] == "priority_pinned_latest_rows"
     assert agenda["counts"]["input_context_truncated"] is True
-    assert "do not mark unseen gaps resolved" in (
-        agenda["required_architect_behavior"][2]
-    )
+    assert "required_architect_behavior" not in agenda
     assert agenda["rows"][0]["requirement_id"] == "live_generator_agents_enabled"
     assert agenda["rows"][0]["retention_selection"] == "priority_pinned"
     assert agenda["rows"][0]["success_metric"] == (
@@ -23262,6 +23264,46 @@ def test_capability_scorecard_requires_prioritized_gap_routing_input_retention()
     )
 
 
+def test_architect_prompt_keeps_raw_candidate_but_drops_repair_recipes() -> None:
+    question = load_open_research_questions(
+        Path("examples/research_questions.json")
+    )[1]
+    rejected_candidate = {
+        "packet_id": "algorithm:candidate",
+        "source": "def estimate(x):\n    return x\n",
+        "required_change": "candidate-owned field remains exact",
+    }
+    prompt = build_architect_coordinator_prompt(
+        question=question,
+        architect_context={
+            "environment_feedback": {
+                "failure_classification": "generated_code_semantic_mismatch",
+                "findings": [
+                    {
+                        "summary": "The returned estimate disagrees with the oracle.",
+                        "required_change": "Replace the estimator body.",
+                        "evidence_refs": ["result#/estimate"],
+                    }
+                ],
+                "repair_instructions": ["Edit line 2."],
+                "rejected_candidate": rejected_candidate,
+            }
+        },
+        runtime_config={"formal_verification_policy": "optional"},
+    )
+    payload = json.loads(prompt.split("\n\n", 1)[1])
+    model_feedback = payload["architect_context"]["environment_feedback"]
+
+    assert model_feedback["rejected_candidate"] == rejected_candidate
+    assert model_feedback["findings"] == [
+        {
+            "summary": "The returned estimate disagrees with the oracle.",
+            "evidence_refs": ["result#/estimate"],
+        }
+    ]
+    assert "repair_instructions" not in model_feedback
+
+
 def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     runtime_config = {
@@ -23385,22 +23427,15 @@ def test_architect_coordinator_capability_eval_contract_reaches_packet() -> None
     assert '"source_semantic_proofengineer_required":true' in prompt
     assert '"source_theorem_promotion_proofengineer_required":true' in prompt
     assert '"required_subsystems":["RetrievalMemory","TheoryDeveloper"' in prompt
-    assert (
-        '"allowed_exact_values":["SimulationEngineer"]'
-        in prompt
-    )
-    assert (
-        '"runtime_execution_owner_by_author_subsystem":'
-        '{"SimulationEngineer":"SimulationEvaluator"}' in prompt
-    )
+    assert '"allowed_exact_values":["SimulationEngineer"]' not in prompt
+    assert '"runtime_execution_owner_by_author_subsystem"' not in prompt
     assert '"target_subsystems":["AlgorithmEngineer|SimulationEngineer"]' not in prompt
     assert '"formal_target_authoring_contract"' in prompt
-    assert '"metric_evaluation_semantics"' in prompt
-    assert "separately describes the quorum" in prompt
-    assert "independently recompute every nontrivial numeric constant" in prompt
-    assert "check that the threshold is mathematically attainable" in prompt
-    assert "EVALUATION_PROTOCOL_REVISION_REQUIRED" in prompt
-    assert "Never edit a failed frozen threshold in place" in prompt
+    assert '"metric_evaluation_semantics"' not in prompt
+    assert "separately describes the quorum" not in prompt
+    assert "independently recompute every nontrivial numeric constant" not in prompt
+    assert "EVALUATION_PROTOCOL_REVISION_REQUIRED" not in prompt
+    assert "full regeneration" in prompt
     assert "source theorem or required subclaims kernel verified" not in prompt
     contract = packet["evidence_contract"]
     assert contract["evaluation_mode"] == "capability_eval"
@@ -23633,7 +23668,7 @@ def test_architect_validator_rejects_runtime_completion_policy_as_formal_target(
     )
 
 
-def test_architect_schema_requires_object_shaped_array_rows() -> None:
+def test_architect_schema_contains_only_model_owned_evidence_fields() -> None:
     literature_schema = ARCHITECT_COORDINATOR_JSON_SCHEMA["properties"][
         "literature_fair_comparison_plan"
     ]
@@ -23645,47 +23680,22 @@ def test_architect_schema_requires_object_shaped_array_rows() -> None:
         "likely_mismatches",
         "unsafe_transfer_risks",
     }
-    target_schema = ARCHITECT_COORDINATOR_JSON_SCHEMA["properties"][
+    evidence_schema = ARCHITECT_COORDINATOR_JSON_SCHEMA["properties"][
         "evidence_contract"
-    ]["properties"]["empirical_metric_requirements"]["items"]["properties"][
-        "target_subsystems"
     ]
-    assert target_schema["items"]["enum"] == [
-        "SimulationEngineer",
-    ]
-    metric_requirement_schema = ARCHITECT_COORDINATOR_JSON_SCHEMA["properties"][
-        "evidence_contract"
-    ]["properties"]["empirical_metric_requirements"]["items"]
-    assert metric_requirement_schema["properties"]["aggregation"]["enum"] == [
-        "identity",
-        "mean",
-        "min",
-        "max",
-        "all",
-        "any",
-        "at_least_count",
-        "at_least_fraction",
-    ]
-    assert metric_requirement_schema["properties"]["operator"]["enum"] == [
-        "<=",
-        "<",
-        ">=",
-        ">",
-        "==",
-        "between",
-    ]
-    formal_target_schema = ARCHITECT_COORDINATOR_JSON_SCHEMA["properties"][
-        "evidence_contract"
-    ]["properties"]["formal_targets"]
+    assert set(evidence_schema["properties"]) == {
+        "recommended_research_path",
+        "formal_targets",
+        "simulation_targets",
+    }
+    assert set(evidence_schema["required"]) == set(evidence_schema["properties"])
+    formal_target_schema = evidence_schema["properties"]["formal_targets"]
     assert formal_target_schema["minItems"] == 1
     assert "not a proof-completion" in formal_target_schema["items"][
         "description"
     ]
     assert ArchitectCoordinatorConfig().max_repair_attempts == 2
     assert ARCHITECT_COORDINATOR_JSON_SCHEMA["additionalProperties"] is False
-    assert set(
-        metric_requirement_schema["properties"]
-    ) == set(metric_requirement_schema["required"])
 
 
 def test_live_architect_defers_metric_authoring_until_theory_is_available() -> None:
@@ -25152,17 +25162,13 @@ def test_frozen_metric_protocol_rebinding_preserves_every_gate_field() -> None:
         {
             "field": "threshold",
             "authority_kind": "theory_derived",
-            "source_anchors": [
-                "theory#/theorem_cards/0/conclusion"
-            ],
+            "source_anchors": ["theory#/theorem_cards/0"],
             "rationale": "The cited theory owns the frozen threshold.",
         },
         {
             "field": "tolerance",
             "authority_kind": "architect_preregistered_design",
-            "source_anchors": [
-                "theory#/theorem_cards/0/conclusion"
-            ],
+            "source_anchors": ["theory#/theorem_cards/0"],
             "rationale": (
                 "The Architect froze the tolerance before execution."
             ),
@@ -26633,9 +26639,7 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
             "minimum_pass_count": None,
             "minimum_pass_fraction": None,
             "required": True,
-            "source_anchors": [
-                "theory#/theorem_cards/0/conclusion"
-            ],
+            "source_anchors": ["theory#/theorem_cards/0"],
             "acceptance_authority_kind": "theory_derived",
             "acceptance_authority_rationale": (
                 "The current theory is asserted to supply this candidate gate."
@@ -26656,9 +26660,7 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         {
             "field": "threshold",
             "authority_kind": "architect_preregistered_design",
-            "source_anchors": [
-                "theory#/theorem_cards/0/conclusion"
-            ],
+            "source_anchors": ["theory#/theorem_cards/0"],
             "rationale": (
                 "The Architect preregisters this empirical decision before "
                 "execution under the fixed runtime budget; it is not a "
@@ -26961,7 +26963,7 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert metric_request.schema["required"] == [
         "empirical_metric_requirements"
     ]
-    assert "provider_structured_output" not in architect_request.metadata
+    assert architect_request.metadata["provider_structured_output"] is True
     assert review_request.metadata["subsystem"] == (
         "ArchitectMetricSemanticReviewer"
     )
@@ -26976,10 +26978,8 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     authority_anchor_ids = {
         row["anchor_id"] for row in authority_catalog
     }
-    assert (
-        "theory#/theorem_cards/0/conclusion"
-        in authority_anchor_ids
-    )
+    assert "theory#/theorem_cards/0" in authority_anchor_ids
+    assert "theory#/theorem_cards/0/conclusion" not in authority_anchor_ids
     requirement_item_schema = metric_request.schema["properties"][
         "empirical_metric_requirements"
     ]["items"]
@@ -27017,6 +27017,7 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         "theory_derivation_contract"
     ]["n_equation_chain_steps"] == 2
     hard_requirements = " ".join(metric_prompt["hard_requirements"])
+    assert len(metric_prompt["hard_requirements"]) == 8
     assert "required_runtime_replicates" not in metric_prompt[
         "requirement_schema"
     ]
@@ -27032,37 +27033,19 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
         "model_authored": False,
         "binding_stage": "before_hash_validation_and_review",
     }
-    assert "smallest nonredundant portfolio" in hard_requirements
-    assert "delete that row instead of adding more gates" in hard_requirements
-    assert "exactly one independently compared scalar quantity" in hard_requirements
-    assert "split them into separate requirement rows" in hard_requirements
-    assert "Return exactly one required empirical metric row" not in hard_requirements
-    assert "threshold or bounds describe when one measurement passes" in (
-        hard_requirements
+    assert (
+        "smallest nonredundant pre-execution acceptance portfolio"
+        in hard_requirements
     )
-    assert "runtime binds threshold 1" in hard_requirements
-    assert "must exactly match explicit_numeric_values" in hard_requirements
+    assert "one independently comparable returned quantity" in hard_requirements
+    assert "AgentRuntime only expands those choices" in hard_requirements
+    assert "exact instantiated value" in hard_requirements
     assert "architect_preregistered_design" in hard_requirements
-    assert "must not be copied into or misrepresented as theory" in (
+    assert "Monte Carlo uncertainty" in hard_requirements
+    assert "implementation handoff is only an invocation/output ABI" in (
         hard_requirements
     )
-    assert "Numeric acceptance authority is field-level" in hard_requirements
-    assert "Do not use one field's source authority to launder another" in (
-        hard_requirements
-    )
-    assert "explicit uncertainty-scale calculation" in hard_requirements
-    assert "at runtime_owned_replicates" in hard_requirements
-    assert "omit it from this acceptance portfolio" in hard_requirements
-    assert "Free-form citations" in hard_requirements
-    assert "does not specify a minimum power" in hard_requirements
-    assert "Audit mathematical feasibility before freezing each row" in (
-        hard_requirements
-    )
-    assert "Operationally bind every evaluation argument" in hard_requirements
-    assert "recomputed from each replicate" in hard_requirements
-    assert "upper versus lower limits" in hard_requirements
-    assert "at-most versus at-least counts" in hard_requirements
-    assert "Do not emit required_runtime_replicates" in hard_requirements
+    assert "unsupported thresholds" in hard_requirements
     repair_payload = json.loads(
         regeneration_request.user_prompt.split("\n\n", 1)[1]
     )
@@ -27071,12 +27054,7 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert repair_payload["original_request"] == metric_request.user_prompt
     assert repair_payload["previous_candidate"]
     assert regeneration_request.schema == metric_request.schema
-    assert metric_prompt["metric_evaluation_semantics"]["authoring_example"][
-        "threshold"
-    ] == 0.10
-    assert metric_prompt["metric_evaluation_semantics"]["authoring_example"][
-        "minimum_pass_count"
-    ] == 76
+    assert "authoring_example" not in metric_prompt["metric_evaluation_semantics"]
     assert packet["evidence_contract"]["empirical_metric_requirements"] == (
         expected_metric_rows
     )
@@ -27913,8 +27891,10 @@ def test_confirmatory_simulation_task_requires_accepted_algorithm_handoff() -> N
         "confirmatory_simulation_requires_accepted_algorithm_handoff"
     ] is True
     feedback = task.inputs["environment_feedback"]
-    assert "runtime-injected" in feedback["required_repair"]
-    assert "generated_simulation_code_contract" in feedback["required_repair"]
+    assert "required_repair" not in feedback
+    assert feedback["runtime_requested_evidence_contract"] == {
+        "capability_eval_requires_generated_simulation_code": True
+    }
 
 
 def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> None:
@@ -27952,9 +27932,7 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
                 "minimum_pass_count": None,
                 "minimum_pass_fraction": None,
                 "required": True,
-                "source_anchors": [
-                    "theory#/theorem_cards/0/conclusion"
-                ],
+                "source_anchors": ["theory#/theorem_cards/0"],
                 "acceptance_authority_kind": "theory_derived",
                 "acceptance_authority_rationale": (
                     "The exact current theory equation supplies the test gate."
@@ -28256,38 +28234,37 @@ def test_live_architect_rewrites_rejected_metric_contract_before_freezing() -> N
         "theory_execution_preflight"
     )
     first_prompt = json.loads(backend.requests[1].user_prompt)
-    first_repair = first_prompt["independent_semantic_review_repair"]
-    assert first_repair["revision_index"] == 0
-    assert first_repair["rejected_empirical_metric_requirements"] == prior_rows
-    assert first_repair["findings"][0]["category"] == (
+    first_feedback = first_prompt["independent_semantic_review_feedback"]
+    assert first_feedback["revision_index"] == 0
+    assert first_feedback["rejected_empirical_metric_requirements"] == prior_rows
+    assert first_feedback["findings"][0]["category"] == (
         "prior_theory_calibration"
     )
-    assert len(first_repair["active_prior_finding_ledger"]) == 1
-    prior_finding_id = first_repair["active_prior_finding_ledger"][0][
+    assert "required_change" not in first_feedback["findings"][0]
+    assert len(first_feedback["active_prior_finding_ledger"]) == 1
+    prior_finding_id = first_feedback["active_prior_finding_ledger"][0][
         "finding_id"
     ]
-    assert first_repair["required_prior_finding_ids"] == [prior_finding_id]
-    assert first_repair["cross_theory_revision_context"][
+    assert first_feedback["required_prior_finding_ids"] == [prior_finding_id]
+    assert first_feedback["cross_theory_revision_context"][
         "current_source_theory_packet_id"
     ] == theory_material["source_theory_packet_id"]
-    assert "Preserve stable requirement_id" in first_repair[
-        "revision_policy"
-    ]
-    assert "do not replace the metric portfolio" in first_repair[
-        "revision_policy"
-    ]
-    repair_prompt = json.loads(backend.requests[3].user_prompt)
-    repair = repair_prompt["independent_semantic_review_repair"]
-    assert repair["rejected_empirical_metric_requirements"] == (
+    assert "repair_instructions" not in first_feedback
+    assert "revision_policy" not in first_feedback
+    revision_prompt = json.loads(backend.requests[3].user_prompt)
+    feedback = revision_prompt["independent_semantic_review_feedback"]
+    assert feedback["rejected_empirical_metric_requirements"] == (
         normalized_rejected_rows
     )
-    assert repair["findings"][0]["severity"] == "high"
-    assert len(repair["active_prior_finding_ledger"]) == 1
-    assert repair["active_prior_finding_ledger"][0]["finding"][
+    assert feedback["findings"][0]["severity"] == "high"
+    assert "required_change" not in feedback["findings"][0]
+    assert len(feedback["active_prior_finding_ledger"]) == 1
+    assert feedback["active_prior_finding_ledger"][0]["finding"][
         "category"
     ] == "finite_sample_calibration"
-    assert "execution" not in json.dumps(repair).lower() or (
-        "before execution" in json.dumps(repair).lower()
+    assert "repair_instructions" not in feedback
+    assert "execution" not in json.dumps(feedback).lower() or (
+        "before execution" in json.dumps(feedback).lower()
     )
     assert packet["evidence_contract"]["empirical_metric_requirements"] == (
         normalized_accepted_rows
@@ -29215,7 +29192,8 @@ def test_promotion_generation_prompt_and_invalid_response_preserve_retry_lineage
         environment_feedback=environment_feedback,
     )
 
-    assert "Typed source-theorem promotion generation is active" in prompt
+    assert "Treat prior runtime memory and environment feedback as observations" in prompt
+    assert request["request_id"] in prompt
     assert "coverage-source-target" in prompt
     assert "split_conformal_coverage" in prompt
     assert "ExactSourceTheoremProofBodyExecutor" in prompt
@@ -31534,7 +31512,7 @@ def test_formalizer_capability_eval_prompt_requires_lean_candidate() -> None:
     assert feedback["runtime_requested_evidence_contract"][
         "capability_eval_requires_formalizer_lean_candidate"
     ] is True
-    assert "Capability-eval mode is active for Formalizer/ProofEngineer" in prompt
+    assert "Capability-eval requests a complete Lean candidate" in prompt
     assert "formalizer_lean_candidate_contract" in prompt
     assert "task_bound_formal_target_contract" in prompt
     assert "asymptotic_linear_limit" in prompt
@@ -33642,6 +33620,18 @@ def test_formalization_validator_failure_exports_learning_row() -> None:
                         "raw_response_fingerprint": "abc123",
                     }
                 ],
+                last_invalid_packet={
+                    "formal_targets": [
+                        {
+                            "id": "rejected-target",
+                            "lean_sketch": (
+                                "theorem rejected_target : True := by\n"
+                                "  exact True.intro\n"
+                            ),
+                        }
+                    ],
+                    "full_candidate_tail_marker": "FULL_FORMALIZER_PACKET_TAIL",
+                },
             )
 
     subsystem = FormalizationEvaluatorRuntimeSubsystem(
@@ -33708,9 +33698,13 @@ def test_formalization_validator_failure_exports_learning_row() -> None:
     assert "target_shape_contract" not in feedback
     assert "target_drift_repair_contract" not in feedback
     assert "candidate_reroute_options" not in feedback
-    assert "AgentRuntime does not choose mathematical or Lean repairs" in feedback[
-        "required_repair"
-    ]
+    assert "required_repair" not in feedback
+    assert feedback["rejected_candidate"]["full_candidate_tail_marker"] == (
+        "FULL_FORMALIZER_PACKET_TAIL"
+    )
+    assert feedback["rejected_candidate_fingerprint"] == runtime_module.stable_hash(
+        feedback["rejected_candidate"]
+    )
 
     artifact = next(iter(result.produced_artifacts.values()))
     assert artifact["artifact_kind"] == "RuntimeFormalizerValidationFailure"
@@ -33804,9 +33798,7 @@ def test_formalizer_validation_failure_routes_materialization_contract() -> None
     assert feedback["formalizer_validation_feedback"][
         "validation_error_messages"
     ] == exc.errors
-    assert "AgentRuntime does not choose mathematical or Lean repairs" in feedback[
-        "required_repair"
-    ]
+    assert "required_repair" not in feedback
     assert artifact["target_ids"] == ["aipw_asymptotic_normality"]
     assert artifact["learning_rows"][0]["input_summary"][
         "source_theorem_candidate_materialization_contract"
@@ -38054,12 +38046,7 @@ def test_formalizer_validation_failure_routes_repeated_syntax_fail_closed_contra
     assert feedback["formalizer_validation_feedback"][
         "validation_error_messages"
     ] == exc.errors
-    assert "AgentRuntime does not choose mathematical or Lean repairs" in (
-        feedback["required_repair"]
-    )
-    assert "ASCII, Unicode" not in feedback["required_repair"]
-    assert "whitelist" not in feedback["required_repair"]
-    assert "parser-simple" not in feedback["required_repair"]
+    assert "required_repair" not in feedback
     assert "exact schema" in result.next_task.objective
     assert result.next_task.acceptance_gate == feedback["acceptance_gate"]
 
@@ -39265,9 +39252,7 @@ def test_repeated_lean_parser_failure_preserves_model_owned_tool_observation() -
     assert repeated["retry_depth"] == 1
     assert repeated["model_owned_next_action"] is True
     assert repeated["runtime_selected_repair"] is False
-    assert "AgentRuntime does not select the repair" in feedback[
-        "required_repair"
-    ]
+    assert "required_repair" not in feedback
     assert "candidate_reroute_options" not in feedback
     assert "formal_blocker_resource_requests" not in feedback
 
@@ -42129,14 +42114,13 @@ def test_runtime_learning_memory_routes_compiled_diagnostic_helper_to_bridge_or_
         proof_bank_runtime_memory_summary=summary,
     )
 
-    assert "Compiled diagnostic-helper integration is active" in prompt
+    assert "Treat prior runtime memory and environment feedback as observations" in prompt
     assert "formalizer_diagnostic_helper_memory" in prompt
     assert "split_conformal_coverage_core_prop" in prompt
-    assert "source_theorem_target_known=false" in prompt
-    assert "source_to_bridge_premise_derivation_candidates" in prompt
-    assert "explicit gap_taxonomy blocker" in prompt
-    assert "diagnostic_helper_bridge_blocker_contract" in prompt
-    assert "source_to_bridge_metadata_blocker" in prompt
+    assert '"source_theorem_target_known":false' in prompt
+    assert "split_conformal_finite_sample_coverage" in prompt
+    assert helper_source in prompt
+    assert "Compiled diagnostic-helper integration is active" not in prompt
 
 
 def test_runtime_learning_memory_routes_metadata_blocker_to_authoring_contract(
@@ -42242,14 +42226,13 @@ def test_runtime_learning_memory_routes_metadata_blocker_to_authoring_contract(
     )
 
     assert "source_to_bridge_metadata_authoring_required" in prompt
-    assert "Source-to-bridge metadata authoring is active" in prompt
+    assert "Treat prior runtime memory and environment feedback as observations" in prompt
     assert "PENDING_SOURCE_TO_BRIDGE_METADATA_AUTHORING" in prompt
     assert "split_conformal_core_prop_coverage_bridge_helper" in prompt
     assert "formalizer_proposal:helper_packet" in prompt
     assert "source_to_bridge_premise_derivation_candidate_request" in prompt
     assert "exact_source_theorem_binders" in prompt
     assert "required_semantic_anchor_reference_names" in prompt
-    assert "kind=source_to_bridge_metadata_blocker" in prompt
     assert "For source_theorem_exact_proof_body_repair" not in prompt
 
 
@@ -42443,7 +42426,7 @@ def test_formalizer_metadata_authoring_next_action_preserved_as_request_shell() 
     assert rows[0]["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
 
 
-def test_diagnostic_helper_bridge_mode_normalizer_records_metadata_blocker() -> None:
+def test_diagnostic_helper_normalizer_does_not_synthesize_metadata_blocker() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     summary = {
         "recommended_formalizer_target_mode": (
@@ -42574,18 +42557,14 @@ def test_diagnostic_helper_bridge_mode_normalizer_records_metadata_blocker() -> 
         packet["theory_trace_alignment_contract"]["structured_alignment_observed"]
         is True
     )
-    assert packet["diagnostic_helper_bridge_blocker_status"] == (
-        "SOURCE_TO_BRIDGE_METADATA_BLOCKER_RECORDED_NOT_PROOF_EVIDENCE"
-    )
-    assert any(
+    assert "diagnostic_helper_bridge_blocker_status" not in packet
+    assert not any(
         row.get("kind") == "source_to_bridge_metadata_blocker"
         for row in packet["gap_taxonomy"]
         if isinstance(row, dict)
     )
-    assert packet["dropped_diagnostic_helper_only_next_actions"][0]["index"] == 1
-    next_action_text = json.dumps(packet["next_actions"])
-    assert "source-to-bridge premise-derivation request metadata" in next_action_text
-    assert "split_conformal_core_prop_coverage_bridge_helper" not in next_action_text
+    assert "dropped_diagnostic_helper_only_next_actions" not in packet
+    assert packet["next_actions"] == payload["next_actions"]
     assert validate_formalizer_packet(packet) == []
 
     textual_blocker_payload = json.loads(json.dumps(payload))
@@ -42611,14 +42590,18 @@ def test_diagnostic_helper_bridge_mode_normalizer_records_metadata_blocker() -> 
         proof_bank_runtime_memory_summary=summary,
         environment_feedback={},
     )
-    assert textual_blocker_packet["diagnostic_helper_bridge_blocker_status"] == (
-        "SOURCE_TO_BRIDGE_METADATA_BLOCKER_RECORDED_NOT_PROOF_EVIDENCE"
-    )
-    assert any(
+    assert "diagnostic_helper_bridge_blocker_status" not in textual_blocker_packet
+    assert not any(
         row.get("kind") == "source_to_bridge_metadata_blocker"
         for row in textual_blocker_packet["gap_taxonomy"]
         if isinstance(row, dict)
     )
+    assert any(
+        row.get("kind") == "source_theorem"
+        for row in textual_blocker_packet["gap_taxonomy"]
+        if isinstance(row, dict)
+    )
+    assert validate_formalizer_packet(textual_blocker_packet) == []
 
     bound_payload = json.loads(json.dumps(payload))
     bound_payload["next_actions"] = [
@@ -44367,7 +44350,7 @@ def test_invalid_pseudo_formal_packet_exports_quarantine_not_downstream_work() -
     assert quarantine["runtime_selected_mathematical_content"] is False
     assert "validation_issue_summary" not in quarantine
     assert "validation_issue_repair_actions" not in quarantine
-    assert "runtime does not choose" in quarantine["required_repair"].lower()
+    assert "required_repair" not in quarantine
     assert "semantic_primitive" not in quarantine
     assert pseudo_formal_routable_work_order_rows(rows) == []
     assert quarantine["proof_evidence_status"] == (
@@ -50445,12 +50428,12 @@ def test_coding_capability_memory_replays_to_algorithm_and_simulation_prompts(
         "capability_eval_requires_generated_algorithm_code": True,
         "capability_eval_requires_generated_algorithm_repair_loop": True,
     }
-    assert "fail-then-pass" in algorithm_feedback["required_repair"]
+    assert "required_repair" not in algorithm_feedback
     assert simulation_feedback["target_component"] == "simulation"
     assert simulation_feedback["runtime_requested_evidence_contract"] == {
         "capability_eval_requires_generated_simulation_code": True
     }
-    assert "generated simulation code" in simulation_feedback["required_repair"]
+    assert "required_repair" not in simulation_feedback
 
     algorithm_prompt = build_algorithm_engineer_prompt(
         question=question,
@@ -50633,15 +50616,11 @@ def test_coding_feedback_loaders_accept_compact_learning_task_rows() -> None:
         "capability_eval_requires_generated_algorithm_code": True,
         "capability_eval_requires_generated_algorithm_repair_loop": True,
     }
-    assert "compact fail-then-pass" in algorithm_capability_feedback[
-        "required_repair"
-    ]
+    assert "required_repair" not in algorithm_capability_feedback
     assert simulation_capability_feedback["runtime_requested_evidence_contract"] == {
         "capability_eval_requires_generated_simulation_code": True
     }
-    assert "compact generated simulation" in simulation_capability_feedback[
-        "required_repair"
-    ]
+    assert "required_repair" not in simulation_capability_feedback
 
     compact_theory_trace_row = {
         "schema_version": 1,
@@ -50675,9 +50654,7 @@ def test_coding_feedback_loaders_accept_compact_learning_task_rows() -> None:
         "theory_trace_downstream_alignment_feedback"
     )
     assert theory_trace_feedback["target_consumer_subsystem"] == "AlgorithmEngineer"
-    assert theory_trace_feedback["required_repair"] == (
-        "bind algorithm code to structured theory anchors"
-    )
+    assert "required_repair" not in theory_trace_feedback
     assert theory_trace_feedback["theory_trace_downstream_alignment_contract"][
         "acceptance_gate"
     ] == "algorithm prompt includes theory trace alignment"
@@ -50997,6 +50974,21 @@ def test_simulation_engineer_packet_validation_failure_routes_back_to_llm(
                         "errors": ["missing typed metric contract"],
                     }
                 ],
+                last_invalid_packet={
+                    "packet_id": "simulation_engineer_proposal:rejected",
+                    "simulation_code_drafts": [
+                        {
+                            "simulation_id": "custom_stress",
+                            "language": "python",
+                            "entrypoint": "run_sandbox",
+                            "code": (
+                                "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                                "    return {'metric': 0.0}\n"
+                            ),
+                        }
+                    ],
+                    "metric_contracts": [],
+                },
             )
 
     subsystem = SimulationEvaluatorRuntimeSubsystem(
@@ -51053,10 +51045,14 @@ def test_simulation_engineer_packet_validation_failure_routes_back_to_llm(
         "simulation_engineer_packet_validation_failed"
     )
     assert "custom_stress" in feedback["validation_errors"][0]
-    assert "metric_contracts" in feedback["required_repair"]
-    assert "Python or R" in feedback["required_repair"]
-    assert "generated_simulation_code_contract" in feedback["required_repair"]
-    assert "language=python" not in feedback["required_repair"]
+    assert feedback["rejected_candidate"]["packet_id"] == (
+        "simulation_engineer_proposal:rejected"
+    )
+    assert "def run_sandbox" in feedback["rejected_candidate"][
+        "simulation_code_drafts"
+    ][0]["code"]
+    assert "required_repair" not in feedback
+    assert "target_behavior" not in feedback
     assert (
         result.next_task.inputs["architect_context"]["runtime_feedback_loop"][
             "handoff"
@@ -51677,18 +51673,13 @@ def test_algorithm_engineer_capability_eval_revises_template_only_output(
     assert result.next_task.owner_subsystem == "AlgorithmEngineer"
     feedback = result.next_task.inputs["environment_feedback"]
     assert feedback["failure_classification"] == "algorithm_engineer_packet_validation_failed"
-    assert "complete replacement packet" in feedback["required_repair"]
     assert feedback["validation_errors"] == failure["validation_errors"]
-    assert "sandbox_code_drafts" not in feedback["required_repair"]
-    recipe_text = feedback["required_repair"] + feedback["target_behavior"]
-    for model_owned_field in (
-        "entrypoint",
-        "estimator_id",
-        "registered_template_hint",
-        "run_estimator(request)",
-        "metric_contracts",
-    ):
-        assert model_owned_field not in recipe_text
+    assert feedback["rejected_candidate"] == failure["rejected_candidate"]
+    assert feedback["rejected_candidate_fingerprint"] == failure[
+        "rejected_candidate_fingerprint"
+    ]
+    assert "required_repair" not in feedback
+    assert "target_behavior" not in feedback
 
 
 def test_algorithm_runtime_enforces_generated_code_required_from_learning_memory(
@@ -58326,9 +58317,10 @@ def test_algorithm_engineer_repair_eval_feedback_targets_execution_repair() -> N
         manifest=prior_failure,
     )
 
-    required_repair = feedback["required_repair"]
-    assert "complete source candidate" in required_repair
-    assert "exact execution diagnostics" in required_repair
+    assert "required_repair" not in feedback
+    assert feedback["prototypes"][0]["parent_source_complete"] is True
+    assert "missing_estimate" in feedback["prototypes"][0]["parent_source"]
+    assert feedback["prototypes"][0]["stderr_summary"].startswith("NameError")
     assert feedback["failure_classification"] == (
         "generated_algorithm_sandbox_execution_failed"
     )
@@ -58483,14 +58475,11 @@ def test_simulation_engineer_repair_eval_feedback_preserves_contract_without_rec
         manifest=prior_failure,
     )
 
-    required_repair = feedback["required_repair"]
-    assert "complete source candidate" in required_repair
-    assert "exact execution diagnostics" in required_repair
-    assert "unchanged execution contract" in required_repair
-    assert "frozen acceptance contract" in required_repair
-    assert "substitute an easier proxy" not in required_repair
-    assert "lower or remove a threshold" not in required_repair
-    assert "target_coverage" not in required_repair
+    assert "required_repair" not in feedback
+    prototype = feedback["generated_simulation_prototypes"][0]
+    assert prototype["parent_source_complete"] is True
+    assert "empirical_coverage" in prototype["parent_source"]
+    assert prototype["metric_gate_errors"]
     assert "not proof evidence" in feedback["boundary"]
 
 
@@ -72178,9 +72167,10 @@ def test_source_theorem_proof_body_incomplete_without_concrete_bridge_routes_to_
         proof_bank_runtime_memory_summary=summary,
     )
     assert "source_theorem_exact_proof_body_repair" in prompt
-    assert "regenerate the complete declaration candidate" in prompt
-    assert "preserve target_theorem_statement exactly" in prompt
-    assert "residual subgoal" in prompt
+    assert "Generate a complete replacement packet or candidate" in prompt
+    assert "split_conformal_coverage" in prompt
+    assert "proof_body_incomplete" in prompt
+    assert "orderStat" in prompt
 
     proposal = {
         "packet_id": "formalizer:source-adapter",
@@ -73184,13 +73174,12 @@ def test_exact_proof_body_unready_queue_routes_candidate_materialization_request
         },
     )
     assert "source_theorem_candidate_materialization_contract" in prompt
-    assert "For source_theorem_exact_candidate_materialization_required" in prompt
-    assert "Materialization target id(s): split_conformal_finite_sample_coverage" in prompt
+    assert "Treat prior runtime memory and environment feedback as observations" in prompt
+    assert "split_conformal_finite_sample_coverage" in prompt
     assert "formal_gap:source_theorem_candidate_materialization" in prompt
     assert "PENDING_EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION" in prompt
     assert "EXACT_SOURCE_PROOF_BODY_QUEUE_NOT_READY" in prompt
     assert "SIGNATURE_PROBE_ARTIFACT_PATH_MISSING" in prompt
-    assert "Do not treat this as proof-body repair" in prompt
     assert "source_theorem_formal_environment_repair" not in prompt
 
 
@@ -74981,9 +74970,9 @@ def test_runtime_proof_body_incomplete_reviewed_constraints_need_concrete_adapte
         proof_bank_runtime_memory_summary=summary,
     )
     assert "source_theorem_exact_proof_body_gate_open_for_kernel_repair" in prompt
-    assert "exact source proof-body gate is open for kernel-eligible repair" in prompt
-    assert "Do not route this target back to exact semantic-definition review" in prompt
-    assert "source_theorem_kernel_verified is still false" in prompt
+    assert "Generate a complete replacement packet or candidate" in prompt
+    assert "proof_body_incomplete" in prompt
+    assert "CoverageLowerBound" in prompt
     assert "split_conformal_finite_sample_coverage_repair_v3" in prompt
     assert "exact stale_candidate_proof" in prompt
 
@@ -75553,19 +75542,17 @@ def test_runtime_learning_memory_routes_closure_instantiation_failure_to_adapter
         proof_bank_runtime_memory_summary=summary,
     )
     assert "source_theorem_proof_body_adapter_required" in prompt
-    assert "concrete source-to-bridge/reduction adapter candidate" in prompt
-    assert "`<source theorem declaration>_source_to_bridge_adapter`" in prompt
+    assert "Treat prior runtime memory and environment feedback as observations" in prompt
+    assert "Choose and author every definition" in prompt
     assert "source_theorem_target_provenance" in prompt
     assert "splitConformalFiniteSampleCoverage_reductionClosure" in prompt
     assert "proof_body_attempt_summaries" in prompt
     assert "source_theorem_kernel_evidence_eligible" in prompt
     assert "memory_kernel_verified_theorem_reduction_closure_signature_excerpts" in prompt
     assert "splitConformalFiniteSampleCoverage_reductionClosure {Ω ρ : Type*}" in prompt
-    assert "do not guess closure theorem fields" in prompt
     assert "C-style comments" not in prompt
     assert "`/* ... */`" not in prompt
-    assert "target_lean_declaration` as the exact source theorem declaration identifier only" in prompt
-    assert "do not put a full Lean theorem statement" in prompt
+    assert "`<source theorem declaration>_source_to_bridge_adapter`" not in prompt
 
     proposal = {
         "packet_id": "formalizer:closure-adapter-instantiation",
@@ -83030,10 +83017,6 @@ def test_verified_premise_derivation_supersedes_stale_pending_rows(
     assert work_order["verified_source_to_bridge_premise_derivation_artifact_paths"] == [
         str(premise_artifact)
     ]
-    assert any(
-        "kernel-verified source-to-bridge premise derivations" in required_input
-        for required_input in work_order["required_inputs"]
-    )
     assert not any(
         "derive these bridge premise names" in required_input
         for required_input in work_order["required_inputs"]
@@ -86002,16 +85985,11 @@ def test_research_agent_runtime_records_theory_to_simulation_loop_in_legacy_base
         ]
         == "critic_requested_theory_revision"
     )
-    assert (
-        result["traces"][7]["task"]["inputs"]["environment_feedback"]["required_revision"].startswith(
-            "Revise theorem statements"
-        )
-    )
-    assert (
-        result["traces"][7]["task"]["inputs"]["environment_feedback"]["required_repair"].startswith(
-            "Revise theorem statements"
-        )
-    )
+    theory_feedback = result["traces"][7]["task"]["inputs"][
+        "environment_feedback"
+    ]
+    assert "required_revision" not in theory_feedback
+    assert "required_repair" not in theory_feedback
     assert result["traces"][11]["subsystem"] == "CriticEvaluator"
     assert result["traces"][11]["failure_classification"] == (
         "critic_requested_formalizer_proofengineer_repair"
@@ -106641,18 +106619,11 @@ def test_research_agent_runtime_cli_resumes_from_pending_task_manifest() -> None
         ]
         == "critic_requested_theory_revision"
     )
-    assert (
-        result["traces"][0]["task"]["inputs"]["environment_feedback"][
-            "required_repair"
-        ]
-        == "address the exact formal gap before rerouting"
-    )
-    assert (
-        result["traces"][0]["task"]["inputs"]["environment_feedback"][
-            "required_revision"
-        ]
-        == "address the exact formal gap before rerouting"
-    )
+    resumed_feedback = result["traces"][0]["task"]["inputs"][
+        "environment_feedback"
+    ]
+    assert "required_repair" not in resumed_feedback
+    assert "required_revision" not in resumed_feedback
     assert not result["traces"][0]["task"]["task_id"].startswith("architect:")
     assert manifest["runtime_completion_summary"]["boundary"].startswith(
         "Runtime completion status describes orchestration progress"

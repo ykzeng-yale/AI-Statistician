@@ -4733,7 +4733,8 @@ def test_coding_agent_prompts_preserve_independent_semantic_findings() -> None:
     for prompt in (algorithm_prompt, simulation_prompt):
         assert "generated_code_semantic_review" in prompt
         assert rationale in prompt
-        assert required_change in prompt
+        assert required_change not in prompt
+        assert "repair_instructions" not in prompt
         assert "FULL_PARENT_SOURCE_TAIL" in prompt
         assert stable_hash(parent_source) in prompt
         assert "exact validator, execution, or independent-review observations" in prompt

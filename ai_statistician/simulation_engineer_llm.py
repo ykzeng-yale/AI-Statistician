@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping
@@ -526,6 +527,7 @@ def _compact_theory_packet_for_simulation(theory_packet: Mapping[str, Any]) -> d
 def _compact_simulation_environment_feedback(feedback: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(feedback, Mapping):
         return {}
+    rejected_candidate = feedback.get("rejected_candidate", {})
     prototype_rows = feedback.get("generated_simulation_prototypes", [])
     if not isinstance(prototype_rows, list):
         prototype_rows = []
@@ -603,6 +605,15 @@ def _compact_simulation_environment_feedback(feedback: Mapping[str, Any]) -> dic
             str(value)
             for value in feedback.get("validation_errors", []) or []
         ],
+        "rejected_candidate": (
+            deepcopy(dict(rejected_candidate))
+            if isinstance(rejected_candidate, Mapping)
+            else {}
+        ),
+        "rejected_candidate_fingerprint": _truncate_text(
+            feedback.get("rejected_candidate_fingerprint", ""),
+            limit=120,
+        ),
         "validation_error_fingerprint": _truncate_text(
             feedback.get("validation_error_fingerprint", ""),
             limit=120,

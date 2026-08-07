@@ -19,6 +19,7 @@ from ai_statistician.generated_metric_contract import (
     generated_metric_evaluation_semantics_contract,
     generated_metric_evaluator_certificate,
     generated_metric_acceptance_authority_catalog,
+    generated_metric_acceptance_authority_prompt_catalog,
     generated_metric_requirement_json_schema,
     generated_metric_requirement_prompt_schema,
     generated_metric_requirement_set_id,
@@ -356,6 +357,40 @@ def test_metric_acceptance_authority_catalog_exposes_exact_current_artifact_leav
         "theory#/simulation_ademp_spec/expected_theoretical_behavior"
     ]["authority_kind"] == "diagnostic_only"
     assert not any("model" in anchor_id for anchor_id in by_id)
+
+
+def test_metric_authority_prompt_catalog_uses_complete_semantic_records() -> None:
+    catalog = generated_metric_acceptance_authority_catalog(
+        question={"title": "Generic", "description": "Evaluate error."},
+        runtime_contract={"simulation_targets": []},
+        theory_protocol_material={
+            "theory_semantic_material": {
+                "theorem_cards": [
+                    {
+                        "id": "theorem_error_control",
+                        "conclusion": "error <= 0.05",
+                        "assumptions_used": ["regularity"],
+                    }
+                ],
+                "simulation_ademp_spec": {
+                    "methods": ["Instantiate alpha = 0.05."]
+                },
+            }
+        },
+    )
+
+    projected = generated_metric_acceptance_authority_prompt_catalog(catalog)
+    by_id = {row["anchor_id"]: row for row in projected}
+
+    assert "theory#/theorem_cards/0" in by_id
+    assert "theory#/theorem_cards/0/conclusion" not in by_id
+    assert by_id["theory#/theorem_cards/0"]["content"]["conclusion"] == (
+        "error <= 0.05"
+    )
+    assert by_id["theory#/theorem_cards/0"]["explicit_numeric_values"] == [
+        0.05
+    ]
+    assert "theory#/simulation_ademp_spec/methods/0" in by_id
 
 
 def test_strict_metric_gate_authority_rejects_free_form_and_diagnostic_gates() -> None:
@@ -917,8 +952,7 @@ def test_metric_evaluation_semantics_separates_comparison_from_quorum() -> None:
         "at_least_fraction",
     ]
     assert "never the comparison threshold" in semantics["quorum_rule"]
-    assert semantics["authoring_example"]["threshold"] == 0.10
-    assert semantics["authoring_example"]["minimum_pass_count"] == 76
+    assert "authoring_example" not in semantics
     assert "never place" in schema["threshold"]["description"]
     assert "separate from threshold" in schema["minimum_pass_count"][
         "description"

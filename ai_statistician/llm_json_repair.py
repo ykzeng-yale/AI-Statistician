@@ -170,6 +170,18 @@ def generate_validated_json_packet(
             packet["llm_json_repair_attempts"] = attempt_index
             packet["llm_json_repair_history"] = history
             return packet
+        if (
+            not truncation_detected
+            and len(history) >= 2
+            and history[-1]["errors"] == history[-2]["errors"]
+            and history[-1]["raw_response_fingerprint"]
+            == history[-2]["raw_response_fingerprint"]
+        ):
+            history[-1]["no_progress_detected"] = True
+            history[-1]["no_progress_reason"] = (
+                "validator_errors_unchanged_after_full_regeneration"
+            )
+            break
         if truncation_detected:
             if truncation_regenerations_remaining <= 0:
                 break

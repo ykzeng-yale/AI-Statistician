@@ -801,7 +801,7 @@ def _runtime_resume_learning_memory_paths(path: Path) -> list[Path]:
 def _normalize_runtime_resume_task_payload(
     task_payload: Mapping[str, object],
 ) -> dict[str, object]:
-    """Fill backward-compatible repair fields for persisted pending runtime tasks."""
+    """Normalize persisted tasks without replaying legacy repair recipes."""
 
     normalized = dict(task_payload)
     inputs = (
@@ -814,12 +814,10 @@ def _normalize_runtime_resume_task_payload(
         if isinstance(inputs.get("environment_feedback", {}), Mapping)
         else {}
     )
-    if (
-        str(feedback.get("feedback_source", "") or "") == "CriticEvaluator"
-        and str(feedback.get("required_revision", "") or "").strip()
-    ):
+    if str(feedback.get("feedback_source", "") or "") == "CriticEvaluator":
         feedback.setdefault("failure_classification", "critic_requested_theory_revision")
-        feedback.setdefault("required_repair", str(feedback.get("required_revision", "")))
+        feedback.pop("required_repair", None)
+        feedback.pop("required_revision", None)
         inputs["environment_feedback"] = feedback
         normalized["inputs"] = inputs
     return normalized
