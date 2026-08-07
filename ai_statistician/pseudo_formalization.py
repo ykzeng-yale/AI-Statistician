@@ -614,6 +614,44 @@ def normalize_pseudo_formal_packet(packet: Mapping[str, Any]) -> dict[str, Any]:
     return raw
 
 
+def bind_model_pseudo_formal_packet_runtime_envelope(
+    packet: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Bind runtime authority fields without repairing model-authored PF content."""
+
+    raw = deepcopy(dict(packet or {}))
+    boundary_corrections = _boundary_corrections(raw)
+    raw["schema_version"] = PSEUDO_FORMALIZATION_SCHEMA_VERSION
+    raw["schema_id"] = PSEUDO_FORMALIZATION_SCHEMA_ID
+    raw["component_name"] = PSEUDO_FORMALIZATION_COMPONENT
+    raw["pseudo_formal_method_contract_id"] = (
+        PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID
+    )
+    raw["pseudo_formal_method_name"] = PSEUDO_FORMAL_VERIFICATION_METHOD_NAME
+    raw["pseudo_formal_pipeline_stages"] = [
+        str(stage["stage_id"])
+        for stage in PSEUDO_FORMAL_VERIFICATION_METHOD_STAGES
+    ]
+    raw["proof_evidence_status"] = PSEUDO_FORMALIZATION_NOT_PROOF_EVIDENCE
+    raw["proof_evidence_boundary"] = PSEUDO_FORMALIZATION_PROOF_BOUNDARY
+    raw["kernel_verified"] = False
+    raw["source_theorem_kernel_verified"] = False
+    raw["promotion_gate"] = PSEUDO_FORMALIZATION_PROMOTION_GATE
+    raw["block_structure_contract"] = _default_block_structure_contract()
+    raw["bv_calibration"] = _default_bv_calibration()
+    blocks = raw.get("blocks")
+    if isinstance(blocks, list):
+        raw["blocks"] = [
+            {**deepcopy(dict(block)), "kernel_verified": False}
+            if isinstance(block, Mapping)
+            else deepcopy(block)
+            for block in blocks
+        ]
+    raw["boundary_corrections"] = boundary_corrections
+    raw["all_ok"] = not validate_pseudo_formal_packet(raw)
+    return raw
+
+
 def validate_pseudo_formal_packet(packet: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
     if int(packet.get("schema_version", 0) or 0) != PSEUDO_FORMALIZATION_SCHEMA_VERSION:
@@ -1257,18 +1295,30 @@ def pseudo_formal_provider_envelope_json_schema() -> dict[str, Any]:
                     "required": [
                         "block_id",
                         "block_type",
+                        "block_depth",
+                        "premises",
                         "conclusion",
                         "proof_text",
+                        "dependency_ids",
+                        "scope_parent_id",
+                        "dependency_scope",
                         "source_anchors",
                         "semantic_primitive_requirements",
                         "lean_feasibility",
                         "faithfulness_status",
+                        "faithfulness_repair",
+                        "block_verification",
                     ],
                     "properties": {
                         "block_id": {"type": "string", "minLength": 1},
                         "block_type": {
                             "type": "string",
                             "enum": list(VALID_BLOCK_TYPES),
+                        },
+                        "block_depth": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": PSEUDO_FORMAL_MAX_PROOF_TREE_DEPTH,
                         },
                         "premises": {
                             "type": "array",
@@ -1286,6 +1336,10 @@ def pseudo_formal_provider_envelope_json_schema() -> dict[str, Any]:
                             "description": (
                                 "Empty for a root block; otherwise one earlier block_id."
                             ),
+                        },
+                        "dependency_scope": {
+                            "type": "string",
+                            "enum": list(VALID_DEPENDENCY_SCOPES),
                         },
                         "source_anchors": {
                             "type": "array",
@@ -1306,7 +1360,6 @@ def pseudo_formal_provider_envelope_json_schema() -> dict[str, Any]:
                         },
                         "semantic_primitive_requirements": {
                             "type": "array",
-                            "minItems": 1,
                             "items": {"type": "string"},
                         },
                         "lean_feasibility": {
@@ -1316,6 +1369,62 @@ def pseudo_formal_provider_envelope_json_schema() -> dict[str, Any]:
                         "faithfulness_status": {
                             "type": "string",
                             "enum": list(VALID_FAITHFULNESS_STATUSES),
+                        },
+                        "faithfulness_repair": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": [
+                                "status",
+                                "attempts",
+                                "flagged_discrepancies",
+                            ],
+                            "properties": {
+                                "status": {
+                                    "type": "string",
+                                    "enum": list(
+                                        VALID_FAITHFULNESS_REPAIR_STATUSES
+                                    ),
+                                },
+                                "attempts": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                },
+                                "flagged_discrepancies": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                },
+                            },
+                        },
+                        "block_verification": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": [
+                                "verdict",
+                                "reason",
+                                "verifier_provenance",
+                                "independent_verifier",
+                                "strictness_threshold",
+                                "aggregation_rule",
+                                "rollout_count",
+                            ],
+                            "properties": {
+                                "verdict": {
+                                    "type": "string",
+                                    "enum": list(VALID_BLOCK_VERDICTS),
+                                },
+                                "reason": {"type": "string"},
+                                "verifier_provenance": {"type": "string"},
+                                "independent_verifier": {"type": "boolean"},
+                                "strictness_threshold": {
+                                    "type": "string",
+                                    "enum": list(VALID_CALIBRATION_STRICTNESS),
+                                },
+                                "aggregation_rule": {"type": "string"},
+                                "rollout_count": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                },
+                            },
                         },
                     },
                 },

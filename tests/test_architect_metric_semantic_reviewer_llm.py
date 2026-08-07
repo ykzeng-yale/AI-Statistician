@@ -357,6 +357,8 @@ def test_preexecution_metric_reviewer_accepts_only_with_independent_lineage() ->
         "metric_contract",
         "AgentRuntime derives the overall verdict",
         "full declared support",
+        "Finite-sample evaluation",
+        "nonasymptotic guarantee",
     ):
         assert required_contract in protocol_text
     assert packet["runtime_evaluator_certificate_set_id"].startswith(

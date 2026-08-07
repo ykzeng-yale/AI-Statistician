@@ -165,10 +165,10 @@ def run_bounded_client_tool_loop(
     for turn_index in range(total_turn_budget):
         if turn_index >= max_turns and not terminal_recovery_eligible:
             break
-        terminal_only_turn = bool(
-            terminal_tools and turn_index >= max_turns - 1
+        terminal_recovery_turn = bool(
+            terminal_tools and turn_index >= max_turns
         )
-        if terminal_only_turn:
+        if terminal_recovery_turn:
             turn_tools = terminal_tools
         elif select_tools is None:
             turn_tools = request.tools
@@ -187,7 +187,9 @@ def run_bounded_client_tool_loop(
             turn_tools = tuple(
                 tool_definitions[name] for name in selected_names
             )
-            terminal_only_turn = all(tool.terminal for tool in turn_tools)
+        terminal_only_turn = bool(
+            turn_tools and all(tool.terminal for tool in turn_tools)
+        )
         turn_allowed_tools = {tool.name for tool in turn_tools}
         with agent_runtime_substage(
             "client_tool_model_turn",
@@ -460,7 +462,7 @@ def run_bounded_client_tool_loop(
     )
 
 
-def _client_tool_result_text(value: Any, *, max_chars: int = 12000) -> str:
+def _client_tool_result_text(value: Any, *, max_chars: int = 60000) -> str:
     if isinstance(value, str):
         text = value
     else:

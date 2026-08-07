@@ -829,6 +829,7 @@ def test_architect_resume_routes_weak_theory_trace_to_theory_refresh() -> None:
     assert result.next_task.owner_subsystem == "TheoryDeveloper"
     assert result.next_task.task_id.startswith("theory-resume-refresh:")
     feedback = result.next_task.inputs["environment_feedback"]
+    assert "required_repair" not in feedback
     assert feedback["trigger"] == "RUNTIME_THEORY_DERIVATION_TRACE_INCOMPLETE"
     assert feedback["feedback_source"] == "ArchitectCoordinator"
     assert feedback["source_theory_packet_id"] == weak_packet_id
@@ -5026,7 +5027,7 @@ def test_validated_gap_planner_actions_dispatch_once_to_proofengineer() -> None:
         proof_bank_runtime_memory_summary={},
         environment_feedback=feedback,
     )
-    assert "contract-valid FormalizationGapPlanner action work order is active" in prompt
+    assert "contract-valid FormalizationGapPlanner action work order is active" not in prompt
     assert "attempt:sequential_bridge" in prompt
 
     blackboard.artifacts[live_manifest["manifest_id"]] = live_manifest
@@ -14676,10 +14677,10 @@ def test_critic_routes_unresolved_premise_derivation_to_formalizer_after_repair_
         proof_bank_runtime_memory_summary={},
         environment_feedback=feedback,
     )
-    assert "Formal blocker resource requests are active" in prompt
-    assert "formal_blocker_resource_requests" in prompt
+    assert "Formal blocker resource requests are active" not in prompt
+    assert "formal_resource_observations" in prompt
     assert "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE" in prompt
-    assert "source_to_bridge_premise_derivation_feedback" in prompt
+    assert "source_to_bridge_observations" in prompt
     assert "source_to_bridge_premise_derivation_candidate_request:hGoodCovered" in prompt
     assert expected_declaration in prompt
     assert "missing_semantic_anchor_references" in prompt
@@ -14850,10 +14851,7 @@ def test_critic_packet_validation_failure_fail_closes_and_preserves_exact_semant
         "CRITIC_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
     )
     assert "theorem proved" in " ".join(failure_artifact["validation_errors"])
-    assert any(
-        "source_theorem_kernel_verified is false" in directive
-        for directive in failure_artifact["validation_repair_directives"]
-    )
+    assert "validation_repair_directives" not in failure_artifact
 
     critic_manifest = next(
         artifact
@@ -15010,7 +15008,7 @@ def test_critic_feedback_carries_source_theorem_proof_body_adapter_feedback() ->
                             "⊢ bridge_premises",
                         ],
                         "recommended_repair_tasks": [
-                            "derive bridge premises from exact source hypotheses"
+                            "RUNTIME_ADAPTER_REPAIR_RECIPE_DO_NOT_EXPOSE"
                         ],
                     }
                 ],
@@ -15026,6 +15024,8 @@ def test_critic_feedback_carries_source_theorem_proof_body_adapter_feedback() ->
     assert adapter_feedback["diagnostics"][0]["adapter_declaration_name"] == (
         "frontier_source_theorem_adapter"
     )
+    assert "recommended_repair_tasks" not in adapter_feedback["diagnostics"][0]
+    assert "required_behavior" not in adapter_feedback
     adapter_request = next(
         row
         for row in feedback["formal_blocker_resource_requests"]
@@ -15050,6 +15050,16 @@ def test_critic_feedback_carries_source_theorem_proof_body_adapter_feedback() ->
         "frontier_source_theorem"
     ]
 
+    feedback["high_priority_agenda"] = [
+        {
+            "id": "agenda:runtime_recipe",
+            "action": "FORMALIZER_AGENDA_ACTION_DO_NOT_EXPOSE",
+            "target_behavior": "FORMALIZER_TARGET_BEHAVIOR_DO_NOT_EXPOSE",
+        }
+    ]
+    feedback["source_theorem_proof_body_adapter_feedback"]["required_behavior"] = (
+        "RUNTIME_ADAPTER_REQUIRED_BEHAVIOR_DO_NOT_EXPOSE"
+    )
     prompt = build_formalizer_prompt(
         question=question,
         theory_packet=_runtime_sample_response(),
@@ -15058,13 +15068,27 @@ def test_critic_feedback_carries_source_theorem_proof_body_adapter_feedback() ->
         registered_problem={"question_id": question.id, "problem_class": "generic"},
         theorem_goals=[],
         proof_bank_obligation_catalog=[],
-        proof_bank_runtime_memory_summary={},
+        proof_bank_runtime_memory_summary={
+            "formal_gap_next_action_diagnostics": [
+                {
+                    "agenda_id": "agenda:runtime_recipe",
+                    "target_ids": ["frontier_source_theorem"],
+                    "target_behavior": "PROOF_MEMORY_RECIPE_DO_NOT_EXPOSE",
+                    "acceptance_gate": "EXACT_ACCEPTANCE_GATE_KEEP",
+                }
+            ]
+        },
         environment_feedback=feedback,
     )
     assert "source_theorem_proof_body_adapter_feedback" in prompt
-    assert "Source theorem proof-body adapter feedback is active" in prompt
     assert "frontier_source_theorem_adapter" in prompt
-    assert "Adapter rows are not full source-theorem proof evidence" in prompt
+    assert "CRITIC_SOURCE_THEOREM_PROOF_BODY_ADAPTER_FEEDBACK_NOT_PROOF_EVIDENCE" in prompt
+    assert "EXACT_ACCEPTANCE_GATE_KEEP" in prompt
+    assert "RUNTIME_ADAPTER_REPAIR_RECIPE_DO_NOT_EXPOSE" not in prompt
+    assert "FORMALIZER_AGENDA_ACTION_DO_NOT_EXPOSE" not in prompt
+    assert "FORMALIZER_TARGET_BEHAVIOR_DO_NOT_EXPOSE" not in prompt
+    assert "RUNTIME_ADAPTER_REQUIRED_BEHAVIOR_DO_NOT_EXPOSE" not in prompt
+    assert "PROOF_MEMORY_RECIPE_DO_NOT_EXPOSE" not in prompt
 
 
 def test_critic_feedback_adapter_string_false_stays_unverified() -> None:
@@ -17336,11 +17360,11 @@ def test_formalizer_prompt_replays_formal_gap_planner_routing_memory() -> None:
         proof_bank_runtime_memory_summary=summary,
     )
 
-    assert "Formal-gap next-action routing is active" in prompt
+    assert "Formal-gap next-action routing is active" not in prompt
     assert "runtime_formalization_gap_planner_bridge:one" in prompt
     assert "runtime_formalization_gap_planner_standalone_seed:one" in prompt
-    assert "formalization-gap-planner-llm-route-planner" in prompt
-    assert "formalization-gap-planner-reuse-smoke" in prompt
+    assert "formalization-gap-planner-llm-route-planner" not in prompt
+    assert "formalization-gap-planner-reuse-smoke" not in prompt
     assert "FORMAL_GAP_NEXT_ACTION_ROUTING_CONTRACT_NOT_PROOF_EVIDENCE" in prompt
     assert "target-prover replay preserve proof boundaries" in prompt
 
@@ -17437,11 +17461,12 @@ def test_formalizer_prompt_replays_same_turn_formal_gap_planner_agenda() -> None
         environment_feedback=environment_feedback,
     )
 
-    assert "Formal-gap next-action routing is active" in prompt
+    assert "Formal-gap next-action routing is active" not in prompt
     assert "runtime_formalization_gap_planner_bridge:same_turn" in prompt
     assert "runtime_formalization_gap_planner_standalone_seed:same_turn" in prompt
-    assert "runs/same-turn-prompt" in prompt
-    assert "formalization-gap-planner-reuse-smoke" in prompt
+    assert "runs/same-turn-seed.json" in prompt
+    assert "runs/same-turn-prompt" not in prompt
+    assert "formalization-gap-planner-reuse-smoke" not in prompt
     assert "FORMAL_GAP_NEXT_ACTION_ROUTING_CONTRACT_NOT_PROOF_EVIDENCE" in prompt
 
     direct_prompt = build_formalizer_prompt(
@@ -17455,10 +17480,11 @@ def test_formalizer_prompt_replays_same_turn_formal_gap_planner_agenda() -> None
         proof_bank_runtime_memory_summary={},
         environment_feedback=environment_feedback,
     )
-    assert "Formal-gap next-action routing is active" in direct_prompt
+    assert "Formal-gap next-action routing is active" not in direct_prompt
     assert "runtime_formalization_gap_planner_bridge:same_turn" in direct_prompt
     assert "runtime_formalization_gap_planner_standalone_seed:same_turn" in direct_prompt
-    assert "runs/same-turn-prompt" in direct_prompt
+    assert "runs/same-turn-seed.json" in direct_prompt
+    assert "runs/same-turn-prompt" not in direct_prompt
 
 
 def test_formal_gap_planner_enrichment_rehydrates_pre_bridge_learning_row() -> None:
@@ -20182,7 +20208,7 @@ def test_architect_runtime_routes_simulation_capability_gap_to_executor() -> Non
     }
 
 
-def test_runtime_executes_architect_routed_generated_simulation_gap(
+def test_runtime_blocks_confirmatory_simulation_without_algorithm_handoff(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[0]
@@ -20260,7 +20286,7 @@ def test_runtime_executes_architect_routed_generated_simulation_gap(
                 "packet_id": "simulation_proposal:direct_gap",
                 "source_agent": "LLMSimulationEngineerAgent",
                 "model": "static-simulation-model",
-                "model_tier": "sonnet",
+                "model_tier": "haiku",
                 "simulation_code_drafts": [
                     {
                         "simulation_id": "direct_gap_generated_simulation",
@@ -20330,20 +20356,20 @@ def test_runtime_executes_architect_routed_generated_simulation_gap(
     assert manifest["architect_initial_routing_selected_subsystems"][
         "SimulationEvaluator"
     ] == 1
-    assert manifest["n_generated_simulation_sandbox_executed"] == 1
-    assert manifest["n_generated_simulation_sandbox_passed"] == 1
+    assert result["status"] == "BLOCKED"
+    assert result["traces"][1]["failure_classification"] == (
+        "accepted_algorithm_handoff_missing"
+    )
+    assert manifest["n_generated_simulation_sandbox_executed"] == 0
+    assert manifest["n_generated_simulation_sandbox_passed"] == 0
     assert manifest[
         "n_generated_simulation_typed_metric_contract_artifacts_authority_validated"
-    ] == 1
+    ] == 0
     assert manifest[
         "n_generated_simulation_typed_metric_contract_artifacts_authority_validated_all_required_passed"
-    ] == 1
-    assert len(simulation_engineer.feedbacks) == 1
-    assert simulation_artifacts[0]["n_generated_simulation_sandbox_executed"] == 1
-    assert simulation_artifacts[0]["n_generated_simulation_sandbox_passed"] == 1
-    assert simulation_artifacts[0]["generated_simulation_sandbox_prototypes"][0][
-        "executor"
-    ] == "generated_simulation_sandbox"
+    ] == 0
+    assert simulation_engineer.feedbacks == []
+    assert simulation_artifacts == []
 
 
 def test_architect_runtime_routes_algorithm_capability_gap_to_executor() -> None:
@@ -27370,6 +27396,9 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     simulation_context = _theory_informed_metric_context_fixture()
     simulation_context["algorithm_sandbox_manifest_id"] = algorithm_manifest_id
     simulation_context["upstream_algorithm_handoff"] = accepted_handoff
+    simulation_context["empirical_evaluation_phase"] = (
+        EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+    )
     simulation_routed = ArchitectCoordinatorRuntimeSubsystem(
         coordinator=AcceptedCoordinator(),  # type: ignore[arg-type]
         runtime_config=ResearchAgentRuntimeConfig(
@@ -27399,6 +27428,12 @@ def test_live_architect_preauthors_metric_contract_with_structured_substage() ->
     assert simulation_routed.next_task.inputs["architect_context"][
         "confirmatory_simulation_requires_accepted_algorithm_handoff"
     ] is True
+    assert "empirical_evaluation_phase" not in (
+        simulation_routed.next_task.inputs["architect_context"]
+    )
+    assert simulation_routed.next_task.inputs["architect_context"][
+        "architect_initial_routing"
+    ]["exploratory_evaluation_phase_completed"] is True
     assert simulation_routed.next_task.inputs["architect_context"][
         "architect_initial_routing"
     ]["requires_prerequisite_algorithm"] is False
@@ -31508,9 +31543,9 @@ def test_formalizer_capability_eval_prompt_requires_lean_candidate() -> None:
     assert "preserve centering, scaling, variance" in prompt
     assert "initial_source_theorem_target_shape_guard" not in prompt
     assert "probability_or_measure_coverage_claim" not in prompt
-    assert "proof_bank_obligation_requests alone do not satisfy this gate" in prompt
+    assert "Return at least one complete Lean candidate" in prompt
     assert "candidate_lean_declaration" in prompt
-    assert "AgentRuntime will not infer it by parsing generated Lean text" in prompt
+    assert "does not parse, edit, or complete Lean" in prompt
 
 
 def test_formalizer_capability_eval_validator_requires_lean_candidate() -> None:
@@ -31565,7 +31600,7 @@ def test_formalizer_capability_eval_validator_requires_lean_candidate() -> None:
     assert errors == []
 
 
-def test_formalizer_normalization_binds_legacy_target_known_from_typed_role() -> None:
+def test_formalizer_normalization_does_not_rewrite_typed_target_provenance() -> None:
     packet = _normalize_formalizer_packet(
         {
             "formal_targets": [
@@ -31605,8 +31640,8 @@ def test_formalizer_normalization_binds_legacy_target_known_from_typed_role() ->
             description="Preserve target identity while routing helper diagnostics.",
             tags=("capability-eval",),
         ),
-        model="claude-sonnet-4-6",
-        model_tier="sonnet",
+        model="claude-haiku-4-5-20251001",
+        model_tier="haiku",
         provider_name="anthropic",
         backend_provider_name="anthropic",
         raw_response="{}",
@@ -31618,32 +31653,16 @@ def test_formalizer_normalization_binds_legacy_target_known_from_typed_role() ->
     gap, helper = packet["formal_targets"]
     assert gap["source_theorem_target_provenance"][
         "source_theorem_target_known"
-    ] is True
+    ] is False
     assert helper["source_theorem_target_provenance"][
         "source_theorem_target_known"
-    ] is False
-    assert packet["formal_target_role_provenance_bindings"] == [
-        {
-            "target_id": "exact-source-gap",
-            "formal_target_role": (
-                FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP
-            ),
-            "previous_source_theorem_target_known": False,
-            "source_theorem_target_known": True,
-        },
-        {
-            "target_id": "diagnostic-helper",
-            "formal_target_role": FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT,
-            "previous_source_theorem_target_known": True,
-            "source_theorem_target_known": False,
-        },
-    ]
-    assert (
-        _validate_capability_eval_formalizer_lean_candidate_packet(packet) == []
-    )
+    ] is True
+    assert "formal_target_role_provenance_bindings" not in packet
+    errors = _validate_capability_eval_formalizer_lean_candidate_packet(packet)
+    assert any("source_theorem_target_known" in error for error in errors)
 
 
-def test_formalizer_normalization_mechanically_binds_candidate_declaration() -> None:
+def test_formalizer_normalization_does_not_infer_candidate_declaration_binding() -> None:
     packet = _normalize_formalizer_packet(
         {
             "formal_targets": [
@@ -31672,8 +31691,8 @@ def test_formalizer_normalization_mechanically_binds_candidate_declaration() -> 
             description="Bind duplicate declaration identity mechanically.",
             tags=("capability-eval",),
         ),
-        model="claude-sonnet-4-6",
-        model_tier="sonnet",
+        model="claude-haiku-4-5-20251001",
+        model_tier="haiku",
         provider_name="anthropic",
         backend_provider_name="anthropic",
         raw_response="{}",
@@ -31683,24 +31702,11 @@ def test_formalizer_normalization_mechanically_binds_candidate_declaration() -> 
     )
 
     target = packet["formal_targets"][0]
-    assert target["source_theorem_target_provenance"][
-        "target_lean_declaration"
-    ] == "emitted_source_candidate"
-    assert target["source_theorem_target_provenance"][
-        "target_lean_declaration_binding_source"
-    ] == "candidate_lean_declaration"
-    assert packet["formal_target_role_provenance_bindings"] == [
-        {
-            "target_id": "source-candidate",
-            "formal_target_role": FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE,
-            "previous_source_theorem_target_known": False,
-            "source_theorem_target_known": False,
-            "target_lean_declaration_binding_source": (
-                "candidate_lean_declaration"
-            ),
-        }
-    ]
-    assert _formal_target_role_contract_errors(target, require_role=True) == []
+    provenance = target["source_theorem_target_provenance"]
+    assert "target_lean_declaration" not in provenance
+    assert "target_lean_declaration_binding_source" not in provenance
+    assert "formal_target_role_provenance_bindings" not in packet
+    assert _formal_target_role_contract_errors(target, require_role=True)
 
 
 def test_formalizer_whole_proof_repair_validator_preserves_exact_signature() -> None:
@@ -32074,10 +32080,10 @@ def test_formalizer_materialization_prompt_uses_compiler_feedback_after_parser_f
 
     assert "Repeated parser/syntax fail-closed override" not in prompt
     assert "suspend exact source-theorem candidate materialization" not in prompt
-    assert "source_theorem_exact_candidate_materialization_required" in prompt
-    assert "Repeated Lean compiler feedback is active" in prompt
-    assert "Valid Lean syntax, including Unicode and pipeline notation" in prompt
-    assert "configured Lean environment accepts it" in prompt
+    assert "source_theorem_candidate_materialization_required" in prompt
+    assert "violates repeated parser/syntax repair contract" in prompt
+    assert "Repeated Lean compiler feedback is active" not in prompt
+    assert "Valid Lean syntax, including Unicode and pipeline notation" not in prompt
 
 
 def test_formalizer_materialization_prompt_suspends_on_exact_semantic_definition_gate() -> None:
@@ -32127,13 +32133,15 @@ def test_formalizer_materialization_prompt_suspends_on_exact_semantic_definition
         },
     )
 
-    assert "Exact semantic-definition gate override" in prompt
-    assert "suspend exact source-theorem candidate materialization" in prompt
+    assert "Exact semantic-definition gate override" not in prompt
+    assert "suspend exact source-theorem candidate materialization" not in prompt
     assert "source_theorem_exact_semantic_definition_repair" in prompt
+    assert "coverage_event" in prompt
+    assert "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY" in prompt
     assert "Mandatory source-theorem candidate-materialization repair" not in prompt
 
 
-def test_formalizer_normalizes_materialization_and_bridge_source_aliases() -> None:
+def test_formalizer_preserves_and_rejects_noncanonical_lean_source_aliases() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     packet = _normalize_formalizer_packet(
         {
@@ -32198,8 +32206,8 @@ def test_formalizer_normalizes_materialization_and_bridge_source_aliases() -> No
             ],
         },
         question=question,
-        model="claude-sonnet-4-6",
-        model_tier="sonnet",
+        model="claude-haiku-4-5-20251001",
+        model_tier="haiku",
         provider_name="anthropic",
         backend_provider_name="anthropic",
         raw_response="{}",
@@ -32222,43 +32230,17 @@ def test_formalizer_normalizes_materialization_and_bridge_source_aliases() -> No
 
     target = packet["formal_targets"][0]
     candidate = packet["source_to_bridge_premise_derivation_candidates"][0]
-    assert target["lean_statement_sketch_normalized_from"] == "lean_source"
-    assert target["expected_status"] == "NEEDS_KERNEL_CHECK"
-    assert (
-        candidate["premise_derivation_candidate_lean_source_normalized_from"]
-        == "lean_source"
-    )
-    assert candidate["expected_status"] == "NEEDS_KERNEL_CHECK"
-    assert candidate["source_to_bridge_premise_derivation_candidate_request_id"] == (
-        "request:hGoodRankImpliesCovered"
-    )
-    assert validate_formalizer_packet(packet) == []
-    assert (
-        _validate_source_theorem_candidate_materialization_packet(
-            packet,
-            proof_bank_runtime_memory_summary={
-                "source_theorem_candidate_materialization_required": True,
-                "source_theorem_candidate_materialization_required_target_names": [
-                    "split_conformal_finite_sample_coverage"
-                ],
-                "source_theorem_candidate_materialization_required_target_ids": [
-                    "split_conformal_finite_sample_coverage"
-                ],
-            },
-        )
-        == []
-    )
-    assert (
-        _validate_capability_eval_formalizer_lean_candidate_packet(
-            packet,
-            proof_bank_runtime_memory_summary={
-                "source_to_bridge_premise_derivation_required": True,
-                "source_to_bridge_premise_derivation_pending_premise_names": [
-                    "hGoodRankImpliesCovered"
-                ],
-            },
-        )
-        == []
+    assert "lean_statement_sketch" not in target
+    assert target["lean_source"].startswith("theorem split_conformal")
+    assert target["expected_status"] == "OPEN"
+    assert "premise_derivation_candidate_lean_source" not in candidate
+    assert candidate["lean_source"].startswith("theorem hGoodRank")
+    assert "expected_status" not in candidate
+    assert "source_to_bridge_premise_derivation_candidate_request_id" not in candidate
+    errors = validate_formalizer_packet(packet)
+    assert any("must provide a nonempty Lean candidate" in error for error in errors)
+    assert any(
+        "must provide Lean source in canonical field" in error for error in errors
     )
 
 
@@ -32359,7 +32341,7 @@ def test_formalizer_capability_eval_requires_explicit_target_roles() -> None:
     assert "rules" not in feedback
 
 
-def test_formalizer_capability_eval_validator_allows_target_drift_formal_gap() -> None:
+def test_formalizer_capability_eval_does_not_special_case_target_drift_text() -> None:
     errors = _validate_capability_eval_formalizer_lean_candidate_packet(
         {
             "formal_targets": [
@@ -32395,7 +32377,11 @@ def test_formalizer_capability_eval_validator_allows_target_drift_formal_gap() -
         },
     )
 
-    assert errors == []
+    assert errors == [
+        "capability_eval requires at least one Claude/OpenAI-generated "
+        "Lean statement sketch in formal_targets or "
+        "source_to_bridge_premise_derivation_candidates"
+    ]
 
 
 def test_formalizer_capability_eval_validator_allows_non_source_helper_with_gap() -> None:
@@ -32642,7 +32628,7 @@ def test_formalizer_lemma_plan_allows_direct_proof_and_rejects_fake_edges() -> N
     assert "lemma_dependency_plan[0] missing to" in malformed_errors
 
 
-def test_formalizer_normalizer_quarantines_bad_optional_bridge_candidate() -> None:
+def test_formalizer_preserves_and_rejects_bad_optional_bridge_candidate() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[0]
     packet = _normalize_formalizer_packet(
         {
@@ -32685,8 +32671,8 @@ def test_formalizer_normalizer_quarantines_bad_optional_bridge_candidate() -> No
             ],
         },
         question=question,
-        model="claude-sonnet-4-6",
-        model_tier="sonnet",
+        model="claude-haiku-4-5-20251001",
+        model_tier="haiku",
         provider_name="anthropic",
         backend_provider_name="anthropic",
         raw_response="{}",
@@ -32695,32 +32681,21 @@ def test_formalizer_normalizer_quarantines_bad_optional_bridge_candidate() -> No
         environment_feedback={},
     )
 
-    assert validate_formalizer_packet(packet) == []
+    errors = validate_formalizer_packet(packet)
     assert packet["backend_provider"] == "anthropic"
-    assert packet["normalized_missing_required_scaffolding_fields"] == [
+    for field in (
         "lemma_dependency_plan",
         "retrieval_queries",
         "proof_search_plan",
         "gap_taxonomy",
         "critic_findings",
         "next_actions",
-    ]
-    assert packet["lemma_dependency_plan"] == []
-    assert packet["retrieval_queries"] == []
-    assert packet["proof_search_plan"] == {}
-    assert packet["gap_taxonomy"] == []
-    assert len(packet["critic_findings"]) == 1
-    assert (
-        packet["critic_findings"][0]["proof_evidence_status"]
-        == "DROPPED_UNINSTANTIATED_SOURCE_TO_BRIDGE_CANDIDATE_NOT_PROOF_EVIDENCE"
-    )
-    assert packet["next_actions"] == []
-    assert packet["source_to_bridge_premise_derivation_candidates"] == []
-    dropped = packet["dropped_source_to_bridge_premise_derivation_candidates"]
-    assert dropped[0]["failure_classification"] == (
-        "source_to_bridge_candidate_uninstantiated_adapter_objects"
-    )
-    assert dropped[0]["uninstantiated_adapter_object_binders"] == ["mu1", "mu0"]
+    ):
+        assert field not in packet
+    assert len(packet["source_to_bridge_premise_derivation_candidates"]) == 1
+    assert "dropped_source_to_bridge_premise_derivation_candidates" not in packet
+    assert any("missing or invalid field" in error for error in errors)
+    assert not any("takes adapter objects as theorem binders" in error for error in errors)
     assert packet["formal_targets"][0]["id"] == "safe_helper"
 
 
@@ -33663,7 +33638,7 @@ def test_formalization_validator_failure_exports_learning_row() -> None:
                     {
                         "attempt_index": 1,
                         "provider": "anthropic",
-                        "model": "claude-sonnet-4-6",
+                        "model": "claude-haiku-4-5-20251001",
                         "raw_response_fingerprint": "abc123",
                     }
                 ],
@@ -33730,13 +33705,9 @@ def test_formalization_validator_failure_exports_learning_row() -> None:
     assert "missing_semantic_anchor_references" not in feedback
     assert "uninstantiated_adapter_object_binders" not in feedback
     assert "missing_source_binding_contract_metadata" not in feedback
-    assert feedback["target_shape_contract"]["required_conclusion_family"] == (
-        "probability_or_measure_coverage_claim"
-    )
-    assert feedback["target_drift_repair_contract"] == {}
-    assert feedback["candidate_reroute_options"] == [
-        "emit FORMAL_GAP for the source theorem if proof hole remains"
-    ]
+    assert "target_shape_contract" not in feedback
+    assert "target_drift_repair_contract" not in feedback
+    assert "candidate_reroute_options" not in feedback
     assert "AgentRuntime does not choose mathematical or Lean repairs" in feedback[
         "required_repair"
     ]
@@ -33760,9 +33731,7 @@ def test_formalization_validator_failure_exports_learning_row() -> None:
     assert learning_summary["formalizer_validation_feedback"]["feedback_id"] == (
         observation["feedback_id"]
     )
-    assert learning_summary["target_shape_contract"][
-        "required_conclusion_family"
-    ] == "probability_or_measure_coverage_claim"
+    assert "target_shape_contract" not in learning_summary
     assert "active-project Lean/kernel verification" in learning_rows[0][
         "acceptance_gate"
     ]
@@ -33861,12 +33830,12 @@ def test_formalizer_validation_failure_routes_materialization_contract() -> None
         "formalizer_validation_feedback"
     ]["feedback_id"] == feedback["formalizer_validation_feedback"]["feedback_id"]
     assert any(
-        "AgentRuntime does not prescribe field-specific" in instruction
-        for instruction in prompt_payload["mode_specific_instructions"]
+        "does not prescribe field-specific corrections" in instruction
+        for instruction in prompt_payload["model_owned_feedback_instructions"]
     )
     assert not any(
         "Mandatory source-theorem candidate-materialization repair" in instruction
-        for instruction in prompt_payload["mode_specific_instructions"]
+        for instruction in prompt_payload["model_owned_feedback_instructions"]
     )
 
 
@@ -34030,17 +33999,11 @@ def test_formalizer_validation_failure_routes_required_pf_bv_contract() -> None:
     )
     prompt_payload = json.loads(prompt[prompt.index('{"question":') :])
     prompt_feedback = prompt_payload["runtime_environment_feedback"]
-    prompt_contract = prompt_feedback["pseudo_formalization_repair_contract"]
+    prompt_observations = prompt_feedback["pseudo_formal_observations"]
     prompt_output_contract = prompt_payload["required_output_contract"]
 
-    assert prompt_feedback["pseudo_formalization_required"] is True
-    assert prompt_contract["required_output_key"] == "pseudo_formal_proof_packets"
-    assert prompt_contract["target_lanes"] == [
-        "source_theorem_exact_semantic_definition",
-        "lean_rag",
-        "source_to_bridge",
-    ]
-    assert prompt_contract["placeholder_symbols"] == ["C_n"]
+    assert prompt_observations["pseudo_formalization_required"] is True
+    assert "pseudo_formalization_repair_contract" not in prompt_feedback
     assert prompt_payload["pseudo_formalization_required_target_lanes"] == [
         "source_theorem_exact_semantic_definition",
         "lean_rag",
@@ -34844,12 +34807,18 @@ def test_formalizer_runtime_exports_pf_bv_manifest_under_strict_lean_contract(
     formalizer_response["proof_bank_obligation_requests"] = []
     formalizer_response["pseudo_formal_proof_packets"] = [
         {
+            "packet_id": "pseudo_formal_packet:aipw_asymptotic_normality",
             "theorem_id": "aipw_asymptotic_normality",
             "source_artifact_id": "theory_derivation:test_fixture_structured",
             "blocks": [
                 {
                     "block_id": "pf_remainder_semantics",
                     "block_type": "lemma",
+                    "block_depth": 1,
+                    "premises": [
+                        "the orthogonal score equation holds",
+                        "the nuisance product-rate assumption holds",
+                    ],
                     "conclusion": (
                         "product-rate nuisance convergence makes the second-order "
                         "remainder negligible"
@@ -34858,6 +34827,9 @@ def test_formalizer_runtime_exports_pf_bv_manifest_under_strict_lean_contract(
                         "Use the orthogonal score equation and the product-rate "
                         "assumption from the theory trace."
                     ),
+                    "dependency_ids": [],
+                    "scope_parent_id": "",
+                    "dependency_scope": "earlier_block_statement_only",
                     "source_anchors": [
                         {
                             "kind": "theory_trace",
@@ -34870,8 +34842,18 @@ def test_formalizer_runtime_exports_pf_bv_manifest_under_strict_lean_contract(
                     ],
                     "lean_feasibility": "needs_semantic_definition",
                     "faithfulness_status": "faithful",
+                    "faithfulness_repair": {
+                        "status": "not_required",
+                        "attempts": 0,
+                        "flagged_discrepancies": [],
+                    },
                     "block_verification": {
                         "verdict": "accepted",
+                        "reason": "model-proposed pseudo-formal check",
+                        "verifier_provenance": "formalizer_proposed",
+                        "independent_verifier": False,
+                        "strictness_threshold": "lean_bridge_conservative",
+                        "aggregation_rule": "parallel_pessimistic_aggregation",
                         "rollout_count": 1,
                     },
                 }
@@ -35058,9 +35040,9 @@ def test_runtime_learning_memory_replays_formalizer_contract_failure_to_prompt_a
     )
 
     assert "formalizer_runtime_capability_contract_feedback_memory" in prompt
-    assert "Prior Formalizer runtime capability-contract feedback is active" in prompt
+    assert "Prior Formalizer runtime capability-contract feedback is active" not in prompt
     assert "formalizer_capability_contract_missing_local_lean_configuration" in prompt
-    assert "--formalizer-candidate-local-lean" in prompt
+    assert "--formalizer-candidate-local-lean" not in prompt
     assert "FORMALIZER_RUNTIME_CAPABILITY_CONTRACT_FAILURE_NOT_PROOF_EVIDENCE" in prompt
 
     class ContractFeedbackFormalizer:
@@ -35314,7 +35296,7 @@ def test_formalization_validator_failure_does_not_infer_domain_shape_from_sorry(
     )
     assert "contains Lean sorry placeholder" in prompt
     assert "source_to_bridge_premise_derivation_candidates" in prompt
-    assert "AgentRuntime does not prescribe field-specific" in prompt
+    assert "does not prescribe field-specific corrections" in prompt
     assert "Mandatory proof-hole packet repair" not in prompt
     assert "Mandatory coverage-theorem proof-hole reroute" not in prompt
     assert "probability_or_measure_coverage_claim" not in prompt
@@ -35466,7 +35448,7 @@ def test_formalizer_packet_validation_feedback_preserves_local_lean_repair_contr
     )
     assert "typed tool results" in prompt
     assert "choose the next Lean candidate" in prompt
-    assert "does not translate diagnostic classes" in prompt
+    assert "does not prescribe field-specific corrections" in prompt
     assert "Mandatory Mathlib-root repair" not in prompt
     assert "Mandatory next_action_reference_contract repair" not in prompt
 
@@ -37055,7 +37037,7 @@ def test_formalizer_candidate_materialization_mirrors_project_local_lsp_artifact
     ] == str(proof_state_artifact_path)
 
 
-def test_formalizer_candidate_materialization_rejects_vacuous_true_candidate(
+def test_formalizer_candidate_materialization_leaves_vacuity_to_semantic_review(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -37088,17 +37070,16 @@ def test_formalizer_candidate_materialization_rejects_vacuous_true_candidate(
 
     row = manifest["candidate_rows"][0]
     assert manifest["n_candidate_sources"] == 1
-    assert manifest["n_candidate_artifacts_written"] == 0
-    assert manifest["n_precheck_rejected"] == 1
-    assert manifest["n_local_lean_checked"] == 0
-    assert manifest["kernel_verified"] is False
-    assert row["precheck_status"] == "REJECTED_BY_RUNTIME_PRECHECK"
-    assert row["artifact_path"] == ""
-    assert row["local_lean_attempted"] is False
-    assert row["local_lean_skipped_reason"] == (
-        "candidate_rejected_by_precheck_or_not_materialized"
-    )
-    assert "vacuous True target" in " ".join(row["precheck_errors"])
+    assert manifest["n_candidate_artifacts_written"] == 1
+    assert manifest["n_precheck_rejected"] == 0
+    assert manifest["n_local_lean_checked"] == 1
+    assert manifest["kernel_verified"] is True
+    assert manifest["kernel_verified_scope"] == "candidate_artifact_only"
+    assert row["precheck_status"] == "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE"
+    assert row["artifact_path"]
+    assert row["local_lean_attempted"] is True
+    assert row["precheck_errors"] == []
+    assert row["source_theorem_candidate_evidence_eligible"] is False
 
 
 def test_formalizer_candidate_materialization_sends_false_elim_to_lean(
@@ -38490,39 +38471,6 @@ def test_formalizer_candidate_materialization_defers_target_semantics_to_reviewe
     assert _formalizer_lean_candidate_repair_feedback(manifest) is None
 
 
-def test_formalizer_target_family_ignores_constraint_metavocabulary() -> None:
-    errors = runtime_module._formalizer_source_theorem_target_drift_errors(
-        (
-            "theorem neyman_variance_conservative "
-            "(estimated trueVariance : Real) "
-            "(h : trueVariance <= estimated) : "
-            "trueVariance <= estimated := h"
-        ),
-        {
-            "informal_source": (
-                "Neyman conservativeness: E_W[V_hat] is at least "
-                "Var_W(tau_hat)."
-            ),
-            "semantic_alignment_constraints": [
-                (
-                    "The coverage conclusion must be stated as "
-                    "E_W[V_hat] >= Var_W(tau_hat)."
-                ),
-                "No superpopulation probability model may be introduced.",
-            ],
-            "source_theorem_target_provenance": {
-                "source_theorem_target_known": True,
-                "target_lean_declaration": "neyman_variance_conservative",
-                "source_theorem_goal_id": (
-                    "neyman_variance_conservative_validity"
-                ),
-            },
-        },
-    )
-
-    assert errors == []
-
-
 def test_formalizer_candidate_materialization_allows_string_false_helper_target(
     tmp_path: Path,
 ) -> None:
@@ -38738,14 +38686,10 @@ def test_formalizer_candidate_precheck_leaves_lean_syntax_and_tactics_to_lean() 
         "/* malformed text is also a Lean diagnostic, not a Python repair rule */\n"
     )
 
-    assert formalizer_module._lean_statement_trust_boundary_error(source) == ""
-    assert runtime_module._formalizer_lean_candidate_precheck_errors(
-        source,
-        lean_project=None,
-    ) == []
+    assert runtime_module._formalizer_lean_candidate_precheck_errors(source) == []
 
 
-def test_formalizer_candidate_materialization_diagnoses_unavailable_import(
+def test_formalizer_candidate_materialization_leaves_import_resolution_to_lean(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -38797,23 +38741,16 @@ def test_formalizer_candidate_materialization_diagnoses_unavailable_import(
     assert manifest["n_candidate_sources"] == 1
     assert manifest["n_candidate_artifacts_written"] == 1
     assert manifest["n_precheck_rejected"] == 0
-    assert row["precheck_status"] == (
-        "MATERIALIZED_WITH_PRECHECK_DIAGNOSTICS_REQUIRES_LOCAL_LEAN_OR_AXLE"
-    )
+    assert row["precheck_status"] == "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE"
     assert row["blocking_precheck_errors"] == []
+    assert row["precheck_errors"] == []
     assert row["artifact_path"]
     assert row["local_lean_attempted"] is True
-    assert "imports unavailable module" in " ".join(row["precheck_errors"])
-    assert "Mathlib.Probability.ProbabilityMeasure" in " ".join(
-        row["precheck_errors"]
-    )
-    assert "use formal-environment search" in " ".join(row["precheck_errors"])
-    assert "Mathlib.MeasureTheory.Measure.ProbabilityMeasure" not in " ".join(
-        row["precheck_errors"]
-    )
+    assert row["local_lean_compiled"] is False
+    assert row["local_lean_stdout"] or row["local_lean_stderr"]
 
 
-def test_formalizer_candidate_materialization_diagnoses_mathlib_umbrella_import(
+def test_formalizer_candidate_materialization_does_not_guess_import_replacements(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -38869,22 +38806,16 @@ def test_formalizer_candidate_materialization_diagnoses_mathlib_umbrella_import(
     row = manifest["candidate_rows"][0]
     assert manifest["n_candidate_artifacts_written"] == 1
     assert manifest["n_precheck_rejected"] == 0
-    assert row["precheck_status"] == (
-        "MATERIALIZED_WITH_PRECHECK_DIAGNOSTICS_REQUIRES_LOCAL_LEAN_OR_AXLE"
-    )
+    assert row["precheck_status"] == "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE"
     assert row["blocking_precheck_errors"] == []
+    assert row["precheck_errors"] == []
     assert row["artifact_path"]
     assert row["local_lean_attempted"] is True
-    error_text = " ".join(row["precheck_errors"])
-    assert "imports unavailable umbrella module" in error_text
-    assert "use formal-environment search" in error_text
-    assert "Mathlib.MeasureTheory.Measure.ProbabilityMeasure" not in error_text
+    assert row["local_lean_compiled"] is False
+    assert row["local_lean_stdout"] or row["local_lean_stderr"]
     contract = manifest["learning_rows"][0]["local_lean_repair_contract"]
     assert contract["artifact_kind"] == "FormalizerToolObservationEnvelope"
     assert contract["diagnostic_classes"] == []
-    assert "imports unavailable umbrella module" in contract["observations"][0][
-        "precheck_errors"
-    ][0]
     assert contract["runtime_selected_repair"] is False
     assert not any(key.endswith("_rule") for key in contract)
 
@@ -38954,14 +38885,14 @@ def test_formalizer_candidate_materialization_sends_import_only_source_to_lean(
         assert "declaration_required" not in contract
 
 
-def test_formalizer_candidate_materialization_rejects_import_without_lean_project(
+def test_formalizer_candidate_materialization_checks_import_without_project_in_lean(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     task = AgentTask(
         task_id="task:formalizer_candidate_import_without_project",
         owner_subsystem="FormalizationEvaluator",
-        objective="reject import-bearing formalizer candidate without a Lean project",
+        objective="delegate import resolution to the available Lean executable",
     )
     manifest = _materialize_formalizer_lean_candidate_artifacts(
         root=tmp_path / "formalizer_lean_candidates",
@@ -38989,14 +38920,14 @@ def test_formalizer_candidate_materialization_rejects_import_without_lean_projec
 
     row = manifest["candidate_rows"][0]
     assert manifest["n_candidate_sources"] == 1
-    assert manifest["n_candidate_artifacts_written"] == 0
-    assert manifest["n_precheck_rejected"] == 1
-    assert row["precheck_status"] == "REJECTED_BY_RUNTIME_PRECHECK"
-    assert row["local_lean_attempted"] is False
-    assert "no lean_project was provided" in " ".join(row["precheck_errors"])
+    assert manifest["n_candidate_artifacts_written"] == 1
+    assert manifest["n_precheck_rejected"] == 0
+    assert row["precheck_status"] == "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE"
+    assert row["precheck_errors"] == []
+    assert row["local_lean_attempted"] is True
 
 
-def test_formalizer_prompt_repair_instructions_preserve_source_theorem_after_target_drift() -> None:
+def test_formalizer_prompt_drops_legacy_target_drift_precheck_recipe() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     prompt = build_formalizer_prompt(
         question=question,
@@ -39048,15 +38979,15 @@ def test_formalizer_prompt_repair_instructions_preserve_source_theorem_after_tar
         },
     )
 
-    assert "source-theorem target drift" in prompt
-    assert "target_shape_contract" in prompt
-    assert "probability_or_measure_coverage_claim" in prompt
+    assert "source-theorem target drift" not in prompt
+    assert "target_shape_contract" not in prompt
+    assert "candidate_reroute_options" not in prompt
     assert "AgentRuntime supplies no Python-authored Lean grammar" in prompt
     assert "Mandatory source-theorem target-preservation repair" not in prompt
     assert "Mandatory target-drift two-lane repair" not in prompt
 
 
-def test_formalizer_prompt_infers_only_generic_contract_for_legacy_target_drift() -> None:
+def test_formalizer_prompt_drops_legacy_inferred_target_shape_precheck() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     prompt = build_formalizer_prompt(
         question=question,
@@ -39092,14 +39023,14 @@ def test_formalizer_prompt_infers_only_generic_contract_for_legacy_target_drift(
         },
     )
 
-    assert "source-theorem target drift" in prompt
+    assert "source-theorem target drift" not in prompt
     assert "probability_or_measure_coverage_claim" not in prompt
     assert "target_drift_repair_contract" not in prompt
     assert "AgentRuntime supplies no Python-authored Lean grammar" in prompt
     assert "Target-shape contract is mandatory" not in prompt
 
 
-def test_formalizer_prompt_repair_instructions_handle_import_precheck_failure() -> None:
+def test_formalizer_prompt_drops_legacy_import_precheck_recipe() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     prompt = build_formalizer_prompt(
         question=question,
@@ -39134,12 +39065,12 @@ def test_formalizer_prompt_repair_instructions_handle_import_precheck_failure() 
         },
     )
 
-    assert "Mathlib.Probability.ProbabilityMeasure" in prompt
+    assert "Mathlib.Probability.ProbabilityMeasure" not in prompt
     assert "AgentRuntime supplies no Python-authored Lean grammar" in prompt
     assert "Mandatory import repair" not in prompt
 
 
-def test_formalizer_prompt_uses_verified_imports_without_grammar_contract() -> None:
+def test_formalizer_prompt_keeps_source_but_drops_verified_import_recipe() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     prompt = build_formalizer_prompt(
         question=question,
@@ -39179,8 +39110,9 @@ def test_formalizer_prompt_uses_verified_imports_without_grammar_contract() -> N
         },
     )
 
-    assert "Mathlib.MeasureTheory.Measure.ProbabilityMeasure" in prompt
-    assert "source must contain a declaration" in prompt
+    assert "import Mathlib" in prompt
+    assert "Mathlib.MeasureTheory.Measure.ProbabilityMeasure" not in prompt
+    assert "source must contain a declaration" not in prompt
     assert "AgentRuntime supplies no Python-authored Lean grammar" in prompt
     assert "Mandatory Mathlib-root repair" not in prompt
     assert "Mandatory verified-narrow-import repair" not in prompt
@@ -39263,8 +39195,8 @@ def test_formalizer_prompt_escalates_repeated_invalid_lean_candidates() -> None:
         },
     )
 
-    assert "unsupported contradiction proof shortcut absurd" in prompt
-    assert "unsupported proof-search hole exact?" in prompt
+    assert "unsupported contradiction proof shortcut absurd" not in prompt
+    assert "unsupported proof-search hole exact?" not in prompt
     assert "repeated_formalizer_lean_candidate_failure" in prompt
     assert "AgentRuntime supplies no Python-authored Lean grammar" in prompt
     assert "Repeated Lean-candidate compiler repair" not in prompt
@@ -39390,7 +39322,7 @@ def test_formalizer_prompt_escalates_repeated_packet_validation_failure() -> Non
     assert "source-binding contract metadata" in prompt
     assert "formalizer_validation_feedback" in prompt
     assert "repeated_formalizer_packet_validation_failure" in prompt
-    assert "AgentRuntime does not prescribe field-specific" in prompt
+    assert "does not prescribe field-specific corrections" in prompt
     assert "Repeated packet-validation escalation" not in prompt
 
 
@@ -39589,7 +39521,8 @@ def test_formalizer_prompt_does_not_promote_legacy_core_helper_precheck() -> Non
         },
     )
 
-    assert "core-Lean-only helper contract violation" in prompt
+    assert "core-Lean-only helper contract violation" not in prompt
+    assert "thm_aipw_normality_hDoubleRobust_source_to_bridge_derivation" in prompt
     assert "AgentRuntime supplies no Python-authored Lean grammar" in prompt
     assert "Local-Lean repair contract is mandatory" not in prompt
     assert "Mandatory core-Lean helper repair" not in prompt
@@ -39672,14 +39605,14 @@ def test_formalizer_prompt_does_not_infer_domain_contract_from_proof_hole() -> N
 
     assert "contains Lean sorry placeholder" in prompt
     assert "formalizer_validation_feedback" in prompt
-    assert "AgentRuntime does not prescribe field-specific" in prompt
+    assert "does not prescribe field-specific corrections" in prompt
     assert "Mandatory proof-hole packet repair" not in prompt
     assert "source_theorem_target_preservation" not in prompt
     assert "probability_or_measure_coverage_claim" not in prompt
     assert "Mandatory coverage-theorem proof-hole reroute" not in prompt
 
 
-def test_formalizer_prompt_escalates_repeated_explicit_target_shape_failure() -> None:
+def test_formalizer_prompt_ignores_legacy_target_shape_repair_fields() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     prompt = build_formalizer_prompt(
         question=question,
@@ -39713,10 +39646,12 @@ def test_formalizer_prompt_escalates_repeated_explicit_target_shape_failure() ->
         },
     )
 
-    assert "probability_or_measure_coverage_claim" in prompt
+    assert "probability_or_measure_coverage_claim" not in prompt
     assert "source theorem target drift" in prompt
+    assert "probability/measure coverage conclusion" in prompt
     assert "formalizer_validation_feedback" in prompt
-    assert "AgentRuntime does not prescribe field-specific" in prompt
+    assert "does not prescribe field-specific corrections" in prompt
+    assert "validation_repair_directives" not in prompt
     assert "Repeated target-shape failure escalation" not in prompt
     assert "Mandatory target-drift two-lane packet repair" not in prompt
 
@@ -39748,11 +39683,11 @@ def test_formalizer_prompt_repairs_phantom_source_to_bridge_next_action() -> Non
 
     assert "packet contains no source_to_bridge_premise_derivation_candidates" in prompt
     assert "formalizer_validation_feedback" in prompt
-    assert "AgentRuntime does not prescribe field-specific" in prompt
+    assert "does not prescribe field-specific corrections" in prompt
     assert "Mandatory executable-work-item repair" not in prompt
 
 
-def test_formalizer_prompt_requires_suggested_import_replacement_from_memory() -> None:
+def test_formalizer_prompt_ignores_legacy_suggested_import_repair() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     prompt = build_formalizer_prompt(
         question=question,
@@ -39792,10 +39727,10 @@ def test_formalizer_prompt_requires_suggested_import_replacement_from_memory() -
         environment_feedback={},
     )
 
-    assert "Prior Formalizer Lean-candidate observations are active" in prompt
-    assert "Mathlib.Probability.ProbabilityMeasure" in prompt
-    assert "Mathlib.MeasureTheory.Measure.ProbabilityMeasure" in prompt
-    assert "normal model/tool loop" in prompt
+    assert "Prior Formalizer Lean-candidate observations are active" not in prompt
+    assert "Mathlib.Probability.ProbabilityMeasure" not in prompt
+    assert "Mathlib.MeasureTheory.Measure.ProbabilityMeasure" not in prompt
+    assert "normal model/tool loop" not in prompt
     assert "Mandatory suggested-import repair" not in prompt
     assert "overrides timeout scope-down" not in prompt
 
@@ -40317,6 +40252,7 @@ def test_formalizer_lean_candidate_repair_feedback_uses_formal_source_grounding(
                 "feedback_kind": "critic_source_theorem_proof_body_adapter_feedback",
                 "adapter_kernel_verified": False,
                 "source_theorem_proof_body_adapter_feedback_available": True,
+                "required_behavior": "RUNTIME_ADAPTER_RECIPE_DO_NOT_EXPOSE",
                 "diagnostics": [
                     {
                         "target_theorem_name": (
@@ -40332,6 +40268,9 @@ def test_formalizer_lean_candidate_repair_feedback_uses_formal_source_grounding(
                             "Mathlib.Algebra.Order.Floor",
                         ],
                         "unavailable_import": "Mathlib.Algebra.Order.Floor",
+                        "recommended_repair_tasks": [
+                            "RUNTIME_ADAPTER_TASK_DO_NOT_EXPOSE"
+                        ],
                     }
                 ],
                 "proof_evidence_status": (
@@ -40413,16 +40352,17 @@ def test_formalizer_lean_candidate_repair_feedback_uses_formal_source_grounding(
         proof_bank_runtime_memory_summary={},
         environment_feedback=feedback,
     )
-    assert "Formal-source grounding is a bounded local signature bundle" in prompt
-    assert "premise_declaration_outlines in dependency order" in prompt
-    assert "Import the target or premise module actually supplied" in prompt
-    assert "Do not invent an API from a citation" in prompt
-    assert "formal_blocker_resource_requests" in prompt
+    assert "Formal-source grounding is a bounded local signature bundle" not in prompt
+    assert "premise_declaration_outlines in dependency order" not in prompt
+    assert "Import the target or premise module actually supplied" not in prompt
+    assert "formal_resource_observations" in prompt
     assert "source_theorem_proof_body_adapter_feedback" in prompt
     assert "Mathlib.Algebra.Order.Floor" in prompt
     assert "Nat.ceilReplacement_bridge" in prompt
     assert "supplies proof evidence" in prompt
     assert "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE" in prompt
+    assert "RUNTIME_ADAPTER_RECIPE_DO_NOT_EXPOSE" not in prompt
+    assert "RUNTIME_ADAPTER_TASK_DO_NOT_EXPOSE" not in prompt
 
 
 def _generic_failed_exact_formalizer_manifest(
@@ -41283,7 +41223,7 @@ def test_first_formalizer_proposal_receives_task_bound_formal_source_grounding()
     assert "SLT.LeastSquares.MasterErrorBound" in prompt
     assert "High-Dimensional Statistics" not in prompt
     assert "Theorem 13.5" not in prompt
-    assert "Formal-source grounding is a bounded local signature bundle" in prompt
+    assert "Formal-source grounding is a bounded local signature bundle" not in prompt
     assert "indexed_lean_environment_candidates" in prompt
     assert "Do not derive or guess a module path" in prompt
     assert "ProofEngineer repair loop is active" not in prompt
@@ -41322,7 +41262,7 @@ def test_first_formalizer_proposal_receives_task_bound_formal_source_grounding()
     ]
     assert "merely importing the module is not adoption" in prompt
     prompt_context = prompt_payload["runtime_environment_feedback"][
-        "proofengineer_repair_context"
+        "target_and_environment_observations"
     ]
     assert set(prompt_context) == {
         "context_kind",
@@ -41736,7 +41676,7 @@ def test_carried_proofengineer_feedback_refreshes_stale_repair_contract() -> Non
     )
 
 
-def test_formalizer_lean_candidate_target_drift_feedback_preserves_source_shape() -> None:
+def test_formalizer_lean_candidate_feedback_relays_target_drift_without_recipe() -> None:
     manifest = {
         "schema_version": 1,
         "manifest_id": "formalizer_lean_candidate_materialization:target_drift",
@@ -41789,13 +41729,9 @@ def test_formalizer_lean_candidate_target_drift_feedback_preserves_source_shape(
     feedback = _formalizer_lean_candidate_repair_feedback(manifest)
 
     assert feedback is not None
-    assert "required_conclusion_family" not in feedback["target_shape_contract"]
-    assert "result omitting task-bound objects or assumptions" in feedback[
-        "target_shape_contract"
-    ]["forbidden_replacement_shapes"]
-    assert feedback["target_drift_repair_contract"]["source_theorem_lane"][
-        "fail_closed_shape"
-    ].startswith("known source theorem entry")
+    assert "target_shape_contract" not in feedback
+    assert "target_drift_repair_contract" not in feedback
+    assert "candidate_reroute_options" not in feedback
     repair_contract = feedback["local_lean_repair_contract"]
     assert repair_contract["artifact_kind"] == "FormalizerToolObservationEnvelope"
     assert repair_contract["diagnostic_classes"] == []
@@ -41808,9 +41744,7 @@ def test_formalizer_lean_candidate_target_drift_feedback_preserves_source_shape(
         manifest
     )
     assert learning_rows[0]["local_lean_diagnostic_classes"] == []
-    assert "required_conclusion_shape" not in learning_rows[0][
-        "target_shape_contract"
-    ]
+    assert "target_shape_contract" not in learning_rows[0]
     assert (
         learning_rows[0]["local_lean_repair_contract"]["runtime_selected_repair"]
         is False
@@ -41832,8 +41766,8 @@ def test_formalizer_lean_candidate_target_drift_feedback_preserves_source_shape(
         environment_feedback=feedback,
     )
 
-    assert "source-theorem target drift" in prompt
-    assert "forbidden_replacement_shapes" in prompt
+    assert "source-theorem target drift" not in prompt
+    assert "forbidden_replacement_shapes" not in prompt
     assert "AgentRuntime supplies no Python-authored Lean grammar" in prompt
     assert "Target-drift fail-closed rule" not in prompt
     assert "target_drift_repair_contract" not in prompt
@@ -42019,8 +41953,8 @@ def test_runtime_learning_memory_replays_formalizer_lean_candidate_diagnostics_t
     )
 
     assert "formalizer_lean_candidate_repair_memory" in prompt
-    assert "Prior Formalizer Lean-candidate observations are active" in prompt
-    assert "exact candidate artifacts, compiler/LSP output" in prompt
+    assert "Prior Formalizer Lean-candidate observations are active" not in prompt
+    assert "exact candidate artifacts, compiler/LSP output" not in prompt
     assert materialization_manifest_path in prompt
     assert artifact_path in prompt
     assert "lean_unknown_identifier" not in prompt
@@ -42437,13 +42371,13 @@ def test_formalizer_metadata_authoring_request_memory_promotes_to_premise_mode(
         proof_bank_runtime_memory_summary=summary,
     )
 
-    assert "source_to_bridge_candidate_request_shortcuts" in prompt
-    assert "copy_this_candidate_request_id" in prompt
+    assert "source_to_bridge_candidate_request_shortcuts" not in prompt
+    assert "copy_this_candidate_request_id" not in prompt
     assert (
         "source_to_bridge_premise_derivation_candidate_request:hGoodCovered"
         in prompt
     )
-    assert "required_semantic_anchor_reference_names" in prompt
+    assert "required_semantic_anchor_reference_names" not in prompt
 
 
 def test_formalizer_metadata_authoring_next_action_preserved_as_request_shell() -> None:
@@ -45055,8 +44989,8 @@ def test_runtime_learning_memory_replays_formalizer_candidate_proof_state_to_pro
     )
 
     assert "formalizer_lean_candidate_proof_state_feedback_memory" in prompt
-    assert "Prior Formalizer Lean-candidate proof-state feedback is active" in prompt
-    assert "ProofEngineer repair context" in prompt
+    assert "Prior Formalizer Lean-candidate proof-state feedback is active" not in prompt
+    assert "ProofEngineer repair context" not in prompt
     assert "lean_goal" in prompt
     assert "lean_state_search" in prompt
     assert "lean_multi_attempt" in prompt
@@ -45200,7 +45134,7 @@ def test_runtime_learning_memory_rejects_unbound_formalizer_proof_state_prompt_m
     assert "Prior Formalizer Lean-candidate proof-state feedback is active" not in prompt
     assert (
         "Unbound Formalizer Lean-candidate proof-state feedback was rejected"
-        in prompt
+        not in prompt
     )
     assert "formalizer_lean_candidate_unbound_proof_state_feedback_memory" in prompt
     assert "does not match any Formalizer Lean-candidate materialization" in prompt
@@ -45512,7 +45446,7 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
         proof_bank_runtime_memory_summary=summary,
     )
 
-    assert "Pseudo-formal/block-verification routing memory is active" in prompt
+    assert "Pseudo-formal/block-verification routing memory is active" not in prompt
     assert "pseudo_formal_block_routing_memory" in prompt
     assert "pseudo_formalization_contract" in prompt
     assert "pseudo_formal_proof_packets" in prompt
@@ -45526,10 +45460,10 @@ def test_runtime_learning_memory_replays_pseudo_formal_block_routing_to_prompt(
     assert "PSEUDO_FORMAL_VERIFICATION_NOT_PROOF_EVIDENCE" in prompt
     assert "b_rank_uniform" in prompt
     assert "equation:rank_uniformity" in prompt
-    assert "pseudo_formalization_required_copy_fragment" in prompt
-    assert "pseudo_formal_copy_fragment:rank_uniform" in prompt
-    assert "target_lane=formal_targets" in prompt
-    assert "do not hardcode corner-case proof rules" in prompt
+    assert "pseudo_formalization_required_copy_fragment" not in prompt
+    assert "pseudo_formal_copy_fragment:rank_uniform" not in prompt
+    assert "target_lane" in prompt
+    assert "do not hardcode corner-case proof rules" not in prompt
 
 
 def test_runtime_learning_memory_replays_independent_pseudo_formal_bv_feedback(
@@ -45745,13 +45679,14 @@ def test_runtime_learning_memory_replays_independent_pseudo_formal_bv_feedback(
         proof_bank_runtime_memory_summary=summary,
     )
 
-    assert "Independent pseudo-formal block-verifier feedback is available" in prompt
+    assert "Independent pseudo-formal block-verifier feedback is available" not in prompt
     assert "pseudo_formal_independent_block_verification_feedback_memory" in prompt
     assert "independent_block_verifier" in prompt
     assert "By exchangeability, every rank position is equally likely." in prompt
     assert "structural_quality" in prompt
-    assert "pseudo-formal-block-verifier-response-validation" in prompt
-    assert "not Lean kernel evidence" in prompt
+    assert "pseudo-formal-block-verifier-response-validation" not in prompt
+    assert "not Lean kernel evidence" not in prompt
+    assert "proof_evidence_status" in prompt
 
 
 def test_runtime_learning_memory_pf_bv_prefers_rich_latest_work_order_row(
@@ -46214,8 +46149,9 @@ def test_runtime_learning_memory_keeps_non_routable_pseudo_formal_rows_diagnosti
     )
 
     assert "Pseudo-formal/block-verification routing memory is active" not in prompt
-    assert "Pseudo-formal/block-verification diagnostic memory is active" in prompt
-    assert "not lane-routable" in prompt
+    assert "Pseudo-formal/block-verification diagnostic memory is active" not in prompt
+    assert "not lane-routable" not in prompt
+    assert '"pseudo_formal_routable":false' in prompt
     assert "pseudo_formal_block_routing_diagnostic_memory" in prompt
     assert "pseudo_formal_lean_candidate_seed_blocked" in prompt
 
@@ -46492,9 +46428,9 @@ def test_runtime_learning_memory_replays_formalizer_component_gate_feedback_to_p
     )
 
     assert "formalizer_lean_candidate_component_gate_feedback_memory" in prompt
-    assert "Formalizer component-gate feedback is active" in prompt
-    assert "synthetic helper repair gate" in prompt
-    assert "not cite that helper as source-theorem proof" in prompt
+    assert "Formalizer component-gate feedback is active" not in prompt
+    assert "synthetic helper repair gate" not in prompt
+    assert "not cite that helper as source-theorem proof" not in prompt
     assert (
         "FORMALIZER_COMPONENT_GATE_FEEDBACK_NOT_SOURCE_THEOREM_PROOF_EVIDENCE"
         in prompt
@@ -46591,9 +46527,9 @@ def test_runtime_learning_memory_replays_formalizer_capability_feedback_to_promp
     )
 
     assert "formalizer_lean_candidate_capability_feedback_memory" in prompt
-    assert "Integrated Formalizer/ProofEngineer capability feedback is active" in prompt
-    assert "proof-state routing" in prompt
-    assert "static replay" in prompt
+    assert "Integrated Formalizer/ProofEngineer capability feedback is active" not in prompt
+    assert "proof-state routing" not in prompt
+    assert "static replay" not in prompt
     assert "formalizer_lean_candidate_proof_state_request_routed" in prompt
 
 
@@ -46851,12 +46787,14 @@ def test_formalizer_prompt_explains_source_grounded_authoring_handoff_contract()
     )
 
     assert (
-        "Source-grounded exact semantic-definition authoring handoff is required"
-        in prompt
+        "capability_eval_requires_exact_semantic_definition_source_grounded_"
+        "authoring_handoff" in prompt
     )
-    assert "source theorem binders" in prompt
-    assert "required anchor bindings" in prompt
-    assert "not theorem proof evidence" in prompt
+    assert (
+        "Source-grounded exact semantic-definition authoring handoff is required"
+        not in prompt
+    )
+    assert "does not prescribe field-specific corrections" in prompt
 
 
 def test_formalizer_prompt_explains_exact_semantic_candidate_materialization_contract() -> None:
@@ -46880,13 +46818,15 @@ def test_formalizer_prompt_explains_exact_semantic_candidate_materialization_con
     )
 
     assert (
-        "Exact semantic-definition candidate materialization feedback contract is required"
+        "capability_eval_requires_exact_semantic_definition_candidate_materializer"
         in prompt
     )
-    assert "definition-only candidate packets" in prompt
-    assert "materialized Lean repair tasks" in prompt
-    assert "runtime learning feedback rows" in prompt
-    assert "not theorem proof evidence" in prompt
+    assert (
+        "Exact semantic-definition candidate materialization feedback contract is required"
+        not in prompt
+    )
+    assert "materialized Lean repair tasks" not in prompt
+    assert "does not prescribe field-specific corrections" in prompt
 
 
 def test_formalizer_feedback_loaders_accept_compact_learning_task_rows() -> None:
@@ -46989,7 +46929,7 @@ def test_formalizer_feedback_loaders_accept_compact_learning_task_rows() -> None
                     ),
                     "provider_name": "anthropic",
                     "backend_provider_name": "anthropic",
-                    "model": "claude-sonnet-compact",
+                    "model": "claude-haiku-4-5-20251001",
                     "live_generator": True,
                     "static_or_fixture_only": False,
                     "capability_evidence_ok": True,
@@ -47249,16 +47189,16 @@ def test_formalizer_feedback_loaders_accept_compact_learning_task_rows() -> None
         proof_bank_runtime_memory_summary=summary,
     )
 
-    assert "Prior Formalizer Lean-candidate observations are active" in prompt
+    assert "Prior Formalizer Lean-candidate observations are active" not in prompt
     assert "compactMissingLemma" in prompt
-    assert "Prior Formalizer Lean-candidate proof-state feedback is active" in prompt
+    assert "Prior Formalizer Lean-candidate proof-state feedback is active" not in prompt
     assert "lean_state_search" in prompt
-    assert "Formalizer component-gate feedback is active" in prompt
-    assert "claude-sonnet-compact" in prompt
-    assert "Integrated Formalizer/ProofEngineer capability feedback is active" in prompt
+    assert "Formalizer component-gate feedback is active" not in prompt
+    assert "claude-haiku-4-5-20251001" in prompt
+    assert "Integrated Formalizer/ProofEngineer capability feedback is active" not in prompt
     assert "formalizer_lean_candidate_proof_state_feedback_recorded" in prompt
     assert "exact_semantic_definition_authoring_candidate_verifier_checked" in prompt
-    assert "Prior Formalizer runtime capability-contract feedback is active" in prompt
+    assert "Prior Formalizer runtime capability-contract feedback is active" not in prompt
     assert "FORMALIZER_RUNTIME_CAPABILITY_CONTRACT_FAILURE_NOT_PROOF_EVIDENCE" in prompt
 
 
@@ -47476,15 +47416,10 @@ def test_formalization_revises_formalizer_after_local_lean_candidate_failure(
     assert "local_lean_command_project_timeout" in proofengineer_context[
         "verifier_feedback_sources"
     ]
-    assert proofengineer_context["proof_state_workflow"]["style"] == (
-        "lean_dojo_reprover_compatible"
-    )
-    assert "lean_state_search" in proofengineer_context["proof_state_workflow"][
-        "preferred_tool_order"
+    assert "complete replacement candidate" in proofengineer_context[
+        "revision_interface"
     ]
-    assert "lean_multi_attempt" in proofengineer_context["proof_state_workflow"][
-        "preferred_tool_order"
-    ]
+    assert "proof_state_workflow" not in proofengineer_context
     assert proofengineer_context["retrieval_query_seeds"]
     assert proofengineer_context["candidate_proof_state_provider"] == (
         "fake_candidate_proof_state_provider"
@@ -47524,16 +47459,15 @@ def test_formalization_revises_formalizer_after_local_lean_candidate_failure(
         environment_feedback=feedback,
     )
     assert "formalizer_lean_candidate_local_lean_feedback" in repair_prompt
-    assert "ProofEngineer repair loop is active" in repair_prompt
-    assert "proofengineer_repair_context" in repair_prompt
-    assert "candidate_rerun_specs" in repair_prompt
-    assert "local_lean_command" in repair_prompt
+    assert "ProofEngineer repair loop is active" not in repair_prompt
+    assert "proofengineer_repair_context" not in repair_prompt
+    assert "candidate_rerun_specs" not in repair_prompt
+    assert "local_lean_command" not in repair_prompt
     assert "local_lean" in repair_prompt
-    assert "proof_search" in repair_prompt
-    assert "lean_state_search" in repair_prompt
-    assert "lean_multi_attempt" in repair_prompt
-    assert "live_proof_state_requests" in repair_prompt
-    assert "retrieval_query_seeds" in repair_prompt
+    assert "lean_state_search" not in repair_prompt
+    assert "lean_multi_attempt" not in repair_prompt
+    assert "live_proof_state_requests" not in repair_prompt
+    assert "retrieval_query_seeds" not in repair_prompt
     assert "DefinitelyUnknownLeanIdentifier" in repair_prompt
     assert any(
         obs.observation_type == "formalizer_lean_candidate_local_lean_feedback"
@@ -48836,17 +48770,18 @@ def test_generated_algorithm_sandbox_rejects_from_import_helper_aliases(
         failure_classification="generated_algorithm_sandbox_required_not_executed",
     )
 
-    assert feedback["forbidden_generated_code_calls"] == ["mean", "stdev"]
-    assert feedback["prototypes"][0]["forbidden_generated_code_calls"] == [
-        "mean",
-        "stdev",
+    assert "forbidden_generated_code_calls" not in feedback
+    assert "forbidden_generated_code_calls" not in feedback["prototypes"][0]
+    assert "forbidden generated-code call: mean" in feedback["prototypes"][0][
+        "safety_errors"
+    ]
+    assert "forbidden generated-code call: stdev" in feedback["prototypes"][0][
+        "safety_errors"
     ]
     assert "from statistics import mean, stdev" in feedback["prototypes"][0][
         "code_excerpt"
     ]
-    assert "complete source candidate" in feedback["required_repair"]
-    assert "exact execution diagnostics" in feedback["required_repair"]
-    assert "The model owns the repair" in feedback["required_repair"]
+    assert "required_repair" not in feedback
 
 
 def test_generated_algorithm_sandbox_allows_math_import_and_append(tmp_path: Path) -> None:
@@ -49488,9 +49423,7 @@ def test_typed_generated_metric_contract_failure_returns_exact_repair_feedback(
         "all_required_passed"
     ] is False
     assert "strict-fdr-control" in json.dumps(feedback)
-    assert "complete source candidate" in feedback["required_repair"]
-    assert "frozen acceptance contract" in feedback["required_repair"]
-    assert "The model owns the repair" in feedback["required_repair"]
+    assert "required_repair" not in feedback
 
 
 def test_capability_runtime_executes_algorithm_without_empirical_contract(
@@ -49993,7 +49926,13 @@ def test_algorithm_engineer_prompt_includes_sandbox_repair_feedback() -> None:
             "feedback_type": "algorithm_sandbox_execution_feedback",
             "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:bad",
             "failure_classification": "algorithm_sandbox_no_executable_prototype",
-            "forbidden_generated_code_calls": ["mean", "stdev"],
+            "target_behavior": "PYTHON_RUNTIME_PRESCRIPTIVE_EDIT_DO_NOT_EXPOSE",
+            "recommended_capability_eval_command": (
+                "PYTHON_RUNTIME_COMMAND_DO_NOT_EXPOSE"
+            ),
+            "algorithm_repair_sequences": [
+                "PYTHON_RUNTIME_REPAIR_SEQUENCE_DO_NOT_EXPOSE"
+            ],
             "prototypes": [
                 {
                     "estimator_id": "custom",
@@ -50003,7 +49942,6 @@ def test_algorithm_engineer_prompt_includes_sandbox_repair_feedback() -> None:
                         "forbidden generated-code call: mean",
                         "forbidden generated-code call: stdev",
                     ],
-                    "forbidden_generated_code_calls": ["mean", "stdev"],
                     "code_excerpt": (
                         "from statistics import mean, stdev\n"
                         "def run_sandbox(seed, replicates):\n"
@@ -50019,22 +49957,33 @@ def test_algorithm_engineer_prompt_includes_sandbox_repair_feedback() -> None:
     assert "algorithm_sandbox_no_executable_prototype" in prompt
     assert "REJECTED_UNSAFE_GENERATED_CODE" in prompt
     assert "forbidden generated-code call: mean" in prompt
-    assert "forbidden_generated_code_calls" in prompt
+    assert "forbidden_generated_code_calls" not in prompt
     assert "from statistics import mean, stdev" in prompt
+    assert "produce safe run_sandbox code" not in prompt
+    assert "PYTHON_RUNTIME_PRESCRIPTIVE_EDIT_DO_NOT_EXPOSE" not in prompt
+    assert "PYTHON_RUNTIME_COMMAND_DO_NOT_EXPOSE" not in prompt
+    assert "PYTHON_RUNTIME_REPAIR_SEQUENCE_DO_NOT_EXPOSE" not in prompt
     assert "Capability-eval mode is active" in prompt
     assert "for every ID in canonical_implementation_gap_ids" in prompt
     assert '"canonical_implementation_gap_ids":["custom"]' in prompt
-    assert "You own the repair strategy" in prompt
+    assert "You choose and author every source change" in prompt
     assert "sum(values) / len(values)" not in prompt
     assert (
         "regenerate the complete model-authored draft from the supplied source and "
         "exact observations"
     ) in prompt
-    assert "do not substitute a template as a hidden repair" in prompt
+    assert "do not substitute a template as a hidden replacement" in prompt
 
 
 def test_algorithm_engineer_prompt_consumes_estimator_runtime_feedback() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    runtime_error = (
+        "TRACE_START\n"
+        + ("a" * 600)
+        + "\nEXACT_MIDDLE_OBSERVATION\n"
+        + ("b" * 600)
+        + "\nTRACE_END"
+    )
     prompt = build_algorithm_engineer_prompt(
         question=question,
         theory_packet={
@@ -50059,14 +50008,15 @@ def test_algorithm_engineer_prompt_consumes_estimator_runtime_feedback() -> None
         environment_feedback={
             "feedback_type": "accepted_algorithm_estimator_runtime_feedback",
             "failed_estimator_ids": ["custom"],
-            "runtime_errors": ["ValueError: response was non-finite"],
+            "runtime_errors": [runtime_error],
         },
     )
 
     assert "exact validator, execution, or independent-review observations" in prompt
     assert '"failed_estimator_ids":["custom"]' in prompt
-    assert "ValueError: response was non-finite" in prompt
-    assert "You own the repair strategy" in prompt
+    assert "EXACT_MIDDLE_OBSERVATION" in prompt
+    assert "TRACE_END" in prompt
+    assert "You choose and author every source change" in prompt
 
 
 def test_algorithm_engineer_prompt_does_not_own_simulation_metric_gate() -> None:
@@ -50375,12 +50325,18 @@ def test_coding_component_gate_memory_replays_to_algorithm_and_simulation_prompt
         in algorithm_prompt
     )
     assert "live_attempt_failed_then_passed" in algorithm_prompt
+    assert "Use as coding-agent repair calibration." not in algorithm_prompt
+    assert '"algorithm_repair_sequences"' not in algorithm_prompt
+    assert '"simulation_repair_sequences"' not in algorithm_prompt
     assert "CODING_AGENT_COMPONENT_GATE_FEEDBACK_NOT_PROOF_EVIDENCE" in (
         algorithm_prompt
     )
     assert '"feedback_type":"coding_agent_generated_code_component_gate_feedback"' in simulation_prompt
     assert "Regenerate the complete packet and complete source" in simulation_prompt
     assert "live_attempt_failed_then_passed" in simulation_prompt
+    assert "Use as coding-agent repair calibration." not in simulation_prompt
+    assert '"algorithm_repair_sequences"' not in simulation_prompt
+    assert '"simulation_repair_sequences"' not in simulation_prompt
 
 
 def test_coding_capability_memory_replays_to_algorithm_and_simulation_prompts(
@@ -50540,14 +50496,24 @@ def test_coding_capability_memory_replays_to_algorithm_and_simulation_prompts(
         environment_feedback=simulation_feedback,
     )
 
-    assert "Integrated coding-agent capability feedback is active" in algorithm_prompt
     assert "Regenerate the complete packet and complete source" in algorithm_prompt
     assert "Coding-agent component-gate feedback is active" not in algorithm_prompt
     assert "generated_algorithm_failure_feedback_closed" in algorithm_prompt
-    assert "Integrated coding-agent capability feedback is active" in simulation_prompt
+    assert "Run a Claude-generated algorithm-code fail-then-pass repair loop" not in (
+        algorithm_prompt
+    )
+    assert "research-agent-runtime --provider anthropic --capability-eval" not in (
+        algorithm_prompt
+    )
     assert "Regenerate the complete packet and complete source" in simulation_prompt
     assert "Coding-agent component-gate feedback is active" not in simulation_prompt
     assert "generated_simulation_code_executed_locally" in simulation_prompt
+    assert "Produce and locally execute generated simulation code" not in (
+        simulation_prompt
+    )
+    assert "research-agent-runtime --provider anthropic --capability-eval" not in (
+        simulation_prompt
+    )
 
 
 def test_coding_feedback_loaders_accept_compact_learning_task_rows() -> None:
@@ -50923,10 +50889,11 @@ def test_simulation_engineer_prompt_includes_generated_code_repair_feedback() ->
     assert "Every selected estimator callback must run" in prompt
     assert "exact validator, execution, or independent-review observations" in prompt
     assert "complete hash-bound parent_source" in prompt
-    assert "You own the repair strategy" in prompt
+    assert "You choose and author every source change" in prompt
     assert "sum(values) / len(values)" not in prompt
     assert "regenerate the complete source from the exact observations" in prompt
     assert "AgentRuntime must not edit the source or select a canned fix" in prompt
+    assert "produce safe run_sandbox code" not in prompt
 
 
 def test_simulation_engineer_prompt_includes_metric_gate_repair_feedback() -> None:
@@ -50990,7 +50957,7 @@ def test_simulation_engineer_prompt_includes_metric_gate_repair_feedback() -> No
     assert '"target_coverage":"0.9"' in prompt
     assert "def run_sandbox(seed: int, replicates: int) -> dict" in prompt
     assert "exact validator, execution, or independent-review observations" in prompt
-    assert "You own the repair strategy" in prompt
+    assert "You choose and author every source change" in prompt
     assert "do not hard-code true_ate" not in prompt
     assert "vacuous all-covering" not in prompt
     assert "mean_width" in prompt
@@ -54949,7 +54916,8 @@ def test_generated_python_sandbox_rejection_feedback_includes_code_excerpt(
     assert algorithm_feedback["prototypes"][0]["parent_source_complete"] is True
     assert algorithm_feedback["prototypes"][0]["stdout_summary"] == full_stdout
     assert algorithm_feedback["prototypes"][0]["stderr_summary"] == full_stderr
-    assert "The model owns the repair" in algorithm_feedback["required_repair"]
+    assert "required_repair" not in algorithm_feedback
+    assert "required_repair" not in simulation_feedback
     assert "values = [1, 2, 3" in simulation_feedback[
         "generated_simulation_prototypes"
     ][0]["code_excerpt"]
@@ -55195,9 +55163,7 @@ def test_generated_simulation_sandbox_rejects_degenerate_coverage_metric(
     assert prototype["smoke_passed"] is False
     assert "nondegenerate-generated-metric" in prototype["metric_gate_errors"][0]
     feedback = result.next_task.inputs["environment_feedback"]
-    assert "complete source candidate" in feedback["required_repair"]
-    assert "exact execution diagnostics" in feedback["required_repair"]
-    assert "frozen acceptance contract" in feedback["required_repair"]
+    assert "required_repair" not in feedback
 
 
 def test_generated_simulation_sandbox_requires_explicit_metric_path(
@@ -56707,6 +56673,14 @@ def test_downstream_theory_trace_alignment_memory_replays_to_worker_prompts(
         assert "THEORY_TRACE_DOWNSTREAM_ALIGNMENT_FEEDBACK_NOT_PROOF_EVIDENCE" in prompt
         assert "aipw_asymptotic_normality" in prompt
         assert "theory_trace_alignment" in prompt
+
+    for prompt in (algorithm_prompt, simulation_prompt):
+        payload = json.loads(prompt.rsplit("\n\n", maxsplit=1)[1])
+        alignment = payload["runtime_environment_feedback"][
+            "theory_trace_downstream_alignment_feedback"
+        ]
+        assert "required_repair" not in alignment
+        assert "target_behavior" not in alignment
 
 
 def test_runtime_handoff_artifact_missing_feedback_rows_route_to_producer() -> None:
@@ -59735,22 +59709,18 @@ def test_formalizer_prompt_includes_validation_repair_feedback() -> None:
     )
 
     assert "runtime_environment_feedback" in prompt
-    assert "source_to_bridge_candidate_request_shortcuts" in prompt
-    assert "copy_this_candidate_request_id" in prompt
+    assert "source_to_bridge_candidate_request_shortcuts" not in prompt
+    assert "copy_this_candidate_request_id" not in prompt
     assert "source_to_bridge_premise_derivation_candidate_request:hGoodCovered" in prompt
     assert "premise_target_source" in prompt
     assert "proof_body_goal_conclusion" in prompt
     assert "proof_body_goal_context" in prompt
     assert "hExch" in prompt
     assert "ENNReal.ofReal (1 - alpha)" in prompt
-    assert "copy one of its" in prompt
+    assert "copy one of its" not in prompt
     assert "formalizer_packet_validation_failed" in prompt
     assert "formalizer_validation_feedback" in prompt
-    assert "AgentRuntime does not prescribe field-specific" in prompt
-    assert "conformal_rank" in prompt
-    assert "conformal_covered" in prompt
-    assert "conformal_α_total" in prompt
-    assert "conformal_bad_ranks" in prompt
+    assert "does not prescribe field-specific corrections" in prompt
     assert (
         "source_to_bridge_grouped_premise_derivation_candidate_request_id"
         not in prompt
@@ -59760,6 +59730,8 @@ def test_formalizer_prompt_includes_validation_repair_feedback() -> None:
     assert "Mandatory validation repair directives" not in prompt
     assert "Mandatory semantic-anchor repair" not in prompt
     assert "Mandatory source-binding repair" not in prompt
+    assert "reference every missing semantic anchor outside comments" not in prompt
+    assert "Remove unsupported contradiction shortcuts" not in prompt
 
 
 def test_formalizer_prompt_targets_theorem_closure_when_proof_bank_memory_exhausted() -> None:
@@ -59810,7 +59782,7 @@ def test_formalizer_prompt_targets_theorem_closure_when_proof_bank_memory_exhaus
     assert "proof_bank_runtime_memory_summary" in prompt
     assert "proof_bank_bridge_catalog_exhausted_by_memory" in prompt
     assert "theorem_level_reduction_closure" in prompt
-    assert "do not spend the packet on more bridge-obligation requests" in prompt
+    assert "do not spend the packet on more bridge-obligation requests" not in prompt
 
 
 def test_formalizer_prompt_includes_exact_source_candidate_repair_memory() -> None:
@@ -59881,7 +59853,7 @@ def test_formalizer_prompt_includes_exact_source_candidate_repair_memory() -> No
         "repair_exact_source_theorem_candidate_proof_body"
     )
     assert "source_theorem_exact_candidate_requires_repair" in prompt
-    assert "repair_exact_source_theorem_candidate_proof_body" in prompt
+    assert "repair_exact_source_theorem_candidate_proof_body" not in prompt
     assert "SOURCE_THEOREM_EXACT_CANDIDATE_LOCAL_LEAN_FAILED" in prompt
     assert "unexpected token" in prompt
     assert "split_conformal_coverage" in prompt
@@ -59961,7 +59933,7 @@ def test_formalizer_prompt_includes_semantic_definition_repair_queue_memory() ->
     )
     assert summary["source_theorem_exact_semantic_definition_repair_required"] is True
     assert "source_theorem_exact_semantic_definition_repair" in prompt
-    assert "repair_reviewed_exact_semantic_definitions" in prompt
+    assert "repair_reviewed_exact_semantic_definitions" not in prompt
     assert "orderStat" in prompt
     assert "finite maximum" in prompt
     assert "do not attempt source-theorem proof-body search" not in prompt
@@ -60377,7 +60349,7 @@ def test_formalizer_summary_prioritizes_current_reviewed_semantic_candidates() -
     diagnostics = summary["source_theorem_exact_candidate_repair_diagnostics"]
     assert diagnostics[0]["definition_only_candidate_artifact_path"] == live_coverage_path
     assert diagnostics[1]["definition_only_candidate_artifact_path"] == live_good_rank_path
-    assert "repair_reviewed_exact_semantic_definitions" in prompt
+    assert "repair_reviewed_exact_semantic_definitions" not in prompt
     assert live_coverage_path in prompt
     assert live_good_rank_path in prompt
 
@@ -62694,12 +62666,12 @@ def test_grouped_source_to_bridge_premise_request_is_first_class_memory(
         proof_bank_runtime_memory_summary=summary,
     )
     assert "source_to_bridge_grouped_premise_derivation_candidate_request" in prompt
-    assert "substantively reference every" in prompt
+    assert "substantively reference every" not in prompt
     assert (
         "do not satisfy semantic-anchor requirements with comments or unused have/let aliases"
-        in prompt
+        not in prompt
     )
-    assert "do not put adapter objects such as covered, rank, BadRanks" in prompt
+    assert "do not put adapter objects such as covered, rank, BadRanks" not in prompt
 
     proposal = {
         "packet_id": "formalizer_proposal:grouped_premise_derivation",
@@ -63526,10 +63498,10 @@ def test_formalizer_prompt_includes_exact_source_proof_body_executor_feedback() 
     )
     assert "EXACT_SOURCE_PROOF_BODY_LOCAL_LEAN_FAILED" in prompt
     assert "formal_environment_placeholder_primitives" in prompt
-    assert "repair_exact_source_theorem_candidate_formal_environment" in prompt
-    assert "source_theorem_exact_candidate_placeholder_resolution_plan" in prompt
-    assert "split_conformal_coverage.exchangeable" in prompt
-    assert "permutation-invariant joint law" in prompt
+    assert "repair_exact_source_theorem_candidate_formal_environment" not in prompt
+    assert "source_theorem_exact_candidate_placeholder_resolution_plan" not in prompt
+    assert "split_conformal_coverage.exchangeable" not in prompt
+    assert "permutation-invariant joint law" not in prompt
     assert "Exchangeable" in prompt
     assert "source_theorem_ready_for_exact_proof_body" in prompt
     assert "source_theorem_semantic_support_only" in prompt
@@ -63901,7 +63873,7 @@ def test_runtime_learning_loader_preserves_exact_semantic_definition_work_orders
     assert summary["source_theorem_exact_candidate_placeholder_resolution_plan"][
         0
     ]["placeholder_symbol"] == "Exchangeable"
-    assert "split_conformal_coverage.exchangeable" in prompt
+    assert "split_conformal_coverage.exchangeable" not in prompt
     assert "EXACT_SOURCE_SEMANTIC_DEFINITION_WORK_ORDER" in prompt
 
     converted_learning_path = tmp_path / "runtime_learning_rows.jsonl"
@@ -64413,7 +64385,7 @@ def test_formalizer_prompt_includes_exact_semantic_definition_review_packet(
     ]
     assert "EXACT_SOURCE_SEMANTIC_DEFINITION_CLOSURE_REVIEW_PACKET" in prompt
     assert "permutation-invariant joint law" in prompt
-    assert "write or import the exact Lean definition" in prompt
+    assert "write or import the exact Lean definition" not in prompt
     assert "DEFINITION_CLOSURE_REVIEW_PACKET_NOT_PROOF_EVIDENCE" not in prompt
 
 
@@ -66456,12 +66428,11 @@ def test_exact_semantic_structural_reformulation_memory_becomes_pf_bv_followup()
     ]["response_validation_feedback"]["unverified_required_imports"] == [
         "Mathlib.Data.Int.Order"
     ]
-    assert "consume the complete rejected candidate" in prompt
+    assert "consume the complete rejected candidate" not in prompt
     assert "Mathlib.Data.Int.Order" in prompt
     assert "response_validation_feedback" in prompt
     assert "unverified_required_imports" in prompt
-    assert "model owns whether to regenerate a complete Lean candidate" in prompt
-    assert "Runtime observations do not prescribe an import" in prompt
+    assert "does not prescribe field-specific corrections" in prompt
     assert (
         "source_theorem_exact_semantic_definition_structural_reformulation"
         in prompt
@@ -71932,7 +71903,7 @@ theorem exact_source_claim (claim : Prop) : claim := by
         proof_bank_runtime_memory_summary=summary,
     )
     assert "source_theorem_exact_proof_body_repair" in prompt
-    assert "repair_exact_source_theorem_candidate_proof_body" in prompt
+    assert "repair_exact_source_theorem_candidate_proof_body" not in prompt
     assert "unsolved goals" in prompt
     assert "⊢ claim" in prompt
 
@@ -72961,7 +72932,7 @@ def test_formalizer_prompt_preserves_exact_semantic_blocker_artifact_keys() -> N
         },
     )
 
-    assert "Formal blocker resource requests are active" in prompt
+    assert "Formal blocker resource requests are active" not in prompt
     assert "definition_only_candidate_artifact_path" in prompt
     assert "candidate_artifact_path" in prompt
     assert "runs/candidate_artifacts/covered_definition_only.lean" in prompt
@@ -73044,9 +73015,10 @@ def test_formalizer_prompt_hydrates_exact_semantic_blocker_artifacts_from_feedba
     assert "definition_only_candidate_artifact_path" in prompt
     assert "candidate_artifact_path" in prompt
     assert definition_only_path in prompt
-    assert "Exact semantic-definition blocker artifacts are available" in prompt
-    assert "proof_body_gate_status=SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY" in prompt
-    assert "do not treat a locally compiled definition-only artifact" in prompt
+    assert "Exact semantic-definition blocker artifacts are available" not in prompt
+    assert "proof_body_gate_status" in prompt
+    assert "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY" in prompt
+    assert "do not treat a locally compiled definition-only artifact" not in prompt
     assert "TYPECHECKED_EXACT_SEMANTIC_DEFINITION_CANDIDATE_" in prompt
     assert "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE" in prompt
 
@@ -75835,7 +75807,11 @@ def test_formalizer_validator_leaves_source_to_bridge_tactic_to_lean() -> None:
     errors = validate_formalizer_packet(packet)
 
     assert not any("fail_if_success" in error for error in errors)
-    assert any("vacuous True" in error for error in errors)
+    assert not any("vacuous True" in error for error in errors)
+    assert any(
+        "missing structured premise candidate declaration identity" in error
+        for error in errors
+    )
 
 
 def test_formalizer_validator_binds_identity_without_parsing_declaration_kind() -> None:
@@ -75928,7 +75904,7 @@ def test_formalizer_validator_binds_identity_without_parsing_declaration_kind() 
     )
 
 
-def test_formalizer_validator_rejects_vacuous_true_source_to_bridge_candidate() -> None:
+def test_formalizer_validator_does_not_classify_vacuity_from_lean_text() -> None:
     packet = {
         "formal_targets": [
             {
@@ -75992,10 +75968,14 @@ def test_formalizer_validator_rejects_vacuous_true_source_to_bridge_candidate() 
 
     errors = validate_formalizer_packet(packet)
 
-    assert any("vacuous True" in error for error in errors)
+    assert not any("vacuous True" in error for error in errors)
+    assert any(
+        "missing structured premise candidate declaration identity" in error
+        for error in errors
+    )
 
 
-def test_formalizer_validator_rejects_missing_source_to_bridge_anchor_references() -> None:
+def test_formalizer_validator_leaves_anchor_semantics_to_independent_review() -> None:
     packet = {
         "formal_targets": [
             {
@@ -76066,8 +76046,11 @@ def test_formalizer_validator_rejects_missing_source_to_bridge_anchor_references
     errors = validate_formalizer_packet(packet)
     feedback = formalizer_validation_feedback_envelope(errors)
 
-    assert any("missing required semantic anchor references" in error for error in errors)
-    assert any("hq" in error and "hC" in error for error in errors)
+    assert not any("missing required semantic anchor references" in error for error in errors)
+    assert any(
+        "missing structured premise candidate declaration identity" in error
+        for error in errors
+    )
     assert feedback["validation_error_messages"] == errors
     assert "directives" not in feedback
 
@@ -76217,7 +76200,7 @@ def test_formalizer_validator_rejects_phantom_source_to_bridge_next_action() -> 
     assert "directives" not in feedback
 
 
-def test_formalizer_autofills_source_to_bridge_metadata_from_runtime_memory(
+def test_formalizer_does_not_autofill_source_to_bridge_metadata_from_runtime_memory(
     tmp_path: Path,
 ) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
@@ -76350,44 +76333,37 @@ def test_formalizer_autofills_source_to_bridge_metadata_from_runtime_memory(
         "theorem split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
         in prompt
     )
-    assert "reuse that generated theorem name/header" in prompt
+    assert "reuse that generated theorem name/header" not in prompt
 
     formalizer = LLMFormalizerProofEngineerAgent(
         provider=StaticArchitectLLMProvider(response),
         config=FormalizerConfig(provider_name="static", model="static-formalizer"),
     )
 
-    packet = formalizer.propose(
-        question=question,
-        theory_packet={"packet_id": "theory:metadata-autofill"},
-        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
-        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
-        registered_problem={"problem_class": "conformal_prediction"},
-        theorem_goals=[],
-        proof_bank_obligation_catalog=[],
-        proof_bank_runtime_memory_summary=memory_summary,
-    )
+    with pytest.raises(PacketValidationError) as exc_info:
+        formalizer.propose(
+            question=question,
+            theory_packet={"packet_id": "theory:metadata-autofill"},
+            simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+            algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+            registered_problem={"problem_class": "conformal_prediction"},
+            theorem_goals=[],
+            proof_bank_obligation_catalog=[],
+            proof_bank_runtime_memory_summary=memory_summary,
+        )
 
+    packet = exc_info.value.last_invalid_packet
+    assert packet is not None
     candidate = packet["source_to_bridge_premise_derivation_candidates"][0]
-    assert candidate["source_binding_metadata_autofilled_from_runtime_memory"] is True
-    assert candidate[
-        "source_to_bridge_premise_derivation_candidate_request_id"
-    ] == "source_to_bridge_premise_derivation_candidate_request:hGoodCovered"
-    assert candidate["required_semantic_anchor_reference_names"] == ["hq", "hC"]
-    assert candidate["adapter_object_names_requiring_source_instantiation"] == [
-        "covered",
-        "rank",
-        "BadRanks",
-    ]
-    assert candidate["premise_candidate_artifact_path"] == str(skeleton_path)
-    assert (
-        "theorem split_conformal_coverage_hGoodCovered_source_to_bridge_derivation"
-        in candidate["premise_derivation_candidate_skeleton_lean_source_excerpt"]
-    )
-    assert validate_formalizer_packet(packet) == []
+    assert "source_binding_metadata_autofilled_from_runtime_memory" not in candidate
+    assert "source_to_bridge_premise_derivation_candidate_request_id" not in candidate
+    assert "required_semantic_anchor_reference_names" not in candidate
+    assert "adapter_object_names_requiring_source_instantiation" not in candidate
+    assert "premise_candidate_artifact_path" not in candidate
+    assert any("source-binding contract metadata" in error for error in exc_info.value.errors)
 
 
-def test_formalizer_autofills_runtime_request_when_candidate_has_partial_anchor_metadata() -> None:
+def test_formalizer_does_not_autofill_runtime_request_for_partial_anchor_metadata() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     response = {
         "formal_targets": [
@@ -76492,33 +76468,34 @@ def test_formalizer_autofills_runtime_request_when_candidate_has_partial_anchor_
         config=FormalizerConfig(provider_name="static", model="static-formalizer"),
     )
 
-    packet = formalizer.propose(
-        question=question,
-        theory_packet={"packet_id": "theory:partial-anchor-autofill"},
-        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
-        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
-        registered_problem={"problem_class": "conformal_prediction"},
-        theorem_goals=[],
-        proof_bank_obligation_catalog=[],
-        proof_bank_runtime_memory_summary=memory_summary,
-    )
+    with pytest.raises(PacketValidationError) as exc_info:
+        formalizer.propose(
+            question=question,
+            theory_packet={"packet_id": "theory:partial-anchor-autofill"},
+            simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+            algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+            registered_problem={"problem_class": "conformal_prediction"},
+            theorem_goals=[],
+            proof_bank_obligation_catalog=[],
+            proof_bank_runtime_memory_summary=memory_summary,
+        )
 
+    packet = exc_info.value.last_invalid_packet
+    assert packet is not None
     candidate = packet["source_to_bridge_premise_derivation_candidates"][0]
-    assert candidate["source_binding_metadata_autofilled_from_runtime_memory"] is True
-    assert (
-        candidate["source_to_bridge_premise_derivation_candidate_request_id"]
-        == "request:hGoodCovered"
-    )
-    assert candidate["required_semantic_anchor_reference_names"] == ["hq", "hC"]
-    assert candidate["premise_semantic_anchor_binder_names"] == ["hq", "hC"]
+    assert "source_binding_metadata_autofilled_from_runtime_memory" not in candidate
+    assert "source_to_bridge_premise_derivation_candidate_request_id" not in candidate
+    assert candidate["required_semantic_anchor_reference_names"] == ["hq"]
     assert candidate["adapter_object_names_requiring_source_instantiation"] == [
-        "covered",
-        "rank",
+        "covered"
     ]
-    assert validate_formalizer_packet(packet) == []
+    assert any(
+        "missing structured premise candidate declaration identity" in error
+        for error in exc_info.value.errors
+    )
 
 
-def test_formalizer_autofills_source_to_bridge_metadata_from_same_packet_request() -> None:
+def test_formalizer_does_not_copy_metadata_from_same_packet_request() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     request = {
         "candidate_request_id": "request:hGoodRankImpliesCovered",
@@ -76628,48 +76605,39 @@ def test_formalizer_autofills_source_to_bridge_metadata_from_same_packet_request
         config=FormalizerConfig(provider_name="static", model="static-formalizer"),
     )
 
-    packet = formalizer.propose(
-        question=question,
-        theory_packet={"packet_id": "theory:same-packet-request"},
-        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
-        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
-        registered_problem={"problem_class": "conformal_prediction"},
-        theorem_goals=[],
-        proof_bank_obligation_catalog=[],
-        proof_bank_runtime_memory_summary={
-            "recommended_formalizer_target_mode": (
-                "source_to_bridge_premise_derivation_required"
-            ),
-            "source_to_bridge_premise_derivation_required": True,
-            "source_to_bridge_premise_derivation_pending_premise_names": [
-                "hGoodRankImpliesCovered"
-            ],
-        },
-    )
+    with pytest.raises(PacketValidationError) as exc_info:
+        formalizer.propose(
+            question=question,
+            theory_packet={"packet_id": "theory:same-packet-request"},
+            simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+            algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+            registered_problem={"problem_class": "conformal_prediction"},
+            theorem_goals=[],
+            proof_bank_obligation_catalog=[],
+            proof_bank_runtime_memory_summary={
+                "recommended_formalizer_target_mode": (
+                    "source_to_bridge_premise_derivation_required"
+                ),
+                "source_to_bridge_premise_derivation_required": True,
+                "source_to_bridge_premise_derivation_pending_premise_names": [
+                    "hGoodRankImpliesCovered"
+                ],
+            },
+        )
 
-    assert "dropped_source_to_bridge_premise_derivation_candidates" not in packet
+    packet = exc_info.value.last_invalid_packet
+    assert packet is not None
     candidate = packet["source_to_bridge_premise_derivation_candidates"][0]
-    assert (
-        candidate["source_binding_metadata_autofilled_from_packet_candidate_request"]
-        is True
-    )
-    assert (
-        candidate["source_binding_metadata_autofill_source"]
-        == "same_packet_candidate_request"
-    )
-    assert (
-        candidate["source_to_bridge_premise_derivation_candidate_request_id"]
-        == "request:hGoodRankImpliesCovered"
-    )
-    assert candidate["premise_candidate_declaration_name"] == (
-        "split_conformal_finite_sample_coverage_hGoodRankImpliesCovered_source_to_bridge_derivation"
-    )
-    assert candidate["required_semantic_anchor_reference_names"] == ["hC"]
+    assert "source_binding_metadata_autofilled_from_packet_candidate_request" not in candidate
+    assert "source_binding_metadata_autofill_source" not in candidate
+    assert "source_to_bridge_premise_derivation_candidate_request_id" not in candidate
+    assert "premise_candidate_declaration_name" not in candidate
+    assert "required_semantic_anchor_reference_names" not in candidate
     assert "hC hGoodRank" in candidate["premise_derivation_candidate_lean_source"]
-    assert validate_formalizer_packet(packet) == []
+    assert any("source-binding contract metadata" in error for error in exc_info.value.errors)
 
 
-def test_formalizer_autofills_single_source_to_bridge_request_fallback() -> None:
+def test_formalizer_does_not_guess_single_source_to_bridge_request_binding() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     response = {
         "formal_targets": [
@@ -76807,50 +76775,32 @@ def test_formalizer_autofills_single_source_to_bridge_request_fallback() -> None
         config=FormalizerConfig(provider_name="static", model="static-formalizer"),
     )
 
-    packet = formalizer.propose(
-        question=question,
-        theory_packet={"packet_id": "theory:single-request-fallback"},
-        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
-        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
-        registered_problem={"problem_class": "conformal_prediction"},
-        theorem_goals=[],
-        proof_bank_obligation_catalog=[],
-        proof_bank_runtime_memory_summary=memory_summary,
-    )
+    with pytest.raises(PacketValidationError) as exc_info:
+        formalizer.propose(
+            question=question,
+            theory_packet={"packet_id": "theory:single-request-fallback"},
+            simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+            algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+            registered_problem={"problem_class": "conformal_prediction"},
+            theorem_goals=[],
+            proof_bank_obligation_catalog=[],
+            proof_bank_runtime_memory_summary=memory_summary,
+        )
 
+    packet = exc_info.value.last_invalid_packet
+    assert packet is not None
     candidate = packet["source_to_bridge_premise_derivation_candidates"][0]
-    assert candidate["source_binding_metadata_autofilled_from_runtime_memory"] is True
-    assert (
-        candidate["source_binding_metadata_autofill_mode"]
-        == "single_request_single_candidate_fallback"
-    )
-    assert candidate["premise_name"] == "hGoodRankImpliesCovered"
-    assert (
-        candidate["model_premise_name_before_runtime_autofill"]
-        == "hGoodRankCoveredBridge"
-    )
-    assert (
-        candidate["source_to_bridge_premise_derivation_candidate_request_id"]
-        == "request:hGoodRankImpliesCovered"
-    )
-    assert (
-        candidate["source_to_bridge_premise_derivation_candidate_request"][
-            "candidate_request_id"
-        ]
-        == "request:hGoodRankImpliesCovered"
-    )
-    assert candidate["premise_candidate_declaration_name"] == (
-        "split_conformal_finite_sample_coverage_hGoodRankImpliesCovered_source_to_bridge_derivation"
-    )
-    assert candidate["required_semantic_anchor_reference_names"] == [
-        "hQuantileThreshold",
-        "hGoodRank",
-        "hExch",
-    ]
-    assert validate_formalizer_packet(packet) == []
+    assert candidate["premise_name"] == "hGoodRankCoveredBridge"
+    assert "model_premise_name_before_runtime_autofill" not in candidate
+    assert "source_binding_metadata_autofilled_from_runtime_memory" not in candidate
+    assert "source_binding_metadata_autofill_mode" not in candidate
+    assert "source_to_bridge_premise_derivation_candidate_request_id" not in candidate
+    assert "premise_candidate_declaration_name" not in candidate
+    assert "required_semantic_anchor_reference_names" not in candidate
+    assert any("source-binding contract metadata" in error for error in exc_info.value.errors)
 
 
-def test_formalizer_quarantines_unbound_source_to_bridge_candidate_without_runtime_request() -> None:
+def test_formalizer_preserves_and_rejects_unbound_source_to_bridge_candidate() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     response = {
         "formal_targets": [
@@ -76920,29 +76870,32 @@ def test_formalizer_quarantines_unbound_source_to_bridge_candidate_without_runti
         config=FormalizerConfig(provider_name="static", model="static-formalizer"),
     )
 
-    packet = formalizer.propose(
-        question=question,
-        theory_packet={"packet_id": "theory:generic-lean-target"},
-        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
-        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
-        registered_problem={"problem_class": "conformal_prediction"},
-        theorem_goals=[],
-        proof_bank_obligation_catalog=[],
-        proof_bank_runtime_memory_summary={
-            "recommended_formalizer_target_mode": "registered_proof_bank_obligation_selection",
-            "source_to_bridge_premise_derivation_required": False,
-        },
-    )
+    with pytest.raises(PacketValidationError) as exc_info:
+        formalizer.propose(
+            question=question,
+            theory_packet={"packet_id": "theory:generic-lean-target"},
+            simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+            algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+            registered_problem={"problem_class": "conformal_prediction"},
+            theorem_goals=[],
+            proof_bank_obligation_catalog=[],
+            proof_bank_runtime_memory_summary={
+                "recommended_formalizer_target_mode": "registered_proof_bank_obligation_selection",
+                "source_to_bridge_premise_derivation_required": False,
+            },
+        )
 
-    assert packet["source_to_bridge_premise_derivation_candidates"] == []
-    assert packet["dropped_source_to_bridge_premise_derivation_candidates"][0][
+    packet = exc_info.value.last_invalid_packet
+    assert packet is not None
+    assert packet["source_to_bridge_premise_derivation_candidates"][0][
         "premise_name"
     ] == "hGoodCovered"
+    assert "dropped_source_to_bridge_premise_derivation_candidates" not in packet
     assert packet["formal_targets"][0]["id"] == "generic_conformal_sanity_candidate"
-    assert validate_formalizer_packet(packet) == []
+    assert any("source-binding contract metadata" in error for error in exc_info.value.errors)
 
 
-def test_formalizer_normalizer_drops_phantom_source_to_bridge_next_action() -> None:
+def test_formalizer_preserves_and_rejects_phantom_source_to_bridge_next_action() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     response = {
         "formal_targets": [
@@ -77014,31 +76967,30 @@ def test_formalizer_normalizer_drops_phantom_source_to_bridge_next_action() -> N
         config=FormalizerConfig(provider_name="static", model="static-formalizer"),
     )
 
-    packet = formalizer.propose(
-        question=question,
-        theory_packet={"packet_id": "theory:phantom-next-action"},
-        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
-        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
-        registered_problem={"problem_class": "conformal_prediction"},
-        theorem_goals=[],
-        proof_bank_obligation_catalog=[],
-        proof_bank_runtime_memory_summary={},
-    )
+    with pytest.raises(PacketValidationError) as exc_info:
+        formalizer.propose(
+            question=question,
+            theory_packet={"packet_id": "theory:phantom-next-action"},
+            simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+            algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+            registered_problem={"problem_class": "conformal_prediction"},
+            theorem_goals=[],
+            proof_bank_obligation_catalog=[],
+            proof_bank_runtime_memory_summary={},
+        )
 
-    assert packet["dropped_phantom_source_to_bridge_next_actions"][0][
-        "owner_agent"
-    ] == "AgentRuntime/AXLE"
-    assert packet["next_actions"][0]["owner_agent"] == "Formalizer"
-    assert "non-executable gap/dependency" in packet["next_actions"][0]["action"]
+    packet = exc_info.value.last_invalid_packet
+    assert packet is not None
+    assert "dropped_phantom_source_to_bridge_next_actions" not in packet
+    assert packet["next_actions"] == response["next_actions"]
+    assert packet["critic_findings"] == response["critic_findings"]
     assert any(
-        row.get("proof_evidence_status")
-        == "DROPPED_PHANTOM_NEXT_ACTION_NOT_PROOF_EVIDENCE"
-        for row in packet["critic_findings"]
+        "packet contains no source_to_bridge" in error
+        for error in exc_info.value.errors
     )
-    assert validate_formalizer_packet(packet) == []
 
 
-def test_formalizer_normalizer_marks_executable_lean_as_kernel_check_work() -> None:
+def test_formalizer_preserves_and_rejects_model_authored_candidate_statuses() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     response = {
         "formal_targets": [
@@ -77129,49 +77081,34 @@ def test_formalizer_normalizer_marks_executable_lean_as_kernel_check_work() -> N
         config=FormalizerConfig(provider_name="static", model="static-formalizer"),
     )
 
-    packet = formalizer.propose(
-        question=question,
-        theory_packet={"packet_id": "theory:status-normalization"},
-        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
-        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
-        registered_problem={"problem_class": "conformal_prediction"},
-        theorem_goals=[],
-        proof_bank_obligation_catalog=[],
-        proof_bank_runtime_memory_summary={},
-        environment_feedback={
-            "runtime_requested_evidence_contract": {
-                "capability_eval_requires_formalizer_lean_candidate": True
-            }
-        },
-    )
-
-    assert packet["formal_targets"][0]["expected_status"] == "NEEDS_KERNEL_CHECK"
-    assert packet["formal_targets"][0]["expected_status_normalized_from"] == (
-        "FORMAL_GAP"
-    )
-    candidate = packet["source_to_bridge_premise_derivation_candidates"][0]
-    assert candidate["expected_status"] == "NEEDS_KERNEL_CHECK"
-    assert candidate["expected_status_normalized_from"] == "FORMAL_GAP"
-    channels = {
-        row["channel"]
-        for row in packet["normalized_executable_candidate_expected_statuses"]
-    }
-    assert channels == {
-        "formal_targets",
-        "source_to_bridge_premise_derivation_candidates",
-    }
-    assert validate_formalizer_packet(packet) == []
-    assert (
-        _validate_capability_eval_formalizer_lean_candidate_packet(
-            packet,
+    with pytest.raises(PacketValidationError) as exc_info:
+        formalizer.propose(
+            question=question,
+            theory_packet={"packet_id": "theory:status-normalization"},
+            simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+            algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+            registered_problem={"problem_class": "conformal_prediction"},
+            theorem_goals=[],
+            proof_bank_obligation_catalog=[],
+            proof_bank_runtime_memory_summary={},
             environment_feedback={
                 "runtime_requested_evidence_contract": {
                     "capability_eval_requires_formalizer_lean_candidate": True
                 }
             },
-            proof_bank_runtime_memory_summary={},
         )
-        == []
+
+    packet = exc_info.value.last_invalid_packet
+    assert packet is not None
+    assert packet["formal_targets"][0]["expected_status"] == "FORMAL_GAP"
+    candidate = packet["source_to_bridge_premise_derivation_candidates"][0]
+    assert candidate["expected_status"] == "FORMAL_GAP"
+    assert "expected_status_normalized_from" not in packet["formal_targets"][0]
+    assert "expected_status_normalized_from" not in candidate
+    assert "normalized_executable_candidate_expected_statuses" not in packet
+    assert any(
+        "HELPER_OR_SUPPORT and expected_status=FORMAL_GAP" in error
+        for error in exc_info.value.errors
     )
 
 
@@ -77320,7 +77257,7 @@ def test_formalizer_normalizer_preserves_labeled_helper_for_diagnostics(
     )
 
 
-def test_formalizer_normalizer_drops_semantically_unanchored_source_to_bridge_candidate() -> None:
+def test_formalizer_preserves_and_rejects_semantically_unanchored_candidate() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     response = {
         "formal_targets": [
@@ -77427,51 +77364,37 @@ def test_formalizer_normalizer_drops_semantically_unanchored_source_to_bridge_ca
         config=FormalizerConfig(provider_name="static", model="static-formalizer"),
     )
 
-    packet = formalizer.propose(
-        question=question,
-        theory_packet={"packet_id": "theory:semantic-anchor-blocker"},
-        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
-        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
-        registered_problem={"problem_class": "conformal_prediction"},
-        theorem_goals=[],
-        proof_bank_obligation_catalog=[],
-        proof_bank_runtime_memory_summary={},
-        environment_feedback=feedback,
-    )
+    with pytest.raises(PacketValidationError) as exc_info:
+        formalizer.propose(
+            question=question,
+            theory_packet={"packet_id": "theory:semantic-anchor-blocker"},
+            simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+            algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+            registered_problem={"problem_class": "conformal_prediction"},
+            theorem_goals=[],
+            proof_bank_obligation_catalog=[],
+            proof_bank_runtime_memory_summary={},
+            environment_feedback=feedback,
+        )
 
-    assert packet["source_to_bridge_premise_derivation_candidates"] == []
-    dropped = packet["dropped_semantic_anchor_source_to_bridge_candidates"][0]
-    assert dropped["premise_name"] == "hGoodRankImpliesCovered"
-    assert dropped["missing_required_semantic_anchor_reference_names"] == [
+    packet = exc_info.value.last_invalid_packet
+    assert packet is not None
+    candidate = packet["source_to_bridge_premise_derivation_candidates"][0]
+    assert candidate["premise_name"] == "hGoodRankImpliesCovered"
+    assert candidate["required_semantic_anchor_reference_names"] == [
         "hQuantileThreshold",
         "hGoodRank",
     ]
+    assert "dropped_semantic_anchor_source_to_bridge_candidates" not in packet
+    assert packet["gap_taxonomy"] == response["gap_taxonomy"]
+    assert packet["next_actions"] == response["next_actions"]
     assert any(
-        row.get("kind") == "source_to_bridge_semantic_anchor_blocker"
-        and row.get("premise_names") == ["hGoodRankImpliesCovered"]
-        for row in packet["gap_taxonomy"]
-    )
-    assert not any(
-        "source_to_bridge_premise_derivation_candidates"
-        in " ".join(
-            str(action.get(key, "") or "")
-            for key in ("owner_agent", "action", "acceptance_gate")
-        )
-        for action in packet["next_actions"]
-        if isinstance(action, dict)
-    )
-    assert validate_formalizer_packet(packet) == []
-    assert (
-        _validate_capability_eval_formalizer_lean_candidate_packet(
-            packet,
-            environment_feedback=feedback,
-            proof_bank_runtime_memory_summary={},
-        )
-        == []
+        "missing structured premise candidate declaration identity" in error
+        for error in exc_info.value.errors
     )
 
 
-def test_formalizer_normalizer_fail_closes_repeated_placeholder_lean_sketch() -> None:
+def test_formalizer_preserves_and_rejects_placeholder_lean_sketch() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     response = {
         "formal_targets": [
@@ -77561,40 +77484,31 @@ def test_formalizer_normalizer_fail_closes_repeated_placeholder_lean_sketch() ->
         config=FormalizerConfig(provider_name="static", model="static-formalizer"),
     )
 
-    packet = formalizer.propose(
-        question=question,
-        theory_packet={"packet_id": "theory:placeholder-fail-closed"},
-        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
-        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
-        registered_problem={"problem_class": "conformal_prediction"},
-        theorem_goals=[],
-        proof_bank_obligation_catalog=[],
-        proof_bank_runtime_memory_summary={},
-        environment_feedback=feedback,
-    )
+    with pytest.raises(PacketValidationError) as exc_info:
+        formalizer.propose(
+            question=question,
+            theory_packet={"packet_id": "theory:placeholder-fail-closed"},
+            simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+            algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+            registered_problem={"problem_class": "conformal_prediction"},
+            theorem_goals=[],
+            proof_bank_obligation_catalog=[],
+            proof_bank_runtime_memory_summary={},
+            environment_feedback=feedback,
+        )
 
-    converted = packet["fail_closed_placeholder_formal_targets"][0]
-    assert converted["id"] == "exchangeable_rank_uniform_helper"
-    assert packet["formal_targets"][0]["expected_status"] == "FORMAL_GAP"
-    assert packet["formal_targets"][0]["lean_statement_sketch"] == ""
-    assert packet["formal_targets"][0]["proof_evidence_status"] == (
-        "FORMAL_GAP_PLACEHOLDER_LEAN_SKETCH_REMOVED_NOT_PROOF_EVIDENCE"
-    )
-    assert not any(
-        row["id"] == "source_theorem_formal_gap_after_placeholder_repair"
-        for row in packet["formal_targets"]
-    )
-    assert packet["source_theorem_formal_gap_synthesis_skipped"]["reason"] == (
-        "source_theorem_gap_requires_explicit_agent_target"
-    )
-    assert any(
-        row.get("kind") == "proof_hole_placeholder_removed"
-        for row in packet["gap_taxonomy"]
-    )
-    assert validate_formalizer_packet(packet) == []
+    packet = exc_info.value.last_invalid_packet
+    assert packet is not None
+    target = packet["formal_targets"][0]
+    assert target["expected_status"] == "NEEDS_KERNEL_CHECK"
+    assert "sorry" in target["lean_statement_sketch"]
+    assert "fail_closed_placeholder_formal_targets" not in packet
+    assert "source_theorem_formal_gap_synthesis_skipped" not in packet
+    assert packet["gap_taxonomy"] == response["gap_taxonomy"]
+    assert not any("contains Lean sorry placeholder" in error for error in exc_info.value.errors)
 
 
-def test_formalizer_normalizer_fail_closes_repeated_syntax_formal_gap_sorry() -> None:
+def test_formalizer_preserves_and_rejects_repeated_syntax_placeholder() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     response = {
         "formal_targets": [
@@ -77697,31 +77611,30 @@ def test_formalizer_normalizer_fail_closes_repeated_syntax_formal_gap_sorry() ->
         config=FormalizerConfig(provider_name="static", model="static-formalizer"),
     )
 
-    packet = formalizer.propose(
-        question=question,
-        theory_packet={"packet_id": "theory:syntax-formal-gap"},
-        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
-        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
-        registered_problem={"problem_class": "conformal_prediction"},
-        theorem_goals=[],
-        proof_bank_obligation_catalog=[],
-        proof_bank_runtime_memory_summary={},
-        environment_feedback=feedback,
-    )
+    with pytest.raises(PacketValidationError) as exc_info:
+        formalizer.propose(
+            question=question,
+            theory_packet={"packet_id": "theory:syntax-formal-gap"},
+            simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+            algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+            registered_problem={"problem_class": "conformal_prediction"},
+            theorem_goals=[],
+            proof_bank_obligation_catalog=[],
+            proof_bank_runtime_memory_summary={},
+            environment_feedback=feedback,
+        )
 
+    packet = exc_info.value.last_invalid_packet
+    assert packet is not None
     target = packet["formal_targets"][0]
     assert target["expected_status"] == "FORMAL_GAP"
-    assert target["lean_statement_sketch"] == ""
-    assert target["normalizer_status"] == (
-        "FAIL_CLOSED_PLACEHOLDER_LEAN_SKETCH_TO_FORMAL_GAP"
-    )
-    assert packet["fail_closed_placeholder_formal_targets"][0]["id"] == (
-        "split_conformal_finite_sample_coverage_source_theorem"
-    )
-    assert validate_formalizer_packet(packet) == []
+    assert "sorry" in target["lean_statement_sketch"]
+    assert "normalizer_status" not in target
+    assert "fail_closed_placeholder_formal_targets" not in packet
+    assert not any("contains Lean sorry placeholder" in error for error in exc_info.value.errors)
 
 
-def test_formalizer_validator_rejects_uninstantiated_adapter_object_binders() -> None:
+def test_formalizer_validator_leaves_adapter_binder_semantics_to_review() -> None:
     packet = {
         "formal_targets": [
             {
@@ -77802,9 +77715,9 @@ def test_formalizer_validator_rejects_uninstantiated_adapter_object_binders() ->
 
     errors = validate_formalizer_packet(packet)
 
-    assert any("takes adapter objects as theorem binders" in error for error in errors)
+    assert not any("takes adapter objects as theorem binders" in error for error in errors)
     assert any(
-        "covered" in error and "rank" in error and "BadRanks" in error
+        "missing structured premise candidate declaration identity" in error
         for error in errors
     )
 
@@ -81277,6 +81190,13 @@ def test_runtime_routes_pseudo_formal_semantic_primitives_into_source_semantic_b
                     "semantic_primitive_requirements": ["coverage_event"],
                     "lean_feasibility": "needs_semantic_definition",
                     "faithfulness_status": "needs_review",
+                    "faithfulness_repair": {
+                        "status": "unavailable",
+                        "attempts": 1,
+                        "flagged_discrepancies": [
+                            "coverage event needs exact semantic closure"
+                        ],
+                    },
                     "block_verification": {
                         "verdict": "failed",
                         "reason": "coverage event needs exact semantic closure",
@@ -81665,8 +81585,8 @@ def test_formalizer_memory_surfaces_unproven_bridge_premise_adapter_failure(
     )
     assert "source_theorem_proof_body_adapter_unproven_bridge_premises_required" in prompt
     assert "adapter_candidate_requires_unproven_bridge_premises" in prompt
-    assert "forbidden as new adapter binder assumptions" in prompt
-    assert "Do not write an adapter that takes those names as inputs" in prompt
+    assert "forbidden as new adapter binder assumptions" not in prompt
+    assert "Do not write an adapter that takes those names as inputs" not in prompt
     assert "hGoodCovered" in prompt
     assert "hRank" in prompt
     assert "hTotal" in prompt
@@ -82370,8 +82290,6 @@ def test_formalizer_memory_surfaces_source_to_bridge_premise_derivation_feedback
     assert "source_to_bridge_premise_derivation_pending_premise_names" in prompt
     assert "hGoodCovered" in prompt
     assert "hRank" in prompt
-    assert "source-to-bridge premise derivation candidates" in prompt
-    assert "derive them from exact source hypotheses" in prompt
     assert "source_theorem_signature_excerpt" in prompt
     assert "adapter_signature_excerpt" in prompt
     assert "premise_target_type" in prompt
@@ -82379,66 +82297,45 @@ def test_formalizer_memory_surfaces_source_to_bridge_premise_derivation_feedback
     assert "adapter_instantiation_group_id" in prompt
     assert "source_to_bridge_adapter_instantiation_group:test" in prompt
     assert "required_bridge_premise_names_for_shared_instantiation" in prompt
-    assert "shared_adapter_instantiation_contract" in prompt
-    assert "one shared definition of covered, rank, BadRanks" in prompt
     assert "premise_derivation_gap_kind" in prompt
     assert "concrete_premise_target_lacks_nonvacuous_derivation_candidate" in prompt
-    assert "premise_derivation_candidate_missing_nonvacuous_source" in prompt
     assert "premise_derivation_candidate_not_evidence_eligible" in prompt
-    assert "local Lean skipped" in prompt
-    assert "Do not return a `fail_if_success`, `True := by trivial`" in prompt
-    assert "Return a non-vacuous Lean candidate" in prompt
     assert "⊢ 1 - alpha" in prompt
     assert "P.real" in prompt
-    assert "premise_semantic_dependency_requirements" in prompt
-    assert "premise_semantic_dependency_source" in prompt
-    assert "policy_pack" in prompt
-    assert "source_to_bridge_policy_pack_ids" in prompt
-    assert "source_to_bridge_policy_ids" in prompt
-    assert "split_conformal_coverage.covered" in prompt
-    assert "source_to_bridge_policy_required_anchor_names" in prompt
-    assert "exact source coverage event using hC" in prompt
     assert "source_to_bridge_premise_derivation_candidate_request" in prompt
     assert "source_to_bridge_grouped_premise_derivation_candidate_request" in prompt
     assert "source_to_bridge_grouped_premise_derivation_candidate_request:test" in prompt
     assert '"premise_names":["hGoodCovered","hRank"]' in prompt
-    assert "one source_to_bridge_premise_derivation_candidates object" in prompt
     assert "exact_source_theorem_binders" in prompt
-    assert "premise_semantic_anchor_binders" in prompt
-    assert "premise_semantic_anchor_binder_names" in prompt
     assert "exchangeability_anchor" in prompt
     assert "quantile_definition_anchor" in prompt
     assert "coverage_event_anchor" in prompt
-    assert "exchangeability_anchor" in prompt
-    assert '"premise_semantic_anchor_binder_names":["hq","hC"]' in prompt
-    assert '"premise_semantic_anchor_binder_names":["hexch"]' in prompt
-    assert "required_semantic_anchor_reference_names" in prompt
-    assert '"required_semantic_anchor_reference_names":["hq","hC"]' in prompt
-    assert '"required_semantic_anchor_reference_names":["hexch"]' in prompt
-    assert "semantic_anchor_reference_gate" in prompt
-    assert "bridge_object_instantiation_policy" in prompt
-    assert "adapter_object_names_requiring_source_instantiation" in prompt
-    assert '"adapter_object_names_requiring_source_instantiation":["covered","rank","BadRanks"]' in prompt
-    assert "Adapter objects such as covered, rank, BadRanks" in prompt
-    assert "are not source-theorem assumptions" in prompt
-    assert "outside comments" in prompt
-    assert "premise_candidate_references_semantic_anchor" in prompt
-    assert '"premise_candidate_references_semantic_anchor":false' in prompt
-    assert "missing_premise_semantic_anchor_binder_names" in prompt
-    assert '"missing_premise_semantic_anchor_binder_names":["hq","hC"]' in prompt
-    assert "reference each missing binder name in the Lean proof body" in prompt
-    assert "do not repeat a candidate that only mentions those binders" in prompt
-    assert (
-        "references missing exact source semantic anchor binder(s) outside comments: hq, hC"
-        in prompt
-    )
-    assert "Use only those exact source binders" in prompt
     assert "premise_candidate_declaration_name" in prompt
     assert "split_conformal_coverage_hGoodCovered_source_to_bridge_derivation" in prompt
     assert (
         "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_CANDIDATE_REQUEST_NOT_PROOF_EVIDENCE"
         in prompt
     )
+    for runtime_recipe in (
+        "source-to-bridge premise derivation candidates",
+        "derive them from exact source hypotheses",
+        "shared_adapter_instantiation_contract",
+        "one shared definition of covered, rank, BadRanks",
+        "premise_derivation_candidate_missing_nonvacuous_source",
+        "local Lean skipped",
+        "Do not return a `fail_if_success`, `True := by trivial`",
+        "Return a non-vacuous Lean candidate",
+        "premise_semantic_dependency_requirements",
+        "source_to_bridge_policy_pack_ids",
+        "source_to_bridge_policy_ids",
+        "semantic_anchor_reference_gate",
+        "bridge_object_instantiation_policy",
+        "adapter_object_names_requiring_source_instantiation",
+        "reference each missing binder name in the Lean proof body",
+        "references missing exact source semantic anchor binder(s) outside comments: hq, hC",
+        "Use only those exact source binders",
+    ):
+        assert runtime_recipe not in prompt
 
 
 def test_formalizer_premise_derivation_candidate_becomes_runtime_work_order(
@@ -105093,7 +104990,7 @@ def test_runtime_attaches_failed_formalizer_pseudo_formal_packet_eval_manifest(
     ][0]["formalizer_validation_feedback"]
     assert prompt_feedback["feedback_id"] == feedback["feedback_id"]
     assert prompt_feedback["validation_error_messages"] == errors
-    assert "runtime supplies no copy seed" in prompt.lower()
+    assert "runtime supplies no copy seed" not in prompt.lower()
     assert "pseudo_formal_failure_concrete_lane_routable_repair_seed" not in prompt
     assert "pseudo_formal_failure_validator_ready_copy_contract" not in prompt
     assert "formalizer_pseudo_formal_packet_copy_ready_retry_agenda_memory" not in prompt
@@ -105364,8 +105261,10 @@ def test_runtime_formalizer_pf_component_gate_missing_exact_rows_artifact_routes
     assert prompt_memory[0]["source_component_gate_exact_rows_jsonl"] == str(
         missing_exact_rows
     )
-    assert "exact-row handoff is blocked" in prompt
-    assert "not proof or kernel evidence" in prompt
+    assert "exact-row handoff is blocked" not in prompt
+    assert prompt_memory[0]["proof_evidence_status"] == (
+        "FORMALIZER_PF_COMPONENT_GATE_HANDOFF_DIAGNOSTIC_NOT_PROOF_EVIDENCE"
+    )
 
 
 def test_runtime_audit_summarizes_pf_failure_copy_ready_repair_memory() -> None:

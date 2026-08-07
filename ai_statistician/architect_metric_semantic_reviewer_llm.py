@@ -1600,7 +1600,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
             max_repair_attempts=self.config.max_repair_attempts,
         )
 
-ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 6
+ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 7
 ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
     (
         "Review only pre-execution artifacts. Do not use observed results, invent "
@@ -1646,7 +1646,9 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
         "Audit gate_field_authorities field by field. Theory-derived and mandated "
         "values require exact supporting current anchors; architect-preregistered "
         "design values remain candidate-owned but require a pre-execution uncertainty "
-        "or attainability calculation. Diagnostic-only rows cannot authorize success."
+        "or attainability calculation. Diagnostic-only rows cannot authorize success. "
+        "Finite-sample evaluation of an asymptotic procedure does not require a "
+        "nonasymptotic guarantee unless the candidate claims one."
     ),
     (
         "Emit one theory_scope_checks row per required slot; runtime binds its "

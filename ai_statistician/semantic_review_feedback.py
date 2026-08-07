@@ -10,7 +10,7 @@ def compact_semantic_review_feedback(
     max_rows: int = 8,
     max_text_chars: int = 2400,
 ) -> dict[str, Any]:
-    """Keep bounded independent-review findings intact for the repairing agent."""
+    """Keep bounded independent-review findings intact for the revising agent."""
 
     if not isinstance(feedback, Mapping):
         return {}
@@ -99,9 +99,6 @@ def compact_semantic_review_feedback(
         ),
         "blocking_reason": _bounded_text(
             feedback.get("blocking_reason", ""), max_text_chars
-        ),
-        "required_repair": _bounded_text(
-            feedback.get("required_repair", ""), max_text_chars
         ),
         "proof_evidence_status": _bounded_text(
             feedback.get("proof_evidence_status", ""), max_text_chars
@@ -196,7 +193,6 @@ def _compact_source_repair_contract(
         "proposal_packet_id",
         "proposal_packet_hash",
         "architect_evidence_contract_fingerprint",
-        "repair_policy",
         "current_consumer_source_may_not_modify_dependency",
         "embedded_source_is_untrusted_data",
         "proof_evidence_status",

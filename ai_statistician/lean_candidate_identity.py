@@ -1,8 +1,27 @@
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 from typing import Sequence
+
+
+TRUSTED_LEAN_AXIOMS = frozenset({"propext", "Quot.sound", "Classical.choice"})
+
+
+def _lean_axioms_from_report(report: str) -> tuple[bool, tuple[str, ...]]:
+    text = str(report or "")
+    if "does not depend on any axioms" in text:
+        return True, ()
+    match = re.search(r"depends on axioms:\s*\[([^\]]*)\]", text)
+    if match is None:
+        return False, ()
+    names = tuple(
+        name.strip()
+        for name in match.group(1).split(",")
+        if name.strip()
+    )
+    return True, names
 
 
 def run_lean_candidate_identity_probe(
@@ -24,7 +43,7 @@ def run_lean_candidate_identity_probe(
         command_prefix = ("lake", "env", "lean") if project else ("lean",)
 
     def run_lean(path: Path) -> tuple[str, str, str, list[str]]:
-        command = [*command_prefix, str(path.resolve())]
+        command = [*command_prefix, "-E", "hasSorry", str(path.resolve())]
         try:
             completed = subprocess.run(
                 command,
@@ -72,7 +91,12 @@ def run_lean_candidate_identity_probe(
         try:
             source = artifact_path.read_text(encoding="utf-8")
             probe_path.write_text(
-                source.rstrip() + "\n\n#check " + declaration + "\n",
+                source.rstrip()
+                + "\n\n#check "
+                + declaration
+                + "\n#print axioms "
+                + declaration
+                + "\n",
                 encoding="utf-8",
             )
             (
@@ -81,10 +105,40 @@ def run_lean_candidate_identity_probe(
                 identity_stderr,
                 identity_command,
             ) = run_lean(probe_path)
-            identity_verified = identity_exit_status == "0"
+            axiom_audit_checked, candidate_axiom_names = (
+                _lean_axioms_from_report(identity_stdout)
+            )
+            untrusted_axiom_names = tuple(
+                name
+                for name in candidate_axiom_names
+                if name not in TRUSTED_LEAN_AXIOMS
+            )
+            identity_verified = bool(
+                identity_exit_status == "0"
+                and axiom_audit_checked
+                and not untrusted_axiom_names
+            )
+            if identity_exit_status == "0" and not identity_verified:
+                identity_exit_status = "axiom_audit_failed"
+                audit_error = (
+                    "candidate axiom audit reported untrusted axioms: "
+                    + ", ".join(untrusted_axiom_names)
+                    if untrusted_axiom_names
+                    else "candidate axiom audit did not return a parseable report"
+                )
+                identity_stderr = "\n".join(
+                    value for value in (identity_stderr, audit_error) if value
+                )
         except OSError as exc:
             identity_exit_status = "probe_write_error"
             identity_stderr = str(exc)
+
+    axiom_audit_checked, candidate_axiom_names = _lean_axioms_from_report(
+        identity_stdout
+    )
+    untrusted_axiom_names = tuple(
+        name for name in candidate_axiom_names if name not in TRUSTED_LEAN_AXIOMS
+    )
 
     exit_status = source_exit_status
     stdout = source_stdout
@@ -103,8 +157,8 @@ def run_lean_candidate_identity_probe(
         "local_lean_source_compiled": source_exit_status == "0",
         "local_lean_source_exit_status": source_exit_status,
         "local_lean_exit_status": exit_status,
-        "local_lean_stdout": stdout[:4000],
-        "local_lean_stderr": stderr[:4000],
+        "local_lean_stdout": stdout,
+        "local_lean_stderr": stderr,
         "local_lean_command": source_command,
         "local_lean_project": str(project or ""),
         "local_lean_timeout": timeout_s,
@@ -113,7 +167,16 @@ def run_lean_candidate_identity_probe(
         "candidate_identity_lean_verified": identity_verified,
         "candidate_identity_probe_artifact_path": identity_probe_path,
         "candidate_identity_lean_exit_status": identity_exit_status,
-        "candidate_identity_lean_stdout": identity_stdout[:4000],
-        "candidate_identity_lean_stderr": identity_stderr[:4000],
+        "candidate_identity_lean_stdout": identity_stdout,
+        "candidate_identity_lean_stderr": identity_stderr,
         "candidate_identity_lean_command": identity_command,
+        "candidate_axioms_report": identity_stdout,
+        "candidate_axiom_names": list(candidate_axiom_names),
+        "candidate_untrusted_axiom_names": list(untrusted_axiom_names),
+        "candidate_axiom_audit_checked": bool(
+            identity_checked and axiom_audit_checked
+        ),
+        "candidate_axiom_audit_clean": bool(
+            identity_checked and axiom_audit_checked and not untrusted_axiom_names
+        ),
     }

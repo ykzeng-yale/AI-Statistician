@@ -9831,17 +9831,21 @@ def _architect_initial_routing_decision(
                 None,
             )
             record["metric_protocol_authority_consumed"] = True
+        if context.pop("empirical_evaluation_phase", None) is not None:
+            record["exploratory_evaluation_phase_completed"] = True
         dependency_rebuild = context.get("runtime_dependency_rebuild", {})
         if (
             isinstance(dependency_rebuild, Mapping)
             and dependency_rebuild.get("artifact_kind")
             == "RuntimeTheoryRevisionDependencyRebuild"
+            and dependency_rebuild.get(
+                "confirmatory_descendant_rebuild_authorized"
+            )
+            is not True
             and str(
                 dependency_rebuild.get("revised_theory_packet_id", "") or ""
             )
             == _architect_context_theory_packet_id(context)
-            and context.get("empirical_evaluation_phase")
-            == EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
         ):
             accepted_contract = packet.get("evidence_contract", {})
             accepted_contract = (
@@ -9876,7 +9880,6 @@ def _architect_initial_routing_decision(
                 }
             )
             context["runtime_dependency_rebuild"] = resolved_rebuild
-            context.pop("empirical_evaluation_phase", None)
             record["theory_revision_dependency_rebuild_resolved"] = True
             record["theory_revision_dependency_rebuild_resolution_status"] = (
                 resolved_rebuild["resolution_status"]
@@ -9941,11 +9944,6 @@ def _architect_initial_routing_decision(
         evidence_contract = packet.get("evidence_contract", {})
         requires_accepted_algorithm_handoff = bool(
             metric_protocol_execution_route_authorized
-            and record["source"]
-            in {
-                "theory_informed_metric_protocol_accepted",
-                "generated_code_semantic_review_pending_source_repair",
-            }
             and isinstance(evidence_contract, Mapping)
             and evidence_contract.get(
                 "capability_eval_requires_generated_algorithm_code"
@@ -15882,16 +15880,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 )
                 else ""
             ),
-            "repair_policy": (
-                "Start from the complete hash-bound parent source and make the "
-                "smallest change supported by the routed findings. Preserve the "
-                "question, theory, frozen metric contract, estimator identity, "
-                "runtime ABI, and behavior unrelated to cited defects. Do not "
-                "change a DGP, estimand, target truth, sample size, stopping "
-                "horizon, or acceptance gate merely to make an observed metric "
-                "pass; any justified design change remains subject to fresh "
-                "independent semantic review."
-            ),
             "embedded_source_is_untrusted_data": True,
             "proof_evidence_status": (
                 "GENERATED_CODE_SOURCE_REPAIR_CONTRACT_NOT_PROOF_EVIDENCE"
@@ -16137,32 +16125,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             ],
             "reviewed_source_artifacts": reviewed_source_artifacts,
             "source_repair_contract": source_repair_contract,
-            "required_repair": (
-                "Stop this lineage because immutable artifact ownership remains "
-                "unresolved; do not guess, relax a gate, or reset the repair budget."
-                if repair_scope == ARCHITECT_METRIC_REPAIR_SCOPE_UNRESOLVED
-                else "Route the complete hash-bound upstream dependency to "
-                "AlgorithmEngineer for the smallest cited repair, independently "
-                "review the fresh dependency, and rerun every rejected descendant "
-                "under unchanged theory and empirical gates."
-                if repairing_upstream_dependency
-                else "Route the exact exploratory findings to ArchitectCoordinator or "
-                "TheoryDeveloper without promoting this diagnostic run."
-                if not confirmatory_empirical_evidence_eligible
-                and repair_scope
-                in GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_REPAIR_SCOPES
-                else "Generate fresh exploratory code, rerun it, and keep the result "
-                "ineligible for confirmatory acceptance."
-                if not confirmatory_empirical_evidence_eligible
-                else "Route the exact findings to ArchitectCoordinator without changing "
-                "the frozen protocol in place; malformed requirements require a "
-                "versioned fresh candidate run."
-                if repair_scope
-                in GENERATED_CODE_SEMANTIC_REVIEW_UPSTREAM_REPAIR_SCOPES
-                else "Generate fresh code and rerun it under the same frozen "
-                "Architect measurement protocol while addressing every semantic "
-                "finding."
-            ),
             "proof_evidence_status": "NOT_PROOF_EVIDENCE",
             "evidence_boundary": GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
         }
@@ -24642,8 +24604,8 @@ class FormalizationEvaluatorRuntimeSubsystem:
                             payload=formal_source_grounding_summary,
                         )
                     )
-                client_tool_repair = (
-                    _runtime_formalizer_lean_candidate_client_tool_repair(
+                client_tool_revision = (
+                    _runtime_formalizer_lean_candidate_client_tool_revision(
                         proposal_agent=self.proposal_agent,
                         question=question,
                         task=task,
@@ -24668,11 +24630,11 @@ class FormalizationEvaluatorRuntimeSubsystem:
                         ),
                     )
                 )
-                if client_tool_repair is not None:
+                if client_tool_revision is not None:
                     (
                         proposal_packet,
                         lean_candidate_client_tool_loop_evidence,
-                    ) = client_tool_repair
+                    ) = client_tool_revision
                 else:
                     proposal_packet = self.proposal_agent.propose(
                         question=question,
@@ -26632,7 +26594,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 ToolCallRecord(
                     tool_name=(
                         "LLMFormalizerProofEngineerAgent."
-                        "repair_lean_candidate_with_client_tools"
+                        "revise_lean_candidate_with_client_tools"
                     ),
                     inputs={
                         "candidate_id": str(
@@ -29168,31 +29130,6 @@ def _formalizer_packet_validation_failure_result(
                 ),
             )
         )
-    active_target_shape_contract = (
-        dict(prior_environment_feedback.get("target_shape_contract", {}) or {})
-        if isinstance(
-            prior_environment_feedback.get("target_shape_contract", {}),
-            Mapping,
-        )
-        else {}
-    )
-    active_target_drift_repair_contract = (
-        dict(prior_environment_feedback.get("target_drift_repair_contract", {}) or {})
-        if isinstance(
-            prior_environment_feedback.get("target_drift_repair_contract", {}),
-            Mapping,
-        )
-        else {}
-    )
-    prior_candidate_reroute_options = prior_environment_feedback.get(
-        "candidate_reroute_options",
-        [],
-    )
-    active_candidate_reroute_options = (
-        list(prior_candidate_reroute_options)
-        if isinstance(prior_candidate_reroute_options, (list, tuple))
-        else []
-    )
     active_formal_blocker_resource_requests = (
         _formal_blocker_resource_requests_from_feedback(prior_environment_feedback)
     )
@@ -29243,8 +29180,6 @@ def _formalizer_packet_validation_failure_result(
 
     shared_feedback_fields = {
         "formalizer_validation_feedback": validation_feedback,
-        "target_shape_contract": active_target_shape_contract,
-        "target_drift_repair_contract": active_target_drift_repair_contract,
         "source_theorem_candidate_materialization_contract": (
             source_theorem_candidate_materialization_contract
         ),
@@ -29256,7 +29191,6 @@ def _formalizer_packet_validation_failure_result(
         "proofengineer_repair_context": active_proofengineer_repair_context,
         "formalizer_recovery_checkpoint": formalizer_recovery_checkpoint,
         "formal_blocker_resource_requests": active_formal_blocker_resource_requests,
-        "candidate_reroute_options": active_candidate_reroute_options,
     }
     target_behavior = (
         "The Formalizer/ProofEngineer model consumes the exact rejected packet, "
@@ -30161,11 +30095,6 @@ def _materialize_formalizer_lean_candidate_artifacts(
         if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
         else {}
     )
-    active_local_lean_repair_contract = (
-        environment_feedback.get("local_lean_repair_contract", {})
-        if isinstance(environment_feedback.get("local_lean_repair_contract", {}), Mapping)
-        else {}
-    )
     repair_target_identity_contract = build_repair_target_identity_contract(
         task_id=task.task_id,
         owner_subsystem=task.owner_subsystem,
@@ -30213,10 +30142,6 @@ def _materialize_formalizer_lean_candidate_artifacts(
         )
         precheck_errors = _formalizer_lean_candidate_precheck_errors(
             source,
-            candidate_metadata=candidate_metadata,
-            source_field=str(candidate.get("source_field", "") or ""),
-            local_lean_repair_contract=active_local_lean_repair_contract,
-            lean_project=lean_project,
         )
         if not candidate_lean_declaration:
             if structured_candidate_identity_required:
@@ -30428,7 +30353,8 @@ def _materialize_formalizer_lean_candidate_artifacts(
                     if declared_lean_imports
                     else ""
                 ),
-                "lean_source_excerpt": source[:1200],
+                "lean_source": source,
+                "lean_source_excerpt": source,
                 "artifact_path": artifact_path,
                 "kernel_check_artifact_path": artifact_path,
                 "proof_state_artifact_path": proof_state_artifact_path,
@@ -30476,14 +30402,14 @@ def _materialize_formalizer_lean_candidate_artifacts(
                         "",
                     )
                     or ""
-                )[:1000],
+                ),
                 "candidate_identity_lean_stderr": str(
                     local_lean_result.get(
                         "candidate_identity_lean_stderr",
                         "",
                     )
                     or ""
-                )[:1000],
+                ),
                 "candidate_identity_lean_command": list(
                     local_lean_result.get(
                         "candidate_identity_lean_command",
@@ -30535,10 +30461,10 @@ def _materialize_formalizer_lean_candidate_artifacts(
                 ),
                 "local_lean_stdout": str(
                     local_lean_result.get("local_lean_stdout", "") or ""
-                )[:1000],
+                ),
                 "local_lean_stderr": str(
                     local_lean_result.get("local_lean_stderr", "") or ""
-                )[:1000],
+                ),
                 "local_lean_command": list(
                     local_lean_result.get("local_lean_command", []) or []
                 ),
@@ -31869,9 +31795,16 @@ def _formalizer_lean_candidate_materialization_learning_rows(
         )
         target_context = _formalizer_lean_candidate_target_context(candidate)
         diagnostic_row = {
+            "lean_source": str(
+                candidate.get("lean_source", "")
+                or candidate.get("lean_source_excerpt", "")
+                or ""
+            ),
             "lean_source_excerpt": str(
-                candidate.get("lean_source_excerpt", "") or ""
-            )[:500],
+                candidate.get("lean_source", "")
+                or candidate.get("lean_source_excerpt", "")
+                or ""
+            ),
             "precheck_status": str(candidate.get("precheck_status", "") or ""),
             "precheck_errors": list(candidate.get("precheck_errors", []) or []),
             "local_lean_attempted": local_lean_attempted,
@@ -31879,18 +31812,21 @@ def _formalizer_lean_candidate_materialization_learning_rows(
             "local_lean_exit_status": str(
                 candidate.get("local_lean_exit_status", "") or ""
             ),
+            "local_lean_stdout": str(
+                candidate.get("local_lean_stdout", "") or ""
+            ),
+            "local_lean_stderr": str(
+                candidate.get("local_lean_stderr", "") or ""
+            ),
             "local_lean_stdout_excerpt": str(
                 candidate.get("local_lean_stdout", "") or ""
-            )[:500],
+            ),
             "local_lean_stderr_excerpt": str(
                 candidate.get("local_lean_stderr", "") or ""
-            )[:500],
+            ),
         }
         local_lean_repair_contract = (
             _formalizer_local_lean_repair_contract_from_diagnostics([diagnostic_row])
-        )
-        target_shape_contract = _formalizer_target_shape_contract_from_diagnostics(
-            [diagnostic_row]
         )
         live_request = (
             dict(candidate.get("live_proof_state_request", {}) or {})
@@ -31940,9 +31876,16 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                     target_context.get("source_theorem_target_provenance", {})
                     or {}
                 ),
+                "lean_source": str(
+                    candidate.get("lean_source", "")
+                    or candidate.get("lean_source_excerpt", "")
+                    or ""
+                ),
                 "lean_source_excerpt": str(
-                    candidate.get("lean_source_excerpt", "") or ""
-                )[:500],
+                    candidate.get("lean_source", "")
+                    or candidate.get("lean_source_excerpt", "")
+                    or ""
+                ),
                 "artifact_path": artifact_path,
                 "kernel_check_artifact_path": str(
                     candidate.get("kernel_check_artifact_path", "")
@@ -32007,17 +31950,22 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                 "local_lean_skipped_reason": str(
                     candidate.get("local_lean_skipped_reason", "") or ""
                 ),
+                "local_lean_stdout": str(
+                    candidate.get("local_lean_stdout", "") or ""
+                ),
+                "local_lean_stderr": str(
+                    candidate.get("local_lean_stderr", "") or ""
+                ),
                 "local_lean_stdout_excerpt": str(
                     candidate.get("local_lean_stdout", "") or ""
-                )[:500],
+                ),
                 "local_lean_stderr_excerpt": str(
                     candidate.get("local_lean_stderr", "") or ""
-                )[:500],
+                ),
                 "local_lean_diagnostic_classes": list(
                     local_lean_repair_contract.get("diagnostic_classes", []) or []
                 ),
                 "local_lean_repair_contract": local_lean_repair_contract,
-                "target_shape_contract": target_shape_contract,
                 "source_theorem_target_known": source_theorem_target_known,
                 "diagnostic_helper_not_source_theorem": (
                     diagnostic_helper_not_source_theorem
@@ -33040,10 +32988,10 @@ def _formalizer_lean_candidate_repair_feedback(
                 ),
                 "candidate_identity_lean_stdout_excerpt": str(
                     row.get("candidate_identity_lean_stdout", "") or ""
-                )[:900],
+                ),
                 "candidate_identity_lean_stderr_excerpt": str(
                     row.get("candidate_identity_lean_stderr", "") or ""
-                )[:900],
+                ),
                 "target_lean_location_source": str(
                     row.get("target_lean_location_source", "") or ""
                 ),
@@ -33134,9 +33082,16 @@ def _formalizer_lean_candidate_repair_feedback(
                 )
                 if isinstance(row.get("live_proof_state_request", {}), Mapping)
                 else {},
+                "lean_source": str(
+                    row.get("lean_source", "")
+                    or row.get("lean_source_excerpt", "")
+                    or ""
+                ),
                 "lean_source_excerpt": str(
-                    row.get("lean_source_excerpt", "") or ""
-                )[:900],
+                    row.get("lean_source", "")
+                    or row.get("lean_source_excerpt", "")
+                    or ""
+                ),
                 "kernel_check_artifact_path": str(
                     row.get("kernel_check_artifact_path", "")
                     or row.get("artifact_path", "")
@@ -33162,12 +33117,18 @@ def _formalizer_lean_candidate_repair_feedback(
                 "local_lean_exit_status": str(
                     row.get("local_lean_exit_status", "") or ""
                 ),
+                "local_lean_stdout": str(
+                    row.get("local_lean_stdout", "") or ""
+                ),
+                "local_lean_stderr": str(
+                    row.get("local_lean_stderr", "") or ""
+                ),
                 "local_lean_stdout_excerpt": str(
                     row.get("local_lean_stdout", "") or ""
-                )[:900],
+                ),
                 "local_lean_stderr_excerpt": str(
                     row.get("local_lean_stderr", "") or ""
-                )[:900],
+                ),
                 "local_lean_command": list(
                     row.get("local_lean_command", []) or []
                 ),
@@ -33182,9 +33143,6 @@ def _formalizer_lean_candidate_repair_feedback(
                 ),
             }
         )
-    target_shape_contract = _formalizer_target_shape_contract_from_diagnostics(
-        diagnostics
-    )
     local_lean_repair_contract = _formalizer_local_lean_repair_contract_from_diagnostics(
         diagnostics
     )
@@ -33223,7 +33181,6 @@ def _formalizer_lean_candidate_repair_feedback(
         manifest=manifest,
         diagnostics=diagnostics,
         local_lean_repair_contract=local_lean_repair_contract,
-        target_shape_contract=target_shape_contract,
         formal_source_retriever=formal_source_retriever,
     )
     formal_blocker_resource_requests = _merge_formal_blocker_resource_requests(
@@ -33349,28 +33306,6 @@ def _formalizer_lean_candidate_repair_feedback(
         "proof_evidence_status": "FORMALIZER_LEAN_CANDIDATE_REPAIR_FEEDBACK_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
     }
-    if target_shape_contract:
-        feedback["target_shape_contract"] = target_shape_contract
-        feedback["target_drift_repair_contract"] = (
-            _formalizer_target_drift_repair_contract_from_target_shape_contract(
-                target_shape_contract
-            )
-        )
-        feedback["candidate_reroute_options"] = [
-            (
-                "If the generated Lean theorem is only a narrower "
-                "support lemma, do not place it in formal_targets as the source theorem. "
-                "Emit the source theorem target as FORMAL_GAP and route the helper through "
-                "lemma_dependency_plan, a registered proof-bank request, or a "
-                "source_to_bridge_premise_derivation_candidate with exact source-binding "
-                "metadata."
-            ),
-            (
-                "If emitting formal_targets with expected_status=NEEDS_KERNEL_CHECK, the "
-                "Lean statement must preserve the source theorem conclusion shape described "
-                "in target_shape_contract."
-            ),
-        ]
     if local_lean_repair_contract:
         feedback["local_lean_repair_contract"] = local_lean_repair_contract
     if formal_blocker_resource_requests:
@@ -33449,16 +33384,9 @@ def _proofengineer_repair_context_from_diagnostics(
     manifest: Mapping[str, Any],
     diagnostics: list[dict[str, Any]],
     local_lean_repair_contract: Mapping[str, Any],
-    target_shape_contract: Mapping[str, Any],
     formal_source_retriever: Any | None = None,
 ) -> dict[str, Any]:
-    """Build a prover-loop context packet for Claude ProofEngineer repair.
-
-    This is workflow/context plumbing, not a proof strategy. The packet tells the
-    runtime LLM which exact artifacts, verifier diagnostics, search tools, and
-    rerun gates are available so the repair loop can follow the AI-for-math
-    prover pattern: proof state -> retrieval/search -> patch -> verifier.
-    """
+    """Bind exact artifacts and raw tool observations for model-owned revision."""
 
     question = (
         manifest.get("question", {})
@@ -33484,8 +33412,6 @@ def _proofengineer_repair_context_from_diagnostics(
     query_seed_parts = [
         str(question.get("title", "") or ""),
         str(question.get("id", "") or ""),
-        str(target_shape_contract.get("required_conclusion_family", "") or ""),
-        str(target_shape_contract.get("required_conclusion_shape", "") or ""),
     ]
     query_seed_parts.extend(unknown_identifiers[:5])
     for row in diagnostics[:3]:
@@ -33529,11 +33455,11 @@ def _proofengineer_repair_context_from_diagnostics(
             if str(row.get("candidate_id", "") or "")
         ]
     context = {
-        "repair_loop": (
-            "LeanDojo/ReProver-style bounded loop: inspect exact materialized Lean "
-            "artifact, read verifier/proof-state diagnostics, retrieve relevant "
-            "premises, propose a patch or smaller lemma split, then rerun local "
-            "Lean/AXLE before promotion"
+        "revision_interface": (
+            "The model receives the complete current artifact, raw verifier and "
+            "proof-state observations, and model-selected environment search. It "
+            "authors a complete replacement candidate or a typed blocker; the "
+            "runtime does not patch or choose the correction."
         ),
         "candidate_artifact_paths": [
             str(row.get("artifact_path", "") or "")
@@ -33601,8 +33527,7 @@ def _proofengineer_repair_context_from_diagnostics(
             "runtime_precheck",
             "local_lean_stdout_stderr",
             "local_lean_command_project_timeout",
-            "local_lean_repair_contract",
-            "target_shape_contract",
+            "candidate_diagnostics",
             "immutable_repair_target_identity",
             "live_proof_state_request",
             "project_local_proof_state_artifact",
@@ -33618,23 +33543,6 @@ def _proofengineer_repair_context_from_diagnostics(
                 "A compiled helper remains candidate-only evidence."
             ),
             "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-        },
-        "proof_state_workflow": {
-            "style": "lean_dojo_reprover_compatible",
-            "preferred_tool_order": [
-                "lean_diagnostic_messages",
-                "lean_goal",
-                "lean_state_search",
-                "lean_hammer_premise",
-                "proof_search",
-                "lean_multi_attempt",
-                "local_lean_or_axle_rerun",
-            ],
-            "fallback_when_lsp_unavailable": (
-                "use local Lean diagnostics plus formal_source_retrieval and "
-                "proof_bank_memory; record missing goal-state context explicitly"
-            ),
-            "rerun_gate": "local_lean_or_axle_on_exact_repaired_artifact",
         },
         "retrieval_query_seeds": retrieval_query_seeds,
         "live_proof_state_requests": live_proof_state_requests[:3],
@@ -34847,9 +34755,16 @@ def _formalizer_lean_candidate_live_prover_inspection_feedback(
                 "target_lean_declaration": str(
                     candidate.get("target_lean_declaration", "") or ""
                 ),
+                "lean_source": str(
+                    candidate.get("lean_source", "")
+                    or candidate.get("lean_source_excerpt", "")
+                    or ""
+                ),
                 "lean_source_excerpt": str(
-                    candidate.get("lean_source_excerpt", "") or ""
-                )[:8000],
+                    candidate.get("lean_source", "")
+                    or candidate.get("lean_source_excerpt", "")
+                    or ""
+                ),
                 "precheck_status": str(candidate.get("precheck_status", "") or ""),
                 "precheck_errors": list(candidate.get("precheck_errors", []) or []),
                 "local_lean_attempted": bool(
@@ -34861,12 +34776,18 @@ def _formalizer_lean_candidate_live_prover_inspection_feedback(
                 "local_lean_exit_status": str(
                     candidate.get("local_lean_exit_status", "") or ""
                 ),
+                "local_lean_stdout": str(
+                    candidate.get("local_lean_stdout", "") or ""
+                ),
+                "local_lean_stderr": str(
+                    candidate.get("local_lean_stderr", "") or ""
+                ),
                 "local_lean_stdout_excerpt": str(
                     candidate.get("local_lean_stdout", "") or ""
-                )[:500],
+                ),
                 "local_lean_stderr_excerpt": str(
                     candidate.get("local_lean_stderr", "") or ""
-                )[:500],
+                ),
             }
         )
     return {
@@ -34893,118 +34814,6 @@ def _formalizer_lean_candidate_live_prover_inspection_feedback(
             "FORMALIZER_LEAN_CANDIDATE_LIVE_PROVER_INSPECTION_NOT_PROOF_EVIDENCE"
         ),
         "proof_evidence_boundary": PROOF_STATE_FEEDBACK_BOUNDARY,
-    }
-
-
-def _formalizer_target_shape_contract_from_diagnostics(
-    diagnostics: list[dict[str, Any]],
-) -> dict[str, Any]:
-    """Build an actionable source-target contract for target-drift repairs."""
-
-    precheck_text = " ".join(
-        str(error)
-        for row in diagnostics
-        for error in row.get("precheck_errors", []) or []
-    ).lower()
-    if "source-theorem target drift" not in precheck_text:
-        return {}
-    contract: dict[str, Any] = {
-        "contract_kind": "source_theorem_target_preservation",
-        "for_formal_targets_expected_status_needs_kernel_check": (
-            "A formal target that claims NEEDS_KERNEL_CHECK for a known source theorem "
-            "must preserve that source theorem's conclusion shape. It may not replace "
-            "the theorem with a narrower helper lemma."
-        ),
-        "source_theorem_target_action": (
-            "Emit a formal_targets entry for the known source theorem only if the Lean "
-            "statement preserves the required conclusion family; otherwise emit that "
-            "source theorem as expected_status=FORMAL_GAP with an empty Lean sketch."
-        ),
-        "helper_lemma_action": (
-            "Move narrower support, typing, or monotonicity helpers out of the "
-            "source-theorem formal_targets slot. Put executable helper work only in "
-            "source_to_bridge_premise_derivation_candidates when exact source-binding "
-            "metadata and semantic anchors are available, or describe non-executable "
-            "support work in lemma_dependency_plan/proof_bank_obligation_requests."
-        ),
-        "forbidden_output_action": (
-            "Do not satisfy a source-theorem repair by emitting a helper lemma as "
-            "formal_targets with expected_status=NEEDS_KERNEL_CHECK."
-        ),
-        "allowed_support_channels": [
-            "source_to_bridge_premise_derivation_candidates",
-            "lemma_dependency_plan",
-            "proof_bank_obligation_requests",
-            "gap_taxonomy",
-            "next_actions",
-        ],
-        "forbidden_replacement_shapes": [
-            "result omitting task-bound objects or assumptions",
-            "result with weaker or different quantifiers",
-            "typing lemma",
-            "monotonicity lemma",
-            "helper lemma without the task-bound source-theorem conclusion",
-        ],
-        "if_not_feasible": (
-            "Return expected_status=FORMAL_GAP for the source theorem target and list the "
-            "missing semantic premise/import/bridge. Put any compilable helper lemma in a "
-            "support-lemma channel, not as the source theorem formal target."
-        ),
-        "fail_closed_source_theorem_formal_target": {
-            "expected_status": "FORMAL_GAP",
-            "lean_statement_sketch": "",
-            "required_metadata": (
-                "Preserve source_theorem_target_provenance for the original source "
-                "theorem and explain the exact missing premise/API/import/bridge in "
-                "gap_taxonomy or next_actions."
-            ),
-        },
-    }
-    return contract
-
-
-
-def _formalizer_target_drift_repair_contract_from_target_shape_contract(
-    target_shape_contract: Mapping[str, Any],
-) -> dict[str, Any]:
-    if not target_shape_contract:
-        return {}
-    return {
-        "contract_kind": "source_theorem_target_two_lane_repair",
-        "source_theorem_lane": {
-            "output_key": "formal_targets",
-            "allowed_needs_kernel_check_shape": (
-                "known source theorem with the required conclusion family preserved"
-            ),
-            "fail_closed_shape": (
-                "known source theorem entry with expected_status=FORMAL_GAP "
-                "and empty lean_statement_sketch"
-            ),
-        },
-        "support_lemma_lane": {
-            "allowed_output_keys": [
-                "source_to_bridge_premise_derivation_candidates",
-                "lemma_dependency_plan",
-                "proof_bank_obligation_requests",
-                "gap_taxonomy",
-                "next_actions",
-            ],
-            "forbidden_output_key": (
-                "formal_targets with source_theorem_target_known=true and "
-                "expected_status=NEEDS_KERNEL_CHECK"
-            ),
-            "evidence_eligibility_rule": (
-                "Executable source_to_bridge_premise_derivation_candidates must "
-                "carry exact source-binding metadata and semantic anchor references; "
-                "otherwise report support work as non-executable gap/dependency "
-                "planning."
-            ),
-        },
-        "acceptance_gate": (
-            "The next packet passes target-drift repair only if it either preserves "
-            "the source theorem target shape or explicitly marks the source theorem "
-            "as FORMAL_GAP and routes helpers outside the source theorem slot."
-        ),
     }
 
 
@@ -35334,7 +35143,7 @@ def _run_formalizer_lean_candidate_local_check(
     )
 
 
-def _runtime_formalizer_lean_candidate_client_tool_repair(
+def _runtime_formalizer_lean_candidate_client_tool_revision(
     *,
     proposal_agent: LLMFormalizerProofEngineerAgent,
     question: OpenResearchQuestion,
@@ -35358,7 +35167,7 @@ def _runtime_formalizer_lean_candidate_client_tool_repair(
         or lean_candidate_lean_project is None
         or not Path(lean_candidate_lean_project).exists()
         or not bool(
-            getattr(config, "use_client_tool_lean_candidate_repair", False)
+            getattr(config, "use_client_tool_lean_candidate_revision", False)
         )
         or not callable(getattr(provider, "generate_client_tool_turn", None))
     ):
@@ -35383,30 +35192,20 @@ def _runtime_formalizer_lean_candidate_client_tool_repair(
     expected_source_hash = binding.candidate_source_hash
     initial_source = binding.initial_source
 
-    repair_root = (
+    revision_root = (
         Path(lean_candidate_root)
         / _safe_identifier(question.id)
-        / "client_tool_repair"
+        / "client_tool_revision"
         / stable_hash(
             [task.task_id, materialization_id, candidate_id, expected_source_hash]
         )[:12]
     )
-    active_repair_contract = environment_feedback.get(
-        "local_lean_repair_contract",
-        {},
-    )
-    if not isinstance(active_repair_contract, Mapping):
-        active_repair_contract = {}
     candidate_metadata = binding.candidate_metadata
 
     def check_candidate(source: str) -> Mapping[str, Any]:
         source_hash = stable_hash(source)
         precheck_errors = _formalizer_lean_candidate_precheck_errors(
             source,
-            candidate_metadata=candidate_metadata,
-            source_field=source_field,
-            local_lean_repair_contract=active_repair_contract,
-            lean_project=Path(lean_candidate_lean_project),
         )
         blocking_errors = _formalizer_lean_candidate_blocking_precheck_errors(
             precheck_errors
@@ -35422,8 +35221,8 @@ def _runtime_formalizer_lean_candidate_client_tool_repair(
                 "local_lean_stdout": "",
                 "local_lean_stderr": "",
             }
-        repair_root.mkdir(parents=True, exist_ok=True)
-        path = repair_root / (
+        revision_root.mkdir(parents=True, exist_ok=True)
+        path = revision_root / (
             _safe_identifier(candidate_id) + "_" + source_hash[:12] + ".lean"
         )
         path.write_text(source, encoding="utf-8")
@@ -35452,10 +35251,10 @@ def _runtime_formalizer_lean_candidate_client_tool_repair(
             ),
             "local_lean_stdout": str(
                 local_result.get("local_lean_stdout", "") or ""
-            )[:4000],
+            ),
             "local_lean_stderr": str(
                 local_result.get("local_lean_stderr", "") or ""
-            )[:4000],
+            ),
             "candidate_identity_lean_checked": _bool_like(
                 local_result.get("candidate_identity_lean_checked", False)
             ),
@@ -35464,10 +35263,10 @@ def _runtime_formalizer_lean_candidate_client_tool_repair(
             ),
             "candidate_identity_lean_stdout": str(
                 local_result.get("candidate_identity_lean_stdout", "") or ""
-            )[:2000],
+            ),
             "candidate_identity_lean_stderr": str(
                 local_result.get("candidate_identity_lean_stderr", "") or ""
-            )[:2000],
+            ),
             "local_lean_command": list(
                 local_result.get("local_lean_command", []) or []
             ),
@@ -35507,7 +35306,7 @@ def _runtime_formalizer_lean_candidate_client_tool_repair(
         }
 
     revised_packet, loop_evidence = (
-        proposal_agent.repair_lean_candidate_with_client_tools(
+        proposal_agent.revise_lean_candidate_with_client_tools(
             question=question,
             theory_packet=theory_packet,
             parent_packet=parent_packet,
@@ -35544,38 +35343,13 @@ def _runtime_formalizer_lean_candidate_client_tool_repair(
 
 def _formalizer_lean_candidate_precheck_errors(
     source: str,
-    *,
-    candidate_metadata: Mapping[str, Any] | None = None,
-    source_field: str = "",
-    local_lean_repair_contract: Mapping[str, Any] | None = None,
-    lean_project: Path | None = None,
 ) -> list[str]:
     text = str(source or "")
     if not text.strip():
         return ["empty Lean candidate source"]
-    errors: list[str] = []
     if len(text) > 20000:
-        errors.append("Lean candidate source exceeds 20000 characters")
-    # Block only proof-authority violations here. Lean owns syntax and tactic
-    # diagnostics; the independent reviewer owns target fidelity.
-    forbidden_patterns = (
-        (r"\bsorry\b", "contains Lean sorry placeholder"),
-        (r"\badmit\b", "contains Lean admit placeholder"),
-        (r"\baxiom\b", "contains Lean axiom declaration"),
-        (r"\bunsafe\b", "contains unsafe Lean declaration"),
-    )
-    for pattern, message in forbidden_patterns:
-        if re.search(pattern, text, flags=re.IGNORECASE):
-            errors.append(message)
-    if re.search(
-        r"\b(?:theorem|lemma)\b[\s\S]*?:\s*True\s*:=\s*(?:by\s*)?trivial\b",
-        text,
-    ):
-        errors.append(
-            "Lean candidate proves only a vacuous True target with trivial proof"
-        )
-    errors.extend(_formalizer_import_precheck_errors(text, lean_project=lean_project))
-    return sorted(set(errors))
+        return ["Lean candidate source exceeds the 20000-character artifact boundary"]
+    return []
 
 
 def _formalizer_lean_candidate_blocking_precheck_errors(
@@ -35600,126 +35374,9 @@ def _formalizer_lean_candidate_diagnostic_only_precheck_error(error: str) -> boo
         or text.startswith(
             "Lean candidate structured candidate_lean_declaration was not located"
         )
-        or text.startswith(
-            "Lean candidate imports unavailable module in configured project:"
-        )
-        or text.startswith(
-            "Lean candidate imports unavailable umbrella module in configured project:"
-        )
     )
 
 
-def _formalizer_import_precheck_errors(
-    source: str,
-    *,
-    lean_project: Path | None,
-) -> list[str]:
-    imports: list[str] = []
-    for line in str(source or "").splitlines():
-        stripped = line.strip()
-        if not stripped.startswith("import "):
-            continue
-        for module in stripped.removeprefix("import ").split():
-            module = module.strip()
-            if module:
-                imports.append(module)
-    if not imports:
-        return []
-    if lean_project is None:
-        return [
-            "Lean candidate imports modules but no lean_project was provided "
-            "for local Lean import resolution"
-        ]
-    project = Path(lean_project)
-    if not project.exists():
-        return []
-    roots = _lean_project_import_roots(project)
-    errors: list[str] = []
-    for module in imports:
-        if (
-            module == "Mathlib"
-            and _lean_module_directory_exists(module, roots)
-            and not _lean_compiled_module_exists(module, roots)
-        ):
-            errors.append(
-                "Lean candidate imports unavailable umbrella module in configured "
-                "project: "
-                + module
-                + "; use formal-environment search and import a verified specific "
-                "module instead"
-            )
-            continue
-        if not _lean_module_exists(module, roots):
-            if _lean_module_directory_exists(module, roots):
-                errors.append(
-                    "Lean candidate imports unavailable umbrella module in configured "
-                    "project: "
-                    + module
-                    + "; use formal-environment search and import a verified specific "
-                    "module instead"
-                )
-                continue
-            errors.append(
-                "Lean candidate imports unavailable module in configured project: "
-                + module
-                + "; use formal-environment search before the next Lean check"
-            )
-    return errors
-
-
-def _lean_project_import_roots(project: Path) -> list[Path]:
-    roots = [
-        project,
-        project / ".lake" / "build" / "lib" / "lean",
-    ]
-    packages = project / ".lake" / "packages"
-    if packages.exists():
-        for package in sorted(packages.iterdir(), key=lambda row: row.name):
-            if not package.is_dir():
-                continue
-            roots.extend(
-                [
-                    package,
-                    package / ".lake" / "build" / "lib" / "lean",
-                ]
-            )
-    return roots
-
-
-def _lean_module_exists(module: str, roots: Sequence[Path]) -> bool:
-    if not re.match(r"^[A-Za-z_][A-Za-z0-9_'.]*(?:\.[A-Za-z_][A-Za-z0-9_'.]*)*$", module):
-        return False
-    rel = Path(*module.split("."))
-    for root in roots:
-        if (root / rel.with_suffix(".lean")).exists():
-            return True
-        if (root / rel.with_suffix(".olean")).exists():
-            return True
-    return False
-
-
-def _lean_module_directory_exists(module: str, roots: Sequence[Path]) -> bool:
-    if not re.match(r"^[A-Za-z_][A-Za-z0-9_'.]*(?:\.[A-Za-z_][A-Za-z0-9_'.]*)*$", module):
-        return False
-    rel = Path(*module.split("."))
-    return any((root / rel).is_dir() for root in roots)
-
-
-def _lean_compiled_module_exists(module: str, roots: Sequence[Path]) -> bool:
-    if not re.match(r"^[A-Za-z_][A-Za-z0-9_'.]*(?:\.[A-Za-z_][A-Za-z0-9_'.]*)*$", module):
-        return False
-    rel = Path(*module.split(".")).with_suffix(".olean")
-    return any((root / rel).exists() for root in roots)
-
-
-def _formalizer_source_theorem_target_drift_errors(
-    source: str,
-    candidate_metadata: Mapping[str, Any],
-) -> list[str]:
-    """Deprecated: semantic target alignment is decided by the LLM reviewer."""
-
-    del source, candidate_metadata
-    return []
 
 
 def _source_theorem_target_known_value(provenance: object) -> bool | None:
@@ -35739,52 +35396,6 @@ def _source_theorem_target_known_value(provenance: object) -> bool | None:
     return None
 
 
-def _critic_packet_validation_repair_directives(
-    validation_errors: Sequence[str],
-) -> list[str]:
-    """Turn CriticEvaluator packet validator failures into boundary directives."""
-
-    error_text = " ".join(str(error) for error in validation_errors).lower()
-    directives = [
-        (
-            "Return a locally valid CriticEvaluator packet with "
-            f"proof_evidence_status={CRITIC_EVALUATOR_PROPOSAL_NOT_EVIDENCE}, "
-            "kernel_verified=false, and full_frontier_theorem_proved=false."
-        ),
-        (
-            "Treat CriticEvaluator output as audit and routing advice only; only "
-            "AXLE/local Lean/kernel records may close theorem proof gates."
-        ),
-    ]
-    if "forbidden proof claim" in error_text or "theorem proved" in error_text:
-        directives.append(
-            "Remove forbidden proof-completion wording such as theorem proved, "
-            "source theorem proved, proof complete, Lean verified theorem, or "
-            "kernel verified theorem unless the runtime manifest explicitly "
-            "reports source_theorem_kernel_verified=true."
-        )
-        directives.append(
-            "When source_theorem_kernel_verified is false, null, or absent, state "
-            "that source-theorem proof remains open and route to ProofEngineer, "
-            "Formalizer, or LeanProver repair work."
-        )
-    if "kernel_verified=true" in error_text:
-        directives.append(
-            "Do not set kernel_verified=true in an LLM CriticEvaluator packet."
-        )
-    if "full_frontier_theorem_proved=true" in error_text:
-        directives.append(
-            "Do not set full_frontier_theorem_proved=true in an LLM "
-            "CriticEvaluator packet."
-        )
-    if "missing or empty field" in error_text:
-        directives.append(
-            "Populate evidence_boundary_audit, reroute_recommendations, "
-            "critic_findings, and next_actions with concise non-empty audit rows."
-        )
-    return list(dict.fromkeys(directives))
-
-
 def _critic_packet_validation_failure_bundle(
     *,
     task: AgentTask,
@@ -35800,9 +35411,6 @@ def _critic_packet_validation_failure_bundle(
     exc: PacketValidationError,
 ) -> tuple[str, dict[str, Any], dict[str, Any], EnvironmentObservation, EvidenceLedgerEntry]:
     validation_errors = [str(error) for error in exc.errors if str(error)]
-    validation_repair_directives = _critic_packet_validation_repair_directives(
-        validation_errors
-    )
     failure_id = (
         "critic_validation_failure:"
         + stable_hash(
@@ -35831,17 +35439,14 @@ def _critic_packet_validation_failure_bundle(
         "failure_classification": "critic_packet_validation_failed",
         "validation_label": exc.validation_label,
         "validation_errors": validation_errors,
-        "validation_repair_directives": validation_repair_directives,
         "attempts": exc.attempts,
         "last_attempt_summary": exc.history[-1] if exc.history else {},
         "deterministic_next_action_agenda": compact_agenda,
         "deterministic_repair_feedback": deterministic_repair_feedback_payload,
         "required_repair": (
-            "Regenerate only a boundary-safe CriticEvaluator audit packet. Do not "
-            "claim theorem proof, source theorem proof, or frontier closure unless "
-            "the local kernel evidence fields already prove that status. Preserve "
-            "the deterministic agenda and route open proof work to the appropriate "
-            "Formalizer/ProofEngineer/LeanProver owner."
+            "Regenerate the complete CriticEvaluator packet from the unchanged "
+            "request, rejected response, and raw validator errors. The runtime "
+            "does not select or author the correction."
         ),
         "proof_evidence_status": "CRITIC_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
@@ -35865,7 +35470,6 @@ def _critic_packet_validation_failure_bundle(
             "failure_classification": "critic_packet_validation_failed",
             "validation_label": exc.validation_label,
             "validation_errors": validation_errors,
-            "validation_repair_directives": validation_repair_directives,
             "attempts": exc.attempts,
             "last_attempt_summary": exc.history[-1] if exc.history else {},
             "deterministic_agenda_ids": [
@@ -35907,7 +35511,6 @@ def _critic_packet_validation_failure_bundle(
         "validation_label": exc.validation_label,
         "failure_classification": "critic_packet_validation_failed",
         "validation_errors": validation_errors,
-        "validation_repair_directives": validation_repair_directives,
         "llm_json_repair_history": exc.history,
         "deterministic_next_action_agenda": compact_agenda,
         "deterministic_learning_rows": deterministic_learning_summary,
@@ -35930,7 +35533,6 @@ def _critic_packet_validation_failure_bundle(
             "failure_id": failure_id,
             "failure_classification": "critic_packet_validation_failed",
             "validation_errors": validation_errors,
-            "validation_repair_directives": validation_repair_directives,
             "proof_evidence_status": (
                 "CRITIC_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
             ),
@@ -63097,7 +62699,7 @@ def _critic_source_to_bridge_premise_derivation_feedback(
 def _critic_source_theorem_proof_body_adapter_feedback(
     formalization_manifest: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Compact source-theorem adapter bridge feedback for the next repair agent."""
+    """Compact factual source-theorem adapter observations for model revision."""
 
     if not isinstance(formalization_manifest, Mapping):
         return {}
@@ -63156,11 +62758,6 @@ def _critic_source_theorem_proof_body_adapter_feedback(
             "diagnostics": [
                 str(value)
                 for value in row.get("diagnostics", []) or []
-                if str(value).strip()
-            ][:5],
-            "recommended_repair_tasks": [
-                str(value)
-                for value in row.get("recommended_repair_tasks", []) or []
                 if str(value).strip()
             ][:5],
             "proof_body_adapter_required_reasons": [
@@ -63255,13 +62852,6 @@ def _critic_source_theorem_proof_body_adapter_feedback(
             )
             or []
         )[:5],
-        "required_behavior": (
-            "If adapter_kernel_verified=true, rerun exact source-theorem proof-body "
-            "search with the verified adapter as context. If false, route back to "
-            "Formalizer/ProofEngineer to strengthen the source-to-bridge adapter or "
-            "derive missing bridge premises from exact source hypotheses. Do not "
-            "treat adapter rows as source-theorem proof."
-        ),
         "acceptance_gate": (
             "local Lean/AXLE verifies the exact source theorem after consuming any "
             "verified adapter; adapter verification alone is not full theorem proof"
@@ -64323,19 +63913,6 @@ def _formal_blocker_resource_requests_from_source_theorem_proof_body_adapter_fee
                     blocker += f" `{declaration}`"
                 if artifact_path and not exact_unavailable:
                     blocker += f" at {artifact_path}"
-                if exact_unavailable:
-                    blocker += (
-                        ". Retrieve or select a verified local import/declaration "
-                        "in the configured Lean project, or keep the adapter/source "
-                        "theorem as FORMAL_GAP with the missing dependency named."
-                    )
-                else:
-                    blocker += (
-                        ". Verify this candidate import in the configured Lean "
-                        "project, recover the exact missing module from local Lean "
-                        "or LSP diagnostics, or keep the adapter/source theorem as "
-                        "FORMAL_GAP with the unresolved dependency named."
-                    )
                 fingerprint = stable_hash(
                     [
                         "critic_source_theorem_proof_body_adapter_feedback",
@@ -73389,6 +72966,22 @@ def _runtime_learning_memory_formalizer_lean_candidate_feedback(
                 )
                 or ""
             ),
+            "local_lean_stdout": str(
+                _runtime_learning_row_value(
+                    row,
+                    input_summary,
+                    "local_lean_stdout_excerpt",
+                )
+                or ""
+            ),
+            "local_lean_stderr": str(
+                _runtime_learning_row_value(
+                    row,
+                    input_summary,
+                    "local_lean_stderr_excerpt",
+                )
+                or ""
+            ),
             "local_lean_stdout_excerpt": str(
                 _runtime_learning_row_value(
                     row,
@@ -73396,7 +72989,7 @@ def _runtime_learning_memory_formalizer_lean_candidate_feedback(
                     "local_lean_stdout_excerpt",
                 )
                 or ""
-            )[:500],
+            ),
             "local_lean_stderr_excerpt": str(
                 _runtime_learning_row_value(
                     row,
@@ -73404,15 +72997,25 @@ def _runtime_learning_memory_formalizer_lean_candidate_feedback(
                     "local_lean_stderr_excerpt",
                 )
                 or ""
-            )[:500],
+            ),
             "source_theorem_target_known": source_theorem_target_known,
             "diagnostic_helper_not_source_theorem": (
                 diagnostic_helper_not_source_theorem
             ),
-            "lean_source_excerpt": str(
-                _runtime_learning_row_value(row, input_summary, "lean_source_excerpt")
+            "lean_source": str(
+                _runtime_learning_row_value(row, input_summary, "lean_source")
+                or _runtime_learning_row_value(
+                    row, input_summary, "lean_source_excerpt"
+                )
                 or ""
-            )[:500],
+            ),
+            "lean_source_excerpt": str(
+                _runtime_learning_row_value(row, input_summary, "lean_source")
+                or _runtime_learning_row_value(
+                    row, input_summary, "lean_source_excerpt"
+                )
+                or ""
+            ),
             "memory_status": str(
                 _runtime_learning_row_value(row, input_summary, "memory_status") or ""
             ),
@@ -79388,11 +78991,11 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "provider_name": str(row.get("provider_name", "") or ""),
                 "n_feedback_rows": _int_like(row.get("n_feedback_rows", 0)),
                 "attempt_status": str(row.get("attempt_status", "") or ""),
-                "residual_goals": list(row.get("residual_goals", []) or [])[:4],
-                "diagnostics": list(row.get("diagnostics", []) or [])[:4],
-                "requested_tools": list(row.get("requested_tools", []) or [])[:8],
-                "executed_tools": list(row.get("executed_tools", []) or [])[:8],
-                "tool_call_trace": list(row.get("tool_call_trace", []) or [])[:3],
+                "residual_goals": list(row.get("residual_goals", []) or []),
+                "diagnostics": list(row.get("diagnostics", []) or []),
+                "requested_tools": list(row.get("requested_tools", []) or []),
+                "executed_tools": list(row.get("executed_tools", []) or []),
+                "tool_call_trace": list(row.get("tool_call_trace", []) or []),
                 "lean_lsp_mcp_live_called": _bool_like(
                     row.get("lean_lsp_mcp_live_called", False)
                 ),
@@ -79402,7 +79005,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
                     row.get("proof_evidence_status", "") or ""
                 ),
             }
-            for row in formalizer_lean_candidate_proof_state_feedback_rows[:3]
+            for row in formalizer_lean_candidate_proof_state_feedback_rows
         ],
         "formalizer_lean_candidate_unbound_proof_state_feedback_memory": [
             {
@@ -79454,8 +79057,18 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "source_theorem_target_provenance": dict(
                     row.get("source_theorem_target_provenance", {}) or {}
                 ),
+                "lean_source": str(
+                    row.get("lean_source", "")
+                    or row.get("lean_source_excerpt", "")
+                    or ""
+                ),
+                "lean_source_excerpt": str(
+                    row.get("lean_source", "")
+                    or row.get("lean_source_excerpt", "")
+                    or ""
+                ),
                 "precheck_status": str(row.get("precheck_status", "") or ""),
-                "precheck_errors": list(row.get("precheck_errors", []) or [])[:4],
+                "precheck_errors": list(row.get("precheck_errors", []) or []),
                 "local_lean_attempted": _bool_like(
                     row.get("local_lean_attempted", False)
                 ),
@@ -79468,22 +79081,32 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "local_lean_project": str(row.get("local_lean_project", "") or ""),
                 "local_lean_diagnostic_classes": list(
                     row.get("local_lean_diagnostic_classes", []) or []
-                )[:6],
-                "local_lean_repair_contract": dict(
-                    row.get("local_lean_repair_contract", {}) or {}
+                ),
+                "local_lean_stdout": str(
+                    row.get("local_lean_stdout", "")
+                    or row.get("local_lean_stdout_excerpt", "")
+                    or ""
+                ),
+                "local_lean_stderr": str(
+                    row.get("local_lean_stderr", "")
+                    or row.get("local_lean_stderr_excerpt", "")
+                    or ""
                 ),
                 "local_lean_stdout_excerpt": str(
-                    row.get("local_lean_stdout_excerpt", "") or ""
-                )[:350],
+                    row.get("local_lean_stdout", "")
+                    or row.get("local_lean_stdout_excerpt", "")
+                    or ""
+                ),
                 "local_lean_stderr_excerpt": str(
-                    row.get("local_lean_stderr_excerpt", "") or ""
-                )[:350],
-                "next_action": str(row.get("next_action", "") or ""),
+                    row.get("local_lean_stderr", "")
+                    or row.get("local_lean_stderr_excerpt", "")
+                    or ""
+                ),
                 "proof_evidence_status": str(
                     row.get("proof_evidence_status", "") or ""
                 ),
             }
-            for row in formalizer_lean_candidate_repair_rows[:3]
+            for row in formalizer_lean_candidate_repair_rows
         ],
         "formalizer_diagnostic_helper_memory": [
             {
@@ -79513,10 +79136,16 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "diagnostic_helper_not_source_theorem": _bool_like(
                     row.get("diagnostic_helper_not_source_theorem", False)
                 ),
+                "lean_source": str(
+                    row.get("lean_source", "")
+                    or row.get("lean_source_excerpt", "")
+                    or ""
+                ),
                 "lean_source_excerpt": str(
-                    row.get("lean_source_excerpt", "") or ""
-                )[:350],
-                "next_action": str(row.get("next_action", "") or ""),
+                    row.get("lean_source", "")
+                    or row.get("lean_source_excerpt", "")
+                    or ""
+                ),
                 "memory_status": str(row.get("memory_status", "") or ""),
                 "proof_evidence_status": str(
                     row.get("proof_evidence_status", "") or ""
@@ -105777,16 +105406,11 @@ def _algorithm_sandbox_revision_feedback(
         row for row in manifest.get("prototypes", []) or [] if isinstance(row, Mapping)
     ]
     compact_prototypes: list[dict[str, Any]] = []
-    forbidden_generated_code_calls: list[str] = []
     for row in prototypes[:5]:
         safety_errors = list(_str_tuple(row.get("safety_errors", [])))
         script_hash = _generated_sandbox_prototype_script_hash(row)
         parent_source = _generated_python_sandbox_parent_source(row)
         parent_source_hash = stable_hash(parent_source) if parent_source else ""
-        row_forbidden_calls = _generated_python_forbidden_call_names_from_safety_errors(
-            safety_errors
-        )
-        forbidden_generated_code_calls.extend(row_forbidden_calls)
         compact_prototypes.append(
             {
                 "estimator_id": str(row.get("estimator_id", "") or ""),
@@ -105814,7 +105438,6 @@ def _algorithm_sandbox_revision_feedback(
                 "runtime_errors": list(
                     _str_tuple(row.get("runtime_errors", []))
                 ),
-                "forbidden_generated_code_calls": row_forbidden_calls,
                 "metrics": _compact_generated_sandbox_metrics(
                     row.get("metrics", {})
                 ),
@@ -105874,15 +105497,7 @@ def _algorithm_sandbox_revision_feedback(
         "n_unsafe_generated_code_rejected": int(
             manifest.get("n_unsafe_generated_code_rejected", 0) or 0
         ),
-        "forbidden_generated_code_calls": list(
-            dict.fromkeys(forbidden_generated_code_calls)
-        )[:10],
         "prototypes": compact_prototypes,
-        "required_repair": (
-            "Regenerate the complete source candidate using the attached complete "
-            "parent source, exact execution diagnostics, unchanged execution "
-            "contract, and frozen acceptance contract. The model owns the repair."
-        ),
         "boundary": boundary,
     }
 
@@ -106082,16 +105697,11 @@ def _generated_simulation_revision_feedback(
         if isinstance(row, Mapping)
     ]
     compact_prototypes: list[dict[str, Any]] = []
-    forbidden_generated_code_calls: list[str] = []
     for row in prototypes[:5]:
         safety_errors = list(_str_tuple(row.get("safety_errors", [])))
         script_hash = _generated_sandbox_prototype_script_hash(row)
         parent_source = _generated_python_sandbox_parent_source(row)
         parent_source_hash = stable_hash(parent_source) if parent_source else ""
-        row_forbidden_calls = _generated_python_forbidden_call_names_from_safety_errors(
-            safety_errors
-        )
-        forbidden_generated_code_calls.extend(row_forbidden_calls)
         compact_prototypes.append(
             {
                 "simulation_id": str(row.get("simulation_id", "") or ""),
@@ -106151,7 +105761,6 @@ def _generated_simulation_revision_feedback(
                 "mechanical_estimator_invocation_verified": row.get(
                     "mechanical_estimator_invocation_verified"
                 ),
-                "forbidden_generated_code_calls": row_forbidden_calls,
                 "metrics": _compact_generated_sandbox_metrics(
                     row.get("metrics", {})
                 ),
@@ -106234,15 +105843,7 @@ def _generated_simulation_revision_feedback(
         "n_unsafe_generated_simulation_code_rejected": int(
             manifest.get("n_unsafe_generated_simulation_code_rejected", 0) or 0
         ),
-        "forbidden_generated_code_calls": list(
-            dict.fromkeys(forbidden_generated_code_calls)
-        )[:10],
         "generated_simulation_prototypes": compact_prototypes,
-        "required_repair": (
-            "Regenerate the complete source candidate using the attached complete "
-            "parent source, exact execution diagnostics, unchanged execution "
-            "contract, and frozen acceptance contract. The model owns the repair."
-        ),
         "boundary": boundary,
     }
 
@@ -106534,18 +106135,10 @@ def _estimator_spec(packet: Any, estimator_id: str) -> dict[str, Any]:
 
 def _generated_sandbox_diagnostic_excerpt(
     value: Any,
-    *,
-    limit: int = 1600,
 ) -> str:
-    """Keep both traceback context and the final exception for LLM repair."""
+    """Preserve the exact tool observation supplied to the coding model."""
 
-    text = str(value or "").strip()
-    if len(text) <= limit:
-        return text
-    separator = "\n... diagnostic truncated ...\n"
-    head_limit = max(200, limit // 3)
-    tail_limit = max(400, limit - head_limit - len(separator))
-    return text[:head_limit] + separator + text[-tail_limit:]
+    return str(value or "").strip()
 
 
 def _generated_python_sandbox_environment(sandbox_dir: Path) -> dict[str, str]:
@@ -107052,7 +106645,7 @@ def _run_generated_python_sandbox(
             input_hash=stable_hash({"code": code, "seed": seed}),
             exit_status="rejected",
             stdout_summary="generated Python draft rejected by static guard",
-            stderr_summary="; ".join(safety_errors)[:500],
+            stderr_summary="; ".join(safety_errors),
             safety_boundary=boundary,
         )
         return prototype, tool_call
@@ -107358,27 +106951,6 @@ def _generated_python_sandbox_safety_errors(code: str) -> list[str]:
             else:
                 errors.append("unsupported generated-code call form")
     return sorted(set(errors))
-
-
-def _generated_python_forbidden_call_names_from_safety_errors(
-    safety_errors: Iterable[str],
-) -> list[str]:
-    names: list[str] = []
-    for error in safety_errors:
-        match = re.search(
-            r"forbidden generated-code call:\s*([A-Za-z_][A-Za-z0-9_]*)",
-            str(error),
-        )
-        if match:
-            names.append(match.group(1))
-            continue
-        match = re.search(
-            r"forbidden generated-code method call:\s*([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?)",
-            str(error),
-        )
-        if match:
-            names.append(match.group(1))
-    return list(dict.fromkeys(names))
 
 
 def _metrics_are_finite(metrics: Mapping[str, Any]) -> bool:

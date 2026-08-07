@@ -1750,47 +1750,18 @@ def test_formal_source_prompt_payload_omits_full_candidate_proof_body() -> None:
     assert nested["candidate_proof_body_hash"]
 
 
-def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
+def test_formalizer_prompt_makes_revision_strategy_model_owned() -> None:
     contract = formalizer_proof_construction_strategy_contract()
-    assert contract["schema_version"] == 15
-    assert "exact Lean target" in contract["specification"]
-    assert "faithful mathematical statement" in contract["specification"]
-    assert "qualified local signatures" in contract["specification"]
-    assert "Never weaken" in contract["specification"]
-    assert "bounded local signature bundle" in contract["context_policy"]
-    assert "direct imports" in contract["context_policy"]
-    assert "premise modules" in contract["context_policy"]
-    assert "module and namespace identity separate" in contract["context_policy"]
-    assert "live Lean goal or diagnostic" in contract["context_policy"]
-    assert "Never send source files or proof bodies" in contract["context_policy"]
-    assert "measurability" in contract["statement_audit"]
-    assert "counterexample review" in contract["statement_audit"]
-    assert "dependency-ordered frontier" in contract["decomposition"]
-    assert "one semantic obligation per node" in contract["decomposition"]
-    assert "empty lemma_dependency_plan for a direct proof" in contract[
-        "decomposition"
-    ]
-    assert "Preserve verified ancestors" in contract["decomposition"]
-    assert "complete current Lean source" in contract["feedback_loop"]
-    assert "change the proof decomposition" in contract["feedback_loop"]
-    assert "complete next source" in contract["feedback_loop"]
-    assert "runtime never edits Lean" in contract["feedback_loop"]
-    assert "lowest reusable mathematical layer" in contract["library_design"]
-    assert "source-local namespace/module organization" in contract[
-        "library_design"
-    ]
-    assert "source-identifying suffix" in contract["library_design"]
-    assert "local API" in contract["library_design"]
-    assert "citations are disambiguation metadata" in contract["library_design"]
-    assert "Reuse exact visible declarations first" in contract["reuse_policy"]
-    assert "re-elaborate every selected declaration" in contract["reuse_policy"]
-    assert "BOUND_MATCH as corpus freshness only" in contract[
-        "source_compatibility"
-    ]
-    assert "canonical import closure" in contract["source_compatibility"]
-    assert "Lean toolchain" in contract["source_compatibility"]
-    assert "Mathlib revision differs" in contract["source_compatibility"]
-    assert "exact local re-elaboration" in contract["source_compatibility"]
+    assert contract["schema_version"] == 16
+    assert "exact task-bound theorem" in contract["target_identity"]
+    assert "Never weaken" in contract["target_identity"]
+    assert "complete current Lean source" in contract["model_ownership"]
+    assert "raw verifier output" in contract["model_ownership"]
+    assert "chooses every import" in contract["model_ownership"]
+    assert "compile the exact current source" in contract["environment_loop"]
+    assert "never edits Lean" in contract["environment_loop"]
+    assert "Statlib/Mathlib/project" in contract["library_context"]
+    assert "local Lean/kernel gate" in contract["evidence_boundary"]
     assert "opus" not in str(contract).lower()
 
     question = load_open_research_questions(
@@ -1805,13 +1776,12 @@ def test_formalizer_prompt_uses_compact_incremental_proof_strategy() -> None:
         theorem_goals=[],
     )
 
-    assert "proof_construction_strategy_contract" in prompt
-    assert "dependency-ordered frontier" in prompt.lower()
-    assert "one semantic obligation per node" in prompt
-    assert "complete next source" in prompt
-    assert "runtime never edits Lean" in prompt
-    assert "stable semantic names" in prompt
-    assert "Reuse exact visible declarations first" in prompt
+    assert "model_owned_formalizer_contract" in prompt
+    assert "complete current Lean source" in prompt
+    assert "raw verifier output" in prompt
+    assert "AgentRuntime enforces budgets" in prompt
+    assert "Statlib/Mathlib/project" in prompt
+    assert "proof_construction_strategy_contract" not in prompt
     assert "current-active-frontier" in prompt
     assert "Keep unrelated obligations separate" in prompt
     assert "never invent scaffolding rows" in prompt

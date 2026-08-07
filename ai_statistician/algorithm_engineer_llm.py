@@ -275,7 +275,7 @@ def build_algorithm_engineer_prompt(
             "run_sandbox exercise that same function for smoke diagnostics. The "
             "request and response semantics are owned by the supplied TheoryDeveloper "
             "estimator_interface_contract. Implement every field exactly and do not "
-            "rename, rescale, or redefine it during a code repair. AgentRuntime binds "
+            "rename, rescale, or redefine it during a code revision. AgentRuntime binds "
             "that immutable contract into the proposal; if it is inconsistent, route "
             "the defect upstream instead of choosing a new convention. Keep the "
             "metadata entrypoint exactly "
@@ -305,7 +305,8 @@ def build_algorithm_engineer_prompt(
         "review observations are supplied in runtime_environment_feedback. When a "
         "complete hash-bound parent_source is present, use that complete source as "
         "the current candidate. Regenerate the complete packet and complete source; "
-        "preserve immutable identities and contracts. You own the repair strategy. "
+        "preserve immutable identities and contracts. You choose and author every "
+        "source change; AgentRuntime does not propose edits. "
         if payload["runtime_environment_feedback"]
         else ""
     )
@@ -328,7 +329,7 @@ def build_algorithm_engineer_prompt(
         "from the supplied trace anchors. "
         "If runtime_environment_feedback reports rejected or failed sandbox code, regenerate the complete "
         "model-authored draft from the supplied source and exact observations; do not repeat the same unsafe "
-        "or non-executable code and do not substitute a template as a hidden repair. "
+        "or non-executable code and do not substitute a template as a hidden replacement. "
         "For sandbox_code_drafts, obey the selected profile in "
         "generated_code_sandbox_contract. The stdlib profile permits only its "
         "listed pure-Python subset. The scientific_wasm profile permits only "
@@ -462,14 +463,6 @@ def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict
             feedback.get("target_component", ""),
             limit=80,
         ),
-        "target_behavior": _truncate_text(
-            feedback.get("target_behavior", ""),
-            limit=360,
-        ),
-        "recommended_capability_eval_command": _truncate_text(
-            feedback.get("recommended_capability_eval_command", ""),
-            limit=360,
-        ),
         "success_metric": _truncate_text(feedback.get("success_metric", ""), limit=240),
         "blocker": _truncate_text(feedback.get("blocker", ""), limit=240),
         "evidence": _truncate_text(feedback.get("evidence", ""), limit=240),
@@ -486,14 +479,6 @@ def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict
         ),
         "simulation_capability_evidence_ok": feedback.get(
             "simulation_capability_evidence_ok"
-        ),
-        "algorithm_repair_sequences": feedback.get("algorithm_repair_sequences"),
-        "simulation_repair_sequences": feedback.get("simulation_repair_sequences"),
-        "algorithm_live_repair_sequences": feedback.get(
-            "algorithm_live_repair_sequences"
-        ),
-        "simulation_live_repair_sequences": feedback.get(
-            "simulation_live_repair_sequences"
         ),
         "capability_evidence_scope": _truncate_text(
             feedback.get("capability_evidence_scope", ""),
@@ -524,21 +509,18 @@ def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict
             feedback.get("validation_label", ""),
             limit=180,
         ),
-        "validation_errors": _compact_string_list(
-            feedback.get("validation_errors", []),
-            limit=12,
-            char_limit=420,
-        ),
+        "validation_errors": [
+            str(value)
+            for value in feedback.get("validation_errors", []) or []
+        ],
         "failed_estimator_ids": _compact_string_list(
             feedback.get("failed_estimator_ids", []),
             limit=8,
             char_limit=160,
         ),
-        "runtime_errors": _compact_string_list(
-            feedback.get("runtime_errors", []),
-            limit=8,
-            char_limit=420,
-        ),
+        "runtime_errors": [
+            str(value) for value in feedback.get("runtime_errors", []) or []
+        ],
         "validation_error_fingerprint": _truncate_text(
             feedback.get("validation_error_fingerprint", ""),
             limit=120,
@@ -563,11 +545,6 @@ def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict
         "packet_validation_max_lineage_failures": feedback.get(
             "packet_validation_max_lineage_failures"
         ),
-        "forbidden_generated_code_calls": _compact_string_list(
-            feedback.get("forbidden_generated_code_calls", []),
-            limit=6,
-            char_limit=80,
-        ),
         "prototypes": [
             {
                 "estimator_id": _truncate_text(row.get("estimator_id", ""), limit=120),
@@ -589,11 +566,6 @@ def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict
                 "metric_gate_errors": list(row.get("metric_gate_errors", []) or []),
                 "safety_errors": list(row.get("safety_errors", []) or []),
                 "runtime_errors": list(row.get("runtime_errors", []) or []),
-                "forbidden_generated_code_calls": _compact_string_list(
-                    row.get("forbidden_generated_code_calls", []),
-                    limit=5,
-                    char_limit=80,
-                ),
                 "metrics": _compact_mapping(row.get("metrics", {}), limit=6),
                 "metric_gate_targets": _compact_mapping(
                     row.get("metric_gate_targets", {}),
@@ -626,9 +598,9 @@ def _compact_algorithm_environment_feedback(feedback: Mapping[str, Any]) -> dict
                 ),
                 "reason": _truncate_text(row.get("reason", ""), limit=240),
             }
-            for row in _first_mapping_rows(prototype_rows, limit=3)
+            for row in prototype_rows
+            if isinstance(row, Mapping)
         ],
-        "required_repair": str(feedback.get("required_repair", "") or ""),
         "boundary": _truncate_text(feedback.get("boundary", ""), limit=240),
     }
 
@@ -692,10 +664,6 @@ def _compact_theory_trace_downstream_alignment_feedback(
             ),
             limit=5,
             char_limit=160,
-        ),
-        "required_repair": _truncate_text(
-            source.get("required_repair", "") or source.get("target_behavior", ""),
-            limit=360,
         ),
         "acceptance_gate": _truncate_text(
             source.get("acceptance_gate", "") or contract.get("acceptance_gate", ""),

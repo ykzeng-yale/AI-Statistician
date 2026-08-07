@@ -294,11 +294,6 @@ def dispatch_validated_action_work_order(
             "formalization_gap_planner_action_work_order": work_order,
             "formalization_gap_planner_action_work_order_id": work_order_id,
             "formalization_gap_planner_action_work_order_hash": work_order_hash,
-            "required_repair": (
-                "Execute the validated planner queue with formal-source retrieval, "
-                "LLM candidate generation, and local Lean/LSP feedback while "
-                "preserving the exact theorem lineage."
-            ),
             "proof_evidence_status": ACTION_WORK_ORDER_STATUS,
             "proof_evidence_boundary": proof_evidence_boundary,
         }

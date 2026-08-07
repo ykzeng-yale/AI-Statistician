@@ -7,6 +7,10 @@ from ai_statistician.agent_runtime import AgentTask, BlackboardState
 from ai_statistician.lean_candidate_revision_tool_loop import (
     run_lean_candidate_revision_tool_loop,
 )
+from ai_statistician.lean_candidate_identity import (
+    TRUSTED_LEAN_AXIOMS,
+    _lean_axioms_from_report,
+)
 from ai_statistician.llm_json_repair import PacketValidationError
 from ai_statistician.model_backend import (
     DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
@@ -63,6 +67,27 @@ def _response(*calls: ClientToolCall) -> ClientToolTurnResponse:
             "provider_usage": {"input_tokens": 17, "output_tokens": 5},
         },
     )
+
+
+def test_lean_axiom_audit_uses_lean_report_instead_of_source_grammar() -> None:
+    checked, names = _lean_axioms_from_report(
+        "'target' depends on axioms: [propext, Classical.choice]"
+    )
+    assert checked is True
+    assert names == ("propext", "Classical.choice")
+    assert set(names) <= TRUSTED_LEAN_AXIOMS
+
+    checked, names = _lean_axioms_from_report(
+        "'target' depends on axioms: [project.generatedAxiom]"
+    )
+    assert checked is True
+    assert names == ("project.generatedAxiom",)
+    assert set(names) - TRUSTED_LEAN_AXIOMS == {"project.generatedAxiom"}
+
+    assert _lean_axioms_from_report(
+        "'target' does not depend on any axioms"
+    ) == (True, ())
+    assert _lean_axioms_from_report("unrelated compiler output") == (False, ())
 
 
 def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() -> None:
@@ -361,7 +386,14 @@ def test_lean_candidate_tool_loop_preserves_uncompiled_latest_edit_checkpoint() 
         raise AssertionError("uncompiled final source was not checkpointed")
 
 
-def test_lean_candidate_prompt_uses_just_in_time_compact_context() -> None:
+def test_lean_candidate_prompt_keeps_complete_source_and_verifier_observation() -> None:
+    exact_error = (
+        "type mismatch\n"
+        + "x" * 4000
+        + "EXACT_MIDDLE_LEAN_OBSERVATION"
+        + "y" * 4000
+    )
+    initial_source = "theorem target : True := by\n  exact True.intro\n"
     prompt = formalizer_module._build_lean_candidate_revision_tool_prompt(
         question=OpenResearchQuestion(
             id="compact-context",
@@ -372,7 +404,7 @@ def test_lean_candidate_prompt_uses_just_in_time_compact_context() -> None:
         candidate_id="target-candidate",
         candidate_source_field="formal_targets",
         candidate_lean_declaration="target",
-        initial_source="theorem target : True := by\n  exact True.intro\n",
+        initial_source=initial_source,
         environment_feedback={
             "feedback_type": "formal_target_semantic_review_feedback",
             "overall_verdict": "ACCEPT",
@@ -396,22 +428,28 @@ def test_lean_candidate_prompt_uses_just_in_time_compact_context() -> None:
                     "candidate_id": "target-candidate",
                     "source_hash": "candidate-hash",
                     "lean_source_excerpt": "duplicate" * 5000,
-                    "local_lean_stderr_excerpt": "type mismatch",
+                    "local_lean_stderr": exact_error,
                 }
             ],
         },
     )
 
     payload = json.loads(prompt)
-    feedback = payload["runtime_feedback"]
-    repair = feedback["proofengineer_repair_context"]
-    assert repair["target_theorem_statement"] == "theorem target : True"
-    assert "proof_state_trace_rag" not in repair
-    assert "candidate_rerun_specs" not in repair
-    assert "formal_source_grounding_hits" not in repair
-    assert "reviewed_source_artifacts" not in feedback["formal_target_semantic_review"]
-    assert "lean_source_excerpt" not in feedback["candidate_diagnostics"][0]
-    assert len(prompt) < 12000
+    assert payload["current_lean_source"] == initial_source
+    feedback = payload["runtime_observations"]
+    context = feedback["target_and_environment_observations"]
+    assert context["target_theorem_statement"] == "theorem target : True"
+    assert "proof_state_trace_rag" in context
+    assert "formal_source_grounding_hits" in context
+    assert "candidate_rerun_specs" not in context
+    review = feedback["independent_semantic_review"]
+    assert "reviewed_source_artifacts" not in review
+    observation = feedback["candidate_observations"][0]
+    assert "lean_source_excerpt" not in observation
+    assert observation["local_lean_stderr"] == exact_error
+    assert "EXACT_MIDDLE_LEAN_OBSERVATION" in prompt
+    assert "required_repair" not in prompt
+    assert "recommended_repair" not in prompt
 
 
 def test_formalizer_validation_failure_routes_model_source_checkpoint() -> None:
@@ -454,7 +492,7 @@ def test_formalizer_validation_failure_routes_model_source_checkpoint() -> None:
         algorithm_sandbox_manifest_id="algorithm:checkpoint",
         proof_bank_runtime_memory_summary={},
         exc=PacketValidationError(
-            validation_label="LLM Formalizer Lean candidate client-tool repair",
+            validation_label="LLM Formalizer Lean candidate client-tool revision",
             attempts=2,
             errors=["global client-tool turn budget exhausted"],
             history=[],
@@ -472,7 +510,7 @@ def test_formalizer_validation_failure_routes_model_source_checkpoint() -> None:
     assert failure["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
 
 
-def test_runtime_client_tool_repair_requires_independent_target_acceptance(
+def test_runtime_client_tool_revision_requires_independent_target_acceptance(
     tmp_path,
     monkeypatch,
 ) -> None:
@@ -592,7 +630,7 @@ def test_runtime_client_tool_repair_requires_independent_target_acceptance(
     }
 
     class FakeConfig:
-        use_client_tool_lean_candidate_repair = True
+        use_client_tool_lean_candidate_revision = True
 
     class FakeProvider:
         def generate_client_tool_turn(self, request):
@@ -606,7 +644,7 @@ def test_runtime_client_tool_repair_requires_independent_target_acceptance(
             self.check_result = {}
             self.search_result = {}
 
-        def repair_lean_candidate_with_client_tools(self, **kwargs):
+        def revise_lean_candidate_with_client_tools(self, **kwargs):
             assert kwargs["candidate_id"] == candidate_id
             assert kwargs["initial_source"] == source
             self.check_result = dict(kwargs["check_candidate"](source))
@@ -649,7 +687,7 @@ def test_runtime_client_tool_repair_requires_independent_target_acceptance(
         },
     )
     agent = FakeAgent()
-    result = runtime_module._runtime_formalizer_lean_candidate_client_tool_repair(
+    result = runtime_module._runtime_formalizer_lean_candidate_client_tool_revision(
         proposal_agent=agent,
         question=question,
         task=task,
@@ -697,7 +735,7 @@ def test_runtime_client_tool_repair_requires_independent_target_acceptance(
         ],
     )
     compact_agent = FakeAgent()
-    compact_result = runtime_module._runtime_formalizer_lean_candidate_client_tool_repair(
+    compact_result = runtime_module._runtime_formalizer_lean_candidate_client_tool_revision(
         proposal_agent=compact_agent,
         question=question,
         task=task,
@@ -721,7 +759,7 @@ def test_runtime_client_tool_repair_requires_independent_target_acceptance(
     assert "documentation" not in compact_agent.search_result["hits"][0]
     assert len(json.dumps(compact_agent.search_result)) < 5600
 
-    rejected = runtime_module._runtime_formalizer_lean_candidate_client_tool_repair(
+    rejected = runtime_module._runtime_formalizer_lean_candidate_client_tool_revision(
         proposal_agent=agent,
         question=question,
         task=task,
@@ -742,7 +780,7 @@ def test_runtime_client_tool_repair_requires_independent_target_acceptance(
         "candidate_source_hash": "tampered",
     }
     try:
-        runtime_module._runtime_formalizer_lean_candidate_client_tool_repair(
+        runtime_module._runtime_formalizer_lean_candidate_client_tool_revision(
             proposal_agent=agent,
             question=question,
             task=task,
@@ -764,7 +802,7 @@ def test_runtime_client_tool_repair_requires_independent_target_acceptance(
         raise AssertionError("tampered accepted review lineage was not rejected")
 
 
-def test_formalizer_client_tool_repair_rebuilds_only_bound_candidate_source(
+def test_formalizer_client_tool_revision_rebuilds_only_bound_candidate_source(
     monkeypatch,
 ) -> None:
     original = "import Missing.Module\n\ntheorem target : True := by trivial\n"
@@ -856,7 +894,7 @@ def test_formalizer_client_tool_repair_rebuilds_only_bound_candidate_source(
         },
     }
 
-    packet, evidence = agent.repair_lean_candidate_with_client_tools(
+    packet, evidence = agent.revise_lean_candidate_with_client_tools(
         question=question,
         theory_packet={},
         parent_packet=parent_packet,

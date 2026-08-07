@@ -213,13 +213,13 @@ def test_bounded_client_tool_loop_does_not_accept_early_terminal_call() -> None:
         )
 
     first_turn = backend.requests[0]
-    assert first_turn.tool_choice == "submit"
-    assert [tool.name for tool in first_turn.tools] == ["submit"]
-    assert first_turn.disable_parallel_tool_use is True
-    assert executed_tools == []
+    assert first_turn.tool_choice == "any"
+    assert [tool.name for tool in first_turn.tools] == ["edit", "submit"]
+    assert first_turn.disable_parallel_tool_use is False
+    assert executed_tools == ["edit"]
 
 
-def test_bounded_client_tool_loop_reserves_final_turn_for_submission() -> None:
+def test_bounded_client_tool_loop_keeps_normal_final_turn_model_directed() -> None:
     backend = ScriptedToolTurnBackend(
         [
             _response(ClientToolCall("call-edit", "edit", {"value": 2})),
@@ -250,12 +250,16 @@ def test_bounded_client_tool_loop_reserves_final_turn_for_submission() -> None:
         "check",
         "submit",
     ]
-    assert [tool.name for tool in backend.requests[1].tools] == ["submit"]
-    assert backend.requests[1].tool_choice == "submit"
-    assert backend.requests[1].disable_parallel_tool_use is True
+    assert [tool.name for tool in backend.requests[1].tools] == [
+        "edit",
+        "check",
+        "submit",
+    ]
+    assert backend.requests[1].tool_choice == "any"
+    assert backend.requests[1].disable_parallel_tool_use is False
     assert backend.requests[1].metadata[
         "client_tool_loop_terminal_only_turn"
-    ] is True
+    ] is False
 
 
 def test_bounded_client_tool_loop_can_hide_exhausted_tools() -> None:

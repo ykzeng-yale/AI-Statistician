@@ -613,7 +613,7 @@ def run_lean_candidate_revision_tool_loop(
                 budget_exhausted=True,
             )
         raise PacketValidationError(
-            validation_label="LLM Formalizer Lean candidate client-tool repair",
+            validation_label="LLM Formalizer Lean candidate client-tool revision",
             attempts=exc.turns,
             errors=[exc.reason],
             history=[deepcopy(dict(row)) for row in exc.history],
@@ -655,7 +655,7 @@ def run_lean_candidate_revision_tool_loop(
         or not bool(check_result.get("compiled", False))
     ):
         raise PacketValidationError(
-            validation_label="LLM Formalizer Lean candidate client-tool repair",
+            validation_label="LLM Formalizer Lean candidate client-tool revision",
             attempts=loop.turns,
             errors=["terminal payload was not bound to a compiled current source"],
             history=[deepcopy(dict(row)) for row in loop.history],

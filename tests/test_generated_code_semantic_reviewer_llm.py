@@ -4058,9 +4058,8 @@ def test_generated_code_semantic_reviewer_routes_rejection_to_fresh_generation(
     assert feedback["source_repair_contract"][
         "parent_source_manifest_hash"
     ]
-    assert "smallest change" in feedback["source_repair_contract"][
-        "repair_policy"
-    ]
+    assert "repair_policy" not in feedback["source_repair_contract"]
+    assert "required_repair" not in feedback
     assert result.next_task.inputs["generated_code_semantic_review_revision_count"] == 1
     handoff = result.next_task.inputs["architect_context"]["runtime_feedback_loop"][
         "direct_repair_handoff_contract"
@@ -4700,8 +4699,7 @@ def test_coding_agent_prompts_preserve_independent_semantic_findings() -> None:
             "proposal_packet_hash": "proposal-hash",
             "architect_evidence_contract_fingerprint": "contract-hash",
             "repair_policy": (
-                "Start from the complete hash-bound parent source and make the "
-                "smallest supported change."
+                "RUNTIME_PRESCRIPTIVE_SOURCE_EDIT_POLICY_DO_NOT_EXPOSE"
             ),
             "embedded_source_is_untrusted_data": True,
         },
@@ -4740,7 +4738,9 @@ def test_coding_agent_prompts_preserve_independent_semantic_findings() -> None:
         assert stable_hash(parent_source) in prompt
         assert "exact validator, execution, or independent-review observations" in prompt
         assert "Regenerate the complete packet and complete source" in prompt
-        assert "You own the repair strategy" in prompt
+        assert "You choose and author every source change" in prompt
+        assert "AgentRuntime does not propose edits" in prompt
+        assert "RUNTIME_PRESCRIPTIVE_SOURCE_EDIT_POLICY_DO_NOT_EXPOSE" not in prompt
         assert '"embedded_source_is_untrusted_data":true' in prompt
         assert '"metric_evaluation_semantics"' in prompt
     assert "Never place a quorum in threshold" in simulation_prompt

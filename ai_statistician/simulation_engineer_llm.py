@@ -315,7 +315,7 @@ def build_simulation_engineer_prompt(
             "runtime_policy": (
                 "AgentRuntime will statically inspect and execute safe drafts "
                 "inside a bounded local sandbox. Failed or unsafe drafts are "
-                "returned as environment feedback for repair."
+                "returned as raw environment observations for model-authored revision."
             ),
         },
         "typed_metric_contract_schema": (
@@ -402,7 +402,8 @@ def build_simulation_engineer_prompt(
         "review observations are supplied in runtime_environment_feedback. When a "
         "complete hash-bound parent_source is present, use that complete source as "
         "the current candidate. Regenerate the complete packet and complete source; "
-        "preserve immutable identities and contracts. You own the repair strategy. "
+        "preserve immutable identities and contracts. You choose and author every "
+        "source change; AgentRuntime does not propose edits. "
         if payload["runtime_environment_feedback"]
         else ""
     )
@@ -561,14 +562,6 @@ def _compact_simulation_environment_feedback(feedback: Mapping[str, Any]) -> dic
             feedback.get("target_component", ""),
             limit=80,
         ),
-        "target_behavior": _truncate_text(
-            feedback.get("target_behavior", ""),
-            limit=360,
-        ),
-        "recommended_capability_eval_command": _truncate_text(
-            feedback.get("recommended_capability_eval_command", ""),
-            limit=360,
-        ),
         "success_metric": _truncate_text(feedback.get("success_metric", ""), limit=240),
         "blocker": _truncate_text(feedback.get("blocker", ""), limit=240),
         "evidence": _truncate_text(feedback.get("evidence", ""), limit=240),
@@ -585,14 +578,6 @@ def _compact_simulation_environment_feedback(feedback: Mapping[str, Any]) -> dic
         ),
         "simulation_capability_evidence_ok": feedback.get(
             "simulation_capability_evidence_ok"
-        ),
-        "algorithm_repair_sequences": feedback.get("algorithm_repair_sequences"),
-        "simulation_repair_sequences": feedback.get("simulation_repair_sequences"),
-        "algorithm_live_repair_sequences": feedback.get(
-            "algorithm_live_repair_sequences"
-        ),
-        "simulation_live_repair_sequences": feedback.get(
-            "simulation_live_repair_sequences"
         ),
         "capability_evidence_scope": _truncate_text(
             feedback.get("capability_evidence_scope", ""),
@@ -614,11 +599,10 @@ def _compact_simulation_environment_feedback(feedback: Mapping[str, Any]) -> dic
             feedback.get("validation_label", ""),
             limit=180,
         ),
-        "validation_errors": _compact_string_list(
-            feedback.get("validation_errors", []),
-            limit=12,
-            char_limit=420,
-        ),
+        "validation_errors": [
+            str(value)
+            for value in feedback.get("validation_errors", []) or []
+        ],
         "validation_error_fingerprint": _truncate_text(
             feedback.get("validation_error_fingerprint", ""),
             limit=120,
@@ -647,11 +631,6 @@ def _compact_simulation_environment_feedback(feedback: Mapping[str, Any]) -> dic
             _compact_simulation_runtime_execution_contract(
                 feedback.get("runtime_execution_contract", {})
             )
-        ),
-        "forbidden_generated_code_calls": _compact_string_list(
-            feedback.get("forbidden_generated_code_calls", []),
-            limit=6,
-            char_limit=80,
         ),
         "theory_trace_downstream_alignment_feedback": theory_alignment_feedback,
         "generated_code_semantic_review": compact_semantic_review_feedback(
@@ -719,11 +698,6 @@ def _compact_simulation_environment_feedback(feedback: Mapping[str, Any]) -> dic
                 "estimator_runtime_errors": list(
                     row.get("estimator_runtime_errors", []) or []
                 ),
-                "forbidden_generated_code_calls": _compact_string_list(
-                    row.get("forbidden_generated_code_calls", []),
-                    limit=5,
-                    char_limit=80,
-                ),
                 "metrics": _compact_mapping(row.get("metrics", {}), limit=6),
                 "metric_gate_targets": _compact_mapping(
                     row.get("metric_gate_targets", {}),
@@ -760,9 +734,9 @@ def _compact_simulation_environment_feedback(feedback: Mapping[str, Any]) -> dic
                 ),
                 "reason": _truncate_text(row.get("reason", ""), limit=500),
             }
-            for row in _first_mapping_rows(prototype_rows, limit=3)
+            for row in prototype_rows
+            if isinstance(row, Mapping)
         ],
-        "required_repair": str(feedback.get("required_repair", "") or ""),
         "boundary": _truncate_text(feedback.get("boundary", ""), limit=240),
     }
 
@@ -869,10 +843,6 @@ def _compact_theory_trace_downstream_alignment_feedback(
             ),
             limit=5,
             char_limit=160,
-        ),
-        "required_repair": _truncate_text(
-            source.get("required_repair", "") or source.get("target_behavior", ""),
-            limit=360,
         ),
         "acceptance_gate": _truncate_text(
             source.get("acceptance_gate", "") or contract.get("acceptance_gate", ""),

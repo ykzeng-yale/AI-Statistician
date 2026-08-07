@@ -1515,6 +1515,7 @@ def test_formalizer_normalizes_pseudo_formal_packets_without_proof_promotion() -
             },
             "pseudo_formal_proof_packets": [
                 {
+                    "packet_id": "pseudo_formal_packet:coverage",
                     "proof_evidence_status": "CLAIMED_PROOF",
                     "kernel_verified": True,
                     "source_theorem_kernel_verified": True,
@@ -1525,8 +1526,13 @@ def test_formalizer_normalizes_pseudo_formal_packets_without_proof_promotion() -
                         {
                             "block_id": "b1",
                             "block_type": "lemma",
+                            "block_depth": 1,
+                            "premises": ["the source scores are exchangeable"],
                             "conclusion": "rank is uniform",
                             "proof_text": "Exchangeability implies rank uniformity.",
+                            "dependency_ids": [],
+                            "scope_parent_id": "",
+                            "dependency_scope": "earlier_block_statement_only",
                             "source_anchors": [
                                 {
                                     "kind": "theory_trace",
@@ -1535,9 +1541,20 @@ def test_formalizer_normalizes_pseudo_formal_packets_without_proof_promotion() -
                                 }
                             ],
                             "lean_feasibility": "needs_rag",
+                            "semantic_primitive_requirements": [],
                             "faithfulness_status": "faithful",
+                            "faithfulness_repair": {
+                                "status": "not_required",
+                                "attempts": 0,
+                                "flagged_discrepancies": [],
+                            },
                             "block_verification": {
                                 "verdict": "accepted",
+                                "reason": "model-proposed PF check only",
+                                "verifier_provenance": "formalizer_proposed",
+                                "independent_verifier": False,
+                                "strictness_threshold": "lean_bridge_conservative",
+                                "aggregation_rule": "parallel_pessimistic_aggregation",
                                 "rollout_count": 1,
                             },
                         }
@@ -1592,7 +1609,7 @@ def test_formalizer_normalizes_pseudo_formal_packets_without_proof_promotion() -
     assert validate_formalizer_packet(packet) == []
 
 
-def test_formalizer_normalizes_pseudo_formal_block_aliases_before_validation() -> None:
+def test_formalizer_rejects_pseudo_formal_block_aliases_without_rewriting() -> None:
     payload = _minimal_formalizer_response(include_pseudo_formal=True)
     block = payload["pseudo_formal_proof_packets"][0]["blocks"][0]
     block.pop("conclusion")
@@ -1622,31 +1639,21 @@ def test_formalizer_normalizes_pseudo_formal_block_aliases_before_validation() -
 
     pf_block = packet["pseudo_formal_proof_packets"][0]["blocks"][0]
 
-    assert pf_block["conclusion"] == (
+    assert "conclusion" not in pf_block
+    assert "proof_text" not in pf_block
+    assert "source_anchors" not in pf_block
+    assert pf_block["claim"] == (
         "the test rank is uniform after exchangeable insertion"
     )
-    assert pf_block["proof_text"].startswith("The proof body")
-    assert pf_block["source_anchors"][0]["id"] == "equation:rank_uniformity"
-    assert pf_block["faithfulness_status"] == "unchecked"
-    assert validate_formalizer_packet(packet) == []
-    assert (
-        _validate_required_pseudo_formalization_packet(
-            packet,
-            environment_feedback=_pf_required_feedback(),
-            proof_bank_runtime_memory_summary={},
-        )
-        == []
-    )
-    work_order_rows = pseudo_formal_block_work_order_rows(
-        packet["pseudo_formal_proof_packets"][0]
-    )
-    assert {
-        row["row_kind"]
-        for row in pseudo_formal_routable_work_order_rows(work_order_rows)
-    } == {"pseudo_formal_faithfulness_review"}
+    assert pf_block["argument"].startswith("The proof body")
+    assert pf_block["faithfulness_status"] == "UNVERIFIED"
+    errors = validate_formalizer_packet(packet)
+    assert "pseudo_formal_proof_packets[0] blocks[0] missing conclusion" in errors
+    assert "pseudo_formal_proof_packets[0] blocks[0] missing proof_text" in errors
+    assert "pseudo_formal_proof_packets[0] blocks[0] missing source_anchors" in errors
 
 
-def test_required_pf_bv_fail_closes_placeholder_formal_target_to_gap() -> None:
+def test_required_pf_bv_leaves_lean_placeholder_detection_to_lean() -> None:
     payload = _minimal_formalizer_response(
         include_pseudo_formal=True,
         pf_block_overrides={
@@ -1664,6 +1671,7 @@ def test_required_pf_bv_fail_closes_placeholder_formal_target_to_gap() -> None:
     payload["formal_targets"] = [
         {
             "id": "split_conformal_source_theorem_placeholder",
+            "formal_target_role": "SOURCE_THEOREM_CANDIDATE",
             "informal_source": "source theorem placeholder emitted beside PF/BV",
             "lean_statement_sketch": (
                 "theorem split_conformal_source_theorem_placeholder "
@@ -1671,6 +1679,11 @@ def test_required_pf_bv_fail_closes_placeholder_formal_target_to_gap() -> None:
                 "  sorry\n"
             ),
             "expected_status": "NEEDS_KERNEL_CHECK",
+            "candidate_lean_declaration": (
+                "split_conformal_source_theorem_placeholder"
+            ),
+            "lean_imports": [],
+            "semantic_alignment_constraints": [],
             "source_theorem_target_provenance": {
                 "source_theorem_target_known": True,
                 "target_lean_declaration": (
@@ -1697,24 +1710,12 @@ def test_required_pf_bv_fail_closes_placeholder_formal_target_to_gap() -> None:
     )
 
     target = packet["formal_targets"][0]
-    assert target["expected_status"] == "FORMAL_GAP"
-    assert target["lean_statement_sketch"] == ""
-    assert target["normalizer_status"] == (
-        "FAIL_CLOSED_PLACEHOLDER_LEAN_SKETCH_TO_FORMAL_GAP"
-    )
-    assert packet["fail_closed_placeholder_formal_targets"][0][
-        "placeholder_error"
-    ] == "contains Lean sorry placeholder"
-    assert (
-        _validate_required_pseudo_formalization_packet(
-            packet,
-            proof_bank_runtime_memory_summary={
-                "pseudo_formalization_required": True
-            },
-        )
-        == []
-    )
-    assert validate_formalizer_packet(packet) == []
+    assert target["expected_status"] == "NEEDS_KERNEL_CHECK"
+    assert "sorry" in target["lean_statement_sketch"]
+    assert "normalizer_status" not in target
+    assert "fail_closed_placeholder_formal_targets" not in packet
+    errors = validate_formalizer_packet(packet)
+    assert not any("contains Lean sorry placeholder" in error for error in errors)
 
 
 def test_formalizer_alias_normalization_does_not_fake_empty_source_anchor() -> None:
@@ -1737,7 +1738,9 @@ def test_formalizer_alias_normalization_does_not_fake_empty_source_anchor() -> N
 
     errors = validate_formalizer_packet(packet)
 
-    assert packet["pseudo_formal_proof_packets"][0]["blocks"][0]["source_anchors"] == []
+    assert "source_anchors" not in (
+        packet["pseudo_formal_proof_packets"][0]["blocks"][0]
+    )
     assert (
         "pseudo_formal_proof_packets[0] blocks[0] missing source_anchors"
         in errors
@@ -2488,10 +2491,13 @@ def _minimal_formalizer_response(
         block = {
             "block_id": "b_semantic",
             "block_type": "claim",
+            "block_depth": 1,
             "premises": ["rank threshold event is source-defined"],
             "conclusion": "coverage event follows from the source semantic threshold",
             "proof_text": "The source proof invokes the threshold-to-coverage step.",
             "dependency_ids": [],
+            "scope_parent_id": "",
+            "dependency_scope": "earlier_block_statement_only",
             "source_anchors": [
                 {
                     "kind": "proof_body",
@@ -2510,11 +2516,25 @@ def _minimal_formalizer_response(
             "block_verification": {
                 "verdict": "failed",
                 "reason": "coverage_event is not exactly defined",
+                "verifier_provenance": "formalizer_proposed",
+                "independent_verifier": False,
+                "strictness_threshold": "lean_bridge_conservative",
+                "aggregation_rule": "parallel_pessimistic_aggregation",
+                "rollout_count": 0,
             },
         }
-        block.update(dict(pf_block_overrides or {}))
+        overrides = dict(pf_block_overrides or {})
+        for nested_key in ("faithfulness_repair", "block_verification"):
+            nested_override = overrides.pop(nested_key, None)
+            if isinstance(nested_override, Mapping):
+                block[nested_key] = {
+                    **dict(block[nested_key]),
+                    **dict(nested_override),
+                }
+        block.update(overrides)
         response["pseudo_formal_proof_packets"] = [
             {
+                "packet_id": "pseudo_formal_packet:pf-blocker",
                 "theorem_id": "theorem:coverage",
                 "source_artifact_id": "theory:pf-blocker",
                 "blocks": [block],

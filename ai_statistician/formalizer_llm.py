@@ -48,7 +48,7 @@ from .pseudo_formalization import (
     PSEUDO_FORMAL_TARGET_LANE_LEAN_RAG,
     PSEUDO_FORMAL_TARGET_LANE_SOURCE_TO_BRIDGE,
     PSEUDO_FORMAL_VERIFICATION_METHOD_CONTRACT_ID,
-    normalize_pseudo_formal_packet,
+    bind_model_pseudo_formal_packet_runtime_envelope,
     pseudo_formal_block_work_order_rows,
     pseudo_formal_provider_envelope_json_schema,
     pseudo_formal_routable_work_order_rows,
@@ -95,6 +95,58 @@ FORMAL_TARGET_ROLES = frozenset(
     }
 )
 
+_RUNTIME_AUTHORED_PRESCRIPTIVE_FIELDS = frozenset(
+    {
+        "candidate_reroute_options",
+        "preferred_tool_order",
+        "proof_state_workflow",
+        "recommended_action",
+        "recommended_actions",
+        "recommended_capability_eval_command",
+        "recommended_command",
+        "recommended_commands",
+        "recommended_next_action",
+        "recommended_repair",
+        "recommended_repairs",
+        "recommended_repair_tasks",
+        "recommended_tools",
+        "repair_instructions",
+        "repair_policy",
+        "repair_strategy",
+        "required_action",
+        "required_behavior",
+        "required_repair",
+        "required_resolution",
+        "required_revision",
+        "source_repair_strategy",
+        "target_behavior",
+        "target_drift_repair_contract",
+        "target_shape_contract",
+        "unknown_identifier_grounding_requests",
+        "validation_issue_repair_actions",
+    }
+)
+
+
+def _is_runtime_authored_prescriptive_field(key: Any) -> bool:
+    key_text = str(key)
+    return (
+        key_text in _RUNTIME_AUTHORED_PRESCRIPTIVE_FIELDS
+        or key_text.endswith(("_repair_rule", "_recipe"))
+    )
+
+
+def _without_runtime_authored_prescriptions(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {
+            str(key): _without_runtime_authored_prescriptions(child)
+            for key, child in value.items()
+            if not _is_runtime_authored_prescriptive_field(key)
+        }
+    if isinstance(value, list | tuple):
+        return [_without_runtime_authored_prescriptions(child) for child in value]
+    return deepcopy(value)
+
 
 def _is_compaction_path_key(key: Any) -> bool:
     lowered = str(key).lower()
@@ -115,7 +167,7 @@ class FormalizerConfig:
     temperature: float = 0.1
     provider_name: str = "anthropic"
     max_repair_attempts: int = 1
-    use_client_tool_lean_candidate_repair: bool = True
+    use_client_tool_lean_candidate_revision: bool = True
     client_tool_lean_candidate_max_turns: int = 10
     client_tool_lean_candidate_max_source_updates: int = 3
     client_tool_lean_candidate_max_searches: int = 3
@@ -124,59 +176,35 @@ class FormalizerConfig:
 
 
 def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
-    """Context-efficient, feedback-driven policy for Lean proof construction."""
+    """Minimal ownership and evidence boundary for model-driven Lean work."""
 
     return {
-        "schema_version": 15,
-        "specification": (
-            "Bind the exact Lean target to its faithful mathematical statement and "
-            "assumptions, qualified local signatures, current lemma frontier, and "
-            "verification boundary. Never weaken the target."
+        "schema_version": 16,
+        "target_identity": (
+            "Preserve the exact task-bound theorem, assumptions, declaration identity, "
+            "and parent artifact lineage. Never weaken or silently replace the target."
         ),
-        "context_policy": (
-            "Use the bounded local signature bundle: exact target module, qualified "
-            "declaration name and signature, direct imports, and dependency-ordered "
-            "premise modules, names, and signatures. Keep module and namespace identity "
-            "separate. Source docs, architecture summaries, naming examples, and textbook "
-            "citations rank retrieval outside the model prompt. Repairs add the live Lean "
-            "goal or diagnostic. Never send source files or proof bodies."
-        ),
-        "statement_audit": (
-            "Audit domain, measurability, integrability, finiteness, nonemptiness, "
-            "topology, quantifiers, and nontrivial inequalities. Persistent failure "
-            "triggers independent statement and counterexample review."
-        ),
-        "decomposition": (
-            "Emit only the current dependency-ordered frontier. Keep one semantic "
-            "obligation per node, explicit support edges, and a leaf small enough for "
-            "one compiler-feedback episode. Preserve verified ancestors; use an empty "
-            "lemma_dependency_plan for a direct proof."
-        ),
-        "feedback_loop": (
+        "model_ownership": (
             "Each iteration gives the model the complete current Lean source, exact "
-            "active goal and diagnostics, and available retrieved signatures. The model "
-            "chooses whether to make a local correction, change the proof decomposition, "
-            "or request more retrieval, then supplies the complete next source. The "
-            "runtime never edits Lean or maps diagnostics to prescribed fixes."
+            "target, raw verifier output, reviewer findings, proof state, and retrieved "
+            "signatures. The model chooses every import, definition, decomposition, tactic, "
+            "search query, and source change, then supplies the complete next source."
         ),
-        "library_design": (
-            "Build at the lowest reusable mathematical layer. Follow source-local "
-            "namespace/module organization and stable semantic names. Use a source-"
-            "identifying suffix only when the retrieved local API already establishes "
-            "that convention; citations are disambiguation metadata, never authority."
+        "environment_loop": (
+            "Search the active formal environment when context is missing, compile the "
+            "exact current source, inspect the returned observations, and regenerate. "
+            "AgentRuntime enforces budgets and identities but never edits Lean or maps an "
+            "error class to a prescribed fix."
         ),
-        "reuse_policy": (
-            "Reuse exact visible declarations first. Version-mismatched retrieval is "
-            "context only; re-elaborate every selected declaration and generated "
-            "candidate in the active project, then remove warnings and dead facts."
+        "library_context": (
+            "Infer naming, namespace, module, and theorem-organization conventions from "
+            "retrieved declarations in the active Statlib/Mathlib/project environment; "
+            "recheck every reused declaration in that environment."
         ),
-        "source_compatibility": (
-            "Treat source-snapshot BOUND_MATCH as corpus freshness only, never as "
-            "active-target compatibility or proof. Prefer the canonical import closure "
-            "of the active project and its pinned dependencies. If the Lean toolchain "
-            "or Mathlib revision differs, use signatures, organization, and proof-state "
-            "context only as port guidance. Require target-project import visibility "
-            "and exact local re-elaboration before reuse."
+        "evidence_boundary": (
+            "Generated code, retrieval, reviewer acceptance, and successful elaboration "
+            "remain observations. Only the configured exact local Lean/kernel gate may "
+            "promote the unchanged target artifact to proof evidence."
         ),
     }
 
@@ -305,7 +333,7 @@ class LLMFormalizerProofEngineerAgent:
             max_repair_attempts=self.config.max_repair_attempts,
         )
 
-    def repair_lean_candidate_with_client_tools(
+    def revise_lean_candidate_with_client_tools(
         self,
         *,
         question: OpenResearchQuestion,
@@ -320,10 +348,10 @@ class LLMFormalizerProofEngineerAgent:
         check_candidate: LeanCandidateCheck,
         search_formal_environment: FormalEnvironmentSearch,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Repair one accepted target through model-selected Lean tool actions."""
+        """Revise one accepted target through model-selected Lean tool actions."""
 
-        if not self.config.use_client_tool_lean_candidate_repair:
-            raise ValueError("Formalizer Lean candidate client-tool repair is disabled")
+        if not self.config.use_client_tool_lean_candidate_revision:
+            raise ValueError("Formalizer Lean candidate client-tool revision is disabled")
         if not callable(getattr(self.provider, "generate_client_tool_turn", None)):
             raise ValueError("Formalizer provider does not support client-tool turns")
         request_model = resolve_generator_model(
@@ -335,7 +363,7 @@ class LLMFormalizerProofEngineerAgent:
             provider=self.provider,
             system_prompt=(
                 FORMALIZER_SYSTEM_PROMPT
-                + "\nYou are repairing one independently reviewed Lean target. "
+                + "\nYou are revising one independently reviewed Lean target. "
                 "You own every Lean edit and search query. Use the client tools to "
                 "inspect the active formal environment and compile the exact current "
                 "source. Do not answer with prose or JSON, and do not weaken the target."
@@ -372,7 +400,7 @@ class LLMFormalizerProofEngineerAgent:
             request_metadata={
                 "subsystem": "FormalizerProofEngineer",
                 "agent": "LLMFormalizerProofEngineerAgent",
-                "formalizer_phase": "lean_candidate_client_tool_repair",
+                "formalizer_phase": "lean_candidate_client_tool_revision",
                 "parent_packet_id": str(parent_packet.get("packet_id", "") or ""),
                 "proof_evidence_status": FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE,
             },
@@ -429,7 +457,7 @@ class LLMFormalizerProofEngineerAgent:
         if errors:
             raise PacketValidationError(
                 validation_label=(
-                    "LLM Formalizer Lean candidate client-tool repair packet"
+                    "LLM Formalizer Lean candidate client-tool revision packet"
                 ),
                 attempts=int(loop.evidence.get("turns", 1) or 1),
                 errors=sorted(set(errors)),
@@ -625,9 +653,26 @@ def _build_lean_candidate_revision_tool_prompt(
         if isinstance(repair_context, Mapping)
         else {}
     )
+    runtime_observations = _complete_lean_candidate_revision_feedback(
+        environment_feedback,
+        candidate_id=candidate_id,
+    )
+    for observation in runtime_observations.get("candidate_observations", []):
+        if not isinstance(observation, dict):
+            continue
+        for source_key in (
+            "lean_source",
+            "lean_source_excerpt",
+            "candidate_source",
+            "candidate_source_excerpt",
+            "target_declaration_source_excerpt",
+            "current_proof_body_excerpt",
+        ):
+            observation.pop(source_key, None)
     payload = {
         "task": (
-            "Repair the exact current Lean source through search/edit/check actions. "
+            "Revise the complete exact current Lean source through search/edit/check "
+            "actions. "
             "Call submit_compiled_source only after check_lean_source passes for the "
             "current source."
         ),
@@ -667,11 +712,8 @@ def _build_lean_candidate_revision_tool_prompt(
             ),
         },
         "current_lean_source": initial_source,
-        "runtime_feedback": _compact_lean_candidate_revision_feedback(
-            environment_feedback,
-            candidate_id=candidate_id,
-        ),
-        "proof_construction_strategy": (
+        "runtime_observations": runtime_observations,
+        "model_owned_revision_contract": (
             formalizer_proof_construction_strategy_contract()
         ),
         "boundaries": {
@@ -1147,16 +1189,13 @@ def build_formalizer_prompt(
         else {}
     )
     theory_derivation_trace = compact_theory_derivation_trace(theory_packet)
-    runtime_environment_feedback = _compact_formalizer_environment_feedback(
+    runtime_environment_feedback = _complete_formalizer_environment_observations(
         environment_feedback or {}
     )
     indexed_lean_environment_candidates = (
         _formalizer_indexed_lean_environment_candidates(environment_feedback or {})
     )
     requires_lean_candidate = _feedback_requires_formalizer_lean_candidate(
-        environment_feedback or {}
-    )
-    has_source_theorem_target_drift = _feedback_has_source_theorem_target_drift(
         environment_feedback or {}
     )
     repeated_syntax_fail_closed_active = (
@@ -1182,12 +1221,6 @@ def build_formalizer_prompt(
     required_pseudo_formal_target_lanes = _required_pseudo_formal_target_lanes(
         environment_feedback or {},
         proof_memory_summary,
-    )
-    source_to_bridge_request_shortcuts = (
-        _source_to_bridge_candidate_request_shortcuts(proof_memory_summary)
-    )
-    diagnostic_helper_bridge_blocker_contract = (
-        _diagnostic_helper_bridge_blocker_contract(proof_memory_summary)
     )
     exact_semantic_definition_gate_active = (
         _source_theorem_exact_semantic_definition_gate_active(
@@ -1257,7 +1290,7 @@ def build_formalizer_prompt(
         "registered_theorem_goals": theorem_goal_rows,
         "registered_theorem_goals_total": _safe_len(theorem_goals),
         "task_bound_formal_target_contract": task_bound_formal_target_contract,
-        "proof_construction_strategy_contract": (
+        "model_owned_formalizer_contract": (
             formalizer_proof_construction_strategy_contract()
         ),
         "registered_proof_bank_obligation_catalog": catalog_rows,
@@ -1265,12 +1298,6 @@ def build_formalizer_prompt(
             proof_bank_obligation_catalog or theorem_goals
         ),
         "proof_bank_runtime_memory_summary": proof_memory_summary,
-        "source_to_bridge_candidate_request_shortcuts": (
-            source_to_bridge_request_shortcuts
-        ),
-        "diagnostic_helper_bridge_blocker_contract": (
-            diagnostic_helper_bridge_blocker_contract
-        ),
         "source_theorem_candidate_materialization_contract": (
             source_theorem_candidate_materialization_contract
         ),
@@ -1290,35 +1317,13 @@ def build_formalizer_prompt(
                     task_bound_formal_target_contract.get("contract_fingerprint", "")
                 ),
                 "required_when_true": (
-                    "include at least one concrete safe Lean theorem sketch with "
-                    "expected_status=NEEDS_KERNEL_CHECK in either formal_targets or "
-                    "source_to_bridge_premise_derivation_candidates; "
-                    "proof_bank_obligation_requests alone do not satisfy this gate. "
-                    "Every formal_targets Lean candidate must also provide "
-                    "candidate_lean_declaration as the exact Lean-resolvable declaration "
-                    "name emitted by lean_statement_sketch, including namespace "
-                    "qualification when needed; this candidate identity is separate from "
-                    "source_theorem_target_provenance.target_lean_declaration, and "
-                    "AgentRuntime will not infer it by parsing generated Lean text and "
-                    "will ask Lean to #check it. "
-                    "A source_to_bridge_premise_derivation_candidates entry must copy "
-                    "premise_candidate_declaration_name from the runtime request. "
-                    "AgentRuntime will compile the exact source and ask Lean to #check "
-                    "that identity; use the declaration kind and namespace organization "
-                    "appropriate to the source library rather than encoding them as "
-                    "validator assumptions. "
-                    "When runtime target-shape feedback says a source theorem would "
-                    "drift if repaired, emit that source theorem as FORMAL_GAP and "
-                    "route helper/premise Lean candidates separately. A separate helper "
-                    "formal_targets entry must set formal_target_role=HELPER_OR_SUPPORT "
-                    "so local Lean/LSP can inspect a real artifact without promoting it "
-                    "to source-theorem proof evidence. Use "
-                    "formal_target_role=SOURCE_THEOREM_CANDIDATE only for a candidate "
-                    "intended to preserve the whole task-bound theorem, and "
-                    "formal_target_role=SOURCE_THEOREM_FORMAL_GAP for its empty-Lean "
-                    "fail-closed gap row. formal_target_role is the single generated "
-                    "routing authority; AgentRuntime derives legacy target-known metadata "
-                    "from it. Roles are routing metadata, not proof claims."
+                    "Return at least one complete Lean candidate in the required schema, "
+                    "including its exact declaration identity and whether it represents "
+                    "the unchanged source theorem, an explicit formal gap, or helper "
+                    "support. AgentRuntime compiles the exact supplied source and asks "
+                    "Lean to check the supplied declaration; it does not parse, edit, or "
+                    "complete Lean on the model's behalf. Routing roles are metadata, not "
+                    "proof claims."
                 ),
                 "not_proof_evidence": (
                     "the Lean candidate remains a proposal until AgentRuntime runs "
@@ -1328,9 +1333,11 @@ def build_formalizer_prompt(
             if requires_lean_candidate
             else {}
         ),
-        "mode_specific_instructions": _formalizer_mode_specific_instructions(
+        "model_owned_feedback_instructions": (
+            _model_owned_formalizer_feedback_instructions(
             proof_memory_summary,
             runtime_environment_feedback,
+            )
         ),
         "proof_bank_obligation_request_policy": (
             {
@@ -1386,20 +1393,6 @@ def build_formalizer_prompt(
             "object with the exact source-binding metadata, including "
             "premise_candidate_declaration_name, or record the missing metadata "
             "fields as a source_to_bridge_metadata_blocker. "
-        )
-    elif requires_lean_candidate and has_source_theorem_target_drift:
-        lean_candidate_instruction = (
-            "Capability-eval mode is active, but target-shape feedback takes "
-            "priority: do not force a helper/arithmetic Lean sketch into "
-            "formal_targets just to satisfy the candidate gate. Emit a "
-            "NEEDS_KERNEL_CHECK Lean candidate only if it is either a faithful "
-            "task-bound source-theorem target or a real "
-            "source_to_bridge_premise_derivation_candidates object with copied "
-            "source-binding metadata and semantic anchors. Otherwise emit the "
-            "source theorem as expected_status=FORMAL_GAP with an empty Lean sketch "
-            "and formal_target_role=SOURCE_THEOREM_FORMAL_GAP, "
-            "and record the missing premise/API in gap_taxonomy/next_actions; the "
-            "runtime validator accepts this fail-closed target-drift repair. "
         )
     elif requires_lean_candidate:
         lean_candidate_instruction = (
@@ -1463,15 +1456,15 @@ def build_formalizer_prompt(
         "Return ONLY compact JSON matching required_output_contract, with at most 3 "
         "current-active-frontier items/list. Keep unrelated obligations separate "
         "across later packets rather than merging them. Treat "
-        "task_bound_formal_target_contract as semantic authority and follow only "
-        "activated mode_specific_instructions. Retrieved declarations are support APIs "
+        "task_bound_formal_target_contract as semantic authority and use "
+        "model_owned_feedback_instructions as the correction boundary. Retrieved "
+        "declarations are support APIs "
         "unless exact lineage identifies the source theorem; preserve that target and "
         "await AgentRuntime checking of the exact artifact. "
         + indexed_environment_instruction
         + pseudo_formalization_instruction
-        + "Do not use placeholder binder types, `sorry`, `admit`, "
-        "`axiom`, `unsafe`, or `by?` in Lean sketches. Set candidate status to "
-        "NEEDS_KERNEL_CHECK; use FORMAL_GAP only for an unrepaired source target with "
+        + "Set candidate status to NEEDS_KERNEL_CHECK; use FORMAL_GAP only for an "
+        "unresolved source target with "
         "no Lean source. Leave optional retrieval, gap, critic, and action lists empty "
         "unless this packet has a concrete need; never invent scaffolding rows. Every "
         "next_actions entry must point to an artifact or candidate "
@@ -1598,7 +1591,7 @@ def _formalizer_output_contract_for_prompt(
                     "must preserve the task-bound objects, assumptions, quantifiers, "
                     "and conclusion and "
                     "must not be FORMAL_GAP, helper-only, source-to-bridge-only, "
-                    "sorry/admit/by?/exact?, or prose"
+                    "or prose"
                 ),
                 "candidate_lean_declaration": target_identity,
                 "lean_imports": [
@@ -1665,9 +1658,6 @@ def _formalizer_output_contract_for_prompt(
                 "source_to_bridge_premise_derivation_candidate_request": (
                     "copy runtime request object when supplied"
                 ),
-                "required_semantic_anchor_reference_names": [
-                    "copy required semantic anchors and reference them in Lean source"
-                ],
                 "expected_status": "NEEDS_KERNEL_CHECK",
             }
         ]
@@ -1820,55 +1810,6 @@ def _formal_target_role(row: Mapping[str, Any]) -> str:
     return str(row.get("formal_target_role", "") or "").strip().upper()
 
 
-def _bind_formal_target_role_provenance(packet: dict[str, Any]) -> None:
-    bindings: list[dict[str, Any]] = []
-    for row in packet.get("formal_targets", []) or []:
-        if not isinstance(row, dict):
-            continue
-        role = _formal_target_role(row)
-        if role not in FORMAL_TARGET_ROLES:
-            continue
-        raw_provenance = row.get("source_theorem_target_provenance", {})
-        provenance = (
-            dict(raw_provenance) if isinstance(raw_provenance, Mapping) else {}
-        )
-        previous = _source_theorem_target_known(provenance)
-        target_declaration_binding_source = str(
-            provenance.get("target_lean_declaration_binding_source", "") or ""
-        ).strip()
-        if role == FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP:
-            canonical = True
-        elif role == FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT:
-            canonical = False
-        else:
-            canonical = previous if previous is not None else False
-            candidate_declaration = str(
-                row.get("candidate_lean_declaration", "") or ""
-            ).strip()
-            target_declaration = str(
-                provenance.get("target_lean_declaration", "") or ""
-            ).strip()
-            if candidate_declaration and not target_declaration:
-                provenance["target_lean_declaration"] = candidate_declaration
-                target_declaration_binding_source = "candidate_lean_declaration"
-                provenance["target_lean_declaration_binding_source"] = (
-                    target_declaration_binding_source
-                )
-        provenance["source_theorem_target_known"] = canonical
-        row["source_theorem_target_provenance"] = provenance
-        binding = {
-            "target_id": str(row.get("id", "") or ""),
-            "formal_target_role": role,
-            "previous_source_theorem_target_known": previous,
-            "source_theorem_target_known": canonical,
-        }
-        if target_declaration_binding_source:
-            binding["target_lean_declaration_binding_source"] = (
-                target_declaration_binding_source
-            )
-        bindings.append(binding)
-    if bindings:
-        packet["formal_target_role_provenance_bindings"] = bindings
 
 
 def _formal_target_role_contract_errors(
@@ -2054,12 +1995,6 @@ def validate_formalizer_packet(packet: Mapping[str, Any]) -> list[str]:
                     "source_theorem_target_provenance.target_lean_declaration "
                     + declaration_error
                 )
-        lean_statement_sketch = str(row.get("lean_statement_sketch", "") or "")
-        placeholder_error = _lean_statement_trust_boundary_error(
-            lean_statement_sketch
-        )
-        if placeholder_error:
-            errors.append(f"formal target Lean sketch {placeholder_error}")
     for row in packet.get("proof_bank_obligation_requests", []) or []:
         if not isinstance(row, Mapping):
             errors.append("proof_bank_obligation_requests entries must be objects")
@@ -2076,6 +2011,9 @@ def validate_formalizer_packet(packet: Mapping[str, Any]) -> list[str]:
         if not isinstance(row, Mapping):
             errors.append("source_to_bridge_premise_derivation_candidates entries must be objects")
             continue
+        canonical_candidate_source = str(
+            row.get("premise_derivation_candidate_lean_source", "") or ""
+        ).strip()
         candidate_source = _source_to_bridge_candidate_lean_source(row)
         premise_names = [
             str(value).strip()
@@ -2091,6 +2029,12 @@ def validate_formalizer_packet(packet: Mapping[str, Any]) -> list[str]:
             errors.append(
                 "source_to_bridge_premise_derivation_candidates entry missing Lean candidate source"
             )
+        elif not canonical_candidate_source:
+            errors.append(
+                "source_to_bridge_premise_derivation_candidates entry must provide "
+                "Lean source in canonical field "
+                "premise_derivation_candidate_lean_source"
+            )
         declaration_errors = _source_to_bridge_candidate_declaration_contract_errors(row)
         errors.extend(declaration_errors)
         if not _source_to_bridge_candidate_has_source_binding_contract(row):
@@ -2098,47 +2042,8 @@ def validate_formalizer_packet(packet: Mapping[str, Any]) -> list[str]:
                 "source_to_bridge_premise_derivation_candidates entry missing "
                 "source-binding contract metadata; include a "
                 "source_to_bridge_premise_derivation_candidate_request_id/object, "
-                "a source_to_bridge_grouped_premise_derivation_candidate_request_id/object, "
-                "or explicit required_semantic_anchor_reference_names and "
-                "adapter_object_names_requiring_source_instantiation from the "
-                "runtime memory request"
-            )
-        placeholder_error = _lean_statement_trust_boundary_error(candidate_source)
-        if placeholder_error:
-            errors.append(
-                "source_to_bridge_premise_derivation_candidates Lean candidate "
-                + placeholder_error
-            )
-        vacuous_error = _source_to_bridge_candidate_vacuous_truth_error(
-            candidate_source
-        )
-        if vacuous_error:
-            errors.append(
-                "source_to_bridge_premise_derivation_candidates Lean candidate "
-                + vacuous_error
-            )
-        missing_anchor_names = _source_to_bridge_candidate_missing_anchor_references(
-            row,
-            candidate_source,
-        )
-        if missing_anchor_names:
-            errors.append(
-                "source_to_bridge_premise_derivation_candidates Lean candidate "
-                "missing required semantic anchor references: "
-                + ", ".join(missing_anchor_names)
-            )
-        uninstantiated_adapter_object_binders = (
-            _source_to_bridge_candidate_uninstantiated_adapter_object_binders(
-                row,
-                candidate_source,
-            )
-        )
-        if uninstantiated_adapter_object_binders:
-            errors.append(
-                "source_to_bridge_premise_derivation_candidates Lean candidate "
-                "takes adapter objects as theorem binders instead of deriving "
-                "them from source binders: "
-                + ", ".join(uninstantiated_adapter_object_binders)
+                "or a source_to_bridge_grouped_premise_derivation_candidate_request_id/object "
+                "from the immutable runtime request"
             )
         forbidden = _contains_forbidden_proof_claim(row)
         if forbidden:
@@ -2479,44 +2384,6 @@ def _feedback_has_repeated_syntax_failure_contract(
         ):
             return True
     return False
-
-
-def _feedback_has_source_theorem_target_drift(
-    feedback: Mapping[str, Any] | None,
-) -> bool:
-    if not isinstance(feedback, Mapping):
-        return False
-    input_summary = feedback.get("input_summary", {})
-    contracts = [
-        feedback.get("target_shape_contract", {}),
-        input_summary.get("target_shape_contract", {})
-        if isinstance(input_summary, Mapping)
-        else {},
-    ]
-    for contract in contracts:
-        if not isinstance(contract, Mapping):
-            continue
-        contract_text = json.dumps(contract, default=str).lower()
-        if (
-            str(contract.get("contract_kind", "") or "")
-            == "source_theorem_target_preservation"
-            or "source theorem target" in contract_text
-            or "source-theorem target" in contract_text
-        ):
-            return True
-    diagnostics = []
-    for source in (feedback, input_summary):
-        if isinstance(source, Mapping):
-            rows = source.get("candidate_diagnostics", []) or []
-            if isinstance(rows, list | tuple):
-                diagnostics.extend(rows)
-    diagnostic_text = " ".join(
-        str(error)
-        for row in diagnostics
-        if isinstance(row, Mapping)
-        for error in row.get("precheck_errors", []) or []
-    ).lower()
-    return "source-theorem target drift" in diagnostic_text
 
 
 def _feedback_suggests_pseudo_formalization(
@@ -3097,18 +2964,11 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
             )
         ):
             return role_errors
-        if (
-            _feedback_has_source_theorem_target_drift(environment_feedback)
-            and _has_explicit_source_theorem_formal_gap_target(formal_targets)
-            and not pending_source_to_bridge_premise_names
-        ):
-            return role_errors
         unbound_gap_synthesis = packet.get(
             "source_theorem_formal_gap_synthesis_skipped", {}
         )
         if (
-            _feedback_has_source_theorem_target_drift(environment_feedback)
-            and isinstance(unbound_gap_synthesis, Mapping)
+            isinstance(unbound_gap_synthesis, Mapping)
             and unbound_gap_synthesis.get("reason")
             == "source_theorem_gap_requires_explicit_agent_target"
             and not pending_source_to_bridge_premise_names
@@ -3123,7 +2983,6 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
     errors: list[str] = list(role_errors)
     for row in candidate_targets:
         target_id = str(row.get("id", "") or "<unnamed>")
-        source = str(row.get("lean_statement_sketch", "") or "")
         expected_status = str(row.get("expected_status", "") or "")
         if expected_status != "NEEDS_KERNEL_CHECK":
             errors.append(
@@ -3138,12 +2997,6 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
                 "capability_eval formal target "
                 f"{target_id} must provide candidate_lean_declaration for the "
                 "exact declaration emitted by lean_statement_sketch"
-            )
-        placeholder_error = _lean_statement_trust_boundary_error(source)
-        if placeholder_error:
-            errors.append(
-                "capability_eval formal target "
-                f"{target_id} Lean sketch {placeholder_error}"
             )
     if pending_source_to_bridge_premise_names:
         candidate_premise_names = {
@@ -3174,18 +3027,11 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
             or ",".join(str(value) for value in row.get("premise_names", []) or [])
             or "<unnamed>"
         )
-        source = _source_to_bridge_candidate_lean_source(row)
         expected_status = str(row.get("expected_status", "") or "")
         if expected_status != "NEEDS_KERNEL_CHECK":
             errors.append(
                 "capability_eval source-to-bridge candidate "
                 f"{premise_id} must set expected_status=NEEDS_KERNEL_CHECK"
-            )
-        placeholder_error = _lean_statement_trust_boundary_error(source)
-        if placeholder_error:
-            errors.append(
-                "capability_eval source-to-bridge candidate "
-                f"{premise_id} Lean sketch {placeholder_error}"
             )
     return errors
 
@@ -3817,33 +3663,16 @@ def _normalize_formalizer_packet(
     proof_bank_runtime_memory_summary: Mapping[str, Any] | None = None,
     environment_feedback: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    body = dict(payload)
-    _normalize_formalizer_candidate_lean_source_aliases(body)
-    _normalize_required_formalizer_scaffolding_fields(body)
-    _enrich_source_to_bridge_candidates_from_memory(
-        body,
-        proof_bank_runtime_memory_summary or {},
-    )
-    _enrich_source_to_bridge_candidates_from_packet_requests(body)
-    _quarantine_unbound_source_to_bridge_candidates(
-        body,
-        proof_bank_runtime_memory_summary or {},
-    )
-    _drop_source_to_bridge_candidates_with_uninstantiated_adapter_binders(body)
-    _drop_semantically_unanchored_source_to_bridge_candidates(body)
-    _drop_phantom_source_to_bridge_next_actions(body)
-    _ensure_diagnostic_helper_bridge_or_blocker_packet(
-        body,
-        proof_bank_runtime_memory_summary or {},
-    )
-    _normalize_pseudo_formal_proof_packets(body)
-    _bind_formal_target_role_provenance(body)
-    _fail_closed_placeholder_lean_candidates(
-        body,
-        environment_feedback or {},
-        proof_bank_runtime_memory_summary or {},
-    )
-    _normalize_executable_candidate_expected_statuses(body)
+    del proof_bank_runtime_memory_summary, environment_feedback
+    body = deepcopy(dict(payload))
+    pseudo_formal_rows = body.get("pseudo_formal_proof_packets")
+    if isinstance(pseudo_formal_rows, list):
+        body["pseudo_formal_proof_packets"] = [
+            bind_model_pseudo_formal_packet_runtime_envelope(row)
+            if isinstance(row, Mapping)
+            else deepcopy(row)
+            for row in pseudo_formal_rows
+        ]
     body["proof_evidence_status"] = FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE
     body["proof_evidence_boundary"] = FORMALIZER_BOUNDARY
     body["kernel_verified"] = False
@@ -3888,448 +3717,6 @@ def _normalize_formalizer_packet(
     }
 
 
-def _normalize_pseudo_formal_proof_packets(packet: dict[str, Any]) -> None:
-    rows = packet.get("pseudo_formal_proof_packets", [])
-    if rows in (None, "", [], {}):
-        packet["pseudo_formal_proof_packets"] = []
-        return
-    if not isinstance(rows, list | tuple):
-        packet["pseudo_formal_proof_packets"] = []
-        packet["pseudo_formal_proof_packets_normalizer_status"] = (
-            "dropped_non_list_container"
-        )
-        return
-    normalized_rows = [
-        normalize_pseudo_formal_packet(row)
-        for row in rows
-        if isinstance(row, Mapping)
-    ]
-    if len(normalized_rows) != len(rows):
-        packet["pseudo_formal_proof_packets_normalizer_status"] = (
-            "dropped_non_object_rows"
-        )
-    elif normalized_rows:
-        packet["pseudo_formal_proof_packets_normalizer_status"] = (
-            "normalized_non_proof_boundary"
-        )
-    packet["pseudo_formal_proof_packets"] = normalized_rows
-    validation_errors = []
-    for index, row in enumerate(normalized_rows):
-        errors = validate_pseudo_formal_packet(row)
-        if errors:
-            validation_errors.append(
-                {
-                    "index": index,
-                    "packet_id": row.get("packet_id", ""),
-                    "errors": errors,
-                }
-            )
-    if validation_errors:
-        packet["pseudo_formal_proof_packet_validation_errors"] = validation_errors
-
-
-def _normalize_required_formalizer_scaffolding_fields(packet: dict[str, Any]) -> None:
-    """Normalize optional routing fields without fabricating work or findings."""
-
-    normalized: list[str] = []
-    if (
-        "lemma_dependency_plan" not in packet
-        or packet.get("lemma_dependency_plan") in (None, "", {})
-    ):
-        packet["lemma_dependency_plan"] = []
-        normalized.append("lemma_dependency_plan")
-    if "retrieval_queries" not in packet or packet.get("retrieval_queries") in (
-        None,
-        "",
-        {},
-    ):
-        packet["retrieval_queries"] = []
-        normalized.append("retrieval_queries")
-    if "proof_search_plan" not in packet or packet.get("proof_search_plan") in (
-        None,
-        "",
-        [],
-    ):
-        packet["proof_search_plan"] = {}
-        normalized.append("proof_search_plan")
-    if "gap_taxonomy" not in packet or packet.get("gap_taxonomy") in (
-        None,
-        "",
-        {},
-    ):
-        packet["gap_taxonomy"] = []
-        normalized.append("gap_taxonomy")
-    if "critic_findings" not in packet or packet.get("critic_findings") in (
-        None,
-        "",
-        {},
-    ):
-        packet["critic_findings"] = []
-        normalized.append("critic_findings")
-    if "next_actions" not in packet or packet.get("next_actions") in (
-        None,
-        "",
-        {},
-    ):
-        packet["next_actions"] = []
-        normalized.append("next_actions")
-    if not normalized:
-        return
-
-    existing = packet.get("normalized_missing_required_scaffolding_fields", [])
-    if not isinstance(existing, list):
-        existing = []
-    packet["normalized_missing_required_scaffolding_fields"] = [
-        *existing,
-        *normalized,
-    ]
-    packet["scaffolding_normalizer_proof_evidence_status"] = (
-        "EMPTY_OPTIONAL_ROUTING_FIELDS_NOT_PROOF_EVIDENCE"
-    )
-
-
-def _normalize_formalizer_candidate_lean_source_aliases(packet: dict[str, Any]) -> None:
-    """Canonicalize harmless Lean-source field aliases before validation.
-
-    This does not make a candidate executable or proved. It only maps common LLM
-    schema aliases onto the fields that the runtime validators and materializers
-    already require.
-    """
-
-    normalized: list[dict[str, Any]] = []
-    for index, row in enumerate(packet.get("formal_targets", []) or [], start=1):
-        if not isinstance(row, dict):
-            continue
-        if str(row.get("lean_statement_sketch", "") or "").strip():
-            continue
-        for alias_key in (
-            "lean_source",
-            "lean_code",
-            "candidate_lean_source",
-            "formal_statement_lean",
-            "lean_theorem",
-            "theorem_lean_source",
-            "statement",
-            "lean_statement",
-        ):
-            alias_value = str(row.get(alias_key, "") or "").strip()
-            if not alias_value:
-                continue
-            row["lean_statement_sketch"] = alias_value
-            row["lean_statement_sketch_normalized_from"] = alias_key
-            normalized.append(
-                {
-                    "channel": "formal_targets",
-                    "index": index,
-                    "id": str(row.get("id", "") or ""),
-                    "normalized_from": alias_key,
-                    "lean_source_fingerprint": stable_hash(alias_value)[:20],
-                }
-            )
-            break
-
-    for index, row in enumerate(
-        packet.get("source_to_bridge_premise_derivation_candidates", []) or [],
-        start=1,
-    ):
-        if not isinstance(row, dict):
-            continue
-        if str(row.get("premise_derivation_candidate_lean_source", "") or "").strip():
-            continue
-        for alias_key in (
-            "lean_source",
-            "lean_code",
-            "candidate_lean_source",
-            "lean_statement_sketch",
-            "premise_candidate_lean_source",
-            "premise_lean_source",
-            "source",
-        ):
-            alias_value = str(row.get(alias_key, "") or "").strip()
-            if not alias_value:
-                continue
-            row["premise_derivation_candidate_lean_source"] = alias_value
-            row["premise_derivation_candidate_lean_source_normalized_from"] = alias_key
-            normalized.append(
-                {
-                    "channel": "source_to_bridge_premise_derivation_candidates",
-                    "index": index,
-                    "premise_name": str(row.get("premise_name", "") or ""),
-                    "normalized_from": alias_key,
-                    "lean_source_fingerprint": stable_hash(alias_value)[:20],
-                }
-            )
-            break
-
-    if not normalized:
-        return
-    existing = packet.get("normalized_lean_source_aliases", [])
-    if not isinstance(existing, list):
-        existing = []
-    packet["normalized_lean_source_aliases"] = [*existing, *normalized]
-    packet["lean_source_alias_normalizer_proof_evidence_status"] = (
-        "LEAN_SOURCE_ALIAS_NORMALIZED_NOT_PROOF_EVIDENCE"
-    )
-
-
-def _normalize_executable_candidate_expected_statuses(
-    packet: dict[str, Any],
-) -> None:
-    """Generated Lean is executable work and must be sent through kernel checking."""
-
-    normalized: list[dict[str, Any]] = []
-    for index, row in enumerate(packet.get("formal_targets", []) or [], start=1):
-        if not isinstance(row, dict):
-            continue
-        lean_source = str(row.get("lean_statement_sketch", "") or "")
-        if not lean_source.strip():
-            continue
-        if _lean_source_is_descriptive_placeholder(lean_source):
-            continue
-        previous = str(row.get("expected_status", "") or "")
-        if previous == "NEEDS_KERNEL_CHECK":
-            continue
-        if previous not in {"", "OPEN", "FORMAL_GAP"}:
-            continue
-        row["expected_status"] = "NEEDS_KERNEL_CHECK"
-        row["expected_status_normalized_from"] = previous or "<missing>"
-        row["expected_status_normalizer_status"] = (
-            "EXECUTABLE_LEAN_CANDIDATE_REQUIRES_KERNEL_CHECK"
-        )
-        row.setdefault(
-            "proof_evidence_status",
-            "FORMALIZER_EXECUTABLE_CANDIDATE_STATUS_NORMALIZED_NOT_PROOF_EVIDENCE",
-        )
-        normalized.append(
-            {
-                "channel": "formal_targets",
-                "index": index,
-                "id": str(row.get("id", "") or ""),
-                "previous_expected_status": previous or "<missing>",
-                "new_expected_status": "NEEDS_KERNEL_CHECK",
-                "lean_source_fingerprint": stable_hash(lean_source)[:20],
-            }
-        )
-
-    for index, row in enumerate(
-        packet.get("source_to_bridge_premise_derivation_candidates", []) or [],
-        start=1,
-    ):
-        if not isinstance(row, dict):
-            continue
-        lean_source = _source_to_bridge_candidate_lean_source(row)
-        if not lean_source.strip():
-            continue
-        if _lean_source_is_descriptive_placeholder(lean_source):
-            continue
-        previous = str(row.get("expected_status", "") or "")
-        if previous == "NEEDS_KERNEL_CHECK":
-            continue
-        if previous not in {"", "OPEN", "FORMAL_GAP"}:
-            continue
-        row["expected_status"] = "NEEDS_KERNEL_CHECK"
-        row["expected_status_normalized_from"] = previous or "<missing>"
-        row["expected_status_normalizer_status"] = (
-            "EXECUTABLE_SOURCE_TO_BRIDGE_CANDIDATE_REQUIRES_KERNEL_CHECK"
-        )
-        row.setdefault(
-            "proof_evidence_status",
-            "FORMALIZER_EXECUTABLE_CANDIDATE_STATUS_NORMALIZED_NOT_PROOF_EVIDENCE",
-        )
-        normalized.append(
-            {
-                "channel": "source_to_bridge_premise_derivation_candidates",
-                "index": index,
-                "premise_name": str(row.get("premise_name", "") or ""),
-                "previous_expected_status": previous or "<missing>",
-                "new_expected_status": "NEEDS_KERNEL_CHECK",
-                "lean_source_fingerprint": stable_hash(lean_source)[:20],
-            }
-        )
-
-    if not normalized:
-        return
-
-    existing = packet.get("normalized_executable_candidate_expected_statuses", [])
-    if not isinstance(existing, list):
-        existing = []
-    packet["normalized_executable_candidate_expected_statuses"] = [
-        *existing,
-        *normalized,
-    ]
-    findings = packet.get("critic_findings", [])
-    if not isinstance(findings, list):
-        findings = []
-    findings.append(
-        {
-            "critic": "local_formalizer_packet_normalizer",
-            "finding": (
-                "Normalized Lean-bearing formalizer candidates to "
-                "expected_status=NEEDS_KERNEL_CHECK. FORMAL_GAP is reserved "
-                "for empty, non-executable gap records."
-            ),
-            "proof_evidence_status": (
-                "EXECUTABLE_CANDIDATE_STATUS_NORMALIZATION_NOT_PROOF_EVIDENCE"
-            ),
-        }
-    )
-    packet["critic_findings"] = findings
-
-
-def _normalize_source_theorem_target_shape_drift(
-    packet: dict[str, Any],
-    environment_feedback: Mapping[str, Any],
-) -> None:
-    """Deprecated: independent semantic review owns task-target alignment."""
-
-    del packet, environment_feedback
-
-
-def _drop_semantically_unanchored_source_to_bridge_candidates(
-    packet: dict[str, Any],
-) -> None:
-    candidates = packet.get("source_to_bridge_premise_derivation_candidates", [])
-    if not isinstance(candidates, list) or not candidates:
-        return
-
-    kept: list[Any] = []
-    dropped: list[dict[str, Any]] = []
-    for index, candidate in enumerate(candidates, start=1):
-        if not isinstance(candidate, Mapping):
-            kept.append(candidate)
-            continue
-        candidate_source = _source_to_bridge_candidate_lean_source(candidate)
-        missing_anchor_names = _source_to_bridge_candidate_missing_anchor_references(
-            candidate,
-            candidate_source,
-        )
-        if not missing_anchor_names:
-            kept.append(candidate)
-            continue
-        premise_names = _source_to_bridge_candidate_premise_names(candidate)
-        dropped.append(
-            {
-                "index": index,
-                "premise_name": str(candidate.get("premise_name", "") or ""),
-                "premise_names": premise_names,
-                "missing_required_semantic_anchor_reference_names": list(
-                    missing_anchor_names
-                ),
-                "lean_source_fingerprint": stable_hash(candidate_source)[:20],
-                "proof_evidence_status": (
-                    "SEMANTICALLY_UNANCHORED_SOURCE_TO_BRIDGE_CANDIDATE_DROPPED_NOT_PROOF_EVIDENCE"
-                ),
-            }
-        )
-
-    if not dropped:
-        return
-
-    packet["source_to_bridge_premise_derivation_candidates"] = kept
-    existing = packet.get(
-        "dropped_semantic_anchor_source_to_bridge_candidates",
-        [],
-    )
-    if not isinstance(existing, list):
-        existing = []
-    packet["dropped_semantic_anchor_source_to_bridge_candidates"] = [
-        *existing,
-        *dropped,
-    ]
-
-    blocked_premise_names = list(
-        dict.fromkeys(
-            name
-            for row in dropped
-            for name in (
-                row.get("premise_names", [])
-                if isinstance(row.get("premise_names", []), list)
-                else []
-            )
-            if str(name).strip()
-        )
-    )
-    missing_anchor_names = list(
-        dict.fromkeys(
-            str(name).strip()
-            for row in dropped
-            for name in row.get(
-                "missing_required_semantic_anchor_reference_names",
-                [],
-            )
-            if str(name).strip()
-        )
-    )
-    gap_rows = packet.get("gap_taxonomy", [])
-    if not isinstance(gap_rows, list):
-        gap_rows = []
-    gap_rows.append(
-        {
-            "gap": (
-                "Dropped executable source-to-bridge premise candidate(s) "
-                "because their Lean source did not reference every required "
-                "semantic anchor outside comments. Emit no executable candidate "
-                "until the anchors can be used non-vacuously."
-            ),
-            "kind": "source_to_bridge_semantic_anchor_blocker",
-            "next_owner": "TheoryDeveloper/Formalizer/ProofEngineer",
-            "premise_names": blocked_premise_names,
-            "missing_required_semantic_anchor_reference_names": missing_anchor_names,
-            "proof_evidence_status": (
-                "SOURCE_TO_BRIDGE_SEMANTIC_ANCHOR_BLOCKER_NOT_PROOF_EVIDENCE"
-            ),
-        }
-    )
-    packet["gap_taxonomy"] = gap_rows
-
-    actions = packet.get("next_actions", [])
-    if not isinstance(actions, list):
-        actions = []
-    action_text = " ".join(
-        " ".join(
-            str(action.get(key, "") or "")
-            for key in ("owner_agent", "action", "acceptance_gate")
-        ).lower()
-        for action in actions
-        if isinstance(action, Mapping)
-    )
-    if "semantic anchor" not in action_text:
-        actions.append(
-            {
-                "owner_agent": "TheoryDeveloper/Formalizer/ProofEngineer",
-                "action": (
-                    "Repair the source-to-bridge premise derivation by using "
-                    "the required semantic anchors non-vacuously, or keep the "
-                    "premise as a semantic-anchor blocker without executable "
-                    "Lean."
-                ),
-                "acceptance_gate": (
-                    "a later source-to-bridge candidate references every required "
-                    "semantic anchor outside comments and passes local Lean/AXLE"
-                ),
-            }
-        )
-    packet["next_actions"] = actions
-
-    findings = packet.get("critic_findings", [])
-    if not isinstance(findings, list):
-        findings = []
-    findings.append(
-        {
-            "critic": "local_formalizer_packet_normalizer",
-            "finding": (
-                "Dropped source-to-bridge premise candidates that omitted "
-                "required semantic-anchor references, converting them to "
-                "non-executable semantic blockers instead of proof work."
-            ),
-            "proof_evidence_status": (
-                "SOURCE_TO_BRIDGE_SEMANTIC_ANCHOR_BLOCKER_NOT_PROOF_EVIDENCE"
-            ),
-        }
-    )
-    packet["critic_findings"] = findings
-
-
 def _packet_has_source_to_bridge_semantic_anchor_blocker(
     packet: Mapping[str, Any],
     premise_names: Sequence[str] = (),
@@ -4357,840 +3744,8 @@ def _packet_has_source_to_bridge_semantic_anchor_blocker(
     return bool(blocker_premises) and wanted.issubset(blocker_premises)
 
 
-def _lean_source_is_descriptive_placeholder(source: str) -> bool:
-    return bool(re.search(r"\.\.\.", str(source or "")))
 
 
-def _feedback_requests_placeholder_fail_closed(
-    environment_feedback: Mapping[str, Any],
-) -> bool:
-    if not isinstance(environment_feedback, Mapping):
-        return False
-    local_lean_repair_contract = (
-        environment_feedback.get("local_lean_repair_contract", {})
-        if isinstance(environment_feedback.get("local_lean_repair_contract", {}), Mapping)
-        else {}
-    )
-    if bool(local_lean_repair_contract.get("repeated_syntax_failure", False)):
-        return True
-    input_summary = (
-        environment_feedback.get("input_summary", {})
-        if isinstance(environment_feedback.get("input_summary", {}), Mapping)
-        else {}
-    )
-    failure_classification = str(
-        environment_feedback.get("failure_classification", "")
-        or input_summary.get("failure_classification", "")
-        or ""
-    )
-    if failure_classification != "formalizer_packet_validation_failed":
-        return False
-    validation_errors = [
-        str(error)
-        for error in (
-            environment_feedback.get("validation_errors", [])
-            or input_summary.get("validation_errors", [])
-            or []
-        )
-        if str(error).strip()
-    ]
-    validation_text = " ".join(validation_errors).lower()
-    has_placeholder_failure = any(
-        marker in validation_text
-        for marker in (
-            "lean sorry placeholder",
-            "lean admit placeholder",
-            "lean axiom declaration",
-            "unsafe lean declaration",
-            "admit",
-            "sorry",
-        )
-    )
-    if not has_placeholder_failure:
-        return False
-    retry_depth = _feedback_int(
-        environment_feedback.get("formalizer_packet_repair_retry_depth", 0)
-        or input_summary.get("formalizer_packet_repair_retry_depth", 0)
-    )
-    attempts = _feedback_int(
-        environment_feedback.get("attempts", 0) or input_summary.get("attempts", 0)
-    )
-    repeated = bool(
-        environment_feedback.get("repeated_formalizer_packet_validation_failure")
-        or input_summary.get("repeated_formalizer_packet_validation_failure")
-        or retry_depth > 0
-        or attempts > 1
-    )
-    return repeated or _feedback_has_source_theorem_target_drift(environment_feedback)
-
-
-def _fail_closed_placeholder_lean_candidates(
-    packet: dict[str, Any],
-    environment_feedback: Mapping[str, Any],
-    proof_bank_runtime_memory_summary: Mapping[str, Any] | None = None,
-) -> None:
-    placeholder_fail_closed_requested = _feedback_requests_placeholder_fail_closed(
-        environment_feedback
-    )
-    required_pf_bv_route_available = (
-        _feedback_requires_pseudo_formalization(
-            environment_feedback,
-            proof_bank_runtime_memory_summary or {},
-        )
-        and not _validate_required_pseudo_formalization_packet(
-            packet,
-            environment_feedback=environment_feedback,
-            proof_bank_runtime_memory_summary=(
-                proof_bank_runtime_memory_summary or {}
-            ),
-        )
-    )
-    if not (placeholder_fail_closed_requested or required_pf_bv_route_available):
-        return
-    converted_targets: list[dict[str, Any]] = []
-    for row in packet.get("formal_targets", []) or []:
-        if not isinstance(row, dict):
-            continue
-        lean_source = str(row.get("lean_statement_sketch", "") or "")
-        placeholder_error = _lean_statement_trust_boundary_error(lean_source)
-        if not placeholder_error:
-            continue
-        previous_role = _formal_target_role(row)
-        provenance = row.get("source_theorem_target_provenance", {})
-        target_known = _source_theorem_target_known(provenance)
-        normalized_role = previous_role
-        if (
-            previous_role == FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE
-            or previous_role == FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP
-            or target_known is True
-        ):
-            normalized_role = FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP
-        elif previous_role == FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT or target_known is False:
-            normalized_role = FORMAL_TARGET_ROLE_HELPER_OR_SUPPORT
-        converted_targets.append(
-            {
-                "id": str(row.get("id", "") or ""),
-                "previous_formal_target_role": previous_role,
-                "new_formal_target_role": normalized_role,
-                "previous_expected_status": str(
-                    row.get("expected_status", "") or ""
-                ),
-                "placeholder_error": placeholder_error,
-                "lean_source_fingerprint": stable_hash(lean_source)[:20],
-                "proof_evidence_status": (
-                    "PLACEHOLDER_LEAN_SKETCH_REMOVED_NOT_PROOF_EVIDENCE"
-                ),
-            }
-        )
-        row["expected_status"] = "FORMAL_GAP"
-        row["lean_statement_sketch"] = ""
-        row["candidate_lean_declaration"] = ""
-        if normalized_role:
-            row["formal_target_role"] = normalized_role
-        row["proof_evidence_status"] = (
-            "FORMAL_GAP_PLACEHOLDER_LEAN_SKETCH_REMOVED_NOT_PROOF_EVIDENCE"
-        )
-        row["normalizer_status"] = (
-            "FAIL_CLOSED_PLACEHOLDER_LEAN_SKETCH_TO_FORMAL_GAP"
-        )
-
-    source_to_bridge_candidates = packet.get(
-        "source_to_bridge_premise_derivation_candidates",
-        [],
-    )
-    dropped_source_to_bridge: list[dict[str, Any]] = []
-    kept_source_to_bridge: list[Any] = []
-    if isinstance(source_to_bridge_candidates, list):
-        for index, candidate in enumerate(source_to_bridge_candidates, start=1):
-            if not isinstance(candidate, Mapping):
-                kept_source_to_bridge.append(candidate)
-                continue
-            candidate_source = _source_to_bridge_candidate_lean_source(candidate)
-            placeholder_error = _lean_statement_trust_boundary_error(
-                candidate_source
-            )
-            if not placeholder_error:
-                kept_source_to_bridge.append(candidate)
-                continue
-            dropped_source_to_bridge.append(
-                {
-                    "index": index,
-                    "premise_name": str(candidate.get("premise_name", "") or ""),
-                    "placeholder_error": placeholder_error,
-                    "lean_source_fingerprint": stable_hash(candidate_source)[:20],
-                    "proof_evidence_status": (
-                        "PLACEHOLDER_SOURCE_TO_BRIDGE_CANDIDATE_DROPPED_NOT_PROOF_EVIDENCE"
-                    ),
-                }
-            )
-        if dropped_source_to_bridge:
-            packet["source_to_bridge_premise_derivation_candidates"] = (
-                kept_source_to_bridge
-            )
-
-    if not converted_targets and not dropped_source_to_bridge:
-        return
-
-    _bind_formal_target_role_provenance(packet)
-
-    formal_targets = [
-        row
-        for row in packet.get("formal_targets", []) or []
-        if isinstance(row, Mapping)
-    ]
-    source_theorem_target_drift = _feedback_has_source_theorem_target_drift(
-        environment_feedback
-    )
-    if (
-        source_theorem_target_drift
-        and not _has_explicit_source_theorem_formal_gap_target(formal_targets)
-    ):
-        packet["source_theorem_formal_gap_synthesis_skipped"] = {
-            "reason": "source_theorem_gap_requires_explicit_agent_target",
-            "proof_evidence_status": (
-                "SOURCE_THEOREM_GAP_NOT_SYNTHESIZED_NOT_PROOF_EVIDENCE"
-            ),
-        }
-
-    gap_rows = packet.get("gap_taxonomy", [])
-    if not isinstance(gap_rows, list):
-        gap_rows = []
-    gap_rows.append(
-        {
-            "gap": (
-                "placeholder Lean proof sketches were fail-closed to FORMAL_GAP"
-            ),
-            "kind": "proof_hole_placeholder_removed",
-            "next_owner": "Formalizer",
-            "proof_evidence_status": (
-                "PLACEHOLDER_LEAN_SKETCH_REMOVED_NOT_PROOF_EVIDENCE"
-            ),
-        }
-    )
-    packet["gap_taxonomy"] = gap_rows
-
-    if converted_targets:
-        packet["fail_closed_placeholder_formal_targets"] = converted_targets
-    if dropped_source_to_bridge:
-        existing_dropped = packet.get(
-            "dropped_placeholder_source_to_bridge_candidates",
-            [],
-        )
-        if not isinstance(existing_dropped, list):
-            existing_dropped = []
-        packet["dropped_placeholder_source_to_bridge_candidates"] = [
-            *existing_dropped,
-            *dropped_source_to_bridge,
-        ]
-
-    findings = packet.get("critic_findings", [])
-    if not isinstance(findings, list):
-        findings = []
-    findings.append(
-        {
-            "critic": "local_formalizer_packet_normalizer",
-            "finding": (
-                "Removed placeholder Lean proof sketches after repeated packet "
-                "validation feedback and converted the affected executable work "
-                "to explicit FORMAL_GAP/non-executable gap records."
-            ),
-            "proof_evidence_status": (
-                "PLACEHOLDER_LEAN_SKETCH_REMOVED_NOT_PROOF_EVIDENCE"
-            ),
-        }
-    )
-    packet["critic_findings"] = findings
-
-
-def _source_to_bridge_candidate_names(packet: Mapping[str, Any]) -> set[str]:
-    candidate_names: set[str] = set()
-    for row in packet.get("source_to_bridge_premise_derivation_candidates", []) or []:
-        if not isinstance(row, Mapping):
-            continue
-        for key in (
-            "candidate_id",
-            "id",
-            "premise_name",
-            "premise_candidate_declaration_name",
-            "target_lean_declaration",
-        ):
-            value = str(row.get(key, "") or "").strip()
-            if value:
-                candidate_names.add(value.lower())
-        premise_names = row.get("premise_names", [])
-        if isinstance(premise_names, list | tuple | set):
-            candidate_names.update(
-                str(value).strip().lower()
-                for value in premise_names
-                if str(value).strip()
-            )
-        declaration_names = row.get("premise_candidate_declaration_names", [])
-        if isinstance(declaration_names, list | tuple | set):
-            candidate_names.update(
-                str(value).strip().lower()
-                for value in declaration_names
-                if str(value).strip()
-            )
-    return candidate_names
-
-
-def _source_to_bridge_next_action_is_phantom(
-    action: Mapping[str, Any],
-    *,
-    has_candidates: bool,
-    candidate_names: set[str],
-) -> bool:
-    action_text = " ".join(
-        str(action.get(key, "") or "")
-        for key in ("owner_agent", "action", "acceptance_gate")
-    ).lower()
-    if "source_to_bridge_premise_derivation_candidates" not in action_text:
-        return False
-    requests_execution = any(
-        marker in action_text
-        for marker in (
-            "run ",
-            "check",
-            "compile",
-            "verify",
-            "promote",
-            "kernel",
-            "local lean",
-            "axle",
-        )
-    )
-    if not requests_execution:
-        return False
-    if not has_candidates:
-        return True
-    return " entry " in action_text and not any(
-        name and name in action_text for name in candidate_names
-    )
-
-
-def _drop_phantom_source_to_bridge_next_actions(packet: dict[str, Any]) -> None:
-    actions = packet.get("next_actions", [])
-    if not isinstance(actions, list) or not actions:
-        return
-    candidates = [
-        row
-        for row in packet.get("source_to_bridge_premise_derivation_candidates", [])
-        or []
-        if isinstance(row, Mapping)
-    ]
-    candidate_names = _source_to_bridge_candidate_names(packet)
-    kept: list[Any] = []
-    dropped: list[dict[str, Any]] = []
-    for index, action in enumerate(actions, start=1):
-        if not isinstance(action, Mapping):
-            kept.append(action)
-            continue
-        if _source_to_bridge_next_action_is_phantom(
-            action,
-            has_candidates=bool(candidates),
-            candidate_names=candidate_names,
-        ):
-            dropped.append(
-                {
-                    "index": index,
-                    "owner_agent": str(action.get("owner_agent", "") or ""),
-                    "action": str(action.get("action", "") or "")[:500],
-                    "reason": (
-                        "next action requested execution of absent or unmatched "
-                        "source-to-bridge premise candidate work"
-                    ),
-                }
-            )
-            continue
-        kept.append(action)
-    if not dropped:
-        return
-    if not kept:
-        kept = [
-            {
-                "owner_agent": "Formalizer",
-                "action": (
-                    "Record the missing premise-derivation work as a "
-                    "non-executable gap/dependency until a concrete candidate "
-                    "object with source-binding metadata is emitted."
-                ),
-                "acceptance_gate": (
-                    "gap_taxonomy or lemma_dependency_plan names the missing "
-                    "source-binding metadata"
-                ),
-            }
-        ]
-    packet["next_actions"] = kept
-    existing_dropped = packet.get(
-        "dropped_phantom_source_to_bridge_next_actions",
-        [],
-    )
-    if not isinstance(existing_dropped, list):
-        existing_dropped = []
-    packet["dropped_phantom_source_to_bridge_next_actions"] = [
-        *existing_dropped,
-        *dropped,
-    ]
-    findings = packet.get("critic_findings", [])
-    if not isinstance(findings, list):
-        findings = []
-    findings.append(
-        {
-            "critic": "local_formalizer_packet_normalizer",
-            "finding": (
-                "Dropped phantom next_actions that requested runtime execution "
-                "of absent source-to-bridge premise candidates. The dropped "
-                "actions are not proof evidence and were converted into a "
-                "non-executable gap/dependency action."
-            ),
-            "proof_evidence_status": "DROPPED_PHANTOM_NEXT_ACTION_NOT_PROOF_EVIDENCE",
-        }
-    )
-    packet["critic_findings"] = findings
-
-
-def _quarantine_unbound_source_to_bridge_candidates(
-    packet: dict[str, Any],
-    proof_memory_summary: Mapping[str, Any],
-) -> None:
-    """Drop unrequested source-to-bridge candidates before they block generic Lean checks."""
-
-    candidates = packet.get("source_to_bridge_premise_derivation_candidates", [])
-    if not isinstance(candidates, list) or not candidates:
-        return
-    shortcuts = _source_to_bridge_candidate_request_shortcuts(
-        _compact_proof_bank_runtime_memory_summary(proof_memory_summary)
-    )
-    if shortcuts:
-        return
-    kept: list[Any] = []
-    dropped: list[dict[str, Any]] = []
-    for index, candidate in enumerate(candidates, start=1):
-        if not isinstance(candidate, Mapping):
-            kept.append(candidate)
-            continue
-        if _source_to_bridge_candidate_has_source_binding_contract(candidate):
-            kept.append(candidate)
-            continue
-        premise_name = str(candidate.get("premise_name", "") or "").strip()
-        premise_names = [
-            str(value).strip()
-            for value in candidate.get("premise_names", []) or []
-            if str(value).strip()
-        ] if isinstance(candidate.get("premise_names", []), list | tuple | set) else []
-        dropped.append(
-            {
-                "index": index,
-                "premise_name": premise_name,
-                "premise_names": premise_names,
-                "reason": (
-                    "source-to-bridge premise candidate omitted because the "
-                    "runtime memory did not expose a matching source-binding "
-                    "candidate request; this is not proof evidence"
-                ),
-            }
-        )
-    if not dropped:
-        return
-    packet["source_to_bridge_premise_derivation_candidates"] = kept
-    existing_dropped = packet.get(
-        "dropped_source_to_bridge_premise_derivation_candidates",
-        [],
-    )
-    if not isinstance(existing_dropped, list):
-        existing_dropped = []
-    packet["dropped_source_to_bridge_premise_derivation_candidates"] = [
-        *existing_dropped,
-        *dropped,
-    ]
-    findings = packet.get("critic_findings", [])
-    if not isinstance(findings, list):
-        findings = []
-    findings.append(
-        {
-            "critic": "local_formalizer_packet_normalizer",
-            "finding": (
-                "Dropped source_to_bridge_premise_derivation_candidates that "
-                "lacked source-binding metadata while no runtime request "
-                "shortcut was available. Use ordinary formal_targets for "
-                "generic Lean candidate checks, or wait for a source-to-bridge "
-                "ProofEngineer request before emitting premise candidates."
-            ),
-            "proof_evidence_status": "DROPPED_UNBOUND_SOURCE_TO_BRIDGE_CANDIDATE_NOT_PROOF_EVIDENCE",
-        }
-    )
-    packet["critic_findings"] = findings
-
-
-def _drop_source_to_bridge_candidates_with_uninstantiated_adapter_binders(
-    packet: dict[str, Any],
-) -> None:
-    """Quarantine candidates that turn required adapter objects into assumptions."""
-
-    candidates = packet.get("source_to_bridge_premise_derivation_candidates", [])
-    if not isinstance(candidates, list) or not candidates:
-        return
-    kept: list[Any] = []
-    dropped: list[dict[str, Any]] = []
-    for index, candidate in enumerate(candidates, start=1):
-        if not isinstance(candidate, Mapping):
-            kept.append(candidate)
-            continue
-        candidate_source = _source_to_bridge_candidate_lean_source(candidate)
-        uninstantiated_adapter_binders = (
-            _source_to_bridge_candidate_uninstantiated_adapter_object_binders(
-                candidate,
-                candidate_source,
-            )
-        )
-        if not uninstantiated_adapter_binders:
-            kept.append(candidate)
-            continue
-        premise_names = (
-            [
-                str(value).strip()
-                for value in candidate.get("premise_names", []) or []
-                if str(value).strip()
-            ]
-            if isinstance(candidate.get("premise_names", []), list | tuple | set)
-            else []
-        )
-        dropped.append(
-            {
-                "index": index,
-                "premise_name": str(candidate.get("premise_name", "") or ""),
-                "premise_names": premise_names,
-                "uninstantiated_adapter_object_binders": list(
-                    uninstantiated_adapter_binders
-                ),
-                "reason": (
-                    "source-to-bridge premise candidate omitted because it used "
-                    "adapter objects requiring source instantiation as theorem "
-                    "binders instead of deriving them from exact source binders; "
-                    "this is not proof evidence"
-                ),
-                "failure_classification": (
-                    "source_to_bridge_candidate_uninstantiated_adapter_objects"
-                ),
-            }
-        )
-    if not dropped:
-        return
-    packet["source_to_bridge_premise_derivation_candidates"] = kept
-    existing_dropped = packet.get(
-        "dropped_source_to_bridge_premise_derivation_candidates",
-        [],
-    )
-    if not isinstance(existing_dropped, list):
-        existing_dropped = []
-    packet["dropped_source_to_bridge_premise_derivation_candidates"] = [
-        *existing_dropped,
-        *dropped,
-    ]
-    findings = packet.get("critic_findings", [])
-    if not isinstance(findings, list):
-        findings = []
-    findings.append(
-        {
-            "critic": "local_formalizer_packet_normalizer",
-            "finding": (
-                "Dropped source_to_bridge_premise_derivation_candidates that "
-                "introduced adapter objects as fresh theorem binders. The "
-                "candidate must derive those objects from exact source binders "
-                "or remain a formal blocker."
-            ),
-            "proof_evidence_status": (
-                "DROPPED_UNINSTANTIATED_SOURCE_TO_BRIDGE_CANDIDATE_NOT_PROOF_EVIDENCE"
-            ),
-        }
-    )
-    packet["critic_findings"] = findings
-
-
-def _diagnostic_helper_bridge_mode_active(
-    proof_memory_summary: Mapping[str, Any],
-) -> bool:
-    mode = str(
-        proof_memory_summary.get("recommended_formalizer_target_mode", "") or ""
-    )
-    return bool(
-        mode == "source_theorem_diagnostic_helper_bridge_or_blocker"
-        or proof_memory_summary.get("formalizer_diagnostic_helper_integration_required")
-        or proof_memory_summary.get("formalizer_diagnostic_helper_memory")
-    )
-
-
-def _diagnostic_helper_bridge_blocker_contract(
-    proof_memory_summary: Mapping[str, Any],
-) -> dict[str, Any]:
-    if not _diagnostic_helper_bridge_mode_active(proof_memory_summary):
-        return {}
-    if _source_to_bridge_candidate_request_shortcuts(proof_memory_summary):
-        return {}
-    helper_ids = [
-        str(row.get("candidate_id", "") or "").strip()
-        for row in proof_memory_summary.get("formalizer_diagnostic_helper_memory", [])
-        or []
-        if isinstance(row, Mapping) and str(row.get("candidate_id", "") or "").strip()
-    ][:6]
-    return {
-        "contract_kind": "diagnostic_helper_bridge_or_blocker",
-        "trigger": "compiled_diagnostic_helper_without_source_binding_request",
-        "prior_helper_candidate_ids": helper_ids,
-        "required_behavior": (
-            "Do not repeat helper-only formal_targets as source-theorem progress. "
-            "Emit a concrete source_to_bridge_premise_derivation_candidates object "
-            "only when source-binding request metadata and semantic anchors are "
-            "available to copy; otherwise record a gap_taxonomy row with "
-            "kind=source_to_bridge_metadata_blocker and route source-binding "
-            "metadata retrieval/authoring to AgentRuntime/ProofEngineer."
-        ),
-        "forbidden_resolution": (
-            "Do not invent source_to_bridge_premise_derivation_candidates without "
-            "a copied candidate request/source-binding contract, and do not ask "
-            "AgentRuntime/AXLE/local Lean to execute helper-only candidates as if "
-            "they advanced the source theorem proof."
-        ),
-        "proof_evidence_status": (
-            "DIAGNOSTIC_HELPER_BRIDGE_BLOCKER_CONTRACT_NOT_PROOF_EVIDENCE"
-        ),
-    }
-
-
-def _packet_has_source_to_bridge_metadata_blocker(
-    packet: Mapping[str, Any],
-) -> bool:
-    blocker_markers = (
-        "source_to_bridge_metadata_blocker",
-        "source-binding metadata",
-        "source binding metadata",
-        "source-binding request",
-        "source binding request",
-        "semantic anchor",
-        "semantic-anchor",
-    )
-    for row in packet.get("gap_taxonomy", []) or []:
-        if not isinstance(row, Mapping):
-            continue
-        text = " ".join(
-            str(row.get(key, "") or "")
-            for key in ("gap", "kind", "next_owner")
-        ).lower()
-        if "source" in text and "bridge" in text and any(
-            marker in text for marker in blocker_markers
-        ):
-            return True
-    return False
-
-
-def _packet_has_standard_source_to_bridge_metadata_blocker(
-    packet: Mapping[str, Any],
-) -> bool:
-    return any(
-        isinstance(row, Mapping)
-        and str(row.get("kind", "") or "") == "source_to_bridge_metadata_blocker"
-        for row in packet.get("gap_taxonomy", []) or []
-    )
-
-
-def _formal_target_is_diagnostic_helper(row: Mapping[str, Any]) -> bool:
-    provenance = (
-        row.get("source_theorem_target_provenance", {})
-        if isinstance(row.get("source_theorem_target_provenance", {}), Mapping)
-        else {}
-    )
-    known = provenance.get("source_theorem_target_known", None)
-    known_text = str(known).strip().lower()
-    return bool(
-        known is False
-        or known_text == "false"
-        or row.get("diagnostic_helper_not_source_theorem") is True
-        or str(row.get("proof_evidence_status", "") or "").startswith(
-            "FORMALIZER_DIAGNOSTIC_HELPER"
-        )
-    )
-
-
-def _diagnostic_helper_action_should_be_dropped(
-    action: Mapping[str, Any],
-    *,
-    helper_names: set[str],
-) -> bool:
-    action_text = " ".join(
-        str(action.get(key, "") or "")
-        for key in ("owner_agent", "action", "acceptance_gate")
-    ).lower()
-    if not any(
-        marker in action_text
-        for marker in (
-            "run ",
-            "check",
-            "compile",
-            "verify",
-            "kernel",
-            "local lean",
-            "axle",
-        )
-    ):
-        return False
-    if helper_names and any(name in action_text for name in helper_names):
-        return True
-    return bool("helper" in action_text and "formal_targets" in action_text)
-
-
-def _ensure_diagnostic_helper_bridge_or_blocker_packet(
-    packet: dict[str, Any],
-    proof_memory_summary: Mapping[str, Any],
-) -> None:
-    compact_memory = _compact_proof_bank_runtime_memory_summary(
-        proof_memory_summary or {}
-    )
-    contract = _diagnostic_helper_bridge_blocker_contract(compact_memory)
-    if not contract:
-        return
-    candidates = [
-        row
-        for row in packet.get("source_to_bridge_premise_derivation_candidates", [])
-        or []
-        if isinstance(row, Mapping)
-    ]
-    if candidates:
-        return
-    gap_rows = packet.get("gap_taxonomy", [])
-    if not isinstance(gap_rows, list):
-        gap_rows = []
-    added_blocker = False
-    if (
-        not _packet_has_source_to_bridge_metadata_blocker(packet)
-        or not _packet_has_standard_source_to_bridge_metadata_blocker(packet)
-    ):
-        gap_rows.append(
-            {
-                "gap": (
-                    "Compiled diagnostic helper evidence is not source-theorem proof "
-                    "and cannot be promoted until runtime exposes exact "
-                    "source-to-bridge source-binding request metadata plus semantic "
-                    "anchor references to copy."
-                ),
-                "kind": "source_to_bridge_metadata_blocker",
-                "next_owner": "AgentRuntime/ProofEngineer",
-                "proof_evidence_status": (
-                    "DIAGNOSTIC_HELPER_BRIDGE_BLOCKER_NOT_PROOF_EVIDENCE"
-                ),
-            }
-        )
-        packet["gap_taxonomy"] = gap_rows
-        added_blocker = True
-
-    helper_names: set[str] = set()
-    for target in packet.get("formal_targets", []) or []:
-        if not isinstance(target, Mapping) or not _formal_target_is_diagnostic_helper(
-            target
-        ):
-            continue
-        for key in ("id", "target_lean_declaration"):
-            value = str(target.get(key, "") or "").strip().lower()
-            if value:
-                helper_names.add(value)
-        provenance = (
-            target.get("source_theorem_target_provenance", {})
-            if isinstance(target.get("source_theorem_target_provenance", {}), Mapping)
-            else {}
-        )
-        declaration = str(
-            provenance.get("target_lean_declaration", "") or ""
-        ).strip().lower()
-        if declaration:
-            helper_names.add(declaration)
-
-    actions = packet.get("next_actions", [])
-    dropped_actions: list[dict[str, Any]] = []
-    if isinstance(actions, list) and actions:
-        kept_actions: list[Any] = []
-        for index, action in enumerate(actions, start=1):
-            if not isinstance(action, Mapping):
-                kept_actions.append(action)
-                continue
-            if _diagnostic_helper_action_should_be_dropped(
-                action,
-                helper_names=helper_names,
-            ):
-                dropped_actions.append(
-                    {
-                        "index": index,
-                        "owner_agent": str(action.get("owner_agent", "") or ""),
-                        "action": str(action.get("action", "") or "")[:500],
-                        "reason": (
-                            "helper-only local Lean/AXLE work is diagnostic and "
-                            "must not be routed as source-theorem bridge progress"
-                        ),
-                    }
-                )
-                continue
-            kept_actions.append(action)
-        if dropped_actions:
-            actions = kept_actions
-
-    blocker_action = {
-        "owner_agent": "AgentRuntime/ProofEngineer",
-        "action": (
-            "Produce exact source-to-bridge premise-derivation request metadata "
-            "or source semantic anchor definitions before asking Formalizer for "
-            "an executable source_to_bridge_premise_derivation_candidates object."
-        ),
-        "acceptance_gate": (
-            "proof_bank_runtime_memory_summary exposes a "
-            "source_to_bridge_premise_derivation_candidate_request or grouped "
-            "candidate request with source-binding metadata and semantic anchors"
-        ),
-    }
-    existing_action_text = " ".join(
-        " ".join(
-            str(action.get(key, "") or "")
-            for key in ("owner_agent", "action", "acceptance_gate")
-        ).lower()
-        for action in actions
-        if isinstance(action, Mapping)
-    )
-    if "source-to-bridge" not in existing_action_text and "source_to_bridge" not in existing_action_text:
-        actions = [blocker_action, *list(actions if isinstance(actions, list) else [])]
-    if not actions:
-        actions = [blocker_action]
-    packet["next_actions"] = list(actions)
-
-    packet["diagnostic_helper_bridge_blocker_status"] = (
-        "SOURCE_TO_BRIDGE_METADATA_BLOCKER_RECORDED_NOT_PROOF_EVIDENCE"
-        if added_blocker
-        else "SOURCE_TO_BRIDGE_METADATA_BLOCKER_PRESERVED_NOT_PROOF_EVIDENCE"
-    )
-    if dropped_actions:
-        existing_dropped = packet.get(
-            "dropped_diagnostic_helper_only_next_actions",
-            [],
-        )
-        if not isinstance(existing_dropped, list):
-            existing_dropped = []
-        packet["dropped_diagnostic_helper_only_next_actions"] = [
-            *existing_dropped,
-            *dropped_actions,
-        ]
-    findings = packet.get("critic_findings", [])
-    if not isinstance(findings, list):
-        findings = []
-    findings.append(
-        {
-            "critic": "local_formalizer_packet_normalizer",
-            "finding": (
-                "Diagnostic-helper bridge mode has no source-to-bridge request "
-                "shortcut; recorded an explicit non-proof metadata blocker and "
-                "removed helper-only executable next_actions when present."
-            ),
-            "proof_evidence_status": (
-                "DIAGNOSTIC_HELPER_BRIDGE_BLOCKER_NOT_PROOF_EVIDENCE"
-            ),
-        }
-    )
-    packet["critic_findings"] = findings
 
 
 def _extract_json_object(text: str) -> dict[str, Any]:
@@ -5239,210 +3794,11 @@ def _compact_rows(
     return compact
 
 
-def _compact_formal_blocker_resource_requests(rows: Any) -> list[dict[str, Any]]:
-    return _compact_rows(
-        [
-            row
-            for row in rows or []
-            if isinstance(row, Mapping)
-        ],
-        keys=(
-            "request_id",
-            "source",
-            "blocker_kind",
-            "blocker",
-            "next_owner",
-            "target_ids",
-            "target_id",
-            "target_names",
-            "target_name",
-            "target_theorem_name",
-            "target_lean_declaration",
-            "placeholder_symbol",
-            "candidate_artifact_path",
-            "definition_only_candidate_artifact_path",
-            "source_candidate_artifact_path",
-            "adapter_candidate_artifact_path",
-            "adapter_candidate_artifact_paths",
-            "premise_candidate_artifact_path",
-            "proof_body_candidate_artifact_path",
-            "runtime_queue_status",
-            "proof_body_gate_status",
-            "failure_classification",
-            "unavailable_import",
-            "unavailable_import_exact",
-            "unknown_identifier",
-            "missing_formal_symbols",
-            "typeclass_blockers",
-            "formal_source_queries",
-            "source_lookup_hits",
-            "recommended_tools",
-            "recommended_repair_tasks",
-            "semantic_alignment_blockers",
-            "semantic_definition_risks",
-            "local_definition_lean_checked",
-            "local_definition_lean_compiled",
-            "semantic_definition_typecheck_evidence_status",
-            "source_theorem_exact_semantic_definition_typechecked_candidate",
-            "proof_evidence_status",
-            "proof_evidence_boundary",
-        ),
-        limit=8,
-    )
-
-
-def _exact_semantic_repair_diagnostics_by_placeholder(
-    *feedback_payloads: Any,
-) -> dict[tuple[str, str], Mapping[str, Any]]:
-    diagnostics_by_key: dict[tuple[str, str], Mapping[str, Any]] = {}
-    for payload in feedback_payloads:
-        if not isinstance(payload, Mapping):
-            continue
-        exact_feedback = payload.get(
-            "source_theorem_exact_semantic_definition_repair_feedback",
-            {},
-        )
-        if isinstance(exact_feedback, Mapping):
-            diagnostics = exact_feedback.get("diagnostics", [])
-        else:
-            diagnostics = []
-        work_order_feedback = payload.get(
-            "runtime_exact_semantic_definition_work_order_feedback",
-            {},
-        )
-        work_orders = (
-            work_order_feedback.get("work_orders", [])
-            if isinstance(work_order_feedback, Mapping)
-            else []
-        )
-        for row in list(diagnostics or []) + list(work_orders or []):
-            if not isinstance(row, Mapping):
-                continue
-            placeholder = str(row.get("placeholder_symbol", "") or "").strip()
-            if not placeholder:
-                continue
-            target_ids = [
-                str(value).strip()
-                for value in row.get("target_ids", []) or []
-                if str(value).strip()
-            ]
-            target_names = [
-                str(value).strip()
-                for value in row.get("target_names", []) or []
-                if str(value).strip()
-            ]
-            target_name = str(
-                row.get("target_theorem_name", "") or row.get("target_name", "") or ""
-            ).strip()
-            targets = (
-                target_ids
-                or target_names
-                or ([target_name] if target_name else [""])
-            )
-            for target in targets:
-                diagnostics_by_key.setdefault((placeholder, target), row)
-    return diagnostics_by_key
-
-
-def _formal_blocker_resource_requests_with_exact_semantic_artifacts(
-    rows: Any,
-    *,
-    feedback: Mapping[str, Any],
-    input_summary: Mapping[str, Any],
-) -> list[dict[str, Any]]:
-    if not isinstance(rows, list | tuple):
-        return []
-    diagnostics_by_key = _exact_semantic_repair_diagnostics_by_placeholder(
-        feedback,
-        input_summary,
-    )
-    hydrated: list[dict[str, Any]] = []
-    for row in rows:
-        if not isinstance(row, Mapping):
-            continue
-        copied = dict(row)
-        placeholder = str(copied.get("placeholder_symbol", "") or "").strip()
-        if not placeholder:
-            hydrated.append(copied)
-            continue
-        target_ids = [
-            str(value).strip()
-            for value in copied.get("target_ids", []) or []
-            if str(value).strip()
-        ]
-        target_names = [
-            str(value).strip()
-            for value in copied.get("target_names", []) or []
-            if str(value).strip()
-        ]
-        target_name = str(
-            copied.get("target_theorem_name", "")
-            or copied.get("target_name", "")
-            or ""
-        ).strip()
-        targets = (
-            target_ids
-            or target_names
-            or ([target_name] if target_name else [""])
-        )
-        diagnostic = next(
-            (
-                diagnostics_by_key.get((placeholder, target))
-                for target in targets
-                if diagnostics_by_key.get((placeholder, target))
-            ),
-            diagnostics_by_key.get((placeholder, "")),
-        )
-        if not isinstance(diagnostic, Mapping):
-            hydrated.append(copied)
-            continue
-        definition_only_path = str(
-            diagnostic.get("definition_only_candidate_artifact_path", "") or ""
-        ).strip()
-        candidate_path = str(
-            diagnostic.get("candidate_artifact_path", "")
-            or diagnostic.get("synthesized_candidate_artifact_path", "")
-            or definition_only_path
-            or ""
-        ).strip()
-        for key, value in (
-            ("definition_only_candidate_artifact_path", definition_only_path),
-            ("candidate_artifact_path", candidate_path),
-            (
-                "semantic_definition_typecheck_evidence_status",
-                diagnostic.get("semantic_definition_typecheck_evidence_status"),
-            ),
-            (
-                "local_definition_lean_checked",
-                diagnostic.get("local_definition_lean_checked"),
-            ),
-            (
-                "local_definition_lean_compiled",
-                diagnostic.get("local_definition_lean_compiled"),
-            ),
-            (
-                "source_theorem_exact_semantic_definition_typechecked_candidate",
-                diagnostic.get(
-                    "source_theorem_exact_semantic_definition_typechecked_candidate"
-                ),
-            ),
-        ):
-            if copied.get(key) in (None, "", [], {}) and value not in (None, "", [], {}):
-                copied[key] = value
-        if (
-            copied.get("proof_evidence_status") in (None, "")
-            and definition_only_path
-        ):
-            copied["proof_evidence_status"] = (
-                "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
-            )
-        hydrated.append(copied)
-    return hydrated
-
-
 def _compact_mapping(row: Mapping[str, Any], *, keys: tuple[str, ...]) -> dict[str, Any]:
     compact: dict[str, Any] = {}
     for key in keys:
+        if _is_runtime_authored_prescriptive_field(key):
+            continue
         if key not in row or row.get(key) in (None, "", [], {}):
             continue
         if (
@@ -5460,16 +3816,6 @@ def _compact_mapping(row: Mapping[str, Any], *, keys: tuple[str, ...]) -> dict[s
         else:
             compact[key] = _compact_value_for_key(key, row.get(key))
     return compact
-
-
-_SOURCE_TO_BRIDGE_POLICY_LINEAGE_KEYS = (
-    "premise_semantic_dependency_source",
-    "source_to_bridge_policy_pack_ids",
-    "source_to_bridge_policy_ids",
-    "source_to_bridge_policy_scopes",
-    "source_to_bridge_policy_required_anchor_names",
-    "source_to_bridge_policy_dependency_requirements",
-)
 
 
 def _source_to_bridge_premise_candidate_artifact_path(
@@ -5534,7 +3880,6 @@ def _compact_premise_derivation_candidate_request(
             "source_to_bridge_premise_target_type",
             "adapter_instantiation_group_id",
             "required_bridge_premise_names_for_shared_instantiation",
-            "shared_adapter_instantiation_contract",
             "premise_candidate_declaration_name",
             "premise_candidate_artifact_path",
             "source_to_bridge_premise_candidate_artifact_path",
@@ -5544,23 +3889,13 @@ def _compact_premise_derivation_candidate_request(
             "target_lean_declaration",
             "required_formalizer_output_key",
             "required_candidate_fields",
-            "candidate_contract",
-            *_SOURCE_TO_BRIDGE_POLICY_LINEAGE_KEYS,
-            "premise_semantic_dependency_requirements",
             "exact_source_theorem_binders",
-            "premise_semantic_anchor_binders",
-            "premise_semantic_anchor_binder_names",
-            "required_semantic_anchor_reference_names",
-            "semantic_anchor_reference_gate",
-            "bridge_object_instantiation_policy",
-            "adapter_object_names_requiring_source_instantiation",
             "proof_body_goal_context",
             "proof_body_goal_binder_names",
             "proof_body_goal_conclusion",
             "source_to_bridge_premise_goal_context",
             "source_to_bridge_premise_goal_binder_names",
             "source_to_bridge_premise_goal_conclusion",
-            "forbidden_actions",
             "proof_evidence_status",
         ),
     )
@@ -5587,8 +3922,6 @@ def _compact_grouped_premise_derivation_candidate_request(
             "adapter_instantiation_group_id",
             "premise_names",
             "required_bridge_premise_names_for_shared_instantiation",
-            "shared_adapter_instantiation_contract",
-            "adapter_object_names_requiring_source_instantiation",
             "proof_body_goal_context",
             "proof_body_goal_binder_names",
             "proof_body_goal_conclusion",
@@ -5602,14 +3935,7 @@ def _compact_grouped_premise_derivation_candidate_request(
             "target_lean_declaration",
             "required_formalizer_output_key",
             "required_candidate_fields",
-            "candidate_contract",
-            *_SOURCE_TO_BRIDGE_POLICY_LINEAGE_KEYS,
             "exact_source_theorem_binders",
-            "premise_semantic_anchor_binders",
-            "premise_semantic_anchor_binder_names",
-            "required_semantic_anchor_reference_names",
-            "premise_semantic_dependency_requirements",
-            "forbidden_actions",
             "proof_evidence_status",
         ),
     )
@@ -5626,10 +3952,6 @@ def _compact_grouped_premise_derivation_candidate_request(
                 "source_to_bridge_premise_candidate_artifact_path",
                 "premise_derivation_candidate_skeleton_lean_source_excerpt",
                 "premise_candidate_skeleton_lean_source_excerpt",
-                *_SOURCE_TO_BRIDGE_POLICY_LINEAGE_KEYS,
-                "premise_semantic_dependency_requirements",
-                "required_semantic_anchor_reference_names",
-                "adapter_object_names_requiring_source_instantiation",
                 "proof_body_goal_binder_names",
                 "proof_body_goal_conclusion",
             ),
@@ -5638,2262 +3960,77 @@ def _compact_grouped_premise_derivation_candidate_request(
     return compact
 
 
-def _source_to_bridge_candidate_request_shortcuts(
-    proof_memory_summary: Mapping[str, Any],
-) -> list[dict[str, Any]]:
-    """Surface exact premise request metadata where the model can copy it."""
-
-    shortcuts: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    metadata_request_rows = proof_memory_summary.get(
-        "source_to_bridge_metadata_authoring_candidate_requests",
-        [],
-    )
-    diagnostics = [
-        *(
-            list(metadata_request_rows)
-            if isinstance(metadata_request_rows, list | tuple)
-            else []
-        ),
-        *(
-            list(
-                proof_memory_summary.get(
-                    "source_to_bridge_premise_derivation_diagnostics", []
-                )
-            )
-            if isinstance(
-                proof_memory_summary.get(
-                    "source_to_bridge_premise_derivation_diagnostics", []
-                ),
-                list | tuple,
-            )
-            else []
-        ),
-    ]
-    if not isinstance(diagnostics, list | tuple):
-        return shortcuts
-    for diagnostic in diagnostics:
-        if not isinstance(diagnostic, Mapping):
-            continue
-        grouped_request = diagnostic.get(
-            "source_to_bridge_grouped_premise_derivation_candidate_request", {}
-        )
-        if isinstance(grouped_request, Mapping) and grouped_request:
-            grouped_request = dict(grouped_request)
-            for lineage_key in _SOURCE_TO_BRIDGE_POLICY_LINEAGE_KEYS:
-                if grouped_request.get(lineage_key) in (None, "", [], {}) and (
-                    diagnostic.get(lineage_key) not in (None, "", [], {})
-                ):
-                    grouped_request[lineage_key] = diagnostic[lineage_key]
-            grouped_id = str(
-                diagnostic.get(
-                    "source_to_bridge_grouped_premise_derivation_candidate_request_id",
-                    "",
-                )
-                or grouped_request.get("grouped_candidate_request_id", "")
-                or ""
-            ).strip()
-            key = f"group:{grouped_id or stable_hash(grouped_request)[:12]}"
-            if key not in seen:
-                seen.add(key)
-                shortcuts.append(
-                    {
-                        "copy_this_grouped_request_id": grouped_id,
-                        "copy_this_grouped_request": (
-                            _compact_grouped_premise_derivation_candidate_request(
-                                grouped_request
-                            )
-                        ),
-                        "premise_names": list(
-                            grouped_request.get("premise_names", [])
-                            or diagnostic.get("premise_names", [])
-                            or []
-                        ),
-                        "required_semantic_anchor_reference_names": list(
-                            grouped_request.get(
-                                "required_semantic_anchor_reference_names",
-                                [],
-                            )
-                            or diagnostic.get(
-                                "required_semantic_anchor_reference_names",
-                                [],
-                            )
-                            or []
-                        ),
-                        "adapter_object_names_requiring_source_instantiation": list(
-                            grouped_request.get(
-                                "adapter_object_names_requiring_source_instantiation",
-                                [],
-                            )
-                            or diagnostic.get(
-                                "adapter_object_names_requiring_source_instantiation",
-                                [],
-                            )
-                            or []
-                        ),
-                    }
-                )
-        candidate_request = diagnostic.get(
-            "source_to_bridge_premise_derivation_candidate_request", {}
-        )
-        if not candidate_request and str(
-            diagnostic.get("candidate_request_id", "") or ""
-        ).strip():
-            candidate_request = diagnostic
-        if isinstance(candidate_request, Mapping) and candidate_request:
-            candidate_request = dict(candidate_request)
-            ensure_premise_candidate_declaration_name(candidate_request)
-            for lineage_key in _SOURCE_TO_BRIDGE_POLICY_LINEAGE_KEYS:
-                if candidate_request.get(lineage_key) in (None, "", [], {}) and (
-                    diagnostic.get(lineage_key) not in (None, "", [], {})
-                ):
-                    candidate_request[lineage_key] = diagnostic[lineage_key]
-            request_id = str(
-                diagnostic.get(
-                    "source_to_bridge_premise_derivation_candidate_request_id",
-                    "",
-                )
-                or diagnostic.get("candidate_request_id", "")
-                or candidate_request.get("candidate_request_id", "")
-                or ""
-            ).strip()
-            key = f"single:{request_id or stable_hash(candidate_request)[:12]}"
-            if key in seen:
-                continue
-            seen.add(key)
-            shortcuts.append(
-                {
-                    "copy_this_candidate_request_id": request_id,
-                    "copy_this_candidate_request": (
-                        _compact_premise_derivation_candidate_request(
-                            candidate_request
-                        )
-                    ),
-                    "premise_name": str(
-                        candidate_request.get("premise_name", "")
-                        or diagnostic.get("premise_name", "")
-                        or ""
-                    ),
-                    "premise_target_type": str(
-                        candidate_request.get("premise_target_type", "")
-                        or diagnostic.get("premise_target_type", "")
-                        or ""
-                    ),
-                    "premise_target_source": str(
-                        candidate_request.get("premise_target_source", "")
-                        or diagnostic.get("premise_target_source", "")
-                        or ""
-                    ),
-                    "proof_body_goal_binder_names": list(
-                        candidate_request.get(
-                            "proof_body_goal_binder_names",
-                            [],
-                        )
-                        or candidate_request.get(
-                            "source_to_bridge_premise_goal_binder_names",
-                            [],
-                        )
-                        or diagnostic.get("proof_body_goal_binder_names", [])
-                        or diagnostic.get(
-                            "source_to_bridge_premise_goal_binder_names",
-                            [],
-                        )
-                        or []
-                    ),
-                    "proof_body_goal_conclusion": str(
-                        candidate_request.get("proof_body_goal_conclusion", "")
-                        or candidate_request.get(
-                            "source_to_bridge_premise_goal_conclusion",
-                            "",
-                        )
-                        or diagnostic.get("proof_body_goal_conclusion", "")
-                        or diagnostic.get(
-                            "source_to_bridge_premise_goal_conclusion",
-                            "",
-                        )
-                        or ""
-                    ),
-                    "premise_candidate_declaration_name": str(
-                        candidate_request.get("premise_candidate_declaration_name", "")
-                        or diagnostic.get("premise_candidate_declaration_name", "")
-                        or diagnostic.get(
-                            "source_to_bridge_premise_candidate_declaration_name",
-                            "",
-                        )
-                        or ""
-                    ),
-                    "premise_candidate_artifact_path": (
-                        _source_to_bridge_premise_candidate_artifact_path(
-                            candidate_request
-                        )
-                        or _source_to_bridge_premise_candidate_artifact_path(
-                            diagnostic
-                        )
-                    ),
-                    "premise_derivation_candidate_skeleton_lean_source_excerpt": (
-                        _source_to_bridge_candidate_skeleton_lean_source_excerpt(
-                            candidate_request
-                        )
-                        or _source_to_bridge_candidate_skeleton_lean_source_excerpt(
-                            diagnostic
-                        )
-                    ),
-                    "required_semantic_anchor_reference_names": list(
-                        candidate_request.get(
-                            "required_semantic_anchor_reference_names",
-                            [],
-                        )
-                        or diagnostic.get(
-                            "required_semantic_anchor_reference_names",
-                            [],
-                        )
-                        or []
-                    ),
-                    "adapter_object_names_requiring_source_instantiation": list(
-                        candidate_request.get(
-                            "adapter_object_names_requiring_source_instantiation",
-                            [],
-                        )
-                        or diagnostic.get(
-                            "adapter_object_names_requiring_source_instantiation",
-                            [],
-                        )
-                        or []
-                    ),
-                }
-            )
-        if len(shortcuts) >= 6:
-            break
-    return shortcuts[:6]
-
-
-def _enrich_source_to_bridge_candidates_from_memory(
-    packet: dict[str, Any],
-    proof_memory_summary: Mapping[str, Any],
-) -> None:
-    """Attach source-binding request metadata to matching generated candidates."""
-
-    shortcuts = _source_to_bridge_candidate_request_shortcuts(
-        _compact_proof_bank_runtime_memory_summary(proof_memory_summary)
-    )
-    _enrich_source_to_bridge_candidates_from_shortcuts(
-        packet,
-        shortcuts,
-        autofill_source="runtime_memory",
-    )
-
-
-def _enrich_source_to_bridge_candidates_from_packet_requests(
-    packet: dict[str, Any],
-) -> None:
-    """Allow a packet to emit request metadata and the executable candidate together."""
-
-    request_rows = packet.get(
-        "source_to_bridge_premise_derivation_candidate_requests", []
-    )
-    if not isinstance(request_rows, list | tuple) or not request_rows:
-        return
-    shortcuts = _source_to_bridge_candidate_request_shortcuts(
-        {"source_to_bridge_metadata_authoring_candidate_requests": list(request_rows)}
-    )
-    _enrich_source_to_bridge_candidates_from_shortcuts(
-        packet,
-        shortcuts,
-        autofill_source="same_packet_candidate_request",
-    )
-
-
-def _enrich_source_to_bridge_candidates_from_shortcuts(
-    packet: dict[str, Any],
-    shortcuts: Sequence[Mapping[str, Any]],
-    *,
-    autofill_source: str,
-) -> None:
-    candidates = packet.get("source_to_bridge_premise_derivation_candidates", [])
-    if not isinstance(candidates, list) or not shortcuts:
-        return
-    single_by_premise: dict[str, Mapping[str, Any]] = {}
-    grouped_requests: list[Mapping[str, Any]] = []
-    single_request_shortcuts: list[Mapping[str, Any]] = []
-    for shortcut in shortcuts:
-        if shortcut.get("copy_this_candidate_request"):
-            single_request_shortcuts.append(shortcut)
-            premise = str(shortcut.get("premise_name", "") or "").strip()
-            if premise:
-                single_by_premise[premise] = shortcut
-        if shortcut.get("copy_this_grouped_request"):
-            grouped_requests.append(shortcut)
-    candidate_dicts = [candidate for candidate in candidates if isinstance(candidate, dict)]
-    unbound_candidates_before_autofill = [
-        candidate
-        for candidate in candidate_dicts
-        if not _source_to_bridge_candidate_has_copied_request_contract(candidate)
-    ]
-    allow_single_request_single_candidate_fallback = bool(
-        len(unbound_candidates_before_autofill) == 1
-        and len(single_request_shortcuts) == 1
-        and not grouped_requests
-    )
-    for candidate in candidates:
-        if not isinstance(candidate, dict):
-            continue
-        if _source_to_bridge_candidate_has_copied_request_contract(candidate):
-            continue
-        premise_names = [
-            str(value).strip()
-            for value in candidate.get("premise_names", []) or []
-            if str(value).strip()
-        ]
-        premise_name = str(candidate.get("premise_name", "") or "").strip()
-        if premise_name and not premise_names:
-            premise_names = [premise_name]
-        matched_group = None
-        for shortcut in grouped_requests:
-            group_names = {
-                str(value).strip()
-                for value in shortcut.get("premise_names", []) or []
-                if str(value).strip()
-            }
-            if group_names and set(premise_names).issubset(group_names):
-                matched_group = shortcut
-                break
-        if matched_group is not None:
-            if matched_group.get("copy_this_grouped_request_id"):
-                candidate[
-                    "source_to_bridge_grouped_premise_derivation_candidate_request_id"
-                ] = matched_group["copy_this_grouped_request_id"]
-            candidate[
-                "source_to_bridge_grouped_premise_derivation_candidate_request"
-            ] = matched_group["copy_this_grouped_request"]
-            if isinstance(matched_group.get("copy_this_grouped_request"), Mapping):
-                _copy_missing_candidate_metadata(
-                    candidate,
-                    matched_group["copy_this_grouped_request"],
-                )
-            _copy_missing_candidate_metadata(candidate, matched_group)
-            _mark_source_to_bridge_candidate_metadata_autofill(
-                candidate,
-                autofill_source=autofill_source,
-                autofill_mode="premise_group_match",
-            )
-            continue
-        if premise_name and premise_name in single_by_premise:
-            shortcut = single_by_premise[premise_name]
-            _attach_single_source_to_bridge_request_shortcut(
-                candidate,
-                shortcut,
-                autofill_source=autofill_source,
-            )
-            continue
-        if (
-            allow_single_request_single_candidate_fallback
-            and candidate is unbound_candidates_before_autofill[0]
-        ):
-            _attach_single_source_to_bridge_request_shortcut(
-                candidate,
-                single_request_shortcuts[0],
-                align_premise_name=True,
-                autofill_mode="single_request_single_candidate_fallback",
-                autofill_source=autofill_source,
-            )
-
-
-def _copy_missing_candidate_metadata(
-    candidate: dict[str, Any],
-    source: Mapping[str, Any],
-) -> None:
-    def merged_metadata_sequence(
-        existing_values: Sequence[Any],
-        source_values: Sequence[Any],
-    ) -> list[Any]:
-        merged: list[Any] = []
-        seen: set[str] = set()
-        for item in [*existing_values, *source_values]:
-            key = json.dumps(item, sort_keys=True, default=str)
-            if key in seen:
-                continue
-            seen.add(key)
-            merged.append(item)
-        return merged
-
-    list_merge_keys = {
-        "exact_source_theorem_binders",
-        "premise_semantic_anchor_binders",
-        "premise_semantic_anchor_binder_names",
-        "required_semantic_anchor_reference_names",
-        "adapter_object_names_requiring_source_instantiation",
-        "proof_body_goal_binder_names",
-        "source_to_bridge_premise_goal_binder_names",
-        "premise_candidate_declaration_names",
-    }
-    for key in (
-        "exact_source_theorem_binders",
-        "premise_semantic_anchor_binders",
-        "premise_semantic_anchor_binder_names",
-        "required_semantic_anchor_reference_names",
-        "semantic_anchor_reference_gate",
-        "adapter_object_names_requiring_source_instantiation",
-        "premise_target_type",
-        "premise_target_source",
-        "source_to_bridge_premise_target_type",
-        "premise_candidate_declaration_name",
-        "source_to_bridge_premise_candidate_declaration_name",
-        "premise_candidate_artifact_path",
-        "source_to_bridge_premise_candidate_artifact_path",
-        "premise_derivation_candidate_skeleton_lean_source_excerpt",
-        "premise_candidate_skeleton_lean_source_excerpt",
-        "proof_body_goal_context",
-        "proof_body_goal_binder_names",
-        "proof_body_goal_conclusion",
-        "source_to_bridge_premise_goal_context",
-        "source_to_bridge_premise_goal_binder_names",
-        "source_to_bridge_premise_goal_conclusion",
-        "premise_candidate_declaration_names",
-        "target_theorem_name",
-        "target_lean_declaration",
-        "candidate_contract",
-    ):
-        values = source.get(key, [])
-        if candidate.get(key) in (None, "", [], {}):
-            if values not in (None, "", [], {}):
-                if isinstance(values, list | tuple | set):
-                    candidate[key] = list(values)
-                elif isinstance(values, Mapping):
-                    candidate[key] = dict(values)
-                else:
-                    candidate[key] = values
-        elif key in list_merge_keys and isinstance(values, list | tuple | set):
-            existing = candidate.get(key, [])
-            if isinstance(existing, list | tuple | set):
-                candidate[key] = merged_metadata_sequence(
-                    list(existing),
-                    list(values),
-                )
-
-
-def _attach_single_source_to_bridge_request_shortcut(
-    candidate: dict[str, Any],
-    shortcut: Mapping[str, Any],
-    *,
-    align_premise_name: bool = False,
-    autofill_mode: str = "premise_name_match",
-    autofill_source: str = "runtime_memory",
-) -> None:
-    if shortcut.get("copy_this_candidate_request_id"):
-        candidate["source_to_bridge_premise_derivation_candidate_request_id"] = (
-            shortcut["copy_this_candidate_request_id"]
-        )
-    request = shortcut.get("copy_this_candidate_request", {})
-    if isinstance(request, Mapping):
-        candidate["source_to_bridge_premise_derivation_candidate_request"] = dict(
-            request
-        )
-        _copy_missing_candidate_metadata(candidate, request)
-    _copy_missing_candidate_metadata(candidate, shortcut)
-    request_premise_name = str(shortcut.get("premise_name", "") or "").strip()
-    current_premise_name = str(candidate.get("premise_name", "") or "").strip()
-    if align_premise_name and request_premise_name:
-        if current_premise_name and current_premise_name != request_premise_name:
-            candidate["model_premise_name_before_runtime_autofill"] = (
-                current_premise_name
-            )
-        candidate["premise_name"] = request_premise_name
-        premise_names = [
-            str(value).strip()
-            for value in candidate.get("premise_names", []) or []
-            if str(value).strip()
-        ]
-        candidate["premise_names"] = list(
-            dict.fromkeys([request_premise_name, *premise_names])
-        )
-    _mark_source_to_bridge_candidate_metadata_autofill(
-        candidate,
-        autofill_source=autofill_source,
-        autofill_mode=autofill_mode,
-    )
-
-
-def _mark_source_to_bridge_candidate_metadata_autofill(
-    candidate: dict[str, Any],
-    *,
-    autofill_source: str,
-    autofill_mode: str,
-) -> None:
-    if autofill_source == "same_packet_candidate_request":
-        candidate[
-            "source_binding_metadata_autofilled_from_packet_candidate_request"
-        ] = True
-    else:
-        candidate["source_binding_metadata_autofilled_from_runtime_memory"] = True
-    candidate["source_binding_metadata_autofill_source"] = autofill_source
-    candidate["source_binding_metadata_autofill_mode"] = autofill_mode
-
-
-def _feedback_int(value: Any) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return 0
-
-
-def _formalizer_mode_specific_instructions(
+def _model_owned_formalizer_feedback_instructions(
     proof_memory_summary: Mapping[str, Any],
     runtime_environment_feedback: Mapping[str, Any],
 ) -> list[str]:
-    instructions: list[str] = []
-    mode = str(proof_memory_summary.get("recommended_formalizer_target_mode", "") or "")
-    repeated_syntax_fail_closed_active = (
-        _feedback_has_repeated_syntax_failure_contract(runtime_environment_feedback)
-    )
-    integration_action = str(
-        proof_memory_summary.get("recommended_source_theorem_integration_action", "")
-        or ""
-    )
-    feedback_failure = str(
-        runtime_environment_feedback.get("failure_classification", "") or ""
-    )
-    repair_owner_agent = str(
-        runtime_environment_feedback.get("repair_owner_agent", "") or ""
-    )
-    proofengineer_repair_context = runtime_environment_feedback.get(
-        "proofengineer_repair_context",
-        {},
-    )
-    initial_formal_source_grounding = (
-        _is_initial_formal_source_grounding_context(
-            proofengineer_repair_context
-        )
-    )
-    formal_source_grounding_available = bool(
-        isinstance(proofengineer_repair_context, Mapping)
-        and proofengineer_repair_context.get("formal_source_grounding_hits")
-    )
-    source_theorem_promotion_generation_request = (
-        runtime_environment_feedback.get(
-            "source_theorem_promotion_generation_request",
-            {},
-        )
-        if isinstance(
-            runtime_environment_feedback.get(
-                "source_theorem_promotion_generation_request",
-                {},
-            ),
-            Mapping,
-        )
-        else {}
-    )
-    formalization_gap_planner_action_work_order = (
-        runtime_environment_feedback.get(
-            "formalization_gap_planner_action_work_order",
-            {},
-        )
-        if isinstance(
-            runtime_environment_feedback.get(
-                "formalization_gap_planner_action_work_order",
-                {},
-            ),
-            Mapping,
-        )
-        else {}
-    )
-    feedback_input_summary = (
-        runtime_environment_feedback.get("input_summary", {})
-        if isinstance(runtime_environment_feedback.get("input_summary", {}), Mapping)
-        else {}
-    )
-    source_to_bridge_request_shortcuts = (
-        _source_to_bridge_candidate_request_shortcuts(proof_memory_summary)
-    )
-    if str(
-        runtime_environment_feedback.get("feedback_type", "") or ""
-    ).strip() == "formal_target_semantic_review_feedback":
-        instructions.append(
-            "An independent formal-target semantic review is active. Treat its "
-            "dimension reviews, findings, and repair instructions as binding repair "
-            "feedback for the exact candidate. Preserve the source theorem target, "
-            "address the cited defect, and leave closure open until the revised exact "
-            "artifact is independently reviewed and kernel checked."
-        )
-    if formalization_gap_planner_action_work_order:
-        instructions.append(
-            "A contract-valid FormalizationGapPlanner action work order is active. "
-            "Treat its formal_attempt_queue, planner_next_actions, and search_requests "
-            "as prioritized, immutable orchestration input. Use the available formal "
-            "source retriever/RAG context and model reasoning to materialize concrete "
-            "source-bound formal_targets for executable attempts, then let local "
-            "Lean/LSP diagnostics drive revision. Preserve the requested theorem and "
-            "declaration lineage; return a typed missing dependency when an action "
-            "cannot yet be materialized. Do not copy planner prose as a proof, invent "
-            "kernel success, restart statistical theory, or silently substitute a "
-            "weaker target. Consume the work order verbatim from "
-            "runtime_environment_feedback.formalization_gap_planner_action_work_order."
-        )
-    if source_theorem_promotion_generation_request:
-        promotion_target_rows = [
-            row
-            for row in source_theorem_promotion_generation_request.get(
-                "target_rows",
-                [],
-            )
-            or []
-            if isinstance(row, Mapping)
-        ]
-        promotion_targets = [
-            {
-                "source_formal_target_id": str(
-                    row.get("source_formal_target_id", "") or ""
-                ),
-                "target_lean_declaration": str(
-                    row.get("target_lean_declaration", "") or ""
-                ),
-                "target_ids": [
-                    str(value)
-                    for value in row.get("target_ids", []) or []
-                    if str(value)
-                ],
-                "source_theorem_target_provenance": dict(
-                    row.get("source_theorem_target_provenance", {}) or {}
-                )
-                if isinstance(
-                    row.get("source_theorem_target_provenance", {}), Mapping
-                )
-                else {},
-            }
-            for row in promotion_target_rows
-        ]
-        instructions.append(
-            "Typed source-theorem promotion generation is active. Emit exactly one "
-            "executable formal_targets entry for every row in "
-            "runtime_environment_feedback.source_theorem_promotion_generation_request."
-            "target_rows. Preserve each source_formal_target_id as formal_targets.id, "
-            "preserve target_lean_declaration in both the target and "
-            "source_theorem_target_provenance, preserve the requested target ids in "
-            "source_theorem_target_provenance.source_theorem_goal_id when a single "
-            "goal is supplied, set source_theorem_target_known=true and "
-            "expected_status=NEEDS_KERNEL_CHECK, and emit a complete nonempty exact "
-            "Lean declaration in lean_statement_sketch. Use signed formal RAG and the "
-            "available model/prover reasoning. Do not emit a route probe, weaken the "
-            "target, rename the declaration, substitute a helper theorem, or treat "
-            "this generation request as proof evidence. The unchanged candidate will "
-            "be passed to ExactSourceTheoremProofBodyExecutor and local Lean/AXLE. "
-            "Requested target contract: "
-            + json.dumps(promotion_targets, sort_keys=True, default=str)
-        )
-    if any(
-        shortcut.get("premise_candidate_artifact_path")
-            or shortcut.get("premise_derivation_candidate_skeleton_lean_source_excerpt")
-            or (
-                isinstance(shortcut.get("copy_this_candidate_request", {}), Mapping)
-                and (
-                    shortcut.get("copy_this_candidate_request", {}).get(
-                        "premise_candidate_artifact_path"
-                    )
-                    or shortcut.get("copy_this_candidate_request", {}).get(
-                        "premise_derivation_candidate_skeleton_lean_source_excerpt"
-                    )
-                )
-            )
-        for shortcut in source_to_bridge_request_shortcuts
-    ):
-        instructions.append(
-            "Source-to-bridge skeleton guidance is available: when a copied "
-            "candidate request includes premise_candidate_artifact_path or "
-            "premise_derivation_candidate_skeleton_lean_source_excerpt, reuse that "
-            "generated theorem name/header as the executable Lean envelope and "
-            "replace only the proof body or explicitly report the missing semantic "
-            "primitive as FORMAL_GAP. Do not invent a different binder list, do not "
-            "turn the target premise into an assumption, and do not treat the "
-            "skeleton excerpt itself as proof evidence."
-        )
-    formal_blocker_resource_requests = _formal_blocker_resource_requests_with_exact_semantic_artifacts(
-        [
-            row
-            for row in runtime_environment_feedback.get(
-                "formal_blocker_resource_requests",
-                [],
-            )
-            or []
-            if isinstance(row, Mapping)
-        ],
-        feedback=runtime_environment_feedback,
-        input_summary=feedback_input_summary,
-    )
-    high_priority_agenda = [
-        row
-        for row in runtime_environment_feedback.get("high_priority_agenda", []) or []
-        if isinstance(row, Mapping)
-    ]
-    formal_gap_next_action_agenda_rows = [
-        row
-        for row in high_priority_agenda
-        if str(row.get("id", "") or "").strip()
-        in {
-            "formal_gap:proof_bank_expansion",
-            "formal_gap:gap_planner_handoff",
-        }
-        or str(row.get("trigger", "") or "").strip()
-        in {
-            "FORMAL_GAP",
-            "FORMAL_GAP_WITH_RUNTIME_GAP_PLANNER_SEED",
-        }
-    ]
-    theory_trace_downstream_alignment_feedback = (
-        _theory_trace_downstream_alignment_feedback(runtime_environment_feedback)
-    )
-    if _feedback_requires_source_grounded_exact_semantic_authoring_handoff(
-        runtime_environment_feedback
-    ):
-        instructions.append(
-            "Source-grounded exact semantic-definition authoring handoff is required: "
-            "route the next exact semantic-definition work through source theorem "
-            "binders, required anchor bindings, complete required anchors, "
-            "source-anchor context, and Lean authoring environment binders. If those "
-            "anchors are unavailable, emit a machine-routable source lookup or "
-            "formal-gap work order instead of an empty-shell definition request. "
-            "This handoff is runtime capability evidence for downstream Lean/RAG/"
-            "ProofEngineer workers, not theorem proof evidence."
-        )
-    if _feedback_requires_exact_semantic_candidate_materialization_contract(
-        runtime_environment_feedback
-    ):
-        instructions.append(
-            "Exact semantic-definition candidate materialization feedback contract is "
-            "required: when exact semantic-definition authoring is used, emit "
-            "definition-only candidate packets with stable candidate ids, Lean "
-            "declaration names, source-anchor provenance, and enough binder context "
-            "for the candidate materializer to create materialized Lean repair tasks. "
-            "Route those tasks through local Lean/AXLE diagnostics and persist "
-            "runtime learning feedback rows back to Formalizer/ProofEngineer. If the "
-            "packet cannot be materialized, emit a machine-routable formal-gap or "
-            "source-lookup work order naming the missing API, import, binder, anchor, "
-            "or semantic definition. This is runtime repair-loop evidence, not "
-            "theorem proof evidence."
-        )
-    materialization_agenda_rows = [
-        row
-        for row in high_priority_agenda
-        if str(row.get("trigger", "") or "")
-        == "EXACT_SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED"
-        or str(row.get("recommended_formalizer_target_mode", "") or "")
-        == "source_theorem_exact_candidate_materialization_required"
-        or str(row.get("id", "") or "")
-        == "formal_gap:source_theorem_candidate_materialization"
-    ]
-    materialization_resource_requests = [
-        row
-        for row in formal_blocker_resource_requests
-        if str(row.get("blocker_kind", "") or "")
-        == "SOURCE_THEOREM_CANDIDATE_MATERIALIZATION_REQUIRED"
-    ]
-    source_theorem_candidate_materialization_required = bool(
-        proof_memory_summary.get("source_theorem_candidate_materialization_required")
-        or mode == "source_theorem_exact_candidate_materialization_required"
-        or materialization_agenda_rows
-        or materialization_resource_requests
-    )
-    exact_semantic_definition_gate_active = (
-        _source_theorem_exact_semantic_definition_gate_active(
-            environment_feedback=runtime_environment_feedback,
-            proof_bank_runtime_memory_summary=proof_memory_summary,
-        )
-    )
-    if (
-        source_theorem_candidate_materialization_required
-        and exact_semantic_definition_gate_active
-    ):
-        source_theorem_candidate_materialization_required = False
-        instructions.append(
-            "Exact semantic-definition gate override: suspend exact source-theorem "
-            "candidate materialization for this packet because reviewed/imported "
-            "semantic definitions are still required before proof-body or signature "
-            "work. Emit the source theorem as expected_status=FORMAL_GAP with an "
-            "empty lean_statement_sketch, then route executable work only through "
-            "source_to_bridge_premise_derivation_candidates, exact semantic-definition "
-            "candidate requests, or other support channels with copied provenance. "
-            "Do not broaden this into theory revision and do not claim proof evidence."
-        )
-    if source_theorem_candidate_materialization_required and repeated_syntax_fail_closed_active:
-        instructions.append(
-            "Repeated Lean compiler feedback is active: keep exact source-theorem "
-            "candidate materialization enabled, consume the verbatim parser/LSP "
-            "diagnostics, generate a revised candidate, and rerun Lean. Do not replay "
-            "an identical failed artifact. Valid Lean syntax, including Unicode and "
-            "pipeline notation, is allowed when the configured Lean environment "
-            "accepts it. Emit FORMAL_GAP only when the dependency or semantics truly "
-            "cannot be supplied; compiler feedback is not proof evidence."
-        )
-    source_theorem_proof_body_adapter_feedback = (
-        runtime_environment_feedback.get(
-            "source_theorem_proof_body_adapter_feedback",
-            {},
-        )
-        if isinstance(
-            runtime_environment_feedback.get(
-                "source_theorem_proof_body_adapter_feedback",
-                {},
-            ),
-            Mapping,
-        )
-        else {}
-    )
-    if (
-        repair_owner_agent == "ProofEngineer"
-        or (proofengineer_repair_context and not initial_formal_source_grounding)
-    ):
-        instructions.append(
-            "ProofEngineer repair loop is active: consume "
-            "runtime_environment_feedback.proofengineer_repair_context, including "
-            "the exact materialized Lean artifact paths when available, registered "
-            "formal-subclaim statements and lineage, local Lean/proof-state "
-            "diagnostics, residual goals, and available prover/search tools. Do not "
-            "treat this as a fresh "
-            "Formalizer proposal or a human-debugged patch; return a bounded "
-            "ProofEngineer repair candidate, a smaller lemma split, or an explicit "
-            "formal blocker that can be rerun by local Lean/AXLE. Prefer the "
-            "prover loop lean_diagnostic_messages -> lean_goal -> "
-            "lean_state_search/proof_search -> lean_multi_attempt -> "
-            "local_lean_or_axle_rerun when those tools are available. Generate the "
-            "Lean repair with model reasoning over that context; there is no "
-            "runtime-authored assumption/simp tactic fallback."
-        )
-        if (
-            isinstance(proofengineer_repair_context, Mapping)
-            and proofengineer_repair_context.get("proof_state_trace_rag")
-        ):
-            instructions.append(
-                "AI4SLT proof-state transitions are available in "
-                "proofengineer_repair_context.proof_state_trace_rag. Use them only "
-                "as analogies between a prior local goal, one tactic action, and its "
-                "next state. Do not copy them as templates or treat them as proof "
-                "evidence: check premise visibility and current indexed signatures, "
-                "choose the smallest action justified by the present goal and "
-                "diagnostics, then rerun the exact current artifact through local "
-                "Lean/AXLE. If the same obstruction persists, reconsider the target "
-                "statement, assumptions, or lemma decomposition rather than replaying "
-                "an unchanged tactic."
-            )
-        if (
-            isinstance(proofengineer_repair_context, Mapping)
-            and proofengineer_repair_context.get("external_proof_search_result")
-        ):
-            instructions.append(
-                "External proof-search feedback is available in "
-                "proofengineer_repair_context.external_proof_search_result. Treat "
-                "source_theorem_candidate_proof_bodies as whole-body proposals for "
-                "the exact target declaration and verified_support_assets as candidate "
-                "dependencies. When exact_candidate_rerun is present, repair from its "
-                "local Lean precheck/diagnostics instead of asking a human to edit the "
-                "artifact. Do not copy a nested residual goal into a weaker theorem, "
-                "and do not treat the provider report as final proof evidence. Preserve "
-                "target_theorem_statement exactly, emit the complete declaration, and "
-                "let the AI Statistician local Lean/AXLE gate rerun it."
-            )
-    if formal_source_grounding_available:
-        instructions.append(
-            "Formal-source grounding is a bounded local signature bundle. Import the "
-            "target or premise module actually supplied, use each qualified name with "
-            "its exact signature, and consume premise_declaration_outlines in dependency "
-            "order. Do not invent an API from a citation or declaration-name pattern. "
-            "Revalidate every selection in the exact local Lean/AXLE project; emit "
-            "FORMAL_GAP when the required API is unavailable."
-        )
-    if formal_blocker_resource_requests:
-        instructions.append(
-            "Formal blocker resource requests are active: consume "
-            "runtime_environment_feedback.formal_blocker_resource_requests as typed "
-            "retrieval/prover work items. For each blocker, use formal-source retrieval, "
-            "proof search, Lean/LSP diagnostics, or local Lean/AXLE to identify a verified "
-            "declaration/import or a smaller semantic primitive. Do not emit an executable "
-            "Lean candidate that reuses an unresolved API, import, semantic definition, or "
-            "proof-search blocker; if the request cannot be resolved, keep the affected "
-            "source theorem as FORMAL_GAP and name the exact missing resource."
-        )
-        exact_semantic_artifact_rows = [
-            row
-            for row in formal_blocker_resource_requests
-            if (
-                str(row.get("definition_only_candidate_artifact_path", "") or "").strip()
-                or str(row.get("candidate_artifact_path", "") or "").strip()
-            )
-            and (
-                "exact_semantic" in str(row.get("blocker_kind", "") or "").lower()
-                or "exact_semantic" in str(row.get("source", "") or "").lower()
-                or str(row.get("proof_body_gate_status", "") or "").strip()
-                == "SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY"
-            )
-        ][:5]
-        if exact_semantic_artifact_rows:
-            artifact_clauses: list[str] = []
-            for row in exact_semantic_artifact_rows:
-                placeholder = str(row.get("placeholder_symbol", "") or "").strip()
-                artifact_path = str(
-                    row.get("definition_only_candidate_artifact_path", "")
-                    or row.get("candidate_artifact_path", "")
-                    or ""
-                ).strip()
-                if placeholder and artifact_path:
-                    artifact_clauses.append(f"{placeholder}: {artifact_path}")
-            artifact_clause = (
-                " Artifact(s): " + "; ".join(artifact_clauses) + "."
-                if artifact_clauses
-                else ""
-            )
-            instructions.append(
-                "Exact semantic-definition blocker artifacts are available in "
-                "formal_blocker_resource_requests: inspect and review the listed "
-                "definition_only_candidate_artifact_path/candidate_artifact_path "
-                "for each placeholder, then emit an exact semantic-definition "
-                "repair/review target or a blocker that preserves the same artifact "
-                "path and names the remaining semantic-review criterion. Do not "
-                "start exact source-theorem proof-body search while "
-                "proof_body_gate_status=SEMANTIC_REVIEW_REQUIRED_BEFORE_PROOF_BODY, "
-                "and do not treat a locally compiled definition-only artifact as "
-                "source-theorem Lean/kernel proof evidence."
-                + artifact_clause
-            )
-    if theory_trace_downstream_alignment_feedback:
-        instructions.append(
-            "Runtime theory-trace downstream alignment feedback is active: treat "
-            "runtime_environment_feedback.theory_trace_downstream_alignment_feedback "
-            "as a hard proposal-provenance repair contract. The Formalizer/"
-            "ProofEngineer packet must populate theory_trace_alignment with exact "
-            "derivation, equation, assumption, and formalization anchors from the "
-            "supplied TheoryDerivationPacket before any Lean target, proof-bank "
-            "request, or gap taxonomy is evaluated. This alignment is not Lean/"
-            "kernel proof evidence; every formal claim still needs local Lean/AXLE "
-            "verification."
-        )
-    formal_gap_next_action_active = bool(
-        proof_memory_summary.get("formal_gap_next_action_routing_active")
-        or proof_memory_summary.get("formalization_gap_planner_handoff_required")
-        or proof_memory_summary.get("formal_gap_proof_bank_expansion_required")
-        or formal_gap_next_action_agenda_rows
-    )
-    if formal_gap_next_action_active:
-        target_ids = [
-            str(value).strip()
-            for value in proof_memory_summary.get(
-                "formal_gap_next_action_target_ids",
-                [],
-            )
-            or []
-            if str(value).strip()
-        ][:6]
-        for row in formal_gap_next_action_agenda_rows:
-            target_ids.extend(
-                str(value).strip()
-                for value in row.get("target_ids", []) or []
-                if str(value).strip()
-            )
-            target_id = str(row.get("target_id", "") or "").strip()
-            if target_id:
-                target_ids.append(target_id)
-        target_ids = list(dict.fromkeys(target_ids))[:6]
-        bridge_ids = [
-            str(value).strip()
-            for value in proof_memory_summary.get(
-                "formalization_gap_planner_bridge_ids",
-                [],
-            )
-            or []
-            if str(value).strip()
-        ][:4]
-        for row in formal_gap_next_action_agenda_rows:
-            bridge_ids.extend(
-                str(value).strip()
-                for value in (
-                    row.get("supporting_formalization_gap_planner_bridge_ids", [])
-                    or []
-                )
-                if str(value).strip()
-            )
-            bridge_id = str(
-                row.get("formalization_gap_planner_bridge_id", "") or ""
-            ).strip()
-            if bridge_id:
-                bridge_ids.append(bridge_id)
-        bridge_ids = list(dict.fromkeys(bridge_ids))[:4]
-        seed_ids = [
-            str(value).strip()
-            for value in proof_memory_summary.get(
-                "formalization_gap_planner_standalone_seed_artifact_ids",
-                [],
-            )
-            or []
-            if str(value).strip()
-        ][:4]
-        for row in formal_gap_next_action_agenda_rows:
-            seed_ids.extend(
-                str(value).strip()
-                for value in (
-                    row.get("supporting_standalone_seed_artifact_ids", []) or []
-                )
-                if str(value).strip()
-            )
-            seed_id = str(row.get("standalone_seed_artifact_id", "") or "").strip()
-            if seed_id:
-                seed_ids.append(seed_id)
-        seed_ids = list(dict.fromkeys(seed_ids))[:4]
-        handoff_ids = [
-            str(value).strip()
-            for value in proof_memory_summary.get(
-                "formalization_gap_planner_handoff_ids",
-                [],
-            )
-            or []
-            if str(value).strip()
-        ][:4]
-        for row in formal_gap_next_action_agenda_rows:
-            handoff_ids.extend(
-                str(value).strip()
-                for value in (
-                    row.get(
-                        "supporting_formalization_gap_planner_handoff_ids",
-                        [],
-                    )
-                    or []
-                )
-                if str(value).strip()
-            )
-            handoff_id = str(
-                row.get("formalization_gap_planner_handoff_id", "")
-                or row.get("handoff_id", "")
-                or ""
-            ).strip()
-            if handoff_id:
-                handoff_ids.append(handoff_id)
-        handoff_ids = list(dict.fromkeys(handoff_ids))[:4]
-        execution_contexts: list[Mapping[str, Any]] = []
+    if not proof_memory_summary and not runtime_environment_feedback:
+        return []
 
-        def _add_execution_contexts(value: Any) -> None:
-            if isinstance(value, Mapping):
-                value = [value]
-            for item in value or []:
-                if isinstance(item, Mapping):
-                    execution_contexts.append(item)
-
-        _add_execution_contexts(
-            proof_memory_summary.get(
-                "formalization_gap_planner_execution_contexts",
-                [],
-            )
-        )
-        contract = proof_memory_summary.get("formal_gap_next_action_contract", {})
-        if isinstance(contract, Mapping):
-            _add_execution_contexts(
-                contract.get("formalization_gap_planner_execution_contexts", [])
-            )
-        for row in proof_memory_summary.get(
-            "formal_gap_next_action_diagnostics",
-            [],
-        ) or []:
-            if isinstance(row, Mapping):
-                _add_execution_contexts(
-                    row.get("formalization_gap_planner_execution_contexts", [])
-                )
-        for row in formal_gap_next_action_agenda_rows:
-            _add_execution_contexts(
-                row.get("formalization_gap_planner_execution_contexts", [])
-            )
-            scalar_context = {
-                key: row.get(key)
-                for key in (
-                    "formalization_gap_planner_bridge_id",
-                    "formalization_gap_planner_handoff_id",
-                    "standalone_seed_artifact_id",
-                    "standalone_seed_path",
-                    "target_intake_path",
-                    "target_intake_cli",
-                    "component_resource_registry_cli",
-                    "standalone_plan_cli",
-                    "llm_route_planner_prompt_cli",
-                    "llm_route_planner_live_cli",
-                    "reuse_smoke_cli",
-                    "recommended_llm_provider",
-                    "recommended_model_tier",
-                    "target_prover_family",
-                    "proof_evidence_status",
-                    "proof_evidence_boundary",
-                )
-                if row.get(key)
-            }
-            if scalar_context:
-                _add_execution_contexts(scalar_context)
-        execution_contexts = list(
-            {
-                stable_hash(context): context
-                for context in execution_contexts
-            }.values()
-        )[:3]
-        acceptance_gates = [
-            str(value).strip()
-            for value in proof_memory_summary.get(
-                "formal_gap_next_action_acceptance_gates",
-                [],
-            )
-            or []
-            if str(value).strip()
-        ][:3]
-        for row in formal_gap_next_action_agenda_rows:
-            acceptance_gate = str(row.get("acceptance_gate", "") or "").strip()
-            if acceptance_gate:
-                acceptance_gates.append(acceptance_gate)
-        acceptance_gates = list(dict.fromkeys(acceptance_gates))[:3]
-        route_feedback_ids = [
-            str(value).strip()
-            for value in proof_memory_summary.get(
-                "formal_gap_route_planner_contract_feedback_ids",
-                [],
-            )
-            or []
-            if str(value).strip()
-        ]
-        route_failure_classes = [
-            str(value).strip()
-            for value in proof_memory_summary.get(
-                "formal_gap_route_planner_failure_classifications",
-                [],
-            )
-            or []
-            if str(value).strip()
-        ]
-        staged_error_preview = [
-            str(value).strip()
-            for value in proof_memory_summary.get(
-                "formal_gap_route_planner_staged_assembly_error_preview",
-                [],
-            )
-            or []
-            if str(value).strip()
-        ]
-        if isinstance(contract, Mapping):
-            route_feedback_ids.extend(
-                str(value).strip()
-                for value in contract.get("route_planner_contract_feedback_ids", [])
-                or []
-                if str(value).strip()
-            )
-            route_failure_classes.extend(
-                str(value).strip()
-                for value in contract.get("failure_classifications", []) or []
-                if str(value).strip()
-            )
-            staged_error_preview.extend(
-                str(value).strip()
-                for value in contract.get("staged_followup_assembly_error_preview", [])
-                or []
-                if str(value).strip()
-            )
-        for row in formal_gap_next_action_agenda_rows:
-            route_feedback_ids.extend(
-                str(value).strip()
-                for value in (
-                    row.get("route_planner_contract_feedback_ids", [])
-                    or [
-                        row.get("route_planner_contract_feedback_id", ""),
-                    ]
-                )
-                if str(value).strip()
-            )
-            route_failure_classes.extend(
-                str(value).strip()
-                for value in (
-                    row.get("failure_classifications", [])
-                    or [
-                        row.get("failure_classification", ""),
-                    ]
-                )
-                if str(value).strip()
-            )
-            staged_error_preview.extend(
-                str(value).strip()
-                for value in (
-                    row.get("staged_followup_assembly_error_preview", []) or []
-                )
-                if str(value).strip()
-            )
-        route_feedback_ids = list(dict.fromkeys(route_feedback_ids))[:4]
-        route_failure_classes = list(dict.fromkeys(route_failure_classes))[:4]
-        staged_error_preview = list(dict.fromkeys(staged_error_preview))[:6]
-        instruction = (
-            "Formal-gap next-action routing is active: consume "
-            "proof_bank_runtime_memory_summary.formal_gap_next_action_contract "
-            "and diagnostics as an orchestration contract before broad theory "
-            "expansion. Reuse retrieved formal-source/prover context, stage the "
-            "runtime formalization-gap planner prompt packets from the bridge/seed "
-            "when present, run the standalone minimal-delta gap planner, and replay "
-            "target-prover/local Lean checks before promoting any obligation or "
-            "theorem claim. Do not replace the planner path with hardcoded "
-            "corner-case Lean or informal derivation claims; if the route cannot be "
-            "completed, keep the affected target as FORMAL_GAP and name the exact "
-            "missing prover API, source theorem primitive, bridge premise, or "
-            "gap-planner artifact. These routing rows are not proof evidence."
-        )
-        if target_ids:
-            instruction += " Target(s): " + ", ".join(target_ids) + "."
-        if bridge_ids:
-            instruction += " Gap-planner bridge(s): " + ", ".join(bridge_ids) + "."
-        if seed_ids:
-            instruction += " Standalone seed(s): " + ", ".join(seed_ids) + "."
-        if handoff_ids:
-            instruction += " Gap-planner handoff(s): " + ", ".join(handoff_ids) + "."
-        if execution_contexts:
-            context_snippets = []
-            for context in execution_contexts[:2]:
-                parts = []
-                for label, key in (
-                    ("seed path", "standalone_seed_path"),
-                    ("target intake", "target_intake_path"),
-                    ("standalone plan CLI", "standalone_plan_cli"),
-                    ("target-intake CLI", "target_intake_cli"),
-                    (
-                        "component-resource CLI",
-                        "component_resource_registry_cli",
-                    ),
-                    ("offline LLM route-planner CLI", "llm_route_planner_prompt_cli"),
-                    ("reuse-smoke CLI", "reuse_smoke_cli"),
-                    ("optional live LLM CLI", "llm_route_planner_live_cli"),
-                ):
-                    value = str(context.get(key, "") or "").strip()
-                    if value:
-                        parts.append(f"{label}: {value}")
-                if parts:
-                    context_snippets.append("; ".join(parts))
-            if context_snippets:
-                instruction += (
-                    " Gap-planner execution context(s): "
-                    + " | ".join(context_snippets)
-                    + "."
-                )
-        if acceptance_gates:
-            instruction += " Acceptance gate(s): " + "; ".join(acceptance_gates) + "."
-        if route_feedback_ids or route_failure_classes or staged_error_preview:
-            instruction += (
-                " Route-planner contract repair is active: preserve the same "
-                "handoff/seed and revise the route response against the exact "
-                "contract feedback before any target-prover replay."
-            )
-        if route_feedback_ids:
-            instruction += (
-                " Contract feedback id(s): " + ", ".join(route_feedback_ids) + "."
-            )
-        if route_failure_classes:
-            instruction += (
-                " Failure class(es): " + ", ".join(route_failure_classes) + "."
-            )
-        if staged_error_preview:
-            instruction += (
-                " Staged assembly error preview(s): "
-                + " | ".join(staged_error_preview)
-                + "."
-            )
-        instructions.append(instruction)
-    pseudo_formal_memory = [
-        row
-        for row in proof_memory_summary.get("pseudo_formal_block_routing_memory", [])
-        or []
-        if isinstance(row, Mapping)
+    return [
+        (
+            "Treat prior runtime memory and environment feedback as observations, not "
+            "as a runtime-authored proof or edit plan. They are typed tool results; "
+            "inspect the complete current "
+            "candidate, exact target statement, raw Lean/LSP/compiler output, proof "
+            "state, retrieved declarations, and independent reviewer findings that are "
+            "present. Choose and author every definition, import, lemma decomposition, "
+            "tactic, and source change yourself; choose the next Lean candidate yourself. "
+            "AgentRuntime supplies no Python-authored Lean grammar and does not prescribe "
+            "field-specific corrections."
+        ),
+        (
+            "Generate a complete replacement packet or candidate for the unchanged "
+            "task-bound target. Preserve exact declaration, artifact, request, parent, "
+            "and target identities supplied by the runtime. Do not weaken the theorem "
+            "or promote search, review, compilation, or helper results to source-theorem "
+            "proof evidence; only the configured local Lean/kernel gate may do that."
+        ),
+        (
+            "Use the provider output schema and typed routing fields to return the next "
+            "candidate. When the available source and verifier observations are "
+            "insufficient, return a precise typed blocker naming the missing evidence "
+            "instead of inventing it. Runtime mode labels and legacy recommendation "
+            "fields are control-plane history, not instructions for how to write Lean."
+        ),
     ]
-    pseudo_formal_diagnostic_memory = [
-        row
-        for row in proof_memory_summary.get(
-            "pseudo_formal_block_routing_diagnostic_memory",
-            [],
-        )
-        or []
-        if isinstance(row, Mapping)
-    ]
-    pseudo_formal_independent_bv_feedback_memory = [
-        row
-        for row in proof_memory_summary.get(
-            "pseudo_formal_independent_block_verification_feedback_memory",
-            [],
-        )
-        or []
-        if isinstance(row, Mapping)
-    ]
-    pseudo_formal_packet_gate_failure_memory = [
-        row
-        for row in proof_memory_summary.get(
-            "formalizer_pseudo_formal_packet_component_gate_failure_memory",
-            [],
-        )
-        or []
-        if isinstance(row, Mapping)
-    ]
-    if (
-        proof_memory_summary.get(
-            "formalizer_pseudo_formal_packet_component_gate_failure_available",
-            False,
-        )
-        or pseudo_formal_packet_gate_failure_memory
-    ):
-        target_lanes: list[str] = []
-        manifest_paths: list[str] = []
-        for row in pseudo_formal_packet_gate_failure_memory[:3]:
-            manifest_path = str(row.get("component_eval_manifest_path", "") or "")
-            if manifest_path:
-                manifest_paths.append(manifest_path)
-            target_lanes.extend(
-                str(value).strip()
-                for value in row.get("required_target_lanes", []) or []
-                if str(value).strip()
-            )
-        instruction = (
-            "Prior PF/BV component validation observations are available in "
-            "proof_bank_runtime_memory_summary."
-            "formalizer_pseudo_formal_packet_component_gate_failure_memory. "
-            "Inspect their exact errors, artifact identities, source manifests, and "
-            "requested target lanes, then author a fresh packet against the current "
-            "provider schema. The runtime supplies no copy seed or field-level repair "
-            "recipe and does not select the mathematical decomposition."
-        )
-        if target_lanes:
-            instruction += (
-                " Required target lane(s): "
-                + ", ".join(list(dict.fromkeys(target_lanes))[:5])
-                + "."
-            )
-        if manifest_paths:
-            instruction += (
-                " Source component manifest(s): "
-                + ", ".join(list(dict.fromkeys(manifest_paths))[:3])
-                + "."
-            )
-        instructions.append(instruction)
-    pf_component_gate_handoff_diagnostics = [
-        row
-        for row in proof_memory_summary.get(
-            "formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_memory",
-            [],
-        )
-        or []
-        if isinstance(row, Mapping)
-    ]
-    if (
-        proof_memory_summary.get(
-            "formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_available",
-            False,
-        )
-        or pf_component_gate_handoff_diagnostics
-    ):
-        exact_rows_paths = [
-            str(row.get("source_component_gate_exact_rows_jsonl", "") or "").strip()
-            for row in pf_component_gate_handoff_diagnostics[:3]
-            if str(row.get("source_component_gate_exact_rows_jsonl", "") or "").strip()
-        ]
-        failure_classes = [
-            str(row.get("failure_classification", "") or "").strip()
-            for row in pf_component_gate_handoff_diagnostics[:3]
-            if str(row.get("failure_classification", "") or "").strip()
-        ]
-        owner_subsystems = [
-            str(row.get("next_owner_subsystem", "") or "").strip()
-            for row in pf_component_gate_handoff_diagnostics[:3]
-            if str(row.get("next_owner_subsystem", "") or "").strip()
-        ]
-        instruction = (
-            "Formalizer PF/BV component-gate exact-row handoff is blocked: "
-            "the runtime did not materialize source-theorem exact semantic-definition "
-            "work orders from the component-gate exact-lane artifact. Do not assume "
-            "source lookup, exact semantic-definition authoring, or proof-body repair "
-            "has consumed those rows. Regenerate, rehydrate, or request the exact rows "
-            "JSONL artifact before treating PF/BV exact-lane routing as downstream "
-            "source-lookup progress. This is handoff recovery memory only, not proof "
-            "or kernel evidence."
-        )
-        if exact_rows_paths:
-            instruction += (
-                " Exact-row artifact path(s): "
-                + ", ".join(list(dict.fromkeys(exact_rows_paths))[:3])
-                + "."
-            )
-        if failure_classes:
-            instruction += (
-                " Failure class(es): "
-                + ", ".join(list(dict.fromkeys(failure_classes))[:4])
-                + "."
-            )
-        if owner_subsystems:
-            instruction += (
-                " Next owner(s): "
-                + ", ".join(list(dict.fromkeys(owner_subsystems))[:3])
-                + "."
-            )
-        instructions.append(instruction)
-    if proof_memory_summary.get("pseudo_formal_block_routing_active") or pseudo_formal_memory:
-        target_lanes = [
-            str(value).strip()
-            for value in proof_memory_summary.get(
-                "pseudo_formal_block_routing_target_lanes",
-                [],
-            )
-            or []
-            if str(value).strip()
-        ]
-        target_ids = [
-            str(value).strip()
-            for value in proof_memory_summary.get(
-                "pseudo_formal_block_routing_target_ids",
-                [],
-            )
-            or []
-            if str(value).strip()
-        ][:5]
-        work_order_ids = [
-            str(value).strip()
-            for value in proof_memory_summary.get(
-                "pseudo_formal_block_routing_work_order_ids",
-                [],
-            )
-            or []
-            if str(value).strip()
-        ][:5]
-        for row in pseudo_formal_memory:
-            lane = str(row.get("target_lane", "") or "").strip()
-            if lane:
-                target_lanes.append(lane)
-            target_ids.extend(
-                str(value).strip()
-                for value in row.get("target_ids", []) or []
-                if str(value).strip()
-            )
-            work_order_id = str(
-                row.get("source_pseudo_formal_work_order_id", "") or ""
-            ).strip()
-            if work_order_id:
-                work_order_ids.append(work_order_id)
-        target_lanes = list(dict.fromkeys(target_lanes))[:5]
-        target_ids = list(dict.fromkeys(target_ids))[:5]
-        work_order_ids = list(dict.fromkeys(work_order_ids))[:5]
-        instruction = (
-            "Pseudo-formal/block-verification routing memory is active: consume "
-            "proof_bank_runtime_memory_summary.pseudo_formal_block_routing_contract "
-            "and pseudo_formal_block_routing_memory before proposing new broad proof "
-            "work. These rows decompose blocked proof text into lane-specific tasks; "
-            "they are not Lean kernel evidence and do not prove the source theorem. "
-            "Preserve block_depth, scope_parent_id scope-inheritance forest, "
-            "statement-level dependency_scope, faithfulness repair status, and "
-            "BV calibration strictness when regenerating or rerouting PF/BV packets. "
-            "For target_lane=formal_targets, emit a bounded concrete Lean candidate "
-            "for the named block and require local Lean/AXLE replay. For "
-            "target_lane=lean_rag, emit retrieval_queries or formal-source grounding "
-            "requests for exact declarations. For target_lane=source_to_bridge, emit "
-            "a source-backed semantic primitive or premise-derivation request. For "
-            "target_lane=source_theorem_exact_semantic_definition, author or request "
-            "exact semantic definitions before proof-body search resumes. For "
-            "target_lane=formal_gap, split or reroute the residual block through "
-            "gap_taxonomy/next_actions or the FormalizationGapPlanner. Do not satisfy "
-            "the Lean-candidate gate with pseudo_formal_proof_packets alone, and do "
-            "not hardcode corner-case proof rules in place of the requested lane."
-        )
-        if target_lanes:
-            instruction += " Target lane(s): " + ", ".join(target_lanes) + "."
-        if target_ids:
-            instruction += " Target id(s): " + ", ".join(target_ids) + "."
-        if work_order_ids:
-            instruction += " PF/BV work order(s): " + ", ".join(work_order_ids) + "."
-        instructions.append(instruction)
-    if (
-        proof_memory_summary.get(
-            "pseudo_formal_independent_block_verification_feedback_active"
-        )
-        or pseudo_formal_independent_bv_feedback_memory
-    ):
-        bv_work_order_ids = [
-            str(value).strip()
-            for value in proof_memory_summary.get(
-                "pseudo_formal_independent_block_verification_work_order_ids",
-                [],
-            )
-            or []
-            if str(value).strip()
-        ][:5]
-        bv_verdicts = [
-            str(value).strip()
-            for value in proof_memory_summary.get(
-                "pseudo_formal_independent_block_verification_verdicts",
-                [],
-            )
-            or []
-            if str(value).strip()
-        ][:5]
-        bv_provenances: list[str] = []
-        bv_block_ids: list[str] = []
-        for row in pseudo_formal_independent_bv_feedback_memory:
-            provenance = str(
-                row.get("block_verification_verifier_provenance", "") or ""
-            ).strip()
-            if provenance:
-                bv_provenances.append(provenance)
-            block_id = str(row.get("source_block_id", "") or "").strip()
-            if block_id:
-                bv_block_ids.append(block_id)
-        bv_provenances = list(dict.fromkeys(bv_provenances))[:5]
-        bv_block_ids = list(dict.fromkeys(bv_block_ids))[:5]
-        instruction = (
-            "Independent pseudo-formal block-verifier feedback is available: "
-            "consume proof_bank_runtime_memory_summary."
-            "pseudo_formal_independent_block_verification_feedback_memory as "
-            "calibrated PF/BV feedback over the exact explicit premises, "
-            "statement-only dependency context, conclusion, and local proof text "
-            "used by the verifier. Accepted verdicts may unblock regeneration or "
-            "rerouting of the bounded PF block, but they are not Lean kernel "
-            "evidence. Failed verdicts require repairing, splitting, or rerouting "
-            "the PF block before any downstream Lean/RAG/source-to-bridge lane."
-        )
-        if bv_verdicts:
-            instruction += " BV verdict(s): " + ", ".join(bv_verdicts) + "."
-        if bv_provenances:
-            instruction += (
-                " Independent verifier provenance(s): "
-                + ", ".join(bv_provenances)
-                + "."
-            )
-        if bv_block_ids:
-            instruction += " Source block id(s): " + ", ".join(bv_block_ids) + "."
-        if bv_work_order_ids:
-            instruction += " PF/BV work order(s): " + ", ".join(bv_work_order_ids) + "."
-        instructions.append(instruction)
-    if (
-        proof_memory_summary.get("pseudo_formal_block_routing_diagnostic_active")
-        or pseudo_formal_diagnostic_memory
-    ):
-        diagnostic_lanes = [
-            str(value).strip()
-            for value in proof_memory_summary.get(
-                "pseudo_formal_block_routing_diagnostic_target_lanes",
-                [],
-            )
-            or []
-            if str(value).strip()
-        ]
-        diagnostic_work_order_ids = [
-            str(value).strip()
-            for value in proof_memory_summary.get(
-                "pseudo_formal_block_routing_diagnostic_work_order_ids",
-                [],
-            )
-            or []
-            if str(value).strip()
-        ][:5]
-        diagnostic_row_kinds = []
-        for row in pseudo_formal_diagnostic_memory:
-            row_kind = str(row.get("row_kind", "") or "").strip()
-            if row_kind:
-                diagnostic_row_kinds.append(row_kind)
-            lane = str(row.get("target_lane", "") or "").strip()
-            if lane:
-                diagnostic_lanes.append(lane)
-            work_order_id = str(
-                row.get("source_pseudo_formal_work_order_id", "") or ""
-            ).strip()
-            if work_order_id:
-                diagnostic_work_order_ids.append(work_order_id)
-        diagnostic_lanes = list(dict.fromkeys(diagnostic_lanes))[:5]
-        diagnostic_row_kinds = list(dict.fromkeys(diagnostic_row_kinds))[:5]
-        diagnostic_work_order_ids = list(dict.fromkeys(diagnostic_work_order_ids))[:5]
-        instruction = (
-            "Pseudo-formal/block-verification diagnostic memory is active: prior "
-            "PF/BV rows are not lane-routable and must not be treated as Lean/RAG/"
-            "source-to-bridge work-order activation. Repair the PF/BV packet first: "
-            "resolve packet validation quarantine, missing faithfulness repair, "
-            "pending/failed block verification, or missing accepted BV rollout_count "
-            "before emitting downstream lane work. These diagnostics remain "
-            "non-proof evidence and do not satisfy required PF/BV activation."
-        )
-        if diagnostic_row_kinds:
-            instruction += " Diagnostic row kind(s): " + ", ".join(diagnostic_row_kinds) + "."
-        if diagnostic_lanes:
-            instruction += " Blocked target lane(s): " + ", ".join(diagnostic_lanes) + "."
-        if diagnostic_work_order_ids:
-            instruction += (
-                " Diagnostic PF/BV work order(s): "
-                + ", ".join(diagnostic_work_order_ids)
-                + "."
-            )
-        instructions.append(instruction)
-    if source_theorem_candidate_materialization_required:
-        targets = [
-            str(value).strip()
-            for value in proof_memory_summary.get(
-                "source_theorem_candidate_materialization_required_target_names",
-                [],
-            )
-            or []
-            if str(value).strip()
-        ]
-        target_ids = [
-            str(value).strip()
-            for value in proof_memory_summary.get(
-                "source_theorem_candidate_materialization_required_target_ids",
-                [],
-            )
-            or []
-            if str(value).strip()
-        ]
-        for row in materialization_agenda_rows:
-            targets.extend(
-                str(value).strip()
-                for value in row.get("target_ids", []) or []
-                if str(value).strip()
-            )
-            target_ids.extend(
-                str(value).strip()
-                for value in row.get("target_ids", []) or []
-                if str(value).strip()
-            )
-        targets = list(dict.fromkeys(targets))[:4]
-        target_ids = list(dict.fromkeys(target_ids))[:4]
-        statuses = [
-            str(value).strip()
-            for value in proof_memory_summary.get(
-                "source_theorem_candidate_materialization_required_statuses",
-                [],
-            )
-            or []
-            if str(value).strip()
-        ]
-        for row in materialization_agenda_rows:
-            statuses.extend(
-                str(value).strip()
-                for value in row.get("candidate_materialization_statuses", []) or []
-                if str(value).strip()
-            )
-        statuses = list(dict.fromkeys(statuses))[:5]
-        materialization_contract = str(
-            proof_memory_summary.get(
-                "source_theorem_candidate_materialization_contract",
-                "",
-            )
-            or ""
-        ).strip()
-        if not materialization_contract:
-            materialization_contract = next(
-                (
-                    str(row.get("acceptance_gate", "") or "").strip()
-                    for row in materialization_agenda_rows
-                    if str(row.get("acceptance_gate", "") or "").strip()
-                ),
-                "",
-            )
-        if not materialization_contract:
-            materialization_contract = next(
-                (
-                    str(row.get("required_resolution", "") or "").strip()
-                    for row in materialization_resource_requests
-                    if str(row.get("required_resolution", "") or "").strip()
-                ),
-                "",
-            )
-        instruction = (
-            "For source_theorem_exact_candidate_materialization_required, make the "
-            "main output a concrete exact source-theorem formal_targets candidate "
-            "that AgentRuntime can materialize into a Lean artifact and then send "
-            "through signature probes. Do not treat this as proof-body repair, "
-            "semantic-definition review, or proof evidence. Preserve the exact source "
-            "theorem target/provenance, name the target Lean declaration when known, "
-            "include retrieval/prover queries for missing imports or APIs, and only "
-            "ask local Lean/AXLE/signature-probe tools to check candidates actually "
-            "emitted in this packet."
-        )
-        if targets:
-            instruction += " Materialization target(s): " + ", ".join(targets) + "."
-        if target_ids:
-            instruction += (
-                " Materialization target id(s): "
-                + ", ".join(target_ids)
-                + "."
-            )
-        if statuses:
-            instruction += " Blocking status(es): " + ", ".join(statuses) + "."
-        if materialization_contract:
-            instruction += " Acceptance gate: " + materialization_contract
-        instructions.append(instruction)
-    if source_theorem_proof_body_adapter_feedback:
-        instructions.append(
-            "Source theorem proof-body adapter feedback is active: consume "
-            "runtime_environment_feedback.source_theorem_proof_body_adapter_feedback "
-            "as proof-route context. If adapter_kernel_verified=false, strengthen the "
-            "source-to-bridge adapter or derive missing bridge premises from exact "
-            "source hypotheses before retrying the exact source theorem. If "
-            "adapter_kernel_verified=true, use the verified adapter only as context "
-            "for an exact source-theorem proof-body retry. Adapter rows are not full "
-            "source-theorem proof evidence."
-        )
-    carried_local_lean_repair_contract = (
-        runtime_environment_feedback.get("local_lean_repair_contract", {})
-        if isinstance(
-            runtime_environment_feedback.get("local_lean_repair_contract", {}),
-            Mapping,
-        )
-        else {}
-    )
-    if carried_local_lean_repair_contract and feedback_failure not in {
-        "formalizer_lean_candidate_precheck_rejected",
-        "formalizer_lean_candidate_local_lean_failed",
-    }:
-        instructions.append(
-            "A prior Local-Lean contract is carried with this packet-validation "
-            "observation. Treat runtime_environment_feedback.local_lean_repair_contract "
-            "and candidate_diagnostics as typed tool results, preserve their artifact "
-            "lineage, and choose the next Lean candidate, retrieval action, or typed "
-            "blocker yourself. AgentRuntime does not translate diagnostic classes into "
-            "an import, notation, API, typeclass, or tactic recipe."
-        )
-    prior_lean_candidate_repair_memory = [
-        row
-        for row in proof_memory_summary.get(
-            "formalizer_lean_candidate_repair_memory", []
-        )
-        or []
-        if isinstance(row, Mapping)
-    ]
-    if (
-        proof_memory_summary.get("formalizer_lean_candidate_repair_required")
-        or prior_lean_candidate_repair_memory
-    ):
-        instructions.append(
-            "Prior Formalizer Lean-candidate observations are active: inspect "
-            "proof_bank_runtime_memory_summary.formalizer_lean_candidate_repair_memory "
-            "for exact candidate artifacts, compiler/LSP output, proof state, and "
-            "retrieval results. Decide the repair through the normal model/tool loop; "
-            "the rows are observations, not proof evidence or a runtime-authored plan."
-        )
-    prior_diagnostic_helper_memory = [
-        row
-        for row in proof_memory_summary.get(
-            "formalizer_diagnostic_helper_memory",
-            [],
-        )
-        or []
-        if isinstance(row, Mapping)
-    ]
-    if (
-        proof_memory_summary.get("formalizer_diagnostic_helper_integration_required")
-        or prior_diagnostic_helper_memory
-        or mode == "source_theorem_diagnostic_helper_bridge_or_blocker"
-    ):
-        instructions.append(
-            "Compiled diagnostic-helper integration is active: prior Lean helpers "
-            "compiled with source_theorem_target_known=false, so they exercise the "
-            "local verifier but are not source-theorem proof. Do not repeat another "
-            "helper-only formal_targets candidate as progress. Keep the source "
-            "theorem as expected_status=FORMAL_GAP unless its exact task-bound "
-            "statement can be checked, and either emit a concrete "
-            "source_to_bridge_premise_derivation_candidates object with exact "
-            "source-binding metadata plus semantic-anchor references, or record an "
-            "explicit gap_taxonomy blocker naming the missing source-binding "
-            "premise/API/import/semantic anchor. A source-to-bridge candidate must "
-            "carry premise_name, target_theorem_name, target_lean_declaration, "
-            "premise_derivation_candidate_lean_source, and one copied candidate "
-            "request/source-binding contract; otherwise it is a phantom action and "
-            "must not be listed in next_actions."
-        )
-    if (
-        mode == "source_to_bridge_metadata_authoring_required"
-        or _formalizer_bool_like(
-            proof_memory_summary.get("source_to_bridge_metadata_authoring_required")
-        )
-    ):
-        instructions.append(
-            "Source-to-bridge metadata authoring is active: consume "
-            "proof_bank_runtime_memory_summary.source_to_bridge_metadata_authoring_contract "
-            "and diagnostics before emitting any executable premise candidate. "
-            "The immediate task is to author or retrieve the exact "
-            "source_to_bridge_premise_derivation_candidate_request metadata: "
-            "premise_name, target theorem/declaration, exact_source_theorem_binders, "
-            "premise_semantic_dependency_requirements, "
-            "premise_semantic_anchor_binders, premise_semantic_anchor_binder_names, "
-            "required_semantic_anchor_reference_names, semantic_anchor_reference_gate, "
-            "and adapter_object_names_requiring_source_instantiation. Prefer "
-            "requirements grounded in retrieved formal-source declarations, prover "
-            "diagnostics, or exact theorem binders over task-family heuristics. Emit a "
-            "source_to_bridge_premise_derivation_candidates object only if that "
-            "candidate includes a copied request object/id and non-vacuous Lean source "
-            "using those binders and anchors. If you can author the metadata but "
-            "not the executable Lean premise derivation yet, put the structured "
-            "request object in source_to_bridge_premise_derivation_candidate_requests "
-            "and do not ask AgentRuntime/AXLE to check it. If you cannot author the "
-            "metadata, keep the source theorem as "
-            "expected_status=FORMAL_GAP and record a gap_taxonomy row with "
-            "kind=source_to_bridge_metadata_blocker plus next_actions for "
-            "AgentRuntime/ProofEngineer to materialize the request metadata. This "
-            "metadata-authoring queue is not proof evidence."
-        )
-    prior_lean_candidate_proof_state_feedback = [
-        row
-        for row in proof_memory_summary.get(
-            "formalizer_lean_candidate_proof_state_feedback_memory", []
-        )
-        or []
-        if isinstance(row, Mapping)
-    ]
-    if (
-        proof_memory_summary.get(
-            "formalizer_lean_candidate_proof_state_feedback_available"
-        )
-        or prior_lean_candidate_proof_state_feedback
-    ):
-        instructions.append(
-            "Prior Formalizer Lean-candidate proof-state feedback is active: "
-            "consume proof_bank_runtime_memory_summary."
-            "formalizer_lean_candidate_proof_state_feedback_memory before "
-            "proposing a new Lean candidate. Treat residual_goals, diagnostics, "
-            "executed_tools, tool_call_trace, requested_tools, and "
-            "source_materialization_manifest_id as the ProofEngineer repair "
-            "context. Use executed_tools/tool_call_trace as the verifier "
-            "observations that actually ran; use requested_tools as pending "
-            "Lean-LSP/search/multi-attempt work to perform next. Follow the "
-            "prover loop requested there (lean_diagnostic_messages, lean_goal, "
-            "lean_state_search or proof_search, lean_multi_attempt, then local "
-            "Lean/AXLE rerun). "
-            "Do not replace this with a broad fresh theorem or a human-debugged "
-            "patch; emit a bounded repaired candidate, a smaller lemma split, "
-            "or a formal blocker. These rows are repair memory only, not proof "
-            "evidence."
-        )
-    unbound_lean_candidate_proof_state_feedback = [
-        row
-        for row in proof_memory_summary.get(
-            "formalizer_lean_candidate_unbound_proof_state_feedback_memory", []
-        )
-        or []
-        if isinstance(row, Mapping)
-    ]
-    if (
-        proof_memory_summary.get(
-            "formalizer_lean_candidate_unbound_proof_state_feedback_available"
-        )
-        or unbound_lean_candidate_proof_state_feedback
-    ):
-        instructions.append(
-            "Unbound Formalizer Lean-candidate proof-state feedback was rejected "
-            "by AgentRuntime lineage checks: inspect "
-            "proof_bank_runtime_memory_summary."
-            "formalizer_lean_candidate_unbound_proof_state_feedback_memory only "
-            "as a lineage blocker. Do not use it as proof-state observations, "
-            "residual goals, or repair evidence. First load or regenerate the "
-            "matching Lean-candidate materialization feedback row, then rerun "
-            "proof-state feedback against that exact artifact."
-        )
-    component_gate_feedback_memory = [
-        row
-        for row in proof_memory_summary.get(
-            "formalizer_lean_candidate_component_gate_feedback_memory", []
-        )
-        or []
-        if isinstance(row, Mapping)
-    ]
-    if (
-        proof_memory_summary.get(
-            "formalizer_lean_candidate_component_gate_feedback_available"
-        )
-        or component_gate_feedback_memory
-    ):
-        instructions.append(
-            "Formalizer component-gate feedback is active: consume "
-            "proof_bank_runtime_memory_summary."
-            "formalizer_lean_candidate_component_gate_feedback_memory as "
-            "calibration for the expected prover feedback loop. It may show that "
-            "a synthetic helper repair gate injected prior local-Lean/proof-state "
-            "feedback, ran a bounded Formalizer/ProofEngineer repair task, and "
-            "reran local Lean. Do not cite that helper as source-theorem proof or "
-            "semantic faithfulness evidence. For the current source theorem, use "
-            "the same loop shape only when the target artifact is actually the "
-            "current source-theorem candidate: failed Lean diagnostics -> "
-            "ProofEngineer feedback -> bounded repair -> local Lean/AXLE rerun, "
-            "otherwise disclose a FORMAL_GAP."
-        )
-    capability_feedback_memory = [
-        row
-        for row in proof_memory_summary.get(
-            "formalizer_lean_candidate_capability_feedback_memory", []
-        )
-        or []
-        if isinstance(row, Mapping)
-    ]
-    if (
-        proof_memory_summary.get(
-            "formalizer_lean_candidate_capability_feedback_available"
-        )
-        or capability_feedback_memory
-    ):
-        instructions.append(
-            "Integrated Formalizer/ProofEngineer capability feedback is active: "
-            "consume proof_bank_runtime_memory_summary."
-            "formalizer_lean_candidate_capability_feedback_memory as the current "
-            "runtime capability gap to close. If it asks for proof-state routing, "
-            "local Lean tool calls, live prover tool calls, or a fail-then-pass "
-            "Lean-candidate repair loop, emit a bounded source-theorem candidate, "
-            "proof-state request, or formal blocker that drives that exact loop "
-            "inside AgentRuntime. Do not satisfy this with static replay, attached "
-            "component calibration, or a generic proof-bank queue."
-        )
-    runtime_contract_feedback_memory = [
-        row
-        for row in proof_memory_summary.get(
-            "formalizer_runtime_capability_contract_feedback_memory", []
-        )
-        or []
-        if isinstance(row, Mapping)
-    ]
-    if (
-        proof_memory_summary.get(
-            "formalizer_runtime_capability_contract_feedback_available"
-        )
-        or runtime_contract_feedback_memory
-    ):
-        instructions.append(
-            "Prior Formalizer runtime capability-contract feedback is active: "
-            "consume proof_bank_runtime_memory_summary."
-            "formalizer_runtime_capability_contract_feedback_memory before "
-            "proposing the next packet. These rows identify unmet AgentRuntime "
-            "tool/evidence contracts, not theorem proof failures. If the row "
-            "requires runtime configuration such as local Lean or Lean-LSP/MCP, "
-            "do not claim the gap is closed with Lean text alone; emit a bounded "
-            "candidate or explicit formal blocker that lets AgentRuntime rerun "
-            "the requested tool path. If the row requires Formalizer behavior "
-            "such as a concrete theorem/lemma/def declaration or proof-state "
-            "request metadata, preserve the listed runtime_requested_evidence_contract "
-            "flags and drive exactly those counters. These rows are not proof "
-            "evidence."
-        )
-    if feedback_failure == "formalizer_packet_validation_failed":
-        instructions.append(
-            "The previous Formalizer packet was rejected by the unchanged local "
-            "validator. Read runtime_environment_feedback."
-            "formalizer_validation_feedback as an environment observation: inspect "
-            "its exact validation_error_messages, rejected_packet_projection, retry "
-            "history, and authority boundary. Use the response schema, task-bound "
-            "source context, retrieval, and proof memory to choose the repair or an "
-            "honest typed blocker. Preserve artifact lineage and unaffected content. "
-            "AgentRuntime does not prescribe field-specific, theorem-family, Lean "
-            "grammar, API, or tactic repairs; passing the same validator is the only "
-            "packet-acceptance signal, and it is not proof evidence."
-        )
-    if feedback_failure in {
-        "formalizer_lean_candidate_precheck_rejected",
-        "formalizer_lean_candidate_local_lean_failed",
-    }:
-        instructions.append(
-            "The exact generated Lean candidate failed precheck or the configured "
-            "Lean environment. Treat runtime_environment_feedback.candidate_diagnostics, "
-            "local_lean_repair_contract, proofengineer_repair_context, formal-source "
-            "hits, and proof-state rows as tool observations. The Formalizer/"
-            "ProofEngineer model must decide the revised Lean source, decomposition, "
-            "retrieval request, or typed dependency blocker and then return it through "
-            "the normal verifier loop. Preserve the target and artifact lineage, do "
-            "not replay an unchanged candidate, and do not infer proof from compiler "
-            "feedback. AgentRuntime supplies no Python-authored Lean grammar, notation, "
-            "API, import, or tactic recipe."
-        )
-    if proof_memory_summary.get("proof_bank_bridge_catalog_exhausted_by_memory"):
-        instructions.append(
-            "If proof_bank_runtime_memory_summary says "
-            "proof_bank_bridge_catalog_exhausted_by_memory=true, do not spend the packet "
-            "on more bridge-obligation requests; make the main formal target the "
-            "theorem-level reduction closure for the listed remaining_theorem_goal_ids."
-        )
-    if (
-        mode == "source_theorem_exact_semantic_definition_structural_reformulation"
-        or proof_memory_summary.get(
-            "source_theorem_exact_semantic_definition_structural_reformulation_required"
-        )
-        or "structural_reformulate_exact_semantic_definition_with_pf_bv"
-        in integration_action
-    ):
-        instructions.append(
-            "For source_theorem_exact_semantic_definition_structural_reformulation, "
-            "consume the complete rejected candidate, exact validator/Lean diagnostics, "
-            "source anchors, retrieval results, and current project context. The model "
-            "owns whether to regenerate a complete Lean candidate, decompose the "
-            "obligation, request more retrieval/tool evidence, or return an honest typed "
-            "blocker. Preserve target and artifact lineage. Runtime observations do not "
-            "prescribe an import, API, syntax edit, tactic, or decomposition, and they are "
-            "not proof evidence."
-        )
-    if (
-        mode == "source_theorem_exact_semantic_definition_repair"
-        or proof_memory_summary.get("source_theorem_exact_semantic_definition_repair_required")
-        or "repair_reviewed_exact_semantic_definitions" in integration_action
-    ):
-        instructions.append(
-            "For source_theorem_exact_semantic_definition_repair, make the main formal "
-            "target a reviewed exact semantic definition for the listed placeholder "
-            "symbols. Consume the full candidate, source anchors, diagnostics, and "
-            "retrieval context, then let the model generate the next complete candidate "
-            "or typed blocker. Keep proof-body promotion closed until the candidate passes "
-            "local Lean/AXLE and semantic review; runtime does not prescribe the repair."
-        )
-    if (
-        mode == "source_theorem_exact_proof_body_repair"
-        or (
-            proof_memory_summary.get("source_theorem_exact_candidate_requires_repair")
-            and not source_theorem_candidate_materialization_required
-            and not proof_memory_summary.get(
-                "source_to_bridge_metadata_authoring_required"
-            )
-        )
-        or "repair_exact_source_theorem_candidate_proof_body" in integration_action
-    ):
-        instructions.append(
-            "For source_theorem_exact_proof_body_repair, keep the exact source theorem "
-            "target fixed and consume source_theorem_exact_proof_body_repair_diagnostics "
-            "as a lineage-bound ProofEngineer task. When proof_body_repair_scope is "
-            "replace_entire_exact_declaration_proof_body, preserve target_theorem_statement "
-            "exactly and regenerate the complete declaration candidate; use a provided "
-            "target_declaration_source_excerpt when it is source-bound, otherwise use "
-            "candidate_source_excerpt plus target_lean_declaration and compiler feedback. "
-            "proof_body_goal_excerpt is a residual subgoal produced while "
-            "elaborating the current proof and may be nested inside a bad tactic term; do "
-            "not silently change the theorem statement to that residual goal. Emit a "
-            "complete exact-declaration formal_targets candidate for local Lean/AXLE, a "
-            "smaller lineage-bound lemma/dependency request, or a typed mathematical/"
-            "formal-library blocker. If "
-            "source_theorem_exact_proof_body_verified_adapter_context_insufficient=true, "
-            "preserve the kernel-verified adapter artifact/declaration as context and "
-            "repair the exact source theorem proof body against the true Lean goal shape."
-        )
-    if proof_memory_summary.get(
-        "source_theorem_exact_proof_body_gate_open_for_kernel_repair"
-    ):
-        open_targets = [
-            str(value).strip()
-            for value in proof_memory_summary.get(
-                "source_theorem_exact_proof_body_gate_open_target_names", []
-            )
-            or []
-            if str(value).strip()
-        ]
-        target_clause = (
-            " Targets: " + ", ".join(open_targets[:5]) + "."
-            if open_targets
-            else ""
-        )
-        instructions.append(
-            "The exact source proof-body gate is open for kernel-eligible repair: "
-            "a local Lean proof-body goal was reached, semantic blockers are empty, "
-            "and source_theorem_kernel_evidence_eligible=true, but "
-            "source_theorem_kernel_verified is still false."
-            + target_clause
-            + " Do not route this target back to exact semantic-definition review "
-            "unless new semantic_alignment_blockers, verifier_gate_blockers, known_gaps, "
-            "or semantic_definition_risks are present. Continue with exact proof-body "
-            "repair or the required source-to-bridge adapter using proof_body_goal_excerpt "
-            "and proof_body_attempt_summaries, then require local Lean/AXLE kernel "
-            "verification before claiming proof evidence."
-        )
-    if (
-        mode == "source_theorem_proof_body_adapter_required"
-        or proof_memory_summary.get("source_theorem_proof_body_adapter_required")
-    ):
-        instructions.append(
-            "For source_theorem_proof_body_adapter_required, make the main formal target "
-            "a concrete source-to-bridge/reduction adapter candidate, not the source theorem "
-            "itself and not a vacuous True theorem. Preserve source_theorem_target_provenance "
-            "and `source_theorem_target_provenance.target_lean_declaration` as the exact "
-            "source theorem declaration identifier only; do not put a full Lean theorem "
-            "statement in that field. Name the adapter theorem `<source theorem declaration>"
-            "_source_to_bridge_adapter`, use proof_body_goal_excerpt, "
-            "proof_body_attempt_summaries, memory_kernel_verified_theorem_reduction_closure_"
-            "signature_excerpts, and do not guess closure theorem fields. If "
-            "verified_source_to_bridge_premise_derivation_signature_excerpts are "
-            "present, consume those exact checked theorem headers as dependency "
-            "context for the adapter instead of inventing new bridge premise binders."
-        )
-    if proof_memory_summary.get(
-        "source_theorem_proof_body_adapter_unproven_bridge_premises_required"
-    ):
-        instructions.append(
-            "If source_theorem_proof_body_adapter_unproven_bridge_premises_required=true, "
-            "the listed source_theorem_proof_body_adapter_unproven_bridge_premise_names "
-            "are forbidden as new adapter binder assumptions. Do not write an adapter "
-            "that takes those names as inputs; derive each premise from exact source "
-            "hypotheses, retrieved declarations, derivation anchors, and the task's "
-            "assumption ledger, or report the blocker."
-        )
-    if (
-        mode == "source_to_bridge_premise_derivation_required"
-        or _formalizer_bool_like(
-            proof_memory_summary.get("source_to_bridge_premise_derivation_required")
-        )
-    ):
-        instructions.append(
-            "For source_to_bridge_premise_derivation_required, make the main formal target "
-            "one or more concrete source-to-bridge premise derivation candidates, not the "
-            "full source theorem and not another generic adapter. Put concrete Lean attempts "
-            "in source_to_bridge_premise_derivation_candidates, derive them from exact source "
-            "hypotheses, use source_to_bridge_premise_derivation_candidate_request or "
-            "source_to_bridge_grouped_premise_derivation_candidate_request exactly, and "
-            "prefer one source_to_bridge_premise_derivation_candidates object when a grouped "
-            "adapter_instantiation_group_id is supplied. If "
-            "source_to_bridge_candidate_request_shortcuts is nonempty, copy one of its "
-            "copy_this_*_request_id and copy_this_*_request objects into every emitted "
-            "candidate. Copy the exact premise_candidate_declaration_name for a single "
-            "request or premise_candidate_declaration_names in premise order for a "
-            "grouped request; declaration identity is structured data and is never "
-            "inferred by parsing generated Lean. Use only those exact source binders "
-            "and semantic anchors from "
-            "runtime memory; do not introduce new assumptions or adapter objects as "
-            "free theorem parameters. If a prior diagnostic says "
-            "premise_candidate_references_semantic_anchor=false or lists "
-            "missing_premise_semantic_anchor_binder_names, reference each missing binder "
-            "name in the Lean proof body outside comments and do not repeat a candidate "
-            "that only mentions those binders in the theorem header, a comment, or an "
-            "unused assumption. Do not return a `fail_if_success`, `True := by trivial`, "
-            "or comment-only skeleton. Return a non-vacuous Lean candidate or report the "
-            "missing semantic primitive with failure_classification="
-            "premise_derivation_candidate_missing_nonvacuous_source. If the prior "
-            "candidate was not evidence-eligible, treat local Lean skipped as a "
-            "validator outcome, not as proof-search evidence; repair the evidence "
-            "eligibility blocker before asking Lean to check the candidate."
-        )
-    return instructions
 
 
-def _is_initial_formal_source_grounding_context(value: Any) -> bool:
-    if not isinstance(value, Mapping):
-        return False
-    if str(value.get("context_kind", "") or "") != (
-        "task_bound_formal_source_grounding"
-    ):
-        return False
-    repair_keys = (
-        "candidate_diagnostics",
-        "proof_state_trace_rag",
-        "external_proof_search_result",
-        "candidate_rerun_specs",
-        "unknown_identifiers",
-    )
-    if any(value.get(key) not in (None, "", [], {}) for key in repair_keys):
-        return False
-    query_roles = {
-        str(group.get("query_role", "") or "")
-        for group in value.get("formal_source_grounding_hits", []) or []
-        if isinstance(group, Mapping)
-    }
-    return not query_roles or query_roles == {"initial_formalization_context"}
-
-
-def _compact_proofengineer_context_for_prompt(value: Any) -> dict[str, Any]:
-    if not isinstance(value, Mapping):
-        return {}
-    if (
-        _is_initial_formal_source_grounding_context(value)
-        and value.get("formal_source_grounding_hits")
-    ):
-        return {
-            "context_kind": "task_bound_formal_source_grounding",
-            "formal_source_grounding_hits": (
-                compact_formal_source_grounding_hits_for_prompt(
-                    value.get("formal_source_grounding_hits")
-                )
-            ),
-        }
-    compact = _compact_value(value)
-    return compact if isinstance(compact, dict) else {}
-
-
-def _formalizer_explicit_mapping_observation(
-    primary: Mapping[str, Any],
-    fallback: Mapping[str, Any],
-    *,
-    key: str,
-) -> dict[str, Any]:
-    value = primary.get(key, {}) or fallback.get(key, {})
-    return deepcopy(dict(value)) if isinstance(value, Mapping) else {}
-
-
-def _formalizer_local_lean_observation_contract(
+def _formalizer_local_lean_observations(
     feedback: Mapping[str, Any],
     *,
     input_summary: Mapping[str, Any],
 ) -> dict[str, Any]:
-    explicit = _formalizer_explicit_mapping_observation(
-        feedback,
-        input_summary,
-        key="local_lean_repair_contract",
+    raw = (
+        feedback.get("local_lean_observation", {})
+        or input_summary.get("local_lean_observation", {})
+        or feedback.get("local_lean_repair_contract", {})
+        or input_summary.get("local_lean_repair_contract", {})
     )
+    explicit = deepcopy(dict(raw)) if isinstance(raw, Mapping) else {}
     cleaned = without_legacy_python_lean_strategy_fields(explicit)
-    prescriptive_keys = {
-        "required_behavior",
-        "if_full_source_theorem_remains_too_large",
-        "timeout_next_candidate_shape",
-    }
     return {
         key: deepcopy(value)
         for key, value in cleaned.items()
-        if key not in prescriptive_keys
+        if key
+        not in {
+            "required_behavior",
+            "if_full_source_theorem_remains_too_large",
+            "timeout_next_candidate_shape",
+            "next_action",
+            "required_repair",
+        }
+        and not key.startswith("recommended_")
         and not key.endswith(("_repair_rule", "_recipe", "_strategy"))
     }
 
 
-def _compact_formalizer_recovery_checkpoint(value: Any) -> dict[str, Any]:
-    if not isinstance(value, Mapping):
-        return {}
-    payload = _compact_mapping(
-        value,
-        keys=(
-            "schema_version",
-            "artifact_kind",
-            "candidate_id",
-            "candidate_lean_declaration",
-            "parent_source_hash",
-            "current_source_hash",
-            "source_updates",
-            "searches",
-            "checks",
-            "turns",
-            "tool_calls",
-            "transcript_fingerprint",
-            "provider",
-            "model",
-            "model_tier",
-            "final_runtime_check_performed",
-            "runtime_selected_lean_code",
-            "model_owned_lean_code",
-            "kernel_verified",
-            "proof_evidence_status",
-        ),
-    )
-    current_source = value.get("current_source")
-    if isinstance(current_source, str) and current_source.strip():
-        payload["current_source"] = current_source[:20000]
-    last_check = value.get("last_check", {})
-    if isinstance(last_check, Mapping):
-        payload["last_check"] = _compact_mapping(
-            last_check,
-            keys=(
-                "source_hash",
-                "compiled",
-                "precheck_errors",
-                "blocking_precheck_errors",
-                "local_lean_attempted",
-                "local_lean_source_compiled",
-                "local_lean_exit_status",
-                "local_lean_stdout",
-                "local_lean_stderr",
-                "candidate_identity_lean_checked",
-                "candidate_identity_lean_verified",
-                "candidate_identity_lean_stdout",
-                "candidate_identity_lean_stderr",
-                "checker_error",
-            ),
-        )
-    return {
-        key: child
-        for key, child in payload.items()
-        if child not in (None, "", [], {})
-    }
-
-
-def _compact_lean_candidate_revision_feedback(
+def _complete_lean_candidate_revision_feedback(
     feedback: Mapping[str, Any],
     *,
     candidate_id: str,
 ) -> dict[str, Any]:
-    """Keep exact target and diagnostics; live search supplies the large RAG context."""
+    """Project complete verifier/reviewer observations without repair recipes."""
 
     if not isinstance(feedback, Mapping):
         return {}
@@ -7902,120 +4039,174 @@ def _compact_lean_candidate_revision_feedback(
         if isinstance(feedback.get("input_summary", {}), Mapping)
         else {}
     )
-    repair_context = (
+    raw_context = (
         feedback.get("proofengineer_repair_context", {})
         or input_summary.get("proofengineer_repair_context", {})
     )
-    repair_context = repair_context if isinstance(repair_context, Mapping) else {}
-    compact_repair_context = _compact_mapping(
-        repair_context,
-        keys=(
-            "context_kind",
-            "repair_scope",
-            "target_lean_declaration",
-            "target_theorem_name",
-            "target_theorem_statement",
-            "target_theorem_statement_hash",
-            "target_theorem_statement_hash_algorithm",
-            "source_theorem_target_identity_status",
-            "formalizer_candidate_semantic_review_status",
-            "formalizer_candidate_semantic_review_execution_id",
-            "formalizer_candidate_semantic_review_packet_id",
-            "formalizer_candidate_semantic_review_packet_hash",
-            "formalizer_candidate_semantic_review_candidate_source_hash",
-            "formalizer_candidate_semantic_review_target_statement_hash",
-            "formalizer_candidate_semantic_review_target_statement_hash_algorithm",
-            "repair_target_identity_contract",
-            "semantic_alignment_constraints",
-            "semantic_alignment_blockers",
-            "compiler_feedback",
-            "prior_exact_candidate_feedback",
-            "formal_environment_placeholder_symbols",
-            "formal_environment_typeclass_blockers",
-            "unknown_identifiers",
-            "proof_search_result_use",
-            "proof_evidence_status",
-        ),
+    context = raw_context if isinstance(raw_context, Mapping) else {}
+
+    review_fields = (
+        "feedback_type",
+        "feedback_source",
+        "source_subsystem",
+        "semantic_review_execution_id",
+        "semantic_review_packet_id",
+        "semantic_review_packet_hash",
+        "candidate_materialization_id",
+        "candidate_id",
+        "candidate_source_hash",
+        "target_theorem_statement_hash",
+        "target_theorem_statement_hash_algorithm",
+        "overall_verdict",
+        "dimension_reviews",
+        "findings",
+        "repair_instructions",
+        "blocking_reason",
+        "proof_evidence_status",
+        "evidence_boundary",
     )
-    review = compact_semantic_review_feedback(
-        feedback,
-        expected_feedback_type="formal_target_semantic_review_feedback",
-        max_rows=4,
-        max_text_chars=1200,
+    review = {
+        key: deepcopy(feedback[key])
+        for key in review_fields
+        if feedback.get(key) not in (None, "", [], {})
+    }
+
+    context_fields = (
+        "context_kind",
+        "target_lean_declaration",
+        "target_theorem_name",
+        "target_theorem_statement",
+        "target_theorem_statement_hash",
+        "target_theorem_statement_hash_algorithm",
+        "source_theorem_target_identity_status",
+        "formalizer_candidate_semantic_review_status",
+        "formalizer_candidate_semantic_review_execution_id",
+        "formalizer_candidate_semantic_review_packet_id",
+        "formalizer_candidate_semantic_review_packet_hash",
+        "formalizer_candidate_semantic_review_candidate_source_hash",
+        "formalizer_candidate_semantic_review_target_statement_hash",
+        "formalizer_candidate_semantic_review_target_statement_hash_algorithm",
+        "semantic_alignment_blockers",
+        "compiler_feedback",
+        "prior_exact_candidate_feedback",
+        "formal_environment_placeholder_symbols",
+        "formal_environment_typeclass_blockers",
+        "unknown_identifiers",
+        "formal_source_grounding_hits",
+        "proof_state_trace_rag",
+        "external_proof_search_result",
+        "proof_search_result_use",
+        "proof_evidence_status",
     )
-    review.pop("reviewed_source_artifacts", None)
-    diagnostics = _compact_formalizer_candidate_diagnostics(
+    target_and_environment = {
+        key: (
+            _compact_value_for_key(key, context[key])
+            if key
+            in {
+                "formal_source_grounding_hits",
+                "proof_state_trace_rag",
+                "external_proof_search_result",
+            }
+            else deepcopy(context[key])
+        )
+        for key in context_fields
+        if context.get(key) not in (None, "", [], {})
+    }
+
+    observation_fields = (
+        "candidate_id",
+        "candidate_kind",
+        "source_field",
+        "source_hash",
+        "artifact_path",
+        "lean_source",
+        "lean_source_excerpt",
+        "candidate_source",
+        "candidate_source_excerpt",
+        "target_declaration_source_excerpt",
+        "current_proof_body_excerpt",
+        "candidate_lean_declaration",
+        "target_lean_declaration",
+        "target_theorem_name",
+        "target_theorem_statement",
+        "precheck_status",
+        "local_lean_attempted",
+        "local_lean_compiled",
+        "local_lean_source_compiled",
+        "local_lean_exit_status",
+        "local_lean_stdout",
+        "local_lean_stderr",
+        "local_lean_stdout_excerpt",
+        "local_lean_stderr_excerpt",
+        "candidate_identity_lean_checked",
+        "candidate_identity_lean_verified",
+        "candidate_identity_lean_stdout",
+        "candidate_identity_lean_stderr",
+        "candidate_identity_lean_stdout_excerpt",
+        "candidate_identity_lean_stderr_excerpt",
+        "residual_goals",
+        "goal",
+        "proof_state",
+        "diagnostics",
+        "compiler_feedback",
+        "unknown_identifiers",
+        "unverified_required_imports",
+        "source_lookup_hits",
+        "formal_source_grounding_hits",
+        "proof_state_trace_rag",
+        "external_proof_search_result",
+        "proof_evidence_status",
+    )
+    raw_diagnostics = (
         feedback.get("candidate_diagnostics", [])
         or input_summary.get("candidate_diagnostics", [])
     )
-    matching_diagnostics = [
-        dict(row)
-        for row in diagnostics
-        if not candidate_id
-        or str(row.get("candidate_id", "") or "") in {"", candidate_id}
-    ][:2]
-    for row in matching_diagnostics:
-        for duplicate_key in (
-            "lean_source_excerpt",
-            "artifact_path",
-            "local_lean_command",
-            "local_lean_project",
-        ):
-            row.pop(duplicate_key, None)
-    local_contract = _formalizer_local_lean_observation_contract(
+    candidate_observations = []
+    for raw_row in raw_diagnostics or []:
+        if not isinstance(raw_row, Mapping):
+            continue
+        row_candidate_id = str(raw_row.get("candidate_id", "") or "")
+        if candidate_id and row_candidate_id not in {"", candidate_id}:
+            continue
+        row = {
+            key: deepcopy(raw_row[key])
+            for key in observation_fields
+            if raw_row.get(key) not in (None, "", [], {})
+        }
+        if row:
+            candidate_observations.append(row)
+
+    local_observation = _formalizer_local_lean_observations(
         feedback,
         input_summary=input_summary,
     )
-    compact_local_contract = _compact_mapping(
-        local_contract,
-        keys=(
-            "failure_classification",
-            "candidate_id",
-            "candidate_lean_declaration",
-            "source_hash",
-            "precheck_errors",
-            "blocking_precheck_errors",
-            "compiler_feedback",
-            "diagnostics",
-            "unknown_identifiers",
-            "unverified_required_imports",
-            "local_lean_attempted",
-            "local_lean_source_compiled",
-            "local_lean_exit_status",
-            "local_lean_stdout",
-            "local_lean_stderr",
-            "candidate_identity_lean_checked",
-            "candidate_identity_lean_verified",
-            "candidate_identity_lean_stdout",
-            "candidate_identity_lean_stderr",
-            "proof_evidence_status",
-        ),
-    )
+    local_observation = {
+        key: deepcopy(local_observation[key])
+        for key in observation_fields
+        if local_observation.get(key) not in (None, "", [], {})
+    }
+    validation_errors = [
+        str(error)
+        for error in feedback.get("validation_errors", []) or []
+        if str(error)
+    ]
     recovery_checkpoint = (
         feedback.get("formalizer_recovery_checkpoint", {})
         or input_summary.get("formalizer_recovery_checkpoint", {})
     )
     payload = {
-        "feedback_type": str(feedback.get("feedback_type", "") or "")[:200],
+        "feedback_type": str(feedback.get("feedback_type", "") or ""),
         "failure_classification": str(
             feedback.get("failure_classification", "") or ""
-        )[:200],
-        "validation_errors": [
-            str(error)[:1200]
-            for error in list(feedback.get("validation_errors", []) or [])[:8]
-        ],
-        "formal_target_semantic_review": review,
-        "proofengineer_repair_context": compact_repair_context,
-        "candidate_diagnostics": matching_diagnostics,
-        "local_lean_repair_contract": compact_local_contract,
-        "formalizer_recovery_checkpoint": (
-            _compact_formalizer_recovery_checkpoint(recovery_checkpoint)
         ),
-        "context_policy": (
-            "The current source is supplied separately. Large proof-state traces, prior "
-            "RAG payloads, and rerun candidate inventories stay in runtime artifacts; "
-            "use search_formal_environment for just-in-time active-project signatures."
-        ),
+        "validation_errors": validation_errors,
+        "independent_semantic_review": review,
+        "target_and_environment_observations": target_and_environment,
+        "candidate_observations": candidate_observations,
+        "local_lean_observation": local_observation,
+        "formalizer_recovery_checkpoint": _compact_value(recovery_checkpoint)
+        if isinstance(recovery_checkpoint, Mapping)
+        else {},
     }
     return {
         key: child
@@ -8024,9 +4215,85 @@ def _compact_lean_candidate_revision_feedback(
     }
 
 
-def _compact_formalizer_environment_feedback(
+def _compact_high_priority_agenda_observations(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list | tuple):
+        return []
+    rows: list[dict[str, Any]] = []
+    for raw_row in value[:6]:
+        if not isinstance(raw_row, Mapping):
+            continue
+        row = _compact_mapping(
+            raw_row,
+            keys=(
+                "id",
+                "owner_subsystem",
+                "trigger",
+                "acceptance_gate",
+                "target_ids",
+                "formalization_gap_planner_bridge_id",
+                "standalone_seed_artifact_id",
+                "formalization_gap_planner_handoff_id",
+                "formalization_gap_planner_execution_contexts",
+                "proof_boundary",
+                "proof_evidence_status",
+            ),
+        )
+        if row:
+            rows.append(row)
+    return rows
+
+
+def _compact_formalization_gap_planner_action_work_order(
+    value: Any,
+) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    compact = _compact_mapping(
+        value,
+        keys=(
+            "artifact_kind",
+            "work_order_id",
+            "source_task_id",
+            "question_id",
+            "source_live_route_planner_manifest_id",
+            "theory_packet_id",
+            "simulation_manifest_id",
+            "algorithm_sandbox_manifest_id",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+        ),
+    )
+    compact["formal_attempt_queue"] = _compact_rows(
+        value.get("formal_attempt_queue", []),
+        keys=(
+            "attempt_id",
+            "formal_node_id",
+            "primitive",
+            "target_prover_family",
+            "attempt_kind",
+            "prerequisite_formal_node_ids",
+            "expected_feedback",
+            "target_primitives",
+        ),
+        limit=6,
+    )
+    compact["search_requests"] = _compact_rows(
+        value.get("search_requests", []),
+        keys=("request_kind", "query", "reason", "target_primitives"),
+        limit=6,
+    )
+    return {
+        key: child
+        for key, child in compact.items()
+        if child not in (None, "", [], {})
+    }
+
+
+def _complete_formalizer_environment_observations(
     feedback: Mapping[str, Any],
 ) -> dict[str, Any]:
+    """Expose task control and exact observations without runtime repair plans."""
+
     if not isinstance(feedback, Mapping):
         return {}
     input_summary = (
@@ -8034,449 +4301,326 @@ def _compact_formalizer_environment_feedback(
         if isinstance(feedback.get("input_summary", {}), Mapping)
         else {}
     )
-    target_shape_contract = _formalizer_explicit_mapping_observation(
+
+    def observed(key: str, default: Any = "") -> Any:
+        value = feedback.get(key)
+        if value not in (None, "", [], {}):
+            return value
+        return input_summary.get(key, default)
+
+    candidate_id = str(observed("candidate_id", "") or "")
+    correction_observations = _complete_lean_candidate_revision_feedback(
         feedback,
-        input_summary,
-        key="target_shape_contract",
+        candidate_id=candidate_id,
     )
-    local_lean_repair_contract = _formalizer_local_lean_observation_contract(
-        feedback,
-        input_summary=input_summary,
-    )
-    candidate_reroute_options: list[Any] = []
-    target_drift_repair_contract: dict[str, Any] = {}
-    raw_validation_errors = list(
-        feedback.get("validation_errors", [])
-        or input_summary.get("validation_errors", [])
-        or []
-    )
-    validation_feedback = _formalizer_explicit_mapping_observation(
-        feedback,
-        input_summary,
-        key="formalizer_validation_feedback",
-    )
-    if raw_validation_errors and not validation_feedback:
-        validation_feedback = formalizer_validation_feedback_envelope(
-            raw_validation_errors
-        )
-    theory_trace_downstream_alignment_feedback = (
-        _theory_trace_downstream_alignment_feedback(feedback)
-    )
-    payload = {
-        "architect_evidence_contract": _compact_value(
-            feedback.get("architect_evidence_contract", {})
-        ),
-        "runtime_requested_evidence_contract": _compact_value(
-            feedback.get("runtime_requested_evidence_contract", {})
-        ),
-        "architect_recommended_research_path": _compact_value(
-            feedback.get("architect_recommended_research_path", "")
-        ),
-        "architect_formal_verification_policy": _compact_value(
-            feedback.get("architect_formal_verification_policy", "")
-        ),
-        "architect_subsystem_acceptance_gate": _compact_value(
-            feedback.get("architect_subsystem_acceptance_gate", "")
-        ),
-        "feedback_type": _compact_value(
-            feedback.get("feedback_type", "")
-            or input_summary.get("trigger", "")
-            or "formalizer_validation_feedback"
-        ),
-        "repair_owner_agent": _compact_value(
-            feedback.get("repair_owner_agent", "")
-            or input_summary.get("repair_owner_agent", "")
-        ),
-        "pseudo_formal_block_verifier_feedback_contract": _compact_value(
-            feedback.get("pseudo_formal_block_verifier_feedback_contract", {})
-            or input_summary.get(
-                "pseudo_formal_block_verifier_feedback_contract",
-                {},
-            )
-        ),
-        "formalization_gap_planner_action_work_order": _compact_value(
-            feedback.get("formalization_gap_planner_action_work_order", {})
-            or input_summary.get(
-                "formalization_gap_planner_action_work_order",
-                {},
-            )
-        ),
-        "formalization_gap_planner_action_work_order_id": _compact_value(
-            feedback.get("formalization_gap_planner_action_work_order_id", "")
-            or input_summary.get(
-                "formalization_gap_planner_action_work_order_id",
-                "",
-            )
-        ),
-        "formalization_gap_planner_action_work_order_hash": _compact_value(
-            feedback.get("formalization_gap_planner_action_work_order_hash", "")
-            or input_summary.get(
-                "formalization_gap_planner_action_work_order_hash",
-                "",
-            )
-        ),
-        "formal_target_semantic_review": compact_semantic_review_feedback(
-            feedback,
-            expected_feedback_type="formal_target_semantic_review_feedback",
-        ),
-        "proofengineer_repair_context": _compact_proofengineer_context_for_prompt(
-            feedback.get("proofengineer_repair_context", {})
-            or input_summary.get("proofengineer_repair_context", {})
-        ),
-        "formalizer_recovery_checkpoint": (
-            _compact_formalizer_recovery_checkpoint(
-                feedback.get("formalizer_recovery_checkpoint", {})
-                or input_summary.get("formalizer_recovery_checkpoint", {})
-            )
-        ),
-        "failure_classification": _compact_value(
-            feedback.get("failure_classification", "")
-            or input_summary.get("failure_classification", "")
-        ),
-        "validation_label": _compact_value(
-            feedback.get("validation_label", "")
-            or input_summary.get("validation_label", "")
-        ),
-        "validation_errors": _compact_value(
-            raw_validation_errors
-        ),
-        "formalizer_validation_feedback": _compact_value(
-            validation_feedback
-        ),
-        "pseudo_formalization_required": bool(
-            feedback.get("pseudo_formalization_required", False)
-            or input_summary.get("pseudo_formalization_required", False)
-        ),
-        "requires_pseudo_formalization": bool(
-            feedback.get("requires_pseudo_formalization", False)
-            or input_summary.get("requires_pseudo_formalization", False)
-        ),
-        "pseudo_formalization_required_reason": _compact_value(
-            feedback.get("pseudo_formalization_required_reason", "")
-            or input_summary.get("pseudo_formalization_required_reason", "")
-        ),
-        "pseudo_formalization_required_missing_work_order_rows": bool(
-            feedback.get(
-                "pseudo_formalization_required_missing_work_order_rows",
-                False,
-            )
-            or input_summary.get(
-                "pseudo_formalization_required_missing_work_order_rows",
-                False,
-            )
-        ),
-        "pseudo_formalization_required_invalid_packets": bool(
-            feedback.get(
-                "pseudo_formalization_required_invalid_packets",
-                False,
-            )
-            or input_summary.get(
-                "pseudo_formalization_required_invalid_packets",
-                False,
-            )
-        ),
-        "pseudo_formalization_required_no_lane_routable_rows": bool(
-            feedback.get(
-                "pseudo_formalization_required_no_lane_routable_rows",
-                False,
-            )
-            or input_summary.get(
-                "pseudo_formalization_required_no_lane_routable_rows",
-                False,
-            )
-        ),
-        "pseudo_formalization_repair_contract": _compact_value(
-            feedback.get("pseudo_formalization_repair_contract", {})
-            or input_summary.get("pseudo_formalization_repair_contract", {})
-        ),
-        "attempts": _compact_value(
-            feedback.get("attempts", "")
-            or input_summary.get("attempts", "")
-        ),
-        "formalizer_packet_repair_retry_depth": _compact_value(
-            feedback.get("formalizer_packet_repair_retry_depth", "")
-            or input_summary.get("formalizer_packet_repair_retry_depth", "")
-        ),
-        "repeated_formalizer_packet_validation_failure": bool(
-            feedback.get("repeated_formalizer_packet_validation_failure", False)
-            or input_summary.get(
-                "repeated_formalizer_packet_validation_failure", False
-            )
-        ),
-        "formalizer_lean_repair_retry_depth": _compact_value(
-            feedback.get("formalizer_lean_repair_retry_depth", "")
-            or input_summary.get("formalizer_lean_repair_retry_depth", "")
-        ),
-        "repeated_formalizer_lean_candidate_failure": bool(
-            feedback.get("repeated_formalizer_lean_candidate_failure", False)
-            or input_summary.get(
-                "repeated_formalizer_lean_candidate_failure", False
-            )
-        ),
-        "formalizer_proof_state_repair_round": _compact_value(
-            feedback.get("formalizer_proof_state_repair_round", "")
-            or input_summary.get("formalizer_proof_state_repair_round", "")
-        ),
-        "next_formalizer_proof_state_repair_round": _compact_value(
-            feedback.get("next_formalizer_proof_state_repair_round", "")
-            or input_summary.get(
-                "next_formalizer_proof_state_repair_round",
-                "",
-            )
-        ),
-        "max_formalizer_proof_state_repair_rounds": _compact_value(
-            feedback.get("max_formalizer_proof_state_repair_rounds", "")
-            or input_summary.get(
-                "max_formalizer_proof_state_repair_rounds",
-                "",
-            )
-        ),
-        "formalization_manifest_id": _compact_value(
-            feedback.get("formalization_manifest_id", "")
-            or input_summary.get("formalization_manifest_id", "")
-        ),
-        "proof_state_feedback_manifest_id": _compact_value(
-            feedback.get("proof_state_feedback_manifest_id", "")
-            or input_summary.get("proof_state_feedback_manifest_id", "")
-        ),
-        "candidate_proof_state_feedback_manifest_id": _compact_value(
-            feedback.get("candidate_proof_state_feedback_manifest_id", "")
-            or input_summary.get(
-                "candidate_proof_state_feedback_manifest_id",
-                "",
-            )
-        ),
-        "candidate_materialization_manifest_id": _compact_value(
-            feedback.get("candidate_materialization_manifest_id", "")
-            or input_summary.get("candidate_materialization_manifest_id", "")
-        ),
-        "parent_formalizer_proof_state_feedback": _compact_value(
-            feedback.get("parent_formalizer_proof_state_feedback", {})
-            or input_summary.get("parent_formalizer_proof_state_feedback", {})
-        ),
-        "candidate_diagnostics": _compact_formalizer_candidate_diagnostics(
-            feedback.get("candidate_diagnostics", [])
-            or input_summary.get("candidate_diagnostics", [])
-        ),
-        "target_shape_contract": _compact_value(target_shape_contract),
-        "target_drift_repair_contract": _compact_value(
-            target_drift_repair_contract
-        ),
-        "next_action_reference_contract": _compact_value(
-            feedback.get("next_action_reference_contract", {})
-            or input_summary.get("next_action_reference_contract", {})
-        ),
-        "source_theorem_candidate_materialization_contract": _compact_value(
-            feedback.get("source_theorem_candidate_materialization_contract", {})
-            or input_summary.get("source_theorem_candidate_materialization_contract", {})
-        ),
-        "candidate_reroute_options": _compact_value(candidate_reroute_options),
-        "local_lean_repair_contract": _compact_value(local_lean_repair_contract),
-        "n_local_lean_checked": _compact_value(
-            feedback.get("n_local_lean_checked", "")
-            or input_summary.get("n_local_lean_checked", "")
-        ),
-        "n_local_lean_compiled": _compact_value(
-            feedback.get("n_local_lean_compiled", "")
-            or input_summary.get("n_local_lean_compiled", "")
-        ),
-        "missing_semantic_anchor_references": _compact_value(
-            feedback.get("missing_semantic_anchor_references", [])
-            or input_summary.get("missing_semantic_anchor_references", [])
-        ),
-        "source_to_bridge_premise_derivation_feedback": _compact_value(
-            feedback.get("source_to_bridge_premise_derivation_feedback", {})
-            or input_summary.get("source_to_bridge_premise_derivation_feedback", {})
-        ),
-        "source_to_bridge_premise_derivation_diagnostics": _compact_value(
-            feedback.get("source_to_bridge_premise_derivation_diagnostics", [])
-            or input_summary.get(
-                "source_to_bridge_premise_derivation_diagnostics", []
-            )
-        ),
-        "uninstantiated_adapter_object_binders": _compact_value(
-            feedback.get("uninstantiated_adapter_object_binders", [])
-            or input_summary.get("uninstantiated_adapter_object_binders", [])
-        ),
-        "missing_source_binding_contract_metadata": bool(
-            feedback.get("missing_source_binding_contract_metadata", False)
-            or input_summary.get("missing_source_binding_contract_metadata", False)
-        ),
-        "last_attempt_summary": _compact_value(
-            feedback.get("last_attempt_summary", {})
-            or input_summary.get("last_attempt_summary", {})
-        ),
-        "required_repair": _compact_value(
-            feedback.get("required_repair", "")
-            or feedback.get("target_behavior", "")
-        ),
-        "proof_evidence_status": _compact_value(
-            feedback.get("proof_evidence_status", "")
-        ),
-        "boundary": _compact_value(
-            feedback.get("boundary", "")
-            or feedback.get("proof_evidence_boundary", "")
-        ),
-    }
-    promotion_generation_fields = {
-        "source_theorem_promotion_execution_id": (
-            feedback.get("source_theorem_promotion_execution_id", "")
-            or input_summary.get("source_theorem_promotion_execution_id", "")
-        ),
-        "source_theorem_promotion_generation_request_id": (
-            feedback.get("source_theorem_promotion_generation_request_id", "")
-            or input_summary.get(
-                "source_theorem_promotion_generation_request_id",
-                "",
-            )
-        ),
-        "source_theorem_promotion_generation_request_hash": (
-            feedback.get("source_theorem_promotion_generation_request_hash", "")
-            or input_summary.get(
-                "source_theorem_promotion_generation_request_hash",
-                "",
-            )
-        ),
-        "source_theorem_promotion_generation_request": (
-            feedback.get("source_theorem_promotion_generation_request", {})
-            or input_summary.get(
-                "source_theorem_promotion_generation_request",
-                {},
-            )
-        ),
-    }
-    if any(promotion_generation_fields.values()):
-        payload.update(
-            {
-                key: _compact_value(value)
-                for key, value in promotion_generation_fields.items()
-            }
-        )
-    if theory_trace_downstream_alignment_feedback:
-        payload["theory_trace_downstream_alignment_feedback"] = _compact_value(
-            theory_trace_downstream_alignment_feedback
-        )
-    formal_blocker_resource_requests = (
-        feedback.get("formal_blocker_resource_requests", [])
-        or input_summary.get("formal_blocker_resource_requests", [])
-    )
-    if formal_blocker_resource_requests:
-        payload["formal_blocker_resource_requests"] = (
-            _compact_formal_blocker_resource_requests(
-                _formal_blocker_resource_requests_with_exact_semantic_artifacts(
-                    formal_blocker_resource_requests,
-                    feedback=feedback,
-                    input_summary=input_summary,
-                )
-            )
-        )
-    high_priority_agenda = (
-        feedback.get("high_priority_agenda", [])
-        or input_summary.get("high_priority_agenda", [])
-    )
-    if high_priority_agenda:
-        payload["high_priority_agenda"] = _compact_rows(
-            [
-                row
-                for row in high_priority_agenda
-                if isinstance(row, Mapping)
-            ],
-            keys=(
-                "id",
-                "owner_subsystem",
-                "trigger",
-                "action",
-                "acceptance_gate",
-                "target_ids",
-                "target_id",
-                "formalization_gap_planner_bridge_id",
-                "supporting_formalization_gap_planner_bridge_ids",
-                "standalone_seed_artifact_id",
-                "supporting_standalone_seed_artifact_ids",
-                "formalization_gap_planner_handoff_id",
-                "supporting_formalization_gap_planner_handoff_ids",
-                "formalization_gap_planner_execution_contexts",
-                "formalization_gap_planner_execution_plan_stage_ids",
-                "standalone_seed_path",
-                "target_intake_path",
-                "target_intake_cli",
-                "component_resource_registry_cli",
-                "standalone_plan_cli",
-                "llm_route_planner_prompt_cli",
-                "llm_route_planner_live_cli",
-                "reuse_smoke_cli",
-                "recommended_llm_provider",
-                "recommended_model_tier",
-                "target_prover_family",
-                "candidate_materialization_statuses",
-                "failure_classifications",
-                "recommended_formalizer_target_mode",
-                "runtime_queue_status",
-                "priority",
-                "proof_evidence_status",
-                "proof_boundary",
+    validation_errors = [
+        str(error)
+        for error in observed("validation_errors", []) or []
+        if str(error)
+    ]
+    raw_validation_feedback = observed("formalizer_validation_feedback", {})
+    validation_feedback = (
+        {
+            key: deepcopy(raw_validation_feedback[key])
+            for key in (
+                "schema_version",
+                "artifact_kind",
+                "feedback_id",
+                "producer",
+                "validation_label",
+                "validation_errors",
+                "validation_error_messages",
+                "validation_error_fingerprint",
+                "rejected_packet_available",
+                "rejected_packet_fingerprint",
+                "rejected_packet_projection",
+                "attempt_history",
+                "retry_depth",
                 "boundary",
-            ),
-            limit=5,
-        )
-    source_theorem_proof_body_adapter_feedback = (
-        feedback.get("source_theorem_proof_body_adapter_feedback", {})
-        or input_summary.get("source_theorem_proof_body_adapter_feedback", {})
+            )
+            if raw_validation_feedback.get(key) not in (None, "", [], {})
+        }
+        if isinstance(raw_validation_feedback, Mapping)
+        else {}
     )
-    if source_theorem_proof_body_adapter_feedback:
-        payload["source_theorem_proof_body_adapter_feedback"] = _compact_value(
-            source_theorem_proof_body_adapter_feedback
+    if validation_errors:
+        validation_feedback["validation_error_messages"] = validation_errors
+    if validation_feedback:
+        validation_feedback["model_owns_complete_replacement"] = True
+    control_fields = (
+        "architect_evidence_contract",
+        "runtime_requested_evidence_contract",
+        "architect_formal_verification_policy",
+        "architect_subsystem_acceptance_gate",
+        "formalization_gap_planner_action_work_order",
+        "formalization_gap_planner_action_work_order_id",
+        "formalization_gap_planner_action_work_order_hash",
+        "source_theorem_promotion_execution_id",
+        "source_theorem_promotion_generation_request_id",
+        "source_theorem_promotion_generation_request_hash",
+    )
+    control = {
+        key: (
+            _compact_formalization_gap_planner_action_work_order(observed(key))
+            if key == "formalization_gap_planner_action_work_order"
+            else _compact_value(observed(key))
         )
+        for key in control_fields
+        if observed(key) not in (None, "", [], {})
+    }
+    identity_fields = (
+        "formalization_manifest_id",
+        "proof_state_feedback_manifest_id",
+        "candidate_proof_state_feedback_manifest_id",
+        "candidate_materialization_manifest_id",
+        "source_manifest_id",
+        "source_materialization_manifest_id",
+        "parent_formalizer_proof_state_feedback",
+    )
+    lineage = {
+        key: _compact_value(observed(key))
+        for key in identity_fields
+        if observed(key) not in (None, "", [], {})
+    }
+    budget_fields = (
+        "attempts",
+        "formalizer_packet_repair_retry_depth",
+        "repeated_formalizer_packet_validation_failure",
+        "formalizer_lean_repair_retry_depth",
+        "repeated_formalizer_lean_candidate_failure",
+        "formalizer_proof_state_repair_round",
+        "next_formalizer_proof_state_repair_round",
+        "max_formalizer_proof_state_repair_rounds",
+    )
+    budgets = {
+        key: deepcopy(observed(key))
+        for key in budget_fields
+        if observed(key) not in (None, "", [], {})
+    }
+
+    pseudo_formal_fields = (
+        "pseudo_formalization_required",
+        "requires_pseudo_formalization",
+        "pseudo_formalization_required_reason",
+        "pseudo_formalization_required_missing_work_order_rows",
+        "pseudo_formalization_required_invalid_packets",
+        "pseudo_formalization_required_no_lane_routable_rows",
+        "pseudo_formal_failure_required_target_lanes",
+        "pseudo_formal_routable_target_lanes",
+        "pseudo_formal_validation_errors",
+        "block_verifier_feedback",
+        "block_verification",
+    )
+    pseudo_formal_observations = {
+        key: deepcopy(observed(key))
+        for key in pseudo_formal_fields
+        if observed(key) not in (None, "", [], {})
+    }
+
+    resource_rows = observed("formal_blocker_resource_requests", [])
+    formal_resources = []
+    for raw_row in resource_rows or []:
+        if not isinstance(raw_row, Mapping):
+            continue
+        row = {
+            key: deepcopy(raw_row[key])
+            for key in (
+                "request_id",
+                "blocker_id",
+                "source",
+                "blocker_kind",
+                "blocker",
+                "next_owner",
+                "target_ids",
+                "target_theorem_name",
+                "target_lean_declaration",
+                "placeholder_symbol",
+                "candidate_artifact_path",
+                "definition_only_candidate_artifact_path",
+                "formal_source_queries",
+                "source_lookup_hits",
+                "formal_source_grounding_hits",
+                "proof_body_goal_excerpt",
+                "diagnostics",
+                "failure_classification",
+                "runtime_queue_status",
+                "proof_body_gate_status",
+                "local_definition_lean_checked",
+                "local_definition_lean_compiled",
+                "semantic_definition_typecheck_evidence_status",
+                "proof_evidence_status",
+            )
+            if raw_row.get(key) not in (None, "", [], {})
+        }
+        if row:
+            formal_resources.append(row)
+
+    source_to_bridge_feedback = observed(
+        "source_to_bridge_premise_derivation_feedback",
+        {},
+    )
+    source_to_bridge_observations: dict[str, Any] = {}
+    if isinstance(source_to_bridge_feedback, Mapping):
+        bridge_diagnostics = []
+        for raw_row in source_to_bridge_feedback.get("diagnostics", []) or []:
+            if not isinstance(raw_row, Mapping):
+                continue
+            row = _compact_mapping(
+                raw_row,
+                keys=(
+                    "premise_name",
+                    "premise_names",
+                    "premise_target_type",
+                    "premise_target_source",
+                    "target_ids",
+                    "target_theorem_name",
+                    "target_lean_declaration",
+                    "premise_candidate_declaration_name",
+                    "premise_candidate_declaration_names",
+                    "premise_candidate_artifact_path",
+                    "source_to_bridge_premise_derivation_candidate_request_id",
+                    "source_to_bridge_premise_derivation_candidate_request",
+                    "source_to_bridge_grouped_premise_derivation_candidate_request_id",
+                    "source_to_bridge_grouped_premise_derivation_candidate_request",
+                    "missing_semantic_anchor_references",
+                    "semantic_alignment_blockers",
+                    "validation_errors",
+                    "diagnostics",
+                    "local_lean_stdout",
+                    "local_lean_stderr",
+                    "proof_evidence_status",
+                ),
+            )
+            if row:
+                bridge_diagnostics.append(row)
+        source_to_bridge_observations = {
+            key: deepcopy(source_to_bridge_feedback[key])
+            for key in (
+                "source_to_bridge_premise_derivation_required",
+                "pending_premise_names",
+                "verified_premise_names",
+                "target_ids",
+                "target_theorem_name",
+                "proof_evidence_status",
+            )
+            if source_to_bridge_feedback.get(key) not in (None, "", [], {})
+        }
+        missing_anchor_references = observed(
+            "missing_semantic_anchor_references",
+            [],
+        )
+        if missing_anchor_references:
+            source_to_bridge_observations[
+                "missing_semantic_anchor_references"
+            ] = deepcopy(missing_anchor_references)
+        if bridge_diagnostics:
+            source_to_bridge_observations["diagnostics"] = bridge_diagnostics
+
+    semantic_feedback = observed(
+        "source_theorem_exact_semantic_definition_repair_feedback",
+        {},
+    )
+    semantic_feedback_observations: dict[str, Any] = {}
+    if isinstance(semantic_feedback, Mapping):
+        semantic_rows = []
+        for raw_row in semantic_feedback.get("diagnostics", []) or []:
+            if not isinstance(raw_row, Mapping):
+                continue
+            row = {
+                key: deepcopy(raw_row[key])
+                for key in (
+                    "placeholder_symbol",
+                    "target_ids",
+                    "target_theorem_name",
+                    "target_lean_declaration",
+                    "candidate_artifact_path",
+                    "definition_only_candidate_artifact_path",
+                    "source_lookup_hits",
+                    "formal_source_grounding_hits",
+                    "semantic_alignment_blockers",
+                    "semantic_definition_risks",
+                    "local_definition_lean_checked",
+                    "local_definition_lean_compiled",
+                    "local_lean_stdout",
+                    "local_lean_stderr",
+                    "semantic_definition_typecheck_evidence_status",
+                    "proof_body_gate_status",
+                    "failure_classification",
+                    "proof_evidence_status",
+                )
+                if raw_row.get(key) not in (None, "", [], {})
+            }
+            if row:
+                semantic_rows.append(row)
+        semantic_feedback_observations = {
+            "diagnostics": semantic_rows,
+            "proof_evidence_status": semantic_feedback.get(
+                "proof_evidence_status", ""
+            ),
+        }
+
+    payload = {
+        "feedback_type": str(
+            observed("feedback_type", "")
+            or observed("trigger", "")
+            or "formalizer_environment_observation"
+        ),
+        "failure_classification": str(
+            observed("failure_classification", "") or ""
+        ),
+        "validation_label": str(observed("validation_label", "") or ""),
+        "validation_errors": validation_errors,
+        "formalizer_validation_feedback": validation_feedback,
+        "control_plane": control,
+        "lineage": lineage,
+        "budgets": budgets,
+        "independent_semantic_review": correction_observations.get(
+            "independent_semantic_review", {}
+        ),
+        "target_and_environment_observations": correction_observations.get(
+            "target_and_environment_observations", {}
+        ),
+        "candidate_observations": correction_observations.get(
+            "candidate_observations", []
+        ),
+        "local_lean_observation": correction_observations.get(
+            "local_lean_observation", {}
+        ),
+        "formalizer_recovery_checkpoint": correction_observations.get(
+            "formalizer_recovery_checkpoint", {}
+        ),
+        "pseudo_formal_observations": pseudo_formal_observations,
+        "formal_resource_observations": formal_resources,
+        "source_to_bridge_observations": source_to_bridge_observations,
+        "exact_semantic_definition_observations": (
+            semantic_feedback_observations
+        ),
+        "last_attempt_summary": _compact_value(observed("last_attempt_summary", {})),
+        "high_priority_agenda_observations": (
+            _compact_high_priority_agenda_observations(
+                observed("high_priority_agenda", [])
+            )
+        ),
+        "source_theorem_proof_body_adapter_feedback": _compact_value(
+            _without_runtime_authored_prescriptions(
+                observed("source_theorem_proof_body_adapter_feedback", {})
+            )
+        ),
+        "theory_trace_downstream_alignment_feedback": deepcopy(
+            _theory_trace_downstream_alignment_feedback(feedback)
+        ),
+        "proof_evidence_status": str(observed("proof_evidence_status", "") or ""),
+        "proof_evidence_boundary": str(
+            observed("proof_evidence_boundary", "")
+            or observed("boundary", "")
+            or ""
+        ),
+    }
     return {
         key: value
         for key, value in payload.items()
         if value not in (None, "", [], {}, False)
     }
-
-
-def _compact_formalizer_candidate_diagnostics(value: Any) -> list[dict[str, Any]]:
-    if not isinstance(value, list | tuple):
-        return []
-    return _compact_rows(
-        [row for row in value if isinstance(row, Mapping)],
-        keys=(
-            "candidate_id",
-            "candidate_kind",
-            "source_field",
-            "artifact_path",
-            "target_lean_file",
-            "target_lean_line",
-            "target_lean_column",
-            "target_lean_declaration",
-            "source_hash",
-            "target_ids",
-            "target_theorem_goal_ids",
-            "target_theorem_name",
-            "repair_target_identity_required",
-            "repair_target_identity_binding_status",
-            "repair_target_identity_binding_id",
-            "repair_parent_candidate_id",
-            "expected_target_lean_declaration",
-            "actual_target_lean_declaration",
-            "target_identity_mismatch_not_source_theorem",
-            "target_identity_unbound_not_source_theorem",
-            "target_identity_errors",
-            "lean_source_excerpt",
-            "precheck_status",
-            "precheck_errors",
-            "local_lean_attempted",
-            "local_lean_compiled",
-            "local_lean_exit_status",
-            "local_lean_stdout_excerpt",
-            "local_lean_stderr_excerpt",
-            "local_lean_command",
-            "local_lean_project",
-            "local_lean_timeout",
-            "local_lean_skipped_reason",
-        ),
-        limit=3,
-    )
-
 
 def _theory_trace_downstream_alignment_feedback(
     feedback: Mapping[str, Any],
@@ -8534,9 +4678,6 @@ def _theory_trace_downstream_alignment_feedback(
             )
             or []
         ),
-        "required_repair": (
-            source.get("required_repair", "") or source.get("target_behavior", "")
-        ),
         "acceptance_gate": (
             source.get("acceptance_gate", "") or contract.get("acceptance_gate", "")
         ),
@@ -8545,149 +4686,6 @@ def _theory_trace_downstream_alignment_feedback(
             or contract.get("proof_evidence_status", "")
         ),
         "boundary": source.get("boundary", ""),
-    }
-
-
-def _feedback_target_shape_contract(
-    feedback: Mapping[str, Any],
-    *,
-    input_summary: Mapping[str, Any],
-) -> Mapping[str, Any]:
-    explicit = feedback.get("target_shape_contract", {}) or input_summary.get(
-        "target_shape_contract",
-        {},
-    )
-    if isinstance(explicit, Mapping) and explicit:
-        return explicit
-    candidate_diagnostics = (
-        feedback.get("candidate_diagnostics", [])
-        or input_summary.get("candidate_diagnostics", [])
-        or []
-    )
-    if not isinstance(candidate_diagnostics, list | tuple):
-        candidate_diagnostics = []
-    precheck_text = " ".join(
-        str(error)
-        for row in candidate_diagnostics
-        if isinstance(row, Mapping)
-        for error in row.get("precheck_errors", []) or []
-    ).lower()
-    target_drift_detected = "source-theorem target drift" in precheck_text
-    if not target_drift_detected:
-        return {}
-    contract: dict[str, Any] = {
-        "contract_kind": "source_theorem_target_preservation",
-        "required_behavior": (
-            "A formal target that claims NEEDS_KERNEL_CHECK for a known source theorem "
-            "must preserve the source theorem conclusion shape. Do not replace it with "
-            "a narrower helper lemma."
-        ),
-        "source_theorem_target_action": (
-            "Use formal_targets for the known source theorem only when the Lean sketch "
-            "preserves the required conclusion family; otherwise emit the source theorem "
-            "as expected_status=FORMAL_GAP with an empty Lean sketch."
-        ),
-        "helper_lemma_action": (
-            "Move narrower helper work to support channels such as "
-            "source_to_bridge_premise_derivation_candidates, lemma_dependency_plan, "
-            "proof_bank_obligation_requests, gap_taxonomy, or next_actions."
-        ),
-        "forbidden_output_action": (
-            "Do not emit helper lemma work as a source-theorem formal_targets "
-            "NEEDS_KERNEL_CHECK candidate."
-        ),
-        "allowed_support_channels": [
-            "source_to_bridge_premise_derivation_candidates",
-            "lemma_dependency_plan",
-            "proof_bank_obligation_requests",
-            "gap_taxonomy",
-            "next_actions",
-        ],
-        "forbidden_replacement_shapes": [
-            "narrow result that omits task-bound objects or assumptions",
-            "result with weaker or different quantifiers",
-            "typing lemma",
-            "monotonicity lemma",
-            "helper lemma without the source theorem conclusion",
-        ],
-        "if_not_feasible": (
-            "Emit expected_status=FORMAL_GAP for the source theorem target and route "
-            "helper lemmas separately through support-lemma/proof-bank channels."
-        ),
-        "fail_closed_source_theorem_formal_target": {
-            "expected_status": "FORMAL_GAP",
-            "lean_statement_sketch": "",
-        },
-    }
-    return contract
-
-
-def _feedback_candidate_reroute_options(
-    feedback: Mapping[str, Any],
-    *,
-    input_summary: Mapping[str, Any],
-    target_shape_contract: Mapping[str, Any],
-) -> list[Any]:
-    explicit = feedback.get("candidate_reroute_options", []) or input_summary.get(
-        "candidate_reroute_options",
-        [],
-    )
-    if isinstance(explicit, list | tuple) and explicit:
-        return list(explicit)
-    if not target_shape_contract:
-        return []
-    return [
-        (
-            "If the generated theorem is only a support/helper lemma, do not place it "
-            "in formal_targets as the source theorem. Emit the source theorem as "
-            "FORMAL_GAP and route the helper separately."
-        )
-    ]
-
-
-def _feedback_target_drift_repair_contract(
-    feedback: Mapping[str, Any],
-    *,
-    input_summary: Mapping[str, Any],
-    target_shape_contract: Mapping[str, Any],
-) -> Mapping[str, Any]:
-    explicit = feedback.get("target_drift_repair_contract", {}) or input_summary.get(
-        "target_drift_repair_contract",
-        {},
-    )
-    if isinstance(explicit, Mapping) and explicit:
-        return explicit
-    if not target_shape_contract:
-        return {}
-    return {
-        "contract_kind": "source_theorem_target_two_lane_repair",
-        "source_theorem_lane": {
-            "output_key": "formal_targets",
-            "allowed_needs_kernel_check_shape": (
-                "known source theorem preserving the required conclusion family"
-            ),
-            "fail_closed_shape": (
-                "known source theorem expected_status=FORMAL_GAP with empty "
-                "lean_statement_sketch"
-            ),
-        },
-        "support_lemma_lane": {
-            "allowed_output_keys": [
-                "source_to_bridge_premise_derivation_candidates",
-                "lemma_dependency_plan",
-                "proof_bank_obligation_requests",
-                "gap_taxonomy",
-                "next_actions",
-            ],
-            "forbidden_output_key": (
-                "formal_targets with source_theorem_target_known=true and "
-                "expected_status=NEEDS_KERNEL_CHECK"
-            ),
-        },
-        "acceptance_gate": (
-            "Either preserve the source theorem target shape, or mark the source "
-            "theorem as FORMAL_GAP and route helper work outside the source theorem slot."
-        ),
     }
 
 
@@ -8818,17 +4816,12 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "source_theorem_exact_proof_body_repair_diagnostics",
         "source_theorem_exact_semantic_definition_typechecked_candidates",
         "source_theorem_exact_candidate_repair_placeholder_symbols",
-        "source_theorem_exact_candidate_placeholder_resolution_plan",
         "source_theorem_exact_candidate_repair_diagnostics",
         "exact_source_theorem_binders",
-        "premise_semantic_anchor_binders",
-        "premise_semantic_anchor_binder_names",
         "required_bridge_premise_names_for_shared_instantiation",
         "source_to_bridge_adapter_instantiation_group_id",
-        "source_to_bridge_adapter_object_names_requiring_source_instantiation",
         "source_to_bridge_grouped_premise_derivation_candidate_request_id",
         "exact_goal_shape_obligation_ids",
-        "candidate_definition_request",
         "formalizer_lean_candidate_repair_required",
         "formalizer_lean_candidate_proof_state_feedback_available",
         "formalizer_lean_candidate_unbound_proof_state_feedback_available",
@@ -8850,7 +4843,6 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "formalizer_pseudo_formal_packet_component_gate_handoff_diagnostic_memory",
         "formalizer_lean_candidate_capability_feedback_memory",
         "formalizer_runtime_capability_contract_feedback_memory",
-        "recommended_source_theorem_integration_action",
         "critic_high_priority_agenda_ids",
     )
     compact = _compact_mapping(row, keys=keys)
@@ -8865,6 +4857,8 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "target_theorem_name",
                 "trigger",
                 "placeholder_symbol",
+                "missing_formal_symbols",
+                "typeclass_blockers",
                 "failure_classification",
                 "structural_reformulation_required",
                 "pseudo_formalization_required",
@@ -8874,18 +4868,12 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "source_failed_candidate_packet_id",
                 "response_validation_feedback",
                 "source_theorem_exact_semantic_definition_structural_reformulation_route",
-                "definition_contract",
-                "required_next_checks",
                 "source_lookup_hits",
                 "exact_source_theorem_binders",
-                "premise_semantic_anchor_binders",
-                "premise_semantic_anchor_binder_names",
                 "required_bridge_premise_names_for_shared_instantiation",
                 "source_to_bridge_adapter_instantiation_group_id",
-                "source_to_bridge_adapter_object_names_requiring_source_instantiation",
                 "source_to_bridge_grouped_premise_derivation_candidate_request_id",
                 "exact_goal_shape_obligation_ids",
-                "candidate_definition_request",
                 "candidate_artifact_path",
                 "definition_only_candidate_artifact_path",
                 "diagnostics",
@@ -8893,7 +4881,6 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "semantic_alignment_blockers",
                 "local_definition_lean_compiled",
                 "semantic_definition_typecheck_evidence_status",
-                "recommended_repair_tasks",
                 "proof_body_gate_status",
                 "proof_body_goal_reached",
                 "proof_body_attempted",
@@ -8917,13 +4904,10 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "proof_body_attempt_count",
                 "proof_body_attempt_summaries",
                 "proof_body_goal_excerpt",
-                "next_owner_subsystem",
-                "proof_body_repair_scope",
                 "target_declaration_source_excerpt",
                 "candidate_source_excerpt",
                 "target_theorem_statement",
                 "current_proof_body_excerpt",
-                "residual_goal_role",
                 "semantic_alignment_blockers",
                 "source_theorem_kernel_evidence_eligible",
                 "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
@@ -8934,7 +4918,6 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "adapter_candidate_artifact_path",
                 "adapter_declaration_name",
                 "diagnostics",
-                "recommended_repair_tasks",
             ),
             limit=3,
         )
@@ -8959,25 +4942,20 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "proof_body_goal_reached",
                 "proof_body_goal_excerpt",
                 "proof_body_attempt_summaries",
-                "next_owner_subsystem",
-                "proof_body_repair_scope",
                 "target_declaration_source_excerpt",
                 "candidate_source_excerpt",
                 "target_theorem_statement",
                 "current_proof_body_excerpt",
-                "residual_goal_role",
                 "exact_goal_shape_obligation_ids",
                 "exact_goal_shape_obligations",
                 "semantic_alignment_constraints",
                 "semantic_alignment_blockers",
                 "source_theorem_kernel_evidence_eligible",
                 "source_theorem_exact_proof_body_gate_open_for_kernel_repair",
-                "proof_body_adapter_required_reasons",
                 "kernel_verified_theorem_reduction_closure_declarations",
                 "verified_theorem_reduction_closure_artifact_paths",
                 "kernel_verified_theorem_reduction_closure_signature_excerpts",
                 "kernel_verified_theorem_reduction_closure_target_ids",
-                "recommended_repair_tasks",
             ),
             limit=3,
         )
@@ -9031,10 +5009,6 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "source_formalizer_proposal_id",
                 "source_formalization_manifest_id",
                 "source_packet_id",
-                "prompt_scaffold_origin",
-                "source_prompt_scaffold_kind",
-                "source_prompt_scaffold_id",
-                "source_prompt_scaffold_required_output_key",
                 "source_theorem_id",
                 "source_block_id",
                 "source_block_type",
@@ -9071,11 +5045,6 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "semantic_primitive_id",
                 "reason",
                 "runtime_queue_status",
-                "pseudo_formal_block_verifier_worker",
-                "recommended_commands",
-                "recommended_next_action",
-                "target_behavior",
-                "acceptance_gate",
                 "proof_evidence_status",
                 "proof_evidence_boundary",
             ),
@@ -9091,10 +5060,6 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "source_formalizer_proposal_id",
                 "source_formalization_manifest_id",
                 "source_packet_id",
-                "prompt_scaffold_origin",
-                "source_prompt_scaffold_kind",
-                "source_prompt_scaffold_id",
-                "source_prompt_scaffold_required_output_key",
                 "source_theorem_id",
                 "source_block_id",
                 "source_block_type",
@@ -9128,11 +5093,6 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "semantic_primitive_id",
                 "reason",
                 "runtime_queue_status",
-                "pseudo_formal_block_verifier_worker",
-                "recommended_commands",
-                "recommended_next_action",
-                "target_behavior",
-                "acceptance_gate",
                 "proof_evidence_status",
                 "proof_evidence_boundary",
             ),
@@ -9155,10 +5115,6 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                     "source_formalizer_proposal_id",
                     "source_formalization_manifest_id",
                     "source_packet_id",
-                    "prompt_scaffold_origin",
-                    "source_prompt_scaffold_kind",
-                    "source_prompt_scaffold_id",
-                    "source_prompt_scaffold_required_output_key",
                     "source_theorem_id",
                     "source_block_id",
                     "source_block_type",
@@ -9194,11 +5150,6 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                     "target_theorem_name",
                     "reason",
                     "runtime_queue_status",
-                    "pseudo_formal_block_verifier_worker",
-                    "recommended_commands",
-                    "recommended_next_action",
-                    "target_behavior",
-                    "acceptance_gate",
                     "proof_evidence_status",
                     "proof_evidence_boundary",
                 ),
@@ -9220,10 +5171,6 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                     "source_pseudo_formal_work_order_id",
                     "source_agenda_id",
                     "source_packet_id",
-                    "prompt_scaffold_origin",
-                    "source_prompt_scaffold_kind",
-                    "source_prompt_scaffold_id",
-                    "source_prompt_scaffold_required_output_key",
                     "source_theorem_id",
                     "source_block_id",
                     "source_block_conclusion",
@@ -9243,9 +5190,6 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                     "target_ids",
                     "target_theorem_name",
                     "runtime_queue_status",
-                    "pseudo_formal_block_verifier_worker",
-                    "recommended_commands",
-                    "recommended_next_action",
                     "proof_evidence_status",
                     "proof_evidence_boundary",
                 ),
@@ -9270,12 +5214,6 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                     "premise_derivation_candidate_skeleton_lean_source_excerpt",
                     "premise_candidate_skeleton_lean_source_excerpt",
                     "exact_source_theorem_binders",
-                    "premise_semantic_anchor_binders",
-                    "premise_semantic_anchor_binder_names",
-                    "required_semantic_anchor_reference_names",
-                    "semantic_anchor_reference_gate",
-                    "adapter_object_names_requiring_source_instantiation",
-                    "candidate_contract",
                     "missing_required_metadata_fields",
                     "request_complete",
                     "metadata_authoring_status",
@@ -9292,7 +5230,6 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "target_theorem_name",
                 "target_lean_declaration",
                 "target_theorem_goal_ids",
-                "candidate_contract",
                 "required_candidate_fields",
                 "missing_required_metadata_fields",
                 "metadata_authoring_status",
@@ -9318,15 +5255,7 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "premise_candidate_skeleton_lean_source_excerpt",
                 "premise_candidate_signature_excerpts",
                 "premise_candidate_evidence_eligible",
-                "premise_candidate_assumes_forbidden_premise",
-                "premise_candidate_uninstantiated_adapter_object_binders",
-                "premise_candidate_references_semantic_anchor",
-                "missing_premise_semantic_anchor_binder_names",
                 "exact_source_theorem_binders",
-                "premise_semantic_anchor_binders",
-                "premise_semantic_anchor_binder_names",
-                "required_semantic_anchor_reference_names",
-                "semantic_anchor_reference_gate",
                 "source_context_status",
                 "source_theorem_signature_excerpt",
                 "adapter_signature_excerpt",
@@ -9335,12 +5264,9 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "premise_target_type",
                 "adapter_instantiation_group_id",
                 "required_bridge_premise_names_for_shared_instantiation",
-                "shared_adapter_instantiation_contract",
                 "premise_derivation_gap_kind",
                 "premise_derivation_gap_summary",
                 "premise_semantic_dependency_status",
-                *_SOURCE_TO_BRIDGE_POLICY_LINEAGE_KEYS,
-                "premise_semantic_dependency_requirements",
                 "source_to_bridge_premise_derivation_candidate_request_id",
                 "source_to_bridge_premise_derivation_candidate_request",
                 "source_to_bridge_grouped_premise_derivation_candidate_request_id",
@@ -9349,7 +5275,6 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "proof_body_attempt_summaries",
                 "kernel_verified_theorem_reduction_closure_declarations",
                 "verified_theorem_reduction_closure_artifact_paths",
-                "recommended_repair_tasks",
                 "diagnostics",
             ),
             limit=4,
@@ -9363,20 +5288,24 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "source_field",
                 "source_manifest_path",
                 "artifact_path",
+                "lean_source",
+                "lean_source_excerpt",
                 "precheck_status",
-                "precheck_errors",
                 "local_lean_attempted",
                 "local_lean_compiled",
                 "local_lean_exit_status",
                 "local_lean_project",
                 "local_lean_diagnostic_classes",
-                "local_lean_repair_contract",
+                "local_lean_stdout",
+                "local_lean_stderr",
                 "local_lean_stdout_excerpt",
                 "local_lean_stderr_excerpt",
-                "next_action",
                 "proof_evidence_status",
             ),
-            limit=3,
+            limit=max(
+                1,
+                len(row.get("formalizer_lean_candidate_repair_memory", [])),
+            ),
         )
     if isinstance(row.get("formalizer_diagnostic_helper_memory"), list):
         compact["formalizer_diagnostic_helper_memory"] = _compact_rows(
@@ -9390,8 +5319,8 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "local_lean_compiled",
                 "source_theorem_target_known",
                 "diagnostic_helper_not_source_theorem",
+                "lean_source",
                 "lean_source_excerpt",
-                "next_action",
                 "memory_status",
                 "proof_evidence_status",
             ),
@@ -9417,8 +5346,6 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "executed_tools",
                 "tool_call_trace",
                 "lean_lsp_mcp_live_called",
-                "target_behavior",
-                "acceptance_gate",
                 "proof_evidence_status",
             ),
             limit=3,
@@ -9470,8 +5397,6 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "prior_feedback_proof_state_rows",
                 "candidate_kernel_verified",
                 "source_theorem_kernel_verified",
-                "target_behavior",
-                "acceptance_gate",
                 "proof_evidence_status",
                 "boundary",
             ),
@@ -9561,8 +5486,6 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "failure_classifications",
                 "failure_detail",
                 "n_exact_rows_read",
-                "target_behavior",
-                "acceptance_gate",
                 "proof_evidence_status",
                 "boundary",
             ),
@@ -9580,10 +5503,7 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "source_materialization_manifest_id",
                 "next_owner_subsystem",
                 "failure_classification",
-                "missing_contracts",
                 "runtime_requested_evidence_contract",
-                "required_runtime_configuration",
-                "required_formalizer_behavior",
                 "formalizer_candidate_local_lean",
                 "proof_state_provider",
                 "n_candidate_sources",
@@ -9591,9 +5511,34 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "n_live_proof_state_requests",
                 "n_lean_lsp_mcp_ready_requests",
                 "candidate_proof_state_manifest_id",
-                "target_behavior",
-                "acceptance_gate",
                 "proof_evidence_status",
+            ),
+            limit=3,
+        )
+    if isinstance(
+        row.get("formalizer_lean_candidate_capability_feedback_memory"),
+        list,
+    ):
+        compact["formalizer_lean_candidate_capability_feedback_memory"] = _compact_rows(
+            row.get("formalizer_lean_candidate_capability_feedback_memory", []),
+            keys=(
+                "learning_task",
+                "capability_id",
+                "next_owner_subsystem",
+                "blocker",
+                "evidence",
+                "component_eval",
+                "component_eval_manifest_path",
+                "live_generator",
+                "static_or_fixture_only",
+                "capability_evidence_ok",
+                "failure_classification",
+                "n_candidate_sources",
+                "n_local_lean_checked",
+                "n_live_proof_state_requests",
+                "n_lean_lsp_mcp_ready_requests",
+                "proof_evidence_status",
+                "boundary",
             ),
             limit=3,
         )
@@ -9610,23 +5555,9 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "local_definition_lean_compiled",
                 "semantic_definition_typecheck_evidence_status",
                 "exact_source_theorem_binders",
-                "premise_semantic_anchor_binders",
-                "premise_semantic_anchor_binder_names",
                 "source_to_bridge_adapter_instantiation_group_id",
-                "candidate_definition_request",
                 "failure_classification",
                 "proof_evidence_status",
-            ),
-            limit=4,
-        )
-    if isinstance(row.get("source_theorem_exact_candidate_placeholder_resolution_plan"), list):
-        compact["source_theorem_exact_candidate_placeholder_resolution_plan"] = _compact_rows(
-            row.get("source_theorem_exact_candidate_placeholder_resolution_plan", []),
-            keys=(
-                "placeholder_symbol",
-                "replacement_strategy",
-                "candidate_registered_obligation_ids",
-                "source_theorem_target_identity_status",
             ),
             limit=4,
         )
@@ -9709,6 +5640,54 @@ def _source_theorem_candidate_materialization_contract(
 
 
 def _compact_value_for_key(key: Any, value: Any) -> Any:
+    if str(key) == "formalization_gap_planner_execution_contexts" and isinstance(
+        value,
+        list | tuple,
+    ):
+        return _compact_rows(
+            value,
+            keys=(
+                "bridge_id",
+                "handoff_id",
+                "standalone_seed_artifact_id",
+                "standalone_seed_artifact_path",
+                "standalone_seed_path",
+                "target_intake_path",
+                "target_ids",
+                "execution_plan_stage_ids",
+                "handoff_status",
+                "proof_evidence_status",
+            ),
+            limit=4,
+        )
+    if str(key) in {
+        "lean_source",
+        "lean_source_excerpt",
+        "target_declaration_source_excerpt",
+        "candidate_source_excerpt",
+        "target_theorem_statement",
+        "current_proof_body_excerpt",
+        "local_lean_stdout",
+        "local_lean_stderr",
+        "local_lean_stdout_excerpt",
+        "local_lean_stderr_excerpt",
+        "candidate_identity_lean_stdout",
+        "candidate_identity_lean_stderr",
+        "candidate_identity_lean_stdout_excerpt",
+        "candidate_identity_lean_stderr_excerpt",
+    } and isinstance(value, str):
+        return value
+    if str(key) in {
+        "validation_errors",
+        "retry_validation_errors",
+        "precheck_errors",
+        "blocking_precheck_errors",
+        "diagnostics",
+        "residual_goals",
+        "proof_body_goal_excerpt",
+        "proof_body_attempt_summaries",
+    }:
+        return _without_runtime_authored_prescriptions(value)
     if str(key) == "formal_source_grounding_hits":
         return compact_formal_source_grounding_hits_for_prompt(value)
     if str(key) == "retrieval_query_seeds" and isinstance(value, list | tuple):
@@ -9757,19 +5736,6 @@ def _compact_value_for_key(key: Any, value: Any) -> Any:
             "state_after": 1800,
             "tactic": 1000,
             "current_signature": 1400,
-        }
-        return value[: limits[str(key)]]
-    if str(key) in {
-        "target_declaration_source_excerpt",
-        "candidate_source_excerpt",
-        "target_theorem_statement",
-        "current_proof_body_excerpt",
-    } and isinstance(value, str):
-        limits = {
-            "target_declaration_source_excerpt": 12000,
-            "candidate_source_excerpt": 12000,
-            "target_theorem_statement": 9000,
-            "current_proof_body_excerpt": 6000,
         }
         return value[: limits[str(key)]]
     if str(key) == "source_theorem_candidate_proof_bodies" and isinstance(
@@ -10041,7 +6007,6 @@ def _compact_value(value: Any) -> Any:
             "adapter_kernel_verified",
             "diagnostics",
             "diagnostic_classes",
-            "required_behavior",
             "acceptance_gate",
             "source_theorem_candidate_proof_bodies",
             "verified_support_assets",
@@ -10071,6 +6036,7 @@ def _compact_value(value: Any) -> Any:
             key
             for key in priority_keys
             if key not in excluded_keys
+            and not _is_runtime_authored_prescriptive_field(key)
             and key in value
             and value.get(key) not in (None, "", [], {})
         ]
@@ -10079,7 +6045,7 @@ def _compact_value(value: Any) -> Any:
             if (
                 key not in ordered_keys
                 and key_text not in excluded_keys
-                and not key_text.endswith(("_repair_rule", "_recipe", "_strategy"))
+                and not _is_runtime_authored_prescriptive_field(key)
                 and value.get(key) not in (None, "", [], {})
             ):
                 ordered_keys.append(key)
@@ -10135,123 +6101,6 @@ def _target_lean_declaration_identifier_error(value: Any) -> str:
     return ""
 
 
-def _lean_statement_trust_boundary_error(source: str) -> str:
-    """Reject only proof-authority violations; Lean owns syntax diagnostics."""
-
-    if not source:
-        return ""
-    patterns = (
-        (r"\bsorry\b", "contains Lean sorry placeholder"),
-        (r"\badmit\b", "contains Lean admit placeholder"),
-        (r"\baxiom\b", "contains Lean axiom declaration"),
-        (r"\bunsafe\b", "contains unsafe Lean declaration"),
-    )
-    for pattern, message in patterns:
-        if re.search(pattern, source, flags=re.IGNORECASE):
-            return message
-    return ""
-
-
-def _source_to_bridge_candidate_vacuous_truth_error(source: str) -> str:
-    if not source:
-        return ""
-    if re.search(
-        r"\b(?:theorem|lemma)\b[\s\S]*?:\s*True\s*:=\s*by\b",
-        source,
-        flags=re.IGNORECASE,
-    ):
-        return "contains vacuous True source-to-bridge premise candidate"
-    return ""
-
-
-def _source_to_bridge_candidate_missing_anchor_references(
-    row: Mapping[str, Any],
-    source: str,
-) -> tuple[str, ...]:
-    anchor_names = _source_to_bridge_candidate_required_anchor_names(row)
-    if not anchor_names or not source:
-        return ()
-    stripped = _strip_lean_comments(source)
-    missing = [
-        name
-        for name in anchor_names
-        if not _source_to_bridge_anchor_has_substantive_reference(stripped, name)
-    ]
-    return tuple(missing)
-
-
-def _source_to_bridge_candidate_required_anchor_names(
-    row: Mapping[str, Any],
-) -> tuple[str, ...]:
-    values: list[str] = []
-    sources: list[Mapping[str, Any]] = [row]
-    for key in (
-        "source_to_bridge_premise_derivation_candidate_request",
-        "source_to_bridge_grouped_premise_derivation_candidate_request",
-    ):
-        nested = row.get(key, {})
-        if isinstance(nested, Mapping):
-            sources.append(nested)
-    for source in sources:
-        for key in (
-            "required_semantic_anchor_reference_names",
-            "premise_semantic_anchor_binder_names",
-        ):
-            raw = source.get(key, [])
-            candidates = raw if isinstance(raw, list | tuple | set) else [raw]
-            for value in candidates:
-                text = str(value or "").strip()
-                if text:
-                    values.append(text)
-        for binder in source.get("premise_semantic_anchor_binders", []) or []:
-            if isinstance(binder, Mapping):
-                name = str(binder.get("name", "") or "").strip()
-                if name:
-                    values.append(name)
-    return tuple(dict.fromkeys(values))
-
-
-def _source_to_bridge_anchor_has_substantive_reference(source: str, name: str) -> bool:
-    pattern = re.compile(rf"\b{re.escape(name)}\b")
-    for raw_line in source.splitlines():
-        line = raw_line.strip()
-        if not pattern.search(line):
-            continue
-        if _source_to_bridge_anchor_reference_line_is_noop(line, name):
-            continue
-        return True
-    return False
-
-
-def _source_to_bridge_anchor_reference_line_is_noop(line: str, name: str) -> bool:
-    name_pat = re.escape(name)
-    noop_patterns = (
-        rf"^(?:have|let)\s+_\s*(?::[^:=]+)?\s*:=\s*{name_pat}\s*$",
-        rf"^(?:have|let)\s+[A-Za-z_][A-Za-z0-9_'.]*\s*(?::[^:=]+)?\s*:=\s*{name_pat}\s*$",
-    )
-    return any(re.search(pattern, line) for pattern in noop_patterns)
-
-
-def _source_to_bridge_candidate_uninstantiated_adapter_object_binders(
-    row: Mapping[str, Any],
-    source: str,
-) -> tuple[str, ...]:
-    adapter_object_names = _source_to_bridge_candidate_adapter_object_names(row)
-    if not adapter_object_names or not source:
-        return ()
-    header = _lean_theorem_header_without_comments(source)
-    found: list[str] = []
-    for inner in _top_level_parenthesized_groups(header):
-        if ":" not in inner:
-            continue
-        names_text, _binder_type = inner.split(":", 1)
-        binder_names = {value.strip() for value in names_text.split() if value.strip()}
-        for name in adapter_object_names:
-            if name in binder_names:
-                found.append(name)
-    return tuple(dict.fromkeys(found))
-
-
 def _source_to_bridge_candidate_has_source_binding_contract(
     row: Mapping[str, Any],
 ) -> bool:
@@ -10266,103 +6115,4 @@ def _source_to_bridge_candidate_has_source_binding_contract(
         nested = row.get(key, {})
         if isinstance(nested, Mapping) and nested:
             return True
-    has_exact_source_binders = row.get("exact_source_theorem_binders") not in (
-        None,
-        "",
-        [],
-        {},
-    )
-    has_anchor_metadata = any(
-        row.get(key) not in (None, "", [], {})
-        for key in (
-            "premise_semantic_anchor_binders",
-            "premise_semantic_anchor_binder_names",
-            "required_semantic_anchor_reference_names",
-        )
-    )
-    has_adapter_instantiation_metadata = row.get(
-        "adapter_object_names_requiring_source_instantiation"
-    ) not in (None, "", [], {})
-    has_premise_identity = bool(_source_to_bridge_candidate_premise_names(row))
-    has_target_identity = bool(
-        str(
-            row.get("target_lean_declaration", "")
-            or row.get("target_theorem_name", "")
-            or ""
-        ).strip()
-    )
-    return bool(
-        (has_exact_source_binders and has_anchor_metadata)
-        or (has_anchor_metadata and has_adapter_instantiation_metadata)
-        or has_adapter_instantiation_metadata
-        or (has_premise_identity and has_target_identity and has_anchor_metadata)
-    )
-
-
-def _source_to_bridge_candidate_has_copied_request_contract(
-    row: Mapping[str, Any],
-) -> bool:
-    for key in (
-        "source_to_bridge_premise_derivation_candidate_request",
-        "source_to_bridge_grouped_premise_derivation_candidate_request",
-    ):
-        nested = row.get(key, {})
-        if isinstance(nested, Mapping) and nested:
-            return True
     return False
-
-
-def _source_to_bridge_candidate_adapter_object_names(
-    row: Mapping[str, Any],
-) -> tuple[str, ...]:
-    values: list[str] = []
-    sources: list[Mapping[str, Any]] = [row]
-    for key in (
-        "source_to_bridge_premise_derivation_candidate_request",
-        "source_to_bridge_grouped_premise_derivation_candidate_request",
-    ):
-        nested = row.get(key, {})
-        if isinstance(nested, Mapping):
-            sources.append(nested)
-    for source in sources:
-        raw = source.get("adapter_object_names_requiring_source_instantiation", [])
-        candidates = raw if isinstance(raw, list | tuple | set) else [raw]
-        for value in candidates:
-            text = str(value or "").strip()
-            if text:
-                values.append(text)
-    return tuple(dict.fromkeys(values))
-
-
-def _lean_theorem_header_without_comments(source: str) -> str:
-    text = _strip_lean_comments(source)
-    match = re.search(r"\b(?:theorem|lemma)\s+[A-Za-z_][A-Za-z0-9_'.]*\b", text)
-    if not match:
-        return text
-    theorem_text = text[match.start() :]
-    marker = theorem_text.find(":=")
-    return theorem_text if marker < 0 else theorem_text[:marker]
-
-
-def _top_level_parenthesized_groups(text: str) -> tuple[str, ...]:
-    groups: list[str] = []
-    depth = 0
-    start: int | None = None
-    for index, char in enumerate(text):
-        if char == "(":
-            if depth == 0:
-                start = index + 1
-            depth += 1
-        elif char == ")":
-            if depth <= 0:
-                continue
-            depth -= 1
-            if depth == 0 and start is not None:
-                groups.append(text[start:index])
-                start = None
-    return tuple(groups)
-
-
-def _strip_lean_comments(source: str) -> str:
-    without_block_comments = re.sub(r"/-.*?-/", "", source, flags=re.DOTALL)
-    return "\n".join(line.split("--", 1)[0] for line in without_block_comments.splitlines())
